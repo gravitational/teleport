@@ -52,7 +52,7 @@ join token from the Teleport Auth Service:
 
 ```code
 # Create a join token for the Teleport Kubernetes Service to authenticate
-$ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
+$ TOKEN=$(tctl nodes add --roles=kube --ttl=1h --format=json | jq -r '.[0]')
 $ echo $TOKEN
 ```
 
@@ -60,7 +60,7 @@ $ echo $TOKEN
 
 <Notice type="tip" >
 
-The Teleport Kubernetes Service version should be the same as the Teleport Cluster version 
+The Teleport Kubernetes Service version should be the same as the Teleport Cluster version
 or up to one major version back. You can set the version override with the override variable, ex: `--set teleportVersionOverride=(=teleport.version=)`.
 
 </Notice>
@@ -85,7 +85,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --set authToken=${TOKEN?} \
   --create-namespace \
   --namespace=teleport-agent \
-  --version (=teleport.version=) 
+  --version (=teleport.version=)
 ```
 
 </TabItem>
@@ -124,8 +124,8 @@ them using `tsh kube login`:
 ```code
 $ tsh kube ls
 
-# Kube Cluster Name Selected 
-# ----------------- -------- 
+# Kube Cluster Name Selected
+# ----------------- --------
 # cookie
 
 # kubeconfig now points to the cookie cluster
