@@ -250,7 +250,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 		exchangers.Slack = slack.NewAuthorizer(c.ID, c.Secret)
 	}
 
-	backendService := local.NewPluginsService(server.GetBackend)
+	backendService := local.NewPluginsService(server.GetBackend())
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:     p.authorizer,
 		BackendService: backendService,
