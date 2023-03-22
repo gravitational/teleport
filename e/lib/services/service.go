@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package teleport
+package services
 
 const (
-	// ComponentSAMLIdP is a SAML identity provider component.
-	//
-	//nolint:revive // Because we want this to be IdP.
-	ComponentSAMLIdP = "idp:saml"
+	// OktaIdentityEvent is generated when the Okta service identity has been
+	// initialized in the backend.
+	OktaIdentityEvent = "OktaIdentity"
 
-	// ComponentOkta is an Okta service component.
-	ComponentOkta = "okta"
+	// OktaReady is generated when the Teleport Okta service is ready to start
+	// accepting connections.
+	OktaReady = "OktaReady"
 )

@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/e/lib/web"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
@@ -32,6 +33,10 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 		if err := extendProxy(ossProcess, webPlugin); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	}
+
+	if cfg.Okta.Enabled {
+		services.InitOkta(ossProcess)
 	}
 
 	// This needs to be the last thing in NewTeleport because it needs to
