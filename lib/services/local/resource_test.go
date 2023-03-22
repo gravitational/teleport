@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 )
 
-func TestCreateResources_ProvisionToken(t *testing.T) {
+func TestCreateResourcesProvisionToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	tt := setupServicesContext(ctx, t)
