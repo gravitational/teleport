@@ -56,6 +56,11 @@ jobs:
       - name: Prepare unit tests
         run: make test-go-prepare
 
+      - name: Prepare examples workspace
+        run: |
+          go work init .
+          go work add examples/teleport-usage
+
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
