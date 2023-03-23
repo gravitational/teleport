@@ -5503,7 +5503,7 @@ func (m *PluginDataFilter) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginDataFilter proto.InternalMessageInfo
 
-// PluginDataUpdateParams encodes paramers for updating a PluginData field.
+// PluginDataUpdateParams encodes parameters for updating a PluginData field.
 type PluginDataUpdateParams struct {
 	// Kind is the kind of resource that the target plugin data
 	// is associated with.
@@ -5882,7 +5882,7 @@ type RoleConditions struct {
 	DatabaseLabels Labels `protobuf:"bytes,11,opt,name=DatabaseLabels,proto3,customtype=Labels" json:"db_labels,omitempty"`
 	// DatabaseNames is a list of database names this role is allowed to connect to.
 	DatabaseNames []string `protobuf:"bytes,12,rep,name=DatabaseNames,proto3" json:"db_names,omitempty"`
-	// DatabaseUsers is a list of databaes users this role is allowed to connect as.
+	// DatabaseUsers is a list of databases users this role is allowed to connect as.
 	DatabaseUsers []string `protobuf:"bytes,13,rep,name=DatabaseUsers,proto3" json:"db_users,omitempty"`
 	// Impersonate specifies what users and roles this role is allowed to impersonate
 	// by issuing certificates or other possible means.
