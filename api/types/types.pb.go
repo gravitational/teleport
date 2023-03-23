@@ -717,7 +717,7 @@ type Rotation struct {
 	// LastRotated specifies the last time of the completed rotation.
 	LastRotated time.Time `protobuf:"bytes,7,opt,name=LastRotated,proto3,stdtime" json:"last_rotated,omitempty"`
 	// Schedule is a rotation schedule - used in
-	// automatic mode to switch beetween phases.
+	// automatic mode to switch between phases.
 	Schedule             RotationSchedule `protobuf:"bytes,8,opt,name=Schedule,proto3" json:"schedule,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}         `json:"-"`
 	XXX_unrecognized     []byte           `json:"-"`
@@ -803,7 +803,7 @@ func (m *RotationSchedule) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RotationSchedule proto.InternalMessageInfo
 
-// ResorceHeader is a shared resource header
+// ResourceHeader is a shared resource header
 // used in cases when only type and name is known
 type ResourceHeader struct {
 	// Kind is a resource kind
@@ -1890,7 +1890,7 @@ var xxx_messageInfo_InstanceSpecV1 proto.InternalMessageInfo
 // synchronization as well as recordkeeping. For example, an auth server intending to trigger an upgrade
 // for a given instance can check its control log for 'upgrade-attempt' entries. If no such entry exists,
 // it can attempt to write an 'upgrade-attempt' entry of its own. If that entry successfully writes without
-// hiting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
+// hitting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
 // attempts while that entry persists.
 //
 // NOTE: Due to resource size and backend throughput limitations, care should be taken to minimize the
@@ -3309,7 +3309,7 @@ var xxx_messageInfo_ProvisionTokenSpecV2GitHub proto.InternalMessageInfo
 // when trying to create rules around which workflows should be allowed to
 // authenticate against a cluster.
 type ProvisionTokenSpecV2GitHub_Rule struct {
-	// Sub also known as Subject is a string that roughly uniquely indentifies
+	// Sub also known as Subject is a string that roughly uniquely identifies
 	// the workload. The format of this varies depending on the type of
 	// github action run.
 	Sub string `protobuf:"bytes,1,opt,name=Sub,proto3" json:"sub,omitempty"`
@@ -4521,7 +4521,7 @@ func (m *Namespace) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Namespace proto.InternalMessageInfo
 
-// NamespaceSpec is a namespace specificateion
+// NamespaceSpec is a namespace specification
 type NamespaceSpec struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -5054,7 +5054,7 @@ type AccessRequestSpecV3 struct {
 	// RequestReason is an optional message explaining the reason for the request.
 	RequestReason string `protobuf:"bytes,6,opt,name=RequestReason,proto3" json:"request_reason,omitempty"`
 	// ResolveReason is an optional message explaining the reason for the resolution
-	// of the request (approval, denail, etc...).
+	// of the request (approval, denial, etc...).
 	ResolveReason string `protobuf:"bytes,7,opt,name=ResolveReason,proto3" json:"resolve_reason,omitempty"`
 	// ResolveAnnotations is a set of arbitrary values received from plugins or other
 	// resolving parties during approval/denial.  Importantly, these annotations are
@@ -5680,7 +5680,7 @@ type RoleOptions struct {
 	// MaxSessions defines the maximum number of
 	// concurrent sessions per connection.
 	MaxSessions int64 `protobuf:"varint,10,opt,name=MaxSessions,proto3" json:"max_sessions,omitempty"`
-	// RequestAccess defines the access request stategy (optional|note|always)
+	// RequestAccess defines the access request strategy (optional|note|always)
 	// where optional is the default.
 	RequestAccess RequestStrategy `protobuf:"bytes,11,opt,name=RequestAccess,proto3,casttype=RequestStrategy" json:"request_access,omitempty"`
 	// RequestPrompt is an optional message which tells users what they aught to
@@ -5812,7 +5812,7 @@ type CertExtension struct {
 	Mode CertExtensionMode `protobuf:"varint,2,opt,name=Mode,proto3,enum=types.CertExtensionMode" json:"mode"`
 	// Name specifies the key to be used in the cert extension.
 	Name string `protobuf:"bytes,3,opt,name=Name,proto3" json:"name"`
-	// Value specifies the valueg to be used in the cert extension.
+	// Value specifies the value to be used in the cert extension.
 	Value                string   `protobuf:"bytes,4,opt,name=Value,proto3" json:"value"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -7290,7 +7290,7 @@ var xxx_messageInfo_TunnelConnectionSpecV2 proto.InternalMessageInfo
 
 // SemaphoreFilter encodes semaphore filtering params.
 // A semaphore filter matches a semaphore if all nonzero fields
-// match the corresponding semaphore fileds (e.g. a filter which
+// match the corresponding semaphore fields (e.g. a filter which
 // specifies only `kind=foo` would match all semaphores of
 // kind `foo`).
 type SemaphoreFilter struct {
@@ -7347,7 +7347,7 @@ type AcquireSemaphoreRequest struct {
 	MaxLeases int64 `protobuf:"varint,3,opt,name=MaxLeases,proto3" json:"max_resources"`
 	// Expires is the time at which this lease expires.
 	Expires time.Time `protobuf:"bytes,4,opt,name=Expires,proto3,stdtime" json:"expires"`
-	// Holder identifies the entitiy holding the lease.
+	// Holder identifies the entity holding the lease.
 	Holder               string   `protobuf:"bytes,5,opt,name=Holder,proto3" json:"holder"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -8920,12 +8920,12 @@ type OIDCAuthRequest struct {
 	// CheckUser tells validator if it should expect and check user
 	CheckUser bool `protobuf:"varint,3,opt,name=CheckUser,proto3" json:"check_user"`
 	// StateToken is generated by service and is used to validate
-	// reuqest coming from
+	// request coming from
 	StateToken string `protobuf:"bytes,4,opt,name=StateToken,proto3" json:"state_token"`
 	// CSRFToken is associated with user web session token
 	CSRFToken string `protobuf:"bytes,5,opt,name=CSRFToken,proto3" json:"csrf_token"`
 	// RedirectURL will be used to route the user back to a
-	// Teleport Proxy after the oidc login attempt in the brower.
+	// Teleport Proxy after the oidc login attempt in the browser.
 	RedirectURL string `protobuf:"bytes,6,opt,name=RedirectURL,proto3" json:"redirect_url"`
 	// PublicKey is an optional public key, users want these
 	// keys to be signed by auth servers user CA in case
@@ -10220,7 +10220,7 @@ func (m *LockTarget) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_LockTarget proto.InternalMessageInfo
 
-// AddressCondition represents a set of addresses. Presently the addresses are specfied
+// AddressCondition represents a set of addresses. Presently the addresses are specified
 // exclusively in terms of IPv4/IPv6 ranges.
 type AddressCondition struct {
 	// CIDR is IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24",
@@ -11350,7 +11350,7 @@ type ConnectionDiagnosticSpecV1 struct {
 	// Success describes whether the connection was a success or a failure.
 	Success bool `protobuf:"varint,1,opt,name=Success,proto3" json:"success"`
 	// Message may contain some user friendly message to let the user know whether it was
-	// successfull or a failure.
+	// successful or a failure.
 	Message string `protobuf:"bytes,2,opt,name=Message,proto3" json:"message"`
 	// Traces contain a list of checkpoints defined by
 	Traces               []*ConnectionDiagnosticTrace `protobuf:"bytes,3,rep,name=Traces,proto3" json:"traces"`
