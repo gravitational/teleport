@@ -18,17 +18,20 @@ package authz
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -424,6 +427,104 @@ func TestContext_GetAccessState(t *testing.T) {
 			if diff := cmp.Diff(test.want, got); diff != "" {
 				t.Errorf("GetAccessState mismatch (-want +got)\n%s", diff)
 			}
+		})
+	}
+}
+
+func TestAuthorizeWithVerbs(t *testing.T) {
+	backend, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	accessService := local.NewAccessService(backend)
+
+	role, err := types.NewRole("test", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindUser},
+					Verbs:     []string{types.ActionRead},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	err = accessService.CreateRole(context.Background(), role)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		delegate     Authorizer
+		kind         string
+		verbs        []string
+		errAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "regular auth",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return &Context{}, nil
+			}),
+			errAssertion: require.NoError,
+		},
+		{
+			name: "regular auth with verbs",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
+					Roles: []string{"test"},
+				}, "test-cluster", accessService)
+				require.NoError(t, err)
+				return &Context{
+					Checker: accessChecker,
+				}, nil
+			}),
+			kind:         types.KindUser,
+			verbs:        []string{types.VerbRead},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "connection problem",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, trace.ConnectionProblem(errors.New("err msg"), "err msg")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsConnectionProblem(err))
+				require.Equal(t, "failed to connect to the database", err.Error())
+			},
+		},
+		{
+			name: "not found",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, trace.NotFound("err msg")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+				require.Equal(t, "access denied\n\taccess denied\n\t\terr msg", trace.UserMessage(err))
+			},
+		},
+		{
+			name: "access denied",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, trace.AccessDenied("access denied")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("access denied"))
+			},
+		},
+		{
+			name: "private key policy error",
+			delegate: AuthorizerFunc(func(ctx context.Context) (*Context, error) {
+				return nil, keys.NewPrivateKeyPolicyError("error")
+			}),
+			errAssertion: func(t require.TestingT, err error, _ ...interface{}) {
+				require.ErrorIs(t, err, keys.NewPrivateKeyPolicyError("error"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			log := logrus.New()
+			_, err = AuthorizeWithVerbs(ctx, log, test.delegate, true, test.kind, test.verbs...)
+			test.errAssertion(t, ConvertAuthorizerError(ctx, log, err))
 		})
 	}
 }

@@ -15,24 +15,20 @@
  */
 
 import {
-  Application,
   AuthSettings,
   AccessRequest,
   Cluster,
   CreateAccessRequestParams,
   CreateGatewayParams,
-  Database,
   Gateway,
   GetDatabasesResponse,
   GetKubesResponse,
   GetRequestableRolesParams,
   GetServersResponse,
-  Kube,
   LoginLocalParams,
   LoginPasswordlessParams,
   LoginSsoParams,
   ReviewAccessRequestParams,
-  Server,
   ServerSideParams,
   TshAbortController,
   TshAbortSignal,
@@ -43,13 +39,9 @@ import {
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  listApps: (clusterUri: string) => Promise<Application[]>;
-  getAllKubes: (clusterUri: string) => Promise<Kube[]>;
   getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getAllDatabases: (clusterUri: string) => Promise<Database[]>;
   getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
-  getAllServers: (clusterUri: string) => Promise<Server[]>;
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
@@ -72,7 +64,6 @@ export class MockTshClient implements TshClient {
   createAccessRequest: (
     params: CreateAccessRequestParams
   ) => Promise<AccessRequest>;
-  listServers: (clusterUri: string) => Promise<Server[]>;
   createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
 

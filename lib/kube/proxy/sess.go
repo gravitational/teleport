@@ -580,7 +580,7 @@ func (s *session) launch() error {
 	}()
 
 	if err = s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-		s.log.Warn("Failed to set tracker state to running")
+		s.log.WithError(err).Warn("Failed to set tracker state to running")
 	}
 
 	var executor remotecommand.Executor
@@ -683,12 +683,12 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 		ClusterName:  s.forwarder.cfg.ClusterName,
 	})
-
-	s.recorder = recorder
-	s.emitter = recorder
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.recorder = recorder
+	s.emitter = recorder
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 

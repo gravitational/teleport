@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { WebauthnAssertionResponse } from '../auth';
+
 export type MfaDevice = {
   id: string;
   name: string;
@@ -38,3 +40,8 @@ export type DeviceType = 'totp' | 'webauthn';
 
 // DeviceUsage is the intended usage of the device (MFA, Passwordless, etc).
 export type DeviceUsage = 'passwordless' | 'mfa';
+
+// MfaAuthnResponse is a response to a MFA device challenge.
+export type MfaAuthnResponse =
+  | { totp_code: string }
+  | { webauthn_response: WebauthnAssertionResponse };

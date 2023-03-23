@@ -32,7 +32,7 @@ test('stored and default values are combined', () => {
     platform: 'darwin',
   });
 
-  expect(configService.getStoredConfigErrors()).toBeUndefined();
+  expect(configService.getConfigError()).toBeUndefined();
 
   const usageReportingEnabled = configService.get('usageReporting.enabled');
   expect(usageReportingEnabled.value).toBe(true);
@@ -52,15 +52,18 @@ test('in case of invalid value a default one is returned', () => {
     platform: 'darwin',
   });
 
-  expect(configService.getStoredConfigErrors()).toStrictEqual([
-    {
-      code: 'invalid_type',
-      expected: 'boolean',
-      received: 'string',
-      message: 'Expected boolean, received string',
-      path: ['usageReporting.enabled'],
-    },
-  ]);
+  expect(configService.getConfigError()).toStrictEqual({
+    source: 'validation',
+    errors: [
+      {
+        code: 'invalid_type',
+        expected: 'boolean',
+        received: 'string',
+        message: 'Expected boolean, received string',
+        path: ['usageReporting.enabled'],
+      },
+    ],
+  });
 
   const usageReportingEnabled = configService.get('usageReporting.enabled');
   expect(usageReportingEnabled.value).toBe(false);
@@ -69,6 +72,23 @@ test('in case of invalid value a default one is returned', () => {
   const terminalFontSize = configService.get('terminal.fontSize');
   expect(terminalFontSize.value).toBe(15);
   expect(terminalFontSize.metadata.isStored).toBe(false);
+});
+
+test('if config file failed to load correctly the error is returned', () => {
+  const configFile = createMockFileStorage();
+  const error = new Error('Failed to read');
+  jest.spyOn(configFile, 'getFileLoadingError').mockReturnValue(error);
+
+  const configService = createConfigService({
+    configFile,
+    jsonSchemaFile: createMockFileStorage(),
+    platform: 'darwin',
+  });
+
+  expect(configService.getConfigError()).toStrictEqual({
+    source: 'file-loading',
+    error,
+  });
 });
 
 test('calling set updated the value in store', () => {

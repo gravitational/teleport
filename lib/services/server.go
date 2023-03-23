@@ -113,9 +113,7 @@ func compareServers(a, b types.Server) int {
 	if !cmp.Equal(a.GetApps(), b.GetApps()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
-		return Different
-	}
+
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}

@@ -25,12 +25,15 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -84,6 +87,17 @@ type Authorizer interface {
 	Authorize(ctx context.Context) (*Context, error)
 }
 
+// The AuthorizerFunc type is an adapter to allow the use of
+// ordinary functions as an Authorizer. If f is a function
+// with the appropriate signature, AuthorizerFunc(f) is a
+// Authorizer that calls f.
+type AuthorizerFunc func(ctx context.Context) (*Context, error)
+
+// Authorize calls f(ctx).
+func (f AuthorizerFunc) Authorize(ctx context.Context) (*Context, error) {
+	return f(ctx)
+}
+
 // AuthorizerAccessPoint is the access point contract required by an Authorizer
 type AuthorizerAccessPoint interface {
 	// GetAuthPreference returns the cluster authentication configuration.
@@ -96,10 +110,10 @@ type AuthorizerAccessPoint interface {
 	GetUser(name string, withSecrets bool) (types.User, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -406,7 +420,6 @@ func (a *authorizer) authorizeRemoteBuiltinRole(r RemoteBuiltinRole) (*Context, 
 					types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 					types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 					types.NewRule(types.KindClusterAuthPreference, services.RO()),
-					types.NewRule(types.KindKubeService, services.RO()),
 					types.NewRule(types.KindKubeServer, services.RO()),
 					types.NewRule(types.KindInstaller, services.RO()),
 					types.NewRule(types.KindUIConfig, services.RO()),
@@ -495,7 +508,6 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindAppServer, services.RO()),
 				types.NewRule(types.KindWebSession, services.RW()),
 				types.NewRule(types.KindWebToken, services.RW()),
-				types.NewRule(types.KindKubeService, services.RW()),
 				types.NewRule(types.KindKubeServer, services.RW()),
 				types.NewRule(types.KindDatabaseServer, services.RO()),
 				types.NewRule(types.KindLock, services.RO()),
@@ -666,17 +678,11 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 				},
 			})
 	case types.RoleProxy:
-		// if in recording mode, return a different set of permissions than regular
-		// mode. recording proxy needs to be able to generate host certificates.
-		if services.IsRecordAtProxy(recConfig.GetMode()) {
-			return services.RoleFromSpec(
-				role.String(),
-				roleSpecForProxyWithRecordAtProxy(clusterName),
-			)
-		}
+		// to support connecting to Agentless nodes, proxy needs to be
+		// able to generate host certificates.
 		return services.RoleFromSpec(
 			role.String(),
-			roleSpecForProxy(clusterName),
+			roleSpecForProxyWithRecordAtProxy(clusterName),
 		)
 	case types.RoleSignup:
 		return services.RoleFromSpec(
@@ -730,7 +736,6 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces:       []string{types.Wildcard},
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
-						types.NewRule(types.KindKubeService, services.RW()),
 						types.NewRule(types.KindKubeServer, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
@@ -790,6 +795,22 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					// wildcard any cluster available.
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+				},
+			})
+	case types.RoleOkta:
+		return services.RoleFromSpec(
+			role.String(),
+			types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces: []string{types.Wildcard},
+					Rules: []types.Rule{
+						types.NewRule(types.KindEvent, services.RW()),
+						types.NewRule(types.KindAccessRequest, services.RO()),
+						types.NewRule(types.KindUser, services.RO()),
+						types.NewRule(types.KindUserGroup, services.RW()),
+						types.NewRule(types.KindOktaImportRule, services.RO()),
+						types.NewRule(types.KindOktaAssignment, services.RW()),
+					},
 				},
 			})
 	}
@@ -873,20 +894,19 @@ func ContextForLocalUser(u LocalUser, accessPoint AuthorizerAccessPoint, cluster
 	}, nil
 }
 
-// TODO(mdwn): unexport this once enterprise has been moved.
-type ContextKey string
+type contextKey string
 
 const (
 	// contextUserCertificate is the X.509 certificate used by the contextUser to
 	// establish the mTLS connection.
 	// Holds a *x509.Certificate.
-	contextUserCertificate ContextKey = "teleport-user-cert"
+	contextUserCertificate contextKey = "teleport-user-cert"
 
 	// contextUser is a user set in the context of the request
-	contextUser ContextKey = "teleport-user"
+	contextUser contextKey = "teleport-user"
 
 	// contextClientAddr is a client address set in the context of the request
-	contextClientAddr ContextKey = "client-addr"
+	contextClientAddr contextKey = "client-addr"
 )
 
 // WithDelegator alias for backwards compatibility
@@ -958,6 +978,75 @@ func ClientUserMetadataWithUser(ctx context.Context, user string) apievents.User
 	meta := ClientUserMetadata(ctx)
 	meta.User = user
 	return meta
+}
+
+// ConvertAuthorizerError will take an authorizer error and convert it into an error easily
+// handled by gRPC services.
+func ConvertAuthorizerError(ctx context.Context, log logrus.FieldLogger, err error) error {
+	switch {
+	case err == nil:
+		return nil
+	// propagate connection problem error so we can differentiate
+	// between connection failed and access denied
+	case trace.IsConnectionProblem(err):
+		return trace.ConnectionProblem(err, "failed to connect to the database")
+	case trace.IsNotFound(err):
+		// user not found, wrap error with access denied
+		return trace.Wrap(err, "access denied")
+	case trace.IsAccessDenied(err):
+		// don't print stack trace, just log the warning
+		log.Warn(err)
+	case keys.IsPrivateKeyPolicyError(err):
+		// private key policy errors should be returned to the client
+		// unaltered so that they know to reauthenticate with a valid key.
+		return trace.Unwrap(err)
+	default:
+		log.Warn(trace.DebugReport(err))
+	}
+	return trace.AccessDenied("access denied")
+}
+
+// AuthorizeResourceWithVerbs will ensure that the user has access to the given verbs for the given kind.
+func AuthorizeResourceWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, resource types.Resource, verbs ...string) (*Context, error) {
+	authCtx, err := authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, ConvertAuthorizerError(ctx, log, err)
+	}
+
+	ruleCtx := &services.Context{
+		User:     authCtx.User,
+		Resource: resource,
+	}
+
+	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, resource.GetKind(), verbs...)
+}
+
+// AuthorizeWithVerbs will ensure that the user has access to the given verbs for the given kind.
+func AuthorizeWithVerbs(ctx context.Context, log logrus.FieldLogger, authorizer Authorizer, quiet bool, kind string, verbs ...string) (*Context, error) {
+	authCtx, err := authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, ConvertAuthorizerError(ctx, log, err)
+	}
+
+	ruleCtx := &services.Context{
+		User: authCtx.User,
+	}
+
+	return authorizeContextWithVerbs(ctx, log, authCtx, quiet, ruleCtx, kind, verbs...)
+}
+
+// authorizeContextWithVerbs will ensure that the user has access to the given verbs for the given services.context.
+func authorizeContextWithVerbs(ctx context.Context, log logrus.FieldLogger, authCtx *Context, quiet bool, ruleCtx *services.Context, kind string, verbs ...string) (*Context, error) {
+	errs := make([]error, len(verbs))
+	for i, verb := range verbs {
+		errs[i] = authCtx.Checker.CheckAccessToRule(ruleCtx, defaults.Namespace, kind, verb, quiet)
+	}
+
+	// Convert generic aggregate error to AccessDenied (auth_with_roles also does this).
+	if err := trace.NewAggregate(errs...); err != nil {
+		return nil, trace.AccessDenied(err.Error())
+	}
+	return authCtx, nil
 }
 
 // LocalUser is a local user

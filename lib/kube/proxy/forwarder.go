@@ -68,10 +68,10 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/authz"
@@ -84,6 +84,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -155,7 +156,7 @@ type ForwarderConfig struct {
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default
 	// impersonation permissions check, for use in testing
-	CheckImpersonationPermissions ImpersonationPermissionsChecker
+	CheckImpersonationPermissions servicecfg.ImpersonationPermissionsChecker
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
@@ -488,22 +489,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	userContext, err := f.cfg.Authz.Authorize(ctx)
 	if err != nil {
-		switch {
-		// propagate connection problem error so we can differentiate
-		// between connection failed and access denied
-		case trace.IsConnectionProblem(err):
-			return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-		case trace.IsAccessDenied(err):
-			// don't print stack trace, just log the warning
-			f.log.Warn(err)
-		case keys.IsPrivateKeyPolicyError(err):
-			// private key policy errors should be returned to the client
-			// unaltered so that they know to reauthenticate with a valid key.
-			return nil, trace.Unwrap(err)
-		default:
-			f.log.Warn(trace.DebugReport(err))
-		}
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, authz.ConvertAuthorizerError(ctx, f.log, err)
 	}
 	peers := req.TLS.PeerCertificates
 	if len(peers) > 1 {
@@ -2105,10 +2091,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 			return nil, trace.Wrap(err)
 		}
 	}
-	rt = otelhttp.NewTransport(
-		rt,
-		otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-	)
+	rt = tracehttp.NewTransport(rt)
 
 	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
@@ -2131,7 +2114,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		}
 	}
 	client := &http.Client{
-		Transport: otelhttp.NewTransport(rt, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+		Transport: tracehttp.NewTransport(rt),
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
@@ -2399,10 +2382,7 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 		}
 	}
 
-	rt = otelhttp.NewTransport(
-		rt,
-		otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-	)
+	rt = tracehttp.NewTransport(rt)
 
 	forwarder, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),

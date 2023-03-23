@@ -308,6 +308,10 @@ const (
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
 	MaxWatcherBackoff = 90 * time.Second
+
+	// MaxLongWatcherBackoff is the maximum backoff used for watchers that incur high cluster-level
+	// load (non-control-plane caches being the primary example).
+	MaxLongWatcherBackoff = 256 * time.Second
 )
 
 const (

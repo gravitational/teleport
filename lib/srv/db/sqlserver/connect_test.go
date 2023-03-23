@@ -191,7 +191,7 @@ func (m *mockAuth) GenerateWindowsDesktopCert(ctx context.Context, request *prot
 	return nil, nil
 }
 
-func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return nil, nil
 }
 

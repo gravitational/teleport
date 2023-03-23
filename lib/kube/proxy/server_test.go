@@ -268,30 +268,6 @@ func TestHeartbeat(t *testing.T) {
 		wantEmpty bool
 	}{
 		{
-			// DELETE IN 13.0.0
-			name: "List KubeServices (legacy)",
-			args: args{
-				kubeClusterGetter: func(authClient auth.ClientI) []string {
-					rsp, err := authClient.ListResources(testCtx.Context, proto.ListResourcesRequest{
-						ResourceType: types.KindKubeService,
-						Limit:        10,
-					})
-					require.NoError(t, err)
-					clusters := []string{}
-					for _, resource := range rsp.Resources {
-						srv, ok := resource.(types.Server)
-						require.Truef(t, ok, "type is %T; expected types.Server", srv)
-						for _, kubeCluster := range srv.GetKubernetesClusters() {
-							clusters = append(clusters, kubeCluster.Name)
-						}
-					}
-					sort.Strings(clusters)
-					return clusters
-				},
-			},
-			wantEmpty: true,
-		},
-		{
 			name: "List KubeServers",
 			args: args{
 				kubeClusterGetter: func(authClient auth.ClientI) []string {

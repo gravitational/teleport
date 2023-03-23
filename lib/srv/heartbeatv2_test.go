@@ -394,7 +394,12 @@ func TestHeartbeatV2NoFallbackChecked(t *testing.T) {
 
 	stream.Close()
 
-	// verify that closed stream means errs resume
+	// verify that closure causes errors to resume
+	awaitEvents(t, hb.testEvents,
+		expect(hbv2NoFallback, hbv2OnHeartbeatErr),
+	)
+
+	// verify that closure means OK events have stopped
 	awaitEvents(t, hb.testEvents,
 		expect(hbv2NoFallback, hbv2OnHeartbeatErr),
 		deny(hbv2OnHeartbeatOk),

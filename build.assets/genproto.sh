@@ -27,6 +27,7 @@ main() {
     --path=api/proto/teleport/plugins/ \
     --path=api/proto/teleport/samlidp/ \
     --path=api/proto/teleport/transport/ \
+    --path=api/proto/teleport/trust/ \
     --path=proto/teleport/lib/multiplexer/ \
     --path=proto/teleport/lib/teleterm/
 

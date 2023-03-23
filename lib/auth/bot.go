@@ -164,11 +164,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		return nil, trace.Wrap(err)
 	}
 
+	tokenTTL := time.Duration(0)
+	if exp := provisionToken.Expiry(); !exp.IsZero() {
+		tokenTTL = time.Until(exp)
+	}
+
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),
 		UserName:   resourceName,
 		RoleName:   resourceName,
-		TokenTTL:   proto.Duration(time.Until(*provisionToken.GetMetadata().Expires)),
+		TokenTTL:   proto.Duration(tokenTTL),
 		JoinMethod: provisionToken.GetJoinMethod(),
 	}, nil
 }
@@ -273,6 +278,8 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 		case types.JoinMethodToken,
 			types.JoinMethodIAM,
 			types.JoinMethodGitHub,
+			types.JoinMethodGitLab,
+			types.JoinMethodAzure,
 			types.JoinMethodCircleCI:
 		default:
 			return nil, trace.BadParameter(
@@ -281,6 +288,8 @@ func (s *Server) checkOrCreateBotToken(ctx context.Context, req *proto.CreateBot
 					types.JoinMethodToken,
 					types.JoinMethodIAM,
 					types.JoinMethodGitHub,
+					types.JoinMethodGitLab,
+					types.JoinMethodAzure,
 					types.JoinMethodCircleCI,
 				})
 		}

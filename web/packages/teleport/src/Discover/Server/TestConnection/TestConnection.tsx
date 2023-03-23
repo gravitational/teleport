@@ -19,6 +19,8 @@ import styled from 'styled-components';
 import { ButtonSecondary, Text, Box, LabelInput } from 'design';
 import Select from 'shared/components/Select';
 
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
+
 import {
   HeaderWithBackBtn,
   ActionButtons,
@@ -46,6 +48,8 @@ export function TestConnection({
   nextStep,
   prevStep,
   canTestConnection,
+  showMfaDialog,
+  cancelMfaDialog,
 }: State) {
   const [usernameOpts] = useState(() =>
     logins.map(l => ({ value: l, label: l }))
@@ -56,6 +60,12 @@ export function TestConnection({
 
   return (
     <Box>
+      {showMfaDialog && (
+        <ReAuthenticate
+          onMfaResponse={res => testConnection(selectedOpt.value, res)}
+          onClose={cancelMfaDialog}
+        />
+      )}
       <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the server you

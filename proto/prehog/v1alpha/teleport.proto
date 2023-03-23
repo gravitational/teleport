@@ -26,6 +26,8 @@ message UserLoginEvent {
   string user_name = 1;
   // local/github/saml/oidc
   string connector_type = 2;
+  // The anonymized device ID, for logins where device trust is enabled.
+  string device_id = 3;
 }
 
 message SSOCreateEvent {
@@ -309,6 +311,20 @@ message SFTPEvent {
   int32 action = 2;
 }
 
+message AgentMetadataEvent {
+  string version = 1;
+  string host_id = 2;
+  repeated string services = 3;
+  string os = 4;
+  string os_version = 5;
+  string host_architecture = 6;
+  string glibc_version = 7;
+  repeated string install_methods = 8;
+  string container_runtime = 9;
+  string container_orchestrator = 10;
+  string cloud_environment = 11;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -365,16 +381,24 @@ message SubmitEventRequest {
 
     KubeRequestEvent kube_request = 36;
     SFTPEvent sftp = 37;
+    AgentMetadataEvent agent_metadata_event = 38;
   }
+
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
 }
 message SubmitEventResponse {}
+
+message SubmitEventsRequest {
+  repeated SubmitEventRequest events = 1;
+}
+message SubmitEventsResponse {}
 
 message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
   rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+  rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }

@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -363,7 +364,7 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	appCookies := p.CreateAppSession(t, "dumper-root.example.com", "example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := p.MakeRequest(appCookies, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookies, http.MethodGet, "/", servicecfg.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)
@@ -400,7 +401,7 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 	appCookie := p.CreateAppSession(t, "dumper-leaf.example.com", "leaf.example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := p.MakeRequest(appCookie, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookie, http.MethodGet, "/", servicecfg.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)

@@ -59,7 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -1263,8 +1263,8 @@ func testKubeTransportProtocol(t *testing.T, suite *KubeSuite) {
 }
 
 // teleKubeConfig sets up teleport with kubernetes turned on
-func (s *KubeSuite) teleKubeConfig(hostname string) *service.Config {
-	tconf := service.MakeDefaultConfig()
+func (s *KubeSuite) teleKubeConfig(hostname string) *servicecfg.Config {
+	tconf := servicecfg.MakeDefaultConfig()
 	tconf.Console = nil
 	tconf.Log = s.log
 	tconf.SSH.Enabled = true

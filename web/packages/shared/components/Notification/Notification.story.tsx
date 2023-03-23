@@ -257,6 +257,21 @@ export const Notifications = () => {
           isAutoRemovable={false}
         />
       </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content:
+              'Unbreakable text. /Users/test/Library/ApplicationSupport/Electron/configuration.json',
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
     </div>
   );
 };

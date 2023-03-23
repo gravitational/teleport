@@ -42,6 +42,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -51,6 +52,7 @@ import (
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
@@ -128,6 +130,15 @@ func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) 
 	}
 
 	return tracing.NewClient(clt.GetConnection()), nil
+}
+
+// NewOktaClient creates a new Okta client for managing Okta resources.
+func NewOktaClient(ctx context.Context, cfg Config) (*okta.Client, error) {
+	clt, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return okta.NewClient(oktapb.NewOktaServiceClient(clt.GetConnection())), nil
 }
 
 // newClient constructs a new client.
@@ -317,7 +328,7 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -330,7 +341,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout)
+	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -343,7 +354,7 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithTLSConfig(params.tlsConfig))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
@@ -530,7 +541,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.KeepAliveCount = defaults.KeepAliveCountMax
 	}
 	if c.DialTimeout == 0 {
-		c.DialTimeout = defaults.DefaultDialTimeout
+		c.DialTimeout = defaults.DefaultIOTimeout
 	}
 	if c.CircuitBreakerConfig.Trip == nil || c.CircuitBreakerConfig.IsSuccessful == nil {
 		c.CircuitBreakerConfig = breaker.DefaultBreakerConfig(clockwork.NewRealClock())
@@ -570,9 +581,7 @@ func (c *Client) GetConnection() *grpc.ClientConn {
 // Close closes the Client connection to the auth server.
 func (c *Client) Close() error {
 	if c.setClosed() && c.conn != nil {
-		err := c.conn.Close()
-		c.conn = nil
-		return trace.Wrap(err)
+		return trace.Wrap(c.conn.Close())
 	}
 	return nil
 }
@@ -620,6 +629,12 @@ func (c *Client) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // return "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(c.conn)
+}
+
+// TrustClient returns an unadorned Trust client, using the underlying
+// Auth gRPC connection.
+func (c *Client) TrustClient() trustpb.TrustServiceClient {
+	return trustpb.NewTrustServiceClient(c.conn)
 }
 
 // Ping gets basic info about the auth server.
@@ -758,6 +773,16 @@ func (c *Client) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 	return certs, nil
 }
 
+// GenerateOpenSSHCert signs a SSH certificate that can be used
+// to connect to Agentless nodes.
+func (c *Client) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	cert, err := c.grpc.GenerateOpenSSHCert(ctx, req)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return cert, nil
+}
+
 // UnstableAssertSystemRole is not a stable part of the public API.  Used by older
 // instances to prove that they hold a given system role.
 //
@@ -852,31 +877,9 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 		}
 
 		if err != nil {
-			err := trail.FromGRPC(err)
-			if trace.IsNotImplemented(err) {
-				return c.getAccessRequestsLegacy(ctx, filter)
-			}
-
-			return nil, err
+			return nil, trail.FromGRPC(err)
 		}
 		reqs = append(reqs, req)
-	}
-
-	return reqs, nil
-}
-
-// getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
-//
-// DELETE IN: 11.0.0. Used for compatibility with old auth servers that don't support the GetAccessRequestsV2 RPC.
-func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	reqs := make([]types.AccessRequest, len(requests.AccessRequests))
-	for i, request := range requests.AccessRequests {
-		reqs[i] = request
 	}
 
 	return reqs, nil
@@ -999,46 +1002,12 @@ func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, 
 		ResourceType: types.KindKubeServer,
 	})
 	if err != nil {
-		// Underlying ListResources for kube server was not available, use fallback KubeService.
-		// ListResources returns NotImplemented if ResourceType is unknown.
-		// DELETE IN 13.0.0
-		if trace.IsNotImplemented(err) {
-			return c.getKubeServersFallback(ctx)
-		}
-
 		return nil, trail.FromGRPC(err)
 	}
 
 	servers, err := types.ResourcesWithLabels(resources).AsKubeServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// List KubeServices resources and append them into the List.
-	kubeServers, err := c.getKubeServersFallback(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return append(servers, kubeServers...), nil
-}
-
-// getKubeServersFallback previous implementation of `GetKubeServers` function
-// using `GetKubeServices` call.
-// DELETE IN 13.0.0
-func (c *Client) getKubeServersFallback(ctx context.Context) ([]types.KubeServer, error) {
-	resources, err := c.GetKubeServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers := make([]types.KubeServer, 0, len(resources))
-	for _, server := range resources {
-		kubeServersV3, err := types.NewKubeServersV3FromServer(server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		servers = append(servers, kubeServersV3...)
 	}
 
 	return servers, nil
@@ -1050,40 +1019,13 @@ func (c *Client) DeleteKubernetesServer(ctx context.Context, hostID, name string
 		HostID: hostID,
 		Name:   name,
 	})
-	if trace.IsNotImplemented(err) {
-		return c.deleteKubeServerFallback(ctx, name)
-	}
 	return trail.FromGRPC(err)
-}
-
-// deleteKubeServerFallback deletes a named Kube Service using legacy API call
-// `DeleteKubeService`.
-//
-// DELETE IN 13.0.0
-func (c *Client) deleteKubeServerFallback(ctx context.Context, name string) error {
-	err := c.DeleteKubeService(ctx, name)
-	return trace.Wrap(err)
 }
 
 // DeleteAllKubernetesServers deletes all registered kubernetes servers.
 func (c *Client) DeleteAllKubernetesServers(ctx context.Context) error {
 	_, err := c.grpc.DeleteAllKubernetesServers(ctx, &proto.DeleteAllKubernetesServersRequest{}, c.callOpts...)
-	errKubeServers := trail.FromGRPC(err)
-	// if not implemented we shouldn't return the error to the caller and we must ignore it.
-	if trace.IsNotImplemented(errKubeServers) {
-		errKubeServers = nil
-	}
-	errFallback := c.deleteAllKubernetesServersFallback(ctx)
-	return trace.NewAggregate(errKubeServers, errFallback)
-}
-
-// deleteAllKubeServersFallback deletes all kubernetes servers using legacy API call
-// `DeleteAllKubeServices`.
-//
-// DELETE IN 13.0.0
-func (c *Client) deleteAllKubernetesServersFallback(ctx context.Context) error {
-	err := c.DeleteAllKubeServices(ctx)
-	return trace.Wrap(err)
+	return trail.FromGRPC(err)
 }
 
 // UpsertKubernetesServer is used by kubernetes services to report their presence
@@ -1098,55 +1040,6 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 		return nil, trail.FromGRPC(err)
 	}
 	return keepAlive, nil
-}
-
-// UpsertKubeService is used by kubernetes services to report their presence
-// to other auth servers in form of heartbeat expiring after ttl period.
-// DELETE IN 13.0.0
-func (c *Client) UpsertKubeService(ctx context.Context, s types.Server) error {
-	server, ok := s.(*types.ServerV2)
-	if !ok {
-		return trace.BadParameter("invalid type %T, expected *types.ServerV2", server)
-	}
-	_, err := c.grpc.UpsertKubeService(ctx, &proto.UpsertKubeServiceRequest{
-		Server: server,
-	}, c.callOpts...)
-	return trace.Wrap(err)
-}
-
-// UpsertKubeServiceV2 is used by kubernetes services to report their presence
-// to other auth servers in form of heartbeat expiring after ttl period.
-// DELETE IN 13.0.0
-func (c *Client) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	server, ok := s.(*types.ServerV2)
-	if !ok {
-		return nil, trace.BadParameter("invalid type %T, expected *types.ServerV2", server)
-	}
-	keepAlive, err := c.grpc.UpsertKubeServiceV2(ctx, &proto.UpsertKubeServiceRequest{Server: server}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return keepAlive, nil
-}
-
-// GetKubeServices returns the list of kubernetes services registered in the
-// cluster.
-// DELETE IN 13.0.0
-func (c *Client) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
-		ResourceType: types.KindKubeService,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
 }
 
 // GetApplicationServers returns all registered application servers.
@@ -1458,22 +1351,6 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 	}
 
 	return resp.GetToken(), nil
-}
-
-// DeleteKubeService deletes a named kubernetes service.
-// DELETE IN 13.0.0
-func (c *Client) DeleteKubeService(ctx context.Context, name string) error {
-	_, err := c.grpc.DeleteKubeService(ctx, &proto.DeleteKubeServiceRequest{
-		Name: name,
-	}, c.callOpts...)
-	return trace.Wrap(err)
-}
-
-// DeleteAllKubeServices deletes all registered kubernetes services.
-// DELETE IN 13.0.0
-func (c *Client) DeleteAllKubeServices(ctx context.Context) error {
-	_, err := c.grpc.DeleteAllKubeServices(ctx, &proto.DeleteAllKubeServicesRequest{}, c.callOpts...)
-	return trace.Wrap(err)
 }
 
 // GetDatabaseServers returns all registered database proxy servers.
@@ -1793,7 +1670,7 @@ func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAML
 // GetGithubConnector returns a Github connector by name.
 func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
 	if name == "" {
-		return nil, trace.BadParameter("cannot get Github Connector, missing name")
+		return nil, trace.BadParameter("cannot get GitHub Connector, missing name")
 	}
 	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
 	resp, err := c.grpc.GetGithubConnector(ctx, req, c.callOpts...)
@@ -1830,7 +1707,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.Gith
 // DeleteGithubConnector deletes a Github connector by name.
 func (c *Client) DeleteGithubConnector(ctx context.Context, name string) error {
 	if name == "" {
-		return trace.BadParameter("cannot delete Github Connector, missing name")
+		return trace.BadParameter("cannot delete GitHub Connector, missing name")
 	}
 	_, err := c.grpc.DeleteGithubConnector(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -2859,8 +2736,6 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 			resources[i] = respResource.GetAppServer()
 		case types.KindNode:
 			resources[i] = respResource.GetNode()
-		case types.KindKubeService:
-			resources[i] = respResource.GetKubeService()
 		case types.KindWindowsDesktop:
 			resources[i] = respResource.GetWindowsDesktop()
 		case types.KindWindowsDesktopService:
@@ -3397,10 +3272,79 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 	return trail.FromGRPC(err)
 }
 
-// OktaClient returns an Okta client.
-// Clients connecting older Teleport versions still get an okta client when
-// calling this method, but all RPCs will return "not implemented" errors (as per
-// the default gRPC behavior).
-func (c *Client) OktaClient() oktapb.OktaServiceClient {
-	return oktapb.NewOktaServiceClient(c.conn)
+// GetCertAuthority retrieves a CA by type and domain.
+func (c *Client) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	ca, err := c.TrustClient().GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+		Type:       string(id.Type),
+		Domain:     id.DomainName,
+		IncludeKey: loadKeys,
+	})
+
+	return ca, trail.FromGRPC(err)
+}
+
+// GetCertAuthorities retrieves CAs by type.
+func (c *Client) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	resp, err := c.TrustClient().GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{
+		Type:       string(caType),
+		IncludeKey: loadKeys,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
+	for _, ca := range resp.CertAuthoritiesV2 {
+		cas = append(cas, ca)
+	}
+
+	return cas, nil
+}
+
+// DeleteCertAuthority removes a CA matching the type and domain.
+func (c *Client) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
+	_, err := c.TrustClient().DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{
+		Type:   string(id.Type),
+		Domain: id.DomainName,
+	})
+
+	return trail.FromGRPC(err)
+}
+
+// UpsertCertAuthority creates or updates the provided cert authority.
+func (c *Client) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) (types.CertAuthority, error) {
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	out, err := c.TrustClient().UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{
+		CertAuthority: cav2,
+	})
+
+	return out, trail.FromGRPC(err)
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (c *Client) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
+	_, err := c.grpc.UpdateHeadlessAuthenticationState(ctx, &proto.UpdateHeadlessAuthenticationStateRequest{
+		Id:          id,
+		State:       state,
+		MfaResponse: mfaResponse,
+	}, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := c.grpc.GetHeadlessAuthentication(ctx, &proto.GetHeadlessAuthenticationRequest{
+		Id: id,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return headlessAuthn, nil
 }

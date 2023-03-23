@@ -33,7 +33,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,11 +43,11 @@ import (
 type EditCommand struct {
 	app    *kingpin.Application
 	cmd    *kingpin.CmdClause
-	config *service.Config
+	config *servicecfg.Config
 	ref    services.Ref
 }
 
-func (e *EditCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource")

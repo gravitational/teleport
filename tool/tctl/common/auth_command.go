@@ -42,14 +42,14 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AuthCommand implements `tctl auth` group of commands
 type AuthCommand struct {
-	config                     *service.Config
+	config                     *servicecfg.Config
 	authType                   string
 	genPubPath                 string
 	genPrivPath                string
@@ -75,6 +75,7 @@ type AuthCommand struct {
 	windowsSID                 string
 	signOverwrite              bool
 	jksPassword                string
+	caType                     string
 
 	rotateGracePeriod time.Duration
 	rotateType        string
@@ -86,10 +87,11 @@ type AuthCommand struct {
 	authSign     *kingpin.CmdClause
 	authRotate   *kingpin.CmdClause
 	authLS       *kingpin.CmdClause
+	authCRL      *kingpin.CmdClause
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	a.config = config
 
 	// operations with authorities
@@ -146,6 +148,9 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, config *service.Confi
 
 	a.authLS = auth.Command("ls", "List connected auth servers")
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
+
+	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for certificate authorities")
+	a.authCRL.Flag("type", "certificate authority type").EnumVar(&a.caType, allowedCRLCertificateTypes...)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -162,6 +167,8 @@ func (a *AuthCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 		err = a.RotateCertAuthority(ctx, client)
 	case a.authLS.FullCommand():
 		err = a.ListAuthServers(ctx, client)
+	case a.authCRL.FullCommand():
+		err = a.GenerateCRLForCA(ctx, client)
 	default:
 		return false, nil
 	}
@@ -176,8 +183,17 @@ var allowedCertificateTypes = []string{
 	"tls-user-der",
 	"windows",
 	"db",
+	"db-der",
 	"openssh",
 	"saml-idp",
+}
+
+// allowedCRLCertificateTypes list of certificate authorities types that can
+// have a CRL exported.
+var allowedCRLCertificateTypes = []string{
+	string(types.HostCA),
+	string(types.DatabaseCA),
+	string(types.UserCA),
 }
 
 // ExportAuthorities outputs the list of authorities in OpenSSH compatible formats
@@ -393,6 +409,23 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI auth.Clien
 		return writeJSON(sc, os.Stdout)
 	}
 
+	return nil
+}
+
+// GenerateCRLForCA generates a certificate revocation list for a certificate
+// authority.
+func (a *AuthCommand) GenerateCRLForCA(ctx context.Context, clusterAPI auth.ClientI) error {
+	certType := types.CertAuthType(a.caType)
+	if err := certType.Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	crl, err := clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println(string(crl))
 	return nil
 }
 

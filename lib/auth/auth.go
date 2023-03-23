@@ -74,6 +74,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
@@ -212,6 +213,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.UsageReporter == nil {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
+	if cfg.Okta == nil {
+		cfg.Okta, err = local.NewOktaService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -263,11 +270,14 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
+
+		okta: cfg.Okta,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
+		clock:           cfg.Clock,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
@@ -281,7 +291,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
+		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
@@ -314,6 +324,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				Clock: as.clock,
 			},
 		)
+	}
+	if as.gitlabIDTokenValidator == nil {
+		as.gitlabIDTokenValidator, err = gitlab.NewIDTokenValidator(
+			gitlab.IDTokenValidatorConfig{
+				Clock:             as.clock,
+				ClusterNameGetter: services,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if as.circleCITokenValidate == nil {
 		as.circleCITokenValidate = func(
@@ -354,6 +375,8 @@ type Services struct {
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
+
+	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -366,6 +389,11 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 // Implements ReadAccessPoint
 func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
+}
+
+// OktaClient returns the okta client.
+func (r *Services) OktaClient() services.Okta {
+	return r.okta
 }
 
 var (
@@ -528,6 +556,10 @@ type Server struct {
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
 
+	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
+	// the auth server. It can be overridden for the purpose of tests.
+	gitlabIDTokenValidator gitlabIDTokenValidator
+
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
@@ -541,6 +573,10 @@ type Server struct {
 
 	// license is the Teleport Enterprise license used to start the auth server
 	license *liblicense.License
+
+	// headlessAuthenticationWatcher is a headless authentication watcher,
+	// used to catch and propagate headless authentication request changes.
+	headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -601,6 +637,12 @@ func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.Lo
 		return trace.BadParameter("lockWatcher is not set")
 	}
 	return a.lockWatcher.CheckLockInForce(mode, targets...)
+}
+
+func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1269,6 +1311,58 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
+func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("username is empty")
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("public key is empty")
+	}
+	if req.TTL == 0 {
+		return nil, trace.BadParameter("TTL is not set")
+	}
+	if req.TTL < 0 {
+		return nil, trace.BadParameter("TTL must be positive")
+	}
+	if req.Cluster == "" {
+		return nil, trace.BadParameter("cluster is empty")
+	}
+
+	user, err := a.GetUser(req.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUser(user)
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateOpenSSHCert(certRequest{
+		user:          user,
+		publicKey:     req.PublicKey,
+		compatibility: constants.CertificateFormatStandard,
+		checker:       checker,
+		ttl:           time.Duration(req.TTL),
+		traits: map[string][]string{
+			constants.TraitLogins: {req.Username},
+		},
+		routeToCluster:  req.Cluster,
+		disallowReissue: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.OpenSSHCert{
+		Cert: certs.SSH,
+	}, nil
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
 	user, err := a.GetUser(username, false)
@@ -1552,7 +1646,7 @@ func (a *Server) AugmentContextUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, sshSigner, _, err := a.getUserSigningCAs(ctx, domainName)
+	tlsCA, sshSigner, _, err := a.getSigningCAs(ctx, domainName, types.UserCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1716,8 +1810,17 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 	}
 }
 
-// generateUserCert generates user certificates
+// generateUserCert generates certificates signed with User CA
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
+	return generateCert(a, req, types.UserCA)
+}
+
+// generateOpenSSHCert generates certificates signed with OpenSSH CA
+func (a *Server) generateOpenSSHCert(req certRequest) (*proto.Certs, error) {
+	return generateCert(a, req, types.OpenSSHCA)
+}
+
+func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto.Certs, error) {
 	ctx := context.TODO()
 	err := req.check()
 	if err != nil {
@@ -1821,11 +1924,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	tlsCA, sshSigner, userCA, err := a.getUserSigningCAs(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
@@ -1844,6 +1942,18 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 
 		pinnedIP = req.loginIP
+	}
+
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	params := services.UserCertParams{
@@ -1876,7 +1986,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DeviceAssetTag:          req.deviceExtensions.AssetTag,
 		DeviceCredentialID:      req.deviceExtensions.CredentialID,
 	}
-	sshCert, err := a.GenerateUserCert(params)
+	signedSSHCert, err := a.GenerateUserCert(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1924,7 +2034,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// generate TLS certificate
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -1974,23 +2083,38 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
 	}
-	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certRequest := tlsca.CertificateRequest{
-		Clock:     a.clock,
-		PublicKey: cryptoPubKey,
-		Subject:   subject,
-		NotAfter:  a.clock.Now().UTC().Add(sessionTTL),
-	}
-	tlsCert, err := tlsCA.GenerateCertificate(certRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var signedTLSCert []byte
+	notAfter := a.clock.Now().UTC().Add(sessionTTL)
+	// generate TLS certificate if the signing CA isn't OpenSSH CA, as
+	// OpenSSH CA doesn't have any TLS keypairs
+	if caType != types.OpenSSHCA {
+		tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		subject, err := identity.Subject()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certRequest := tlsca.CertificateRequest{
+			Clock:     a.clock,
+			PublicKey: cryptoPubKey,
+			Subject:   subject,
+			NotAfter:  notAfter,
+		}
+		signedTLSCert, err = tlsCA.GenerateCertificate(certRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = certRequest.NotAfter
+	eventIdentity.Expires = notAfter
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
@@ -2004,12 +2128,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
-		SSH: sshCert,
-		TLS: tlsCert,
+		SSH: signedSSHCert,
+		TLS: signedTLSCert,
 	}
 
-	// always include user CA TLS and SSH certs
-	cas := []types.CertAuthority{userCA}
+	// always include specified CA
+	cas := []types.CertAuthority{ca}
 
 	// also include host CA certs if requested
 	if req.includeHostCA {
@@ -2074,19 +2198,18 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
 
-// getUserSigningCAs returns the necessary resources to issue/sign new user
-// certificates.
-func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
+// getSigningCAs returns the necessary resources to issue/sign new certificates.
+func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType types.CertAuthType) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
 	const loadKeys = true
-	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
 		DomainName: domainName,
 	}, loadKeys)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, userCA)
+	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -2095,12 +2218,12 @@ func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tls
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	sshSigner, err := a.keyStore.GetSSHSigner(ctx, userCA)
+	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return tlsCA, sshSigner, userCA, nil
+	return tlsCA, sshSigner, ca, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -4564,7 +4687,7 @@ func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CreateCertAuthority(ca); err != nil {
+	if err := a.CreateCertAuthority(ctx, ca); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4600,12 +4723,43 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
 }
 
-// GetLicense return the license used the star the teleport enterprise auth server
+// GetLicense return the license used the start the teleport enterprise auth server
 func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	if modules.GetModules().Features().Cloud {
+		return "", trace.AccessDenied("license cannot be downloaded on Cloud")
+	}
 	if a.license == nil {
 		return "", trace.NotFound("license not found")
 	}
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
+}
+
+// GetHeadlessAuthentication returns a headless authentication from the backend by name.
+// If it does not yet exist, a stub will be created to signal the login process to upsert
+// login details. This method will wait for the updated headless authentication and return it.
+func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	// Try to create a stub if it doesn't already exist, then wait for full login details.
+	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil && !trace.IsAlreadyExists(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// wait for the headless authentication to be updated with valid login details
+	// by the login process. If the headless authentication is already updated,
+	// Wait will return it immediately.
+	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+		return services.ValidateHeadlessAuthentication(ha) == nil, nil
+	})
+	return headlessAuthn, trace.Wrap(err)
+}
+
+// CompareAndSwapHeadlessAuthentication performs a compare
+// and swap replacement on a headless authentication resource.
+func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
+	return headlessAuthn, trace.Wrap(err)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

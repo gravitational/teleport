@@ -273,7 +273,7 @@ func TestRemoteRotation(t *testing.T) {
 
 	// remote proxy can't upsert the certificate authority,
 	// only to rotate it (in remote rotation only certain fields are updated)
-	err = remoteProxy.UpsertCertAuthority(remoteCA)
+	err = remoteProxy.UpsertCertAuthority(ctx, remoteCA)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// remote proxy can't read local cert authority with secrets
@@ -341,7 +341,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	// local proxy can't update local cert authorities
-	err = proxy.UpsertCertAuthority(ca)
+	err = proxy.UpsertCertAuthority(ctx, ca)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// local proxy is allowed to update host CA of remote cert authorities
@@ -351,7 +351,7 @@ func TestLocalProxyPermissions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	err = proxy.UpsertCertAuthority(remoteCA)
+	err = proxy.UpsertCertAuthority(ctx, remoteCA)
 	require.NoError(t, err)
 }
 
@@ -1774,7 +1774,7 @@ func TestGetCertAuthority(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// user gets a not found message if a CA doesn't exist
-	require.NoError(t, tt.server.Auth().DeleteCertAuthority(hostCAID))
+	require.NoError(t, tt.server.Auth().DeleteCertAuthority(ctx, hostCAID))
 	_, err = userClt.GetCertAuthority(ctx, hostCAID, false)
 	require.True(t, trace.IsNotFound(err))
 
@@ -2399,10 +2399,10 @@ func TestCertificateFormat(t *testing.T) {
 				Pass: &PassCreds{
 					Password: pass,
 				},
+				PublicKey: pub,
 			},
 			CompatibilityMode: ts.inClientCertificateFormat,
 			TTL:               apidefaults.CertDuration,
-			PublicKey:         pub,
 		})
 		require.NoError(t, err)
 
@@ -2428,12 +2428,14 @@ func TestClusterConfigContext(t *testing.T) {
 	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
-	// try and generate a host cert, this should fail because we are recording
-	// at the nodes not at the proxy
+	// try and generate a host cert, this should succeed because although
+	// we are recording at the nodes not at the proxy, the proxy may
+	// need to generate host certs if a client wants to connect to an
+	// agentless node
 	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
-	require.True(t, trace.IsAccessDenied(err))
+	require.NoError(t, err)
 
 	// update cluster config to record at the proxy
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
@@ -2443,8 +2445,7 @@ func TestClusterConfigContext(t *testing.T) {
 	err = tt.server.Auth().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
-	// try and generate a host cert, now the proxy should be able to generate a
-	// host cert because it's in recording mode.
+	// try and generate a host cert
 	_, err = proxy.GenerateHostCert(ctx, pub,
 		"a", "b", nil,
 		"localhost", types.RoleProxy, 0)
@@ -2685,8 +2686,8 @@ func TestLoginNoLocalAuth(t *testing.T) {
 			Pass: &PassCreds{
 				Password: pass,
 			},
+			PublicKey: pub,
 		},
-		PublicKey: pub,
 	})
 	require.True(t, trace.IsAccessDenied(err))
 }
@@ -2882,7 +2883,7 @@ func TestRegisterCAPin(t *testing.T) {
 	activeKeys := hostCA.GetActiveKeys()
 	activeKeys.TLS = append(activeKeys.TLS, activeKeys.TLS...)
 	hostCA.SetActiveKeys(activeKeys)
-	err = tt.server.AuthServer.AuthServer.UpsertCertAuthority(hostCA)
+	err = tt.server.AuthServer.AuthServer.UpsertCertAuthority(ctx, hostCA)
 	require.NoError(t, err)
 
 	// Calculate what CA pins should be.

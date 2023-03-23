@@ -34,14 +34,13 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpproxy"
 
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -79,7 +78,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter(message, "missing parameter ProxyAddr")
 	}
 	if c.Timeout == 0 {
-		c.Timeout = defaults.DefaultDialTimeout
+		c.Timeout = defaults.DefaultIOTimeout
 	}
 	if c.TraceProvider == nil {
 		c.TraceProvider = tracing.DefaultProvider()
@@ -87,12 +86,13 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// newWebClient creates a new client to the HTTPS web proxy.
+// newWebClient creates a new client to the Proxy Web API.
 func newWebClient(cfg *Config) (*http.Client, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	transport := http.Transport{
+
+	rt := utils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
@@ -100,13 +100,12 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		Proxy: func(req *http.Request) (*url.URL, error) {
 			return httpproxy.FromEnvironment().ProxyFunc()(req.URL)
 		},
-	}
+		IdleConnTimeout: defaults.DefaultIOTimeout,
+	}, nil)
+
 	return &http.Client{
-		Transport: otelhttp.NewTransport(
-			proxy.NewHTTPRoundTripper(&transport, nil),
-			otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-		),
-		Timeout: cfg.Timeout,
+		Transport: tracehttp.NewTransport(rt),
+		Timeout:   cfg.Timeout,
 	}, nil
 }
 

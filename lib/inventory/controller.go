@@ -19,6 +19,7 @@ package inventory
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -28,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -143,13 +145,14 @@ type Controller struct {
 	serverTTL          time.Duration
 	instanceHBInterval time.Duration
 	maxKeepAliveErrs   int
+	usageReporter      usagereporter.UsageReporter
 	testEvents         chan testEvent
 	closeContext       context.Context
 	cancel             context.CancelFunc
 }
 
 // NewController sets up a new controller instance.
-func NewController(auth Auth, opts ...ControllerOption) *Controller {
+func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ...ControllerOption) *Controller {
 	var options controllerOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -166,6 +169,7 @@ func NewController(auth Auth, opts ...ControllerOption) *Controller {
 		auth:               auth,
 		authID:             options.authID,
 		testEvents:         options.testEvents,
+		usageReporter:      usageReporter,
 		closeContext:       ctx,
 		cancel:             cancel,
 	}
@@ -233,6 +237,8 @@ func (c *Controller) handleControlStream(handle *upstreamHandle) {
 				log.Warnf("Unexpected upstream hello on control stream of server %q.", handle.Hello().ServerID)
 				handle.CloseWithError(trace.BadParameter("unexpected upstream hello"))
 				return
+			case proto.UpstreamInventoryAgentMetadata:
+				c.handleAgentMetadata(handle, m)
 			case proto.InventoryHeartbeat:
 				if err := c.handleHeartbeatMsg(handle, m); err != nil {
 					handle.CloseWithError(err)
@@ -487,6 +493,29 @@ func (c *Controller) handleSSHServerHB(handle *upstreamHandle, sshServer *types.
 	}
 	handle.sshServer = sshServer
 	return nil
+}
+
+func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.UpstreamInventoryAgentMetadata) {
+	svcs := make([]string, 0, len(handle.Hello().Services))
+	for _, svc := range handle.Hello().Services {
+		svcs = append(svcs, strings.ToLower(svc.String()))
+	}
+
+	if err := c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{
+		Version:               handle.Hello().Version,
+		HostId:                handle.Hello().ServerID,
+		Services:              svcs,
+		Os:                    m.OS,
+		OsVersion:             m.OSVersion,
+		HostArchitecture:      m.HostArchitecture,
+		GlibcVersion:          m.GlibcVersion,
+		InstallMethods:        m.InstallMethods,
+		ContainerRuntime:      m.ContainerRuntime,
+		ContainerOrchestrator: m.ContainerOrchestrator,
+		CloudEnvironment:      m.CloudEnvironment,
+	}); err != nil {
+		log.Debugf("Unable to submit agent metadata: %v", err)
+	}
 }
 
 func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {

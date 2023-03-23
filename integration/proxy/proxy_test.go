@@ -47,6 +47,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -103,10 +104,10 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 			username := helpers.MustGetCurrentUser(t).Username
 
 			suite := newSuite(t,
-				withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+				withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
 					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnRoot
 				}),
-				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
+				withLeafClusterConfig(leafClusterStandardConfig(t), func(config *servicecfg.Config) {
 					config.Proxy.DisableALPNSNIListener = tc.disableALPNListenerOnLeaf
 				}),
 				withRootClusterListeners(tc.mainClusterPortSetup),
@@ -325,7 +326,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := newSuite(t,
-		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Proxy.Kube.Enabled = true
 			config.Proxy.Kube.KubeconfigPath = kubeConfigPath
 			config.Proxy.Kube.LegacyKubeProxy = true
@@ -387,11 +388,11 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := newSuite(t,
-		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Proxy.Kube.Enabled = true
 			config.Version = defaults.TeleportConfigVersionV2
 		}),
-		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
+		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Version = defaults.TeleportConfigVersionV2
 			config.Proxy.Kube.Enabled = true
 
@@ -459,7 +460,7 @@ func TestKubeIPPinning(t *testing.T) {
 	require.NoError(t, err)
 
 	suite := newSuite(t,
-		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Proxy.Kube.Enabled = true
 			config.Version = defaults.TeleportConfigVersionV3
 
@@ -468,7 +469,7 @@ func TestKubeIPPinning(t *testing.T) {
 			config.Kube.ListenAddr = utils.MustParseAddr(
 				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
 		}),
-		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
+		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Version = defaults.TeleportConfigVersionV3
 			config.Proxy.Kube.Enabled = true
 
@@ -553,10 +554,10 @@ func TestKubeIPPinning(t *testing.T) {
 func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	pack := dbhelpers.SetupDatabaseTest(t,
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
-		dbhelpers.WithLeafConfig(func(config *service.Config) {
+		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
-		dbhelpers.WithRootConfig(func(config *service.Config) {
+		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	)
@@ -641,7 +642,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("postgres", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolPostgres)
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
+			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolPostgres},
+			InsecureSkipVerify: true,
+			// Since this a non-tunnel local proxy, we should check certs are needed
+			// for postgres.
+			// (this is how a local proxy would actually be configured for postgres).
+			CheckCertsNeeded: true,
+		})
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -679,7 +688,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			mustClosePostgresClient(t, client)
 		})
 		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
-			pingProxy := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolPostgres))
+			pingProxy := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
+				Protocols:          []alpncommon.Protocol{alpncommon.ProtocolWithPing(alpncommon.ProtocolPostgres)},
+				InsecureSkipVerify: true,
+				// Since this a non-tunnel local proxy, we should check certs are needed
+				// for postgres.
+				// (this is how a local proxy would actually be configured for postgres).
+				CheckCertsNeeded: true,
+			})
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
@@ -969,23 +986,52 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	pack := appaccess.SetupWithOptions(t, appaccess.AppTestOptions{
 		RootClusterListeners: helpers.SingleProxyPortSetup,
 		LeafClusterListeners: helpers.SingleProxyPortSetup,
-		RootConfig: func(config *service.Config) {
+		RootConfig: func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		},
-		LeafConfig: func(config *service.Config) {
+		LeafConfig: func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		},
 	})
 
-	cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
-	status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
+	t.Run("root cluster", func(t *testing.T) {
+		cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
 
-	cookies = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
-	status, _, err = pack.MakeRequest(cookies, http.MethodGet, "/")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
+	t.Run("leaf cluster", func(t *testing.T) {
+		cookies := pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Get client cert for app request.
+		clientCerts := pack.CreateAppSessionWithClientCert(t)
+
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := mustStartMockALBProxy(t, pack.RootWebAddr())
+
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:         albProxy.Addr().String(),
+			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+			ALPNConnUpgradeRequired: true,
+			InsecureSkipVerify:      true,
+			Certs:                   clientCerts,
+		})
+
+		// Send the request to local proxy.
+		req, err := http.NewRequest(http.MethodGet, "http://"+lp.GetAddr(), nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 }
 
 // TestALPNProxyRootLeafAuthDial tests dialing local/remote auth service based on ALPN
@@ -1051,7 +1097,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
 	rc := helpers.NewInstance(t, cfg)
 
-	rcConf := service.MakeDefaultConfig()
+	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -1111,7 +1157,7 @@ func TestALPNProxyDialProxySSHWithoutInsecureMode(t *testing.T) {
 	rc.AddUser(username, []string{username})
 
 	// Make root cluster config.
-	rcConf := service.MakeDefaultConfig()
+	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
@@ -1180,7 +1226,7 @@ func TestALPNProxyHTTPProxyNoProxyDial(t *testing.T) {
 	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
-	rcConf := service.MakeDefaultConfig()
+	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
@@ -1263,7 +1309,7 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	username := helpers.MustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
-	rcConf := service.MakeDefaultConfig()
+	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)

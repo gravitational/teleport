@@ -17,18 +17,20 @@ package main
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type ghaBuildType struct {
 	buildType
 	trigger
-	pipelineName   string
-	ghaWorkflow    string
-	srcRefVar      string
-	workflowRefVar string
-	slackOnError   bool
-	dependsOn      []string
-	inputs         map[string]string
+	pipelineName string
+	ghaWorkflow  string
+	srcRefVar    string
+	workflowRef  string
+	timeout      time.Duration
+	slackOnError bool
+	dependsOn    []string
+	inputs       map[string]string
 }
 
 func ghaBuildPipeline(b ghaBuildType) pipeline {
@@ -42,11 +44,15 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	cmd.WriteString(`-owner ${DRONE_REPO_OWNER} `)
 	cmd.WriteString(`-repo teleport.e `)
 	cmd.WriteString(`-tag-workflow `)
+	fmt.Fprintf(&cmd, `-timeout %s `, b.timeout.String())
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
-	fmt.Fprintf(&cmd, `-workflow-ref=${%s} `, b.workflowRefVar)
+	fmt.Fprintf(&cmd, `-workflow-ref=%s `, b.workflowRef)
 
-	cmd.WriteString(`-input oss-teleport-repo=${DRONE_REPO} `)
-	fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
+	// If we don't need to build teleport...
+	if b.srcRefVar != "" {
+		cmd.WriteString(`-input oss-teleport-repo=${DRONE_REPO} `)
+		fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
+	}
 
 	for k, v := range b.inputs {
 		fmt.Fprintf(&cmd, `-input "%s=%s" `, k, v)

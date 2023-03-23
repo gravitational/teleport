@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 type suite struct {
@@ -76,7 +77,7 @@ func (s *suite) setupRootCluster(t *testing.T, options testSuiteOptions) {
 		},
 	}
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
@@ -165,7 +166,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		},
 	}
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	err = config.ApplyFileConfig(fileConfig, cfg)
 	require.NoError(t, err)
@@ -208,21 +209,21 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 }
 
 type testSuiteOptions struct {
-	rootConfigFunc func(cfg *service.Config)
-	leafConfigFunc func(cfg *service.Config)
+	rootConfigFunc func(cfg *servicecfg.Config)
+	leafConfigFunc func(cfg *servicecfg.Config)
 	leafCluster    bool
 	validationFunc func(*suite) bool
 }
 
 type testSuiteOptionFunc func(o *testSuiteOptions)
 
-func withRootConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+func withRootConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.rootConfigFunc = fn
 	}
 }
 
-func withLeafConfigFunc(fn func(cfg *service.Config)) testSuiteOptionFunc {
+func withLeafConfigFunc(fn func(cfg *servicecfg.Config)) testSuiteOptionFunc {
 	return func(o *testSuiteOptions) {
 		o.leafConfigFunc = fn
 	}
@@ -275,7 +276,7 @@ func newTestSuite(t *testing.T, opts ...testSuiteOptionFunc) *suite {
 	return s
 }
 
-func runTeleport(t *testing.T, cfg *service.Config) *service.TeleportProcess {
+func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess {
 	if cfg.InstanceMetadataClient == nil {
 		// Disables cloud auto-imported labels when running tests in cloud envs
 		// such as Github Actions.

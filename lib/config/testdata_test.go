@@ -49,6 +49,7 @@ teleport:
   cache:
     enabled: yes
     ttl: 20h
+    max_backoff: 12m
 
 auth_service:
   enabled: yes
@@ -195,6 +196,11 @@ discovery_service:
     aws:
       - types: ["ec2"]
         regions: ["eu-central-1"]
+
+okta_service:
+    enabled: yes
+    api_endpoint: https://some-endpoint
+    api_token_path: %v
 `
 
 // NoServicesConfigString is a configuration file with no services enabled

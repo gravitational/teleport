@@ -23,6 +23,8 @@ import (
 	"net"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -41,6 +43,10 @@ type DialParams struct {
 	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
+
+	// AgentlessSigner is used for authenticating to the remote host when it is an
+	// agentless node.
+	AgentlessSigner ssh.Signer
 
 	// Address is used by the forwarding proxy to generate a host certificate for
 	// the target node. This is needed because while dialing occurs via IP
@@ -93,6 +99,25 @@ func stringOrEmpty(addr net.Addr) string {
 		return ""
 	}
 	return addr.String()
+}
+
+// shouldDialAndForward returns whether a connection should be proxied
+// and forwarded or not.
+func shouldDialAndForward(params DialParams, recConfig types.SessionRecordingConfig) bool {
+	// connection is already being tunneled, do not forward
+	if params.FromPeerProxy {
+		return false
+	}
+	// the node is an agentless node, the connection must be forwarded
+	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+		return true
+	}
+	// proxy session recording mode is being used and an SSH session
+	// is being requested, the connection must be forwarded
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+		return true
+	}
+	return false
 }
 
 // RemoteSite represents remote teleport site that can be accessed via

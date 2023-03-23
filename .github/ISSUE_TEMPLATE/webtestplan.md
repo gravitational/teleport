@@ -732,6 +732,18 @@ Add the following to enable read access to trusted clusters
         viewing
       - [ ] Verify that after re-login, requests that are not expired and are approved are assumable
         again
+- Configuration
+    - [ ] Verify that clicking on More Options icon `⋮` > Open Config File opens the `app_config.json` file in your editor.
+    - Change a config property and restart the app. Verify that the change has been applied.
+      - [ ] Change a keyboard shortcut.
+      - [ ] Change `terminal.fontFamily`.
+    - Provide the same keyboard shortcut for two actions.
+      - [ ] Verify that a notification is displayed saying that a duplicate shortcut was found.
+    - Provide an invalid value for some property (for example, set `"keymap.tab1": "ABC"`).
+      - [ ] Verify that a notification is displayed saying that the property has an invalid value.
+    - Make a syntax error in the file (for example, set `"keymap.tab1": not a string`).
+      - [ ] Verify that a notification is displayed saying that the config file was not loaded correctly.
+      - [ ] Verify that your config changes were not overridden.
 - [ ] Verify that logs are collected for all processes (main, renderer, shared, tshd) under
   `~/Library/Application\ Support/Teleport\ Connect/logs`.
 - [ ] Verify that the password from the login form is not saved in the renderer log.

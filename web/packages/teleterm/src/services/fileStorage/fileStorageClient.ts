@@ -32,12 +32,14 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
           return (event.returnValue = configService.get(item.key));
         case FileStorageEventType.Put:
           return configService.put(item.key, item.json);
-        case FileStorageEventType.WriteSync:
-          return configService.writeSync();
+        case FileStorageEventType.Write:
+          return configService.write();
         case FileStorageEventType.Replace:
           return configService.replace(item.json);
         case FileStorageEventType.GetFilePath:
           return configService.getFilePath();
+        case FileStorageEventType.GetFileLoadingError:
+          return configService.getFileLoadingError();
       }
     }
   );
@@ -54,10 +56,10 @@ export function createFileStorageClient(): FileStorage {
         key,
         json,
       }),
-    writeSync: () =>
-      ipcRenderer.send(
+    write: () =>
+      ipcRenderer.invoke(
         FileStorageEventChannel,
-        FileStorageEventType.WriteSync,
+        FileStorageEventType.Write,
         {}
       ),
     replace: json =>
@@ -68,6 +70,12 @@ export function createFileStorageClient(): FileStorage {
       ipcRenderer.sendSync(
         FileStorageEventChannel,
         FileStorageEventType.GetFilePath,
+        {}
+      ),
+    getFileLoadingError: () =>
+      ipcRenderer.sendSync(
+        FileStorageEventChannel,
+        FileStorageEventType.GetFileLoadingError,
         {}
       ),
   };

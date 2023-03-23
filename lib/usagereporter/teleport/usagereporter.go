@@ -41,12 +41,12 @@ import (
 const (
 	// usageReporterMinBatchSize determines the size at which a batch is sent
 	// regardless of elapsed time
-	usageReporterMinBatchSize = 20
+	usageReporterMinBatchSize = 50
 
 	// usageReporterMaxBatchSize is the largest batch size that will be sent to
 	// the server; batches larger than this will be split into multiple
-	// requests.
-	usageReporterMaxBatchSize = 100
+	// requests. Matches the limit enforced by the server side for a single RPC.
+	usageReporterMaxBatchSize = 500
 
 	// usageReporterMaxBatchAge is the maximum age a batch may reach before
 	// being flushed, regardless of the batch size
@@ -56,7 +56,7 @@ const (
 	// may grow. Events submitted once this limit is reached will be discarded.
 	// Events that were in the submission queue that fail to submit may also be
 	// discarded when requeued.
-	usageReporterMaxBufferSize = 500
+	usageReporterMaxBufferSize = 2500
 
 	// usageReporterSubmitDelay is a mandatory delay added to each batch submission
 	// to avoid spamming the prehog instance.
@@ -181,21 +181,19 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 	client := prehogv1c.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
 	return func(reporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest], error) {
-		var failed []*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest]
-		var errors []error
-
-		// Note: the backend doesn't support batching at the moment.
-		for _, event := range events {
-			// Note: this results in retrying the entire batch, which probably
-			// isn't ideal.
-			req := connect.NewRequest(event.Event)
-			if _, err := client.SubmitEvent(ctx, req); err != nil {
-				failed = append(failed, event)
-				errors = append(errors, err)
-			}
+		evs := make([]*prehogv1.SubmitEventRequest, 0, len(events))
+		for _, e := range events {
+			evs = append(evs, e.Event)
 		}
 
-		return failed, trace.NewAggregate(errors...)
+		req := connect.NewRequest(&prehogv1.SubmitEventsRequest{
+			Events: evs,
+		})
+		if _, err := client.SubmitEvents(ctx, req); err != nil {
+			return events, trace.Wrap(err)
+		}
+
+		return nil, nil
 	}, nil
 }
 
