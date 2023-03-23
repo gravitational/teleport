@@ -446,6 +446,10 @@ connectors are accepted, invalid are rejected with sensible error messages.
 ### Kubernetes Node Joining
 - [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
 
+### Azure Node Joining
+[Docs](https://goteleport.com/docs/management/guides/joining-nodes-azure/)
+- [ ] Join a Teleport node running in an Azure VM
+
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
 and with tag `foo`: `bar`. Verify that a node running on the instance has label

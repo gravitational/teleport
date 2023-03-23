@@ -58,8 +58,8 @@ func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string
 	_, err := StatDir(baseDir)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			if err := MkdirAll(baseDir, teleport.PrivateDirMode); err != nil {
-				return "", trace.Wrap(err)
+			if err := os.MkdirAll(baseDir, teleport.PrivateDirMode); err != nil {
+				return "", trace.ConvertSystemError(err)
 			}
 		} else {
 			return "", trace.Wrap(err)
@@ -68,29 +68,11 @@ func EnsureLocalPath(customPath string, defaultLocalDir, defaultLocalPath string
 	return customPath, nil
 }
 
-// MkdirAll creates directory and subdirectories
-func MkdirAll(targetDirectory string, mode os.FileMode) error {
-	err := os.MkdirAll(targetDirectory, mode)
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
-}
-
 // IsDir is a helper function to quickly check if a given path is a valid directory
 func IsDir(path string) bool {
 	fi, err := os.Stat(path)
 	if err == nil {
 		return fi.IsDir()
-	}
-	return false
-}
-
-// IsFile is a convenience helper to check if the given path is a regular file
-func IsFile(path string) bool {
-	fi, err := os.Stat(path)
-	if err == nil {
-		return fi.Mode().IsRegular()
 	}
 	return false
 }
