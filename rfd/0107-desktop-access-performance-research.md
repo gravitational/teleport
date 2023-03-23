@@ -172,6 +172,21 @@ There are two protocol messages:
 
 By capturing these messages, it would be possible to calculate time it takes to process one frame and calculate the number of frames per second (FPS).
 
+##### Technical Considerations
+There are three main features in this extension that the implementation needs to take care of:
+- decoding bitmap data using one of the codecs
+- creating and maintaining surfaces and rendering bitmap data on the surfaces 
+- storing and loading bitmap data in the cache
+
+
+###### Option 1
+To make it a simple change, we could implement every aspect of the protocol and built it into existing Desktop Access module. In this case, we would create and maintain caches, create virtual mapping of the surfaces to the place on the display screen, and decode bitmap data in the backend using one of the codecs. This solution wouldn't change much in a way we currently send data to the browser. After decoding bitmap data and encoding it to PNG, we would utilise existing TDP PNG messages to send data to the browser. 
+It is not the best solution in terms of performance as the usage of the cache would only reduce data transfer between Desktop Access module and Windows server. Also, some protocol commands, like coping data from one surface to the other surface, would even decrease protocol performance as we would need to copy data from the Desktop Access module to the client rather than locally copy data from one surface to other. The biggest adventage of this solution is that it requires the least effort to implement it, and it is a good starting point for bringing support for this extension to our current implementation.
+
+
+###### Option 2
+To improve solution#1 we could implement caching similarly as in `1) RDP Bitmap caching` and add it to the browser. That would require adding new messages to the TDP to support storing and loading data in the caches. On top of that, we could add TDP messages to create and maintain surfaces in the browser as well. The surface objects aren't responsible for much as it is just a way to divide a whole screen into different areas. This would leave only decoding bitmap data and encoding it as PNGs in the Desktop Access module. 
+
 ##### UX changes
 
 From a user experience perspective implementing this solution will significantly improve rendering performance and overall experience using the Desktop Access module. A combination of the newest codecs and a different way of processing graphic data allows updating a screen with a high framerate.
