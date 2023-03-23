@@ -4994,7 +4994,7 @@ message PluginSlackAccessSettings {
 message PluginOpsgenieAccessSettings {
   option (gogoproto.equal) = true;
 
-  // Address of Opsgenie
+  // Addr is the address of Opsgenie API.
   string addr = 1;
   // Priority to create Opsgenie alerts with
   string priority = 2;
