@@ -21,6 +21,18 @@ import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { User } from 'teleport/services/user';
 
+function renderAuthType(authType){
+  switch(authType){
+    case "github":
+      return "GitHub";
+    case "saml":
+      return "SAML";
+    case "oidc":
+      return "OIDC";
+  }
+  return authType;
+}
+
 export default function UserList({
   users = [],
   pageSize = 20,
@@ -61,7 +73,7 @@ export default function UserList({
           headerText: 'Type',
           isSortable: true,
           render: ({ authType }) => (
-            <Cell style={{ textTransform: 'capitalize' }}>{authType}</Cell>
+            <Cell style={{ textTransform: 'capitalize' }}>{renderAuthType(authType)}</Cell>
           ),
         },
         {
