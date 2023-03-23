@@ -1,4 +1,4 @@
----
+****---
 authors: Marco Dinis (marco.dinis@goteleport.com)
 state: draft
 ---
@@ -63,6 +63,10 @@ To store the configuration above, we'll create a new resource Kind: `Integration
 It'll leverage the `subkind` prop to distinguish future integrations.
 
 Multiple AWS Integrations might exist in the same cluster.
+
+For security reasons, AWS stores a thumbprint associated with the CA that issue the HTTPS cert for Teleport.
+If Teleport moves to another CA, then AWS will no longer accept calls from Teleport and a new set up is required.
+More information about this in the Security section.
 
 ### High Level Flow
 Simplified flow of interactions between User, Teleport and AWS:
@@ -388,12 +392,13 @@ JWKS endpoint returns a list of public keys, so the old and the new key are prov
 
 #### MITM between AWS and Teleport
 
-The only configuration AWS has about the provider is its URL.
-If DNS is controlled by an attacker, AWS might accept requests from them.
+During the initial set up, AWS records a [thumbprint](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html) for the provider.
 
-However, assuming the DNS is controlled by an attacker, then the users that are logging in to Teleport are also providing their credentials to that part.
+This thumbprint is the hex-encoded SHA-1 hash value of the top intermediate CA that signed the certificate used by Teleport to make its keys available (this is the `jwks_uri`'s domain).
 
-We don't think this is a scenario we should focus on this RFD.
+If an attacker is able to control AWS's DNS resolvers and obtain a valid certificate from the top intermediate CA that signed the certificate, then they might be able to impersonate Teleport and AWS might accept requests from the attacker.
+
+However, assuming the AWS's DNS resolvers are controlled by an attacker is a scenario we should not focus on this RFD.
 
 #### AWS Calls from unauthorized Teleport Users
 We'll be able to call `DescribeDBInstances/Clusters` AWS endpoint, however we must ensure that this is protected by RBAC.
