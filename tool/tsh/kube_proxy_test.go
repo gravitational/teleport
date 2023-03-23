@@ -31,7 +31,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/types"
@@ -150,7 +149,7 @@ func checkKubeLocalProxyConfig(t *testing.T, s *suite, config *clientcmdapi.Conf
 	t.Helper()
 
 	checkKubeLocalProxyConfigPaths(t, s, config, teleportCluster, kubeCluster)
-	sendKubeLocalProxyRequest(t, config, teleportCluster, kubeCluster)
+	sendRequestToKubeLocalProxy(t, config, teleportCluster, kubeCluster)
 }
 
 // checkKubeLocalProxyConfigPaths check some basic values.
@@ -174,12 +173,12 @@ func checkKubeLocalProxyConfigPaths(t *testing.T, s *suite, config *clientcmdapi
 	require.Equal(t, wantCAPath, clusterInfo.CertificateAuthority)
 }
 
-// sendKubeLocalProxyRequest makes a request with a bad SNI and looks for the
+// sendRequestToKubeLocalProxy makes a request with a bad SNI and looks for the
 // "no client cert found" error by local proxy's KubeMiddleware. If found, it
 // means the request has successfully went through forward proxy "CONNECT"
 // upgrade and ALPN local proxy TLS handshake. We want the request to stop here
 // to avoid reaching Proxy further.
-func sendKubeLocalProxyRequest(t *testing.T, config *clientcmdapi.Config, teleportCluster, kubeCluster string) {
+func sendRequestToKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, teleportCluster, kubeCluster string) {
 	t.Helper()
 
 	request, err := http.NewRequest("Get", "https://localhost", nil)
@@ -202,15 +201,13 @@ func clientForKubeLocalProxy(t *testing.T, config *clientcmdapi.Config, teleport
 	t.Helper()
 
 	contextName := kubeconfig.ContextName(teleportCluster, kubeCluster)
-	authInfo := config.AuthInfos[contextName]
-	clusterInfo := config.Clusters[contextName]
 
-	require.True(t, strings.HasPrefix(clusterInfo.ProxyURL, "http://127.0.0.1:"))
-	proxyURL, err := url.Parse(clusterInfo.ProxyURL)
+	require.True(t, strings.HasPrefix(config.Clusters[contextName].ProxyURL, "http://127.0.0.1:"))
+	proxyURL, err := url.Parse(config.Clusters[contextName].ProxyURL)
 	require.NoError(t, err)
-	clientCert, err := tls.LoadX509KeyPair(authInfo.ClientCertificate, authInfo.ClientKey)
+	clientCert, err := tls.LoadX509KeyPair(config.AuthInfos[contextName].ClientCertificate, config.AuthInfos[contextName].ClientKey)
 	require.NoError(t, err)
-	serverCAs, err := utils.NewCertPoolFromPath(clusterInfo.CertificateAuthority)
+	serverCAs, err := utils.NewCertPoolFromPath(config.Clusters[contextName].CertificateAuthority)
 	require.NoError(t, err)
 
 	badServerName := fmt.Sprintf("%s.%s", uuid.NewString(), teleportCluster)

@@ -47,7 +47,6 @@ type proxyKubeCommand struct {
 	namespace         string
 	port              string
 	format            string
-	exec              string
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -93,7 +92,7 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// cf.cmdRunner is used for testing only.
+	// cf.cmdRunner is used for test only.
 	if cf.cmdRunner != nil {
 		cmd := &exec.Cmd{
 			Path: "test",
@@ -116,7 +115,7 @@ func (c *proxyKubeCommand) prepare(cf *CLIConf, tc *client.TeleportClient) (*cli
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// Use clusters from `tsh proxy kube` parameters
+	// Use kube clusters from arg.
 	if len(c.kubeClusters) > 0 {
 		if c.siteName == "" {
 			c.siteName = tc.SiteName
@@ -182,7 +181,7 @@ type kubeLocalProxy struct {
 }
 
 func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters, port string) (*kubeLocalProxy, error) {
-	certs, err := localKubeCerts(cf.Context, tc, clusters)
+	certs, err := loadKubeUserCerts(cf.Context, tc, clusters)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -297,7 +296,10 @@ func loadKubeLocalCAs(profile *client.ProfileStatus, teleportClusters []string) 
 	return cas, nil
 }
 
-func localKubeCerts(ctx context.Context, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
+func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {
+	ctx, span := tc.Tracer.Start(ctx, "loadKubeUserCerts")
+	defer span.End()
+
 	// Renew tsh session and reuse the proxy client.
 	var proxy *client.ProxyClient
 	err := client.RetryWithRelogin(ctx, tc, func() error {
