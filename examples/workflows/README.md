@@ -38,8 +38,8 @@ $ tctl create -f requester.yaml
 $ tctl users add alice --roles=requester
 # login as alice
 $ tsh --proxy=proxy.example.com login --user=alice
-# request the admin role as alice
-$ tsh --proxy=proxy.example.com request new --roles=admin
+# request the access role as alice
+$ tsh --proxy=proxy.example.com request new --roles=access
 ```
 
-Since `alice` is on the Allow List in `cofig.toml` with allowed role `requester`, the request should be automatically approved by the plugin.
+Since `alice` is requesting `access` role and the `access-plugin` has RBAC permissions to review the `access` role the request should be automatically approved by the plugin.
