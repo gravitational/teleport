@@ -36,7 +36,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 	ctx := context.Background()
 	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
-	type testSuite struct {
+	type testEnv struct {
 		watcher       *local.HeadlessAuthenticationWatcher
 		watcherClock  clockwork.FakeClock
 		watcherCancel context.CancelFunc
@@ -44,7 +44,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		buf           *backend.CircularBuffer
 	}
 
-	newSuite := func(t *testing.T) *testSuite {
+	newTestEnv := func(t *testing.T) *testEnv {
 		identity := newIdentityService(t, clockwork.NewFakeClock())
 
 		// use a standalone buffer as a watcher service.
@@ -52,9 +52,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		buf.SetInit()
 
 		watcherCtx, watcherCancel := context.WithCancel(ctx)
-		t.Cleanup(func() {
-			watcherCancel()
-		})
+		t.Cleanup(watcherCancel)
 
 		watcherClock := clockwork.NewFakeClock()
 		w, err := local.NewHeadlessAuthenticationWatcher(watcherCtx, local.HeadlessAuthenticationWatcherConfig{
@@ -64,7 +62,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return &testSuite{
+		return &testEnv{
 			watcher:       w,
 			watcherClock:  watcherClock,
 			watcherCancel: watcherCancel,
@@ -73,55 +71,64 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		}
 	}
 
-	waitInGoroutine := func(ctx context.Context, t *testing.T, watcher *local.HeadlessAuthenticationWatcher, name string, cond func(*types.HeadlessAuthentication) (bool, error)) (chan *types.HeadlessAuthentication, chan error) {
-		headlessAuthnCh := make(chan *types.HeadlessAuthentication, 1)
-		errC := make(chan error, 1)
+	waitInGoroutine := func(ctx context.Context, watcher *local.HeadlessAuthenticationWatcher, name string, cond func(*types.HeadlessAuthentication) (bool, error),
+	) (headlessAuthnC chan *types.HeadlessAuthentication, firstEventReceivedC chan struct{}, errC chan error) {
+		waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
+		t.Cleanup(waitCancel)
+
+		headlessAuthnC = make(chan *types.HeadlessAuthentication, 1)
+		errC = make(chan error, 1)
+		firstEventReceivedC = make(chan struct{})
 		go func() {
-			headlessAuthn, err := watcher.Wait(ctx, name, cond)
+			headlessAuthn, err := watcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+				select {
+				case <-firstEventReceivedC:
+				default:
+					close(firstEventReceivedC)
+				}
+				return cond(ha)
+			})
 			errC <- err
-			headlessAuthnCh <- headlessAuthn
+			headlessAuthnC <- headlessAuthn
 		}()
-		return headlessAuthnCh, errC
+		return headlessAuthnC, firstEventReceivedC, errC
 	}
 
-	t.Run("WaitEventWithConditionMet", func(t *testing.T) {
-		t.Parallel()
-		s := newSuite(t)
-
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*5)
-		defer waitCancel()
-
-		firstEmitReceived := make(chan struct{})
-		headlessAuthnCh, errC := waitInGoroutine(waitCtx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			select {
-			case <-firstEmitReceived:
-			default:
-				close(firstEmitReceived)
-			}
-
-			return ha.User != "", nil
-		})
-
-		// Emit put event that doesn't pass the condition (user not set). The waiter should ignore these events.
-		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
-		require.NoError(t, err)
-		stub.User = "user"
-		item, err := local.MarshalHeadlessAuthenticationToItem(stub)
+	// The waiter may miss put events during initialization, so we continuously emit them until one is caught.
+	// This can also be used to wait until a waiter is fully initialized.
+	waitForPutEvent := func(s *testEnv, ha *types.HeadlessAuthentication, firstEventReceivedC chan struct{}) {
+		item, err := local.MarshalHeadlessAuthenticationToItem(ha)
 		require.NoError(t, err)
 
-		// The waiter may miss put events during initialization, so we continuously emit them until one is caught.
 		require.Eventually(t, func() bool {
 			s.buf.Emit(backend.Event{
 				Type: types.OpPut,
 				Item: *item,
 			})
+
 			select {
-			case <-firstEmitReceived:
+			case <-firstEventReceivedC:
 				return true
 			default:
 				return false
 			}
-		}, time.Second, time.Millisecond*100)
+		}, 2*time.Second, 100*time.Millisecond)
+	}
+
+	t.Run("WaitEventWithConditionMet", func(t *testing.T) {
+		t.Parallel()
+		s := newTestEnv(t)
+
+		headlessAuthnCh, firstEventReceivedC, errC := waitInGoroutine(ctx, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
+			return ha.User != "", nil
+		})
+
+		// Emit put event that passes the condition.
+		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
+		require.NoError(t, err)
+		stub.User = "user"
+
+		waitForPutEvent(s, stub, firstEventReceivedC)
 
 		require.NoError(t, <-errC)
 		require.Equal(t, stub, <-headlessAuthnCh)
@@ -129,41 +136,20 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	t.Run("WaitEventWithConditionUnmet", func(t *testing.T) {
 		t.Parallel()
-		s := newSuite(t)
+		s := newTestEnv(t)
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*5)
-		defer waitCancel()
+		waitCtx, waitCancel := context.WithCancel(ctx)
+		t.Cleanup(waitCancel)
 
-		firstEmitReceived := make(chan struct{})
-		headlessAuthnCh, errC := waitInGoroutine(waitCtx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			select {
-			case <-firstEmitReceived:
-			default:
-				close(firstEmitReceived)
-			}
-
+		headlessAuthnCh, firstEventReceivedC, errC := waitInGoroutine(waitCtx, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
 			return ha.User != "", nil
 		})
 
 		// Emit put event that doesn't pass the condition (user not set). The waiter should ignore these events.
 		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
 		require.NoError(t, err)
-		item, err := local.MarshalHeadlessAuthenticationToItem(stub)
-		require.NoError(t, err)
 
-		// The waiter may miss put events during initialization, so we continuously emit them until one is caught.
-		require.Eventually(t, func() bool {
-			s.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: *item,
-			})
-			select {
-			case <-firstEmitReceived:
-				return true
-			default:
-				return false
-			}
-		}, time.Second, time.Millisecond*100)
+		waitForPutEvent(s, stub, firstEventReceivedC)
 
 		// Ensure that the waiter did not finish with the condition unmet.
 		select {
@@ -179,13 +165,13 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	t.Run("WaitBackend", func(t *testing.T) {
 		t.Parallel()
-		s := newSuite(t)
+		s := newTestEnv(t)
 
 		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		require.NoError(t, err)
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*5)
-		defer waitCancel()
+		waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
+		t.Cleanup(waitCancel)
 
 		// Wait should immediately check the backend and return the existing headless authentication stub.
 		headlessAuthn, err := s.watcher.Wait(waitCtx, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
@@ -198,10 +184,10 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	t.Run("WaitTimeout", func(t *testing.T) {
 		t.Parallel()
-		s := newSuite(t)
+		s := newTestEnv(t)
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Millisecond*10)
-		defer waitCancel()
+		waitCtx, waitCancel := context.WithTimeout(ctx, 10*time.Millisecond)
+		t.Cleanup(waitCancel)
 
 		_, err := s.watcher.Wait(waitCtx, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) { return true, nil })
 		require.Error(t, err)
@@ -210,61 +196,35 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	t.Run("StaleCheck", func(t *testing.T) {
 		t.Parallel()
-		s := newSuite(t)
-
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*5)
-		defer waitCancel()
-
+		s := newTestEnv(t)
 		// Create a waiter that we can block/unblock.
-		firstEmitReceived := make(chan struct{})
 		blockWaiter := make(chan struct{})
-		_, blockedWaiterErrC := waitInGoroutine(waitCtx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
+		t.Cleanup(func() {
 			select {
-			case <-firstEmitReceived:
+			case <-blockWaiter:
 			default:
-				close(firstEmitReceived)
-				// we only block the first event received, incase additional events get to this waiter.
-				<-blockWaiter
+				close(blockWaiter)
 			}
+		})
+
+		_, blockedWaiterEventReceived, blockedWaiterErrC := waitInGoroutine(ctx, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
+			<-blockWaiter
 			return false, nil
 		})
 
 		// Emit stub put event and wait for it to be caught by the waiter.
 		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
 		require.NoError(t, err)
-		item, err := local.MarshalHeadlessAuthenticationToItem(stub)
-		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
-			s.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: *item,
-			})
-			select {
-			case <-firstEmitReceived:
-				return true
-			default:
-				return false
-			}
-		}, time.Second, time.Millisecond*100)
+		waitForPutEvent(s, stub, blockedWaiterEventReceived)
 
 		// Create a second waiter to catch a second put event.
-		_, freeWaiterErrC := waitInGoroutine(waitCtx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
+		_, freeWaiterEventReceivedC, freeWaiterErrC := waitInGoroutine(ctx, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
 			return true, nil
 		})
 
-		require.Eventually(t, func() bool {
-			s.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: *item,
-			})
-			select {
-			case <-freeWaiterErrC:
-				return true
-			default:
-				return false
-			}
-		}, time.Second, time.Millisecond*100)
+		waitForPutEvent(s, stub, freeWaiterEventReceivedC)
+		require.NoError(t, <-freeWaiterErrC)
 
 		// unblock the waiter. It should perform a stale check and return a not found error.
 		close(blockWaiter)
@@ -274,39 +234,16 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	t.Run("WatchReset", func(t *testing.T) {
 		t.Parallel()
-		s := newSuite(t)
+		s := newTestEnv(t)
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*5)
-		defer waitCancel()
-
-		firstEmitReceived := make(chan struct{})
-		headlessAuthnCh, errC := waitInGoroutine(waitCtx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			select {
-			case <-firstEmitReceived:
-			default:
-				close(firstEmitReceived)
-			}
-
+		headlessAuthnCh, firstEventReceivedC, errC := waitInGoroutine(ctx, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
 			return services.ValidateHeadlessAuthentication(ha) == nil, nil
 		})
 
 		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		require.NoError(t, err)
 
-		item, err := local.MarshalHeadlessAuthenticationToItem(stub)
-		require.NoError(t, err)
-		require.Eventually(t, func() bool {
-			s.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: *item,
-			})
-			select {
-			case <-firstEmitReceived:
-				return true
-			default:
-				return false
-			}
-		}, time.Second, time.Millisecond*100)
+		waitForPutEvent(s, stub, firstEventReceivedC)
 
 		// closed watchers should be handled gracefully and reset.
 		s.buf.Clear()
@@ -326,12 +263,9 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	t.Run("WatcherClosed", func(t *testing.T) {
 		t.Parallel()
-		s := newSuite(t)
+		s := newTestEnv(t)
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second*5)
-		defer waitCancel()
-
-		_, errC := waitInGoroutine(waitCtx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
+		_, _, errC := waitInGoroutine(ctx, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
 			return true, nil
 		})
 

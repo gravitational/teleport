@@ -22,9 +22,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NewHeadlessAuthenticationStub creates a new headless authentication stub, which is
-// a headless authentication resource with limited data. This stub is used to initiate
-// headless login.
+// NewHeadlessAuthenticationStub creates a new a headless authentication resource with limited data.
+// The stub is used to initiate headless login.
 func NewHeadlessAuthenticationStub(name string, expires time.Time) (*HeadlessAuthentication, error) {
 	ha := &HeadlessAuthentication{
 		ResourceHeader: ResourceHeader{
