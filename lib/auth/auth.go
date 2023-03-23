@@ -201,9 +201,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.Enforcer == nil {
-		cfg.Enforcer = local.NewNoopEnforcer()
-	}
 	if cfg.AssertionReplayService == nil {
 		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
 	}
@@ -266,7 +263,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
 		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
-		Enforcer:                cfg.Enforcer,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
@@ -369,7 +365,6 @@ type Services struct {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
-	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	usagereporter.UsageReporter
@@ -1069,11 +1064,6 @@ func (a *Server) GetEmitter() apievents.Emitter {
 // use before main server start.
 func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
-}
-
-// SetEnforcer sets the server's enforce service
-func (a *Server) SetEnforcer(enforcer services.Enforcer) {
-	a.Services.Enforcer = enforcer
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
