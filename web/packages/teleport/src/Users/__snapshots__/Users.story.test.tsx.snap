@@ -675,7 +675,7 @@ exports[`success state 1`] = `
           <td
             style="text-transform: capitalize;"
           >
-            saml
+            SAML
           </td>
           <td
             align="right"
@@ -708,7 +708,7 @@ exports[`success state 1`] = `
           <td
             style="text-transform: capitalize;"
           >
-            github
+            GitHub
           </td>
           <td
             align="right"
