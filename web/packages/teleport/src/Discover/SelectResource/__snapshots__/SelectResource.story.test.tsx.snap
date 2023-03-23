@@ -41,37 +41,6 @@ exports[`render with URL loc state set to "server" 1`] = `
   box-sizing: border-box;
 }
 
-.c21 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
-.c24 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-left: 8px;
-}
-
-.c15 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c19 {
-  display: block;
-  outline: none;
-  width: 24.65px;
-  height: 14.36px;
-}
-
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -124,6 +93,37 @@ exports[`render with URL loc state set to "server" 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
+}
+
+.c21 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c24 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c15 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c19 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
 }
 
 .c13 {
@@ -600,37 +600,6 @@ exports[`render with all access 1`] = `
   box-sizing: border-box;
 }
 
-.c7 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
-.c20 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-left: 8px;
-}
-
-.c11 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c17 {
-  display: block;
-  outline: none;
-  width: 24.65px;
-  height: 14.36px;
-}
-
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -677,6 +646,37 @@ exports[`render with all access 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
+}
+
+.c7 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c20 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c11 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c17 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
 }
 
 .c9 {
@@ -2071,37 +2071,6 @@ exports[`render with no access 1`] = `
   box-sizing: border-box;
 }
 
-.c7 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
-.c20 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-left: 8px;
-}
-
-.c12 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c17 {
-  display: block;
-  outline: none;
-  width: 24.65px;
-  height: 14.36px;
-}
-
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2148,6 +2117,37 @@ exports[`render with no access 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
+}
+
+.c7 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c20 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c12 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c17 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
 }
 
 .c10 {
@@ -3626,37 +3626,6 @@ exports[`render with partial access 1`] = `
   box-sizing: border-box;
 }
 
-.c7 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
-.c22 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-  margin-left: 8px;
-}
-
-.c11 {
-  display: block;
-  outline: none;
-  width: 23.9px;
-  height: 24px;
-}
-
-.c17 {
-  display: block;
-  outline: none;
-  width: 24.65px;
-  height: 14.36px;
-}
-
 .c1 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3703,6 +3672,37 @@ exports[`render with partial access 1`] = `
   font-size: 12px;
   margin: 0px;
   margin-top: 40px;
+}
+
+.c7 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c22 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c11 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c17 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
 }
 
 .c9 {
