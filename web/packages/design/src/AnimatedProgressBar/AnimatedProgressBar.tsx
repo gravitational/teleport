@@ -17,7 +17,7 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Flex } from '../';
+import Flex from '../Flex';
 
 export const AnimatedProgressBar = ({
   barHeight = 16,

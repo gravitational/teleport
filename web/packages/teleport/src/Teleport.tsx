@@ -89,6 +89,10 @@ const DesktopSession = React.lazy(
   () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
 );
 
+const HeadlessRequest = React.lazy(
+  () => import(/* webpackChunkName: "headless-request" */ './HeadlessRequest')
+);
+
 const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
 
 function publicOSSRoutes() {
@@ -159,6 +163,11 @@ export function getSharedPrivateRoutes() {
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route key="player" path={cfg.routes.player} component={Player} />,
+    <Route
+      key="headlessSSO"
+      path={cfg.routes.headlessSso}
+      component={HeadlessRequest}
+    />,
   ];
 }
 

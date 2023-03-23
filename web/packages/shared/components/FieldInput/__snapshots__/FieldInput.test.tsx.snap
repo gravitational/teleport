@@ -13,6 +13,12 @@ exports[`snapshot tests 1`] = `
   font-size: 18px;
 }
 
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
 .c3 {
   appearance: none;
   border: none;
@@ -56,12 +62,6 @@ exports[`snapshot tests 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c5 {
