@@ -318,6 +318,11 @@ const generateCmd = (data: {
     extraYAMLConfig += 'updater:\n';
     extraYAMLConfig += '    enabled: true\n';
     extraYAMLConfig += '    releaseChannel: "cloud/stable"\n';
+    extraYAMLConfig += 'highAvailability:\n';
+    extraYAMLConfig += '    replicaCount: 2\n';
+    extraYAMLConfig += '    podDisruptionBudget:\n';
+    extraYAMLConfig += '        enabled: true\n';
+    extraYAMLConfig += '        minAvailable: 1\n';
   }
 
   return `cat << EOF > prod-cluster-values.yaml

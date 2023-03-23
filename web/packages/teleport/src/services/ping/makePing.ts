@@ -21,6 +21,6 @@ export function makePing(json: any): PingResponse {
   const { automatic_upgrades = {} } = json;
 
   return {
-    automaticUpgrades: automatic_upgrades === true,
+    automaticUpgrades: automatic_upgrades,
   };
 }
