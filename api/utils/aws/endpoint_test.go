@@ -513,30 +513,39 @@ func TestRedshiftServerlessEndpoint(t *testing.T) {
 func TestDynamoDBURIForRegion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		desc    string
-		region  string
-		wantURI string
+		desc          string
+		region        string
+		wantURI       string
+		wantPartition string
 	}{
 		{
-			desc:    "region is in correct AWS partition",
-			region:  "us-east-1",
-			wantURI: "aws://dynamodb.us-east-1.amazonaws.com",
+			desc:          "region is in correct AWS partition",
+			region:        "us-east-1",
+			wantURI:       "aws://dynamodb.us-east-1.amazonaws.com",
+			wantPartition: ".amazonaws.com",
 		},
 		{
-			desc:    "china north region is in correct AWS partition",
-			region:  "cn-north-1",
-			wantURI: "aws://dynamodb.cn-north-1.amazonaws.com.cn",
+			desc:          "china north region is in correct AWS partition",
+			region:        "cn-north-1",
+			wantURI:       "aws://dynamodb.cn-north-1.amazonaws.com.cn",
+			wantPartition: ".amazonaws.com.cn",
 		},
 		{
-			desc:    "china northwest region is in correct AWS partition",
-			region:  "cn-northwest-1",
-			wantURI: "aws://dynamodb.cn-northwest-1.amazonaws.com.cn",
+			desc:          "china northwest region is in correct AWS partition",
+			region:        "cn-northwest-1",
+			wantURI:       "aws://dynamodb.cn-northwest-1.amazonaws.com.cn",
+			wantPartition: ".amazonaws.com.cn",
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			require.Equal(t, tt.wantURI, DynamoDBURIForRegion(tt.region))
+			info, err := ParseDynamoDBEndpoint(tt.wantURI)
+			require.NoError(t, err, "endpoint generated from region could not be parsed.")
+			require.Equal(t, tt.region, info.Region)
+			require.Equal(t, "dynamodb", info.Service)
+			require.Equal(t, tt.wantPartition, info.Partition)
 		})
 	}
 }
@@ -630,7 +639,7 @@ func TestParseDynamoDBEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
-		t.Run("detects invalid endpoint with"+tt.desc, func(t *testing.T) {
+		t.Run("detects invalid endpoint with "+tt.desc, func(t *testing.T) {
 			t.Parallel()
 			info, err := ParseDynamoDBEndpoint(tt.endpoint)
 			require.Error(t, err, "endpoint %s should be invalid", tt.endpoint)
