@@ -67,7 +67,7 @@ func TestLocalProxy(t *testing.T) {
 
 	t.Run("LocalProxyClustersFromDefaultConfig", func(t *testing.T) {
 		clusters := LocalProxyClustersFromDefaultConfig(configAfterLogins, rootKubeClusterAddr)
-		require.ElementsMatch(t, []LocalProxyClusterValues{
+		require.ElementsMatch(t, LocalProxyClusters{
 			{
 				TeleportCluster: rootClusterName,
 				KubeCluster:     "kube1",
@@ -94,7 +94,7 @@ func TestLocalProxy(t *testing.T) {
 			TeleportKubeClusterAddr: rootKubeClusterAddr,
 			LocalProxyURL:           "http://localhost:12345",
 			ClientKeyPath:           "/path/to/key",
-			Clusters: []LocalProxyClusterValues{{
+			Clusters: LocalProxyClusters{{
 				TeleportCluster:   rootClusterName,
 				KubeCluster:       "kube1",
 				Namespace:         "namespace",

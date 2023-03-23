@@ -1059,22 +1059,6 @@ func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
 	return status, nil
 }
 
-// ProfileStatusAndKeys loads profile and key with provided cert options.
-// Cert options can be used to partially load certificates instead of WithAllCerts.
-// WithSSHCerts should always be included.
-func (tc *TeleportClient) ProfileStatusAndKey(certOpts ...CertOption) (*ProfileStatus, *Key, error) {
-	status, key, err := tc.ClientStore.readProfileStatusAndKey(tc.WebProxyAddr, certOpts...)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	// If the profile has a different username than the current client, don't return
-	// the profile. This is used for login and logout logic.
-	if status.Username != tc.Username {
-		return nil, nil, trace.NotFound("no profile for proxy %v and user %v found", tc.WebProxyAddr, tc.Username)
-	}
-	return status, key, nil
-}
-
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
 func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName string) error {

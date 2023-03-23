@@ -531,6 +531,7 @@ const (
 	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
 	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
+	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"

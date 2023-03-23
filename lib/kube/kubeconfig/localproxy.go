@@ -15,18 +15,19 @@
 package kubeconfig
 
 import (
-	"encoding/hex"
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/maps"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
-// LocalProxyClusterValues contains values for a kube cluster for generating
+// LocalProxyCluster contains values for a kube cluster for generating
 // local proxy kubeconfig.
-type LocalProxyClusterValues struct {
+type LocalProxyCluster struct {
 	// TeleportCluster is the Teleport cluster name.
 	TeleportCluster string
 	// KubeCluster is the Kubernetes cluster name.
@@ -45,15 +46,21 @@ type LocalProxyClusterValues struct {
 	KubeClusters []string
 }
 
-// TLSServerName returns the TLSServerName  for this kube cluster.
-func (v *LocalProxyClusterValues) TLSServerName() string {
-	// Hex encode to hide "." in kube cluster name so wildcard cert can be used.
-	return fmt.Sprintf("%s.%s", hex.EncodeToString([]byte(v.KubeCluster)), v.TeleportCluster)
+// String implements Stringer interface.
+func (v LocalProxyCluster) String() string {
+	return fmt.Sprintf("Teleport cluster %q Kubernetes cluster %q", v.TeleportCluster, v.KubeCluster)
 }
 
-// String implements Stringer interface.
-func (v *LocalProxyClusterValues) String() string {
-	return fmt.Sprintf("Teleport cluster %q Kubernetes cluster %q", v.TeleportCluster, v.KubeCluster)
+// LocalProxyClusters is a list of LocalProxyCluster.
+type LocalProxyClusters []LocalProxyCluster
+
+// TeleportClusters returns a list of unique Teleport clusters
+func (s LocalProxyClusters) TeleportClusters() []string {
+	teleportClusters := make(map[string]struct{})
+	for _, cluster := range s {
+		teleportClusters[cluster.TeleportCluster] = struct{}{}
+	}
+	return maps.Keys(teleportClusters)
 }
 
 // LocalProxyValues contains values for generating local proxy kubeconfig
@@ -67,7 +74,7 @@ type LocalProxyValues struct {
 	// ClientKeyPath is the path to the client key.
 	ClientKeyPath string
 	// Clusters is a list of Teleport kube clusters to include.
-	Clusters []LocalProxyClusterValues
+	Clusters LocalProxyClusters
 }
 
 // TeleportClusterNames returns all Teleport cluster names.
@@ -96,7 +103,7 @@ func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, local
 			ProxyURL:             localProxyValues.LocalProxyURL,
 			Server:               localProxyValues.TeleportKubeClusterAddr,
 			CertificateAuthority: localProxyValues.LocalProxyCAPaths[cluster.TeleportCluster],
-			TLSServerName:        cluster.TLSServerName(),
+			TLSServerName:        common.KubeLocalProxySNI(cluster.TeleportCluster, cluster.KubeCluster),
 		}
 		config.Contexts[contextName] = &clientcmdapi.Context{
 			Namespace: cluster.Namespace,
@@ -121,7 +128,7 @@ func SaveLocalProxyValues(path string, defaultConfig *clientcmdapi.Config, local
 
 // LocalProxyClustersFromDefaultConfig loads Teleport kube clusters data saved
 // by `tsh kube login` in the default kubeconfig.
-func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clusterAddr string) (clusters []LocalProxyClusterValues) {
+func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clusterAddr string) (clusters LocalProxyClusters) {
 	for teleportClusterName, cluster := range defaultConfig.Clusters {
 		if cluster.Server != clusterAddr {
 			continue
@@ -136,7 +143,7 @@ func LocalProxyClustersFromDefaultConfig(defaultConfig *clientcmdapi.Config, clu
 				continue
 			}
 
-			clusters = append(clusters, LocalProxyClusterValues{
+			clusters = append(clusters, LocalProxyCluster{
 				TeleportCluster:   teleportClusterName,
 				KubeCluster:       KubeClusterFromContext(contextName, teleportClusterName),
 				Namespace:         context.Namespace,
