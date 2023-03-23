@@ -105,7 +105,7 @@ func (g *GithubConverter) UpsertGithubConnector(ctx context.Context, connector t
 	return g.ClientI.UpsertGithubConnector(ctx, convertedConnector)
 }
 
-// CreateGithubAuthRequest creates a new request for Github OAuth2 flow
+// CreateGithubAuthRequest creates a new request for GitHub OAuth2 flow
 func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAuthRequest) (*types.GithubAuthRequest, error) {
 	_, client, err := a.getGithubConnectorAndClient(ctx, req)
 	if err != nil {
@@ -126,7 +126,7 @@ func (a *Server) CreateGithubAuthRequest(ctx context.Context, req types.GithubAu
 	return &req, nil
 }
 
-// upsertGithubConnector creates or updates a Github connector.
+// upsertGithubConnector creates or updates a GitHub connector.
 func (a *Server) upsertGithubConnector(ctx context.Context, connector types.GithubConnector) error {
 	if err := checkGithubOrgSSOSupport(ctx, connector, nil, a.githubOrgSSOCache, nil); err != nil {
 		return trace.Wrap(err)
@@ -391,7 +391,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		event.Status.UserMessage = err.Error()
 
 		if err := emitter.EmitAuditEvent(ctx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit Github login failed event.")
+			log.WithError(err).Warn("Failed to emit GitHub login failed event.")
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -403,7 +403,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 	event.User = auth.Username
 
 	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit Github login event.")
+		log.WithError(err).Warn("Failed to emit GitHub login event.")
 	}
 
 	return auth, nil
@@ -513,13 +513,13 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	code := q.Get("code")
 	if code == "" {
 		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "code query param must be set", q)
-		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "missing state query param", q)
-		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
 	}
 	diagCtx.RequestID = stateToken
 
@@ -531,7 +531,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	connector, client, err := a.getGithubConnectorAndClient(ctx, *req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get Github connector and client.")
+		return nil, trace.Wrap(err, "Failed to get GitHub connector and client.")
 	}
 	diagCtx.Info.GithubTeamsToLogins = connector.GetTeamsToLogins()
 	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
@@ -540,7 +540,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
-		return nil, trace.Wrap(err, "Requesting Github OAuth2 token failed.")
+		return nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
 	}
 
 	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
@@ -565,11 +565,11 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user info")
+		return nil, trace.Wrap(err, "failed to query GitHub user info")
 	}
 	teamsResp, err := ghClient.getTeams()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user teams")
+		return nil, trace.Wrap(err, "failed to query GitHub user teams")
 	}
 	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
 
@@ -587,7 +587,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// by making requests to Github API using the access token
 	claims, err := populateGithubClaims(userResp, teamsResp)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to query Github API for user claims.")
+		return nil, trace.Wrap(err, "Failed to query GitHub API for user claims.")
 	}
 	diagCtx.Info.GithubClaims = claims
 
@@ -791,7 +791,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	if existingUser != nil {
 		ref := user.GetCreatedBy().Connector
 		if !ref.IsSameProvider(existingUser.GetCreatedBy().Connector) {
-			return nil, trace.AlreadyExists("local user %q already exists and is not a Github user",
+			return nil, trace.AlreadyExists("local user %q already exists and is not a GitHub user",
 				existingUser.GetName())
 		}
 
