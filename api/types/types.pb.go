@@ -5954,7 +5954,7 @@ func (m *PluginDataFilter) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_PluginDataFilter proto.InternalMessageInfo
 
-// PluginDataUpdateParams encodes paramers for updating a PluginData field.
+// PluginDataUpdateParams encodes parameters for updating a PluginData field.
 type PluginDataUpdateParams struct {
 	// Kind is the kind of resource that the target plugin data
 	// is associated with.

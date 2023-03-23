@@ -2154,7 +2154,7 @@ message PluginDataFilter {
   string Plugin = 3 [(gogoproto.jsontag) = "plugin,omitempty"];
 }
 
-// PluginDataUpdateParams encodes paramers for updating a PluginData field.
+// PluginDataUpdateParams encodes parameters for updating a PluginData field.
 message PluginDataUpdateParams {
   // Kind is the kind of resource that the target plugin data
   // is associated with.
