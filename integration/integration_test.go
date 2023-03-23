@@ -6939,33 +6939,38 @@ func testListResourcesAcrossClusters(t *testing.T, suite *integrationTestSuite) 
 }
 
 func testJoinOverReverseTunnelOnly(t *testing.T, suite *integrationTestSuite) {
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
+	for _, proxyProtocolEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("proxy protocol: %v", proxyProtocolEnabled), func(t *testing.T) {
+			lib.SetInsecureDevMode(true)
+			defer lib.SetInsecureDevMode(false)
 
-	// Create a Teleport instance with Auth/Proxy.
-	mainConfig := suite.defaultServiceConfig()
-	mainConfig.Auth.Enabled = true
+			// Create a Teleport instance with Auth/Proxy.
+			mainConfig := suite.defaultServiceConfig()
+			mainConfig.Auth.Enabled = true
 
-	mainConfig.Proxy.Enabled = true
-	mainConfig.Proxy.DisableWebService = false
-	mainConfig.Proxy.DisableWebInterface = true
+			mainConfig.Proxy.Enabled = true
+			mainConfig.Proxy.DisableWebService = false
+			mainConfig.Proxy.DisableWebInterface = true
+			mainConfig.Proxy.EnableProxyProtocol = proxyProtocolEnabled
 
-	mainConfig.SSH.Enabled = false
+			mainConfig.SSH.Enabled = false
 
-	main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
-	t.Cleanup(func() { require.NoError(t, main.StopAll()) })
+			main := suite.NewTeleportWithConfig(t, nil, nil, mainConfig)
+			t.Cleanup(func() { require.NoError(t, main.StopAll()) })
 
-	// Create a Teleport instance with a Node.
-	nodeConfig := suite.defaultServiceConfig()
-	nodeConfig.Hostname = Host
-	nodeConfig.SetToken("token")
+			// Create a Teleport instance with a Node.
+			nodeConfig := suite.defaultServiceConfig()
+			nodeConfig.Hostname = Host
+			nodeConfig.SetToken("token")
 
-	nodeConfig.Auth.Enabled = false
-	nodeConfig.Proxy.Enabled = false
-	nodeConfig.SSH.Enabled = true
+			nodeConfig.Auth.Enabled = false
+			nodeConfig.Proxy.Enabled = false
+			nodeConfig.SSH.Enabled = true
 
-	_, err := main.StartNodeWithTargetPort(nodeConfig, helpers.PortStr(t, main.ReverseTunnel))
-	require.NoError(t, err, "Node failed to join over reverse tunnel")
+			_, err := main.StartNodeWithTargetPort(nodeConfig, helpers.PortStr(t, main.ReverseTunnel))
+			require.NoError(t, err, "Node failed to join over reverse tunnel")
+		})
+	}
 }
 
 func testSFTP(t *testing.T, suite *integrationTestSuite) {
