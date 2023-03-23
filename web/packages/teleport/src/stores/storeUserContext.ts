@@ -177,6 +177,6 @@ export default class StoreUserContext extends Store<UserContext> {
   }
 
   getDeviceTrustAccess() {
-    return this.state.acl.deviceTrust.list;
+    return this.state.acl.deviceTrust;
   }
 }
