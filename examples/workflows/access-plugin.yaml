@@ -15,5 +15,5 @@ spec:
       - access  
     rules:
       - resources: ['access_request']
-        verbs: ['list','read','update']
+        verbs: ['list','read']
 version: v4
