@@ -1017,8 +1017,8 @@ type PluginService struct {
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
 type Opsgenie struct {
-	// APIKey is the path to a file containing an Opsgenie API key.
-	APIKey string `yaml:"api_key"`
+	// APIKeyFile is the path to a file containing an Opsgenie API key.
+	APIKeyFile string `yaml:"api_key_file"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
