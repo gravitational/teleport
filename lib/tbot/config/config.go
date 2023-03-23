@@ -19,6 +19,7 @@ package config
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -300,6 +301,45 @@ func isJoinMethodDefault(joinMethod string) bool {
 	return joinMethod == "" || joinMethod == DefaultJoinMethod
 }
 
+func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
+	uri, err := url.Parse(dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing --data-dir")
+	}
+	switch uri.Scheme {
+	case "", "file":
+		if uri.Host != "" {
+			return nil, trace.BadParameter(
+				"file-backed data storage must be on the local host",
+			)
+		}
+		// TODO(strideynet): eventually we can allow for URI query parameters
+		// to be used to configure symlinks/acl protection.
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Directory: &DestinationDirectory{
+					Path: uri.Path,
+				},
+			},
+		}, nil
+	case "memory":
+		if uri.Host != "" || uri.Path != "" {
+			return nil, trace.BadParameter(
+				"memory-backed data storage should not have host or path specified",
+			)
+		}
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Memory: &DestinationMemory{},
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter(
+			"unrecognized data storage scheme",
+		)
+	}
+}
+
 // FromCLIConf loads bot config from CLI parameters, potentially loading and
 // merging a configuration file if specified. CheckAndSetDefaults() will
 // be called. Note that CLI flags, if specified, will override file values.
@@ -350,16 +390,15 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	if cf.DataDir != "" {
 		if config.Storage != nil {
 			if _, err := config.Storage.GetDestination(); err != nil {
-				log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+				log.Warnf(
+					"CLI parameters are overriding storage location from %s",
+					cf.ConfigPath,
+				)
 			}
 		}
-
-		config.Storage = &StorageConfig{
-			DestinationMixin: DestinationMixin{
-				Directory: &DestinationDirectory{
-					Path: cf.DataDir,
-				},
-			},
+		config.Storage, err = storageConfigFromCLIConf(cf.DataDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 

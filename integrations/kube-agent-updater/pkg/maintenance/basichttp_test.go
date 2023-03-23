@@ -34,8 +34,8 @@ const basicHTTPTestPath = "/v1/cloud-stable"
 func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
 	mock := basichttp.NewServerMock(basicHTTPTestPath + "/" + constants.MaintenancePath)
 	t.Cleanup(mock.Srv.Close)
-	serverUrl, err := url.Parse(mock.Srv.URL)
-	serverUrl.Path = basicHTTPTestPath
+	serverURL, err := url.Parse(mock.Srv.URL)
+	serverURL.Path = basicHTTPTestPath
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -94,7 +94,7 @@ func Test_basicHTTPMaintenanceClient_Get(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := &basicHTTPMaintenanceClient{
-				baseURL: serverUrl,
+				baseURL: serverURL,
 				client:  &basichttp.Client{Client: mock.Srv.Client()},
 			}
 			mock.SetResponse(t, tt.statusCode, tt.response)
