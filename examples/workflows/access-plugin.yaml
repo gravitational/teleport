@@ -10,6 +10,9 @@ metadata:
   name: access-plugin
 spec:
   allow:
+    review_requests:
+      roles:
+      - access  
     rules:
       - resources: ['access_request']
         verbs: ['list','read','update']
