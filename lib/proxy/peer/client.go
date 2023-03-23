@@ -394,6 +394,14 @@ func (s frameStream) Recv() ([]byte, error) {
 	return frame.GetData().Bytes, nil
 }
 
+func (s frameStream) Close() error {
+	if cs, ok := s.stream.(grpc.ClientStream); ok {
+		return trace.Wrap(cs.CloseSend())
+	}
+
+	return nil
+}
+
 // Shutdown gracefully shuts down all existing client connections.
 func (c *Client) Shutdown() {
 	c.Lock()

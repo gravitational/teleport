@@ -91,11 +91,13 @@ export type UserEvent = {
   alert?: string;
 };
 
-export type PreUserEvent = UserEvent & {
+export type EventMeta = {
   username: string;
   mfaType?: string;
   loginFlow?: string;
 };
+
+export type PreUserEvent = UserEvent & EventMeta;
 
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;
