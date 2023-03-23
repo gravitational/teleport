@@ -121,7 +121,7 @@ class TeleportContext implements types.Context {
       downloadCenter: userContext.hasDownloadCenterListAccess(),
       discover: userContext.hasDiscoverAccess(),
       plugins: userContext.hasPluginsAccess(),
-      deviceTrust: userContext.getDeviceTrustAccess(),
+      deviceTrust: userContext.getDeviceTrustAccess().list,
     };
   }
 }
