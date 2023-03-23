@@ -385,8 +385,8 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
 	requires := getDBLocalProxyRequirement(client, route)
-	if requires.tunnel && !cf.LocalProxyTunnel {
-		// Some scenarios require the --tunnel flag, e.g.:
+	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
+		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
 		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
@@ -421,6 +421,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		teleportClient:   client,
 		profile:          profile,
 		routeToDatabase:  route,
+		database:         db,
 		listener:         listener,
 		localProxyTunnel: cf.LocalProxyTunnel,
 	})
@@ -437,7 +438,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		lp.Close()
 	}()
 
-	if cf.LocalProxyTunnel {
+	if isLocalProxyTunnelRequested(cf) {
 		addr, err := utils.ParseAddr(lp.GetAddr())
 		if err != nil {
 			return trace.Wrap(err)
@@ -800,6 +801,15 @@ func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listen
 		ParentContext:      cf.Context,
 		Listener:           listener,
 	}
+}
+
+// isLocalProxyTunnelRequested is a helper function that returns whether the user
+// requested a local proxy tunnel, either via --tunnel or equivalently by specifying
+// --cert-file/--key-file.
+func isLocalProxyTunnelRequested(cf *CLIConf) bool {
+	return cf.LocalProxyTunnel ||
+		cf.LocalProxyCertFile != "" ||
+		cf.LocalProxyKeyFile != ""
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.

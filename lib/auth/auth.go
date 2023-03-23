@@ -213,6 +213,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.UsageReporter == nil {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
+	if cfg.Okta == nil {
+		cfg.Okta, err = local.NewOktaService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -264,6 +270,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
+
+		okta: cfg.Okta,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -358,6 +366,8 @@ type Services struct {
 	usagereporter.UsageReporter
 	types.Events
 	events.IAuditLog
+
+	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -370,6 +380,11 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 // Implements ReadAccessPoint
 func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
+}
+
+// OktaClient returns the okta client.
+func (r *Services) OktaClient() services.Okta {
+	return r.okta
 }
 
 var (

@@ -656,11 +656,10 @@ type localProxyConfig struct {
 func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 	certFile := arg.cliConf.LocalProxyCertFile
 	keyFile := arg.cliConf.LocalProxyKeyFile
-	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer ||
-		arg.routeToDatabase.Protocol == defaults.ProtocolCassandra ||
-		(arg.localProxyTunnel && certFile == "") {
-		// For SQL Server and Cassandra connections, local proxy must be configured with the
-		// client certificate that will be used to route connections.
+	if arg.localProxyTunnel && certFile == "" && keyFile == "" {
+		// --tunnel implies the local proxy is configured with db certs.
+		// If db certs are not specified but exist in the user profile, load
+		// them from the profile.
 		certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
 		keyFile = arg.profile.KeyPath()
 	}
@@ -669,7 +668,8 @@ func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
 		if !arg.localProxyTunnel {
 			return nil, trace.Wrap(err)
 		}
-		// local proxy with tunnel monitors its certs, so it's ok if a cert file can't be loaded.
+		// local proxy with --tunnel monitors and reissue its certs,
+		// so it's ok if certs can't be loaded here.
 		certs = nil
 	}
 
@@ -853,7 +853,12 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	return databases[0], nil
 }
 
-func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
+	if (requires.localProxy && requires.tunnel) || isLocalProxyTunnelRequested(cf) {
+		// We don't need to login if using a local proxy tunnel,
+		// because a local proxy tunnel will handle db login itself.
+		return false, nil
+	}
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -887,12 +892,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.Ro
 // maybeDatabaseLogin checks if cert is still valid. If not valid, trigger db login logic.
 // returns a true/false indicating whether database login was triggered.
 func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, route *tlsca.RouteToDatabase, requires *dbLocalProxyRequirement) error {
-	if requires.localProxy && requires.tunnel {
-		// We only need to (possibly) login if not using a local proxy tunnel,
-		// because a local proxy tunnel will handle db login itself.
-		return nil
-	}
-	reloginNeeded, err := needDatabaseRelogin(cf, tc, route, profile)
+	reloginNeeded, err := needDatabaseRelogin(cf, tc, route, profile, requires)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1071,7 +1071,7 @@ type dbLocalProxyRequirement struct {
 	localProxy bool
 	// localProxyReasons is a list of reasons for why local proxy is required.
 	localProxyReasons []string
-	// localProxy is whether a local proxy tunnel is required to connect.
+	// tunnel is whether a local proxy tunnel is required to connect.
 	tunnel bool
 	// tunnelReasons is a list of reasons for why a tunnel is required.
 	tunnelReasons []string
@@ -1104,12 +1104,13 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 		out.addLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
 	}
 
-	// Some protocols (Snowflake, DynamoDB) only works in the local tunnel mode.
 	switch route.Protocol {
-	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
+	case defaults.ProtocolSnowflake,
+		defaults.ProtocolDynamoDB,
+		defaults.ProtocolSQLServer,
+		defaults.ProtocolCassandra:
+		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
-	case defaults.ProtocolSQLServer, defaults.ProtocolCassandra:
-		out.addLocalProxy(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolMySQL:
 		if tc.TLSRoutingEnabled {
 			out.addLocalProxy(fmt.Sprintf("%v and %v",
