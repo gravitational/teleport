@@ -19,7 +19,7 @@ import cfg from 'teleport/config';
 import session from 'teleport/services/websession';
 
 import makeUserContext from './makeUserContext';
-import makeResetToken from './makeResetToken';
+import { makeResetToken } from './makeResetToken';
 import makeUser, { makeUsers } from './makeUser';
 import { User, UserContext, ResetPasswordType } from './types';
 

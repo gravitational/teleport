@@ -32,7 +32,6 @@ test('search generates correct url params', () => {
       clusterId="test"
       authType="local"
       databases={databases}
-      totalCount={50}
       pathname="test.com/cluster/one/databases"
       replaceHistory={replaceHistory}
     />

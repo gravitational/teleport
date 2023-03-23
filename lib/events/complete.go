@@ -40,7 +40,7 @@ import (
 // UploadCompleterConfig specifies configuration for the uploader
 type UploadCompleterConfig struct {
 	// AuditLog is used for storing logs
-	AuditLog IAuditLog
+	AuditLog AuditLogSessionStreamer
 	// Uploader allows the completer to list and complete uploads
 	Uploader MultipartUploader
 	// SessionTracker is used to discover the current state of a
@@ -79,14 +79,12 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-var (
-	incompleteSessionUploads = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: "teleport",
-			Name:      teleport.MetricIncompleteSessionUploads,
-			Help:      "Number of sessions not yet uploaded to auth",
-		},
-	)
+var incompleteSessionUploads = prometheus.NewGauge(
+	prometheus.GaugeOpts{
+		Namespace: "teleport",
+		Name:      teleport.MetricIncompleteSessionUploads,
+		Help:      "Number of sessions not yet uploaded to auth",
+	},
 )
 
 // NewUploadCompleter returns a new UploadCompleter.

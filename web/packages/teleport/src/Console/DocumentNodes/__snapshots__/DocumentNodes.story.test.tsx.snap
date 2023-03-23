@@ -77,21 +77,11 @@ exports[`render DocumentNodes 1`] = `
   font-size: 14px;
 }
 
-.c37 {
+.c36 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
-}
-
-.c5 {
-  color: #FFFFFF;
-  display: block;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: uppercase;
-  width: 100%;
-  margin-bottom: 4px;
 }
 
 .c23 {
@@ -112,6 +102,16 @@ exports[`render DocumentNodes 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
+}
+
+.c5 {
+  color: #FFFFFF;
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .c0 {
@@ -167,13 +167,6 @@ exports[`render DocumentNodes 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c35 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c28 {
@@ -289,28 +282,28 @@ exports[`render DocumentNodes 1`] = `
   cursor: pointer;
 }
 
-.c36 {
+.c35 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c36 .c24 {
+.c35 .c24 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c36:hover .c24,
-.c36:focus .c24 {
+.c35:hover .c24,
+.c35:focus .c24 {
   opacity: 1;
 }
 
-.c36:disabled {
+.c35:disabled {
   cursor: default;
 }
 
-.c36:disabled .c24 {
+.c35:disabled .c24 {
   opacity: 0.1;
 }
 
@@ -499,7 +492,7 @@ exports[`render DocumentNodes 1`] = `
 .c7 .react-select__control,
 .c7 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -570,7 +563,7 @@ exports[`render DocumentNodes 1`] = `
 .c6 .react-select__control,
 .c6 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -934,8 +927,9 @@ exports[`render DocumentNodes 1`] = `
             <div
               class="c27"
               color="primary.contrastText"
+              style="text-transform: uppercase;"
             >
-              SHOWING 
+              Showing 
               <strong>
                 1
               </strong>
@@ -1237,28 +1231,26 @@ exports[`render DocumentNodes 1`] = `
           width="100%"
         >
           <div
-            class="c35"
-          />
-          <div
             class="c26"
           >
             <button
-              class="c36"
+              class="c35"
               disabled=""
               title="Previous page"
             >
               <span
-                class="c24 c37 icon icon-arrow-left-circle "
+                class="c24 c36 icon icon-arrow-left-circle "
                 color="light"
                 font-size="3"
               />
             </button>
             <button
-              class="c36"
+              class="c35"
+              disabled=""
               title="Next page"
             >
               <span
-                class="c24 c37 icon icon-arrow-right-circle "
+                class="c24 c36 icon icon-arrow-right-circle "
                 color="light"
                 font-size="3"
               />

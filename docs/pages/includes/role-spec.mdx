@@ -25,8 +25,9 @@ spec:
     # certificates expire in the middle of an active session.
     # It overrides the global cluster setting.
     disconnect_expired_cert: no
-    # max_sessions is total number of session channels that can be established
+    # max_sessions is the total number of session channels that can be established
     # across a single connection. Setting it to 10 matches OpenSSH default behavior.
+    # (enterprise-only)
     max_sessions: 10
     # Defines which events are recorded by the BPF-based session recorder.
     enhanced_recording:
@@ -36,6 +37,8 @@ spec:
     # permit_x11_forwarding allows users to use X11 forwarding with openssh
     # clients and servers through the proxy
     permit_x11_forwarding: true
+    # device_trust_mode enforces authenticated device access for the owner of this role.
+    device_trust_mode: optional|required|off
     # require_session_mfa require per-session MFA for any owner of this role
     require_session_mfa: true
     # lock sets locking mode for user of this role,
@@ -96,6 +99,13 @@ spec:
        value: "{{ external.github_login }}"
     # Controls whether this role supports auto provisioning of users.
     create_host_user: true
+    # Specifies role specific options for identity provider access.
+    idp:
+      # Specifies role specific options for SAML identity provider access.
+      saml:
+        # Specifies whether this role has access to the SAML identity provider.
+        # Defaults to true.
+        enabled: true
 
   # The allow section declares a list of resource/verb combinations that are
   # allowed for the users of this role. By default, nothing is allowed.
@@ -142,13 +152,13 @@ spec:
       'cluster_name': '^us.*\.example\.com$'
 
     # kubernetes_resources indicates the Kubernetes resources that a user with
-    # this role is allowed to access. 
+    # this role is allowed to access.
     kubernetes_resources:
         # The resource kind. Teleport currently only supports "pod".
       - kind: pod
         # The name of the Kubernetes namespace in which to allow access the
-        # resources you specify with "name" and "kind". 
-        # The wildcard character "*" matches any sequence of characters. 
+        # resources you specify with "name" and "kind".
+        # The wildcard character "*" matches any sequence of characters.
         # If the value begins with "^" and ends with "$", the Kubernetes
         # Service will treat it as a regular expression.
         namespace: "*"
@@ -197,7 +207,7 @@ spec:
         contains(user.spec.traits["group"], impersonate_user.metadata.labels["group"])
 
     # review_requests allows a user holding this role
-    # to approve or deny Access Requests
+    # to approve or deny Access Requests (enterprise-only)
     review_requests:
       # the reviewer can view and approve or deny access requests for any roles
       # listed here
@@ -213,11 +223,11 @@ spec:
       roles: ['common', 'dev-*']
 
       # `search_as_roles` allows users to search for and request access to
-      # resources accessible by the listed roles
+      # resources accessible by the listed roles (enterprise-only)
       search_as_roles: ['access']
 
       # thresholds specifies minimum amount of approvers and deniers,
-      # defaults to 1 for both
+      # defaults to 1 for both (enterprise-only)
       thresholds:
         # requires at least two qualifying approvers and at least one denier.
         - approve: 2

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+pushd () {
+    command pushd "$@" > /dev/null
+}
+
+popd () {
+    command popd "$@" > /dev/null
+}
+
+echo ">>> Prefetching image under test: $2"
+docker pull --platform $1 $2
+
+for test in **/test.sh
+do
+  testdir=$(dirname $test)
+  echo ""
+  echo ">>> Smoke test: $testdir"
+  pushd $testdir
+  if ! ./test.sh $1 $2; then
+    echo "Test Failed"
+    exit 1
+  fi
+  popd
+done

@@ -180,6 +180,7 @@ jobs:
       - run:
           name: "Use Machine ID to access Teleport Node"
           command: |
+            export TELEPORT_ANONYMOUS_TELEMETRY=1
             tbot start \
               --auth-server=tele.example.com:443 \
               --join-method=circleci --token=circleci-demo \
@@ -198,6 +199,10 @@ workflows:
           context:
             - teleport-access
 ```
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Replace `tele.example.com:443` with the public-facing address of your Teleport
 Proxy Service or cloud tenant (e.g. `example.teleport.sh`). Replace `my-node`
@@ -226,3 +231,5 @@ resources in your Teleport cluster that your CI/CD needs to interact with.
 
 For more information about CircleCI itself, read
 [their documentation](https://circleci.com/docs/).
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

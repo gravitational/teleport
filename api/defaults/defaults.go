@@ -28,9 +28,11 @@ const (
 	// Namespace is default namespace
 	Namespace = "default"
 
-	// DefaultDialTimeout is a default TCP dial timeout we set for our
-	// connection attempts
-	DefaultDialTimeout = 30 * time.Second
+	// DefaultIOTimeout is a default network IO timeout.
+	DefaultIOTimeout = 30 * time.Second
+
+	// DefaultIdleTimeout is a default idle connection timeout.
+	DefaultIdleTimeout = 360 * time.Second
 
 	// KeepAliveCountMax is the number of keep-alive messages that can be sent
 	// without receiving a response from the client before the client is

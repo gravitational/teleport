@@ -5,7 +5,13 @@ on:
     branches:
       - master
   pull_request:
+    paths:
+      - 'docs/**'
+      - 'examples/**'
   merge_group:
+    paths:
+      - 'docs/**'
+      - 'examples/**'
 
 jobs:
   doc-tests:

@@ -114,6 +114,9 @@ message ServerMetadata {
   // place. We can't verify emit permissions fully for these events so care should be taken with
   // them.
   string ForwardedBy = 6 [(gogoproto.jsontag) = "forwarded_by,omitempty"];
+
+  // ServerSubKind is the sub kind of the server the session occurred on.
+  string ServerSubKind = 7 [(gogoproto.jsontag) = "server_sub_kind,omitempty"];
 }
 
 // Connection contains connection info
@@ -161,6 +164,15 @@ message KubernetesPodMetadata {
   string KubernetesContainerImage = 4 [(gogoproto.jsontag) = "kubernetes_container_image,omitempty"];
   // KubernetesNodeName is the node that runs the pod.
   string KubernetesNodeName = 5 [(gogoproto.jsontag) = "kubernetes_node_name,omitempty"];
+}
+
+// SAMLIdPServiceProviderMetadata contains common metadata for SAML IdP service provider
+// events.
+message SAMLIdPServiceProviderMetadata {
+  // ServiceProviderEntityID is the entity ID of the service provider.
+  string ServiceProviderEntityID = 1 [(gogoproto.jsontag) = "service_provider_entity_id,omitempty"];
+  // ServiceProviderShortcut is the shortcut name of a service provider.
+  string ServiceProviderShortcut = 2 [(gogoproto.jsontag) = "service_provider_shortcut,omitempty"];
 }
 
 // SessionStart is a session start event
@@ -3227,6 +3239,11 @@ message OneOf {
     events.DeviceEvent DeviceEvent = 112;
     events.LoginRuleCreate LoginRuleCreate = 113;
     events.LoginRuleDelete LoginRuleDelete = 114;
+    events.SAMLIdPAuthAttempt SAMLIdPAuthAttempt = 115;
+    events.SAMLIdPServiceProviderCreate SAMLIdPServiceProviderCreate = 116;
+    events.SAMLIdPServiceProviderUpdate SAMLIdPServiceProviderUpdate = 117;
+    events.SAMLIdPServiceProviderDelete SAMLIdPServiceProviderDelete = 118;
+    events.SAMLIdPServiceProviderDeleteAll SAMLIdPServiceProviderDeleteAll = 119;
   }
 }
 
@@ -4424,6 +4441,133 @@ message LoginRuleDelete {
 
   // User is a common user event metadata
   UserMetadata User = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLIdPAuthAttempt is emitted when a user has attempted to authorize against the SAML IdP.
+message SAMLIdPAuthAttempt {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is common user event metadata
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is common event session metadata
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the SAML IdP authentication was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SAMLIdPServiceProviderMetadata is common SAML IdP service provider event metadata
+  SAMLIdPServiceProviderMetadata ServiceProvider = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLIdPServiceProviderCreate is emitted when a service provider has been added.
+message SAMLIdPServiceProviderCreate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SAMLIdPServiceProviderMetadata is common SAML IdP service provider event metadata
+  SAMLIdPServiceProviderMetadata ServiceProvider = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLIdPServiceProviderUpdate is emitted when a service provider has been updated.
+message SAMLIdPServiceProviderUpdate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is a common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SAMLIdPServiceProviderMetadata is common SAML IdP service provider event metadata
+  SAMLIdPServiceProviderMetadata ServiceProvider = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLIdPServiceProviderDelete is emitted when a service provider has been deleted.
+message SAMLIdPServiceProviderDelete {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is common resource event metadata
+  ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SAMLIdPServiceProviderMetadata is common SAML IdP service provider event metadata
+  SAMLIdPServiceProviderMetadata ServiceProvider = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// SAMLIdPServiceProviderDeleteAll is emitted when all service providers have been deleted.
+message SAMLIdPServiceProviderDeleteAll {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is common resource event metadata
+  ResourceMetadata Resource = 2 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

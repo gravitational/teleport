@@ -51,19 +51,22 @@ type AWSSSM struct {
 	DocumentName string
 }
 
-// InstallerParams are passed to the AWS SSM document
+// InstallerParams are passed to the AWS SSM document or installation script
 type InstallerParams struct {
 	// JoinMethod is the method to use when joining the cluster
 	JoinMethod types.JoinMethod
 	// JoinToken is the token to use when joining the cluster
 	JoinToken string
-	// ScriptName is the name of the teleport script for the EC2
+	// ScriptName is the name of the teleport script for the cloud
 	// instance to execute
 	ScriptName string
 	// InstallTeleport disables agentless discovery
 	InstallTeleport bool
 	// SSHDConfig provides the path to write sshd configuration changes
 	SSHDConfig string
+	// PublicProxyAddr is the address of the proxy the discovered node should use
+	// to connect to the cluster. Used only in Azure.
+	PublicProxyAddr string
 }
 
 // AWSMatcher matches AWS databases.
@@ -93,6 +96,8 @@ type AzureMatcher struct {
 	Regions []string
 	// ResourceTags are Azure tags to match.
 	ResourceTags types.Labels
+	// Params are passed to Azure when installing.
+	Params InstallerParams
 }
 
 // GCPMatcher matches GCP resources.
@@ -136,6 +141,7 @@ func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
 			Regions:        regions,
 			Types:          ts,
 			ResourceTags:   m.ResourceTags,
+			Params:         m.Params,
 		})
 	}
 	return result
@@ -190,7 +196,7 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
-	case types.KindKubeService, types.KindKubeServer:
+	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
 		}
@@ -281,8 +287,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	}
 
 	switch server := resource.(type) {
-	case types.Server:
-		return matchAndFilterKubeClustersLegacy(server, filter)
 	case types.KubeServer:
 		kubeCluster := server.GetCluster()
 		if kubeCluster == nil {
@@ -293,35 +297,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)
 	}
-}
-
-// matchAndFilterKubeClustersLegacy is used by matchAndFilterKubeClusters to filter kube clusters that are stil living in old kube services
-// REMOVE in 13.0
-func matchAndFilterKubeClustersLegacy(server types.Server, filter MatchResourceFilter) (bool, error) {
-	kubeClusters := server.GetKubernetesClusters()
-
-	// Apply filter to each kube cluster.
-	filtered := make([]*types.KubernetesCluster, 0, len(kubeClusters))
-	for _, kube := range kubeClusters {
-		kubeResource, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		match, err := matchResourceByFilters(kubeResource, filter)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		if match {
-			filtered = append(filtered, kube)
-		}
-	}
-
-	// Update in place with the filtered clusters.
-	server.SetKubernetesClusters(filtered)
-
-	// Length of 0 means this service does not contain any matches.
-	return len(filtered) > 0, nil
 }
 
 // MatchResourceFilter holds the filter values to match against a resource.

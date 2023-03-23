@@ -14,127 +14,36 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router';
-import { FetchStatus, SortType } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect } from 'react';
 
-import history from 'teleport/services/history';
-
-import getResourceUrlQueryParams, {
-  ResourceUrlQueryParams,
-} from 'teleport/getUrlQueryParams';
-
-import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/agents';
 import { sortLogins } from 'teleport/Nodes/useNodes';
+import {
+  useUrlFiltering,
+  useServerSidePagination,
+} from 'teleport/components/hooks';
 
 import * as stores from './../stores';
 import { useConsoleContext } from './../consoleContextProvider';
 
-import type { Node, NodesResponse } from 'teleport/services/nodes';
+import type { Node } from 'teleport/services/nodes';
 
 export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   const consoleCtx = useConsoleContext();
-  const { search, pathname } = useLocation();
-  const [startKeys, setStartKeys] = useState<string[]>([]);
-  const { attempt, setAttempt } = useAttempt('processing');
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [params, setParams] = useState<ResourceUrlQueryParams>({
-    sort: { fieldName: 'hostname', dir: 'ASC' },
-    ...getResourceUrlQueryParams(search),
+
+  const { params, search, ...filteringProps } = useUrlFiltering({
+    fieldName: 'hostname',
+    dir: 'ASC',
   });
 
-  const [results, setResults] = useState<NodesResponse>({
-    nodes: [],
-    startKey: '',
-    totalCount: 0,
+  const { fetch, fetchedData, ...paginationProps } = useServerSidePagination({
+    fetchFunc: consoleCtx.nodesService.fetchNodes,
+    clusterId,
+    params,
   });
-
-  const pageSize = 15;
-
-  const from =
-    results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
-  const to = results.totalCount > 0 ? from + results.nodes.length - 1 : 0;
 
   useEffect(() => {
-    fetchNodes();
+    fetch();
   }, [clusterId, search]);
-
-  function replaceHistory(path: string) {
-    history.replace(path);
-  }
-
-  function setSort(sort: SortType) {
-    setParams({ ...params, sort });
-  }
-
-  function fetchNodes() {
-    setAttempt({ status: 'processing' });
-    consoleCtx
-      .fetchNodes(clusterId, { ...params, limit: pageSize })
-      .then(({ nodesRes }) => {
-        setResults({
-          nodes: nodesRes.agents,
-          startKey: nodesRes.startKey,
-          totalCount: nodesRes.totalCount,
-        });
-        setFetchStatus(nodesRes.startKey ? '' : 'disabled');
-        setStartKeys(['', nodesRes.startKey]);
-        setAttempt({ status: 'success' });
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, nodes: [], totalCount: 0 });
-        setStartKeys(['']);
-      });
-  }
-
-  const fetchNext = () => {
-    setFetchStatus('loading');
-    consoleCtx
-      .fetchNodes(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: results.startKey,
-      })
-      .then(({ nodesRes }) => {
-        setResults({
-          ...results,
-          nodes: nodesRes.agents,
-          startKey: nodesRes.startKey,
-        });
-        setFetchStatus(nodesRes.startKey ? '' : 'disabled');
-        setStartKeys([...startKeys, nodesRes.startKey]);
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
-
-  const fetchPrev = () => {
-    setFetchStatus('loading');
-    consoleCtx
-      .fetchNodes(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: startKeys[startKeys.length - 3],
-      })
-      .then(({ nodesRes }) => {
-        setResults({
-          ...results,
-          nodes: nodesRes.agents,
-          startKey: nodesRes.startKey,
-        });
-        const tempStartKeys = startKeys;
-        tempStartKeys.pop();
-        setStartKeys(tempStartKeys);
-        setFetchStatus(nodesRes.startKey ? '' : 'disabled');
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
 
   function createSshSession(login: string, serverId: string) {
     const url = consoleCtx.getSshDocumentUrl({
@@ -158,7 +67,7 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
   }
 
   function getNodeSshLogins(serverId: string) {
-    const node = results.nodes.find(node => node.id == serverId);
+    const node = fetchedData.agents.find(node => node.id == serverId);
     return makeOptions(clusterId, node);
   }
 
@@ -179,28 +88,13 @@ export default function useNodes({ clusterId, id }: stores.DocumentNodes) {
       };
     });
   }
-
-  const onLabelClick = (label: AgentLabel) =>
-    labelClick(label, params, setParams, pathname, replaceHistory);
-
   return {
-    attempt,
+    fetchedData,
     createSshSession,
     changeCluster,
     getNodeSshLogins,
-    results,
-    fetchNext,
-    fetchPrev,
-    pageSize,
-    from,
-    to,
     params,
-    setParams,
-    startKeys,
-    setSort,
-    pathname,
-    replaceHistory,
-    fetchStatus,
-    onLabelClick,
+    ...filteringProps,
+    ...paginationProps,
   };
 }

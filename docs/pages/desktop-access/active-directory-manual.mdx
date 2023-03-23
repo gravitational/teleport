@@ -13,8 +13,8 @@ Starting with Teleport 10.2.6, you can install Active Directory and configure
 Teleport Desktop Access through the web UI. See [Desktop Access with Active
 Directory](active-directory.mdx) for more information.
 
-Teleport Enterprise users can configure Windows Access without Active Directory
-integration by following [Getting Started with Windows Access](getting-started.mdx).
+Teleport Enterprise users can configure Windows Access for local users by
+following [Getting Started with Windows Access](getting-started.mdx).
 
 Continue with this guide if:
 
@@ -333,7 +333,7 @@ Computer Configuration > Policies > Administrative Templates > Windows Component
 Select:
 
 ```text
-Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection" 
+Computer Configuration > Administrative Templates > Windows Components > Remote Desktop Services > Remote Desktop Session Host > Security > "Always prompt for password upon connection"
 ```
 
 Set to `Disabled` and click `OK`.
@@ -524,7 +524,7 @@ auth_service:
 proxy_service:
   enabled: no
 ssh_service:
-  enabled: no    
+  enabled: no
 ```
 </TabItem>
 <TabItem scope={["cloud"]} label="Cloud">
@@ -565,7 +565,7 @@ auth_service:
 proxy_service:
   enabled: no
 ssh_service:
-  enabled: no    
+  enabled: no
 ```
 </TabItem>
 </Tabs>
@@ -581,7 +581,7 @@ sudo teleport start -c /etc/teleport.yaml
 ### Create a Teleport user/role for Windows Desktop Access
 
 In order to gain access to a remote desktop, a Teleport user needs to have the
-appropriate permissions for that desktop. 
+appropriate permissions for that desktop.
 
 For example, you can create a role that gives its users access to all Windows
 desktop labels and the `"Administrator"` user. To do so, create a file called

@@ -45,11 +45,13 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/agentless"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -89,7 +91,7 @@ type TerminalRequest struct {
 // AuthProvider is a subset of the full Auth API.
 type AuthProvider interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
-	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error)
+	GetSessionEvents(namespace string, sid session.ID, after int) ([]events.EventFields, error)
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
 	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
@@ -120,6 +122,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 		interactiveCommand: cfg.InteractiveCommand,
 		term:               cfg.Term,
 		router:             cfg.Router,
+		proxySigner:        cfg.PROXYSigner,
 		tracer:             cfg.tracer,
 		participantMode:    cfg.ParticipantMode,
 	}, nil
@@ -150,6 +153,8 @@ type TerminalHandlerConfig struct {
 	Router *proxy.Router
 	// TracerProvider is used to create the tracer
 	TracerProvider oteltrace.TracerProvider
+	// ProxySigner is used to sign PROXY header and securely propagate client IP information
+	PROXYSigner multiplexer.PROXYHeaderSigner
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 	// ParticipantMode is the mode that determines what you can do when you join an active session.
@@ -242,6 +247,9 @@ type TerminalHandler struct {
 
 	// router is used to dial the host
 	router *proxy.Router
+
+	// proxySigner is used to sign PROXY header and securely propagate client IP information
+	proxySigner multiplexer.PROXYHeaderSigner
 
 	// tracer creates spans
 	tracer oteltrace.Tracer
@@ -451,7 +459,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 	clientConfig.Tracer = t.tracer
 
 	if len(t.interactiveCommand) > 0 {
-		clientConfig.Interactive = true
+		clientConfig.InteractiveCommand = true
 	}
 
 	tc, err := client.NewClient(clientConfig)
@@ -617,11 +625,19 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		return
 	}
 
-	agentGetter := func() (teleagent.Agent, error) {
+	getAgent := func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(tc.LocalAgent()), nil
 	}
-
-	conn, err := t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
+	signerCreator := func() (ssh.Signer, error) {
+		cert, err := t.ctx.GetSSHCertificate()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		validBefore := time.Unix(int64(cert.ValidBefore), 0)
+		ttl := time.Until(validBefore)
+		return agentless.CreateAuthSigner(t.terminalContext, t.ctx.GetUser(), tc.SiteName, ttl, t.router)
+	}
+	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signerCreator)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -691,7 +707,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		sshConfig.Auth = tc.AuthMethods
 
 		// connect to the node again with the new certs
-		conn, err = t.router.DialHost(ctx, ws.RemoteAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, agentGetter)
+		conn, _, err = t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signerCreator)
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
 			t.writeError(err)

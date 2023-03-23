@@ -23,6 +23,8 @@ export const paths = {
   leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
   server:
     '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
+  serverLeaf:
+    '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
   gateway: '/gateways/:gatewayId',
@@ -137,7 +139,18 @@ export const routing = {
   },
 
   getServerUri(params: Params) {
-    return generatePath(paths.server, params as any) as ServerUri;
+    if (params.leafClusterId) {
+      // paths.serverLeaf is needed as path-to-regexp used by react-router doesn't support
+      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
+      //
+      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
+      return generatePath(
+        paths.serverLeaf,
+        params as any
+      ) as LeafClusterServerUri;
+    } else {
+      return generatePath(paths.server, params as any) as RootClusterServerUri;
+    }
   },
 
   isClusterServer(clusterUri: ClusterUri, serverUri: ServerUri) {

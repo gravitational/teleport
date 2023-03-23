@@ -205,7 +205,7 @@
     },
     {
       "icon": "lock",
-      "title": "Configure Access",
+      "title": "Manage Access",
       "entries": [
         {
           "title": "Introduction",
@@ -312,7 +312,29 @@
             }
           ]
         },
-		{
+        {
+          "title": "Teleport as an IdP",
+          "slug": "/access-controls/idps/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "SAML Identity Provider Guide",
+              "slug": "/access-controls/idps/saml-guide/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Authenticate to Grafana with Teleport SAML",
+              "slug": "/access-controls/idps/saml-grafana/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "SAML Identity Provider Reference",
+              "slug": "/access-controls/idps/saml-reference/",
+              "forScopes": ["enterprise", "cloud"]
+            }
+          ]
+        },
+        {
           "title": "Login Rules",
           "slug": "/access-controls/login-rules/",
           "forScopes": ["enterprise", "oss", "cloud"],
@@ -327,11 +349,12 @@
               "slug": "/access-controls/login-rules/reference/",
               "forScopes": ["enterprise", "cloud"]
             }
-		  ]
-		},
+          ]
+        },
         {
           "title": "Access Requests",
           "slug": "/access-controls/access-requests/",
+          "forScopes": ["oss", "enterprise", "cloud"],
           "entries": [
             {
               "title": "Role Requests",
@@ -341,6 +364,11 @@
               "title": "Resource Requests",
               "slug": "/access-controls/access-requests/resource-requests/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Role Requests in OSS Teleport",
+              "slug": "/access-controls/access-requests/oss-role-requests/",
+              "forScopes": ["oss", "enterprise", "cloud"]
             }
           ]
         },
@@ -418,6 +446,10 @@
       "icon": "wrench",
       "title": "Manage your Cluster",
       "entries": [
+      	{
+      	  "title": "Introduction",
+      	  "slug": "/management/introduction/"
+	},
         {
           "title": "Admin Guides",
           "slug": "/management/admin/",
@@ -454,6 +486,10 @@
             {
               "title": "Run Teleport with Self-Signed Certificates",
               "slug": "/management/admin/self-signed-certs/"
+            },
+            {
+              "title": "Uninstall Teleport",
+              "slug": "/management/admin/uninstall-teleport/"
             }
           ]
         },
@@ -567,17 +603,22 @@
           "slug": "/management/export-audit-events/",
           "entries": [
             {
-              "title": "Exporting Audit Events to Fluentd",
+              "title": "Export Audit Events to Fluentd",
               "slug": "/management/export-audit-events/fluentd/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Monitoring Audit Events with the Elastic Stack",
+              "title": "Export Audit Events to Datadog",
+              "slug": "/management/export-audit-events/datadog/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Export Audit Events to the Elastic Stack",
               "slug": "/management/export-audit-events/elastic-stack/",
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Monitoring Audit Events with Splunk",
+              "title": "Export Audit Events to Splunk",
               "slug": "/management/export-audit-events/splunk/",
               "forScopes": ["enterprise", "cloud"]
             }
@@ -596,6 +637,10 @@
         {
           "title": "Using tsh",
           "slug": "/connect-your-client/tsh/"
+        },
+        {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
         },
         {
           "title": "Using Teleport Connect",
@@ -661,6 +706,10 @@
             {
               "title": "AWS DynamoDB",
               "slug": "/application-access/guides/dynamodb/"
+            },
+            {
+              "title": "High Availability",
+              "slug": "/application-access/guides/ha/"
             }
           ]
         },
@@ -750,6 +799,10 @@
               "slug": "/server-access/guides/ansible/"
             }
           ]
+        },
+        {
+          "title": "Access Controls",
+          "slug": "/server-access/rbac/"
         }
       ]
     },
@@ -794,6 +847,10 @@
             {
               "title": "Register a Cluster with Static kubeconfigs",
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
+            },
+            {
+              "title": "Register a Cluster with IAM Joining",
+              "slug": "/kubernetes-access/register-clusters/iam-joining/"
             },
             {
               "title": "Register Clusters Dynamically",
@@ -1108,6 +1165,10 @@
             {
               "title": "GitHub Actions",
               "slug": "/machine-id/reference/github-actions/"
+            },
+            {
+              "title": "Telemetry",
+              "slug": "/machine-id/reference/telemetry/"
             }
           ]
         },
@@ -1136,6 +1197,10 @@
         {
           "title": "Architecture",
           "slug": "/api/architecture/"
+        },
+        {
+          "title": "How to Build an Access Request Plugin",
+          "slug": "/api/access-plugin/"
         }
       ]
     },
@@ -1153,6 +1218,10 @@
       "icon": "book",
       "title": "Reference",
       "entries": [
+        {
+	  "title": "Introduction",
+	  "slug": "/reference/introduction/"
+	},
         {
           "title": "Config File",
           "slug": "/reference/config/"
@@ -1238,6 +1307,10 @@
       "icon": "integrations",
       "title": "Architecture",
       "entries": [
+      	{
+      	  "title": "Introduction",
+      	  "slug": "/architecture/introduction/"
+      	},
         {
           "title": "Authentication",
           "slug": "/architecture/authentication/"
@@ -1311,8 +1384,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.3.4",
-      "major_version": "11",
+      "version": "12.1.2",
+      "major_version": "12",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1320,7 +1393,8 @@
     },
     "devicetrust": {
       "asset_tag": "C00AA0AAAA0A",
-      "enroll_token": "AAAAAAAAAAAAAAAAAAAAAAAA-this-is-an-example"
+      "enroll_token": "AAAAAAAAAAAAAAAAAAAAAAAA-this-is-an-example",
+      "device_id": "9cdfc0ad-64b7-4d9c-this-is-an-example"
     },
     "docker": {
       "version": "20.10.7",

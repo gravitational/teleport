@@ -23,8 +23,11 @@ main() {
     --path=api/proto/teleport/devicetrust/ \
     --path=api/proto/teleport/kube/ \
     --path=api/proto/teleport/loginrule/ \
+    --path=api/proto/teleport/okta/ \
     --path=api/proto/teleport/plugins/ \
-    --path=api/proto/teleport/proxy/ \
+    --path=api/proto/teleport/samlidp/ \
+    --path=api/proto/teleport/transport/ \
+    --path=api/proto/teleport/trust/ \
     --path=proto/teleport/lib/multiplexer/ \
     --path=proto/teleport/lib/teleterm/
 

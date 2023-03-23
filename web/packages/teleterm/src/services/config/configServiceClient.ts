@@ -33,8 +33,8 @@ export function subscribeToConfigServiceEvents(
           return (event.returnValue = configService.get(item.path));
         case ConfigServiceEventType.Set:
           return configService.set(item.path, item.value);
-        case ConfigServiceEventType.GetStoredConfigErrors:
-          return (event.returnValue = configService.getStoredConfigErrors());
+        case ConfigServiceEventType.GetConfigError:
+          return (event.returnValue = configService.getConfigError());
       }
     }
   );
@@ -54,10 +54,10 @@ export function createConfigServiceClient(): ConfigService {
         value,
       });
     },
-    getStoredConfigErrors: () => {
+    getConfigError: () => {
       return ipcRenderer.sendSync(
         ConfigServiceEventChannel,
-        ConfigServiceEventType.GetStoredConfigErrors
+        ConfigServiceEventType.GetConfigError
       );
     },
   };

@@ -42,8 +42,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -106,6 +106,10 @@ type Server struct {
 	// userAgent is the SSH user agent that was forwarded to the proxy.
 	userAgent teleagent.Agent
 
+	// agentlessSigner is used for client authentication when no SSH
+	// user agent is provided, ie when connecting to agentless nodes.
+	agentlessSigner ssh.Signer
+
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
 	hostCertificate ssh.Signer
@@ -163,6 +167,11 @@ type Server struct {
 	tracerProvider oteltrace.TracerProvider
 
 	targetID, targetAddr, targetHostname string
+
+	// targetServer is the host that the connection is being established for.
+	// It **MUST** only be populated when the target is a teleport ssh server
+	// or an agentless server.
+	targetServer types.Server
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -173,6 +182,10 @@ type ServerConfig struct {
 	SrcAddr         net.Addr
 	DstAddr         net.Addr
 	HostCertificate ssh.Signer
+
+	// AgentlessSigner is used for client authentication when no SSH
+	// user agent is provided, ie when connecting to agentless nodes.
+	AgentlessSigner ssh.Signer
 
 	// UseTunnel indicates of this server is connected over a reverse tunnel.
 	UseTunnel bool
@@ -221,6 +234,11 @@ type ServerConfig struct {
 	TracerProvider oteltrace.TracerProvider
 
 	TargetID, TargetAddr, TargetHostname string
+
+	// TargetServer is the host that the connection is being established for.
+	// It **MUST** only be populated when the target is a teleport ssh server
+	// or an agentless server.
+	TargetServer types.Server
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -231,8 +249,8 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.UserAgent == nil {
-		return trace.BadParameter("user agent required to connect to remote host")
+	if s.UserAgent == nil && s.AgentlessSigner == nil {
+		return trace.BadParameter("user agent or agentless signer required to connect to remote host")
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -293,6 +311,7 @@ func New(c ServerConfig) (*Server, error) {
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
 		userAgent:       c.UserAgent,
+		agentlessSigner: c.AgentlessSigner,
 		hostCertificate: c.HostCertificate,
 		useTunnel:       c.UseTunnel,
 		address:         c.Address,
@@ -308,6 +327,7 @@ func New(c ServerConfig) (*Server, error) {
 		targetID:        c.TargetID,
 		targetAddr:      c.TargetAddr,
 		targetHostname:  c.TargetHostname,
+		targetServer:    c.TargetServer,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -326,12 +346,13 @@ func New(c ServerConfig) (*Server, error) {
 
 	// Common auth handlers.
 	authHandlerConfig := srv.AuthHandlerConfig{
-		Server:      s,
-		Component:   teleport.ComponentForwardingNode,
-		Emitter:     c.Emitter,
-		AccessPoint: c.AuthClient,
-		FIPS:        c.FIPS,
-		Clock:       c.Clock,
+		Server:       s,
+		Component:    teleport.ComponentForwardingNode,
+		Emitter:      c.Emitter,
+		AccessPoint:  c.AuthClient,
+		TargetServer: c.TargetServer,
+		FIPS:         c.FIPS,
+		Clock:        c.Clock,
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
@@ -353,12 +374,18 @@ func New(c ServerConfig) (*Server, error) {
 
 // TargetMetadata returns metadata about the forwarding target.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
+	var subKind string
+	if s.targetServer != nil {
+		subKind = s.targetServer.GetSubKind()
+	}
+
 	return apievents.ServerMetadata{
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
 		ServerHostname:  s.targetHostname,
 		ForwardedBy:     s.hostUUID,
+		ServerSubKind:   subKind,
 	}
 }
 
@@ -413,7 +440,7 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() (*pam.Config, error) {
+func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
 	return nil, trace.BadParameter("PAM not supported by forwarding server")
 }
 
@@ -487,7 +514,10 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 }
 
 func (s *Server) Serve() {
-	config := &ssh.ServerConfig{}
+	var (
+		succeeded bool
+		config    = &ssh.ServerConfig{}
+	)
 
 	// Configure callback for user certificate authentication.
 	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
@@ -511,13 +541,22 @@ func (s *Server) Serve() {
 	s.log.Debugf("Supported KEX algorithms: %q.", s.kexAlgorithms)
 	s.log.Debugf("Supported MAC algorithms: %q.", s.macAlgorithms)
 
-	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
-	if err != nil {
-		s.userAgent.Close()
+	// close
+	defer func() {
+		if succeeded {
+			return
+		}
+
+		if s.userAgent != nil {
+			s.userAgent.Close()
+		}
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
+	}()
 
+	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
+	if err != nil {
 		s.log.Errorf("Unable to create server connection: %v.", err)
 		return
 	}
@@ -529,11 +568,6 @@ func (s *Server) Serve() {
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
-		s.userAgent.Close()
-		s.targetConn.Close()
-		s.clientConn.Close()
-		s.serverConn.Close()
-
 		s.log.Errorf("Unable to create server connection: %v.", err)
 		return
 	}
@@ -547,14 +581,11 @@ func (s *Server) Serve() {
 		s.rejectChannel(chans, err.Error())
 		sconn.Close()
 
-		s.userAgent.Close()
-		s.targetConn.Close()
-		s.clientConn.Close()
-		s.serverConn.Close()
-
 		s.log.Errorf("Unable to create remote connection: %v", err)
 		return
 	}
+
+	succeeded = true
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
@@ -607,17 +638,19 @@ func (s *Server) Close() error {
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
-	// the proxy will use the agent that has been forwarded to it as the auth
-	// method when connecting to the remote host
-	if s.userAgent == nil {
-		return nil, trace.AccessDenied("agent must be forwarded to proxy")
+	// the proxy will use the agentless signer as the auth method when
+	// connecting to the remote host if it is available, otherwise the
+	// forwarded agent is used
+	var signers []ssh.Signer
+	if s.agentlessSigner != nil {
+		signers = []ssh.Signer{s.agentlessSigner}
+	} else {
+		var err error
+		signers, err = s.userAgent.Signers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
-
-	signers, err := s.userAgent.Signers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
 	clientConfig := &ssh.ClientConfig{
@@ -626,7 +659,7 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 			authMethod,
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
-		Timeout:         apidefaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
@@ -999,6 +1032,9 @@ func (s *Server) handleSessionChannel(ctx context.Context, nch ssh.NewChannel) {
 				),
 			)
 
+			// some functions called inside dispatch() may handle replies to SSH channel requests internally,
+			// rather than leaving the reply to be handled inside this loop. in that case, those functions must
+			// set req.WantReply to false so that two replies are not sent.
 			if err := s.dispatch(ctx, ch, req, scx); err != nil {
 				s.replyError(ch, req, err)
 				span.End()
@@ -1058,6 +1094,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 				s.log.Debug(err)
 			}
 			return nil
+		case sshutils.PuTTYWinadjRequest:
+			return s.handlePuTTYWinadj(ch, req)
 		default:
 			return trace.AccessDenied("attempted %v request in join-only mode", req.Type)
 		}
@@ -1091,6 +1129,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			s.log.Debug(err)
 		}
 		return nil
+	case sshutils.PuTTYWinadjRequest:
+		return s.handlePuTTYWinadj(ch, req)
 	default:
 		return trace.BadParameter(
 			"%v doesn't support request type '%v'", s.Component(), req.Type)
@@ -1105,7 +1145,17 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	}
 
 	// Route authentication requests to the agent that was forwarded to the proxy.
-	err = agent.ForwardToAgent(ctx.RemoteClient.Client, s.userAgent)
+	// If no agent was forwarded to the proxy, create one now.
+	userAgent := s.userAgent
+	if userAgent == nil {
+		ctx.ConnectionContext.SetForwardAgent(true)
+		userAgent, err = ctx.StartAgentChannel()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1297,4 +1347,21 @@ func parseSubsystemRequest(req *ssh.Request, ctx *srv.ServerContext) (*remoteSub
 	}
 
 	return parseRemoteSubsystem(context.Background(), r.Name, ctx), nil
+}
+
+// handlePuTTYWinadj replies with failure to a PuTTY winadj request as required.
+// it returns an error if the reply fails. context from the PuTTY documentation:
+// PuTTY sends this request along with some SSH_MSG_CHANNEL_WINDOW_ADJUST messages as part of its window-size
+// tuning. It can be sent on any type of channel. There is no message-specific data. Servers MUST treat it
+// as an unrecognized request and respond with SSH_MSG_CHANNEL_FAILURE.
+// https://the.earth.li/~sgtatham/putty/0.76/htmldoc/AppendixG.html#sshnames-channel
+func (s *Server) handlePuTTYWinadj(ch ssh.Channel, req *ssh.Request) error {
+	if err := req.Reply(false, nil); err != nil {
+		s.log.Warnf("Failed to reply to %q request: %v", req.Type, err)
+		return err
+	}
+	// the reply has been handled inside this function (rather than relying on the standard behavior
+	// of leaving handleSessionRequests to do it) so set the WantReply flag to false here.
+	req.WantReply = false
+	return nil
 }

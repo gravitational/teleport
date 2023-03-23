@@ -1,4 +1,17 @@
 #!/bin/sh
+
+on_ec2() {
+  EC2_STATUS=$(curl -o /dev/null -w "%{http_code}" -m5 -sS "http://169.254.169.254/latest/meta-data")
+  # EC2 metadata sometimes requires token access, so a successful hit may
+  # return unauthorized/forbidden.
+  [ "$EC2_STATUS" = "200" ] || [ "$EC2_STATUS" = "401" ] || [ "$EC2_STATUS" = "403" ]
+}
+
+on_azure() {
+  AZURE_STATUS=$(curl -o /dev/null -w "%{http_code}" -m5 -sS -H "Metadata:true" --noproxy "*" "http://169.254.169.254/metadata/versions")
+  [ "$AZURE_STATUS" = "200" ]
+}
+
 (
   flock -n 9 || exit 1
   if test -f /usr/local/bin/teleport; then
@@ -26,34 +39,53 @@
       echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
-    sudo apt-get install -y teleport jq
+    sudo apt-get install -y {{ .TeleportPackage }} jq
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     if [ "$ID" = "rhel" ]; then
       VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
     fi
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/{{ .MajorVersion }}/teleport.repo")"
-    sudo yum install -y teleport jq
+    sudo yum install -y {{ .TeleportPackage }} jq
   else
     echo "Unsupported distro: $ID"
     exit 1
   fi
+  
+  if on_azure ; then
+    API_VERSION=$(curl -m5 -sS -H "Metadata:true" --noproxy "*" "http://169.254.169.254/metadata/versions" | jq -r ".apiVersions[-1]")
+    INSTANCE_INFO=$(curl -m5 -sS -H "Metadata:true" --noproxy "*" "http://169.254.169.254/metadata/instance?api-version=$API_VERSION&format=json")
 
-  IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-  INSTANCE_INFO=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/dynamic/instance-identity/document)
+    REGION="$(echo "$INSTANCE_INFO" | jq -r .compute.location)"
+    RESOURCE_GROUP="$(echo "$INSTANCE_INFO" | jq -r .compute.resourceGroupName)"
+    SUBSCRIPTION_ID="$(echo "$INSTANCE_INFO" | jq -r .compute.subscriptionId)"
+    VM_ID="$(echo "$INSTANCE_INFO" | jq -r .compute.vmId)"
 
-  ACCOUNT_ID="$(echo "$INSTANCE_INFO" | jq -r .accountId)"
-  INSTANCE_ID="$(echo "$INSTANCE_INFO" | jq -r .instanceId)"
+    JOIN_METHOD=azure
+    LABELS="teleport.internal/vm-id=${VM_ID},teleport.internal/subscription-id=${SUBSCRIPTION_ID},teleport.internal/region=${REGION},teleport.internal/resource-group=${RESOURCE_GROUP}"
+  elif on_ec2 ; then
+    IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+    INSTANCE_INFO=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/dynamic/instance-identity/document)
+
+    ACCOUNT_ID="$(echo "$INSTANCE_INFO" | jq -r .accountId)"
+    INSTANCE_ID="$(echo "$INSTANCE_INFO" | jq -r .instanceId)"
+
+    JOIN_METHOD=iam
+    LABELS="teleport.dev/instance-id=${INSTANCE_ID},teleport.dev/account-id=${ACCOUNT_ID}"
+  else
+    echo "Could not determine cloud provider"
+    exit 1
+  fi
 
   # generate teleport ssh config
   # token is read as a parameter from the AWS ssm script run and
   # passed as the first argument to the script
   sudo /usr/local/bin/teleport node configure \
     --proxy="{{ .PublicProxyAddr }}" \
-    --join-method=iam \
+    --join-method=${JOIN_METHOD} \
     --token="$1" \
     --output=file \
-    --labels="teleport.dev/instance-id=${INSTANCE_ID},teleport.dev/account-id=${ACCOUNT_ID}"
+    --labels="${LABELS}"
 
   # enable and start teleport service
   sudo systemctl enable --now teleport

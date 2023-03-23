@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/gcp"
 )
@@ -42,7 +42,7 @@ import (
 // UserCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type UserCommand struct {
-	config                    *service.Config
+	config                    *servicecfg.Config
 	login                     string
 	allowedLogins             []string
 	allowedWindowsLogins      []string
@@ -68,7 +68,7 @@ type UserCommand struct {
 }
 
 // Initialize allows UserCommand to plug itself into the CLI parser
-func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	const helpPrefix string = "[Teleport DB users only]"
 
 	u.config = config

@@ -15,9 +15,13 @@ limitations under the License.
 */
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { Database, ServerSideParams } from 'teleterm/services/tshd/types';
+import {
+  Database,
+  GatewayProtocol,
+  ServerSideParams,
+} from 'teleterm/services/tshd/types';
 import { routing } from 'teleterm/ui/uri';
-import { GatewayProtocol, makeDatabase } from 'teleterm/ui/services/clusters';
+import { makeDatabase } from 'teleterm/ui/services/clusters';
 
 import { useServerSideResources } from '../useServerSideResources';
 

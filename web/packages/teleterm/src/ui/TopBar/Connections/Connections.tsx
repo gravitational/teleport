@@ -45,7 +45,7 @@ export function Connections() {
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        'toggle-connections': togglePopover,
+        openConnections: togglePopover,
       }),
       [togglePopover]
     )

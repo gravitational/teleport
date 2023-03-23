@@ -37,14 +37,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
 type NodeCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 	// format is the output format, e.g. text or json
 	format string
 	// list of roles for the new node to assume
@@ -74,7 +74,7 @@ type NodeCommand struct {
 }
 
 // Initialize allows NodeCommand to plug itself into the CLI parser
-func (c *NodeCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *NodeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	// add node command

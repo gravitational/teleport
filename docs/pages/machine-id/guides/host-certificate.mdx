@@ -309,8 +309,13 @@ writing renewable certificates to `/var/lib/teleport/bot` according to your conf
 In a production environment you will want to run Machine ID in the background using a service manager like systemd. However, in this guide you will run it in the foreground to better understand how it works.
 
 ```code
+$ export TELEPORT_ANONYMOUS_TELEMETRY=1
 $ tbot start -c tbot.yaml
 ```
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Now that Machine ID has successfully started, let's investigate the /opt/machine-id directory to see what was written to disk.
 
@@ -400,3 +405,5 @@ to connect to OpenSSH with Teleport, see the following documentation:
 - [Using SSH Host Certificates](https://goteleport.com/blog/how-to-ssh-properly/)
 - [Machine ID Configuration Reference](../reference/configuration.mdx)
 - [Joining Nodes using the IAM method](https://goteleport.com/docs/setup/guides/joining-nodes-aws)
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

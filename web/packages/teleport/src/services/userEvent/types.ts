@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+// these constants are 1:1 with constants found in lib/usagereporter/web/userevent.go
+
 export enum CaptureEvent {
   // UserEvent types
   BannerClickEvent = 'tp.ui.banner.click',
@@ -89,11 +91,13 @@ export type UserEvent = {
   alert?: string;
 };
 
-export type PreUserEvent = UserEvent & {
+export type EventMeta = {
   username: string;
   mfaType?: string;
   loginFlow?: string;
 };
+
+export type PreUserEvent = UserEvent & EventMeta;
 
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;

@@ -118,6 +118,17 @@ exports[`success state 1`] = `
   font-size: 14px;
 }
 
+.c10 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
 .c18 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -130,17 +141,6 @@ exports[`success state 1`] = `
   background-color: #111B48;
   color: rgba(255,255,255,0.87);
   margin-right: 4px;
-}
-
-.c10 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-  color: #FFFFFF;
 }
 
 .c8 {
@@ -416,8 +416,9 @@ exports[`success state 1`] = `
           <div
             class="c10"
             color="primary.contrastText"
+            style="white-space: nowrap; text-transform: uppercase;"
           >
-            SHOWING 
+            Showing 
             <strong>
               1
             </strong>

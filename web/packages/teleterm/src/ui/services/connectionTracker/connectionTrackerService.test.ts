@@ -16,7 +16,13 @@
 
 import Logger, { NullService } from 'teleterm/logger';
 
-import { DocumentGateway, WorkspacesService } from '../workspacesService';
+import {
+  Document,
+  DocumentGateway,
+  DocumentTshNodeWithLoginHost,
+  DocumentTshNodeWithServerId,
+  WorkspacesService,
+} from '../workspacesService';
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
 
@@ -35,22 +41,6 @@ beforeAll(() => {
 afterEach(() => {
   jest.restoreAllMocks();
 });
-
-function getTestSetup({ connections }: { connections: TrackedConnection[] }) {
-  jest
-    .spyOn(StatePersistenceService.prototype, 'getConnectionTrackerState')
-    .mockImplementation(() => {
-      return {
-        connections,
-      };
-    });
-
-  return new ConnectionTrackerService(
-    new StatePersistenceService(undefined),
-    new WorkspacesService(undefined, undefined, undefined, undefined),
-    new ClustersService(undefined, undefined, undefined, undefined)
-  );
-}
 
 it('removeItemsBelongingToRootCluster removes connections', () => {
   jest.mock('../workspacesService');
@@ -97,7 +87,7 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
     },
   ];
 
-  const service = getTestSetup({ connections });
+  const service = getTestSetupWithMockedConnections({ connections });
   service.removeItemsBelongingToRootCluster('/clusters/localhost');
   expect(service.getConnections()).toEqual([
     { clusterName: 'remote_leaf', ...connections[3] },
@@ -105,6 +95,111 @@ it('removeItemsBelongingToRootCluster removes connections', () => {
 });
 
 it('updates the port of a gateway connection when the underlying doc gets updated', () => {
+  const document: DocumentGateway = {
+    kind: 'doc.gateway',
+    uri: '/docs/test-doc-uri',
+    title: 'Test title',
+    gatewayUri: '/gateways/4f68927b-579c-47a8-b965-efa8159203c9',
+    targetUri: '/clusters/localhost/dbs/test',
+    targetUser: 'alice',
+    targetName: 'test',
+    targetSubresourceName: 'pg',
+    port: '12345',
+  };
+
+  const { connectionTrackerService, workspacesService } =
+    getTestSetupWithMockedDocuments([document]);
+
+  let connection = connectionTrackerService.findConnectionByDocument(document);
+
+  expect(connection.kind).toBe('connection.gateway');
+  expect((connection as TrackedGatewayConnection).port).toBe('12345');
+
+  // Update the document.
+  workspacesService.setState(draftState => {
+    const doc = draftState.workspaces['/clusters/localhost'].documents[0];
+    if (doc.kind === 'doc.gateway') {
+      doc.port = '54321';
+    } else {
+      throw new Error('Expected doc to be doc.gateway');
+    }
+  });
+
+  connection = connectionTrackerService.findConnectionByDocument(document);
+
+  expect(connection.kind).toBe('connection.gateway');
+  expect((connection as TrackedGatewayConnection).port).toBe('54321');
+});
+
+it('creates a connection for doc.terminal_tsh_node docs with serverUri', () => {
+  const document: DocumentTshNodeWithServerId = {
+    kind: 'doc.terminal_tsh_node',
+    uri: '/docs/123',
+    title: '',
+    status: '',
+    serverId: 'test',
+    serverUri: '/clusters/localhost/servers/test',
+    rootClusterId: 'localhost',
+    leafClusterId: undefined,
+    login: 'user',
+  };
+
+  const { connectionTrackerService } = getTestSetupWithMockedDocuments([
+    document,
+  ]);
+
+  const connection =
+    connectionTrackerService.findConnectionByDocument(document);
+  expect(connection.connected).toBe(false);
+  expect(connection).toEqual({
+    kind: 'connection.server',
+    id: expect.any(String),
+    title: document.title,
+    login: document.login,
+    serverUri: document.serverUri,
+    connected: false,
+  });
+});
+
+it('ignores doc.terminal_tsh_node docs with no serverUri', () => {
+  const document: DocumentTshNodeWithLoginHost = {
+    kind: 'doc.terminal_tsh_node',
+    uri: '/docs/123',
+    title: '',
+    status: '',
+    loginHost: 'user@foo',
+    rootClusterId: 'test',
+    leafClusterId: undefined,
+  };
+
+  const { connectionTrackerService } = getTestSetupWithMockedDocuments([
+    document,
+  ]);
+
+  expect(connectionTrackerService.getConnections()).toEqual([]);
+});
+
+function getTestSetupWithMockedConnections({
+  connections,
+}: {
+  connections: TrackedConnection[];
+}) {
+  jest
+    .spyOn(StatePersistenceService.prototype, 'getConnectionTrackerState')
+    .mockImplementation(() => {
+      return {
+        connections,
+      };
+    });
+
+  return new ConnectionTrackerService(
+    new StatePersistenceService(undefined),
+    new WorkspacesService(undefined, undefined, undefined, undefined),
+    new ClustersService(undefined, undefined, undefined, undefined)
+  );
+}
+
+function getTestSetupWithMockedDocuments(documents: Document[]) {
   const StatePersistenceServiceMock =
     StatePersistenceService as jest.MockedClass<typeof StatePersistenceService>;
   const ClustersServiceMock = ClustersService as jest.MockedClass<
@@ -134,19 +229,7 @@ it('updates the port of a gateway connection when the underlying doc gets update
     new ClustersServiceMock(undefined, undefined, undefined, undefined)
   );
 
-  const document: DocumentGateway = {
-    kind: 'doc.gateway',
-    uri: '/docs/test-doc-uri',
-    title: 'Test title',
-    gatewayUri: '/gateways/4f68927b-579c-47a8-b965-efa8159203c9',
-    targetUri: '/clusters/localhost/dbs/test',
-    targetUser: 'alice',
-    targetName: 'test',
-    targetSubresourceName: 'pg',
-    port: '12345',
-  };
-
-  // Insert the document.
+  // Insert the documents.
   workspacesService.setState(draftState => {
     draftState.workspaces['/clusters/localhost'] = {
       accessRequests: {
@@ -154,28 +237,10 @@ it('updates the port of a gateway connection when the underlying doc gets update
         isBarCollapsed: false,
       },
       localClusterUri: '/clusters/localhost',
-      location: document.uri,
-      documents: [document],
+      location: documents[0]?.uri,
+      documents: documents,
     };
   });
 
-  let connection = connectionTrackerService.findConnectionByDocument(document);
-
-  expect(connection.kind).toBe('connection.gateway');
-  expect((connection as TrackedGatewayConnection).port).toBe('12345');
-
-  // Update the document.
-  workspacesService.setState(draftState => {
-    const doc = draftState.workspaces['/clusters/localhost'].documents[0];
-    if (doc.kind === 'doc.gateway') {
-      doc.port = '54321';
-    } else {
-      throw new Error('Expected doc to be doc.gateway');
-    }
-  });
-
-  connection = connectionTrackerService.findConnectionByDocument(document);
-
-  expect(connection.kind).toBe('connection.gateway');
-  expect((connection as TrackedGatewayConnection).port).toBe('54321');
-});
+  return { workspacesService, connectionTrackerService };
+}

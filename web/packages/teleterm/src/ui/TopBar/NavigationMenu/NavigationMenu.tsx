@@ -18,75 +18,108 @@ import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 
 import Popover from 'design/Popover';
-import { MoreVert, OpenBox, Add } from 'design/Icon';
-import { Box, Text, Flex } from 'design';
+import { MoreVert, OpenBox, Add, Config } from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { DocumentsService } from 'teleterm/ui/services/workspacesService';
 import { TopBarButton } from 'teleterm/ui/TopBar/TopBarButton';
-import { RootClusterUri } from 'teleterm/ui/uri';
-
-import { useIdentity } from '../Identity/useIdentity';
+import { IAppContext } from 'teleterm/ui/types';
+import { Cluster } from 'teleterm/services/tshd/types';
 
 import { NavigationItem } from './NavigationItem';
 
-function getNavigationItems(
-  documentsService: DocumentsService,
-  clusterUri: RootClusterUri
-): {
-  title: string;
-  Icon: JSX.Element;
-  onNavigate: () => void;
-}[] {
+function useNavigationItems(): (
+  | {
+      title: string;
+      Icon: React.ComponentType<{ fontSize: number }>;
+      onNavigate: () => void;
+    }
+  | 'separator'
+)[] {
+  const ctx = useAppContext();
+  ctx.workspacesService.useState();
+  ctx.clustersService.useState();
+
+  const documentsService =
+    ctx.workspacesService.getActiveWorkspaceDocumentService();
+  const activeRootCluster = getActiveRootCluster(ctx);
+  const areAccessRequestsSupported =
+    !!activeRootCluster?.features?.advancedAccessWorkflows;
+
   return [
     {
-      title: 'New Access Request',
-      Icon: <Add fontSize={2} />,
-      onNavigate: () => {
-        const doc = documentsService.createAccessRequestDocument({
-          clusterUri,
-          state: 'creating',
-          title: 'New Access Request',
-        });
-        documentsService.add(doc);
-        documentsService.open(doc.uri);
+      title: 'Open Config File',
+      Icon: Config,
+      onNavigate: async () => {
+        const path = await ctx.mainProcessClient.openConfigFile();
+        ctx.notificationsService.notifyInfo(
+          `Opened the config file at ${path}.`
+        );
       },
     },
-    {
-      title: 'Review Access Requests',
-      Icon: <OpenBox fontSize={2} />,
-      onNavigate: () => {
-        const doc = documentsService.createAccessRequestDocument({
-          clusterUri,
-          state: 'browsing',
-        });
-        documentsService.add(doc);
-        documentsService.open(doc.uri);
-      },
-    },
-  ];
+    ...(areAccessRequestsSupported
+      ? [
+          'separator' as const,
+          {
+            title: 'New Access Request',
+            Icon: Add,
+            onNavigate: () => {
+              const doc = documentsService.createAccessRequestDocument({
+                clusterUri: activeRootCluster.uri,
+                state: 'creating',
+                title: 'New Access Request',
+              });
+              documentsService.add(doc);
+              documentsService.open(doc.uri);
+            },
+          },
+          {
+            title: 'Review Access Requests',
+            Icon: OpenBox,
+            onNavigate: () => {
+              const doc = documentsService.createAccessRequestDocument({
+                clusterUri: activeRootCluster.uri,
+                state: 'browsing',
+              });
+              documentsService.add(doc);
+              documentsService.open(doc.uri);
+            },
+          },
+        ]
+      : []),
+  ].filter(Boolean);
+}
+
+function getActiveRootCluster(ctx: IAppContext): Cluster | undefined {
+  const clusterUri = ctx.workspacesService.getRootClusterUri();
+  if (!clusterUri) {
+    return;
+  }
+  return ctx.clustersService.findCluster(clusterUri);
 }
 
 export function NavigationMenu() {
-  const ctx = useAppContext();
-  const documentsService =
-    ctx.workspacesService.getActiveWorkspaceDocumentService();
-  const { activeRootCluster } = useIdentity();
-
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const selectorRef = useRef<HTMLButtonElement>();
 
-  const shouldShowMenu = !!activeRootCluster?.features?.advancedAccessWorkflows;
-  if (!shouldShowMenu) {
-    return null;
-  }
+  const items = useNavigationItems().map((item, index) => {
+    if (item === 'separator') {
+      return <Separator key={index} />;
+    }
+    return (
+      <NavigationItem
+        key={index}
+        item={item}
+        closeMenu={() => setIsPopoverOpened(false)}
+      />
+    );
+  });
 
   return (
     <>
       <TopBarButton
         ref={selectorRef}
         isOpened={isPopoverOpened}
-        title="Go To Access Requests"
+        title="More Options"
         onClick={() => setIsPopoverOpened(true)}
       >
         <MoreVert fontSize={6} />
@@ -99,27 +132,23 @@ export function NavigationMenu() {
         onClose={() => setIsPopoverOpened(false)}
         popoverCss={() => `max-width: min(560px, 90%)`}
       >
-        <MenuContainer p={3}>
-          <Box minWidth="280px">
-            <Text fontWeight={700}>Go To</Text>
-            <Flex flexDirection="column">
-              {getNavigationItems(documentsService, activeRootCluster.uri).map(
-                (item, index) => (
-                  <NavigationItem
-                    key={index}
-                    item={item}
-                    closeMenu={() => setIsPopoverOpened(false)}
-                  />
-                )
-              )}
-            </Flex>
-          </Box>
-        </MenuContainer>
+        <Menu>{items}</Menu>
       </Popover>
     </>
   );
 }
 
-const MenuContainer = styled(Box)`
+const Menu = styled.menu`
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
   background: ${props => props.theme.colors.primary.light};
+`;
+
+const Separator = styled.div`
+  background: ${props => props.theme.colors.primary.lighter};
+  height: 1px;
 `;

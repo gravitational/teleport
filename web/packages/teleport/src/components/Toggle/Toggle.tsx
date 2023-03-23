@@ -27,7 +27,7 @@ export default function Toggle({
     <StyledWrapper disabled={disabled}>
       <StyledInput
         checked={isToggled}
-        onChange={() => onToggle()}
+        onChange={onToggle}
         disabled={disabled}
       />
       <StyledSlider />

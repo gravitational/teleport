@@ -141,13 +141,13 @@ export const formatters: Formatters = {
     type: 'github.created',
     desc: 'GITHUB Auth Connector Created',
     format: ({ user, name }) =>
-      `User [${user}] created Github connector [${name}] has been created`,
+      `User [${user}] created GitHub connector [${name}] has been created`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
     desc: 'GITHUB Auth Connector Deleted',
     format: ({ user, name }) =>
-      `User [${user}] deleted Github connector [${name}]`,
+      `User [${user}] deleted GitHub connector [${name}]`,
   },
   [eventCodes.OIDC_CONNECTOR_CREATED]: {
     type: 'oidc.created',
@@ -1270,6 +1270,73 @@ export const formatters: Formatters = {
     type: 'login_rule.delete',
     desc: 'Login Rule Deleted',
     format: ({ user, name }) => `User [${user}] deleted a login rule [${name}]`,
+  },
+  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: {
+    type: 'saml.idp.auth',
+    desc: 'SAML IdP authentication',
+    format: ({
+      user,
+      success,
+      service_provider_entity_id,
+      service_provider_shortcut,
+    }) => {
+      const desc =
+        success === false
+          ? 'failed to authenticate'
+          : 'successfully authenticated';
+      const id = service_provider_entity_id
+        ? `[${service_provider_entity_id}]`
+        : `[${service_provider_shortcut}]`;
+      return `User [${user}] ${desc} to SAML service provider ${id}`;
+    },
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: {
+    type: 'saml.idp.service.provider.create',
+    desc: 'SAML IdP service provider created',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] added service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: {
+    type: 'saml.idp.service.provider.create',
+    desc: 'SAML IdP service provider create failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to add service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: {
+    type: 'saml.idp.service.provider.update',
+    desc: 'SAML IdP service provider updated',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] updated service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: {
+    type: 'saml.idp.service.provider.update',
+    desc: 'SAML IdP service provider update failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to update service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider deleted',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] deleted service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider delete failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to delete service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: {
+    type: 'saml.idp.service.provider.delete_all',
+    desc: 'All SAML IdP service provider deleted',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] deleted all service providers`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider delete failed',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] failed to delete all service providers`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"net"
 	"testing"
 	"time"
 
@@ -29,8 +30,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMiddlewareGetUser(t *testing.T) {
@@ -89,12 +92,12 @@ func TestMiddlewareGetUser(t *testing.T) {
 	tests := []struct {
 		desc      string
 		peers     []*x509.Certificate
-		wantID    IdentityGetter
+		wantID    authz.IdentityGetter
 		assertErr require.ErrorAssertionFunc
 	}{
 		{
 			desc: "no client cert",
-			wantID: BuiltinRole{
+			wantID: authz.BuiltinRole{
 				Role:        types.RoleNop,
 				Username:    string(types.RoleNop),
 				ClusterName: localClusterName,
@@ -109,7 +112,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -122,7 +125,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -135,7 +138,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: BuiltinRole{
+			wantID: authz.BuiltinRole{
 				Username:    localSystemRole.Username,
 				Role:        types.RoleNode,
 				ClusterName: localClusterName,
@@ -150,7 +153,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
-			wantID: RemoteUser{
+			wantID: authz.RemoteUser{
 				ClusterName: remoteClusterName,
 				Username:    remoteUserIdentity.Username,
 				RemoteRoles: remoteUserIdentity.Groups,
@@ -165,7 +168,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
-			wantID: RemoteUser{
+			wantID: authz.RemoteUser{
 				ClusterName: remoteClusterName,
 				Username:    remoteUserIdentity.Username,
 				RemoteRoles: remoteUserIdentity.Groups,
@@ -180,7 +183,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
 			}},
-			wantID: RemoteBuiltinRole{
+			wantID: authz.RemoteBuiltinRole{
 				Username:    remoteSystemRole.Username,
 				Role:        types.RoleNode,
 				ClusterName: remoteClusterName,
@@ -206,17 +209,86 @@ func TestMiddlewareGetUser(t *testing.T) {
 	}
 }
 
+func TestCheckIPPinning(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		clientAddr string
+		pinnedIP   string
+		pinIP      bool
+		wantErr    string
+	}{
+		{
+			desc:       "no IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      false,
+		},
+		{
+			desc:       "IP pinning, no pinned IP",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      true,
+			wantErr:    "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:       "Pinned IP doesn't match",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      true,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      false,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:     "IP pinning enabled, missing client IP",
+			pinnedIP: "127.0.0.1",
+			pinIP:    true,
+			wantErr:  "expected type net.Addr, got <nil>",
+		},
+		{
+			desc:       "correct IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+		},
+	}
+
+	for _, tt := range testCases {
+		ctx := context.Background()
+		if tt.clientAddr != "" {
+			ctx = authz.ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+		}
+		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
+
+		err := CheckIPPinning(ctx, identity, tt.pinIP)
+
+		if tt.wantErr != "" {
+			require.ErrorContains(t, err, tt.wantErr)
+		} else {
+			require.NoError(t, err)
+		}
+
+	}
+}
+
 // testConn is a connection that implements utils.TLSConn for testing WrapContextWithUser.
 type testConn struct {
 	tls.Conn
 
 	state           tls.ConnectionState
 	handshakeCalled bool
+	remoteAddr      net.Addr
 }
 
 func (t *testConn) ConnectionState() tls.ConnectionState   { return t.state }
 func (t *testConn) Handshake() error                       { t.handshakeCalled = true; return nil }
 func (t *testConn) HandshakeContext(context.Context) error { return t.Handshake() }
+func (t *testConn) RemoteAddr() net.Addr                   { return t.remoteAddr }
 
 func TestWrapContextWithUser(t *testing.T) {
 	localClusterName := "local"
@@ -240,7 +312,7 @@ func TestWrapContextWithUser(t *testing.T) {
 	tests := []struct {
 		desc           string
 		peers          []*x509.Certificate
-		wantID         IdentityGetter
+		wantID         authz.IdentityGetter
 		needsHandshake bool
 	}{
 		{
@@ -250,7 +322,7 @@ func TestWrapContextWithUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -263,7 +335,7 @@ func TestWrapContextWithUser(t *testing.T) {
 				NotAfter: now,
 				Issuer:   pkix.Name{Organization: []string{localClusterName}},
 			}},
-			wantID: LocalUser{
+			wantID: authz.LocalUser{
 				Username: localUserIdentity.Username,
 				Identity: localUserIdentity,
 			},
@@ -282,6 +354,7 @@ func TestWrapContextWithUser(t *testing.T) {
 			conn := &testConn{
 				state: tls.ConnectionState{PeerCertificates: tt.peers,
 					HandshakeComplete: !tt.needsHandshake},
+				remoteAddr: utils.MustParseAddr("127.0.0.1:4242"),
 			}
 
 			parentCtx := context.Background()
@@ -289,8 +362,10 @@ func TestWrapContextWithUser(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tt.needsHandshake, conn.handshakeCalled)
 
-			cert := ctx.Value(contextUserCertificate)
-			user := ctx.Value(ContextUser)
+			cert, err := authz.UserCertificateFromContext(ctx)
+			require.NoError(t, err)
+			user, err := authz.UserFromContext(ctx)
+			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(cert, tt.peers[0], cmpopts.EquateEmpty()))
 			require.Empty(t, cmp.Diff(user, tt.wantID, cmpopts.EquateEmpty()))
 		})

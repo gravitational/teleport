@@ -379,6 +379,31 @@ func (s *ClusterConfigurationService) GetInstallers(ctx context.Context) ([]type
 	return installers, nil
 }
 
+func (s *ClusterConfigurationService) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, uiPrefix))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return services.UnmarshalUIConfig(item.Value)
+}
+
+func (s *ClusterConfigurationService) SetUIConfig(ctx context.Context, uic types.UIConfig) error {
+	value, err := services.MarshalUIConfig(uic)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = s.Put(ctx, backend.Item{
+		Key:   backend.Key(clusterConfigPrefix, uiPrefix),
+		Value: value,
+	})
+	return trace.Wrap(err)
+}
+
+func (s *ClusterConfigurationService) DeleteUIConfig(ctx context.Context) error {
+	return trace.Wrap(s.Delete(ctx, backend.Key(clusterConfigPrefix, uiPrefix)))
+}
+
 // GetInstaller gets the script of the cluster from the backend.
 func (s *ClusterConfigurationService) GetInstaller(ctx context.Context, name string) (types.Installer, error) {
 	item, err := s.Get(ctx, backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix, name))
@@ -430,5 +455,6 @@ const (
 	networkingPrefix       = "networking"
 	sessionRecordingPrefix = "session_recording"
 	scriptsPrefix          = "scripts"
+	uiPrefix               = "ui"
 	installerPrefix        = "installer"
 )

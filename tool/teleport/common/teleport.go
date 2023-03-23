@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,7 +68,7 @@ type Options struct {
 const agentlessKeysDir = "/etc/teleport/agentless"
 
 // Run inits/starts the process according to the provided options
-func Run(options Options) (app *kingpin.Application, executedCommand string, conf *service.Config) {
+func Run(options Options) (app *kingpin.Application, executedCommand string, conf *servicecfg.Config) {
 	var err error
 
 	// configure trace's errors to produce full stack traces
@@ -430,7 +431,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	}
 
 	// Create default configuration.
-	conf = service.MakeDefaultConfig()
+	conf = servicecfg.MakeDefaultConfig()
 
 	// If FIPS mode is specified update defaults to be FIPS appropriate and
 	// cross-validate the current config.
@@ -438,7 +439,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		if ccf.InsecureMode {
 			utils.FatalError(trace.BadParameter("--insecure not allowed in FIPS mode"))
 		}
-		service.ApplyFIPSDefaults(conf)
+		servicecfg.ApplyFIPSDefaults(conf)
 	}
 
 	// execute the selected command unless we're running tests
@@ -508,7 +509,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 }
 
 // OnStart is the handler for "start" CLI command
-func OnStart(clf config.CommandLineFlags, config *service.Config) error {
+func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 	// check to see if the config file is not passed and if the
 	// default config file is available. If available it will be used
 	configFileUsed := clf.ConfigFile

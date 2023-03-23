@@ -23,11 +23,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -378,6 +380,74 @@ func TestAppResource(t *testing.T) {
 	))
 }
 
+func TestCreateLock(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	timeNow := time.Now().UTC()
+	fakeClock := clockwork.NewFakeClockAt(timeNow)
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(fakeClock))
+
+	_, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "I am a message",
+	})
+	require.NoError(t, err)
+
+	var locks []*types.LockV2
+
+	// Ensure there are no locks to start
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Empty(t, locks)
+
+	// Create the locks
+	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
+	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", lockYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the locks
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Len(t, locks, 1)
+
+	expected, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "Come see me",
+	})
+	require.NoError(t, err)
+	expected.SetCreatedBy(string(types.RoleAdmin))
+
+	expected.SetCreatedAt(timeNow)
+
+	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
+		cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
+}
+
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
@@ -451,9 +521,18 @@ metadata:
   name: appB
 spec:
   uri: "localhost2"`
+
+	lockYAML = `kind: lock
+version: v2
+metadata:
+  name: "test-lock"
+spec:
+  target:
+    user: "bad@actor"
+  message: "Come see me"`
 )
 
-func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -533,6 +612,108 @@ version: v2`,
 				mustDecodeJSON(t, buf, &authPreferences)
 				require.NotZero(t, len(authPreferences))
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
+			}
+		})
+	}
+}
+
+func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	tests := []struct {
+		desc           string
+		input          string
+		name           string
+		expectError    require.ErrorAssertionFunc
+		expectEntityID require.ValueAssertionFunc
+	}{
+		{
+			desc: "handle no supplied entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+`,
+			name:           "test1",
+			expectError:    require.NoError,
+			expectEntityID: requireEqual("IAMShowcase"),
+		},
+		{
+			desc: "handle overwrite entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+  entity_id: never-seen-entity-id
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+		{
+			desc: "handle invalid entity descriptor",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			spYAMLPath := filepath.Join(t.TempDir(), "sp.yaml")
+			require.NoError(t, os.WriteFile(spYAMLPath, []byte(tt.input), 0644))
+
+			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", spYAMLPath})
+			tt.expectError(t, err)
+
+			if tt.expectEntityID != nil {
+				buf, err := runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
+				require.NoError(t, err)
+				sps := []*types.SAMLIdPServiceProviderV1{}
+				mustDecodeJSON(t, buf, &sps)
+				tt.expectEntityID(t, sps[0].GetEntityID())
 			}
 		})
 	}

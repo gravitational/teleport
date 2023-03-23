@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgproto3/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -294,12 +295,21 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 		SNI:                "localhost",
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
+		// Since this a non-tunnel local proxy, we should check certs are needed
+		// for postgres.
+		// (this is how a local proxy would actually be configured for postgres).
+		CheckCertsNeeded: true,
 	}
 
 	mustStartLocalProxy(t, localProxyConfig)
 
 	conn, err := net.Dial("tcp", localProxyListener.Addr().String())
 	require.NoError(t, err)
+
+	// we have to send a request because the local proxy will inspect
+	// the client conn. It should see it's not a CancelRequest, and determine
+	// that certs are not needed.
+	mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 
 	mustReadFromConnection(t, conn, databaseHandleResponse)
 	mustCloseConnection(t, conn)
@@ -643,8 +653,9 @@ func TestProxyPingConnections(t *testing.T) {
 		return nil
 	}
 
+	// MatchByProtocol should match the corresponding Ping protocols.
 	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocolWithPing(common.ProtocolsWithPingSupport...),
+		MatchFunc: MatchByProtocol(common.ProtocolsWithPingSupport...),
 		Handler:   handlerFunc,
 	})
 	suite.router.AddDBTLSHandler(handlerFunc)
@@ -660,11 +671,21 @@ func TestProxyPingConnections(t *testing.T) {
 
 			localProxyConfig := LocalProxyConfig{
 				RemoteProxyAddr:    suite.GetServerAddress(),
-				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol), protocol},
+				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol)},
 				Listener:           localProxyListener,
 				SNI:                "localhost",
 				ParentContext:      context.Background(),
 				InsecureSkipVerify: true,
+				verifyUpstreamConnection: func(state tls.ConnectionState) error {
+					if state.NegotiatedProtocol != string(common.ProtocolWithPing(protocol)) {
+						return fmt.Errorf("expected negotiated protocol %q but got %q", common.ProtocolWithPing(protocol), state.NegotiatedProtocol)
+					}
+					return nil
+				},
+				// Since this a non-tunnel local proxy, we should check certs are needed
+				// for postgres.
+				// (this is how a local proxy would actually be configured for postgres).
+				CheckCertsNeeded: protocol == common.ProtocolPostgres,
 			}
 			mustStartLocalProxy(t, localProxyConfig)
 
@@ -679,6 +700,13 @@ func TestProxyPingConnections(t *testing.T) {
 					RootCAs:    suite.GetCertPool(),
 					ServerName: "localhost",
 				})
+			}
+
+			if protocol == common.ProtocolPostgres {
+				// we have to send a request because the local proxy will inspect
+				// the client conn. It should see it's not a CancelRequest, and determine
+				// that certs are not needed.
+				mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 			}
 
 			mustReadFromConnection(t, conn, dataWritten)

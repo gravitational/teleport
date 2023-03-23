@@ -28,6 +28,8 @@ export interface FileTransferStatelessProps {
   openedDialog: FileTransferDialogDirection;
   files: TransferredFile[];
   backgroundColor?: string;
+  // errorText is any general error that isn't related to a specific transfer
+  errorText?: string;
 
   onClose(): void;
 
@@ -71,6 +73,9 @@ export function FileTransferStateless(props: FileTransferStatelessProps) {
         <ButtonClose onClick={props.onClose} />
       </Flex>
       {items.Form}
+      <Text color="error.light" typography="body2" mt={1}>
+        {props.errorText}
+      </Text>
       <FileList files={props.files} onCancel={props.onCancel} />
     </Container>
   );

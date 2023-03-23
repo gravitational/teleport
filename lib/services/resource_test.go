@@ -101,9 +101,6 @@ func TestParseShortcut(t *testing.T) {
 		"kube_cluster":  {expectedOutput: types.KindKubernetesCluster},
 		"kube_clusters": {expectedOutput: types.KindKubernetesCluster},
 
-		"kube_service":  {expectedOutput: types.KindKubeService},
-		"kube_services": {expectedOutput: types.KindKubeService},
-
 		"kube_server":  {expectedOutput: types.KindKubeServer},
 		"kube_servers": {expectedOutput: types.KindKubeServer},
 

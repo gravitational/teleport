@@ -14,20 +14,46 @@
  * limitations under the License.
  */
 
-import { ServerSideParams, TshClient } from 'teleterm/services/tshd/types';
+import type * as types from 'teleterm/services/tshd/types';
+import type * as uri from 'teleterm/ui/uri';
 
 export class ResourcesService {
-  constructor(private tshClient: TshClient) {}
+  constructor(private tshClient: types.TshClient) {}
 
-  fetchServers(params: ServerSideParams) {
+  fetchServers(params: types.ServerSideParams) {
     return this.tshClient.getServers(params);
   }
 
-  fetchDatabases(params: ServerSideParams) {
+  async getServerByHostname(
+    clusterUri: uri.ClusterUri,
+    hostname: string
+  ): Promise<types.Server | undefined> {
+    const query = `name == "${hostname}"`;
+    const { agentsList: servers } = await this.fetchServers({
+      clusterUri,
+      query,
+      limit: 2,
+    });
+
+    if (servers.length > 1) {
+      throw new AmbiguousHostnameError(hostname);
+    }
+
+    return servers[0];
+  }
+
+  fetchDatabases(params: types.ServerSideParams) {
     return this.tshClient.getDatabases(params);
   }
 
-  fetchKubes(params: ServerSideParams) {
+  fetchKubes(params: types.ServerSideParams) {
     return this.tshClient.getKubes(params);
+  }
+}
+
+export class AmbiguousHostnameError extends Error {
+  constructor(hostname: string) {
+    super(`Ambiguous hostname "${hostname}"`);
+    this.name = 'AmbiguousHostname';
   }
 }

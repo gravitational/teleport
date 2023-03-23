@@ -28,7 +28,6 @@ export const fullAccess: Access = {
 };
 
 export const fullAcl: Acl = {
-  windowsLogins: ['Administrator'],
   tokens: fullAccess,
   appServers: fullAccess,
   kubeServers: fullAccess,
@@ -51,6 +50,7 @@ export const fullAcl: Acl = {
   directorySharingEnabled: true,
   license: fullAccess,
   download: fullAccess,
+  plugins: fullAccess,
 };
 
 export const userContext = makeUserContext({

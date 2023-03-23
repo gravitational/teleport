@@ -112,6 +112,11 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
+
+	if err := c.validateLabelKeys(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
@@ -120,6 +125,17 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+	return nil
+}
+
+// validateLabelKeys checks that all labels keys are valid.
+// Dynamic labels are validated in labels.NewDynamicLabels.
+func (c *TLSServerConfig) validateLabelKeys() error {
+	for name := range c.StaticLabels {
+		if !types.IsValidLabelKey(name) {
+			return trace.BadParameter("invalid label key: %q", name)
+		}
 	}
 	return nil
 }
@@ -196,9 +212,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		TLSServerConfig: cfg,
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
-			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
+			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
+			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			TLSConfig:         cfg.TLS,
 			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
 		monitoredKubeClusters: monitoredKubeClusters{
@@ -215,6 +235,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
 func (t *TLSServer) Serve(listener net.Listener) error {
+	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
+	}
 	// Wrap listener with a multiplexer to get Proxy Protocol support.
 	mux, err := multiplexer.New(multiplexer.Config{
 		Context:                     t.Context,
@@ -222,6 +245,8 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Clock:                       t.Clock,
 		EnableExternalProxyProtocol: true,
 		ID:                          t.Component,
+		CertAuthorityGetter:         caGetter,
+		LocalClusterName:            t.ClusterName,
 		// Increases deadline until the agent receives the first byte to 10s.
 		// It's required to accommodate setups with high latency and where the time
 		// between the TCP being accepted and the time for the first byte is longer

@@ -25,14 +25,14 @@ set -o nounset
       echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
-    sudo apt-get install -y teleport
+    sudo apt-get install -y {{ .TeleportPackage }}
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     if [ "$ID" = "rhel" ]; then
       VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
     fi
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/{{ .MajorVersion }}/teleport.repo")"
-    sudo yum install -y teleport
+    sudo yum install -y {{ .TeleportPackage }}
   else
     echo "Unsupported distro: $ID"
     exit 1

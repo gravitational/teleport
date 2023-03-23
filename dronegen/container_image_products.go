@@ -94,7 +94,7 @@ func NewTeleportOperatorProduct(cloneDirectory string) *Product {
 	name := "teleport-operator"
 	return &Product{
 		Name:             name,
-		DockerfilePath:   path.Join(cloneDirectory, "operator", "Dockerfile"),
+		DockerfilePath:   path.Join(cloneDirectory, "integrations", "operator", "Dockerfile"),
 		WorkingDirectory: cloneDirectory,
 		SupportedArchs:   []string{"amd64", "arm", "arm64"},
 		ImageBuilder: func(repo *ContainerRepo, tag *ImageTag) *Image {

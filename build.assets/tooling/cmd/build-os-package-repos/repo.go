@@ -29,13 +29,13 @@ type Repo struct {
 	os                  string
 	osVersion           string
 	releaseChannel      string
-	majorVersion        string
+	versionChannel      string
 	publishedSourcePath string
 }
 
 // Returns a unique name for the repo.
 func (r *Repo) Name() string {
-	return fmt.Sprintf("%s-%s-%s-%s", r.os, r.osVersion, r.releaseChannel, r.majorVersion)
+	return fmt.Sprintf("%s-%s-%s-%s", r.os, r.osVersion, r.releaseChannel, r.versionChannel)
 }
 
 func NewRepoFromName(name string) (*Repo, error) {
@@ -48,13 +48,13 @@ func NewRepoFromName(name string) (*Repo, error) {
 		os:             splitName[0],
 		osVersion:      splitName[1],
 		releaseChannel: splitName[2],
-		majorVersion:   splitName[3],
+		versionChannel: splitName[3],
 	}, nil
 }
 
 // Returns the APT component to be associated with all debs in the Aptly repo.
 func (r *Repo) Component() string {
-	return fmt.Sprintf("%s/%s", r.releaseChannel, r.majorVersion)
+	return fmt.Sprintf("%s/%s", r.releaseChannel, r.versionChannel)
 }
 
 // Returns a string that identifies the specific OS and OS version the Aptly repo targets.
@@ -89,7 +89,7 @@ func (r *Repo) PublishedRepoAbsolutePath() (string, error) {
 	}
 
 	// `/<publishedSourcePath>/<os>/dists/<os version>/<release channel>/<major version>/`
-	return filepath.Join(r.publishedSourcePath, r.os, "dists", r.osVersion, r.releaseChannel, r.majorVersion), nil
+	return filepath.Join(r.publishedSourcePath, r.os, "dists", r.osVersion, r.releaseChannel, r.versionChannel), nil
 }
 
 // Helper function that calls `Name()` on all repos in the provided list.

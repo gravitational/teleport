@@ -23,6 +23,8 @@ import (
 	"net"
 	"time"
 
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/proxy/peer"
@@ -41,6 +43,10 @@ type DialParams struct {
 	// GetUserAgent gets an SSH agent for use in connecting to the remote host. Used by the
 	// forwarding proxy.
 	GetUserAgent teleagent.Getter
+
+	// AgentlessSigner is used for authenticating to the remote host when it is an
+	// agentless node.
+	AgentlessSigner ssh.Signer
 
 	// Address is used by the forwarding proxy to generate a host certificate for
 	// the target node. This is needed because while dialing occurs via IP
@@ -64,9 +70,20 @@ type DialParams struct {
 	// Only used when connecting through a tunnel.
 	ConnType types.TunnelType
 
+	// TargetServer is the host that the connection is being established for.
+	// It **MUST** only be populated when the target is a teleport ssh server
+	// or an agentless server.
+	TargetServer types.Server
+
 	// FromPeerProxy indicates that the dial request is being tunneled from
 	// a peer proxy.
 	FromPeerProxy bool
+
+	// TeleportVersion shows version of the target node, if we know that it's teleport node.
+	TeleportVersion string
+
+	// OriginalClientDstAddr is used in PROXY headers to show where client originally contacted Teleport infrastructure
+	OriginalClientDstAddr net.Addr
 }
 
 func (params DialParams) String() string {
@@ -77,21 +94,46 @@ func (params DialParams) String() string {
 	return fmt.Sprintf("from: %q to: %q", params.From, to)
 }
 
+func stringOrEmpty(addr net.Addr) string {
+	if addr == nil {
+		return ""
+	}
+	return addr.String()
+}
+
+// shouldDialAndForward returns whether a connection should be proxied
+// and forwarded or not.
+func shouldDialAndForward(params DialParams, recConfig types.SessionRecordingConfig) bool {
+	// connection is already being tunneled, do not forward
+	if params.FromPeerProxy {
+		return false
+	}
+	// the node is an agentless node, the connection must be forwarded
+	if params.TargetServer != nil && params.TargetServer.GetSubKind() == types.SubKindOpenSSHNode {
+		return true
+	}
+	// proxy session recording mode is being used and an SSH session
+	// is being requested, the connection must be forwarded
+	if params.ConnType == types.NodeTunnel && services.IsRecordAtProxy(recConfig.GetMode()) {
+		return true
+	}
+	return false
+}
+
 // RemoteSite represents remote teleport site that can be accessed via
 // teleport tunnel or directly by proxy
 //
 // There are two implementations of this interface: local and remote sites.
 type RemoteSite interface {
 	// DialAuthServer returns a net.Conn to the Auth Server of a site.
-	DialAuthServer() (net.Conn, error)
+	DialAuthServer(DialParams) (conn net.Conn, err error)
 	// Dial dials any address within the site network, in terminating
 	// mode it uses local instance of forwarding server to terminate
-	// and record the connection
-	Dial(DialParams) (net.Conn, error)
-	// DialTCP dials any address within the site network,
-	// ignores recording mode and always uses TCP dial, used
-	// in components that need direct dialer.
-	DialTCP(DialParams) (net.Conn, error)
+	// and record the connection.
+	Dial(DialParams) (conn net.Conn, err error)
+	// DialTCP dials any address within the site network and
+	// ignores recording mode, used in components that need direct dialer.
+	DialTCP(DialParams) (conn net.Conn, err error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
 	// GetName returns site name (identified by authority domain's name)

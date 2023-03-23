@@ -36,7 +36,7 @@ export const Loaded = () => (
 
 export const Empty = () => (
   <MemoryRouter>
-    <Kubes {...props} results={{ kubes: [] }} isSearchEmpty={true} />
+    <Kubes {...props} fetchedData={{ agents: [] }} isSearchEmpty={true} />
   </MemoryRouter>
 );
 
@@ -44,7 +44,7 @@ export const EmptyReadOnly = () => (
   <MemoryRouter>
     <Kubes
       {...props}
-      results={{ kubes: [] }}
+      fetchedData={{ agents: [] }}
       canCreate={false}
       isSearchEmpty={true}
     />
@@ -67,8 +67,8 @@ export const Failed = () => (
 );
 
 export const props: State = {
-  results: {
-    kubes,
+  fetchedData: {
+    agents: kubes,
     totalCount: kubes.length,
   },
   fetchStatus: '',
@@ -81,8 +81,15 @@ export const props: State = {
   fetchNext: () => null,
   fetchPrev: () => null,
   pageSize: kubes.length,
-  from: 1,
-  to: kubes.length,
+  pageIndicators: {
+    from: 1,
+    to: kubes.length,
+    totalCount: kubes.length,
+  },
+  page: {
+    index: 0,
+    keys: [],
+  },
   params: {
     search: '',
     query: '',
@@ -90,7 +97,6 @@ export const props: State = {
   },
   setParams: () => null,
   setSort: () => null,
-  startKeys: [''],
   pathname: '',
   replaceHistory: () => null,
   isSearchEmpty: false,

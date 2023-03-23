@@ -29,7 +29,7 @@ import {
   Suggestion,
 } from 'teleterm/ui/services/quickInput/types';
 import { routing } from 'teleterm/ui/uri';
-import { KeyboardShortcutType } from 'teleterm/services/config';
+import { KeyboardShortcutAction } from 'teleterm/services/config';
 
 import { assertUnreachable, retryWithRelogin } from '../utils';
 
@@ -62,19 +62,20 @@ export default function useQuickInput() {
       const [, err] = await getSuggestions();
       if (err && !(err instanceof CanceledError)) {
         appContext.notificationsService.notifyError({
-          title: 'Error fetching suggestions',
+          title: 'Could not fetch command bar suggestions',
           description: err.message,
         });
       }
     }
+
     get();
   }, [parseResult]);
 
   const hasSuggestions =
     suggestionsAttempt.status === 'success' &&
     suggestionsAttempt.data.length > 0;
-  const openQuickInputShortcutKey: KeyboardShortcutType = 'open-quick-input';
-  const { getShortcut } = useKeyboardShortcutFormatters();
+  const openCommandBarShortcutAction: KeyboardShortcutAction = 'openCommandBar';
+  const { getAccelerator } = useKeyboardShortcutFormatters();
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
@@ -162,7 +163,7 @@ export default function useQuickInput() {
   };
 
   useKeyboardShortcuts({
-    [openQuickInputShortcutKey]: () => {
+    [openCommandBarShortcutAction]: () => {
       quickInputService.show();
     },
   });
@@ -193,7 +194,7 @@ export default function useQuickInput() {
     onInputChange: quickInputService.setInputValue,
     onHide: quickInputService.hide,
     onShow: quickInputService.show,
-    keyboardShortcut: getShortcut(openQuickInputShortcutKey),
+    keyboardShortcut: getAccelerator(openCommandBarShortcutAction),
   };
 }
 

@@ -21,9 +21,3 @@ export interface Kube {
   users?: string[];
   groups?: string[];
 }
-
-export type KubesResponse = {
-  kubes: Kube[];
-  startKey?: string;
-  totalCount?: number;
-};

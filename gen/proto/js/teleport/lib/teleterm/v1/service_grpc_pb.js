@@ -19,7 +19,6 @@
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_teleterm_v1_service_pb = require('../../../../teleport/lib/teleterm/v1/service_pb.js');
 var teleport_lib_teleterm_v1_access_request_pb = require('../../../../teleport/lib/teleterm/v1/access_request_pb.js');
-var teleport_lib_teleterm_v1_app_pb = require('../../../../teleport/lib/teleterm/v1/app_pb.js');
 var teleport_lib_teleterm_v1_auth_settings_pb = require('../../../../teleport/lib/teleterm/v1/auth_settings_pb.js');
 var teleport_lib_teleterm_v1_cluster_pb = require('../../../../teleport/lib/teleterm/v1/cluster_pb.js');
 var teleport_lib_teleterm_v1_database_pb = require('../../../../teleport/lib/teleterm/v1/database_pb.js');
@@ -204,72 +203,6 @@ function deserialize_teleport_lib_teleterm_v1_GetAccessRequestsResponse(buffer_a
   return teleport_lib_teleterm_v1_service_pb.GetAccessRequestsResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
-function serialize_teleport_lib_teleterm_v1_GetAllDatabasesRequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAllDatabasesRequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAllDatabasesRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_GetAllDatabasesRequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.GetAllDatabasesRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_GetAllDatabasesResponse(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAllDatabasesResponse)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAllDatabasesResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_GetAllDatabasesResponse(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.GetAllDatabasesResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_GetAllKubesRequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAllKubesRequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAllKubesRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_GetAllKubesRequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.GetAllKubesRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_GetAllKubesResponse(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAllKubesResponse)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAllKubesResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_GetAllKubesResponse(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.GetAllKubesResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_GetAllServersRequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAllServersRequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAllServersRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_GetAllServersRequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.GetAllServersRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_GetAllServersResponse(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAllServersResponse)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAllServersResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_GetAllServersResponse(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.GetAllServersResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
 function serialize_teleport_lib_teleterm_v1_GetAuthSettingsRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.GetAuthSettingsRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.GetAuthSettingsRequest');
@@ -378,28 +311,6 @@ function serialize_teleport_lib_teleterm_v1_GetServersResponse(arg) {
 
 function deserialize_teleport_lib_teleterm_v1_GetServersResponse(buffer_arg) {
   return teleport_lib_teleterm_v1_service_pb.GetServersResponse.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_ListAppsRequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListAppsRequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListAppsRequest');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_ListAppsRequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.ListAppsRequest.deserializeBinary(new Uint8Array(buffer_arg));
-}
-
-function serialize_teleport_lib_teleterm_v1_ListAppsResponse(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_service_pb.ListAppsResponse)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.ListAppsResponse');
-  }
-  return Buffer.from(arg.serializeBinary());
-}
-
-function deserialize_teleport_lib_teleterm_v1_ListAppsResponse(buffer_arg) {
-  return teleport_lib_teleterm_v1_service_pb.ListAppsResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_ListClustersRequest(arg) {
@@ -667,18 +578,6 @@ listLeafClusters: {
     responseSerialize: serialize_teleport_lib_teleterm_v1_ListClustersResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListClustersResponse,
   },
-  // GetAllDatabases lists all databases without pagination
-getAllDatabases: {
-    path: '/teleport.lib.teleterm.v1.TerminalService/GetAllDatabases',
-    requestStream: false,
-    responseStream: false,
-    requestType: teleport_lib_teleterm_v1_service_pb.GetAllDatabasesRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.GetAllDatabasesResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_GetAllDatabasesRequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetAllDatabasesRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_GetAllDatabasesResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetAllDatabasesResponse,
-  },
   // GetDatabases returns a filtered and paginated list of databases
 getDatabases: {
     path: '/teleport.lib.teleterm.v1.TerminalService/GetDatabases',
@@ -702,18 +601,6 @@ listDatabaseUsers: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListDatabaseUsersRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_ListDatabaseUsersResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListDatabaseUsersResponse,
-  },
-  // GetAllServers returns all servers
-getAllServers: {
-    path: '/teleport.lib.teleterm.v1.TerminalService/GetAllServers',
-    requestStream: false,
-    responseStream: false,
-    requestType: teleport_lib_teleterm_v1_service_pb.GetAllServersRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.GetAllServersResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_GetAllServersRequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetAllServersRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_GetAllServersResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetAllServersResponse,
   },
   // GetServers returns filtered, sorted, and paginated servers
 getServers: {
@@ -811,18 +698,6 @@ assumeRole: {
     responseSerialize: serialize_teleport_lib_teleterm_v1_EmptyResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_EmptyResponse,
   },
-  // GetAllKubes list all kubes
-getAllKubes: {
-    path: '/teleport.lib.teleterm.v1.TerminalService/GetAllKubes',
-    requestStream: false,
-    responseStream: false,
-    requestType: teleport_lib_teleterm_v1_service_pb.GetAllKubesRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.GetAllKubesResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_GetAllKubesRequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetAllKubesRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_GetAllKubesResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetAllKubesResponse,
-  },
   // GetKubes returns filtered, sorted, and paginated kubes
 getKubes: {
     path: '/teleport.lib.teleterm.v1.TerminalService/GetKubes',
@@ -834,18 +709,6 @@ getKubes: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_GetKubesRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_GetKubesResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_GetKubesResponse,
-  },
-  // ListApps list apps
-listApps: {
-    path: '/teleport.lib.teleterm.v1.TerminalService/ListApps',
-    requestStream: false,
-    responseStream: false,
-    requestType: teleport_lib_teleterm_v1_service_pb.ListAppsRequest,
-    responseType: teleport_lib_teleterm_v1_service_pb.ListAppsResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_ListAppsRequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_ListAppsRequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_ListAppsResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_ListAppsResponse,
   },
   // AddCluster adds a cluster to profile
 addCluster: {

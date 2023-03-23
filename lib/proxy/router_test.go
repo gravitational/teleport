@@ -22,12 +22,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -40,7 +43,7 @@ func (t testSite) GetClusterNetworkingConfig(ctx context.Context, opts ...servic
 	return t.cfg, nil
 }
 
-func (t testSite) GetNodes(fn func(n services.Node) bool) ([]types.Server, error) {
+func (t testSite) GetNodes(ctx context.Context, fn func(n services.Node) bool) ([]types.Server, error) {
 	var out []types.Server
 	for _, s := range t.nodes {
 		if fn(s) {
@@ -305,15 +308,19 @@ func (t tunnel) GetSite(cluster string) (reversetunnel.RemoteSite, error) {
 
 type testRemoteSite struct {
 	reversetunnel.RemoteSite
+
+	params reversetunnel.DialParams
+
 	conn net.Conn
 	err  error
 }
 
-func (r testRemoteSite) Dial(reversetunnel.DialParams) (net.Conn, error) {
+func (r *testRemoteSite) Dial(params reversetunnel.DialParams) (net.Conn, error) {
+	r.params = params
 	return r.conn, r.err
 }
 
-func (r testRemoteSite) DialAuthServer() (net.Conn, error) {
+func (r testRemoteSite) DialAuthServer(reversetunnel.DialParams) (net.Conn, error) {
 	return r.conn, r.err
 }
 
@@ -337,11 +344,34 @@ func TestRouter_DialHost(t *testing.T) {
 			Hostname: "test",
 		},
 	}
+	agentlessSrv := &types.ServerV2{
+		Kind:    types.KindNode,
+		SubKind: types.SubKindOpenSSHNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name: uuid.NewString(),
+		},
+		Spec: types.ServerSpecV2{
+			Addr:     "127.0.0.1:9001",
+			Hostname: "agentless",
+		},
+	}
+
+	agentGetter := func() (teleagent.Agent, error) {
+		return nil, nil
+	}
+	createSigner := func() (ssh.Signer, error) {
+		key, err := native.GeneratePrivateKey()
+		if err != nil {
+			return nil, err
+		}
+		return ssh.NewSignerFromSigner(key)
+	}
 
 	cases := []struct {
 		name      string
 		router    Router
-		assertion func(t *testing.T, conn net.Conn, err error)
+		assertion func(t *testing.T, params reversetunnel.DialParams, conn net.Conn, err error)
 	}{
 		{
 			name: "failure resolving node",
@@ -351,7 +381,7 @@ func TestRouter_DialHost(t *testing.T) {
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(nil, trace.NotFound(teleport.NodeIsAmbiguous)),
 			},
-			assertion: func(t *testing.T, conn net.Conn, err error) {
+			assertion: func(t *testing.T, params reversetunnel.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
 				require.Nil(t, conn)
 			},
@@ -364,7 +394,7 @@ func TestRouter_DialHost(t *testing.T) {
 				log:         logger,
 				tracer:      tracing.NoopTracer("test"),
 			},
-			assertion: func(t *testing.T, conn net.Conn, err error) {
+			assertion: func(t *testing.T, params reversetunnel.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
 				require.Nil(t, conn)
@@ -379,7 +409,7 @@ func TestRouter_DialHost(t *testing.T) {
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
-			assertion: func(t *testing.T, conn net.Conn, err error) {
+			assertion: func(t *testing.T, params reversetunnel.DialParams, conn net.Conn, err error) {
 				require.Error(t, err)
 				require.True(t, trace.IsConnectionProblem(err))
 				require.Nil(t, conn)
@@ -394,8 +424,28 @@ func TestRouter_DialHost(t *testing.T) {
 				tracer:         tracing.NoopTracer("test"),
 				serverResolver: serverResolver(srv, nil),
 			},
-			assertion: func(t *testing.T, conn net.Conn, err error) {
+			assertion: func(t *testing.T, params reversetunnel.DialParams, conn net.Conn, err error) {
 				require.NoError(t, err)
+				require.Equal(t, srv, params.TargetServer)
+				require.NotNil(t, params.GetUserAgent)
+				require.Nil(t, params.AgentlessSigner)
+				require.NotNil(t, conn)
+			},
+		},
+		{
+			name: "dial success to agentless node",
+			router: Router{
+				clusterName:    "test",
+				log:            logger,
+				localSite:      &testRemoteSite{conn: fakeConn{}},
+				tracer:         tracing.NoopTracer("test"),
+				serverResolver: serverResolver(agentlessSrv, nil),
+			},
+			assertion: func(t *testing.T, params reversetunnel.DialParams, conn net.Conn, err error) {
+				require.NoError(t, err)
+				require.Equal(t, agentlessSrv, params.TargetServer)
+				require.Nil(t, params.GetUserAgent)
+				require.NotNil(t, params.AgentlessSigner)
 				require.NotNil(t, conn)
 			},
 		},
@@ -405,11 +455,16 @@ func TestRouter_DialHost(t *testing.T) {
 
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			conn, err := tt.router.DialHost(ctx, &utils.NetAddr{}, "host", "0", "test", nil, nil)
-			tt.assertion(t, conn, err)
+			conn, _, err := tt.router.DialHost(ctx, &utils.NetAddr{}, &utils.NetAddr{}, "host", "0", "test", nil, agentGetter, createSigner)
+
+			var params reversetunnel.DialParams
+			if tt.router.localSite != nil {
+				params = tt.router.localSite.(*testRemoteSite).params
+			}
+
+			tt.assertion(t, params, conn, err)
 		})
 	}
-
 }
 
 func TestRouter_DialSite(t *testing.T) {
@@ -457,7 +512,7 @@ func TestRouter_DialSite(t *testing.T) {
 			name:    "failure to dial remote site",
 			cluster: "leaf",
 			tunnel: tunnel{
-				site: testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
+				site: &testRemoteSite{err: trace.ConnectionProblem(context.DeadlineExceeded, "connection refused")},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.Error(t, err)
@@ -481,7 +536,7 @@ func TestRouter_DialSite(t *testing.T) {
 			name:    "successfully  dial remote site",
 			cluster: "leaf",
 			tunnel: tunnel{
-				site: testRemoteSite{conn: fakeConn{}},
+				site: &testRemoteSite{conn: fakeConn{}},
 			},
 			assertion: func(t *testing.T, conn net.Conn, err error) {
 				require.NoError(t, err)
@@ -502,7 +557,7 @@ func TestRouter_DialSite(t *testing.T) {
 				tracer:      tracing.NoopTracer(cluster),
 			}
 
-			conn, err := router.DialSite(ctx, tt.cluster)
+			conn, err := router.DialSite(ctx, tt.cluster, nil, nil)
 			tt.assertion(t, conn, err)
 		})
 	}

@@ -1,0 +1,129 @@
+---
+title: Using Teleport as a SAML identity provider
+description: How to configure and use Teleport as a SAML identity provider.
+h1: Teleport as a SAML identity provider
+---
+
+## How to use Teleport as an identity provider
+
+This guide details an example on how to use Teleport as an identity provider to
+authenticate to external services.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
+
+- If you're new to SAML, consider reviewing our [SAML Identity Provider
+Reference](./saml-reference.mdx) before proceeding.
+## Example external application
+
+We'll be using [samltest.id](https://samltest.id/) to create a test consumer of
+Teleport's SAML identity provider.
+
+## Step 1/4. Configure a Teleport role with access to SAML service provider objects
+
+First, ensure you are logged into Teleport as a user that has permissions
+to read and modify `saml_idp_service_provider` objects. The default `editor` role
+has access to this already, but in case you are using a more customized configuration,
+create a role called `sp-manager.yaml` with the following contents:
+
+```yaml
+kind: role
+metadata:
+  name: sp-manager
+spec:
+  allow:
+    rules:
+    - resources:
+      - saml_idp_service_provider
+      verbs:
+      - list
+      - create
+      - read
+      - update
+      - delete
+version: v6
+```
+
+Create the role with `tctl`:
+
+```code
+$ tctl create sp-manager.yaml 
+role 'saml-idp-service-provider-manager' has been created
+```
+
+Add the role to your user. Replace `teleport-admin` with your user name:
+
+```code
+$ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
+jq -r '.[].spec.roles | join(",")'), sp-manager <Var name="teleport-admin"/>
+User teleport-admin has been updated:
+	New roles: auditor,editor,access,sp-manager
+```
+
+## Step 2/4. Configure samltest.id to recognize Teleport's identity provider
+
+The first step in configuring the application for SSO is retrieving Teleport's
+SAML identity provider metadata. You can obtain this metadata in XML format by
+navigating to `https://<proxy-address>/enterprise/saml-idp/metadata`. Save
+it in an easy to remember file name like `teleport-metadata.xml`.
+
+Navigate to https://samltest.id and click on "Upload Metadata." Next, choose to upload
+`teleport-metadata.xml`.
+
+![Successful upload](../../../img/access-controls/saml-idp/samltestid-0-successful-upload.png)
+
+## Step 3/4. Obtain the service provider metadata and add it to Teleport
+
+Download the service provider metadata from samltest.id as `saml-sp.xml`:
+
+```code
+$ curl -o saml-sp.xml https://samltest.id/saml/sp
+```
+
+Using the template below, create a file called `saml-sp.yaml`. Assign the
+metadata you just downloaded to the `entity_descriptor` field in the
+`saml_idp_service_provider` object:
+
+```yaml
+kind: saml_idp_service_provider
+metadata:
+  # The friendly name of the service provider. This is used to manage the
+  # service provider as well as in identity provider initiated SSO.
+  name: samltest-id
+spec:
+  # The entity_descriptor is the service provider XML.
+  entity_descriptor: |
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata"...
+version: v1
+```
+
+Add this to Teleport using `tctl`:
+
+```code
+$ tctl create saml-sp.yaml
+# SAML IdP service provider 'samltest-id' has been created.
+```
+
+Teleport now trusts the samltest.id service provider.
+
+## Step 4/4. Verify samltest.id login works
+
+To verify everything works, navigate back to samltest.id's home page and select
+"Test Your IdP." From there, enter the entity ID of Teleport's identity provider,
+which is the same as the metadata URL: `https://<proxy-address>/enterprise/saml-idp/metadata`
+and click "Go!"
+
+![Test the IdP](../../../img/access-controls/saml-idp/samltestid-1-test-idp.png)
+
+If you are not already logged into Teleport, you will be prompted to login. Once you
+are logged in, you should be re-routed to a success page on samltest.id.
+
+![Successful login](../../../img/access-controls/saml-idp/samltestid-2-successful-login.png)
+
+This has verified service provider initiated SSO. To verify identity provider initiated
+SSO, navigate to `https://<proxy-address>/enterprise/saml-idp/login/samltest-id`,
+where `samltest-id` is the friendly name of the service provider object created earlier.
+You should be redirected to the same successful login page seen earlier.

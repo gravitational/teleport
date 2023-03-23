@@ -1,0 +1,140 @@
+# This section configures the 'proxy service'
+proxy_service:
+    # Turns 'proxy' role on. Default is 'yes'
+    enabled: yes
+
+    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when
+    # it is turned 'on'.
+    # Verify whether the service is in front of a trusted load balancer.
+    # The default value is 'on'.
+    proxy_protocol: on
+
+    # SSH forwarding/proxy address. Command line (CLI) clients always begin
+    # their SSH sessions by connecting to this port
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # v2 and above: listener is not created, SSH is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3023
+    listen_addr: 0.0.0.0:3023
+
+    # Reverse tunnel listening address. An auth server (CA) can establish an
+    # outbound (from behind the firewall) connection to this address.
+    # This will allow users of the outside CA to connect to
+    # behind-the-firewall nodes.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # v2 and above: listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3024
+    tunnel_listen_addr: 0.0.0.0:3024
+
+    # Proxy Peering listening address. Teleport Proxy Services will advertise this address
+    # for dialing agents in Proxy Peering mode.
+    peer_listen_addr: 0.0.0.0:3021
+
+    # The HTTPS listen address to serve the Web UI and authenticate users.
+    # Handles the PostgreSQL proxy if Database Access is enabled.
+    web_listen_addr: 0.0.0.0:3080
+
+    # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
+    # Defaults to the proxy's hostname if not specified. If running multiple
+    # proxies behind a load balancer, this name must point to the load balancer
+    # If application access is enabled, public_addr is used to write correct
+    # redirects
+    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
+    # If database access is enabled, Database clients will connect to the Proxy
+    # over this hostname
+    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
+    public_addr: proxy.example.com:3080
+
+    # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
+    # Defaults to the proxy's hostname if not specified. If running multiple
+    # proxies behind a load balancer, this name must point to the load
+    # balancer.
+    # Use a TCP load balancer because this port uses SSH protocol.
+    ssh_public_addr: proxy.example.com:3023
+
+    # The DNS name of the tunnel SSH endpoint as accessible by trusted clusters
+    # and nodes joining the cluster via Teleport IoT/node tunneling.
+    # Defaults to the proxy's hostname if not specified. If running multiple
+    # proxies behind a load balancer, this name must point to the load
+    # balancer. Use a TCP load balancer because this port uses SSH protocol.
+    tunnel_public_addr: proxy.example.com:3024
+
+    # TLS certificate for the HTTPS connection. Configuring these properly is
+    # critical for Teleport security.
+    https_keypairs:
+    - key_file: /var/lib/teleport/webproxy_key.pem
+      cert_file: /var/lib/teleport/webproxy_cert.pem
+    - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
+      cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
+
+    # Interval between attempts to reload the certificate key pairs.
+    # If one of the key pairs fails to load, then no key pair is reloaded.
+    # If set to 0 (the default), then periodic reloading is disabled.
+    # To use this feature correctly, certificate files should be updated atomically.
+    https_keypairs_reload_interval: 1h
+
+    # Kubernetes proxy listen address.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # v2 and above: listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3026
+    kube_listen_addr: 0.0.0.0:3026
+    # optional: set a different public address for kubernetes access
+    kube_public_addr: kube.example.com:3026
+
+    # MySQL proxy listen address.
+    #
+    # If not set, behavior depends on the config file version:
+    #
+    # v2 and above: listener is not created, MySQL traffic is multiplexed on web_listen_addr
+    # v1: defaults to 0.0.0.0:3036
+    mysql_listen_addr: "0.0.0.0:3036"
+
+    # Postgres Proxy listener address. If provided, proxy will use a separate
+    # listener
+    # instead of multiplexing Postgres protocol on web_listener_addr.
+    # postgres_listen_addr: "0.0.0.0:5432"
+
+    # Mongo Proxy listener address. If provided, proxy will use a separate
+    # listener instead of multiplexing Mongo protocol on web_listener_addr.
+    # mongo_listen_addr: "0.0.0.0:27017"
+
+    # Address advertised to MySQL clients. If not set, public_addr is used.
+    mysql_public_addr: "mysql.teleport.example.com:3306"
+
+    # Address advertised to PostgresSQL clients. If not set, public_addr is
+    # used.
+    postgres_public_addr: "postgres.teleport.example.com:443"
+
+    # Address advertised to Mongo clients. If not set, public_addr is used.
+    mongo_public_addr: "mongo.teleport.example.com:443"
+
+    # Get an automatic certificate from Letsencrypt.org using ACME via
+    # TLS_ALPN-01 challenge.
+    # When using ACME, the 'proxy_service' must be publicly accessible over
+    # port 443.
+    # Also set using the CLI command:
+    # 'teleport configure --acme --acme-email=email@example.com \
+    # --cluster-name=tele.example.com -o file'
+    #acme:
+    #  enabled: yes
+    #  email: user@example.com
+
+    # Identity provider configuration. Provides detailed configuration for
+    # Teleport's identity providers. At present, only SAML is supported.
+    idp:
+      # SAML identity provider configuration.
+      saml:
+        # Turns the SAML identity provider on. Defaults is 'yes'.
+        enabled: yes
+
+    # Configuration options for the Web UI served by the Proxy Service.
+    ui_config:
+      # The amount of scrollback in the terminal. Scrollback is the amount of
+      # rows that are retained when lines are scrolled beyond the initial
+      # viewport. Does not apply to session recording view.
+      scrollback_length: 1000

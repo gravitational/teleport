@@ -31,9 +31,8 @@ import ConfirmClusterChangeDialog from './ConfirmClusterChangeDialog';
 export function Clusters() {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-  const [confirmChangeTo, setConfirmChangeTo] = useState<ClusterUri | null>(
-    null
-  );
+  const [confirmChangeTo, setConfirmChangeTo] =
+    useState<ClusterUri | null>(null);
   const clusters = useClusters();
 
   const togglePopover = useCallback(() => {
@@ -43,7 +42,7 @@ export function Clusters() {
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        'toggle-clusters': togglePopover,
+        openClusters: togglePopover,
       }),
       [togglePopover]
     )

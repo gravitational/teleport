@@ -17,7 +17,9 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import { Box, Text, Flex } from 'design';
+import { Text } from 'design';
+
+import { ListItem } from 'teleterm/ui/components/ListItem';
 
 export function NavigationItem({ item, closeMenu }: NavigationItemProps) {
   const handleClick = () => {
@@ -26,34 +28,24 @@ export function NavigationItem({ item, closeMenu }: NavigationItemProps) {
   };
 
   return (
-    <ListItem p={2} pl={0} gap={2} onClick={handleClick}>
-      <IconBox p={2}>{item.Icon}</IconBox>
+    <StyledListItem as="button" type="button" onClick={handleClick}>
+      <item.Icon fontSize={2} />
       <Text>{item.title}</Text>
-    </ListItem>
+    </StyledListItem>
   );
 }
 
-const ListItem = styled(Flex)`
-  border-radius: 4px;
-  align-items: center;
-  justify-content: start;
-  cursor: pointer;
-  &:hover {
-    background: ${props => props.theme.colors.primary.lighter};
-  }
-`;
-
-const IconBox = styled(Box)`
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  background-color: ${props => props.theme.colors.primary.lighter};
+const StyledListItem = styled(ListItem)`
+  height: 38px;
+  gap: 12px;
+  padding: 0 12px;
+  border-radius: 0;
 `;
 
 type NavigationItemProps = {
   item: {
     title: string;
-    Icon: JSX.Element;
+    Icon: React.ComponentType<{ fontSize: number }>;
     onNavigate: () => void;
   };
   closeMenu: () => void;

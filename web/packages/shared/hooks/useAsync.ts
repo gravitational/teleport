@@ -153,6 +153,10 @@ export type Attempt<T> = {
   statusText: string;
 };
 
+export function hasFinished<T>(attempt: Attempt<T>): boolean {
+  return attempt.status === 'success' || attempt.status === 'error';
+}
+
 export function makeEmptyAttempt<T>(): Attempt<T> {
   return {
     data: null,

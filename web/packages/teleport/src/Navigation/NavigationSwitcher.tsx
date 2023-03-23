@@ -167,7 +167,6 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     (event: React.KeyboardEvent<HTMLDivElement>, item: NavigationCategory) => {
       switch (event.key) {
         case 'Enter':
-          console.log('handle change', item);
           handleChange(item);
 
           break;

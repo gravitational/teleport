@@ -18,6 +18,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -25,7 +26,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 
-	proxyv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/proxy/v1"
+	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
@@ -88,10 +89,10 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Service implements the teleport.proxy.v1.ProxyService RPC
+// Service implements the teleport.transport.v1.TransportService RPC
 // service.
 type Service struct {
-	proxyv1.UnimplementedProxyServiceServer
+	transportv1pb.UnimplementedTransportServiceServer
 
 	cfg ServerConfig
 }
@@ -106,14 +107,14 @@ func NewService(cfg ServerConfig) (*Service, error) {
 }
 
 // GetClusterDetails returns the cluster details as seen by this service to the client.
-func (s *Service) GetClusterDetails(context.Context, *proxyv1.GetClusterDetailsRequest) (*proxyv1.GetClusterDetailsResponse, error) {
-	return &proxyv1.GetClusterDetailsResponse{Details: &proxyv1.ClusterDetails{FipsEnabled: s.cfg.FIPS}}, nil
+func (s *Service) GetClusterDetails(context.Context, *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
+	return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: s.cfg.FIPS}}, nil
 }
 
 // ProxyCluster establishes a connection to a cluster and proxies the connection
 // over the stream. The client must send the first request with the cluster name
 // before the connection is established.
-func (s *Service) ProxyCluster(stream proxyv1.ProxyService_ProxyClusterServer) error {
+func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyClusterServer) error {
 	req, err := stream.Recv()
 	if err != nil {
 		return trace.Wrap(err, "failed receiving first frame")
@@ -142,9 +143,9 @@ func (s *Service) ProxyCluster(stream proxyv1.ProxyService_ProxyClusterServer) e
 }
 
 // clusterStream implements the [streamutils.Source] interface
-// for a [proxyv1.ProxyService_ProxyClusterServer].
+// for a [transportv1pb.TransportService_ProxyClusterServer].
 type clusterStream struct {
-	stream proxyv1.ProxyService_ProxyClusterServer
+	stream transportv1pb.TransportService_ProxyClusterServer
 }
 
 func (c clusterStream) Recv() ([]byte, error) {
@@ -161,13 +162,13 @@ func (c clusterStream) Recv() ([]byte, error) {
 }
 
 func (c clusterStream) Send(frame []byte) error {
-	return trace.Wrap(c.stream.Send(&proxyv1.ProxyClusterResponse{Frame: &proxyv1.Frame{Payload: frame}}))
+	return trace.Wrap(c.stream.Send(&transportv1pb.ProxyClusterResponse{Frame: &transportv1pb.Frame{Payload: frame}}))
 }
 
 // ProxySSH establishes a connection to a host and proxies both the SSH and SSH
 // Agent protocol over the stream. The first request from the client must contain
 // a valid dial target before the connection can be established.
-func (s *Service) ProxySSH(stream proxyv1.ProxyService_ProxySSHServer) error {
+func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer) error {
 	ctx := stream.Context()
 
 	p, ok := peer.FromContext(ctx)
@@ -196,15 +197,8 @@ func (s *Service) ProxySSH(stream proxyv1.ProxyService_ProxySSHServer) error {
 		return trace.BadParameter("dial target contains an invalid hostport")
 	}
 
-	// create a stream for SSH Agent protocol
-	agentStream := newSSHStream(stream, func(payload []byte) *proxyv1.ProxySSHResponse {
-		return &proxyv1.ProxySSHResponse{Frame: &proxyv1.ProxySSHResponse_Agent{Agent: &proxyv1.Frame{Payload: payload}}}
-	})
-
-	// create a stream for SSH protocol
-	sshStream := newSSHStream(stream, func(payload []byte) *proxyv1.ProxySSHResponse {
-		return &proxyv1.ProxySSHResponse{Frame: &proxyv1.ProxySSHResponse_Ssh{Ssh: &proxyv1.Frame{Payload: payload}}}
-	})
+	// create streams for SSH and Agent protocols
+	sshStream, agentStream := newSSHStreams(stream)
 
 	// multiplex incoming frames to the appropriate protocol
 	// handlers for the duration of the stream
@@ -212,8 +206,6 @@ func (s *Service) ProxySSH(stream proxyv1.ProxyService_ProxySSHServer) error {
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				agentStream.Close()
-				sshStream.Close()
 				if !utils.IsOKNetworkError(err) {
 					s.cfg.Logger.Errorf("ssh stream terminated unexpectedly: %v", err)
 				}
@@ -225,9 +217,9 @@ func (s *Service) ProxySSH(stream proxyv1.ProxyService_ProxySSHServer) error {
 			// on `ctx.Done()` to ensure that all data is flushed to the
 			// clients.
 			switch frame := req.Frame.(type) {
-			case *proxyv1.ProxySSHRequest_Ssh:
+			case *transportv1pb.ProxySSHRequest_Ssh:
 				sshStream.incomingC <- frame.Ssh.Payload
-			case *proxyv1.ProxySSHRequest_Agent:
+			case *transportv1pb.ProxySSHRequest_Agent:
 				agentStream.incomingC <- frame.Agent.Payload
 			default:
 				s.cfg.Logger.Errorf("received unexpected ssh frame: %T", frame)
@@ -256,8 +248,8 @@ func (s *Service) ProxySSH(stream proxyv1.ProxyService_ProxySSHServer) error {
 
 	// send back the cluster details to alert the other side that
 	// the connection has been established
-	if err := stream.Send(&proxyv1.ProxySSHResponse{
-		Details: &proxyv1.ClusterDetails{FipsEnabled: s.cfg.FIPS},
+	if err := stream.Send(&transportv1pb.ProxySSHResponse{
+		Details: &transportv1pb.ClusterDetails{FipsEnabled: s.cfg.FIPS},
 	}); err != nil {
 		return trace.Wrap(err, "failed sending cluster details ")
 	}
@@ -267,33 +259,38 @@ func (s *Service) ProxySSH(stream proxyv1.ProxyService_ProxySSHServer) error {
 }
 
 // sshStream implements the [streamutils.Source] interface
-// for a [proxyv1.ProxyService_ProxySSHServer]. Instead of
+// for a [transportv1pb.TransportService_ProxySSHServer]. Instead of
 // reading directly from the stream reads are from an incoming
 // channel that is fed by the multiplexer.
 type sshStream struct {
 	incomingC  chan []byte
-	stream     proxyv1.ProxyService_ProxySSHServer
-	done       chan struct{}
-	responseFn func(payload []byte) *proxyv1.ProxySSHResponse
+	responseFn func(payload []byte) *transportv1pb.ProxySSHResponse
+	wLock      *sync.Mutex
+	stream     transportv1pb.TransportService_ProxySSHServer
 }
 
-func newSSHStream(stream proxyv1.ProxyService_ProxySSHServer, responseFn func(payload []byte) *proxyv1.ProxySSHResponse) *sshStream {
-	return &sshStream{
-		incomingC:  make(chan []byte, 10),
-		done:       make(chan struct{}),
-		stream:     stream,
-		responseFn: responseFn,
-	}
-}
+func newSSHStreams(stream transportv1pb.TransportService_ProxySSHServer) (ssh *sshStream, agent *sshStream) {
+	mu := &sync.Mutex{}
 
-func (s *sshStream) Close() error {
-	select {
-	case <-s.done:
-	default:
-		close(s.done)
+	ssh = &sshStream{
+		incomingC: make(chan []byte, 10),
+		stream:    stream,
+		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
+			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock: mu,
 	}
 
-	return nil
+	agent = &sshStream{
+		incomingC: make(chan []byte, 10),
+		stream:    stream,
+		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
+			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock: mu,
+	}
+
+	return ssh, agent
 }
 
 // Recv consumes ssh frames from the gRPC stream.
@@ -301,7 +298,7 @@ func (s *sshStream) Close() error {
 // leaking the multiplexing goroutine in Service.ProxySSH.
 func (s *sshStream) Recv() ([]byte, error) {
 	select {
-	case <-s.done:
+	case <-s.stream.Context().Done():
 		return nil, io.EOF
 	case frame := <-s.incomingC:
 		return frame, nil
@@ -309,5 +306,8 @@ func (s *sshStream) Recv() ([]byte, error) {
 }
 
 func (s *sshStream) Send(frame []byte) error {
+	s.wLock.Lock()
+	defer s.wLock.Unlock()
+
 	return trace.Wrap(s.stream.Send(s.responseFn(frame)))
 }

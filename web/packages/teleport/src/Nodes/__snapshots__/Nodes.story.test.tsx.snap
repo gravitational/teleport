@@ -133,15 +133,6 @@ exports[`empty state 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
-  display: block;
-  outline: none;
-  margin-bottom: 24px;
-  margin-left: auto;
-  margin-right: auto;
-  height: 160px;
-}
-
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -160,6 +151,15 @@ exports[`empty state 1`] = `
   font-size: 14px;
   margin: 0px;
   font-weight: 400;
+}
+
+.c7 {
+  display: block;
+  outline: none;
+  margin-bottom: 24px;
+  margin-left: auto;
+  margin-right: auto;
+  height: 160px;
 }
 
 .c3 {
@@ -384,7 +384,7 @@ exports[`failed 1`] = `
   font-size: 14px;
 }
 
-.c30 {
+.c29 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -441,13 +441,6 @@ exports[`failed 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c28 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c1 {
@@ -603,28 +596,28 @@ exports[`failed 1`] = `
   cursor: pointer;
 }
 
-.c29 {
+.c28 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c29 .c17 {
+.c28 .c17 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c29:hover .c17,
-.c29:focus .c17 {
+.c28:hover .c17,
+.c28:focus .c17 {
   opacity: 1;
 }
 
-.c29:disabled {
+.c28:disabled {
   cursor: default;
 }
 
-.c29:disabled .c17 {
+.c28:disabled .c17 {
   opacity: 0.1;
 }
 
@@ -824,8 +817,9 @@ exports[`failed 1`] = `
         <div
           class="c20"
           color="primary.contrastText"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
@@ -1187,29 +1181,24 @@ exports[`failed 1`] = `
       width="100%"
     >
       <div
-        class="c28"
-      />
-      <div
         class="c19"
       >
         <button
-          class="c29"
-          disabled=""
+          class="c28"
           title="Previous page"
         >
           <span
-            class="c17 c30 icon icon-arrow-left-circle "
+            class="c17 c29 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c29"
-          disabled=""
+          class="c28"
           title="Next page"
         >
           <span
-            class="c17 c30 icon icon-arrow-right-circle "
+            class="c17 c29 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />
@@ -1336,7 +1325,7 @@ exports[`loaded 1`] = `
   font-size: 14px;
 }
 
-.c33 {
+.c32 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
@@ -1393,13 +1382,6 @@ exports[`loaded 1`] = `
   width: 100%;
   display: flex;
   justify-content: flex-end;
-}
-
-.c31 {
-  box-sizing: border-box;
-  margin-right: 8px;
-  display: flex;
-  align-items: center;
 }
 
 .c1 {
@@ -1613,28 +1595,28 @@ exports[`loaded 1`] = `
   cursor: pointer;
 }
 
-.c32 {
+.c31 {
   background: none;
   border: none;
   cursor: pointer;
 }
 
-.c32 .c20 {
+.c31 .c20 {
   font-size: 20px;
   transition: all 0.3s;
   opacity: 0.5;
 }
 
-.c32:hover .c20,
-.c32:focus .c20 {
+.c31:hover .c20,
+.c31:focus .c20 {
   opacity: 1;
 }
 
-.c32:disabled {
+.c31:disabled {
   cursor: default;
 }
 
-.c32:disabled .c20 {
+.c31:disabled .c20 {
   opacity: 0.1;
 }
 
@@ -1859,8 +1841,9 @@ exports[`loaded 1`] = `
         <div
           class="c23"
           color="primary.contrastText"
+          style="text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
@@ -2222,29 +2205,24 @@ exports[`loaded 1`] = `
       width="100%"
     >
       <div
-        class="c31"
-      />
-      <div
         class="c22"
       >
         <button
-          class="c32"
-          disabled=""
+          class="c31"
           title="Previous page"
         >
           <span
-            class="c20 c33 icon icon-arrow-left-circle "
+            class="c20 c32 icon icon-arrow-left-circle "
             color="light"
             font-size="3"
           />
         </button>
         <button
-          class="c32"
-          disabled=""
+          class="c31"
           title="Next page"
         >
           <span
-            class="c20 c33 icon icon-arrow-right-circle "
+            class="c20 c32 icon icon-arrow-right-circle "
             color="light"
             font-size="3"
           />

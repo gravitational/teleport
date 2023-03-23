@@ -1,6 +1,7 @@
 ---
 title: Teleport Configuration Reference
 description: The detailed guide and reference documentation for configuring Teleport for SSH and Kubernetes access.
+keywords: [config, file, reference, yaml, etc]
 ---
 
 Teleport uses the YAML file format for configuration. A full configuration
@@ -78,764 +79,92 @@ proxy_service:
   enabled: false
 ```
 
-## Reference configuration file
+## Reference configurations
 
-This example configuration includes all possible configuration options in YAML
-format to demonstrate proper use of indentation:
+These example configurations include all possible configuration options in YAML
+format to demonstrate proper use of indentation. 
+
+Choose a Teleport service to view the application configuration options:
+
+### Instance-wide settings
+
+These settings apply to any `teleport` instance:
 
 ```yaml
-# By default, this file should be stored in /etc/teleport.yaml
-
-# Configuration file version. The current version is "v3".
-version: v3
-
-# This section of the configuration file applies to all teleport
-# services.
-teleport:
-    # nodename allows one to assign an alternative name this node can be
-    # reached by. By default it's equal to hostname.
-    nodename: graviton
-
-    # Data directory where Teleport daemon keeps its data.
-    # See "Storage backends" for more details
-    # (https://goteleport.com/docs/setup/reference/backends/).
-    data_dir: /var/lib/teleport
-
-    # PID file for Teleport process
-    #pid_file: /var/run/teleport.pid
-
-    # The invitation token or an absolute path to a file containing the token used
-    # to join a cluster. It is not used on subsequent starts.
-    # If using a file, it only needs to exist when teleport is first ran.
-    #
-    # File path example:
-    # auth_token: /var/lib/teleport/tokenjoin
-    #
-    # This is the same as setting join_params.method to "token", and join_params.token_name
-    # to the value of auth_token.
-    # You should only use either auth_token or join_params.
-    auth_token: xxxx-token-xxxx
-
-    # join_params are parameters to set when joining a cluster via
-    # EC2, IAM or a token.
-    #
-    # EC2 join method documentation:
-    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-ec2/
-    # IAM join method documentation:
-    # https://goteleport.com/docs/setup/guides/joining-nodes-aws-iam/
-    join_params:
-        # When `method` is set to "token", it is the equivalent to using `auth_token` above.
-        # You should only use either auth_token or join_params.
-        method: "token"|"ec2"|"iam"
-
-        # If method is "iam" or "ec2", token_name will be will be the name of
-        # the joining token resource, e.g., "ec2-token" or "iam-token" as created
-        # in the Joining Nodes via EC2 or IAM guides.
-
-        # If method is "token", token_name will be the invitation token
-        # or an absolute path to a file containing the token used to join a cluster.
-        # It is not used on subsequent starts.
-        # If using a file, it only needs to exist when teleport is first ran.
-        #
-        # File path example:
-        # token_name: /var/lib/teleport/tokenjoin
-        token_name: "token-name"
-
-    # Optional CA pin of the auth server. This enables a more secure way of
-    # adding new nodes to a cluster. See "Adding Nodes to your Cluster"
-    # (https://goteleport.com/docs/setup/admin/adding-nodes).
-    ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
-
-    # When running in multi-homed or NATed environments Teleport Nodes need
-    # to know which IP it will be reachable at by other Nodes.
-    #
-    # This value can be specified as FQDN e.g. host.example.com
-    advertise_ip: 10.1.0.5
-
-
-    # Teleport provides HTTP endpoints for monitoring purposes. They are
-    # disabled by default but you can enable them using the diagnosis address.
-    # See the Teleport metrics reference:
-    # https://goteleport.com/docs/setup/diagnostics/metrics
-    diag_addr: "127.0.0.1:3000"
-
-
-    # Only use one of auth_server or proxy_server.
-    #
-    # When you have either the application service or database service enabled,
-    # only tunneling through the proxy is supported, so you should specify proxy_server.
-    # All other services support both tunneling through the proxy and directly connecting
-    # to the auth server, so you can specify either auth_server or proxy_server.
-
-    # Auth Server address and port to connect to. If you enable the Teleport
-    # Auth Server to run in High Availability configuration, the address should
-    # point to a Load Balancer.
-    # If adding a node located behind NAT, use the Proxy URL (e.g. teleport-proxy.example.com:443)
-    # and set `proxy_server` instead.
-    auth_server: 10.1.0.5:3025
-
-    # Proxy Server address and port to connect to. If you enable the Teleport
-    # Proxy Server to run in High Availability configuration, the address should
-    # point to a Load Balancer.
-    proxy_server: teleport-proxy.example.com:443
-
-    # cache:
-    #  # The cache is enabled by default, it can be disabled with this flag
-    #  enabled: true
-
-    # Teleport throttles all connections to avoid abuse. These settings allow
-    # you to adjust the default limits
-    connection_limits:
-        max_connections: 1000
-        max_users: 250
-
-    # Logging configuration. Possible output values to disk via
-    # '/var/lib/teleport/teleport.log',
-    # 'stdout', 'stderr' and 'syslog'. Possible severity values are DEBUG, INFO (default), WARN,
-    # and ERROR.
-    log:
-        output: /var/lib/teleport/teleport.log
-        severity: INFO
-
-        # Log format configuration
-        # Possible output values are 'json' and 'text' (default).
-        # Possible extra_fields values include: timestamp, component, caller,
-        # and level.
-        # All extra fields are included by default.
-        format:
-          output: text
-          extra_fields: [level, timestamp, component, caller]
-
-    # Configuration for the storage back-end used for the cluster state and the
-    # audit log. Several back-end types are supported.
-    # See the "Storage backends" (https://goteleport.com/docs/setup/reference/backends)
-    # section of the documentation to learn how to configure
-    # DynamoDB, S3, etcd, and other highly available back-ends.
-    storage:
-        # By default teleport uses a SQLite database in the `data_dir`
-        # directory on a local filesystem
-        type: sqlite
-
-        # List of locations where the audit log events will be stored. By
-        # default, they are stored in `/var/lib/teleport/log`.
-        #
-        # When specifying multiple destinations like this, make sure that
-        # highly-available storage methods (like DynamoDB or Firestore) are
-        # specified first, as this is what the Teleport Web UI uses as its
-        # source of events to display.
-        audit_events_uri: ['dynamodb://events_table_name', 'firestore://events_table_name', 'file:///var/lib/teleport/log', 'stdout://']
-
-        # Use this setting to configure teleport to store the recorded sessions
-        # in an AWS S3 bucket or use GCP Storage with 'gs://'.
-        # See the S3 section on "Storage backends" for more information
-        # (https://goteleport.com/docs/setup/reference/backends/#s3).
-        audit_sessions_uri: 's3://example.com/path/to/bucket?region=us-east-1'
-
-        # SQLite-specific section:
-
-        # The default path is the `backend` directory in the `data_dir`
-        path: /var/lib/teleport/backend/
-        # SQLite's `synchronous` pragma, can be set to `"OFF"` for improved
-        # write performance in exchange for reliability against system crashes
-        # (see https://www.sqlite.org/pragma.html#pragma_synchronous).
-        sync: FULL
-        # SQLite's `journal_mode` pragma, by default it doesn't change the mode from
-        # the SQLite default (DELETE unless the database file is using WAL mode).
-        # For improved performance without sacrificing reliability it's possible to
-        # set `journal` to `WAL` and `sync` to `NORMAL`, but only when using a filesystem
-        # that supports locks (see https://www.sqlite.org/pragma.html#pragma_journal_mode).
-        #journal: DELETE
-
-        # DynamoDB-specific section:
-
-        # continuous_backups is used to enable continuous backups.
-        continuous_backups: [true|false]
-
-        # auto_scaling is used to enable (and define settings for) auto
-        # scaling.
-        # default: false
-        auto_scaling:  [true|false]
-
-        # By default, Teleport stores stores audit events with an AWS TTL of 1 year.
-        # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
-        audit_retention_period: 365d
-
-        # minimum/maximum read capacity in units
-        read_min_capacity: int
-        read_max_capacity: int
-        read_target_value: float
-        # minimum/maximum write capacity in units
-        write_min_capacity: int
-        write_max_capacity: int
-        write_target_value: float
-
-    # Cipher algorithms that the server supports. This section only needs to be
-    # set if you want to override the defaults.
-    ciphers:
-      - aes128-ctr
-      - aes192-ctr
-      - aes256-ctr
-      - aes128-gcm@openssh.com
-      - chacha20-poly1305@openssh.com
-
-    # Key exchange algorithms that the server supports. This section only needs
-    # to be set if you want to override the defaults.
-    kex_algos:
-      - curve25519-sha256@libssh.org
-      - ecdh-sha2-nistp256
-      - ecdh-sha2-nistp384
-      - ecdh-sha2-nistp521
-
-    # Message authentication code (MAC) algorithms that the server supports.
-    # This section only needs to be set if you want to override the defaults.
-    mac_algos:
-      - hmac-sha2-256-etm@openssh.com
-      - hmac-sha2-256
-
-    # List of the supported ciphersuites. If this section is not specified,
-    # only the default ciphersuites are enabled.
-    ciphersuites:
-       - tls-ecdhe-rsa-with-aes-128-gcm-sha256
-       - tls-ecdhe-ecdsa-with-aes-128-gcm-sha256
-       - tls-ecdhe-rsa-with-aes-256-gcm-sha384
-       - tls-ecdhe-ecdsa-with-aes-256-gcm-sha384
-       - tls-ecdhe-rsa-with-chacha20-poly1305
-       - tls-ecdhe-ecdsa-with-chacha20-poly1305
-
-# This section configures the 'auth service':
-auth_service:
-    # Turns 'auth' role on. Default is 'yes'
-    enabled: yes
-
-    # A cluster name is used as part of a signature in certificates
-    # generated by this CA.
-    #
-    # We strongly recommend explicitly setting it to something meaningful as it
-    # becomes important when configuring trust between multiple clusters.
-    #
-    # By default an automatically generated name is used (not recommended)
-    #
-    # IMPORTANT: if you change cluster_name, it will invalidate all generated
-    # certificates and keys (may need to wipe out /var/lib/teleport directory)
-    cluster_name: "main"
-
-    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when it is turned 'on'.
-    # Verify whether the service is in front of a trusted load balancer.
-    # The default value is 'on'.
-    proxy_protocol: on
-
-    authentication:
-        # default authentication type. possible values are 'local' and 'github'
-        # for OSS, plus 'oidc' and 'saml' for Enterprise.
-        # Only local authentication (Teleport's own user DB) & GitHub is
-        # supported in the open source version
-        type: local
-
-        # Sets whether local auth is enabled alongside any other authentication
-        # type. Default is true. local_auth must be 'false' for FedRAMP / FIPS.
-        # (https://goteleport.com/docs/enterprise/ssh-kubernetes-fedramp/)
-        #local_auth: true
-
-        # second_factor can be 'off', 'on', 'optional', 'otp' or 'webauthn'.
-        # - 'on' requires either otp or webauthn second factor.
-        # - 'optional' allows otp and webauthn second factor.
-        # - 'otp' and 'webauthn' require the corresponding second factor.
-        second_factor: otp
-
-        # Sets whether passwordless authorization is allowed.
-        # Passwordless requires WebAuthn.
-        # Defaults to "true".
-        #passwordless: true
-
-        # Sets the authenticator connector for SSO (Enterprise) or the default
-        # connector for "local" authentication.
-        # See SSO for Enterprise (https://goteleport.com/docs/enterprise/sso/).
-        # See Passwordless for local
-        # (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default).
-        # Defaults to "local".
-        #connector_name: local
-
-        # this section is used if second_factor is set to 'on', 'optional' or
-        # 'webauthn'.
-        webauthn:
-          # public domain of the Teleport proxy, *excluding* protocol
-          # (`https://`) and port number.
-          #
-          # IMPORTANT: rp_id must never change in the lifetime of the cluster,
-          # because it's recorded in the registration data on the second factor
-          # authenticator. If the rp_id changes, all existing authenticator
-          # registrations will become invalid and all users who use WebAuthn as
-          # the second factor will need to re-register.
-          rp_id: "localhost"
-
-          # optional allow list of certificate authorities (as local file paths
-          # or in-line PEM certificate string) for [device verification](
-          # https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
-          # This field allows you to restrict which device models and vendors
-          # you trust.
-          # Devices outside of the list will be rejected during registration.
-          # By default all devices are allowed.
-          # If you must use attestation, consider using
-          # `attestation_denied_cas` to forbid troublesome devices instead.
-          attestation_allowed_cas:
-          - /path/to/allowed_ca.pem
-          - |
-            -----BEGIN CERTIFICATE-----
-            ...
-            -----END CERTIFICATE-----
-
-          # optional deny list of certificate authorities (as local file paths
-          # or in-line PEM certificate string) for [device verification](
-          # https://developers.yubico.com/WebAuthn/WebAuthn_Developer_Guide/Attestation.html).
-          # This field allows you to forbid specific device models and vendors,
-          # while allowing all others (provided they clear
-          # `attestation_allowed_cas` as well).
-          # Devices within this list will be rejected during registration. By
-          # default no devices are forbidden.
-          attestation_denied_cas:
-          - /path/to/denied_ca.pem
-          - |
-            -----BEGIN CERTIFICATE-----
-            ...
-            -----END CERTIFICATE-----
-
-          # if set to true, disables WebAuthn. Allows a fallback to U2F for
-          # second factor modes 'on' and 'optional'.
-          disabled: false
-
-        # the U2F section is kept for legacy purposes and to support existing
-        # U2F registrations.
-        u2f:
-            # app ID used by U2F registrations.
-            # Keep it in your config to avoid having to re-register U2F devices.
-            app_id: https://localhost:3080
-
-        # Locking mode determines how to apply lock views locally available to
-        # a Teleport component; can be strict or best_effort.
-        # See the "Locking mode" section for more details
-        # (https://goteleport.com/docs/access-controls/guides/locking/#locking-mode).
-        locking_mode: best_effort
-
-        # Device Trust configures Teleport's behavior in regards to trusted
-        # devices.
-        # Device Trust is a Teleport Enterprise feature.
-        # (https://goteleport.com/docs/access-controls/guides/device-trust/)
-        device_trust:
-          # 'mode' is the cluster-wide device trust mode.
-          # The following values are supported:
-          # - 'off' - disables device trust. Device authentication is not
-          #   performed and device-aware audit logs are absent.
-          # - 'optional' - enables device authentication and device-aware audit,
-          #   but doesn't require a trusted device to access resources.
-          # - 'required' - enables device authentication and device-aware audit.
-          #   Additionally, it requires a trusted device for all SSH, Database
-          #   and Kubernetes connections.
-          mode: optional # always "off" for OSS
-
-    # IP and the port to bind to. Other Teleport Nodes will be connecting to
-    # this port (AKA "Auth API" or "Cluster API") to validate client
-    # certificates
-    listen_addr: 0.0.0.0:3025
-
-    # The optional DNS name for the auth server if located behind a load
-    # balancer.
-    public_addr: auth.example.com:3025
-
-    # Pre-defined tokens for adding new nodes to a cluster. Each token specifies
-    # the role a new node will be allowed to assume. The more secure way to
-    # add nodes is to use `tctl nodes add --ttl` command to generate auto-expiring
-    # tokens.
-    #
-    # We recommend to use tools like `pwgen` to generate sufficiently random
-    # tokens of 32+ byte length.
-    tokens:
-        - "proxy,node:xxxxx"
-        - "auth:yyyy"
-
-    # Optional setting for configuring session recording. Possible values are:
-    #    "node"      : (default) sessions will be recorded on the node
-    #                  and periodically cleaned up after they are uploaded
-    #                  to the storage service.
-    #    "node-sync" : session recordings will be streamed from
-    #                  node -> auth -> storage service without being stored on
-    #                  disk at all.
-    #    "proxy"     : sessions will be recorded on the proxy and periodically
-    #                  cleaned up after they are uploaded to the storage service.
-    #    "proxy-sync : session recordings will be streamed from
-    #                  proxy -> auth -> storage service without being stored on
-    #                  disk at all.
-    #    "off"   : session recording is turned off
-    #
-    session_recording: "node"
-
-    # This setting determines if a Teleport proxy performs strict host key
-    # checks.
-    # Only applicable if session_recording=proxy, see "Recording Proxy Mode"
-    # for details
-    # (https://goteleport.com/docs/architecture/proxy/#recording-proxy-mode).
-    proxy_checks_host_keys: yes
-
-    # Determines if sessions to cluster resources are forcefully terminated after
-    # no activity from a client (idle client).
-    # Examples: "30m", "1h" or "1h30m"
-    client_idle_timeout: never
-
-    # Send a custom message to the client when they are disconnected due to
-    # inactivity. The empty string indicates that no message will be sent.
-    # (Currently only supported for Server Access connections)
-    client_idle_timeout_message: ""
-
-    # Sets an idle timeout for the Web UI. The default is 10m.
-    web_idle_timeout: 10m
-
-    # Determines if the clients will be forcefully disconnected when their
-    # certificates expire in the middle of an active session. (default is 'no')
-    disconnect_expired_cert: no
-
-    # Determines the interval at which Teleport will send keep-alive messages.
-    # The default is set to 5 minutes (300 seconds) to stay lower than the
-    # common load balancer timeout of 350 seconds.
-    # keep_alive_count_max is the number of missed keep-alive messages before
-    # the server tears down the connection to the client.
-    keep_alive_interval: 5m
-    keep_alive_count_max: 3
-
-    # Determines the internal session control timeout cluster-wide. This value
-    # will be used with enterprise max_connections and max_sessions. It's
-    # unlikely that you'll need to change this.
-    # session_control_timeout: 2m
-
-    # Determines the routing strategy used to connect to nodes. Can be
-    # 'unambiguous_match' (default), or 'most_recent'.
-    routing_strategy: unambiguous_match
-
-    # License file to start auth server with. Note that this setting is ignored
-    # in the Teleport Open-Source Edition and is required only for Teleport Pro, Business
-    # and Enterprise subscription plans.
-    #
-    # The path can be either absolute or relative to the configured `data_dir`
-    # and should point to the license file obtained from Teleport Download
-    # Portal.
-    #
-    # If not set, by default Teleport will look for the `license.pem` file in
-    # the configured `data_dir` .
-    license_file: /var/lib/teleport/license.pem
-
-    # Configures a banner message to be displayed to a user logging into the
-    # cluster, which must be acknowledged before the user is allowed to log in.
-    # Note that will be shown *before* login, so should not contain any
-    # confidential information.
-    # Defaults to the empty string, implying no message or acknowledgment is
-    # required.
-    message_of_the_day: ""
-
-    # Indicates to the clients whether the cluster is running in TLS routing
-    # mode with all protocols multiplexed on the proxy's web_listen_addr.
-    #
-    # Possible values are:
-    #
-    # "multiplex": clients will be connecting to Teleport proxy's web listener
-    #              in TLS routing mode.
-    # "separate":  clients will be connecting to Teleport proxy's individual
-    #              listeners: tunnel_listen_addr, mysql_listen_addr, etc.
-    #
-    # See "TLS Routing" in Architecture section for additional information.
-    proxy_listener_mode: multiplex
-
-    # Determines the strategy that the cluster uses for connecting clients to
-    # agents through the Teleport Proxy Service.
-    tunnel_strategy:
-      # Possible tunnel strategy types are:
-      #
-      # "agent_mesh":    The default behavior, where agents will connect to every
-      #                  Teleport Proxy Service instance.
-      # "proxy_peering": Agents will connect to a subset of Proxy Service instances
-      #                  and clients will be routed between Proxy Service instances
-      #                  for end-to-end connectivity.
-      type: proxy_peering
-
-      # The number of reverse tunnel connections agents will attempt to create.
-      # This field is only available when using the "proxy_peering" tunnel
-      # strategy type. For high availability we recommend setting this value to
-      # 2 or more.
-      agent_connection_count: 1
-
-    # Tells tsh to load the CAs of all clusters when trying to ssh into a Teleport Node,
-    # instead of just the CA for the current cluster. This may be useful for
-    # users that want to log in to a root cluster and then "tsh ssh" into a node
-    # in a leaf cluster. Defaults to false.
-    load_all_cas: false
-
-# This section configures the 'node service':
-ssh_service:
-    # Turns 'ssh' role on. Default is 'yes'
-    enabled: yes
-
-    # IP and the port for SSH service to bind to.
-    listen_addr: 0.0.0.0:3022
-
-    # The optional public address the SSH service. This is useful if
-    # administrators want to allow users to connect to nodes directly,
-    # bypassing a Teleport proxy.
-    public_addr: node.example.com:3022
-
-    # See the explanation of labels in the "Labels" page
-    # (https://goteleport.com/docs/setup/admin/labels).
-    labels:
-        role: leader
-        type: postgres
-
-    # List of the commands to periodically execute. Their output will be used
-    # as node labels.
-    # See the "Labels" page for more information and more examples
-    # (https://goteleport.com/docs/setup/admin/labels).
-    commands:
-    # this command will add a label 'arch=x86_64' to a node
-    - name: arch
-      command: ['/bin/uname', '-p']
-      period: 1h0m0s
-
-    # Enables reading ~/.tsh/environment on the server before creating a session.
-    # Disabled by default. Can be enabled here or via the `--permit-user-env` flag.
-    permit_user_env: false
-
-    # Disables automatic creation of host users on this SSH node.
-    # Set to false by default.
-    disable_create_host_user: true
-
-    # Enhanced Session Recording
-    # see https://goteleport.com/docs/features/enhanced-session-recording/
-    enhanced_recording:
-       # Enable or disable enhanced auditing for this node. Default value:
-       # false.
-       enabled: false
-
-       # command_buffer_size is optional with a default value of 8 pages.
-       command_buffer_size: 8
-
-       # disk_buffer_size is optional with default value of 128 pages.
-       disk_buffer_size: 128
-
-       # network_buffer_size is optional with default value of 8 pages.
-       network_buffer_size: 8
-
-       # Controls where cgroupv2 hierarchy is mounted. Default value:
-       # /cgroup2.
-       cgroup_path: /cgroup2
-
-    # Configures PAM integration. See our PAM guide for more details
-    # (https://goteleport.com/docs/features/ssh-pam/).
-    pam:
-        # "no" by default
-        enabled: yes
-        # use /etc/pam.d/sshd configuration (the default)
-        service_name: "sshd"
-        # use the "auth" modules in the PAM config
-        # "false" by default
-        use_pam_auth: true
-
-    # Enables/disables TCP forwarding. Default is 'true'
-    port_forwarding: true
-
-    # When x11.enabled is set to yes, users with the "permit_x11_forwarding"
-    # role option will be able to request X11 forwarding sessions with
-    # "tsh ssh -X".
-    #
-    # X11 forwarding will only work if the server has the "xauth" binary
-    # installed and the Teleport Node can open Unix sockets.
-    # e.g. "$TEMP/.X11-unix/X[display_number]."
-    x11:
-      # no by default
-      enabled: yes
-      # display_offset can be used to specify the start of the range of X11
-      # displays the server will use when granting X11 forwarding sessions
-      # 10 by default
-      display_offset: 10
-      # max_display can be set to specify the end of the range of X11 displays
-      # to use when granting X11 forwarding sessions
-      # display_offset + 1000 by default
-      max_display: 1010
-
-    # Enables/disables remote file operations via SCP/SFTP for this Node. Default
-    # value: true
-    ssh_file_copy: true
-
-# This section configures the 'proxy service'
-proxy_service:
-    # Turns 'proxy' role on. Default is 'yes'
-    enabled: yes
-
-    # ProxyProtocol enables support for HAProxy proxy protocol version 1 when
-    # it is turned 'on'.
-    # Verify whether the service is in front of a trusted load balancer.
-    # The default value is 'on'.
-    proxy_protocol: on
-
-    # SSH forwarding/proxy address. Command line (CLI) clients always begin
-    # their SSH sessions by connecting to this port
-    #
-    # If not set, behavior depends on the config file version:
-    #
-    # v2 and above: listener is not created, SSH is multiplexed on web_listen_addr
-    # v1: defaults to 0.0.0.0:3023
-    listen_addr: 0.0.0.0:3023
-
-    # Reverse tunnel listening address. An auth server (CA) can establish an
-    # outbound (from behind the firewall) connection to this address.
-    # This will allow users of the outside CA to connect to
-    # behind-the-firewall nodes.
-    #
-    # If not set, behavior depends on the config file version:
-    #
-    # v2 and above: listener is not created, reverse tunnel traffic is multiplexed on web_listen_addr
-    # v1: defaults to 0.0.0.0:3024
-    tunnel_listen_addr: 0.0.0.0:3024
-
-    # Proxy Peering listening address. Teleport Proxy Services will advertise this address
-    # for dialing agents in Proxy Peering mode.
-    peer_listen_addr: 0.0.0.0:3021
-
-    # The HTTPS listen address to serve the Web UI and authenticate users.
-    # Handles the PostgreSQL proxy if Database Access is enabled.
-    web_listen_addr: 0.0.0.0:3080
-
-    # The DNS name of the proxy HTTPS endpoint as accessible by cluster users.
-    # Defaults to the proxy's hostname if not specified. If running multiple
-    # proxies behind a load balancer, this name must point to the load balancer
-    # If application access is enabled, public_addr is used to write correct
-    # redirects
-    # (https://goteleport.com/docs/application-access/guides/connecting-apps/#start-authproxy-service).
-    # If database access is enabled, Database clients will connect to the Proxy
-    # over this hostname
-    # (https://goteleport.com/docs/database-access/architecture/#database-client-to-proxy).
-    public_addr: proxy.example.com:3080
-
-    # The DNS name of the proxy SSH endpoint as accessible by cluster clients.
-    # Defaults to the proxy's hostname if not specified. If running multiple
-    # proxies behind a load balancer, this name must point to the load
-    # balancer.
-    # Use a TCP load balancer because this port uses SSH protocol.
-    ssh_public_addr: proxy.example.com:3023
-
-    # The DNS name of the tunnel SSH endpoint as accessible by trusted clusters
-    # and nodes joining the cluster via Teleport IoT/node tunneling.
-    # Defaults to the proxy's hostname if not specified. If running multiple
-    # proxies behind a load balancer, this name must point to the load
-    # balancer. Use a TCP load balancer because this port uses SSH protocol.
-    tunnel_public_addr: proxy.example.com:3024
-
-    # TLS certificate for the HTTPS connection. Configuring these properly is
-    # critical for Teleport security.
-    https_keypairs:
-    - key_file: /var/lib/teleport/webproxy_key.pem
-      cert_file: /var/lib/teleport/webproxy_cert.pem
-    - key_file: /etc/letsencrypt/live/*.teleport.example.com/privkey.pem
-      cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
-
-    # Interval between attempts to reload the certificate key pairs.
-    # If one of the key pairs fails to load, then no key pair is reloaded.
-    # If set to 0 (the default), then periodic reloading is disabled.
-    # To use this feature correctly, certificate files should be updated atomically.
-    https_keypairs_reload_interval: 1h
-
-    # Kubernetes proxy listen address.
-    #
-    # If not set, behavior depends on the config file version:
-    #
-    # v2 and above: listener is not created, Kubernetes traffic is multiplexed on web_listen_addr
-    # v1: defaults to 0.0.0.0:3026
-    kube_listen_addr: 0.0.0.0:3026
-    # optional: set a different public address for kubernetes access
-    kube_public_addr: kube.example.com:3026
-
-    # MySQL proxy listen address.
-    #
-    # If not set, behavior depends on the config file version:
-    #
-    # v2 and above: listener is not created, MySQL traffic is multiplexed on web_listen_addr
-    # v1: defaults to 0.0.0.0:3036
-    mysql_listen_addr: "0.0.0.0:3036"
-
-    # Postgres Proxy listener address. If provided, proxy will use a separate
-    # listener
-    # instead of multiplexing Postgres protocol on web_listener_addr.
-    # postgres_listen_addr: "0.0.0.0:5432"
-
-    # Mongo Proxy listener address. If provided, proxy will use a separate
-    # listener instead of multiplexing Mongo protocol on web_listener_addr.
-    # mongo_listen_addr: "0.0.0.0:27017"
-
-    # Address advertised to MySQL clients. If not set, public_addr is used.
-    mysql_public_addr: "mysql.teleport.example.com:3306"
-
-    # Address advertised to PostgresSQL clients. If not set, public_addr is
-    # used.
-    postgres_public_addr: "postgres.teleport.example.com:443"
-
-    # Address advertised to Mongo clients. If not set, public_addr is used.
-    mongo_public_addr: "mongo.teleport.example.com:443"
-
-    # Get an automatic certificate from Letsencrypt.org using ACME via
-    # TLS_ALPN-01 challenge.
-    # When using ACME, the 'proxy_service' must be publicly accessible over
-    # port 443.
-    # Also set using the CLI command:
-    # 'teleport configure --acme --acme-email=email@example.com \
-    # --cluster-name=tele.example.com -o file'
-    #acme:
-    #  enabled: yes
-    #  email: user@example.com
-
-# This section configures the 'application service'
-app_service:
-    # Turns 'app' role on. Default is 'no'
-    enabled: yes
-    # Teleport contains a small debug app that can be used to make sure
-    # Application Access is working correctly. The app outputs JWTs so it can
-    # be useful when extending your application.
-    debug_app: true
-    apps:
-    - name: "kubernetes-dashboard"
-      # Optional: For access to cloud provider APIs, specify the cloud
-      # provider. Allowed values are "AWS", "Azure", and "GCP".
-      cloud: ""
-      # URI and Port of Application.
-      uri: "http://10.0.1.27:8000"
-      # Optionally skip TLS verification. default false
-      # insecure_skip_verify: true
-      # Optional Public Addr
-      public_addr: "example.com"
-      # Optional Label: These can be used in combination with RBAC rules
-      # to limit access to applications
-      labels:
-         env: "prod"
-      # Optional Dynamic Labels
-      commands:
-      - name: "os"
-        command: ["/usr/bin/uname"]
-        period: "5s"
-      ## Optional list of rewrite rules to apply to requests and responses
-      # rewrite:
-        ## Optional simple rewriting of Location header
-        ## Rewrite the "Location" header on redirect responses replacing the
-        ## host with the public address of this application.
-        # redirect:
-        #   - "localhost"
-        #   - "jenkins.internal.dev"
-        ## Optional list of extra headers to inject in to requests.
-        # headers:
-        #   For example:
-        #   - "Host: jenkins.example.com"
-
-## This section configures the 'kubernetes service'
-(!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)
-
-# This section configures the 'discovery service'
-(!docs/pages/includes/discovery/discovery-config.yaml!)
-
-# This section configures the 'database service'.
-(!docs/pages/includes/database-access/database-config.yaml!)
-
-# This section configures the windows desktop service
-(!docs/pages/includes/desktop-access/desktop-config.yaml!)
+(!docs/pages/includes/config-reference/instance-wide.yaml!)
 ```
+
+### Proxy Service
+
+These settings apply to the Teleport Proxy Service:
+
+<Notice type="tip">
+Teleport Enterprise Cloud manages the Proxy Service for you, so you do not need
+to specify these configuration settings.
+</Notice>
+
+```yaml
+(!docs/pages/includes/config-reference/proxy-service.yaml!)
+```
+
+### Auth Service
+
+These settings apply to the Teleport Auth Service:
+
+<Notice type="tip">
+Teleport Enterprise Cloud manages the Auth Service for you, so you do not need
+to specify these configuration settings.
+</Notice>
+
+```yaml
+(!docs/pages/includes/config-reference/auth-service.yaml!)
+```
+
+### SSH Service
+
+These settings apply to the Teleport SSH Service:
+
+```yaml
+(!docs/pages/includes/config-reference/ssh-service.yaml!)
+```
+
+### Kubernetes Service
+
+These settings apply to the Teleport Kubernetes Service:
+
+```yaml
+(!docs/pages/includes/config-reference/kubernetes-config.yaml!)
+```
+
+### Application Service
+
+These settings apply to the Teleport Application Service:
+
+```yaml
+(!docs/pages/includes/config-reference/app-service.yaml!)
+```
+
+### Database Service
+
+These settings apply to the Teleport Database Service:
+
+```yaml
+(!docs/pages/includes/config-reference/database-config.yaml!)
+```
+
+### Discovery Service
+
+These settings apply to the Teleport Discovery Service:
+
+```yaml
+(!docs/pages/includes/discovery/discovery-config.yaml!)
+```
+
+### Windows Desktop Service
+
+These settings apply to the Windows Desktop Service:
+
+```yaml
+(!docs/pages/includes/config-reference/desktop-config.yaml!)
+```
+

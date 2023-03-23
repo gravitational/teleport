@@ -22,7 +22,7 @@ import { protocol, app } from 'electron';
 
 import Logger from 'teleterm/logger';
 
-const logger = new Logger('');
+const logger = new Logger('protocol handler');
 const disabledSchemes = [
   'about',
   'content',

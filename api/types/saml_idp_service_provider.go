@@ -19,6 +19,7 @@ package types
 import (
 	"fmt"
 
+	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -107,7 +108,12 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	if s.Spec.EntityID == "" {
-		return trace.BadParameter("entity ID is missing")
+		ed, err := samlsp.ParseMetadata([]byte(s.Spec.EntityDescriptor))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.Spec.EntityID = ed.EntityID
 	}
 
 	return nil

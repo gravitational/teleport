@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -608,7 +608,7 @@ type DatabaseSampleFlags struct {
 
 // CheckAndSetDefaults checks and sets default values for the flags.
 func (f *DatabaseSampleFlags) CheckAndSetDefaults() error {
-	conf := service.MakeDefaultConfig()
+	conf := servicecfg.MakeDefaultConfig()
 	f.DatabaseProtocols = defaults.DatabaseProtocols
 
 	if f.NodeName == "" {
@@ -673,7 +673,7 @@ func MakeDatabaseAgentConfigString(flags DatabaseSampleFlags) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	if err = ApplyFileConfig(fc, cfg); err != nil {
 		return "", trace.Wrap(err)
 	}

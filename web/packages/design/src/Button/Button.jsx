@@ -76,7 +76,7 @@ const themedStyles = props => {
   };
 };
 
-const kinds = props => {
+export const kinds = props => {
   const { kind, theme } = props;
   switch (kind) {
     case 'secondary':

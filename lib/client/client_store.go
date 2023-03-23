@@ -15,6 +15,7 @@ package client
 
 import (
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -23,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -214,4 +216,51 @@ func (s *Store) FullProfileStatus() (*ProfileStatus, []*ProfileStatus, error) {
 	}
 
 	return currentProfile, profiles, nil
+}
+
+// LoadKeysToKubeFromStore loads the keys for a given teleport cluster and kube cluster from the store.
+// It returns the certificate and private key to be used for the kube cluster.
+// If the keys are not found, it returns an error.
+// This function is used to speed up the credentials loading process since Teleport
+// Store transverses the entire store to find the keys. This operation takes a long time
+// when the store has a lot of keys and when we call the function multiple times in
+// parallel.
+// Although this function speeds up the process since it removes all transversals,
+// it still has to read 4 different files
+// - $TSH_HOME/current_profile
+// - $TSH_HOME/$profile.yaml
+// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
+// - $TSH_HOME/keys/$PROXY/$USER
+func LoadKeysToKubeFromStore(dirPath string, teleportCluster, kubeCluster string) ([]byte, []byte, error) {
+	dirPath = profile.FullProfilePath(dirPath)
+
+	profileStore := NewFSProfileStore(dirPath)
+	currentProfile, err := profileStore.CurrentProfile()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	profile, err := profileStore.GetProfile(currentProfile)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	fsKeyStore := NewFSKeyStore(dirPath)
+
+	certPath := fsKeyStore.kubeCertPath(KeyIndex{ProxyHost: profile.SiteName, ClusterName: teleportCluster, Username: profile.Username}, kubeCluster)
+	kubeCert, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	privKeyPath := fsKeyStore.userKeyPath(KeyIndex{ProxyHost: profile.SiteName, Username: profile.Username})
+	privKey, err := os.ReadFile(privKeyPath)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if ok := keys.IsRSAPrivateKey(privKey); !ok {
+		return nil, nil, trace.BadParameter("unsupported private key type")
+	}
+	return kubeCert, privKey, nil
 }

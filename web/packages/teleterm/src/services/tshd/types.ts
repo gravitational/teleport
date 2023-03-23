@@ -26,7 +26,6 @@ import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
-import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
 import apiService, {
   FileTransferDirection,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
@@ -35,8 +34,6 @@ import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_reque
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
 import * as uri from 'teleterm/ui/uri';
-
-export type Application = apiApp.App.AsObject;
 
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
@@ -99,6 +96,16 @@ export interface Database extends apiDb.Database.AsObject {
 }
 
 export interface Cluster extends apiCluster.Cluster.AsObject {
+  /**
+   * The URI of the cluster.
+   *
+   * For root clusters, it has the form of `/clusters/:rootClusterId` where `rootClusterId` is the
+   * name of the profile, that is the hostname of the proxy used to connect to the root cluster.
+   * `rootClusterId` is not equal to the name of the root cluster.
+   *
+   * For leaf clusters, it has the form of `/clusters/:rootClusterId/leaves/:leafClusterId` where
+   * `leafClusterId` is equal to the `name` property of the cluster.
+   */
   uri: uri.ClusterUri;
   loggedInUser?: LoggedInUser;
 }
@@ -137,13 +144,9 @@ export type LoginPasswordlessRequest =
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
-  listApps: (clusterUri: uri.ClusterUri) => Promise<Application[]>;
-  getAllKubes: (clusterUri: uri.ClusterUri) => Promise<Kube[]>;
   getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getAllDatabases: (clusterUri: uri.ClusterUri) => Promise<Database[]>;
   getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
-  getAllServers: (clusterUri: uri.ClusterUri) => Promise<Server[]>;
   assumeRole: (
     clusterUri: uri.RootClusterUri,
     requestIds: string[],
@@ -247,11 +250,13 @@ export type CreateGatewayParams = {
 
 export type ServerSideParams = {
   clusterUri: uri.ClusterUri;
+  // search is used for regular search.
   search?: string;
   searchAsRoles?: string;
   sort?: SortType;
   startKey?: string;
   limit?: number;
+  // query is used for advanced search.
   query?: string;
 };
 

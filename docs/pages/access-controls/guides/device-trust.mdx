@@ -1,6 +1,7 @@
 ---
 title: "Device Trust (Preview)"
 description: Learn how to use and enforce trusted devices with Teleport
+videoBanner: gBQyj_X1LVw
 ---
 
 <Admonition type="warning">
@@ -152,7 +153,7 @@ View registered devices:
 $ tctl devices ls
 Asset Tag    OS    Enroll Status Device ID
 ------------ ----- ------------- ------------------------------------
-(=devicetrust.asset_tag=) macOS not enrolled  d40f2ee4-856d-4aef-b784-c4371e39c036
+(=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
 
 A registered device is a device that Teleport knows about. Once a registered
@@ -193,10 +194,11 @@ $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificate
 
 The device above is now a trusted device.
 
-## Optional: Enforce trusted devices
+## Optional: Cluster-wide trusted device enforcement
 
-Device trust has the following modes of operation, represented by the
-`device_trust.mode` authentication setting:
+Cluster-wide configuration enforces trusted device access at the cluster level.
+It can be configured with the following three modes of operation, represented
+by the `device_trust.mode` authentication setting:
 
 - `off` - disables device trust. Device authentication is not performed and
   device-aware audit logs are absent.
@@ -232,6 +234,7 @@ auth_service:
     device_trust:
 +     mode: "required" # add this line
 ```
+
 </TabItem>
 <TabItem label="Dynamic resources">
 Create a `cap.yaml` file or get the existing configuration using
@@ -257,6 +260,13 @@ Update the configuration:
 $ tctl create -f cap.yaml
 cluster auth preference has been updated
 ```
+
+You can also edit this configuration directly:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+
 </TabItem>
 </Tabs>
 
@@ -276,6 +286,74 @@ all of its resources, without imposing the same restrictions to the root
 cluster. Likewise, a root cluster will not enforce device trust on resources in
 leaf clusters.
 </Admonition>
+
+## Optional: Role-based trusted device enforcement
+
+Role-based configuration enforces trusted device access at the role level. It
+can be configured with the `spec.options.device_trust_mode` (`required`,
+`optional`, `off`) option and applies to the resources in its `allow` rules. It
+works similar to [`require_session_mfa`](./per-session-mfa.mdx).
+
+To enforce authenticated device checks for a specific role, update the role with the following:
+
+```diff
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  options:
+    # require authenticated device check for this role
++   device_trust_mode: "required" # add this line
+  allow:
+    logins: ['admin']
+    kubernetes_groups: ['edit']
+    node_labels:
+      '*': '*'
+    ...
+
+```
+
+<Admonition type="tip" title="Per-role vs. Cluster-wide">
+Per-role configuration let's you progressively block unauthorized device access,
+and is useful for getting started with Teleport Device Trust.
+
+Once all the devices used are enrolled in Teleport, cluster-wide
+configuration will ensure every resources can only ever be accessed with a
+trusted device.
+</Admonition>
+
+## Optional: Locking a device
+
+Similar to [session and identity locking](./locking.mdx), a device can be locked
+using `tctl lock`.
+
+Locking blocks certificate issuance and ongoing or future accesses originating
+from a locked device. Locking a device only works if device trust is enabled and
+if the device is enrolled to Teleport.
+
+Find a device ID to lock:
+
+```code
+$ tctl devices ls
+Asset Tag     OS    Enroll Status   Device ID
+------------ -----  ------------- ------------------------------------
+(=devicetrust.asset_tag=)  macOS  enrolled     (=devicetrust.device_id=)
+```
+
+Lock a device:
+
+```code
+$ tctl lock --device (=devicetrust.device_id=) --ttl=12h
+Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
+```
+
+Now, if a user on that device tries to access an SSH server for example, Teleport will deny access:
+
+```code
+$ tsh ssh server1
+ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devicetrust.device_id=)" is in force)
+```
 
 ## Troubleshooting
 

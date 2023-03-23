@@ -72,6 +72,17 @@ exports[`render clusters 1`] = `
   font-size: 14px;
 }
 
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
 .c17 {
   box-sizing: border-box;
   border-radius: 10px;
@@ -82,17 +93,6 @@ exports[`render clusters 1`] = `
   margin: 1px 0;
   vertical-align: middle;
   background-color: #512FC9;
-}
-
-.c9 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 16px;
-  margin: 0px;
-  margin-right: 4px;
-  color: #FFFFFF;
 }
 
 .c7 {
@@ -358,8 +358,9 @@ exports[`render clusters 1`] = `
         <div
           class="c9"
           color="primary.contrastText"
+          style="white-space: nowrap; text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>

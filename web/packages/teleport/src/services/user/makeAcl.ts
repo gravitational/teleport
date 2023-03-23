@@ -18,7 +18,6 @@ import { Acl } from './types';
 
 export default function makeAcl(json): Acl {
   json = json || {};
-  const windowsLogins = json.windowsLogins || [];
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
   const roles = json.roles || defaultAccess;
@@ -31,6 +30,7 @@ export default function makeAcl(json): Acl {
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
+  const plugins = json.plugins || defaultAccess;
   const dbServers = json.dbServers || defaultAccess;
   const db = json.db || defaultAccess;
   const desktops = json.desktops || defaultAccess;
@@ -55,7 +55,6 @@ export default function makeAcl(json): Acl {
   const download = json.download || defaultAccess;
 
   return {
-    windowsLogins,
     authConnectors,
     trustedClusters,
     roles,
@@ -68,6 +67,7 @@ export default function makeAcl(json): Acl {
     tokens,
     accessRequests,
     billing,
+    plugins,
     dbServers,
     db,
     desktops,

@@ -140,6 +140,8 @@ $ sudo tbot init \
     --reader-user=jenkins
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 Next, you need to start Machine ID in the background of each Jenkins worker.
 
 <ScopedBlock scope={["cloud"]}>
@@ -186,6 +188,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
+Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
@@ -195,13 +198,13 @@ LimitNOFILE=524288
 WantedBy=multi-user.target
 ```
 
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
+
 Finally, run the following commands to start Machine ID.
 
-```code
-$ sudo systemctl daemon-reload
-$ sudo systemctl start machine-id
-$ sudo systemctl status machine-id
-```
+(!docs/pages/includes/machine-id/machine-id-service.mdx!)
 
 ## Step 2/2. Update and run Jenkins pipelines
 
@@ -218,3 +221,7 @@ steps {
 You are all set. You have provided Jenkins with short-lived certificates tied
 to a machine identity that can be rotated, audited, and controlled with all the
 familiar Teleport access controls.
+
+## Next steps
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

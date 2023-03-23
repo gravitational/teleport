@@ -201,6 +201,11 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 		return nil, trace.Wrap(err)
 	}
 
+	mfaResponse, err := req.MFAResponse.GetOptionalMFAResponseProtoReq()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	err = client.RunALPNAuthTunnel(ctx, client.ALPNAuthTunnelConfig{
 		AuthClient:             s.cfg.UserClient,
 		Listener:               list,
@@ -210,6 +215,7 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 		ConnectionDiagnosticID: connectionDiagnosticID,
 		RouteToDatabase:        routeToDatabase,
 		InsecureSkipVerify:     req.InsecureSkipVerify,
+		MFAResponse:            mfaResponse,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

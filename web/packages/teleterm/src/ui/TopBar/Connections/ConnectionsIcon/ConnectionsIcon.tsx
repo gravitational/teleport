@@ -31,7 +31,7 @@ interface ConnectionsIconProps {
 
 export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
   (props, ref) => {
-    const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
+    const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
     return (
       <Container ref={ref}>
         <ConnectionsIconStatusIndicator
@@ -42,7 +42,7 @@ export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
           kind="secondary"
           size="small"
           m="auto"
-          title={getLabelWithShortcut('Open Connections', 'toggle-connections')}
+          title={getLabelWithAccelerator('Open Connections', 'openConnections')}
         >
           <Cluster fontSize={16} />
         </StyledButton>

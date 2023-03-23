@@ -203,7 +203,7 @@ Our Terraform setup requires you to have your domain provisioned in AWS Route 53
 DNS records for [`route53_domain`](#route53\_domain) as set up below. You can list these with this command:
 
 ```code
-$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output text
+$ aws route53 list-hosted-zones --query "HostedZones[*].Name" --output json
 [
     "example.com.",
     "testing.net.",
@@ -295,12 +295,13 @@ $ terraform import aws_acm_certificate.cert <certificate_arn>
 
 ### Instances
 
-Our reference deployment will provision the following instances for your cluster by default:
+Our reference deployment will provision the following instances for your cluster using AWS Auto Scaling Groups (ASG) with these default settings:
 
 - 2 x m4.large Teleport **auth** instances in an ASG, behind an internal network load balancer, configured using DynamoDB for
   shared storage. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/auth_asg.tf#L11)
 - 2 x m4.large Teleport **proxy** instances in an ASG, behind a public-facing load balancer - NLB for LetsEncrypt, ALB for ACM. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/proxy_asg.tf#L12)
-- 1 x m4.large Teleport **node** instance in an ASG. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/node_asg.tf#L10)
+- 1 x m4.large Teleport **node** instance in an ASG. Server instances in this ASG will join with Teleport SSH Service enabled and connected to the **auth**
+  service. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/node_asg.tf#L10)
 - 1 x m4.large monitoring server in an ASG which hosts the Grafana instance and receives monitoring data from each service in the cluster. [The desired size of the ASG is configured here](https://github.com/gravitational/teleport/blob/master/examples/aws/terraform/ha-autoscale-cluster/monitor_asg.tf#L12)
 - 1 x t2.medium bastion server which is the only permitted source for inbound SSH traffic to the instances. This is done
   to avoid exposing each instance to the internet directly.
@@ -566,7 +567,7 @@ Remember that there is more than one auth server in an High Availability deploym
 of each auth server that you'll need to connect to:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.0.196
 # 172.31.1.78
 ```
@@ -599,7 +600,7 @@ Remember that there is more than one proxy instance in an High Availability depl
 of each auth instance that you'll need to connect to:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.2.109
 # 172.31.3.215
 ```
@@ -659,7 +660,7 @@ Remember that there is more than one auth instance in an High Availability deplo
 of each auth instance that you'd need to connect to for checking logs:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.0.196
 # 172.31.1.78
 ```
@@ -692,7 +693,7 @@ Remember that there is more than one proxy instance in an High Availability depl
 of each proxy instance that you'd need to connect to for checking logs:
 
 ```code
-$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
+$ aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=proxy" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text
 # 172.31.2.109
 # 172.31.3.215
 ```
@@ -818,17 +819,17 @@ else
     INSTANCE_ID="0"
 fi
 
-export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
+export BASTION_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=bastion" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
 echo "Bastion IP: ${BASTION_IP}"
 
 if [[ "${INSTANCE_TYPE}" == "auth" ]]; then
-    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=auth" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=auth" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
     echo "Auth ${INSTANCE_ID} IP: ${SERVER_IP}"
 elif [[ "${INSTANCE_TYPE}" == "proxy" ]]; then
-    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=proxy" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=proxy" --query "Reservations[${INSTANCE_ID}].Instances[*].PrivateIpAddress" --output text)
     echo "Proxy ${INSTANCE_ID} IP: ${SERVER_IP}"
 elif [[ "${INSTANCE_TYPE}" == "node" ]]; then
-    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name},Name=tag:TeleportRole,Values=node" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text)
+    export SERVER_IP=$(aws ec2 describe-instances --filters "Name=tag:TeleportCluster,Values=${TF_VAR_cluster_name}" "Name=tag:TeleportRole,Values=node" --query "Reservations[*].Instances[*].PrivateIpAddress" --output text)
     echo "Node IP: ${SERVER_IP}"
 fi
 

@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -153,7 +155,7 @@ type InitConfig struct {
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
@@ -205,14 +207,21 @@ type InitConfig struct {
 	// Kubernetes is a service that manages kubernetes cluster resources.
 	Kubernetes services.Kubernetes
 
-	// AssertionReplayService is a service that mitigatates SSO assertion replay.
+	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
-	UsageReporter services.UsageReporter
+	UsageReporter usagereporter.UsageReporter
+
+	// Okta is a service that manages Okta resources.
+	Okta services.Okta
+
+	// Clock is the clock instance auth uses. Typically you'd only want to set
+	// this during testing.
+	Clock clockwork.Clock
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -291,7 +300,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.CreateCertAuthority(ca); err != nil {
+		if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -661,7 +670,7 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA:
+			case types.DatabaseCA, types.SAMLIDPCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
@@ -878,7 +887,7 @@ func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 		User:            i.ID.HostUUID,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
@@ -1185,7 +1194,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 
-		err = asrv.CreateCertAuthority(dbCA)
+		err = asrv.CreateCertAuthority(ctx, dbCA)
 		switch {
 		case trace.IsAlreadyExists(err):
 			// Probably another auth server have created the DB CA since we last check.

@@ -351,19 +351,20 @@ exports[`list of all events 1`] = `
         <div
           class="c6"
           color="primary.contrastText"
+          style="white-space: nowrap; text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>
            - 
           <strong>
-            167
+            178
           </strong>
            of
            
           <strong>
-            167
+            178
           </strong>
         </div>
         <button
@@ -436,6 +437,413 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider delete failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] failed to delete all service providers
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            All SAML IdP service provider deleted
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] deleted all service providers
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider delete failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] failed to delete service provider [saml-idp] with entity ID [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider deleted
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] deleted service provider [saml-idp] with entity ID [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider update failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] failed to update service provider [saml-idp] with entity ID [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider updated
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] updated service provider [saml-idp] with entity ID [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider create failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] failed to add service provider [saml-idp] with entity ID [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider created
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] added service provider [saml-idp] with entity ID [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP authentication
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] failed to authenticate to SAML service provider [shortcut]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP authentication
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] failed to authenticate to SAML service provider [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP authentication
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] successfully authenticated to SAML service provider [valid-entity-id]
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"
@@ -4420,7 +4828,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [unimplemented] deleted Github connector [new_github_connector]
+          User [unimplemented] deleted GitHub connector [new_github_connector]
         </td>
         <td
           style="min-width: 120px;"
@@ -4457,7 +4865,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [unimplemented] created Github connector [new_github_connector] has been created
+          User [unimplemented] created GitHub connector [new_github_connector] has been created
         </td>
         <td
           style="min-width: 120px;"
@@ -6746,7 +7154,7 @@ exports[`loaded audit log screen 1`] = `
 .c4 .react-select__control,
 .c4 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -6822,7 +7230,7 @@ exports[`loaded audit log screen 1`] = `
 .c3 .react-select__control,
 .c3 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -7286,8 +7694,9 @@ exports[`loaded audit log screen 1`] = `
         <div
           class="c11"
           color="primary.contrastText"
+          style="white-space: nowrap; text-transform: uppercase;"
         >
-          SHOWING 
+          Showing 
           <strong>
             1
           </strong>

@@ -109,6 +109,25 @@ describe('usage reporting dialogs', () => {
   });
 });
 
+test('no dialog is shown when config file did not load properly', async () => {
+  const mockedAppContext = new MockAppContext();
+  jest
+    .spyOn(mockedAppContext.mainProcessClient.configService, 'getConfigError')
+    .mockImplementation(() => ({ source: 'file-loading', error: new Error() }));
+  mockOpenRegularDialog(mockedAppContext);
+
+  await initUi(mockedAppContext);
+
+  expect(
+    mockedAppContext.modalsService.openRegularDialog
+  ).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 'usage-data' }));
+  expect(
+    mockedAppContext.modalsService.openRegularDialog
+  ).not.toHaveBeenCalledWith(
+    expect.objectContaining({ kind: 'user-job-role' })
+  );
+});
+
 function mockUsageReportingEnabled(
   mockedAppContext: AppContext,
   options: { enabled: boolean }

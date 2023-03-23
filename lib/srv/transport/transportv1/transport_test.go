@@ -39,7 +39,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 
-	proxyv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/proxy/v1"
+	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -120,7 +120,7 @@ func (f fakeDialer) DialHost(ctx context.Context, from net.Addr, host, port, clu
 
 // testPack used to test a [Service].
 type testPack struct {
-	Client proxyv1.ProxyServiceClient
+	Client transportv1pb.TransportServiceClient
 	Server *Service
 }
 
@@ -147,7 +147,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	require.NoError(t, err)
 
 	// Register service.
-	proxyv1.RegisterProxyServiceServer(s, srv)
+	transportv1pb.RegisterTransportServiceServer(s, srv)
 
 	// Start.
 	go func() {
@@ -173,7 +173,7 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	})
 
 	return testPack{
-		Client: proxyv1.NewProxyServiceClient(cc),
+		Client: transportv1pb.NewTransportServiceClient(cc),
 		Server: srv,
 	}
 }
@@ -204,7 +204,7 @@ func TestService_GetClusterDetails(t *testing.T) {
 				FIPS:   test.FIPS,
 			})
 
-			resp, err := srv.Client.GetClusterDetails(context.Background(), &proxyv1.GetClusterDetailsRequest{})
+			resp, err := srv.Client.GetClusterDetails(context.Background(), &transportv1pb.GetClusterDetailsRequest{})
 			require.NoError(t, err)
 			require.Equal(t, test.FIPS, resp.Details.FipsEnabled)
 		})
@@ -219,15 +219,15 @@ func TestService_ProxyCluster(t *testing.T) {
 
 	tests := []struct {
 		name string
-		fn   func(t *testing.T, stream proxyv1.ProxyService_ProxyClusterClient, conn *echoConn)
+		fn   func(t *testing.T, stream transportv1pb.TransportService_ProxyClusterClient, conn *echoConn)
 	}{
 		{
 			name: "transport established to cluster",
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxyClusterClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxyClusterRequest{Cluster: cluster}))
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyClusterClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}))
 
 				var msg = []byte("hello")
-				require.NoError(t, stream.Send(&proxyv1.ProxyClusterRequest{Frame: &proxyv1.Frame{Payload: msg}}))
+				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: msg}}))
 
 				resp, err := stream.Recv()
 				require.NoError(t, err)
@@ -240,12 +240,12 @@ func TestService_ProxyCluster(t *testing.T) {
 		},
 		{
 			name: "terminated connection ends stream",
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxyClusterClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxyClusterRequest{Cluster: cluster}))
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyClusterClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: cluster}))
 
 				require.NoError(t, conn.Close())
 				var msg = []byte("hello")
-				require.NoError(t, stream.Send(&proxyv1.ProxyClusterRequest{Frame: &proxyv1.Frame{Payload: msg}}))
+				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: msg}}))
 
 				resp, err := stream.Recv()
 				require.Error(t, err)
@@ -257,8 +257,8 @@ func TestService_ProxyCluster(t *testing.T) {
 		},
 		{
 			name: "unknown cluster",
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxyClusterClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxyClusterRequest{Cluster: uuid.NewString()}))
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxyClusterClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxyClusterRequest{Cluster: uuid.NewString()}))
 				resp, err := stream.Recv()
 				require.Error(t, err)
 				require.True(t, trace.IsNotFound(err))
@@ -303,15 +303,15 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 	tests := []struct {
 		name      string
 		checkerFn func(info credentials.AuthInfo) (services.AccessChecker, error)
-		fn        func(t *testing.T, stream proxyv1.ProxyService_ProxySSHClient, conn *echoConn)
+		fn        func(t *testing.T, stream transportv1pb.TransportService_ProxySSHClient, conn *echoConn)
 	}{
 		{
 			name: "missing dial target terminates stream",
 			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
 				return fakeChecker{}, nil
 			},
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxySSHClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxySSHRequest{}))
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxySSHClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{}))
 
 				resp, err := stream.Recv()
 				require.True(t, trace.IsBadParameter(err))
@@ -323,8 +323,8 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
 				return fakeChecker{}, nil
 			},
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxySSHClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxySSHRequest{DialTarget: &proxyv1.TargetHost{
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxySSHClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 					HostPort: "1234",
 					Cluster:  "test",
 				}}))
@@ -339,8 +339,8 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
 				return nil, trace.AccessDenied("no access checker")
 			},
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxySSHClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxySSHRequest{DialTarget: &proxyv1.TargetHost{
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxySSHClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 					HostPort: "1234",
 					Cluster:  "test",
 				}}))
@@ -355,8 +355,8 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
 				return fakeChecker{}, nil
 			},
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxySSHClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxySSHRequest{DialTarget: &proxyv1.TargetHost{
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxySSHClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 					HostPort: "test:0",
 					Cluster:  "test",
 				}}))
@@ -369,7 +369,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 
 				require.NoError(t, conn.Close())
 				var msg = []byte("hello")
-				require.NoError(t, stream.Send(&proxyv1.ProxySSHRequest{Frame: &proxyv1.ProxySSHRequest_Ssh{Ssh: &proxyv1.Frame{Payload: msg}}}))
+				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: msg}}}))
 
 				resp, err = stream.Recv()
 				require.Error(t, err)
@@ -384,8 +384,8 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 			checkerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
 				return fakeChecker{}, nil
 			},
-			fn: func(t *testing.T, stream proxyv1.ProxyService_ProxySSHClient, conn *echoConn) {
-				require.NoError(t, stream.Send(&proxyv1.ProxySSHRequest{DialTarget: &proxyv1.TargetHost{
+			fn: func(t *testing.T, stream transportv1pb.TransportService_ProxySSHClient, conn *echoConn) {
+				require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{DialTarget: &transportv1pb.TargetHost{
 					HostPort: "test:100",
 					Cluster:  "test",
 				}}))
@@ -398,10 +398,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			conn := newEchoConn()
 
 			srv := newServer(t, ServerConfig{
@@ -410,6 +407,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 						fakeHost: conn,
 					},
 				},
+				Logger:          utils.NewLoggerForTests(),
 				accessCheckerFn: test.checkerFn,
 			})
 
@@ -489,8 +487,8 @@ func TestService_ProxySSH(t *testing.T) {
 	// each connection will be to the same server. this test
 	// solely cares that a connection is made and protocols are
 	// multiplexed, not that we are dialing our target.
-	require.NoError(t, stream.Send(&proxyv1.ProxySSHRequest{
-		DialTarget: &proxyv1.TargetHost{
+	require.NoError(t, stream.Send(&transportv1pb.ProxySSHRequest{
+		DialTarget: &transportv1pb.TargetHost{
 			HostPort: "test:0",
 			Cluster:  "test",
 		},
@@ -504,13 +502,13 @@ func TestService_ProxySSH(t *testing.T) {
 	require.Nil(t, resp.Frame)
 
 	// create a stream for agent protocol
-	agentStream := newClientStream(stream, func(payload []byte) *proxyv1.ProxySSHRequest {
-		return &proxyv1.ProxySSHRequest{Frame: &proxyv1.ProxySSHRequest_Agent{Agent: &proxyv1.Frame{Payload: payload}}}
+	agentStream := newClientStream(stream, func(payload []byte) *transportv1pb.ProxySSHRequest {
+		return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
 	})
 
 	// create a stream for ssh protocol
-	sshStream := newClientStream(stream, func(payload []byte) *proxyv1.ProxySSHRequest {
-		return &proxyv1.ProxySSHRequest{Frame: &proxyv1.ProxySSHRequest_Ssh{Ssh: &proxyv1.Frame{Payload: payload}}}
+	sshStream := newClientStream(stream, func(payload []byte) *transportv1pb.ProxySSHRequest {
+		return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
 	})
 
 	// multiplex the frames to the correct handlers
@@ -526,9 +524,9 @@ func TestService_ProxySSH(t *testing.T) {
 			}
 
 			switch frame := req.Frame.(type) {
-			case *proxyv1.ProxySSHResponse_Ssh:
+			case *transportv1pb.ProxySSHResponse_Ssh:
 				sshStream.incomingC <- frame.Ssh.Payload
-			case *proxyv1.ProxySSHResponse_Agent:
+			case *transportv1pb.ProxySSHResponse_Agent:
 				agentStream.incomingC <- frame.Agent.Payload
 			default:
 				continue
@@ -571,16 +569,16 @@ func TestService_ProxySSH(t *testing.T) {
 }
 
 // clientStream implements the [streamutils.Source] interface
-// for a [proxyv1.ProxyService_ProxySSHClient]. Instead of
+// for a [transportv1pb.TransportService_ProxySSHClient]. Instead of
 // reading directly from the stream reads are from an incoming
 // channel that is fed by the multiplexer.
 type clientStream struct {
 	incomingC  chan []byte
-	stream     proxyv1.ProxyService_ProxySSHClient
-	responseFn func(payload []byte) *proxyv1.ProxySSHRequest
+	stream     transportv1pb.TransportService_ProxySSHClient
+	responseFn func(payload []byte) *transportv1pb.ProxySSHRequest
 }
 
-func newClientStream(stream proxyv1.ProxyService_ProxySSHClient, responseFn func(payload []byte) *proxyv1.ProxySSHRequest) *clientStream {
+func newClientStream(stream transportv1pb.TransportService_ProxySSHClient, responseFn func(payload []byte) *transportv1pb.ProxySSHRequest) *clientStream {
 	return &clientStream{
 		incomingC:  make(chan []byte, 10),
 		stream:     stream,
