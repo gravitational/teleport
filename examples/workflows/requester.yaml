@@ -5,5 +5,5 @@ spec:
   allow:
     request:
       roles:
-        - admin
+        - access
 version: v4
