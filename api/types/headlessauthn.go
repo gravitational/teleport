@@ -17,8 +17,24 @@ limitations under the License.
 package types
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 )
+
+// NewHeadlessAuthenticationStub creates a new a headless authentication resource with limited data.
+// The stub is used to initiate headless login.
+func NewHeadlessAuthenticationStub(name string, expires time.Time) (*HeadlessAuthentication, error) {
+	ha := &HeadlessAuthentication{
+		ResourceHeader: ResourceHeader{
+			Metadata: Metadata{
+				Name:    name,
+				Expires: &expires,
+			},
+		},
+	}
+	return ha, ha.CheckAndSetDefaults()
+}
 
 // CheckAndSetDefaults does basic validation and default setting.
 func (h *HeadlessAuthentication) CheckAndSetDefaults() error {
