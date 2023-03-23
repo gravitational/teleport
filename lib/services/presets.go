@@ -203,6 +203,7 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			types.NewRule(types.KindOktaImportRule, RW()),
 			types.NewRule(types.KindOktaAssignment, RW()),
+			types.NewRule(types.KindDevice, RO()),
 		},
 	}
 }
