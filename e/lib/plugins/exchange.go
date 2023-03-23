@@ -3,8 +3,8 @@ package plugins
 import (
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport-plugins/access/common/auth/oauth"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
 )
 
 // ExchangerSet contains exchangers for different types of plugins
