@@ -429,33 +429,7 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
-# Set MacOS/Darwin cert vars for signing/notarizing
-# TSH_SKELETON is a directory name relative to build.assets/macos/
-ENVIRONMENT_NAME ?= promote
-
-# TODO(camh): Verify key names for production keys
-DEVELOPER_KEY_NAME_promote = Developer ID Application: Ada Lin
-INSTALLER_KEY_NAME_promote = Developer ID Installer: Ada Lin
-TEAMID_promote = QH8AA5B8UP
-TELEPORT_BUNDLEID_promote = com.gravitational.teleport
-TSH_BUNDLEID_promote = $(TEAMID).com.gravitational.teleport.tsh
-TSH_SKELETON_promote = tsh
-
-DEVELOPER_KEY_NAME_build = Developer ID Application: Ada Lin
-INSTALLER_KEY_NAME_build = Developer ID Installer: Ada Lin
-TEAMID_build = K497G57PDJ
-TELEPORT_BUNDLEID_build = com.goteleport.dev
-TSH_BUNDLEID_build = $(TEAMID).com.goteleport.tshdev
-TSH_SKELETON_build = tshdev
-
-# Extract application/installer key ID from keychain. This looks at all keychains in the search path.
-get_key_id = $(word 2,$(shell security find-identity -s codesigning | grep --fixed-strings --max-count=1 '$(1)'))
-DEVELOPER_ID_APPLICATION = $(call get_key_id,$(DEVELOPER_KEY_NAME_$(ENVIRONMENT_NAME)))
-DEVELOPER_ID_INSTALLER = $(call get_key_id,$(INSTALLER_KEY_NAME_$(ENVIRONMENT_NAME)))
-TEAMID = $(TEAMID_$(ENVIRONMENT_NAME))
-TELEPORT_BUNDLEID = $(TELEPORT_BUNDLEID_$(ENVIRONMENT_NAME))
-TSH_BUNDLEID = $(TSH_BUNDLEID_$(ENVIRONMENT_NAME))
-TSH_SKELETON = $(TSH_SKELETON_$(ENVIRONMENT_NAME))
+include darwin-signing.mk
 
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
@@ -1122,7 +1096,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER TEAMID TSH_BUNDLEID TSH_SKELETON)
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1134,7 +1108,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
-	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER TEAMID TSH_BUNDLEID TSH_SKELETON)
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
