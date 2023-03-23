@@ -93,6 +93,9 @@ type FileConfig struct {
 
 	// Okta is the "okta_service" section in the Teleport configuration file
 	Okta Okta `yaml:"okta_service,omitempty"`
+
+	// PluginService is the section of the config for configuring the plugin service.
+	PluginService PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1003,9 +1006,6 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
-
-	// PluginService is the section of the config for configuring the plugin service.
-	PluginService PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
