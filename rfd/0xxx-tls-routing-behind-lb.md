@@ -151,23 +151,25 @@ be implemented for Kubernetes Access.
 `tsh login` session with matching TTL, on demand.
 
 An ephemeral (per `tsh` command) KUBECONFIG will be provided to Kubernetes applications to connect to the local server.
-Each Kubernetes cluster logged in through Teleport will have its own `cluster` entry with `server` field pointing to the
-local proxy. The `tls-server-name` will be in the format of
-`<kube-cluster-name>.<a-constant-delim>.<teleport-cluster-name>` so the local proxy can identify the Kubernetes cluster
-name and the Teleport cluster name. And the config will include static user credentials generated with the local
-self-signed CA: 
+Each Kubernetes cluster logged in through Teleport will have its own `cluster` entry with `proxy-url` field pointing to
+the local proxy. The `tls-server-name` will be in the format of
+`<hex-encoded-kube-cluster-name>.<teleport-cluster-name>` so the local proxy can identify the Kubernetes cluster name
+and the Teleport cluster name. And the config will include static user credentials generated with the local self-signed
+CA:
 ```yaml
 apiVersion: v1
 clusters:
 - cluster:
     certificate-authority: <path-to-self-signed-CA>
-    server: https://127.0.0.1:8888
-    tls-server-name: my-kube.kube-teleport-local.my-teleport.com
+    proxy-url: http://127.0.0.1:8888
+    server: https://my-teleport.com
+    tls-server-name: 6D792D6B756265.my-teleport.com
   name: my-teleport.com-my-kube
 - cluster:
     certificate-authority: <path-to-self-signed-CA>
-    server: https://127.0.0.1:8888
-    tls-server-name: another-kube.kube-teleport-local.my-teleport-leaf.com
+    proxy-url: http://127.0.0.1:8888
+    server: https://my-teleport.com
+    tls-server-name: 616E6F746865722D6B756265.my-teleport-leaf.com
   name: my-teleport-leaf.com-another-kube
 contexts:
 - context:
