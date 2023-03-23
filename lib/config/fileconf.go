@@ -1004,7 +1004,7 @@ type Auth struct {
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 
-	// PluginService is the section of the confi for configuring the plugin service.
+	// PluginService is the section of the config for configuring the plugin service.
 	PluginService PluginService `yaml:"plugin_service,omitempty"`
 }
 
