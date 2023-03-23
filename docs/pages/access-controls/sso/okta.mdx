@@ -30,8 +30,8 @@ Teleport administrators to define policies like:
 
 ## Step 1/4. Create & assign groups
 
-Okta provides group membership as a SAML assertion in the user data it provides
-to Teleport. We will configure Teleport to assign roles based on these groups.
+Okta indicates a user's group membership as a SAML assertion in the data it provides
+to Teleport. We will configure Teleport to assign roles (called "dev" and "admin") based on these groups.
 
 If you already have Okta groups you want to assign to "dev" and "admin" roles in
 Teleport, you can skip to the [next step](#step-24-configure-okta).
@@ -39,7 +39,7 @@ Teleport, you can skip to the [next step](#step-24-configure-okta).
 ### Create Groups
 
 Create two groups: "okta-dev" and "okta-admin". In the Okta dashboard go to the
-navigation bar and click **Directory** -> Groups, then **Add group**:
+navigation bar and click **Directory** -> **Groups**, then **Add group**:
 
 ![Create Group Devs](../../../img/sso/okta/okta-saml-2.1@2x.png)
 
@@ -49,13 +49,12 @@ Repeat for the admin group:
 
 ## Step 2/4. Configure Okta
 
-In this section we will create an application in the Okta dashboard to define
-and allow our Teleport cluster to access Okta as an IdP provider. We'll also
-locate the address where Okta provides their IdP metadata to provide to Teleport.
+In this section we will create an application in the Okta dashboard to allow our Teleport cluster to access Okta as an IdP provider. We'll also
+locate the address that Okta uses to provides their IdP metadata to Teleport.
 
 First, create a SAML 2.0 Web App in Okta:
 
-From the main navigation menu, select **Applications** -> Applications, and click
+From the main navigation menu, select **Applications** -> **Applications**, and click
 **Create App Integration**. Select SAML 2.0, then click **Next**.
 
 ![Create APP](../../../img/sso/okta/okta-saml-1.png)
@@ -102,8 +101,8 @@ content from the group attribute statement.
 <Admonition type="tip">
 Notice that we have set "NameID" to the email format and mapped the groups with
 a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-and SSO URL to the same value. This is so Teleport can read and use Okta users'
-email address to create their username in Teleport, instead of relying on additional
+and SSO URLs to the same value. This is so Teleport can read and use Okta users'
+email addresses to create their usernames in Teleport, instead of relying on additional
 name fields.
 </Admonition>
 
