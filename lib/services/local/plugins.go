@@ -35,8 +35,6 @@ type PluginsService struct {
 }
 
 // NewPluginsService constructs a new PluginsService
-// todo(mdwn): make the argument here just a backend.Backend once the
-// reference to getBackend() has been removed in e.
 func NewPluginsService(backend backend.Backend) *PluginsService {
 	return &PluginsService{backend: backend}
 }
