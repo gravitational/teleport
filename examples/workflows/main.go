@@ -16,9 +16,9 @@ limitations under the License.
 
 // Example Allow List based access plugin.
 //
-// This plugin approves/denies access requests based on a simple Allow List
-// of usernames and associated allowed roles. Requests from allowed users
-// for allowed roles are approved, all others are denied.
+// This plugin atomatically approves access requests based on the approver's role.
+// Once the role has a defined review_requests, those roles will be auto-approved.
+
 package main
 
 import (
@@ -115,15 +115,19 @@ func run(ctx context.Context, cfg *config) error {
 				if !ok {
 					return trace.BadParameter("unexpected resource type %T", event.Resource)
 				}
-
+				
 				// Gather AccessRequestUpdate params
-				params := types.AccessRequestUpdate{
-					RequestID: req.GetName(),
-					Annotations: map[string][]string{
-						"strategy": {"allow_list"},
-					},
+				params := types.AccessReviewSubmission{
+				    Resource: req.GetName(),
+					State:    types.RequestState_APPROVED,
+				    Decision: types.Decision{
+				        Allow: allowed,
+				        Details: &types.DecisionDetails{
+				            Reason: fmt.Sprintf("%s:%s", cfg.PluginName, delegator),
+				        },
+				    },
 				}
-
+				
 				// Searching through allowList for a user match
 				// and update the request state accordingly.
 				allowed := false
@@ -147,7 +151,7 @@ func run(ctx context.Context, cfg *config) error {
 				// request state has an event field 'delegator: <plugin_name>:<delegator>'
 				delegator := "delegator"
 				ctx = utils.WithDelegator(ctx, fmt.Sprintf("%s:%s", cfg.PluginName, delegator))
-				if err := client.SetAccessRequestState(ctx, params); err != nil {
+				if err := client.SubmitAccessReview(ctx, params); err != nil {
 					return trace.Wrap(err)
 				}
 				log.Printf("Request state set: %v.", params.State)
