@@ -1154,10 +1154,10 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 // pkg: github.com/gravitational/teleport/lib/auth
 // cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
 // BenchmarkListNodes
-// BenchmarkListNodes-16    	       1	1068787569 ns/op	535777608 B/op	 8445473 allocs/op
+// BenchmarkListNodes-16    	       1	1000469673 ns/op	518721960 B/op	 8344858 allocs/op
 // PASS
-// ok  	github.com/gravitational/teleport/lib/auth	3.737s
-// go test ./lib/auth -bench=. -run=^$ -v  26.85s user 4.87s system 216% cpu 14.665 total
+// ok  	github.com/gravitational/teleport/lib/auth	3.695s
+// go test ./lib/auth -bench=. -run=^$ -v  19.02s user 3.87s system 244% cpu 9.376 total
 func BenchmarkListNodes(b *testing.B) {
 	const nodeCount = 50_000
 	const roleCount = 32
