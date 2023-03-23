@@ -6,9 +6,3 @@ addr = "localhost:3025"
 
 # Teleport identity file with TLS/SSH certificates.
 identity_file = "access-plugin-identity"
-
-# allow_list determines which users' requests will be approved.
-allow_list = [
-    "alice",
-    "bob",
-]
