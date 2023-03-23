@@ -223,12 +223,6 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.Headless
 // in the backend, and waits for the given condition to be met, to result in an error,
 // or for the given context to close.
 func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, cond func(*types.HeadlessAuthentication) (bool, error)) (*types.HeadlessAuthentication, error) {
-	waiter, err := h.assignWaiter(ctx, name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer h.unassignWaiter(waiter)
-
 	checkBackend := func() (*types.HeadlessAuthentication, bool, error) {
 		headlessAuthn, err := h.identityService.GetHeadlessAuthentication(ctx, name)
 		if err != nil {
@@ -243,13 +237,19 @@ func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, c
 		return headlessAuthn, ok, nil
 	}
 
-	// With the waiter allocated, check if there is an existing entry in the backend.
+	// Before the waiter is allocated, check if there is an existing entry in the backend.
 	headlessAuthn, ok, err := checkBackend()
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	} else if ok {
 		return headlessAuthn, nil
 	}
+
+	waiter, err := h.assignWaiter(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer h.unassignWaiter(waiter)
 
 	for {
 		select {
@@ -265,12 +265,6 @@ func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, c
 				return headlessAuthn, nil
 			}
 		case headlessAuthn := <-waiter.ch:
-			select {
-			case <-waiter.stale:
-				// prioritize stale check.
-				continue
-			default:
-			}
 			if ok, err := cond(headlessAuthn); err != nil {
 				return nil, trace.Wrap(err)
 			} else if ok {
