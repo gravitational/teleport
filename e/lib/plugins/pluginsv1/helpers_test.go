@@ -12,7 +12,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -66,7 +65,7 @@ func createSuite(t *testing.T) *suite {
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
 	authorizer := &fakeAuthorizer{checker: &fakeChecker{}}
-	backendService := local.NewPluginsService(func() backend.Backend { return mem })
+	backendService := local.NewPluginsService(mem)
 	exchangers := &plugins.ExchangerSet{}
 
 	return &suite{
