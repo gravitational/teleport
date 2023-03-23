@@ -97,7 +97,7 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 			config, ok := configs[common.TeleportClusterFromKubeLocalProxySNI(hello.ServerName)]
 			if !ok {
-				return nil, trace.BadParameter("invalid server name %v", hello.ServerName)
+				return nil, trace.BadParameter("unknown Teleport cluster or invalid TLS server name %v", hello.ServerName)
 			}
 			return config, nil
 		},

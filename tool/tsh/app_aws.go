@@ -244,12 +244,12 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 		return trace.Wrap(err)
 	}
 
-	appCerts, err := loadAppCertificate(tc, a.appName)
+	localCA, err := loadAppSelfSignedCA(a.profile, tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	localCA, err := loadAppSelfSignedCA(a.profile, a.appName)
+	appCerts, err := loadAppCertificate(tc, a.appName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

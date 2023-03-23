@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path"
 	"text/template"
 	"time"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
 type proxyKubeCommand struct {
@@ -45,6 +47,7 @@ type proxyKubeCommand struct {
 	namespace         string
 	port              string
 	format            string
+	exec              string
 }
 
 func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
@@ -88,6 +91,15 @@ func (c *proxyKubeCommand) run(cf *CLIConf) error {
 
 	if err := c.printTemplate(cf, localProxy); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// cf.cmdRunner is used for testing only.
+	if cf.cmdRunner != nil {
+		cmd := &exec.Cmd{
+			Path: "test",
+			Env:  []string{"KUBECONFIG=" + localProxy.KubeConfigPath()},
+		}
+		return trace.Wrap(cf.RunCommand(cmd))
 	}
 
 	select {
@@ -175,6 +187,7 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		return nil, trace.Wrap(err)
 	}
 
+	// TODO for best performance, avoid loading the entire profile.
 	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -270,10 +283,12 @@ func (k *kubeLocalProxy) WriteKubeConfig(defaultConfig *clientcmdapi.Config) err
 func loadKubeLocalCAs(profile *client.ProfileStatus, teleportClusters []string) (map[string]tls.Certificate, error) {
 	cas := make(map[string]tls.Certificate)
 	for _, teleportCluster := range teleportClusters {
-		// Kube clients should send requests with SNI in format:
-		// <hex-encoded-kube-cluster>.<teleport-cluster>
-		wildcardClusterDomain := "*." + teleportCluster
-		ca, err := loadSelfSignedCA(profile, profile.KubeLocalCAPathForCluster(teleportCluster), wildcardClusterDomain)
+		ca, err := loadSelfSignedCA(
+			profile.KubeLocalCAPathForCluster(teleportCluster),
+			profile.KeyPath(),
+			profile.ValidUntil,
+			common.KubeLocalProxyWildcardDomain(teleportCluster),
+		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -295,6 +310,7 @@ func localKubeCerts(ctx context.Context, tc *client.TeleportClient, clusters kub
 	}
 	defer proxy.Close()
 
+	// TODO for best performance, load one kube cert at a time.
 	keys, err := localKubeKeys(tc, clusters.TeleportClusters())
 	if err != nil {
 		return nil, trace.Wrap(err)

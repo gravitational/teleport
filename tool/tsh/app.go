@@ -503,14 +503,21 @@ func removeFileIfExist(filePath string) {
 
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to
 // generate a new CA if first load fails.
-func loadAppSelfSignedCA(profile *client.ProfileStatus, appName string) (tls.Certificate, error) {
-	cert, err := loadSelfSignedCA(profile, profile.AppLocalCAPath(appName), "localhost")
+func loadAppSelfSignedCA(profile *client.ProfileStatus, tc *client.TeleportClient, appName string) (tls.Certificate, error) {
+	appCerts, err := loadAppCertificate(tc, appName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	appCertsExpireAt, err := getTLSCertExpireTime(appCerts)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	cert, err := loadSelfSignedCA(profile.AppLocalCAPath(appName), profile.KeyPath(), appCertsExpireAt, "localhost")
 	return cert, trace.Wrap(err)
 }
 
-func loadSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...string) (tls.Certificate, error) {
-	keyPath := profile.KeyPath()
-
+func loadSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
 	caTLSCert, err := keys.LoadX509KeyPair(caPath, keyPath)
 	if err == nil {
 		if expire, err := getTLSCertExpireTime(caTLSCert); err == nil && time.Now().Before(expire) {
@@ -522,7 +529,7 @@ func loadSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...
 	}
 
 	// Generate and load again.
-	if err = generateSelfSignedCA(profile, caPath, dnsNames...); err != nil {
+	if err = generateSelfSignedCA(caPath, keyPath, validUntil, dnsNames...); err != nil {
 		return tls.Certificate{}, err
 	}
 
@@ -535,9 +542,9 @@ func loadSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...
 
 // generateSelfSignedCA generates a new self-signed CA for provided dnsNames
 // and saves/overwrites the local CA file in the profile directory.
-func generateSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames ...string) error {
+func generateSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames ...string) error {
 	log.Debugf("Generating local self signed CA at %v", caPath)
-	keyPem, err := utils.ReadPath(profile.KeyPath())
+	keyPem, err := utils.ReadPath(keyPath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -555,7 +562,7 @@ func generateSelfSignedCA(profile *client.ProfileStatus, caPath string, dnsNames
 		Signer:      key,
 		DNSNames:    dnsNames,
 		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
-		TTL:         time.Until(profile.ValidUntil),
+		TTL:         time.Until(validUntil),
 	})
 	if err != nil {
 		return trace.Wrap(err)

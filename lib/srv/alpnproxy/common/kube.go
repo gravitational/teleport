@@ -24,7 +24,8 @@ import (
 
 // KubeLocalProxySNI generates the SNI used for Kube local proxy.
 func KubeLocalProxySNI(teleportCluster, kubeCluster string) string {
-	// Hex encode to hide "." in kube cluster name so wildcard cert can be used.
+	// Hex encode to hide "." in kube cluster name so wildcard cert can be used:
+	// <hex-encoded-kube-cluster>.<teleport-cluster>
 	return fmt.Sprintf("%s.%s", hex.EncodeToString([]byte(kubeCluster)), teleportCluster)
 }
 
@@ -32,4 +33,10 @@ func KubeLocalProxySNI(teleportCluster, kubeCluster string) string {
 func TeleportClusterFromKubeLocalProxySNI(serverName string) string {
 	_, teleportCluster, _ := strings.Cut(serverName, ".")
 	return teleportCluster
+}
+
+// KubeLocalProxyWildcardDomain returns the wildcard domain used to generate
+// local self-signed CA for provided Teleport cluster.
+func KubeLocalProxyWildcardDomain(teleportCluster string) string {
+	return "*." + teleportCluster
 }

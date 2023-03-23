@@ -19,12 +19,10 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -359,38 +357,7 @@ func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, hos
 	log.Debugf("Started forwarding request for %q.", host)
 	defer log.Debugf("Stopped forwarding request for %q.", host)
 
-	closeContext, closeCancel := context.WithCancel(ctx)
-	defer closeCancel()
-
-	// Forcefully close connections when input context is done, to make sure
-	// the stream goroutines exit.
-	go func() {
-		<-closeContext.Done()
-
-		clientConn.Close()
-		serverConn.Close()
-	}()
-
-	wg := sync.WaitGroup{}
-	wg.Add(2)
-	stream := func(reader, writer net.Conn) {
-		_, err := io.Copy(reader, writer)
-		if err != nil && !utils.IsOKNetworkError(err) {
-			log.WithError(err).Errorf("Failed to stream from %q to %q.", reader.LocalAddr(), writer.LocalAddr())
-		}
-
-		// Close one side at a time.
-		if readerConn, ok := reader.(*net.TCPConn); ok {
-			readerConn.CloseRead()
-		}
-		if writerConn, ok := writer.(*net.TCPConn); ok {
-			writerConn.CloseWrite()
-		}
-		wg.Done()
-	}
-	go stream(clientConn, serverConn)
-	go stream(serverConn, clientConn)
-	wg.Wait()
+	utils.ProxyConn(ctx, clientConn, serverConn)
 }
 
 // hijackClientConnection hijacks client connection.
