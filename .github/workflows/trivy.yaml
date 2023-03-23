@@ -1,0 +1,17 @@
+name: Trivy
+
+on:
+  push:
+    branches:
+      - master
+      - branch/*
+  pull_request:
+  merge_group:
+
+jobs:
+  trivy:
+    uses: gravitational/shared-workflows/.github/workflows/trivy.yaml@main
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
