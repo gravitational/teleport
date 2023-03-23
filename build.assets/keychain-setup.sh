@@ -4,6 +4,11 @@
 # and for installer package signing. Each use separate keys that need to
 # be loaded into a keychain.
 #
+# This is intended to be called from CI to set up the keychain for signing
+# and notarizing MacOS binaries and packages/images. It can be called manually
+# during development if you have the development keys and notarization
+# username/password in your environment.
+#
 # This is MVP - the intention is to write all the keychain management, signing
 # and notarizing as a Go program.
 #
@@ -17,8 +22,8 @@ usage() {
 	printf '  -i <envvar>    take base64-encoded installation key from <envvar>\n'
 	printf '  -i @<file>     take installation key from <file>\n'
 	printf '  -I <envvar>    take password for installation key from <envvar>\n'
-	printf '  -k <keychain>  create <keychain>.keychain\n'
-	printf '  -p <password>  use <password> on keychain\n'
+	printf '  -k <keychain>  create <keychain>.keychain (default "build")\n'
+	printf '  -p <password>  use <password> on keychain (default "insecure")\n'
 	printf '  -v             verbose. Print commands before running them\n'
 	printf '  -n             dry run. Do not run commands, just print them\n'
 }
