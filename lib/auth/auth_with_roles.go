@@ -5467,12 +5467,19 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 //     proxy (e.g. Teleport Cloud), as long as they have permission to read
 //     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
+	// Assume this is a user request, check if the user has permission to read CAs.
 	err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets)
 	if err != nil {
+		// An error means the user doesn't have permission to read CAs, or this
+		// is an admin on the auth server or the windows desktop service. We
+		// expect to see an access denied error in any of those cases.
 		if !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
 		}
 
+		// If this is an admin on the auth server (types.RoleAdmin) or the
+		// windows desktop service (types.RoleWindowsDesktop), allow the
+		// request. Otherwise, return the access denied error.
 		if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
 			return nil, trace.AccessDenied("access denied")
 		}
