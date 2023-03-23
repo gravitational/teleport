@@ -105,6 +105,10 @@ func (c clusterStream) Send(frame []byte) error {
 	return trace.Wrap(c.stream.Send(&transportv1pb.ProxyClusterRequest{Frame: &transportv1pb.Frame{Payload: frame}}))
 }
 
+func (c clusterStream) Close() error {
+	return trace.Wrap(c.stream.CloseSend())
+}
+
 // DialHost establishes a connection to the instance in the provided cluster that matches
 // the hostport. If a keyring is provided then it will be forwarded to the remote instance.
 // The src address will be used as the LocalAddr of the returned [net.Conn].
@@ -126,20 +130,14 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 		return nil, nil, trail.FromGRPC(err, "failed to receive cluster details response")
 	}
 
-	// create a stream for agent protocol
-	agentStream := newClientStream(stream, func(payload []byte) *transportv1pb.ProxySSHRequest {
-		return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
-	})
+	// create streams for ssh and agent protocol
+	sshStream, agentStream := newSSHStreams(stream)
+
 	// create a reader writer for agent protocol
 	agentRW, err := streamutils.NewReadWriter(agentStream)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
-
-	// create a stream for ssh protocol
-	sshStream := newClientStream(stream, func(payload []byte) *transportv1pb.ProxySSHRequest {
-		return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
-	})
 
 	// create a reader writer for SSH protocol
 	sshRW, err := streamutils.NewReadWriter(sshStream)
@@ -163,9 +161,8 @@ func (c *Client) DialHost(ctx context.Context, hostport, cluster string, src net
 		for {
 			req, err := stream.Recv()
 			if err != nil {
-				// sending the error to the ssh stream and not the
-				// agent stream so that it may get seen by the user.
-				sshStream.errorC <- err
+				sshStream.errorC <- trail.FromGRPC(err)
+				agentStream.errorC <- trail.FromGRPC(err)
 				return
 			}
 
@@ -210,17 +207,39 @@ func (a addr) String() string {
 type sshStream struct {
 	incomingC chan []byte
 	errorC    chan error
-	stream    transportv1pb.TransportService_ProxySSHClient
 	requestFn func(payload []byte) *transportv1pb.ProxySSHRequest
+	closedC   chan struct{}
+	wLock     *sync.Mutex
+	stream    transportv1pb.TransportService_ProxySSHClient
 }
 
-func newClientStream(stream transportv1pb.TransportService_ProxySSHClient, requestFn func(payload []byte) *transportv1pb.ProxySSHRequest) *sshStream {
-	return &sshStream{
+func newSSHStreams(stream transportv1pb.TransportService_ProxySSHClient) (ssh *sshStream, agent *sshStream) {
+	wLock := &sync.Mutex{}
+	closedC := make(chan struct{})
+
+	ssh = &sshStream{
 		incomingC: make(chan []byte, 10),
 		errorC:    make(chan error, 1),
 		stream:    stream,
-		requestFn: requestFn,
+		requestFn: func(payload []byte) *transportv1pb.ProxySSHRequest {
+			return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock:   wLock,
+		closedC: closedC,
 	}
+
+	agent = &sshStream{
+		incomingC: make(chan []byte, 10),
+		errorC:    make(chan error, 1),
+		stream:    stream,
+		requestFn: func(payload []byte) *transportv1pb.ProxySSHRequest {
+			return &transportv1pb.ProxySSHRequest{Frame: &transportv1pb.ProxySSHRequest_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
+		},
+		wLock:   wLock,
+		closedC: closedC,
+	}
+
+	return ssh, agent
 }
 
 func (s *sshStream) Recv() ([]byte, error) {
@@ -233,5 +252,30 @@ func (s *sshStream) Recv() ([]byte, error) {
 }
 
 func (s *sshStream) Send(frame []byte) error {
-	return trace.Wrap(s.stream.Send(s.requestFn(frame)))
+	// grab lock to prevent any other sends from occurring
+	s.wLock.Lock()
+	defer s.wLock.Unlock()
+
+	// only Send if the stream hasn't already been closed
+	select {
+	case <-s.closedC:
+		return nil
+	default:
+		return trace.Wrap(s.stream.Send(s.requestFn(frame)))
+	}
+}
+
+func (s *sshStream) Close() error {
+	// grab lock to prevent any sends from occurring
+	s.wLock.Lock()
+	defer s.wLock.Unlock()
+
+	// only CloseSend if the stream hasn't already been closed
+	select {
+	case <-s.closedC:
+		return nil
+	default:
+		close(s.closedC)
+		return trace.Wrap(s.stream.CloseSend())
+	}
 }

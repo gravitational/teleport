@@ -95,7 +95,7 @@ type userACL struct {
 	License access `json:"license"`
 	// Plugins defines whether the user has access to manage hosted plugin instances
 	Plugins access `json:"plugins"`
-	// DeviceTrust definces access to device trust.
+	// DeviceTrust defines access to device trust.
 	DeviceTrust access `json:"deviceTrust"`
 }
 

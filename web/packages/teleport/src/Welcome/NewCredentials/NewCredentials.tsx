@@ -136,5 +136,4 @@ export function NewCredentials(props: State & Props) {
 
 export type Props = State & {
   resetMode?: boolean;
-  currFlow?: LoginFlow;
 };
