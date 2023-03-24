@@ -1,7 +1,6 @@
 package pro
 
 import (
-	"context"
 	"os"
 
 	liblicense "github.com/gravitational/license"
@@ -11,12 +10,9 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth"
 	cloudlib "github.com/gravitational/teleport/e/lib/cloud"
 	"github.com/gravitational/teleport/e/lib/licensefile"
-	"github.com/gravitational/teleport/e/lib/prehog"
-	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config is the Teleport Pro (Enterprise) config
@@ -66,25 +62,10 @@ func NewTeleport(cfg Config) (*Process, error) {
 		LicenseFile:     cfg.LicenseFile,
 	}
 
-	// when reporting usage, teleport runs some additional services that phone
-	// home once in a while to report usage metrics and verify license
-	if cfg.LicenseFile.License.GetReportsUsage() {
-		enforcer, err := initServices(process.ExitContext(), &proConfig{
-			Teleport: process,
-			Insecure: lib.IsInsecureDevMode(),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		cfg.AuthPlugin.EnableEnforcer(enforcer)
-	}
-
-	// when cloud hostport is set, make cloud client
-	// and enable recovery codes
-	cloudAPIServerAddr := os.Getenv(cloudlib.EnvVarHostPort)
-	if cloudAPIServerAddr != "" {
-		apiServerAddr, err := cloudlib.GetServerAddr(cloudAPIServerAddr)
+	// if the cloud hostport is set when we don't have a cloud license, we're in
+	// "tenant dashboard mode"
+	if cloudHostPort := os.Getenv(cloudlib.EnvVarHostPort); cloudHostPort != "" {
+		apiServerAddr, err := cloudlib.GetServerAddr(cloudHostPort)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -110,53 +91,10 @@ func NewTeleport(cfg Config) (*Process, error) {
 		process.OnExit("cloudClient.shutdown", func(payload interface{}) {
 			cloudClient.Close()
 		})
-	}
 
-	if err := prehog.InitPreHogUsageReporting(
-		process.ExitContext(),
-		process.LicenseFile,
-		process.TeleportProcess,
-	); err != nil {
-		return nil, trace.Wrap(nil)
+		return process, nil
 	}
 
 	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
 	return process, nil
-}
-
-// proConfig combines pro mode configuration parameters
-type proConfig struct {
-	// Teleport is the Teleport process
-	Teleport *Process
-	// Insecure is whether the server runs in insecure mode
-	Insecure bool
-}
-
-// initServices initializes services for teleport pro mode
-func initServices(ctx context.Context, config *proConfig) (*enforcer.Enforcer, error) {
-	clusterName, err := config.Teleport.GetAuthServer().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	anonymizer, err := utils.NewHMACAnonymizer(clusterName.GetClusterID())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	auditLog := config.Teleport.GetAuditLog()
-	if auditLog == nil {
-		return nil, trace.BadParameter("audit log config is missing inner")
-	}
-	config.Teleport.GetAuthServer().SetAuditLog(auditLog)
-	enforcer, err := enforcer.New(ctx, enforcer.Config{
-		Anonymizer:     anonymizer,
-		Backend:        config.Teleport.GetBackend(),
-		LicenseKeyPair: config.Teleport.LicenseFile.KeyPair,
-		Insecure:       config.Insecure,
-		ClusterID:      clusterName.GetClusterID(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	config.Teleport.GetAuthServer().SetEnforcer(enforcer)
-	return enforcer, nil
 }

@@ -14,14 +14,6 @@ $GOHOME/gravitational/teleport  <-- open source public Teleport repo
    |- e                         <-- this repo cloned into 'e'
 ```
 
-## Houston API
-
-Teleport Enterprise (with some licenses) reports user's usage to Houston API.
-By default the API endpoint is https://dashboard-api.gravitational.com:443/api
-
-If you want to point it to a staging/dev server, you can change the Houston API
-hostname via setting `HOUSTON_HOSTPORT` to something like "localhost:5000"
-
 ## Binaries
 
 Regular OSS version of `tsh` is used for Enterprise, while `tctl` and
@@ -165,4 +157,3 @@ This certificate authority is managed by special tool `tgen`
 implemented and managed in [ops](https://github.com/gravitational/ops) folder.
 This is done to avoid vendoring extra packages in teleport repository that
 are not necessary to check the license.
-

@@ -2,9 +2,9 @@ package auth
 
 import (
 	"net/http"
+	"time"
 
 	liblicense "github.com/gravitational/license"
-	"github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -23,7 +23,6 @@ import (
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
-	"github.com/gravitational/teleport/e/lib/pro/enforcer"
 	"github.com/gravitational/teleport/integrations/access/slack"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -77,9 +76,6 @@ func NewPlugin(cfg Config) (*Plugin, error) {
 // Plugin extends OSS auth server API with enterprise features
 type Plugin struct {
 	Config
-	// enforcer is a service that heartbeats back to the control plane,
-	// here it provides access to the heartbeat results for the handler
-	enforcer *enforcer.Enforcer
 	// cloudClient is a client of the Cloud API server
 	cloudClient cloudapi.TenantsServiceClient
 	// authorizer authorizes identity and returns auth context
@@ -91,11 +87,6 @@ type Plugin struct {
 // GetName returns plugin name
 func (p *Plugin) GetName() string {
 	return pluginName
-}
-
-// EnableEnforcer enables enforcer (teleport pro)
-func (p *Plugin) EnableEnforcer(enforcer *enforcer.Enforcer) {
-	p.enforcer = enforcer
 }
 
 // EnableCloud enables cloud features
@@ -280,9 +271,15 @@ func (p *Plugin) RegisterAuthWebHandlers(handler interface{}) error {
 	return nil
 }
 
+// TODO(espadolini): delete once we're sure that the proxy doesn't use this
 func (p *Plugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	if p.enforcer == nil {
-		return types.NewHeartbeat(), nil
-	}
-	return p.enforcer.GetLicenseCheckResult(r.Context())
+	return map[string]any{
+		"kind":    "heartbeat",
+		"version": "v2",
+		"metadata": map[string]any{
+			"name":    "heartbeat",
+			"created": time.Now().UTC(),
+		},
+		"spec": map[string]any{},
+	}, nil
 }
