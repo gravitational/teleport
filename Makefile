@@ -436,10 +436,12 @@ release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
 
 .PHONY: release-darwin
+# Only run signing/notarization if Apple username/pass are provided.
+# Export DEVELOPER_ID_APPLICATION so it can be used by e/Makefile.
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	# Only run if Apple username/pass for notarization are provided
 	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
+		$(eval export DEVELOPER_ID_APPLICATION) \
 		cd ./build.assets/tooling/ && \
 		go run ./cmd/notarize-apple-binaries/*.go \
 			--developer-id=$(DEVELOPER_ID_APPLICATION) \
