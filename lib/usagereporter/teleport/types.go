@@ -385,7 +385,7 @@ func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind
 	case types.KeepAlive_DATABASE:
 		return ResourceKindDBServer
 	default:
-		return prehogv1.ResourceKind_RESOURCE_KIND_UNSPECIFIED
+		return 0
 	}
 }
 

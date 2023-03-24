@@ -3671,9 +3671,14 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 		return trace.Wrap(err)
 	}
 
+	// ResourceHeartbeatEvent only cares about a few KeepAlive types
+	kind := usagereporter.ResourceKindFromKeepAliveType(h.Type)
+	if kind == 0 {
+		return nil
+	}
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   h.Name,
-		Kind:   usagereporter.ResourceKindFromKeepAliveType(h.Type),
+		Kind:   kind,
 		Static: h.Expires.IsZero(),
 	})
 
