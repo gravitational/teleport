@@ -291,3 +291,32 @@ func (o *OktaAssignmentActionV1) GetTargetType() string {
 func (o *OktaAssignmentActionV1) GetID() string {
 	return o.Target.Id
 }
+
+// OktaAssignments is a list of OktaAssignment resources.
+type OktaAssignments []OktaAssignment
+
+// ToMap returns these Okta assignments as a map keyed by Okta assignment name.
+func (o OktaAssignments) ToMap() map[string]OktaAssignment {
+	m := make(map[string]OktaAssignment)
+	for _, oktaAssignment := range o {
+		m[oktaAssignment.GetName()] = oktaAssignment
+	}
+	return m
+}
+
+// AsResources returns these Okta assignments as resources with labels.
+func (o OktaAssignments) AsResources() (resources ResourcesWithLabels) {
+	for _, oktaAssignment := range o {
+		resources = append(resources, oktaAssignment)
+	}
+	return resources
+}
+
+// Len returns the slice length.
+func (o OktaAssignments) Len() int { return len(o) }
+
+// Less compares Okta assignments by name.
+func (o OktaAssignments) Less(i, j int) bool { return o[i].GetName() < o[j].GetName() }
+
+// Swap swaps two Okta assignments.
+func (o OktaAssignments) Swap(i, j int) { o[i], o[j] = o[j], o[i] }

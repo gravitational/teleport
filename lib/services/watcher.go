@@ -1745,3 +1745,182 @@ func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Contex
 }
 
 func (*accessRequestCollector) notifyStale() {}
+
+// OktaAssignmentWatcherConfig is a OktaAssignmentWatcher configuration.
+type OktaAssignmentWatcherConfig struct {
+	// RWCfg is the resource watcher configuration.
+	RWCfg ResourceWatcherConfig
+	// OktaAssignments is responsible for fetching Okta assignments.
+	OktaAssignments OktaAssignments
+	// PageSize is the number of Okta assignments to list at a time.
+	PageSize int
+	// OktaAssignmentsC receives up-to-date list of all Okta assignment resources.
+	OktaAssignmentsC chan types.OktaAssignments
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *OktaAssignmentWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.RWCfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.OktaAssignments == nil {
+		assignments, ok := cfg.RWCfg.Client.(OktaAssignments)
+		if !ok {
+			return trace.BadParameter("missing parameter OktaAssignments and Client not usable as OktaAssignments")
+		}
+		cfg.OktaAssignments = assignments
+	}
+	if cfg.OktaAssignmentsC == nil {
+		cfg.OktaAssignmentsC = make(chan types.OktaAssignments)
+	}
+	return nil
+}
+
+// NewOktaAssignmentWatcher returns a new instance of OktaAssignmentWatcher. The context here will be used to
+// exit early from the resource watcher if needed.
+func NewOktaAssignmentWatcher(ctx context.Context, cfg OktaAssignmentWatcherConfig) (*OktaAssignmentWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &oktaAssignmentCollector{
+		log:             cfg.RWCfg.Log,
+		cfg:             cfg,
+		initializationC: make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.RWCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &OktaAssignmentWatcher{
+		resourceWatcher: watcher,
+		collector:       collector,
+	}, nil
+}
+
+// OktaAssignmentWatcher is built on top of resourceWatcher to monitor Okta assignment resources.
+type OktaAssignmentWatcher struct {
+	resourceWatcher *resourceWatcher
+	collector       *oktaAssignmentCollector
+}
+
+// CollectorChan is the channel that collects the Okta assignments.
+func (o *OktaAssignmentWatcher) CollectorChan() chan types.OktaAssignments {
+	return o.collector.cfg.OktaAssignmentsC
+}
+
+// Close closes the underlying resource watcher
+func (o *OktaAssignmentWatcher) Close() {
+	o.resourceWatcher.Close()
+}
+
+// Done returns the channel that signals watcher closer.
+func (o *OktaAssignmentWatcher) Done() <-chan struct{} {
+	return o.resourceWatcher.Done()
+}
+
+// oktaAssignmentCollector accompanies resourceWatcher when monitoring Okta assignment resources.
+type oktaAssignmentCollector struct {
+	log logrus.FieldLogger
+	// OktaAssignmentWatcherConfig is the watcher configuration.
+	cfg OktaAssignmentWatcherConfig
+	// mu guards "current"
+	mu sync.RWMutex
+	// current holds a map of the currently known Okta assignment resources.
+	current map[string]types.OktaAssignment
+	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKind specifies the resource kind to watch.
+func (*oktaAssignmentCollector) resourceKind() string {
+	return types.KindOktaAssignment
+}
+
+// initializationChan is used to check if the initial state sync has been completed.
+func (c *oktaAssignmentCollector) initializationChan() <-chan struct{} {
+	return c.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	var oktaAssignments []types.OktaAssignment
+	nextToken := ""
+	for {
+		var oktaAssignmentsPage []types.OktaAssignment
+		var err error
+		oktaAssignmentsPage, nextToken, err = c.cfg.OktaAssignments.ListOktaAssignments(ctx, c.cfg.PageSize, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		oktaAssignments = append(oktaAssignments, oktaAssignmentsPage...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	newCurrent := make(map[string]types.OktaAssignment, len(oktaAssignments))
+	for _, oktaAssignment := range oktaAssignments {
+		newCurrent[oktaAssignment.GetName()] = oktaAssignment
+	}
+	c.mu.Lock()
+	c.current = newCurrent
+	c.defineCollectorAsInitialized()
+	c.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case c.cfg.OktaAssignmentsC <- oktaAssignments:
+	}
+
+	return nil
+}
+
+func (c *oktaAssignmentCollector) defineCollectorAsInitialized() {
+	c.once.Do(func() {
+		close(c.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (c *oktaAssignmentCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
+		c.log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	switch event.Type {
+	case types.OpDelete:
+		c.mu.Lock()
+		delete(c.current, event.Resource.GetName())
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.OktaAssignmentsC <- resources:
+		}
+	case types.OpPut:
+		oktaAssignment, ok := event.Resource.(types.OktaAssignment)
+		if !ok {
+			c.log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		c.mu.Lock()
+		c.current[oktaAssignment.GetName()] = oktaAssignment
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.OktaAssignmentsC <- resources:
+		}
+
+	default:
+		c.log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*oktaAssignmentCollector) notifyStale() {}
