@@ -1,0 +1,273 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package okta
+
+import (
+	"crypto"
+	"testing"
+
+	"github.com/gravitational/trace"
+	"github.com/okta/okta-sdk-golang/v2/okta"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+)
+
+func TestOktaGroupToUserGroup(t *testing.T) {
+	orgURL := "https://test-url.com"
+	oktaGroup := &okta.Group{
+		Id: "okta-group-id",
+	}
+
+	service := &Service{orgURL: orgURL}
+	_, err := service.oktaGroupToUserGroup(oktaGroup)
+	require.ErrorIs(t, trace.BadParameter("the okta group object has no profile"), err)
+
+	oktaGroup = &okta.Group{
+		Id: "okta-group-id",
+		Profile: &okta.GroupProfile{
+			Name:        "group name",
+			Description: "group description",
+		},
+	}
+
+	userGroup, err := service.oktaGroupToUserGroup(oktaGroup)
+	require.NoError(t, err)
+
+	expected, err := types.NewUserGroup(types.Metadata{
+		Name:        "okta-group-id",
+		Description: "group description",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginOkta,
+			oktaOrgURLLabel:   orgURL,
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, expected, userGroup)
+}
+
+type dummyOktaApp struct{}
+
+func (d *dummyOktaApp) IsApplicationInstance() bool {
+	return false
+}
+
+func TestOktaAppToApplications(t *testing.T) {
+	orgURL := "https://test-url.com"
+	tests := []struct {
+		name             string
+		oktaApp          okta.App
+		errAssertionFunc require.ErrorAssertionFunc
+		expected         []types.Application
+	}{
+		{
+			name: "happy path",
+			oktaApp: &okta.Application{
+				Id:     "app-id",
+				Name:   "app-name",
+				Status: "ACTIVE",
+				Label:  "app label",
+				Links: map[string]interface{}{
+					"appLinks": []interface{}{
+						map[string]interface{}{
+							"name": "applink-name1",
+							"href": "https://www.link1.com",
+						},
+						map[string]interface{}{
+							"name": "applink-name2",
+							"href": "https://www.link2.com",
+						},
+					},
+				},
+			},
+			errAssertionFunc: require.NoError,
+			expected: []types.Application{
+				newApplication(t,
+					types.Metadata{
+						Name:        "hleAaWyYRHhA",
+						Description: "app label",
+						Labels: map[string]string{
+							types.OriginLabel: types.OriginOkta,
+							oktaOrgURLLabel:   orgURL,
+						},
+					},
+					types.AppSpecV3{
+						URI: "https://www.link1.com",
+					},
+				),
+				newApplication(t,
+					types.Metadata{
+						Name:        "utGMAFLgNkBj",
+						Description: "app label",
+						Labels: map[string]string{
+							types.OriginLabel: types.OriginOkta,
+							oktaOrgURLLabel:   orgURL,
+						},
+					},
+					types.AppSpecV3{
+						URI: "https://www.link2.com",
+					},
+				),
+			},
+		},
+		{
+			name: "not active",
+			oktaApp: &okta.Application{
+				Id:     "app-id",
+				Status: "INACTIVE",
+				Label:  "app label",
+				Links: map[string]interface{}{
+					"appLinks": []interface{}{
+						map[string]interface{}{
+							"name": "applink-name",
+							"href": "https://wwww.link.com",
+						},
+					},
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("application app-id (app label) is not active"))
+			},
+		},
+		{
+			name: "empty links",
+			oktaApp: &okta.Application{
+				Id:     "app-id",
+				Status: "ACTIVE",
+				Label:  "app label",
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("links is missing in okta application object app-id (app label)"))
+			},
+		},
+		{
+			name: "no app links",
+			oktaApp: &okta.Application{
+				Id:     "app-id",
+				Status: "ACTIVE",
+				Label:  "app label",
+				Links: map[string]interface{}{
+					"appLinks": []interface{}{},
+				},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("app links is empty in okta application object app-id (app label)"))
+			},
+		},
+		{
+			name:    "wrong okta application type",
+			oktaApp: &dummyOktaApp{},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("unable infer type of of Okta application: *okta.dummyOktaApp"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			service := &Service{orgURL: orgURL, hash: crypto.SHA256}
+			apps, err := service.oktaAppToApps(test.oktaApp)
+			test.errAssertionFunc(t, err)
+			require.Equal(t, test.expected, apps)
+		})
+	}
+}
+
+func TestIsAppValid(t *testing.T) {
+	trueBool := true
+	falseBool := false
+
+	tests := []struct {
+		name             string
+		app              *okta.Application
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name: "is valid",
+			app: &okta.Application{
+				Id:         "app-id",
+				Status:     oktaActive,
+				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{Web: &falseBool}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "not active",
+			app: &okta.Application{
+				Id:     "app-id",
+				Label:  "app label",
+				Status: "INACTIVE",
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("application app-id (app label) is not active"))
+			},
+		},
+		{
+			name: "okta admin console",
+			app: &okta.Application{
+				Id:     "app-id",
+				Label:  "Okta Admin Console",
+				Status: oktaActive,
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("application app-id is the Okta admin console"))
+			},
+		},
+		{
+			name: "hidden",
+			app: &okta.Application{
+				Id:         "app-id",
+				Label:      "app label",
+				Status:     oktaActive,
+				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{Web: &trueBool}},
+			},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.BadParameter("application app-id (app label) is hidden from the web"))
+			},
+		},
+		{
+			name: "only visibility present",
+			app: &okta.Application{
+				Id:         "app-id",
+				Status:     oktaActive,
+				Visibility: &okta.ApplicationVisibility{},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "only hide present",
+			app: &okta.Application{
+				Id:         "app-id",
+				Status:     oktaActive,
+				Visibility: &okta.ApplicationVisibility{Hide: &okta.ApplicationVisibilityHide{}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.errAssertionFunc(t, isAppValid(test.app))
+		})
+	}
+}
+
+func newApplication(t *testing.T, metadata types.Metadata, spec types.AppSpecV3) types.Application {
+	app, err := types.NewAppV3(metadata, spec)
+	require.NoError(t, err)
+	return app
+}

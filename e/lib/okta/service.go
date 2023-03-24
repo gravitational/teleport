@@ -18,6 +18,9 @@ package okta
 
 import (
 	"context"
+	"crypto"
+	"strings"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
@@ -71,6 +74,17 @@ type Service struct {
 	accessPoint auth.OktaAccessPoint
 	client      *okta.Client
 	emitter     apievents.Emitter
+	orgURL      string
+
+	// hash function for getting unique names from app IDs/app link names.
+	hash crypto.Hash
+
+	// Import Rule mapping for the Okta objects.
+	groupIRMappingMu sync.RWMutex
+	groupIRMapping   map[string]prioritizedLabels
+
+	applicationIRMappingMu sync.RWMutex
+	applicationIRMapping   map[string]prioritizedLabels
 
 	stopCh chan struct{}
 }
@@ -81,8 +95,10 @@ func New(ctx context.Context, config Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	orgURL := strings.TrimSuffix(config.OktaAPIEndpoint, "/")
+
 	_, client, err := okta.NewClient(ctx,
-		okta.WithOrgUrl(config.OktaAPIEndpoint),
+		okta.WithOrgUrl(orgURL),
 		okta.WithToken(config.OktaAPIToken),
 	)
 	if err != nil {
@@ -90,11 +106,15 @@ func New(ctx context.Context, config Config) (*Service, error) {
 	}
 
 	return &Service{
-		log:         config.Log,
-		accessPoint: config.AccessPoint,
-		client:      client,
-		emitter:     config.Emitter,
-		stopCh:      make(chan struct{}, 1),
+		log:                  config.Log,
+		accessPoint:          config.AccessPoint,
+		client:               client,
+		emitter:              config.Emitter,
+		orgURL:               orgURL,
+		hash:                 crypto.SHA256,
+		groupIRMapping:       map[string]prioritizedLabels{},
+		applicationIRMapping: map[string]prioritizedLabels{},
+		stopCh:               make(chan struct{}, 1),
 	}, nil
 }
 
