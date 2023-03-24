@@ -18,20 +18,14 @@ In order to export the Teleport CA, execute the following command:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-# Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --proxy=teleport.example.com --user=myuser
-$ tctl auth export --type=user | sed 's/^cert-authority //g'
+$ curl 'https://teleport.example.com/webapi/auth/export?type=user'  | sed 's/^cert-authority //g'
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
-$ tctl auth export --type=user | sed 's/^cert-authority //g'
+$ curl 'https://mytenant.teleport.sh/webapi/auth/export?type=user'  | sed 's/^cert-authority //g'
 ```
 
 </ScopedBlock>

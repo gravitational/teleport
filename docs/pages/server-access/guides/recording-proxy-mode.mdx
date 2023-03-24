@@ -123,8 +123,7 @@ On your Teleport Node, export the Teleport Certificate Authority certificate
 into a file and update your SSH configuration to trust Teleport's CA:
 
 ```code
-# tctl needs to be run on the Auth Server.
-$ sudo tctl auth export --type=user | sed s/cert-authority\ // > teleport_user_ca.pub
+$ curl 'https://teleport.example.com/webapi/auth/export?type=user' | sed s/cert-authority\ // > teleport_user_ca.pub
 $ sudo mv ./teleport_user_ca.pub /etc/ssh/teleport_user_ca.pub
 $ echo "TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub" | sudo tee -a /etc/ssh/sshd_config
 ```
