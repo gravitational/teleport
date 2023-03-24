@@ -1,6 +1,6 @@
 ---
 authors: Trent Clarke (trent@goteleport.com)
-state: draft
+state: Implemented (12.1.2)
 ---
 
 # RFD 0112 - Delivering secure Teleport OCI Images
