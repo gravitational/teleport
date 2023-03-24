@@ -93,6 +93,9 @@ type FileConfig struct {
 
 	// Okta is the "okta_service" section in the Teleport configuration file
 	Okta Okta `yaml:"okta_service,omitempty"`
+
+	// Plugins is the section of the config for configuring the plugin service.
+	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1003,6 +1006,19 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+}
+
+// PluginService represents the configuration for the plugin service.
+type PluginService struct {
+	Enabled bool `yaml:"enabled"`
+	// Plugins is a map of matchers for enabled plugin resources.
+	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// Opsgenie represents the configuration for the Opsgenie plugin.
+type Opsgenie struct {
+	// APIKeyFile is the path to a file containing an Opsgenie API key.
+	APIKeyFile string `yaml:"api_key_file"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
