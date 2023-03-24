@@ -115,7 +115,6 @@ During the tests, the average time it took to process messages (read, process, d
 
 This solution won't change anything from the security point of view.
 
-
 ### 3) Remote Desktop Protocol: Graphics Pipeline Extension [MS-RDPEGFX](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/da5c75f9-cd99-450c-98c4-014a496942b0)
 
 The [MS-RDPEGFX] extension introduces a new way of drawing graphic data compared which is very similar to graphics APIs like OpenGL. Instead of just rendering bitmaps on the screen it defines surfaces, graphic contexts and graphics output buffer. Each surface is mapped to the part of the graphics output buffer which is a part visible for the end-user. Then graphic data is encoded using one of several codecs and transfered to specific surface. The protocol defines start and end frame messages which controll rendering process. There is also support for bitmap caches. It is embedded in a dynamic virtual channel transport, as specified in [MS-RDPEDYC](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpedyc/3bd53020-9b64-4c9a-97fc-90a79e7e1e06).
@@ -131,27 +130,25 @@ Here is an overview of commands defined in the protocol:
 
 All these operations and usage of efficient codecs make this extension efficient in rendering and transporting graphic data.
 
-
 ##### Codecs
+
 This extension is only available starting in RDP 8.0, then updated in 8.1 and 10.0. The updates mainly brought support for new codecs. Here's a comparison of supported codecs between RDP versions:
 
-| codec | RDP 8.0 | RDP 8.1| RDP 10.0|
-| --- | :--------: | ---------: | ---: |
-|[RemoteFX Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdprfx/e5afdc95-00bf-46f9-adea-6c641b54af26)|✓|✓|✓|
-|[ClearCodec Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/6fa49bae-192f-4e25-888a-7cacfae303cf)|✓|✓|✓|
-| [NSCodec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpnsc/) |✓|✓|✓|
-|[Planar Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/0d2e1a03-e123-46b2-b2b8-ed730a794ae4)|✓|✓|✓|
-|[MPEG-4 AVC/H.264 Codec in YUV420p mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/5f12c20e-2ea1-4ad1-a2a0-019ee3893731)|X|✓|✓|
-|[MPEG-4 AVC/H.264 Codec in YUV444 mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/844018a5-d717-4bc9-bddb-8b4d6be5dd3f)|X|X|✓|
-|[MPEG-4 AVC/H.264 Codec in YUV444v2 mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/3b337b87-f478-4786-a63b-97794aa72075)|X|X|✓|
-
+| codec                                                                                                                                                    | RDP 8.0 | RDP 8.1 | RDP 10.0 |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | :-----: | ------: | -------: |
+| [RemoteFX Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdprfx/e5afdc95-00bf-46f9-adea-6c641b54af26)                           |    ✓    |       ✓ |        ✓ |
+| [ClearCodec Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/6fa49bae-192f-4e25-888a-7cacfae303cf)                        |    ✓    |       ✓ |        ✓ |
+| [NSCodec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpnsc/)                                                                      |    ✓    |       ✓ |        ✓ |
+| [Planar Codec](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/0d2e1a03-e123-46b2-b2b8-ed730a794ae4)                            |    ✓    |       ✓ |        ✓ |
+| [MPEG-4 AVC/H.264 Codec in YUV420p mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/5f12c20e-2ea1-4ad1-a2a0-019ee3893731)  |    X    |       ✓ |        ✓ |
+| [MPEG-4 AVC/H.264 Codec in YUV444 mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/844018a5-d717-4bc9-bddb-8b4d6be5dd3f)   |    X    |       X |        ✓ |
+| [MPEG-4 AVC/H.264 Codec in YUV444v2 mode](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/3b337b87-f478-4786-a63b-97794aa72075) |    X    |       X |        ✓ |
 
 The extension is already implemented in the Rust language in the IronRDP library with a reference client [ironrdp-gui-client](https://github.com/Devolutions/IronRDP/tree/master/ironrdp-gui-client) which uses native gui and OpenGL for rendering data.
 
 ##### Requirements
 
 This extension requires at least RDP 8.0, but for the best possible results it needs RDP 10.0 and hadware support for encoding H.264/AVC444 codec on the server.
-
 
 ##### RDP Host Group Policy Changes
 
@@ -164,28 +161,31 @@ This extension requires at least RDP 8.0, but for the best possible results it n
 - RDP compression algorithm: "Do not use an RDP compression algorithm"
 - RemoteFX encoding for RemoteFX clients designed for Windows Server 2008R2 SP1 - Enable
 
-#####  Performance metrics
+##### Performance metrics
 
 There are two protocol messages:
+
 - `RDPGFX_START_FRAME_PDU` which is message sent by the server to specify the start of a logical frame
 - `RDPGFX_END_FRAME_PDU` which is message sent by the server to specify the end of the logical frame.
 
 By capturing these messages, it would be possible to calculate time it takes to process one frame and calculate the number of frames per second (FPS).
 
 ##### Technical Considerations
+
 There are three main features in this extension that the implementation needs to take care of:
+
 - decoding bitmap data using one of the codecs
-- creating and maintaining surfaces and rendering bitmap data on the surfaces 
+- creating and maintaining surfaces and rendering bitmap data on the surfaces
 - storing and loading bitmap data in the cache
 
-
 ###### Option 1
-To make it a simple change, we could implement every aspect of the protocol and built it into existing Desktop Access module. In this case, we would create and maintain caches, create virtual mapping of the surfaces to the place on the display screen, and decode bitmap data in the backend using one of the codecs. This solution wouldn't change much in a way we currently send data to the browser. After decoding bitmap data and encoding it to PNG, we would utilise existing TDP PNG messages to send data to the browser. 
+
+To make it a simple change, we could implement every aspect of the protocol and built it into existing Desktop Access module. In this case, we would create and maintain caches, create virtual mapping of the surfaces to the place on the display screen, and decode bitmap data in the backend using one of the codecs. This solution wouldn't change much in a way we currently send data to the browser. After decoding bitmap data and encoding it to PNG, we would utilise existing TDP PNG messages to send data to the browser.
 It is not the best solution in terms of performance as the usage of the cache would only reduce data transfer between Desktop Access module and Windows server. Also, some protocol commands, like coping data from one surface to the other surface, would even decrease protocol performance as we would need to copy data from the Desktop Access module to the client rather than locally copy data from one surface to other. The biggest adventage of this solution is that it requires the least effort to implement it, and it is a good starting point for bringing support for this extension to our current implementation.
 
-
 ###### Option 2
-To improve solution#1 we could implement caching similarly as in `1) RDP Bitmap caching` and add it to the browser. That would require adding new messages to the TDP to support storing and loading data in the caches. On top of that, we could add TDP messages to create and maintain surfaces in the browser as well. The surface objects aren't responsible for much as it is just a way to divide a whole screen into different areas. This would leave only decoding bitmap data and encoding it as PNGs in the Desktop Access module. 
+
+To improve solution#1 we could implement caching similarly as in `1) RDP Bitmap caching` and add it to the browser. That would require adding new messages to the TDP to support storing and loading data in the caches. On top of that, we could add TDP messages to create and maintain surfaces in the browser as well. The surface objects aren't responsible for much as it is just a way to divide a whole screen into different areas. This would leave only decoding bitmap data and encoding it as PNGs in the Desktop Access module.
 
 ##### UX changes
 
@@ -320,16 +320,16 @@ and sent to the browser. In the proposed setup, however, the WDS is acting as me
 messages at that point in the system, [particularly if we ever want to enable NLA](https://github.com/Devolutions/devolutions-gateway/issues/290).
 
 ##### UX changes
+
 From a user experience perspective implementing this solution will improve rendering performance and overall experience using the Desktop Access module. A combination of changing RDP library to the well written and maintained library with a new codec will improve the time it takes to process single bitmap.
 
 ##### Security
 
 This solution won't change anything from the security point of view.
 
-
 ## Alternatives considered
 
-### [MS-RDPEUDP] Remote Desktop Protocol: UDP Transport Extension 
+### [MS-RDPEUDP] Remote Desktop Protocol: UDP Transport Extension
 
 This extension has been designed to improve the performance of the network connectivity compared to a corresponding TCP connection, especially on wide area networks or wireless networks.
 Due to the current architecture of Teleport, we can't use this extension as we heavily rely on TCP connections and TLS. Also, our client program is in the browser, and browsers don't support direct UDP connections.
@@ -337,8 +337,8 @@ Due to the current architecture of Teleport, we can't use this extension as we h
 ### WebTransport
 
 #### What is WebTransport?
-WebTransport is a web API that uses the HTTP/3 protocol as a transport layer. It can be used like WebSockets but also supports multiple streams and out-of-order delivery of messages. It can send data reliably as well as unreliably with low latency. Its datagram API is very similar to the UDP messages but can be encrypted and is congestion-controlled. There are a lot of valid use cases for this protocol, but for us, it would allow us to unreliably receive media data with low latency. When using it via datagram API we don't have to worry about the [head-of-line blocking](https://en.wikipedia.org/wiki/Head-of-line_blocking) which in networking is a performance issue that occurs when packets in the single queue are blocked and waiting to be transmitted by a first packet in a queue that has been lost, dropped or is waiting to be retransmitted. We could also pair it with the [MS-RDPEUDP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeudp/2744a3ee-04fb-407b-a9e3-b3b2ded422b1) to achieve even more performance and lower latency.
 
+WebTransport is a web API that uses the HTTP/3 protocol as a transport layer. It can be used like WebSockets but also supports multiple streams and out-of-order delivery of messages. It can send data reliably as well as unreliably with low latency. Its datagram API is very similar to the UDP messages but can be encrypted and is congestion-controlled. There are a lot of valid use cases for this protocol, but for us, it would allow us to unreliably receive media data with low latency. When using it via datagram API we don't have to worry about the [head-of-line blocking](https://en.wikipedia.org/wiki/Head-of-line_blocking) which in networking is a performance issue that occurs when packets in the single queue are blocked and waiting to be transmitted by a first packet in a queue that has been lost, dropped or is waiting to be retransmitted. We could also pair it with the [MS-RDPEUDP](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeudp/2744a3ee-04fb-407b-a9e3-b3b2ded422b1) to achieve even more performance and lower latency.
 
 #### Key features
 
@@ -350,6 +350,7 @@ WebTransport is a web API that uses the HTTP/3 protocol as a transport layer. It
 #### It is not ready yet
 
 While there would be a lot of benefits to implementing WebTransport as a transport layer for our TDP packets between browser and proxy, it is not ready yet to be considered for production usage, and here is why:
+
 - specification is still in draft and there still might be some changes to it
 - there is not yet implementation of libraries or server for WebTransport in either Go or Rust. There are a few implementations, but nothing looks production grade.
 - high quality libraries are only for QUIC protocol, like [quiche](https://github.com/cloudflare/quiche)
@@ -358,10 +359,10 @@ While there would be a lot of benefits to implementing WebTransport as a transpo
 However, we should track progress of the WebTransport specification and the evolution of the ecosystem around it. Once it is mature enough, it will provide great benefit for our low latency media streaming use case.
 
 #### Documents:
+
 - [Editor's Draft Specificiaiton](https://w3c.github.io/webtransport/)
 - [WebTransport Explainer](https://github.com/w3c/webtransport/blob/main/explainer.md)
 - [MDN's WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport)
-
 
 ## Conclusions
 
