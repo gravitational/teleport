@@ -223,6 +223,17 @@ func (d *DatabaseV3) SetDynamicLabels(dl map[string]CommandLabel) {
 	d.Spec.DynamicLabels = LabelsToV2(dl)
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (d *DatabaseV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := d.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := d.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns the database combined static and dynamic labels.
 func (d *DatabaseV3) GetAllLabels() map[string]string {
 	return CombineLabels(d.Metadata.Labels, d.Spec.DynamicLabels)
