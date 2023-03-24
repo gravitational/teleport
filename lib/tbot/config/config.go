@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -151,6 +152,8 @@ type CLIConf struct {
 	// RemainingArgs is the remaining string arguments for commands that
 	// require them.
 	RemainingArgs []string
+
+	FIPS bool
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -227,6 +230,20 @@ type BotConfig struct {
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
+	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
+	// regulations. This means the bot should:
+	// - Refuse to run if not compiled with boringcrypto
+	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
+	// - Restrict TLS / SSH cipher suites and TLS version
+	// - RSA2048 should be used for private key generation
+	FIPS bool `yaml:"fips"`
+}
+
+func (conf *BotConfig) CipherSuites() []uint16 {
+	if conf.FIPS {
+		return defaults.FIPSCipherSuites
+	}
+	return utils.DefaultCipherSuites()
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
@@ -436,6 +453,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		}
 
 		config.Onboarding.SetToken(cf.Token)
+	}
+
+	if cf.FIPS {
+		config.FIPS = cf.FIPS
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {
