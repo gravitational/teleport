@@ -190,7 +190,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.UserGroups == nil {
-		cfg.UserGroups = local.NewUserGroupService(cfg.Backend)
+		cfg.UserGroups, err = local.NewUserGroupService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)

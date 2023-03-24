@@ -795,6 +795,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	userGroupsSvc, err := local.NewUserGroupService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -820,7 +826,7 @@ func New(config Config) (*Cache, error) {
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
-		userGroupsCache:              local.NewUserGroupService(config.Backend),
+		userGroupsCache:              userGroupsSvc,
 		oktaCache:                    oktaSvc,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
