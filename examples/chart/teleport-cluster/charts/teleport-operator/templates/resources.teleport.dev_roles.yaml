@@ -74,9 +74,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -457,9 +470,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -819,7 +845,7 @@ spec:
                           format: int32
                           type: integer
                         value:
-                          description: Value specifies the valueg to be used in the
+                          description: Value specifies the value to be used in the
                             cert extension.
                           type: string
                       type: object
@@ -849,6 +875,11 @@ spec:
                       sharing is allowed between the user's workstation and the remote
                       desktop. It defaults to false unless explicitly set to true.
                     type: boolean
+                  device_trust_mode:
+                    description: DeviceTrustMode is the device authorization mode
+                      used for the resources associated with the role. See DeviceTrust.Mode.
+                      Reserved for future use, not yet used by Teleport.
+                    type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
                       expired certificates.
@@ -863,6 +894,22 @@ spec:
                   forward_agent:
                     description: ForwardAgent is SSH agent forwarding.
                     type: boolean
+                  idp:
+                    description: IDP is a set of options related to accessing IdPs
+                      within Teleport. Requires Teleport Enterprise.
+                    nullable: true
+                    properties:
+                      saml:
+                        description: SAML are options related to the Teleport SAML
+                          IdP.
+                        nullable: true
+                        properties:
+                          enabled:
+                            description: Enabled is set to true if this option allows
+                              access to the Teleport SAML IdP.
+                            type: boolean
+                        type: object
+                    type: object
                   lock:
                     description: Lock specifies the locking mode (strict|best_effort)
                       to be applied with the role.
@@ -918,7 +965,7 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request stategy
+                    description: RequestAccess defines the access request strategy
                       (optional|note|always) where optional is the default.
                     type: string
                   request_prompt:
@@ -1081,9 +1128,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -1464,9 +1524,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
                     description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -1826,7 +1899,7 @@ spec:
                           format: int32
                           type: integer
                         value:
-                          description: Value specifies the valueg to be used in the
+                          description: Value specifies the value to be used in the
                             cert extension.
                           type: string
                       type: object
@@ -1856,6 +1929,11 @@ spec:
                       sharing is allowed between the user's workstation and the remote
                       desktop. It defaults to false unless explicitly set to true.
                     type: boolean
+                  device_trust_mode:
+                    description: DeviceTrustMode is the device authorization mode
+                      used for the resources associated with the role. See DeviceTrust.Mode.
+                      Reserved for future use, not yet used by Teleport.
+                    type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
                       expired certificates.
@@ -1870,6 +1948,22 @@ spec:
                   forward_agent:
                     description: ForwardAgent is SSH agent forwarding.
                     type: boolean
+                  idp:
+                    description: IDP is a set of options related to accessing IdPs
+                      within Teleport. Requires Teleport Enterprise.
+                    nullable: true
+                    properties:
+                      saml:
+                        description: SAML are options related to the Teleport SAML
+                          IdP.
+                        nullable: true
+                        properties:
+                          enabled:
+                            description: Enabled is set to true if this option allows
+                              access to the Teleport SAML IdP.
+                            type: boolean
+                        type: object
+                    type: object
                   lock:
                     description: Lock specifies the locking mode (strict|best_effort)
                       to be applied with the role.
@@ -1925,7 +2019,7 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request stategy
+                    description: RequestAccess defines the access request strategy
                       (optional|note|always) where optional is the default.
                     type: string
                   request_prompt:
