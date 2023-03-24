@@ -17,9 +17,9 @@ limitations under the License.
 package types
 
 import (
+	"encoding/xml"
 	"fmt"
 
-	"github.com/crewjam/saml/samlsp"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -108,7 +108,11 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	if s.Spec.EntityID == "" {
-		ed, err := samlsp.ParseMetadata([]byte(s.Spec.EntityDescriptor))
+		// Extract just the entityID attribute from the descriptor
+		ed := &struct {
+			EntityID string `xml:"entityID,attr"`
+		}{}
+		err := xml.Unmarshal([]byte(s.Spec.EntityDescriptor), ed)
 		if err != nil {
 			return trace.Wrap(err)
 		}
