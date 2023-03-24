@@ -434,9 +434,24 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
+	oktaLabels := map[string]string{}
+	for k, v := range staticLabels {
+		oktaLabels[k] = v
+	}
+	oktaLabels[types.OriginLabel] = types.OriginOkta
+	appOkta, err := types.NewAppV3(types.Metadata{
+		Name:   "okta",
+		Labels: oktaLabels,
+	}, types.AppSpecV3{
+		URI:        oktaAppURL,
+		PublicAddr: "okta.example.com",
+	})
+	require.NoError(t, err)
+	serverOkta, err := types.NewAppServerV3FromApp(appOkta, "test", s.hostUUID)
+	require.NoError(t, err)
 
 	sort.Sort(types.AppServers(servers))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
+	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo, serverOkta}, servers,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Expires")))
 
 	// Check the expiry time is correct.
