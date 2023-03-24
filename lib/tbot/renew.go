@@ -80,7 +80,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig, err := id.SSHClientConfig()
+	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

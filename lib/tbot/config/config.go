@@ -234,7 +234,7 @@ type BotConfig struct {
 	// regulations. This means the bot should:
 	// - Refuse to run if not compiled with boringcrypto
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
-	// - Restrict certain TLS configuration. See
+	// - Restrict TLS / SSH cipher suites and TLS version
 	FIPS bool `yaml:"fips"`
 }
 

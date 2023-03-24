@@ -228,10 +228,11 @@ func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
 
 // SSHClientConfig returns a ssh.ClientConfig used by the bot to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
