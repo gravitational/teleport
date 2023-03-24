@@ -241,6 +241,10 @@ func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 		return nil, trace.BadParameter("user cert has no valid principals")
 	}
 	return &ssh.ClientConfig{
+		// TODO: Should we be limiting KEX, MAC and Ciphers here to
+		// - defaults.FIPSKEXAlgorithms
+		// - defaults.FIPSMACAlgorithms
+		// - defaults.FIPSCiphers
 		User:            i.SSHCert.ValidPrincipals[0],
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
