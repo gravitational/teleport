@@ -236,6 +236,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{},
@@ -282,6 +287,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						Namespaces: []string{apidefaults.Namespace},
@@ -367,6 +377,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(false),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}, "c-d": []string{"e"}},
@@ -467,6 +482,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:       types.Labels{"a": []string{"b"}},
@@ -554,6 +574,11 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateHostUser:          types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
+						IDP: &types.IdPOptions{
+							SAML: &types.IdPSAMLOptions{
+								Enabled: types.NewBoolOption(true),
+							},
+						},
 					},
 					Allow: types.RoleConditions{
 						KubernetesResources: []types.KubernetesResource{
@@ -811,11 +836,12 @@ func TestCheckAccessToServer(t *testing.T) {
 		},
 	}
 	testCases := []struct {
-		name                   string
-		roles                  []*types.RoleV6
-		checks                 []check
-		authPrefMFARequireType types.RequireMFAType
-		mfaVerified            bool
+		name                        string
+		roles                       []*types.RoleV6
+		checks                      []check
+		authSpec                    types.AuthPreferenceSpecV2
+		enableDeviceVerification    bool
+		mfaVerified, deviceVerified bool
 	}{
 		{
 			name:  "empty role set has access to nothing",
@@ -951,6 +977,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverDB, login: "admin", hasAccess: false},
 			},
 		},
+		// MFA.
 		{
 			name: "one role requires MFA but MFA was not verified",
 			roles: []*types.RoleV6{
@@ -997,7 +1024,9 @@ func TestCheckAccessToServer(t *testing.T) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			authPrefMFARequireType: types.RequireMFAType_SESSION,
+			authSpec: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_SESSION,
+			},
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: false},
 				{server: serverWorker, login: "root", hasAccess: false},
@@ -1011,8 +1040,239 @@ func TestCheckAccessToServer(t *testing.T) {
 					r.Spec.Allow.Logins = []string{"root"}
 				}),
 			},
-			authPrefMFARequireType: types.RequireMFAType_SESSION,
-			mfaVerified:            true,
+			authSpec: types.AuthPreferenceSpecV2{
+				RequireMFAType: types.RequireMFAType_SESSION,
+			},
+			mfaVerified: true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "cluster requires session+hardware key, MFA not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+			},
+			authSpec: types.AuthPreferenceSpecV2{
+				// Functionally equivalent to "session".
+				RequireMFAType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+			},
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "cluster requires session+hardware key, MFA verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+			},
+			authSpec: types.AuthPreferenceSpecV2{
+				// Functionally equivalent to "session".
+				RequireMFAType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
+			},
+			mfaVerified: true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "cluster requires hardware key touch, MFA not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+			},
+			authSpec: types.AuthPreferenceSpecV2{
+				// Functionally equivalent to "off".
+				RequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
+			},
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		// Device Trust.
+		{
+			name: "role requires trusted device, device not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "role requires trusted device, device verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "role requires trusted device for specific label, device not verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: false}, // NOK, device not verified
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "role requires trusted device for specific label, device verified",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Allow.NodeLabels = types.Labels{"role": []string{"worker"}}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true}, // OK, device verified
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "device verification disabled",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: false,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: true},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: true},
+			},
+		},
+		{
+			name: "restrictive role device mode takes precedence",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeOff
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeOptional
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired // wins
+				}),
+			},
+			enableDeviceVerification: true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		// MFA + Device verification.
+		{
+			name: "MFA and device required, fails MFA",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			mfaVerified:              false,
+			deviceVerified:           true,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "MFA and device required, fails device",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			mfaVerified:              true,
+			deviceVerified:           false,
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: false},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
+		{
+			name: "MFA and device required, passes all",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.Logins = []string{"root"}
+					r.Spec.Options.DeviceTrustMode = constants.DeviceTrustModeRequired
+				}),
+			},
+			enableDeviceVerification: true,
+			mfaVerified:              true,
+			deviceVerified:           true,
 			checks: []check{
 				{server: serverNoLabels, login: "root", hasAccess: true},
 				{server: serverWorker, login: "root", hasAccess: true},
@@ -1022,9 +1282,7 @@ func TestCheckAccessToServer(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-				RequireMFAType: tc.authPrefMFARequireType,
-			})
+			authPref, err := types.NewAuthPreference(tc.authSpec)
 			require.NoError(t, err, "NewAuthPreference failed")
 
 			var set RoleSet
@@ -1032,9 +1290,11 @@ func TestCheckAccessToServer(t *testing.T) {
 				set = append(set, tc.roles[i])
 			}
 			for j, check := range tc.checks {
-				comment := fmt.Sprintf("check %v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
+				comment := fmt.Sprintf("check #%v: user: %v, server: %v, should access: %v", j, check.login, check.server.GetName(), check.hasAccess)
 				state := set.GetAccessState(authPref)
 				state.MFAVerified = tc.mfaVerified
+				state.EnableDeviceVerification = tc.enableDeviceVerification
+				state.DeviceVerified = tc.deviceVerified
 				err := set.checkAccess(
 					check.server,
 					state,
@@ -1042,7 +1302,7 @@ func TestCheckAccessToServer(t *testing.T) {
 				if check.hasAccess {
 					require.NoError(t, err, comment)
 				} else {
-					require.True(t, trace.IsAccessDenied(err), comment)
+					require.True(t, trace.IsAccessDenied(err), "Got err = %v/%T, wanted AccessDenied. %v", err, err, comment)
 				}
 			}
 		})
@@ -2754,7 +3014,7 @@ func TestCheckAccessToDatabase(t *testing.T) {
 	}
 	require.NoError(t, roleDevProd.CheckAndSetDefaults())
 	roleDevProdWithMFA := &types.RoleV6{
-		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
+		Metadata: types.Metadata{Name: "dev-prod-mfa", Namespace: apidefaults.Namespace},
 		Version:  types.V3,
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -2769,6 +3029,23 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		},
 	}
 	require.NoError(t, roleDevProdWithMFA.CheckAndSetDefaults())
+	roleDevProdWithDeviceTrust := &types.RoleV6{
+		Metadata: types.Metadata{Name: "dev-prod-devicetrust", Namespace: apidefaults.Namespace},
+		Version:  types.V3,
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				DeviceTrustMode: constants.DeviceTrustModeRequired,
+			},
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseNames:  []string{"test"},
+				DatabaseUsers:  []string{"dev"},
+			},
+		},
+	}
+	require.NoError(t, roleDevProdWithDeviceTrust.CheckAndSetDefaults())
+
 	// Database labels are not set in allow/deny rules on purpose to test
 	// that they're set during check and set defaults below.
 	roleDeny := &types.RoleV6{
@@ -2861,12 +3138,36 @@ func TestCheckAccessToDatabase(t *testing.T) {
 				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
 			},
 		},
+		{
+			name:  "roles requires trusted device, device not verified",
+			roles: RoleSet{roleDevStage, roleDevProd, roleDevProdWithDeviceTrust},
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           false,
+			},
+			access: []access{
+				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
+				{server: dbProd, dbName: "test", dbUser: "dev", access: false},
+			},
+		},
+		{
+			name:  "roles requires trusted device, device verified",
+			roles: RoleSet{roleDevStage, roleDevProd, roleDevProdWithDeviceTrust},
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           true,
+			},
+			access: []access{
+				{server: dbStage, dbName: "test", dbUser: "dev", access: true},
+				{server: dbProd, dbName: "test", dbUser: "dev", access: true},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.checkAccess(access.server, tc.state,
-					&DatabaseUserMatcher{User: access.dbUser},
+					NewDatabaseUserMatcher(access.server, access.dbUser),
 					&DatabaseNameMatcher{Name: access.dbName})
 				if access.access {
 					require.NoError(t, err)
@@ -2920,6 +3221,32 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 			},
 		},
 	}
+
+	dbRequireAWSRoles, err := types.NewDatabaseV3(types.Metadata{
+		Name: "dynamodb",
+	}, types.DatabaseSpecV3{
+		Protocol: "dynamodb",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, dbRequireAWSRoles.RequireAWSIAMRolesAsUsers())
+	roleWithAWSRoles := &types.RoleV6{
+		Metadata: types.Metadata{Name: "aws-roles", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseUsers: []string{
+					"allow-role-with-short-name",
+					"arn:aws:iam::123456789012:role/allow-role-with-full-arn",
+				},
+			},
+		},
+	}
+
 	type access struct {
 		server types.Database
 		dbUser string
@@ -2947,11 +3274,25 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				{server: dbProd, dbUser: "dev", access: true},
 			},
 		},
+		{
+			name:  "database types require AWS roles as database users",
+			roles: RoleSet{roleWithAWSRoles},
+			access: []access{
+				{server: dbRequireAWSRoles, dbUser: "allow-role-with-short-name", access: true},
+				{server: dbRequireAWSRoles, dbUser: "allow-role-with-full-arn", access: true},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-full-arn", access: true},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-short-name", access: true},
+				{server: dbRequireAWSRoles, dbUser: "unknown-role-name", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:role/unknown-role-name", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws:iam::123456789012:user/username", access: false},
+				{server: dbRequireAWSRoles, dbUser: "arn:aws-cn:iam::123456789012:role/allow-role-with-short-name", access: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
-				err := tc.roles.checkAccess(access.server, AccessState{}, &DatabaseUserMatcher{User: access.dbUser})
+				err := tc.roles.checkAccess(access.server, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
 					require.NoError(t, err)
 				} else {
@@ -3085,274 +3426,222 @@ func TestRoleSetEnumerateDatabaseUsers(t *testing.T) {
 	}
 }
 
-func TestEnumerateTestLogins(t *testing.T) {
-	devEnvRole := &types.RoleV6{
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Logins:     []string{"devuser"},
-				Namespaces: []string{apidefaults.Namespace},
-				NodeLabels: types.Labels{
-					"env": []string{"dev"},
+func TestGetAllowedLoginsForResource(t *testing.T) {
+	newRole := func(
+		allowLogins []string,
+		allowLabels types.Labels,
+		denyLogins []string,
+		denyLabels types.Labels,
+	) *types.RoleV6 {
+		return &types.RoleV6{
+			Spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Namespaces:           []string{apidefaults.Namespace},
+					Logins:               allowLogins,
+					WindowsDesktopLogins: allowLogins,
+					NodeLabels:           allowLabels,
+					WindowsDesktopLabels: allowLabels,
+				},
+				Deny: types.RoleConditions{
+					Namespaces:           []string{apidefaults.Namespace},
+					Logins:               denyLogins,
+					WindowsDesktopLogins: denyLogins,
+					NodeLabels:           denyLabels,
+					WindowsDesktopLabels: denyLabels,
 				},
 			},
-		},
+		}
 	}
 
-	prodEnvRole := &types.RoleV6{
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Logins:     []string{"produser"},
-				Namespaces: []string{apidefaults.Namespace},
-				NodeLabels: types.Labels{
-					"env": []string{"prod"},
-				},
-			},
-		},
-	}
-
-	anyEnvRole := &types.RoleV6{
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Logins:     []string{"anyenvrole"},
-				Namespaces: []string{apidefaults.Namespace},
-				NodeLabels: types.Labels{
-					"env": []string{"*"},
-				},
-			},
-		},
-	}
-
-	rootUser := &types.RoleV6{
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Logins:     []string{"root"},
-				Namespaces: []string{apidefaults.Namespace},
-				NodeLabels: types.Labels{
-					"*": []string{"*"},
-				},
-			},
-		},
-	}
-
-	roleWithMultipleLabels := &types.RoleV6{
-		Spec: types.RoleSpecV6{
-			Allow: types.RoleConditions{
-				Logins:     []string{"multiplelabelsuser"},
-				Namespaces: []string{apidefaults.Namespace},
-				NodeLabels: types.Labels{
-					"region": []string{"*"},
-					"env":    []string{"dev"},
-				},
-			},
-		},
-	}
+	devEnvRole := newRole([]string{"devuser"}, types.Labels{"env": []string{"dev"}}, []string{}, types.Labels{})
+	prodEnvRole := newRole([]string{"produser"}, types.Labels{"env": []string{"prod"}}, []string{}, types.Labels{})
+	anyEnvRole := newRole([]string{"anyenvrole"}, types.Labels{"env": []string{"*"}}, []string{}, types.Labels{})
+	rootUser := newRole([]string{"root"}, types.Labels{"*": []string{"*"}}, []string{}, types.Labels{})
+	roleWithMultipleLabels := newRole([]string{"multiplelabelsuser"},
+		types.Labels{
+			"region": []string{"*"},
+			"env":    []string{"dev"},
+		}, []string{}, types.Labels{})
 
 	tt := []struct {
-		name                 string
-		server               types.Server
-		roleSet              RoleSet
-		expectedLogins       []string
-		expectedDeniedLogins []string
+		name           string
+		labels         map[string]string
+		roleSet        RoleSet
+		expectedLogins []string
 	}{
 		{
 			name: "env dev login is added",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "dev",
-			}),
+			},
 			roleSet:        NewRoleSet(devEnvRole),
 			expectedLogins: []string{"devuser"},
 		},
 		{
 			name: "env prod login is added",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "prod",
-			}),
+			},
 			roleSet:        NewRoleSet(prodEnvRole),
 			expectedLogins: []string{"produser"},
 		},
 		{
 			name: "only the correct login is added",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "prod",
-			}),
-			roleSet:              NewRoleSet(prodEnvRole, devEnvRole),
-			expectedLogins:       []string{"produser"},
-			expectedDeniedLogins: []string{"devuser"},
+			},
+			roleSet:        NewRoleSet(prodEnvRole, devEnvRole),
+			expectedLogins: []string{"produser"},
 		},
 		{
 			name: "logins from role not authorizeds are not added",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "staging",
-			}),
-			roleSet:              NewRoleSet(devEnvRole, prodEnvRole),
-			expectedLogins:       nil,
-			expectedDeniedLogins: []string{"devuser", "produser"},
+			},
+			roleSet:        NewRoleSet(devEnvRole, prodEnvRole),
+			expectedLogins: nil,
 		},
 		{
 			name: "role with wildcard get its logins",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "prod",
-			}),
+			},
 			roleSet:        NewRoleSet(anyEnvRole),
 			expectedLogins: []string{"anyenvrole"},
 		},
 		{
 			name: "can return multiple logins",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "prod",
-			}),
+			},
 			roleSet:        NewRoleSet(anyEnvRole, prodEnvRole),
 			expectedLogins: []string{"anyenvrole", "produser"},
 		},
 		{
 			name: "can return multiple logins from same role",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "prod",
-			}),
-			roleSet: NewRoleSet(&types.RoleV6{
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Logins:     []string{"role1", "role2", "role3"},
-						Namespaces: []string{apidefaults.Namespace},
-						NodeLabels: types.Labels{
-							"env": []string{"*"},
-						},
-					},
-				},
-			}),
+			},
+			roleSet: NewRoleSet(
+				newRole(
+					[]string{"role1", "role2", "role3"},
+					types.Labels{"env": []string{"*"}}, []string{}, types.Labels{}),
+			),
 			expectedLogins: []string{"role1", "role2", "role3"},
 		},
 		{
 			name: "works with user with full access",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "prod",
-			}),
+			},
 			roleSet:        NewRoleSet(rootUser),
 			expectedLogins: []string{"root"},
 		},
 		{
 			name: "works with server with multiple labels",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env":    "prod",
 				"region": "us-east-1",
-			}),
+			},
 			roleSet:        NewRoleSet(prodEnvRole),
 			expectedLogins: []string{"produser"},
 		},
 		{
 			name: "don't add login from unrelated labels",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "dev",
-			}),
-			roleSet: NewRoleSet(&types.RoleV6{
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Logins:     []string{"anyregionuser"},
-						Namespaces: []string{apidefaults.Namespace},
-						NodeLabels: types.Labels{
-							"region": []string{"*"},
-						},
-					},
-				},
-			}),
-			expectedLogins:       nil,
-			expectedDeniedLogins: []string{"anyregionuser"},
+			},
+			roleSet: NewRoleSet(
+				newRole(
+					[]string{"anyregionuser"},
+					types.Labels{"region": []string{"*"}}, []string{}, types.Labels{}),
+			),
+			expectedLogins: nil,
 		},
 		{
 			name: "works with roles with multiple labels that role shouldn't access",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "dev",
-			}),
-			roleSet:              NewRoleSet(roleWithMultipleLabels),
-			expectedLogins:       nil,
-			expectedDeniedLogins: []string{"multiplelabelsuser"},
+			},
+			roleSet:        NewRoleSet(roleWithMultipleLabels),
+			expectedLogins: nil,
 		},
 		{
 			name: "works with roles with multiple labels that role shouldn't access",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env":    "dev",
 				"region": "us-west-1",
-			}),
+			},
 			roleSet:        NewRoleSet(roleWithMultipleLabels),
 			expectedLogins: []string{"multiplelabelsuser"},
 		},
 		{
 			name: "works with roles with regular expressions",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"region": "us-west-1",
-			}),
-			roleSet: NewRoleSet(&types.RoleV6{
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Logins:     []string{"rolewithregexpuser"},
-						Namespaces: []string{apidefaults.Namespace},
-						NodeLabels: types.Labels{
-							"region": []string{"^us-west-1|eu-central-1$"},
-						},
-					},
-				},
-			}),
+			},
+			roleSet: NewRoleSet(
+				newRole(
+					[]string{"rolewithregexpuser"},
+					types.Labels{"region": []string{"^us-west-1|eu-central-1$"}}, []string{}, types.Labels{}),
+			),
 			expectedLogins: []string{"rolewithregexpuser"},
 		},
 		{
 			name: "works with denied roles",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "dev",
-			}),
-			roleSet: NewRoleSet(devEnvRole, &types.RoleV6{
-				Spec: types.RoleSpecV6{
-					Deny: types.RoleConditions{
-						Logins:     []string{"devuser"},
-						Namespaces: []string{apidefaults.Namespace},
-						NodeLabels: types.Labels{
-							"env": []string{"*"},
-						},
-					},
-				},
-			}),
-			expectedLogins:       nil,
-			expectedDeniedLogins: []string{"devuser"},
+			},
+			roleSet: NewRoleSet(
+				newRole(
+					[]string{}, types.Labels{}, []string{"devuser"}, types.Labels{"env": []string{"*"}}),
+			),
+			expectedLogins: nil,
 		},
 		{
 			name: "works with denied roles of unrelated labels",
-			server: makeTestServer(map[string]string{
+			labels: map[string]string{
 				"env": "dev",
-			}),
-			roleSet: NewRoleSet(devEnvRole, &types.RoleV6{
-				Spec: types.RoleSpecV6{
-					Deny: types.RoleConditions{
-						Logins:     []string{"devuser"},
-						Namespaces: []string{apidefaults.Namespace},
-						NodeLabels: types.Labels{
-							"region": []string{"*"},
-						},
-					},
-				},
-			}),
-			expectedLogins:       nil,
-			expectedDeniedLogins: []string{"devuser"},
+			},
+			roleSet: NewRoleSet(
+				newRole(
+					[]string{}, types.Labels{}, []string{"devuser"}, types.Labels{"region": []string{"*"}}),
+			),
+			expectedLogins: nil,
 		},
 	}
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			logins := tc.roleSet.EnumerateServerLogins(tc.server)
-			require.Equal(t, tc.expectedLogins, logins.Allowed())
-			require.Equal(t, tc.expectedDeniedLogins, logins.Denied())
-			// wildcards are not allowed for logins
-			require.Equal(t, false, logins.wildcardAllowed)
-			require.Equal(t, false, logins.wildcardDenied)
+			server := mustMakeTestServer(tc.labels)
+			desktop := mustMakeTestWindowsDesktop(tc.labels)
+
+			serverLogins, err := tc.roleSet.GetAllowedLoginsForResource(server)
+			require.NoError(t, err)
+			desktopLogins, err := tc.roleSet.GetAllowedLoginsForResource(desktop)
+			require.NoError(t, err)
+
+			require.ElementsMatch(t, tc.expectedLogins, serverLogins)
+			require.ElementsMatch(t, tc.expectedLogins, desktopLogins)
 		})
 	}
 }
 
-// makeTestServer creates a server with labels and an empty spec.
+// mustMakeTestServer creates a server with labels and an empty spec.
 // It panics in case of an error. Used only for testing
-func makeTestServer(labels map[string]string) types.Server {
+func mustMakeTestServer(labels map[string]string) types.Server {
 	s, err := types.NewServerWithLabels("server", types.KindNode, types.ServerSpecV2{}, labels)
 	if err != nil {
 		panic(err)
 	}
 	return s
+}
+
+func mustMakeTestWindowsDesktop(labels map[string]string) types.WindowsDesktop {
+	d, err := types.NewWindowsDesktopV3("desktop", labels, types.WindowsDesktopSpecV3{Addr: "addr"})
+	if err != nil {
+		panic(err)
+	}
+	return d
 }
 
 func TestCheckDatabaseNamesAndUsers(t *testing.T) {
@@ -4262,6 +4551,140 @@ func TestCheckGCPServiceAccounts(t *testing.T) {
 	}
 }
 
+func TestCheckAccessToSAMLIdP(t *testing.T) {
+	roleNoSAMLOptions := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleNoSAMLOptions", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{MaxSessionTTL: types.Duration(time.Hour)},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+			},
+		},
+	}
+	//nolint:revive // Because we want this to be IdP.
+	roleOnlyIdPBlock := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleOnlyIdPBlock", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(time.Hour),
+				IDP:           &types.IdPOptions{},
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+			},
+		},
+	}
+	roleOnlySAMLBlock := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleOnlySAMLBlock", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{},
+				},
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+			},
+		},
+	}
+	roleSAMLAllowed := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleSAMLAllowed", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(2 * time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(true),
+					},
+				},
+			},
+		},
+	}
+	roleSAMLNotAllowed := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleSAMLNotAllowed", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(2 * time.Hour),
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(false),
+					},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name                string
+		roles               RoleSet
+		authPrefSamlEnabled bool
+		errAssertionFunc    require.ErrorAssertionFunc
+	}{
+		{
+			name:                "role with no IdP block",
+			roles:               RoleSet{roleNoSAMLOptions},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "role with only IdP block",
+			roles:               RoleSet{roleOnlyIdPBlock},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "role with only SAML block",
+			roles:               RoleSet{roleOnlySAMLBlock},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "only allowed role",
+			roles:               RoleSet{roleSAMLAllowed},
+			authPrefSamlEnabled: true,
+			errAssertionFunc:    require.NoError,
+		},
+		{
+			name:                "only denied role",
+			roles:               RoleSet{roleSAMLNotAllowed},
+			authPrefSamlEnabled: true,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
+			},
+		},
+		{
+			name:                "allowed and denied role",
+			roles:               RoleSet{roleSAMLAllowed, roleSAMLNotAllowed},
+			authPrefSamlEnabled: true,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("user has been denied access to the SAML IdP by role roleSAMLNotAllowed"))
+			},
+		},
+		{
+			name:                "allowed role, but denied at cluster level",
+			roles:               RoleSet{roleSAMLAllowed},
+			authPrefSamlEnabled: false,
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.ErrorIs(t, err, trace.AccessDenied("SAML IdP is disabled at the cluster level"))
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+				IDP: &types.IdPOptions{
+					SAML: &types.IdPSAMLOptions{
+						Enabled: types.NewBoolOption(tc.authPrefSamlEnabled),
+					},
+				},
+			})
+			require.NoError(t, err)
+			tc.errAssertionFunc(t, tc.roles.CheckAccessToSAMLIdP(authPref))
+		})
+	}
+}
+
 func TestCheckAccessToKubernetes(t *testing.T) {
 	clusterNoLabels := &types.KubernetesCluster{
 		Name: "no-labels",
@@ -4300,12 +4723,30 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 	}
 	matchingLabelsRoleWithMFA := &types.RoleV6{
 		Metadata: types.Metadata{
-			Name:      "matching-labels",
+			Name:      "matching-labels-mfa",
 			Namespace: apidefaults.Namespace,
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
 				RequireMFAType: types.RequireMFAType_SESSION,
+			},
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				KubernetesLabels: types.Labels{
+					"foo": apiutils.Strings{"bar"},
+					"baz": apiutils.Strings{"qux"},
+				},
+			},
+		},
+	}
+	matchingLabelsRoleWithDeviceTrust := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "matching-labels-devicetrust",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				DeviceTrustMode: constants.DeviceTrustModeRequired,
 			},
 			Allow: types.RoleConditions{
 				Namespaces: []string{apidefaults.Namespace},
@@ -4424,6 +4865,36 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 			cluster:   clusterWithLabels,
 			state:     AccessState{MFAVerified: true, MFARequired: MFARequiredAlways},
 			hasAccess: true,
+		},
+		{
+			name:    "role requires device trust, device not verified",
+			roles:   []*types.RoleV6{wildcardRole, matchingLabelsRole, matchingLabelsRoleWithDeviceTrust},
+			cluster: clusterWithLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           false,
+			},
+			hasAccess: false,
+		},
+		{
+			name:    "role requires device trust, device verified",
+			roles:   []*types.RoleV6{wildcardRole, matchingLabelsRole, matchingLabelsRoleWithDeviceTrust},
+			cluster: clusterWithLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           true,
+			},
+			hasAccess: true,
+		},
+		{
+			name:    "role requires device trust, resource doesn't match",
+			roles:   []*types.RoleV6{wildcardRole, matchingLabelsRole, matchingLabelsRoleWithDeviceTrust},
+			cluster: clusterNoLabels,
+			state: AccessState{
+				EnableDeviceVerification: true,
+				DeviceVerified:           false,
+			},
+			hasAccess: true, // doesn't match device trust role
 		},
 	}
 	for _, tc := range testCases {
@@ -4605,7 +5076,6 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		roleSet RoleSet
-		state   AccessState
 		checks  []check
 	}{
 		{
@@ -4693,7 +5163,7 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 			for i, check := range test.checks {
 				msg := fmt.Sprintf("check=%d, user=%v, server=%v, should_have_access=%v",
 					i, check.login, check.desktop.GetName(), check.hasAccess)
-				err := test.roleSet.checkAccess(check.desktop, test.state, NewWindowsLoginMatcher(check.login))
+				err := test.roleSet.checkAccess(check.desktop, AccessState{}, NewWindowsLoginMatcher(check.login))
 				if check.hasAccess {
 					require.NoError(t, err, msg)
 				} else {
@@ -6163,6 +6633,11 @@ func TestMatchValidAzureIdentity(t *testing.T) {
 		{
 			name:     "correct format",
 			identity: "/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/example-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
+			valid:    true,
+		},
+		{
+			name:     "correct format with underscore",
+			identity: "/subscriptions/1020304050607-cafe-8090-a0b0c0d0e0f0/resourceGroups/az-cli-access_group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure_under",
 			valid:    true,
 		},
 		{

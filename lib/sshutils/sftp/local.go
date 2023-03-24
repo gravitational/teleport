@@ -19,6 +19,7 @@ package sftp
 import (
 	"context"
 	"io"
+	"io/fs"
 	"os"
 	"time"
 
@@ -29,7 +30,7 @@ import (
 // the local file system
 type localFS struct{}
 
-func (l *localFS) Type() string {
+func (l localFS) Type() string {
 	return "local"
 }
 
@@ -67,7 +68,7 @@ func (l localFS) ReadDir(ctx context.Context, path string) ([]os.FileInfo, error
 	return fileInfos, nil
 }
 
-func (l localFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
+func (l localFS) Open(ctx context.Context, path string) (fs.File, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -77,7 +78,7 @@ func (l localFS) Open(ctx context.Context, path string) (io.ReadCloser, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return f, nil
+	return &fileWrapper{file: f}, nil
 }
 
 func (l localFS) Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error) {

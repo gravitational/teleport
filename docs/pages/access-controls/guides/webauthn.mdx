@@ -173,8 +173,14 @@ $ tsh mfa add
 # MFA device "desktop yubikey" added.
 ```
 
-<Admonition type="warning" title="Windows support">
-  WebAuthn devices are currently not supported in `tsh` on Windows.
+<Admonition type="tip">
+`tsh mfa` picks the strongest known second factor you have for the "Tap any
+*registered* security key" step. This may be undesirable at times, so you may
+fallback to a weaker second factor, like OTP, using `tsh mfa add
+--mfa-mode=otp`.
+
+See the possible `--mfa-mode` values in the [Teleport CLI
+Reference](../../reference/cli.mdx#tsh-global-flags) page.
 </Admonition>
 
 ## Step 3/3. Log in using WebAuthn

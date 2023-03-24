@@ -1,34 +1,30 @@
 ---
 title: Role Access Requests
-description: Teleport allows users to request new roles with elevated privileges from the CLI or UI. Requests can be escalated via ChatOps or anywhere else via our flexible Authorization Workflow API.
+description: Use Just-in-time Access Requests to request new roles with elevated privileges.
 h1: Teleport Role Access Requests
 ---
 
-With Teleport, users can request additional roles via a third-party
-communication service. The Access Request API makes it easy to dynamically
-approve or deny these requests.
-
-<ScopedBlock scope={["oss"]}>
-
-Just-in-time Access Requests are a feature of Teleport Enterprise.
-Open-source Teleport users can get a preview of how Access Requests work by
-requesting a role via the Teleport CLI. Full Access Request functionality,
-including Resource Access Requests and an intuitive and searchable UI are
-available in Teleport Enterprise.
-
-</ScopedBlock>
+Teleport's Just-in-time Access Requests allow users to request access to
+additional roles in order to elevate their privileges. Requests can be escalated
+via ChatOps or anywhere else via our flexible Authorization Workflow API.
 
 ## Prerequisites
 
-(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 (!docs/pages/includes/tctl.mdx!)
 
+## RBAC Setup
 
-## Role Access Requests Setup
+In this example, we will define three roles:
+
+1. `contractor`: users with this role can request elevated access to the `dba` role
+2. `dba`: this role grants access to databases
+3. `approver`: users with this role can approve requests for access to the `dba` role
 
 **Contractor Role**
-This role allows the contractor to request the role DBA.
+
+Users with this role can request access to the `dba` role.
 
 ```yaml
 kind: role
@@ -39,15 +35,11 @@ spec:
   allow:
     request:
       roles: ['dba']
-    # ...
-  deny:
-    # ...
-  options:
-    # ...
 ```
 
 **DBA Role**
-This role can be requested by the contractor.
+
+This role grants access to databases.
 
 ```yaml
 kind: role
@@ -56,138 +48,146 @@ metadata:
   name: dba
 spec:
   allow:
-    # ...
-  deny:
-    # ...
+    db_labels:
+      '*': '*'
   options:
-    # ...
     # Only allows the contractor to use this role for 1 hour from time of request.
     max_session_ttl: 1h
 ```
 
-**Admin Role**
-This role allows the admin to approve the contractor's request.
+**Approver Role**
+
+This role allows users to approve requests for the `dba` role.
 
 ```yaml
 kind: role
 version: v5
 metadata:
-  name: admin
+  name: approver
 spec:
   allow:
     # `review_requests` permits the listed roles to be approved
     review_requests:
       roles:
       - 'dba'
-    rules:
-    # `access_request` is part of Access Workflows introduced in 4.2
-    # `access_request` should only be given to Teleport Admins.
-    # For a full list of allow-rules, see
-    # https://goteleport.com/docs/access-controls/reference/
-    - resources:
-      - access_request
-      verbs:
-      - list
-      - read
-      - update
-      - delete
-  deny:
-    # ...
-  options:
-    # ...
 ```
 
-```code
-$ tsh login --request-roles=dba teleport-cluster
-# Seeking request approval... (id: bc8ca931-fec9-4b15-9a6f-20c13c5641a9)
-```
-
-<Admonition type="note">
-  Users can finish the request without waiting for approval with the `--request-nowait` flag.
-  Once the request is approved, the user can see it with `tsh request ls` and login with it
-  using `tsh login --request-id`.
+<Admonition type="warning" title="Requires Teleport Enterprise">
+Roles containing a `review_requests` rule can only be used in Teleport
+Enterprise. In OSS Teleport, Access Requests must be approved by an admin
+running `tctl` on the Auth Server.
 </Admonition>
 
-As a Teleport Administrator:
+## Requesting Access
 
-```code
-$ tctl request ls
-# Token                                Requestor Metadata       Created At (UTC)    Status
-# ------------------------------------ --------- -------------- ------------------- -------
-# bc8ca931-fec9-4b15-9a6f-20c13c5641a9 alice     roles=dba      07 Nov 19 19:38 UTC PENDING
-```
+While Teleport Enterprise supports the same CLI-based workflows for requesting
+access to roles, most users will prefer to request access via the web UI.
 
-```code
-$ tctl request approve bc8ca931-fec9-4b15-9a6f-20c13c5641a9
-```
+To request access to one or more roles, navigate to the access requests page.
+You can find this page by selecting **Resources** on the side bar, expanding the
+*Access Requests* menu, and selecting **New Request**.
 
-Assuming access, `tsh` will automatically manage a certificate re-issued with
-the newly requested roles applied. In this case `contractor` will now have have
-the permission of the `dba`.
+From here, the dropdown will allow you to request access to roles or to specific
+resources. Select roles in this dropdown and you will be presented with a list
+of roles you are permitted to request access to.
+
+Click **ADD TO REQUEST** to include a role in the pending request.
+
+Note: Access Requests must either contain roles or a set of specific resources.
+You can not mix the two. For more information on how to request access to
+specific resources, see the
+[Resource Access Requests Guide](./resource-requests.mdx).
+
+![New Request](../../../img/access-requests/new-role-request.png)
+
+When all desired roles have been added, click **PROCEED TO REQUEST**, where you
+can review and submit the request.
+
+![Submit Request](../../../img/access-requests/submit-request.png)
+
+## Reviewing Access Requests via the Web UI
+
+Reviewers can see a list of open requests by navigating to
+**Management** > **Access Requests** > **Review Requests** in the web UI.
 
 <Admonition type="warning">
-  Granting a role with administrative abilities could allow a user to **permanently**
-  upgrade their privileges (e.g. if contractor was granted admin for some reason).
-  We recommend only escalating to the next role of least privilege vs jumping directly
-  to "Super Admin" role.
-
-  The `deny.request` block can help mitigate the risk of doing this by accident. See
-  Example Below.
+Granting access to a role with the ability to edit other roles could allow a
+user to **permanently** upgrade their privileges. When reviewing requests, it's
+important to carefully consider the role(s) being requested and what permissions
+will be applied to the user if the request is approved.
 </Admonition>
 
-```yaml
-# Example role that explicitly denies a contractor from requesting the admin
-# role.
-kind: role
-version: v5
-metadata:
-name: contractor
-spec:
-options:
-    # ...
-allow:
-    # ...
-deny:
-    request:
-    roles: ['admin']
+## Reviewing Access Requests via `tsh`
+
+Teleport Enterprise users with appropriate permissions can also approve requests
+with the `tsh` command line:
+
+```code
+$ tsh request review --approve <request-id>
 ```
 
-## Adding a Reason to Access Requests
+## Using an approved access request
 
-When requesting a new role users can add provide a reason along with their request
-`tsh login --request-roles="db" --request-reason="Need access to db"`.
+Once a request has been approved, the requestor can elevate their access for
+both command-line workflows and web UI workflows.
 
-By requiring a reason along with an Access Request, you can provide users with a default
-unprivileged state where they must always go through the Access Requests API in order to
-gain meaningful privilege.
+For command-line use, the requestor should log in using the approved request ID:
 
-Teams can leverage claims (traits) provided by external identity providers both when
-determining which roles a user is allowed to request, and if a specific request
-should be approved/denied.
+```code
+# log in with an approved access request
+$ tsh login --request-id=bc8ca931-fec9-4b15-9a6f-20c13c5641a9
+```
 
-### Example Setup
+In the web UI, the requestor can open their request on the **Review Requests**
+page and click **ASSUME ROLES** to gain access to additional roles. Note:
+role-based access requests are additive. The user will have access to their
+standard role set in addition to the roles granted by the request.
 
-**Unprivileged User**<br/>
-In this example we have an employee who isn't able to access any systems. When they
-log in, they'll always need to provide a reason for access.
+![Approved Request](../../../img/access-requests/approved-request.png)
+
+A banner will appear at the top of the page while the approved access request is
+active. When elevated access is no longer necessary, click **Switch Back** to revert
+to the original set of roles.
+
+![Assumed Roles](../../../img/access-requests/role-assumed.png)
+
+## Next Steps
+
+### Integrating with an external tool
+(!docs/pages/includes/access-request-integrations.mdx!)
+
+### Advanced RBAC
+
+Teleport roles support a number of advanced features for further configuring
+access requests. They are highlighted in the example role below.
 
 ```yaml
 kind: role
+version: v5
 metadata:
   name: employee
 spec:
   allow:
     request:
-      # the `roles` list can now be a mixture of literals and wildcard matchers
-      roles: ['common', 'dev-*']
-      # the `claims_to_roles` mapping works the same as it does in
+      # The `roles` list can be a mixture of literal roles and
+      # wildcard matchers and/or regular expressions.
+      roles:
+        - 'common'   # the literal role named "common"
+        - 'dev-*'    # a glob - any role beginning with 'dev-'
+        - '^dev-.*$' # a regular expression (identical to the glob example above)
+
+        # provides access to dev-alpha-prod, but not dev-beta-prod
+        - 'dev-{{regexp.not_match("beta")}}-prod'
+
+      # The `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
       # can also be matchers. the below mapping says that users with
-      # the claims `groups: admins` can request any role in the system.
+      # in the SSO provider's `admins` groups can request any role in the system.
       claims_to_roles:
         - claim: groups
           value: admins
           roles: ['*']
+
       # Teleport can attach annotations to pending Access Requests. these
       # annotations may be literals, or be variable interpolation expressions,
       # effectively creating a means for propagating selected claims from an
@@ -196,74 +196,16 @@ spec:
         foo: ['bar']
         groups: ['{{external.groups}}']
   options:
-    # the `request_access` field can be set to 'always' or 'reason' to tell
+    # The `request_access` field can be set to 'always' or 'reason' to tell
     # tsh or the web UI to always create an Access Request on login. If it is
     # set to 'reason', the user will be required to indicate *why* they are
     # generating the Access Request.
     request_access: reason
-    # the `request_prompt` field can be used to tell the user what should
-    # be supplied in the request reason field.
+
+    # The `request_prompt` field can be used to customize the text that the
+    # user sees when they are be prompted to enter a reason for the request.
     request_prompt: Please provide your ticket ID
-version: v5
 ```
-
-<Admonition
-  type="tip"
-  title="Wildcard and RegEx Tips"
->
-  Teleport RBAC offers powerful wildcard and RegEx helpers. Below are a few examples.
-
-  `dev-*` - Can request all dev clusters. e.g. dev-prod,dev-stg
-
-  `^prod.*$` - Can request all `prod.*` clusters. e.g. prod.us-east
-
-  `dev-{{regexp.match("us-*")}}` - Can request any dev cluster in the US. e.g. dev-us-east-a, dev-us-west-b
-
-  `dev-{{regexp.not_match("beta")}}-prod` - Can request any cluster, apart from beta cluster. e.g. Can access dev-alpha-prod, cannot access dev-beta-prod.
-</Admonition>
-
-**Unprivileged User Login**<br/>
-
-```code
-# Login: This will prompt the user to provide a reason in the UI.
-$ tsh login
-# Login: The user can provide a reason using tsh.
-$ tsh login --request-reason="..."
-```
-
-<Admonition
-  type="tip"
-  title="Note"
->
-  Notice that the above role does not specify any logins. If a users's roles specify no logins, Teleport will now generate the user's initial SSH certificates with an invalid dummy login of the form `-teleport-nologin-<random-suffix>` (e.g. `-teleport-nologin-1e02dbfd`).
-</Admonition>
-
-**Admin Flow: Approve/Deny**<br/>
-
-A number of new parameters are now available that grant the plugin or administrator greater insight into approvals/denials:
-
-```code
-$ tctl request deny --reason='Please be more specific' --annotations=method=cli,unix-user=${USER} 28a3fb86-0230-439d-ad88-11cfcb213193
-```
-
-Because automatically generated requests always include all roles that the user is allowed to request, approvers can now specify a smaller subset of the requested roles that should actually be applied, allowing for sub-selection in cases where full escalation is not a desirable default:
-
-```code
-$ tctl request approve --roles=role-1,role-3 --reason='Approved, but not role-2 right now' 28a3fb86-0230-439d-ad88-11cfcb213193
-```
-
-### Other features of Role Access Requests
-
-- Users can request multiple roles at one time. e.g `roles: ['dba','netsec','cluster-x']`
-- Approved requests have no effect on Teleport's behavior outside of allowing additional
-  roles on re-issue. This has the nice effect of making requests "compatible" with
-  older versions of Teleport, since only the issuing Auth Server needs any particular
-  knowledge of the feature.
-
-## Next Steps
-
-### Integrating with an external tool
-(!docs/pages/includes/access-request-integrations.mdx!)
 
 ### Using TTLs with Access Requests
 

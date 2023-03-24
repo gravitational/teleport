@@ -86,17 +86,11 @@ spec:
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
-        resources:
-    {{- toYaml .Values.resources | nindent 10 }}
+        resources: {{- toYaml .Values.resources | nindent 10 }}
   {{- end }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
+  {{- if .Values.initSecurityContext }}
+        securityContext: {{- toYaml .Values.initSecurityContext | nindent 10 }}
+  {{- end }}
         volumeMounts:
         - mountPath: /etc/teleport
           name: "config"
@@ -133,6 +127,9 @@ spec:
         {{- if .Values.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
+        # Used to track whether a Teleport agent was installed using this method.
+        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+          value: true
         {{- end }}
         {{- end }}
         args:
@@ -143,14 +140,9 @@ spec:
         {{- if .Values.extraArgs }}
           {{- toYaml .Values.extraArgs | nindent 8 }}
         {{- end }}
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - all
-          readOnlyRootFilesystem: true
-          runAsNonRoot: true
-          runAsUser: 9807
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
         ports:
         - name: diag
           containerPort: 3000

@@ -55,6 +55,8 @@ func (s *KeepAlive) GetType() string {
 		return constants.KeepAliveWindowsDesktopService
 	case KeepAlive_KUBERNETES:
 		return constants.KeepAliveKube
+	case KeepAlive_DATABASE_SERVICE:
+		return constants.KeepAliveDatabaseService
 	default:
 		return constants.KeepAliveNode
 	}

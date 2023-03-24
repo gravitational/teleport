@@ -307,7 +307,11 @@ const (
 
 	// MaxWatcherBackoff is the maximum retry time a watcher should use in
 	// the event of connection issues
-	MaxWatcherBackoff = time.Minute
+	MaxWatcherBackoff = 90 * time.Second
+
+	// MaxLongWatcherBackoff is the maximum backoff used for watchers that incur high cluster-level
+	// load (non-control-plane caches being the primary example).
+	MaxLongWatcherBackoff = 256 * time.Second
 )
 
 const (
@@ -845,7 +849,20 @@ const (
 	// AWSInstallerDocument is the name of the default AWS document
 	// that will be called when executing the SSM command.
 	AWSInstallerDocument = "TeleportDiscoveryInstaller"
+
+	// AWSAgentlessInstallerDocument is the name of the default AWS document
+	// that will be called when executing the SSM command .
+	AWSAgentlessInstallerDocument = "TeleportAgentlessDiscoveryInstaller"
+
 	// IAMInviteTokenName is the name of the default Teleport IAM
 	// token to use when templating the script to be executed.
 	IAMInviteTokenName = "aws-discovery-iam-token"
+
+	// SSHDConfigPath is the path to the sshd config file to modify
+	// when using the agentless installer
+	SSHDConfigPath = "/etc/ssh/sshd_config"
 )
+
+// AzureInviteTokenName is the name of the default token to use
+// when templating the script to be executed.
+const AzureInviteTokenName = "azure-discovery-token"

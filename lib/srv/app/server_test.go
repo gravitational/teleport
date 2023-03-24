@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
@@ -126,6 +127,13 @@ type suiteConfig struct {
 	RoleAppLabels types.Labels
 }
 
+type fakeConnMonitor struct {
+}
+
+func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
+	return ctx, nil
+}
+
 func SetUpSuite(t *testing.T) *Suite {
 	return SetUpSuiteWithConfig(t, suiteConfig{})
 }
@@ -187,7 +195,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AppLabels:   roleAppLabels,
-				AWSRoleARNs: []string{"readonly"},
+				AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/readonly"},
 			},
 		},
 	}
@@ -281,7 +289,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
 
 	// Generate certificate for AWS console application.
-	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -290,7 +298,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: "cluster-name",
 		AccessPoint: s.authClient,
 		LockWatcher: lockWatcher,
@@ -309,24 +317,24 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	discard := events.NewDiscardEmitter()
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:            s.clock,
-		DataDir:          s.dataDir,
-		AccessPoint:      s.authClient,
-		AuthClient:       s.authClient,
-		TLSConfig:        tlsConfig,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		HostID:           s.hostUUID,
-		Hostname:         "test",
-		Authorizer:       authorizer,
-		GetRotation:      testRotationGetter,
-		Apps:             apps,
-		OnHeartbeat:      func(err error) {},
-		Cloud:            &testCloud{},
-		ResourceMatchers: config.ResourceMatchers,
-		OnReconcile:      config.OnReconcile,
-		LockWatcher:      lockWatcher,
-		Emitter:          discard,
-		CloudLabels:      config.CloudImporter,
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		AccessPoint:       s.authClient,
+		AuthClient:        s.authClient,
+		TLSConfig:         tlsConfig,
+		CipherSuites:      utils.DefaultCipherSuites(),
+		HostID:            s.hostUUID,
+		Hostname:          "test",
+		Authorizer:        authorizer,
+		GetRotation:       testRotationGetter,
+		Apps:              apps,
+		OnHeartbeat:       func(err error) {},
+		Cloud:             &testCloud{},
+		ResourceMatchers:  config.ResourceMatchers,
+		OnReconcile:       config.OnReconcile,
+		Emitter:           discard,
+		CloudLabels:       config.CloudImporter,
+		ConnectionMonitor: fakeConnMonitor{},
 	})
 	require.NoError(t, err)
 
@@ -438,6 +446,66 @@ func TestWaitStop(t *testing.T) {
 	require.NoError(t, err)
 	err = s.appServer.Wait()
 	require.Equal(t, err, context.Canceled)
+}
+
+func TestShutdown(t *testing.T) {
+	tests := []struct {
+		name                        string
+		hasForkedChild              bool
+		wantAppServersAfterShutdown bool
+	}{
+		{
+			name:                        "regular shutdown",
+			hasForkedChild:              false,
+			wantAppServersAfterShutdown: false,
+		},
+		{
+			name:                        "has forked child",
+			hasForkedChild:              true,
+			wantAppServersAfterShutdown: true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Make a static configuration app.
+			app0, err := makeStaticApp("app0", nil)
+			require.NoError(t, err)
+
+			ctx := context.Background()
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				Apps: types.Apps{app0},
+			})
+
+			// Validate heartbeat is present after start.
+			s.appServer.ForceHeartbeat()
+			appServers, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			require.Len(t, appServers, 1)
+			require.Equal(t, appServers[0].GetApp(), app0)
+
+			// Shutdown should not return error.
+			shutdownCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+			t.Cleanup(cancel)
+			if test.hasForkedChild {
+				shutdownCtx = services.ProcessForkedContext(shutdownCtx)
+			}
+
+			require.NoError(t, s.appServer.Shutdown(shutdownCtx))
+
+			// Validate app servers based on the test.
+			appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
+			require.NoError(t, err)
+			if test.wantAppServersAfterShutdown {
+				require.Equal(t, appServers, appServersAfterShutdown)
+			} else {
+				require.Empty(t, appServersAfterShutdown)
+			}
+		})
+	}
 }
 
 func TestAppWithUpdatedLabels(t *testing.T) {

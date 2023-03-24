@@ -249,6 +249,13 @@ you run `tsh ls`.
 
 </Details>
 
+<Details title="Hidden labels" opened={false}>
+
+If you wish to use labels for RBAC purposes but don't want to see the labels
+in the UI, you can put them in the hidden namespace by prefixing the label's
+key with `teleport.hidden/`, for example `teleport.hidden/account-id`.
+</Details>
+
 ## Step 3/3. Apply dynamic labels via commands
 
 Before following this step, stop Teleport on your Node.

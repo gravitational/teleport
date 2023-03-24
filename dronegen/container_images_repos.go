@@ -277,8 +277,9 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	archImageKeys := maps.Keys(archImageMap)
 	sort.SliceStable(archImageKeys, func(i, j int) bool { return archImageKeys[i].GetDisplayValue() < archImageKeys[j].GetDisplayValue() })
 
+	platform := fmt.Sprintf("linux/%s", buildStepDetails.BuiltImage.Tag.Arch)
 	pullCommands := []string{
-		fmt.Sprintf("docker pull %s", buildStepDetails.BuiltImage.GetShellName()),
+		fmt.Sprintf("docker pull --platform %q %s", platform, buildStepDetails.BuiltImage.GetShellName()),
 	}
 
 	tagAndPushCommands := make([]string, 0)

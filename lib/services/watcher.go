@@ -98,7 +98,7 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
+		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
@@ -573,7 +573,7 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 }
 
 // CheckLockInForce returns an AccessDenied error if there is a lock in force
-// matching at at least one of the targets.
+// matching at least one of the targets.
 func (p *lockCollector) CheckLockInForce(mode constants.LockingMode, targets ...types.LockTarget) error {
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()
@@ -1380,16 +1380,30 @@ func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*NodeWatcher, e
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		Context: ctx,
+		TTL:     3 * time.Second,
+		Clock:   cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	collector := &nodeCollector{
 		NodeWatcherConfig: cfg,
 		current:           map[string]types.Server{},
 		initializationC:   make(chan struct{}),
+		cache:             cache,
+		stale:             true,
 	}
+
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &NodeWatcher{watcher, collector}, nil
+
+	return &NodeWatcher{resourceWatcher: watcher, nodeCollector: collector}, nil
 }
 
 // NodeWatcher is built on top of resourceWatcher to monitor additions
@@ -1402,13 +1416,17 @@ type NodeWatcher struct {
 // nodeCollector accompanies resourceWatcher when monitoring nodes.
 type nodeCollector struct {
 	NodeWatcherConfig
-	// current holds a map of the currently known nodes (keyed by server name,
-	// RWMutex protected).
-	current map[string]types.Server
-	rw      sync.RWMutex
+
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+
+	cache *utils.FnCache
+
+	rw sync.RWMutex
+	// current holds a map of the currently known nodes keyed by server name
+	current map[string]types.Server
+	stale   bool
 }
 
 // Node is a readonly subset of the types.Server interface which
@@ -1440,7 +1458,10 @@ type Node interface {
 // returned servers are a copy and can be safely modified. It is intentionally hard to retrieve
 // the full set of nodes to reduce the number of copies needed since the number of nodes can get
 // quite large and doing so can be expensive.
-func (n *nodeCollector) GetNodes(fn func(n Node) bool) []types.Server {
+func (n *nodeCollector) GetNodes(ctx context.Context, fn func(n Node) bool) []types.Server {
+	// Attempt to freshen our data first.
+	n.refreshStaleNodes(ctx)
+
 	n.rw.RLock()
 	defer n.rw.RUnlock()
 
@@ -1452,6 +1473,42 @@ func (n *nodeCollector) GetNodes(fn func(n Node) bool) []types.Server {
 	}
 
 	return matched
+}
+
+// refreshStaleNodes attempts to reload nodes from the NodeGetter if
+// the collecter is stale. This ensures that no matter the health of
+// the collecter callers will be returned the most up to date node
+// set as possible.
+func (n *nodeCollector) refreshStaleNodes(ctx context.Context) error {
+	n.rw.RLock()
+	if !n.stale {
+		n.rw.RUnlock()
+		return nil
+	}
+	n.rw.RUnlock()
+
+	_, err := utils.FnCacheGet(ctx, n.cache, "nodes", func(ctx context.Context) (any, error) {
+		current, err := n.getNodes(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		n.rw.Lock()
+		defer n.rw.Unlock()
+
+		// There is a chance that the watcher reinitialized while
+		// getting nodes happened above. Check if we are still stale
+		// now that the lock is held to ensure that the refresh is
+		// still necessary.
+		if !n.stale {
+			return nil, nil
+		}
+
+		n.current = current
+		return nil, trace.Wrap(err)
+	})
+
+	return trace.Wrap(err)
 }
 
 func (n *nodeCollector) NodeCount() int {
@@ -1468,23 +1525,39 @@ func (n *nodeCollector) resourceKind() string {
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
 func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	nodes, err := n.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	newCurrent, err := n.getNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer n.defineCollectorAsInitialized()
 
-	if len(nodes) == 0 {
+	if len(newCurrent) == 0 {
 		return nil
 	}
-	newCurrent := make(map[string]types.Server, len(nodes))
-	for _, node := range nodes {
-		newCurrent[node.GetName()] = node
-	}
+
 	n.rw.Lock()
 	defer n.rw.Unlock()
 	n.current = newCurrent
+	n.stale = false
 	return nil
+}
+
+func (n *nodeCollector) getNodes(ctx context.Context) (map[string]types.Server, error) {
+	nodes, err := n.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(nodes) == 0 {
+		return map[string]types.Server{}, nil
+	}
+
+	current := make(map[string]types.Server, len(nodes))
+	for _, node := range nodes {
+		current[node.GetName()] = node
+	}
+
+	return current, nil
 }
 
 func (n *nodeCollector) defineCollectorAsInitialized() {
@@ -1501,19 +1574,21 @@ func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 		return
 	}
 
-	n.rw.Lock()
-	defer n.rw.Unlock()
-
 	switch event.Type {
 	case types.OpDelete:
+		n.rw.Lock()
 		delete(n.current, event.Resource.GetName())
+		n.rw.Unlock()
 	case types.OpPut:
 		server, ok := event.Resource.(types.Server)
 		if !ok {
 			n.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
+
+		n.rw.Lock()
 		n.current[server.GetName()] = server
+		n.rw.Unlock()
 	default:
 		n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
 	}
@@ -1523,7 +1598,11 @@ func (n *nodeCollector) initializationChan() <-chan struct{} {
 	return n.initializationC
 }
 
-func (n *nodeCollector) notifyStale() {}
+func (n *nodeCollector) notifyStale() {
+	n.rw.Lock()
+	defer n.rw.Unlock()
+	n.stale = true
+}
 
 // AccessRequestWatcherConfig is a AccessRequestWatcher configuration.
 type AccessRequestWatcherConfig struct {

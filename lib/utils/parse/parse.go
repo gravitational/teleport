@@ -105,7 +105,7 @@ func (e *Expression) Interpolate(varValidation func(namespace, name string) erro
 
 			values, ok := traits[v.name]
 			if !ok {
-				return nil, trace.BadParameter("variable not found: %s", v)
+				return nil, trace.NotFound("variable not found: %s", v)
 			}
 			return values, nil
 		},

@@ -2,7 +2,7 @@ teleport: {}
   # address: "teleportauth:3025"                        # Teleport Auth Server GRPC API address
   # identitySecretName: teleport-plugin-discord-identity  # Secret containing identity
 
-disxcord:
+discord:
   token: "XXXXXXXX"  # Discord Bot OAuth token
 
 # Mapping from role to recipients

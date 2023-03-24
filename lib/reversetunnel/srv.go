@@ -42,9 +42,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -114,6 +116,9 @@ type server struct {
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
+
+	// proxySigner is used to sign PROXY headers to securely propagate client IP information
+	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // Config is a reverse tunnel server configuration
@@ -208,6 +213,12 @@ type Config struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
+
+	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -316,6 +327,7 @@ func NewServer(cfg Config) (Server, error) {
 		clusterPeers:     make(map[string]*clusterPeers),
 		log:              cfg.Log,
 		offlineThreshold: offlineThreshold,
+		proxySigner:      cfg.PROXYSigner,
 	}
 
 	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
@@ -342,6 +354,7 @@ func NewServer(cfg Config) (Server, error) {
 		sshutils.SetMACAlgorithms(cfg.MACAlgorithms),
 		sshutils.SetFIPS(cfg.FIPS),
 		sshutils.SetClock(cfg.Clock),
+		sshutils.SetIngressReporter(ingress.Tunnel, cfg.IngressReporter),
 	)
 	if err != nil {
 		return nil, err
@@ -675,6 +688,7 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		component:        teleport.ComponentReverseTunnelServer,
 		localClusterName: s.ClusterName,
 		emitter:          s.Emitter,
+		proxySigner:      s.proxySigner,
 	}
 	go t.start()
 }
@@ -1128,10 +1142,12 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.remoteAccessPoint = accessPoint
 	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: srv.Component,
-			Client:    accessPoint,
-			Log:       srv.Log,
+			Component:    srv.Component,
+			Client:       accessPoint,
+			Log:          srv.Log,
+			MaxStaleness: time.Minute,
 		},
+		NodesGetter: accessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1192,15 +1208,15 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 }
 
 // createRemoteAccessPoint creates a new access point for the remote cluster.
-// Checks if the cluster that is connecting is a pre-v12 cluster. If it is,
-// we disable the watcher for resources not supported in a v11 leaf cluster:
-// - types.KindDatabaseService
+// Checks if the cluster that is connecting is a pre-v13 cluster. If it is,
+// we disable the watcher for resources not supported in a v12 leaf cluster:
+// - (to fill when we add new resources)
 //
 // **WARNING**: Ensure that the version below matches the version in which backward incompatible
 // changes were introduced so that the cache is created successfully. Otherwise, the remote cache may
 // never become healthy due to unknown resources.
 func createRemoteAccessPoint(srv *server, clt auth.ClientI, version, domainName string) (auth.RemoteProxyAccessPoint, error) {
-	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("12.0.0"))
+	ok, err := utils.MinVerWithoutPreRelease(version, utils.VersionBeforeAlpha("13.0.0"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

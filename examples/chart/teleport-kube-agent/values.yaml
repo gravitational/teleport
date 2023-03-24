@@ -118,6 +118,9 @@ caPin: []
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# Set enterprise to true to use enterprise image.
+enterprise: false
+
 # teleportConfig contains additional teleport configuration
 # The configuration will be merged with the chart-generated configuration
 # and will take precedence in case of conflict
@@ -140,7 +143,8 @@ existingDataVolume: ""
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
-# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
+# WARNING: the PSP won't be deployed for Kubernetes 1.23 and higher.
+# Please read https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
 podSecurityPolicy:
   enabled: true
 
@@ -183,9 +187,10 @@ storage:
 # Values that you shouldn't need to change.
 ################################################################
 
-# Container image for the agent. Since this runs without the auth_service, we
-# don't need the enterprise version.
+# Container image for the cluster.
 image: public.ecr.aws/gravitational/teleport
+# Enterprise version of the image
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
@@ -340,6 +345,26 @@ resources: {}
 #  requests:
 #    cpu: "1"
 #    memory: "2Gi"
+
+# Security context to add to the initContainer
+initSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
+
+# Security context to add to the container
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - all
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 9807
 
 # Priority class name to add to the deployment
 priorityClassName: ""

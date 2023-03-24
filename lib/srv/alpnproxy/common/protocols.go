@@ -22,6 +22,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -84,9 +85,14 @@ const (
 	// ProtocolAuth allows dialing local/remote auth service based on SNI cluster name value.
 	ProtocolAuth Protocol = "teleport-auth@"
 
-	// ProtocolProxyGRPC is TLS ALPN protocol value used to indicate gRPC
-	// traffic intended for the Teleport proxy.
-	ProtocolProxyGRPC Protocol = "teleport-proxy-grpc"
+	// ProtocolProxyGRPCInsecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy join service.
+	// Credentials are not verified since this is used for node joining.
+	ProtocolProxyGRPCInsecure Protocol = "teleport-proxy-grpc"
+
+	// ProtocolProxyGRPCSecure is TLS ALPN protocol value used to indicate gRPC
+	// traffic intended for the Teleport proxy service with mTLS authentication.
+	ProtocolProxyGRPCSecure Protocol = "teleport-proxy-grpc-mtls"
 
 	// ProtocolMySQLWithVerPrefix is TLS ALPN prefix used by tsh to carry
 	// MySQL server version.
@@ -101,8 +107,7 @@ const (
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
-var SupportedProtocols = append(
-	ProtocolsWithPing(ProtocolsWithPingSupport...),
+var SupportedProtocols = WithPingProtocols(
 	append([]Protocol{
 		// HTTP needs to be prioritized over HTTP2 due to a bug in Chrome:
 		// https://bugs.chromium.org/p/chromium/issues/detail?id=1379017
@@ -117,8 +122,9 @@ var SupportedProtocols = append(
 		ProtocolAuth,
 		ProtocolTCP,
 		ProtocolProxySSHGRPC,
-		ProtocolProxyGRPC,
-	}, DatabaseProtocols...)...,
+		ProtocolProxyGRPCInsecure,
+		ProtocolProxyGRPCSecure,
+	}, DatabaseProtocols...),
 )
 
 // ProtocolsToString converts the list of Protocols to the list of strings.
@@ -172,10 +178,9 @@ func IsDBTLSProtocol(protocol Protocol) bool {
 		ProtocolDynamoDB,
 	}
 
-	return slices.Contains(
-		append(dbTLSProtocols, ProtocolsWithPing(dbTLSProtocols...)...),
-		protocol,
-	)
+	return slices.ContainsFunc(dbTLSProtocols, func(dbTLSProtocol Protocol) bool {
+		return protocol == dbTLSProtocol || protocol == ProtocolWithPing(dbTLSProtocol)
+	})
 }
 
 // DatabaseProtocols is the list of the database protocols supported.
@@ -193,17 +198,21 @@ var DatabaseProtocols = []Protocol{
 
 // ProtocolsWithPingSupport is the list of protocols that Ping connection is
 // supported. For now, only database protocols are supported.
-var ProtocolsWithPingSupport = DatabaseProtocols
+var ProtocolsWithPingSupport = append(
+	DatabaseProtocols,
+	ProtocolTCP,
+)
 
-// ProtocolsWithPing receives a list a protocols and returns a list of them with
-// the Ping protocol suffix.
-func ProtocolsWithPing(protocols ...Protocol) []Protocol {
-	res := make([]Protocol, len(protocols))
-	for i := range res {
-		res[i] = ProtocolWithPing(protocols[i])
+// WithPingProtocols adds Ping protocols to the list for each protocol that
+// supports Ping.
+func WithPingProtocols(protocols []Protocol) []Protocol {
+	var pingProtocols []Protocol
+	for _, protocol := range protocols {
+		if HasPingSupport(protocol) {
+			pingProtocols = append(pingProtocols, ProtocolWithPing(protocol))
+		}
 	}
-
-	return res
+	return utils.Deduplicate(append(pingProtocols, protocols...))
 }
 
 // ProtocolWithPing receives a protocol and returns it with the Ping protocol

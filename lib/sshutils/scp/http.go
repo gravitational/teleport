@@ -36,7 +36,7 @@ const (
 	// 644 means that files are readable and writeable by the owner of
 	// the file and readable by users in the group owner of that file
 	// and readable by everyone else.
-	httpUploadFileMode = 0644
+	httpUploadFileMode = 0o644
 )
 
 // HTTPTransferRequest describes HTTP file transfer request
@@ -49,12 +49,12 @@ type HTTPTransferRequest struct {
 	HTTPRequest *http.Request
 	// HTTPRequest is HTTP request
 	HTTPResponse http.ResponseWriter
-	// ProgressWriter is a writer for printing the progress
+	// Progress is a writer for printing the progress
 	Progress io.Writer
-	// User is a user name
+	// User is a username
 	User string
 	// AuditLog is AuditLog log
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 }
 
 func (r *HTTPTransferRequest) parseRemoteLocation() (string, string, error) {

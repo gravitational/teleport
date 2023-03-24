@@ -471,7 +471,7 @@ func ParseElastiCacheEndpoint(endpoint string) (*RedisEndpointInfo, error) {
 		}, nil
 	}
 
-	return nil, trace.BadParameter("unknown ElastiCache Redis endpoint format")
+	return nil, trace.BadParameter("unknown ElastiCache Redis endpoint format %q", endpoint)
 }
 
 // isElasticCacheShardID returns true if the input part is in shard ID format.

@@ -19,9 +19,9 @@ package events
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"errors"
 	"io"
-	"math/rand"
 	"sync/atomic"
 	"testing"
 	"time"

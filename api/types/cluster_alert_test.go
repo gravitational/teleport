@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -111,6 +112,70 @@ func TestCheckAndSetDefaultsWithLink(t *testing.T) {
 				WithAlertLabel(AlertLink, tt.link),
 			)
 			tt.assert(t, err)
+		})
+	}
+}
+
+// TestAlertAcknowledgement_Check verifies the validation of the arguments to ack an alert
+func TestAlertAcknowledgement_Check(t *testing.T) {
+	// some arbitrary expiry time
+	expires := time.Now().Add(5 * time.Minute)
+
+	testcases := []struct {
+		desc        string
+		ack         *AlertAcknowledgement
+		expectedErr error
+	}{
+		{
+			desc:        "empty",
+			ack:         &AlertAcknowledgement{},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "missing reason",
+			ack: &AlertAcknowledgement{
+				AlertID: "alert-id",
+				Expires: expires,
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "missing alert ID",
+			ack: &AlertAcknowledgement{
+				Expires: expires,
+				Reason:  "some reason",
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "missing expiry",
+			ack: &AlertAcknowledgement{
+				AlertID: "alert-id",
+				Reason:  "some reason",
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
+		{
+			desc: "success",
+			ack: &AlertAcknowledgement{
+				AlertID: "alert-id",
+				Expires: expires,
+				Reason:  "some reason",
+			},
+			expectedErr: nil,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.desc, func(t *testing.T) {
+			err := tc.ack.Check()
+
+			if tc.expectedErr == nil {
+				require.Equal(t, err, nil)
+				return
+			}
+
+			require.ErrorAs(t, err, &tc.expectedErr)
 		})
 	}
 }

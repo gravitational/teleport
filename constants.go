@@ -261,15 +261,6 @@ const (
 	// ComponentUsageReporting is the component responsible for reporting usage metrics.
 	ComponentUsageReporting = "usage-reporting"
 
-	// DebugEnvVar tells tests to use verbose debug output
-	DebugEnvVar = "DEBUG"
-
-	// DebugAssetsPath allows users to set the path of the webassets if debug
-	// mode is enabled.
-	// For example,
-	// `DEBUG=1 DEBUG_ASSETS_PATH=/path/to/webassets/ teleport start`.
-	DebugAssetsPath = "DEBUG_ASSETS_PATH"
-
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -440,9 +431,9 @@ const (
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
-	// CertExtensionClientIP is used to embed the IP of the client that created
+	// CertExtensionLoginIP is used to embed the IP of the client that created
 	// the certificate.
-	CertExtensionClientIP = "client-ip"
+	CertExtensionLoginIP = "login-ip"
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
@@ -604,6 +595,8 @@ const (
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
 )
+
+var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string

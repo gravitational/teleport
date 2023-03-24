@@ -154,7 +154,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 	state := sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		defaults.ProtocolMySQL,
+		sessionCtx.Database,
 		sessionCtx.DatabaseUser,
 		sessionCtx.DatabaseName,
 	)

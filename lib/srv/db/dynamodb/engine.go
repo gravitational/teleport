@@ -171,21 +171,21 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 		defer req.Body.Close()
 	}
 
-	var responseStatusCode uint32
 	re, err := e.resolveEndpoint(req)
 	if err != nil {
 		// special error case where we couldn't resolve the endpoint, just emit using the configured URI.
-		e.emitAuditEvent(req, e.sessionCtx.Database.GetURI(), responseStatusCode, err)
+		e.emitAuditEvent(req, e.sessionCtx.Database.GetURI(), 0, err)
 		return trace.Wrap(err)
 	}
 
 	// emit an audit event regardless of failure, but using the resolved endpoint.
+	var responseStatusCode uint32
 	defer func() {
 		e.emitAuditEvent(req, re.URL, responseStatusCode, err)
 	}()
 
 	// try to read, close, and replace the incoming request body.
-	body, err := libaws.GetAndReplaceReqBody(req)
+	body, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -199,7 +199,11 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 		return trace.Wrap(err)
 	}
 
-	roleArn := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
+	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser,
+		re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	signedReq, err := e.signingSvc.SignRequest(e.Context, outReq,
 		&libaws.SigningCtx{
 			SigningName:   re.SigningName,
@@ -283,7 +287,7 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 	state := sessionCtx.GetAccessState(authPref)
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		sessionCtx.Database.GetProtocol(),
+		sessionCtx.Database,
 		sessionCtx.DatabaseUser,
 		sessionCtx.DatabaseName,
 	)

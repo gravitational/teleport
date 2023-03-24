@@ -222,3 +222,175 @@ in Posthog are built from a sequence of event types. The events can be filtered
 based on their properties so using this data model we should be able to build
 funnels for each separate Discover track like servers, self-hosted database,
 RDS databases, etc.
+
+
+## Events reference
+
+### Event properties definition
+#### `tp.discover.metadata.id`
+Unique ID that identifies the discover session.
+Created as soon as the user enters the Discover Wizard screen.
+
+#### `tp.discover.resource.name`
+Name that identifies the resource kind the user is trying to add.
+
+One of the following names:
+```
+DISCOVER_RESOURCE_SERVER
+DISCOVER_RESOURCE_KUBERNETES
+DISCOVER_RESOURCE_DATABASE_POSTGRES_SELF_HOSTED
+DISCOVER_RESOURCE_DATABASE_MYSQL_SELF_HOSTED
+DISCOVER_RESOURCE_DATABASE_MONGODB_SELF_HOSTED
+DISCOVER_RESOURCE_DATABASE_POSTGRES_RDS
+DISCOVER_RESOURCE_DATABASE_MYSQL_RDS
+DISCOVER_RESOURCE_APPLICATION_HTTP
+DISCOVER_RESOURCE_APPLICATION_TCP
+DISCOVER_RESOURCE_WINDOWS_DESKTOP
+DISCOVER_RESOURCE_DATABASE_SQLSERVER_RDS
+DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT
+DISCOVER_RESOURCE_DATABASE_SQLSERVER_SELF_HOSTED
+DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED
+DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP
+DISCOVER_RESOURCE_DATABASE_MYSQL_GCP
+DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP
+```
+
+#### `tp.discover.step.status`
+Each event is considered a step.
+The outcome of that step is reflected in this field.
+
+The following status are available:
+```
+DISCOVER_STATUS_SUCCESS: the step was completed successfully
+DISCOVER_STATUS_SKIPPED: the step was skipped by the user
+DISCOVER_STATUS_ERROR: there was an error when the user tried to complete the step
+DISCOVER_STATUS_ABORTED: the user left the step by closing the browser tab/window or leaving the wizard
+```
+
+#### `tp.discover.step.error`
+When the previous property has the `DISCOVER_STATUS_ERROR` value, then an error message exists.
+
+### Events
+#### `tp.ui.discover.started`
+Emitted when the wizard starts.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.resourceSelection`
+Emitted when the user selects a resource and proceeds to the next step.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.deployService`
+Emitted when the UI detects a new service (either an SSH Node or a DB service) in the cluster.
+This happens after the user is asked to run a script on the target host.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.database.register`
+Emitted when the user configures a new Database resource (database name and its endpoint).
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.database.configure.mtls`
+Emitted when the user is asked to configure the mTLS settings for Database Self Hosted flow.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.database.configure.iampolicy`
+Emitted when the user is asked to configure the IAM Policy to allow access during the Database MySQL/Postgres RDS flow.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.desktop.activeDirectory.tools.install`
+Emitted when the user is asked to configure Active Directory for during the Windows Desktop flow.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.desktop.activeDirectory.configure`
+Emitted when the user is asked to configure Active Directory for during the Windows Desktop flow.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.autoDiscoveredResources`
+After configuring the ActiveDirectory and Windows Desktop Service, the user will receive a list of auto discovered Windows machines.
+
+This event might be used for other purposes as we add more "bulk" import features to the wizard.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+- `tp.discover.auto_discovered.count` : how many resources were auto-discovered
+
+
+#### `tp.ui.discover.principals.configure`
+This step is about adding traits to the current user and for the current resource.
+This can be SSH user names, DB users and logical database names, Kube users and groups and so on.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.testConnection`
+Emitted when the user tests the connection.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+
+
+#### `tp.ui.discover.completed`
+Emitted when the user reaches the final screen and closes the wizard.
+
+Event properties:
+- `tp.discover.metadata.id`
+- `tp.discover.resource.name`
+- `tp.discover.step.status`
+- `tp.discover.step.error`
+

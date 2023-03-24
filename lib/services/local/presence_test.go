@@ -39,7 +39,101 @@ import (
 	"github.com/gravitational/teleport/lib/services/suite"
 )
 
+func TestRemoteClusterCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presenceBackend := NewPresenceService(bk)
+	clock := clockwork.NewFakeClockAt(time.Now())
+
+	originalLabels := map[string]string{
+		"a": "b",
+		"c": "d",
+	}
+
+	rc, err := types.NewRemoteCluster("foo")
+	require.NoError(t, err)
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+	rc.SetLastHeartbeat(clock.Now())
+	rc.SetMetadata(types.Metadata{
+		Name:   "foo",
+		Labels: originalLabels,
+	})
+
+	src, err := types.NewRemoteCluster("bar")
+	require.NoError(t, err)
+	src.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	src.SetLastHeartbeat(clock.Now().Add(-time.Hour))
+
+	// create remote clusters
+	err = presenceBackend.CreateRemoteCluster(rc)
+	require.NoError(t, err)
+	err = presenceBackend.CreateRemoteCluster(src)
+	require.NoError(t, err)
+
+	// get remote cluster make sure it's correct
+	gotRC, err := presenceBackend.GetRemoteCluster("foo")
+	require.NoError(t, err)
+	require.Equal(t, "foo", gotRC.GetName())
+	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
+	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
+	require.Equal(t, originalLabels, gotRC.GetMetadata().Labels)
+
+	updatedLabels := map[string]string{
+		"e": "f",
+		"g": "h",
+	}
+
+	// update remote clusters
+	rc.SetConnectionStatus(teleport.RemoteClusterStatusOnline)
+	rc.SetLastHeartbeat(clock.Now().Add(time.Hour))
+	rc.SetMetadata(types.Metadata{
+		Name:   "foo",
+		Labels: updatedLabels,
+	})
+	err = presenceBackend.UpdateRemoteCluster(ctx, rc)
+	require.NoError(t, err)
+
+	src.SetConnectionStatus(teleport.RemoteClusterStatusOffline)
+	src.SetLastHeartbeat(clock.Now())
+	err = presenceBackend.UpdateRemoteCluster(ctx, src)
+	require.NoError(t, err)
+
+	// get remote cluster make sure it's correct
+	gotRC, err = presenceBackend.GetRemoteCluster("foo")
+	require.NoError(t, err)
+	require.Equal(t, "foo", gotRC.GetName())
+	require.Equal(t, teleport.RemoteClusterStatusOnline, gotRC.GetConnectionStatus())
+	require.Equal(t, clock.Now().Add(time.Hour).Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
+	require.Equal(t, updatedLabels, gotRC.GetMetadata().Labels)
+
+	gotRC, err = presenceBackend.GetRemoteCluster("bar")
+	require.NoError(t, err)
+	require.Equal(t, "bar", gotRC.GetName())
+	require.Equal(t, teleport.RemoteClusterStatusOffline, gotRC.GetConnectionStatus())
+	require.Equal(t, clock.Now().Nanosecond(), gotRC.GetLastHeartbeat().Nanosecond())
+
+	// get all clusters
+	allRC, err := presenceBackend.GetRemoteClusters()
+	require.NoError(t, err)
+	require.Len(t, allRC, 2)
+
+	// delete cluster
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
+	require.NoError(t, err)
+
+	// make sure it's really gone
+	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
+	require.Error(t, err)
+	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
+}
+
 func TestTrustedClusterCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
@@ -100,6 +194,7 @@ func TestTrustedClusterCRUD(t *testing.T) {
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
 func TestApplicationServersCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -192,6 +287,7 @@ func TestApplicationServersCRUD(t *testing.T) {
 }
 
 func TestDatabaseServersCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -279,6 +375,7 @@ func TestDatabaseServersCRUD(t *testing.T) {
 }
 
 func TestNodeCRUD(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	lite, err := lite.NewWithConfig(ctx, lite.Config{Path: t.TempDir()})
 	require.NoError(t, err)
@@ -484,23 +581,30 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
 		},
-		"KubeService": {
-			resourceType: types.KindKubeService,
+		"KubeServer": {
+			resourceType: types.KindKubeServer,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				server, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{
-						{Name: name, StaticLabels: labels},
+				kube, err := types.NewKubernetesClusterV3(
+					types.Metadata{
+						Name:   name,
+						Labels: labels,
 					},
-				}, labels)
+					types.KubernetesClusterSpecV3{},
+				)
+				if err != nil {
+					return err
+				}
+				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "host", "hostID")
 				if err != nil {
 					return err
 				}
 
 				// Upsert server.
-				return presence.UpsertKubeService(ctx, server)
+				_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+				return err
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				return presence.DeleteAllKubeServices(ctx)
+				return presence.DeleteAllKubernetesServers(ctx)
 			},
 		},
 		"Node": {
@@ -1020,6 +1124,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 }
 
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
 	require.NoError(t, err)
@@ -1149,7 +1254,8 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 								Name:   names[i],
 								Labels: labels[i],
 							},
-							Spec: types.AppSpecV3{URI: "_"}},
+							Spec: types.AppSpecV3{URI: "_"},
+						},
 					})
 					require.NoError(t, err)
 					_, err = presence.UpsertApplicationServer(ctx, server)
@@ -1162,16 +1268,25 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
 				for i := 0; i < len(names); i++ {
-					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
-						KubernetesClusters: []*types.KubernetesCluster{
-							// Test dedup inside this list as well as from each service.
-							{Name: names[i], StaticLabels: labels[i]},
-							{Name: names[i], StaticLabels: labels[i]},
+
+					kube, err := types.NewKubernetesClusterV3(
+						types.Metadata{
+							Name:   names[i],
+							Labels: labels[i],
 						},
-					})
+						types.KubernetesClusterSpecV3{},
+					)
 					require.NoError(t, err)
-					_, err = presence.UpsertKubeServiceV2(ctx, server)
+					kubeServer, err := types.NewKubernetesServerV3FromCluster(
+						kube,
+						fmt.Sprintf("host-%v", i),
+						fmt.Sprintf("hostID-%v", i),
+					)
 					require.NoError(t, err)
+					// Upsert server.
+					_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
+					require.NoError(t, err)
+
 				}
 			},
 		},

@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -53,7 +53,7 @@ func TestListKube(t *testing.T) {
 	formatedLabels := formatServiceLabels(serviceLabels)
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *service.Config) {
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
@@ -62,7 +62,7 @@ func TestListKube(t *testing.T) {
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
-			func(cfg *service.Config) {
+			func(cfg *servicecfg.Config) {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())

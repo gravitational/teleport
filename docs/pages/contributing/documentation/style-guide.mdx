@@ -11,11 +11,48 @@ Each documentation page at Teleport falls into one of five categories. Each page
 is self contained, and it is okay have duplicate content between different
 guides. This is encouraged to promote familiarity with the product.
 
-- **[Getting started articles](./style-guide.mdx#getting-started-articles)**: Designed to get the user up and running in the quickest way possible.
 - **[How-to guides](./style-guide.mdx#how-to-guides)**: Tutorials for intermediate readers who want to set up Teleport for a specific scenario.
+- **[Getting started articles](./style-guide.mdx#getting-started-articles)**: Designed to get the user up and running in the quickest way possible.
 - **[Architecture guides](./style-guide.mdx#architecture-guides)**: Guides that explain how Teleport works to advanced readers, e.g., architects, DevSecOps engineers, and SREs.
 - **[Conceptual guides](./style-guide.mdx#conceptual-guides)**: Explain concepts related to Teleport for users who want a deeper understanding of its functionality.
 - **[Reference manuals](./style-guide.mdx#reference-manuals)**: Provide a comprehensive list of configuration options, API methods, metrics, and other ways of interacting with Teleport.
+
+### How-to guides
+
+**How-to guides** are for readers who already have some familiarity with
+Teleport and want to set up Teleport for a specific scenario.
+
+#### Expectations
+
+- The introductory section should state the utility of completing the article.
+
+- Do not recreate content across guides when it is possible to refer a reader to
+  a single, separate guide. Actions that are prerequisites to several topics but
+  *not* directly related to those topics should be documented in a single
+  location and referenced in a **Prerequisites** section at the top of the page. 
+
+- Do not break the reader's focus. Do not link the reader to another page—or
+  even another section within the same page—when it is possible to include the
+  same content in the current paragraph or section.
+
+  You can include a link in the body text of a how-to guide as long as you tell
+  the reader why to follow the link and what information to glean from it.
+  "Follow the installation instructions in the AWS documentation" does this,
+  while "Read the AWS documentation for more information" does not.
+
+- Example code and configurations should be complete and pastable.
+
+- Each step is clearly stated so users can easily follow the sequence. Section
+  headings should have a format similar to "Step 1/3. Add a local user"
+
+#### Example outline
+
+- Guide title: "Kubernetes Access on GKE"
+- The purpose of the guide
+- Prerequisites
+- Setup steps
+- Next steps
+
 
 ### Getting started articles
 
@@ -32,17 +69,11 @@ be fun and stress free.
 
 #### Expectations
 
-- The introductory section should state the utility of completing the article.
+Getting started articles have the same expectations as how-to guides, plus the
+following:
+
 - It should be possible to complete the tutorial in 5–10 minutes.
-- Do not recreate content where unnecessary. Actions that are prerequisites to
-  several topics but *not* directly related to those topic should be documented in
-  a single location and referenced in a **Prerequisites** section at the top of the page.
-- Do not break the reader's focus. Once you have begun documenting the task at hand,
-  do not link the reader to another page—or even another section within the same page—when
-  it is possible to include the same content in the current paragraph or section.
-- Example code and configurations should be complete and pasteable.
-- The page should include a demo video.
-- Each step is clearly stated so users can easily follow the sequence. Sections headings should have a format similar to, "Step 1/3 Add a local user"
+- Consider including a demo video in order to reach readers who prefer video.
 
 #### Example outline
 
@@ -51,24 +82,6 @@ be fun and stress free.
 - Prerequisites section: lists the tools used in the guide
 - Several sub-sections describing concrete steps that a user can verify they have completed
 - Wrap up with "Next steps" section.
-
-
-### How-to guides
-
-**How-to guides** are for readers who already have some familiarity with Teleport and want to set up Teleport for a specific scenario.
-
-#### Expectations
-- The introductory section should state the utility of completing the article.
-- Do not break the reader's focus. Do not link the reader to another page—or even another section within the same page—when it is possible to include the same content in the current paragraph or section.
-- Example code and configurations should be complete and pastable.
-- Each step is clearly stated so users can easily follow the sequence. Sections headings should have a format similar to, "Step 1/3 Add a local user"
-
-#### Example outline
-- Guide title: "Kubernetes Access on GKE"
-- The purpose of the guide
-- Prerequisites
-- Setup steps
-- Next steps
 
 ### Architecture guides
 
@@ -100,16 +113,45 @@ Specific kinds of architecture guides include:
 
 
 ## General style rules
+
 Please refer to this style guide when determining how address questions about
 English grammar, usage, and so on. Since many of these rules have equally
 justifiable alternatives, a style guide prevents debates over these questions
 from getting in the way of documenting Teleport.
 
+### Voice
+
+The documentation should be technically precise and directed toward a technical
+audience, e.g., application developers, site reliability engineers, and security
+engineering team leads. 
+
+Even when describing Teleport generally, we should emphasize specific technical
+capabilities over broad statements of benefit. The aim is not to pique the
+audience's interest, but to provide information.
+
+For example, rather than:
+
+```markdown
+Teleport replaces insecure secrets with true identity.
+```
+
+Use:
+
+```markdown
+Teleport replaces shared secrets with short-lived X.509 and SSH certificates.
+```
+
+Some guides are intended for end users seeking to access resources in their
+cluster. For certain use cases, it may be necessary to adjust our usual voice
+for the audience of a specific guide.
+
 ### Body text
+
 - Write sparser one to two-sentence groupings rather than lengthier blocks of text.
 - Use periods at the end of a line even in a list unless the ending item is a command.
 
 ### Code, commands, and configuration
+
 - `tsh`, `tctl`, and other core commands should be placed in backticks.
 
 - All ports or values should be enclosed in backticks, e.g., `443`.
@@ -121,17 +163,21 @@ from getting in the way of documenting Teleport.
    ```
 
 ### Diagrams
+
 - Use [Teleport's lucidchart library](https://app.lucidchart.com/lucidchart/dfcf1f4a-5cf0-4758-8ebb-f6ea86900aba/edit) to create diagrams with a consistent design language.
 - Diagram multistep sections using sequence diagrams that depict steps linearly.
 - Several great examples are available here: https://gravitational.slab.com/posts/diagrams-ix9nzhpd.
 
 ### Footnotes
+
 - Footnotes should be ordered by appearance (chronological precedence). `2` should not come before `1`.
 
 ### Headings
+
 - Headings should be in sentence case. For example, "Next steps" is preferred over "Next Steps." We want to clarify proper nouns and products in headings by using sentence casing.
 
 ### Lists
+
 - We prefer short paragraph blocks over bulleted or numbered lists. This leads to a preference for completeness and brevity rather than enumeration. 
 
 - When you do include a list, we prefer bullet points over numbered lists.
@@ -141,23 +187,28 @@ from getting in the way of documenting Teleport.
   Each number should mention the total number of steps, e.g., "Step 1/5," so the reader knows how far along they are in the sequence.
 
 ### Names of products, services, and features
+
 - Product proper nouns should be capitalized. Say "Trusted Cluster," not "trusted cluster."
 - Avoid using quotes to refer to product names, since they often have negative connotations. E.g, do not say, "Trusted Cluster."
 - Product proper nouns should be bolded on first use. "Trusted Cluster" should be **Trusted Cluster**.
 
 ### Names of technical concepts
+
 - Within a single page, use consistent acronyms and concept keywords. For example, pick one of "2-factor," "two-factor", "2fa," or "tfa" within a given page.
 - Acronyms should always be introduced following a concept keyword and then consistently used thereafter.
 
 ### Page titles
+
 - Should have all words capitalized except for determiners (`a`, `the`, etc.).
 - Should follow a `Title Name | Teleport Docs` format. The `| Teleport Docs` suffix will be added automatically by our static site generator.
 - The total character count should not exceed 70 for the entire title since this can impact SEO. Including the suffix `| Teleport Docs`, that leaves 55 characters for the article's title.
 
 ### SEO
+
 - Make sure to have a good, well-worded description that uses common keywords around the subject. Also, liberally sprinkle said keywords throughout the article.
 
 ### Videos
+
 - Mac users should use Quicktime's `Cmd-Shift-5` to record a small part of the screen:
 
   ![quicktime](../../../img/docs/quicktime.webp)

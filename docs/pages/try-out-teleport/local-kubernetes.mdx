@@ -44,7 +44,7 @@ Make sure that the following tools are installed locally:
 | minikube                                                            | Local Kubernetes deployment tool | [Install minikube](https://minikube.sigs.k8s.io/docs/start/)  |
 | Helm                                                                | Kubernetes package manager       | [Install Helm](https://helm.sh/docs/intro/install/)           |
 | kubectl                                                             | Kubernetes admin CLI             | [Install kubectl](https://kubernetes.io/docs/tasks/tools/)    |
-| Docker Desktop (MacOS and Windows) or Docker Engine (Linux desktop) | Required minikube driver         | [Get Started With Docker](https://www.docker.com/get-started) |
+| Docker | Required minikube driver         | [Get Started With Docker](https://www.docker.com/get-started) |
 
 You should also install a one-time passcode (OTP) application like Authy on your
 mobile device. You will use this to authenticate to your Teleport cluster.
@@ -83,8 +83,9 @@ Verify that Teleport is running.
 
 ```code
 $ kubectl get pods
-NAME                               READY   STATUS    RESTARTS   AGE
-teleport-cluster-b9dc6c68b-d75fb   1/1     Running   0          46s
+NAME                                      READY   STATUS    RESTARTS   AGE
+teleport-cluster-auth-57989d4cbd-4q2ds    1/1     Running   0          46s
+teleport-cluster-proxy-69c9c4c986-j9v2j   1/1     Running   0          46s
 ```
 
 ### Expose the Proxy Service to your local machine
@@ -115,8 +116,9 @@ The `teleport-cluster` service should now have an external IP:
 
 ```code
 $ kubectl get services
-NAME               TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                     AGE
-teleport-cluster   LoadBalancer   10.107.218.212   127.0.0.1     443:32143/TCP,3023:30618/TCP,3026:32750/TCP,3024:32406/TCP,3036:30687/TCP   6m18s
+NAME                    TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)                                                                     AGE
+teleport-cluster        LoadBalancer   10.107.218.212   127.0.0.1     443:32143/TCP,3023:30618/TCP,3026:32750/TCP,3024:32406/TCP,3036:30687/TCP   6m18s
+teleport-cluster-auth   ClusterIP      10.107.218.220   <none>        3025/TCP,3026/TCP                                                           6m18s
 ```
 
 The Proxy Service enables you to manage your cluster via an HTTP API. Assign the
@@ -272,9 +274,7 @@ Run the following commands to get the name of the relevant pod and execute a
 `tctl` command to create a user:
 
 ```code
-# We will use this variable for subsequent commands
-$ PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
-$ kubectl exec $PROXY_POD -- tctl users add --roles=access appuser
+$ kubectl exec -it deployment/teleport-cluster-auth -- tctl users add --roles=access appuser
 User "appuser" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
 https://teleport-cluster.teleport-cluster.svc.cluster.local:443/web/invite/<token>
 ```
@@ -296,7 +296,7 @@ convenience while setting up your local demo, you can run the following command
 to create a dynamic configuration resource that disables MFA for your demo user:
 
 ```code
-$ kubectl exec -i $PROXY_POD -- bash -c "cat<<EOF>>/home/cp.yaml
+$ kubectl exec -i deployment/teleport-cluster-auth -- bash -c "cat<<EOF>>/home/cp.yaml
 kind: cluster_auth_preference
 version: v2
 metadata:
@@ -327,7 +327,7 @@ Kubernetes Dashboard:
 ```code
 # The cluster IP of Kubernetes Dashboard
 $ DASH_ADDR=$(kubectl -n kubernetes-dashboard get service kubernetes-dashboard -o jsonpath="{.spec.clusterIP}")
-$ kubectl exec -i $PROXY_POD -- tctl tokens add \
+$ kubectl exec -it deployment/teleport-cluster-auth -- tctl tokens add \
 --type=app \
 --app-name=kube-dash \
 --app-uri=https://$DASH_ADDR
@@ -370,7 +370,7 @@ Production environments must not skip TLS certificate verification.
 Run the following command:
 
 ```code
-$ kubectl exec $PROXY_POD -- tctl tokens ls
+$ kubectl exec -it deployment/teleport-cluster-auth -- tctl tokens ls
 ```
 
 </Admonition>
@@ -421,4 +421,4 @@ production.
 - Integrate Teleport with your SSO provider:
   [Single Sign-On and Kubernetes RBAC](../kubernetes-access/controls.mdx)
 - Have a Kubernetes cluster but don't want to run Teleport there?
-  [Kubernetes Access from Standalone Teleport](../kubernetes-access/guides/standalone-teleport.mdx)
+  [Kubernetes Access from Standalone Teleport](../kubernetes-access/register-clusters/static-kubeconfig.mdx)

@@ -185,21 +185,21 @@ teleport:
   in Teleport Architecture documentation.
 </Admonition>
 
-<Admonition
-  type="tip"
-  title="AWS Authentication"
->
-  The configuration examples below contain AWS
-  access keys and secret keys. They are optional, they exist for your convenience but we DO NOT RECOMMEND using them in production. If Teleport is running on an AWS instance it will automatically use the instance IAM role.
-  Teleport also will pick up AWS credentials from the `~/.aws` folder, just like the AWS CLI tool.
-</Admonition>
-
 S3 buckets can only be used as storage for the recorded sessions. S3 cannot
 store the audit log or the cluster state.
 
 S3 buckets must have versioning enabled, which ensures that a session log cannot
 be permanently altered or deleted. Teleport will always look at the oldest
 version of a recording.
+
+### Authenticating to AWS
+
+The Teleport Auth Service must be able to read AWS credentials in order to
+authenticate to S3. 
+
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
+
+### Configuring the S3 backend
 
 Below is an example of how to configure the Teleport Auth Service to store the
 recorded sessions in an S3 bucket.
@@ -217,9 +217,6 @@ teleport:
       # Teleport assumes credentials. Using provider chains, assuming IAM role or
       # standard .aws/credentials in the home folder.
 ```
-
-The AWS authentication settings above can be omitted if the machine itself is
-running on an EC2 instance with an IAM role.
 
 You can add optional query parameters to the S3 URL. The Teleport Auth
 Service reads these parameters to configure its interactions with S3:
@@ -398,7 +395,7 @@ For more information, see the [AWS Documentation](https://docs.aws.amazon.com/Am
   title="Tip"
 >
   Before continuing, please make sure to take a look at the [Cluster State section](../architecture/nodes.mdx#cluster-state)
-  in Teleport Architecture documentation.
+  in the Teleport Architecture documentation.
 </Admonition>
 
 If you are running Teleport on AWS, you can use
@@ -409,10 +406,47 @@ High Availability. DynamoDB backend supports two types of Teleport data:
 - Audit log events
 
 DynamoDB cannot store the recorded sessions. You are advised to use AWS S3 for
-that as shown above. To configure Teleport to use DynamoDB:
+that as shown above. 
 
-- Make sure you have AWS access key and a secret key that give you access to
-  DynamoDB account. If you're using (as recommended) an IAM role for this, the policy with the necessary permissions is listed below.
+### Authenticating to AWS
+
+The Teleport Auth Service must be able to read AWS credentials in order to
+authenticate to DynamoDB. 
+
+(!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
+
+The IAM role that the Teleport Auth Service authenticates as must have the
+policies specified in the next section.
+
+### IAM policies
+
+Make sure that the IAM role assigned to the Teleport Auth Service is configured
+with sufficient access to DynamoDB. Below is the example of the IAM policy you
+can use: 
+
+```js
+{
+    "Version": "2012-10-17",
+    "Statement": [{
+            "Sid": "AllAPIActionsOnTeleportAuth",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
+        },
+        {
+            "Sid": "AllAPIActionsOnTeleportStreams",
+            "Effect": "Allow",
+            "Action": "dynamodb:*",
+            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
+        }
+    ]
+}
+```
+
+### Configuring the DynamoDB backend
+
+To configure Teleport to use DynamoDB:
+
 - Configure all Teleport Auth servers to use DynamoDB back-end in the "storage"
   section of `teleport.yaml` as shown below.
 - Deploy several auth servers connected to DynamoDB storage back-end.
@@ -450,7 +484,6 @@ teleport:
   with your own settings.  Teleport will create the table automatically.
 - `Example_TELEPORT_DYNAMO_TABLE_NAME` and `events_table_name` **must** be different
   DynamoDB tables. The schema is different for each. Using the same table name for both will result in errors.
-- The AWS authentication setting above can be omitted if the machine itself is running on an EC2 instance with an IAM role.
 - Audit log settings above are optional. If specified, Teleport will store the
   audit log in DynamoDB and the session recordings **must** be stored in an S3
   bucket, i.e. both `audit_xxx` settings must be present. If they are not set,
@@ -465,33 +498,12 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 - `endpoint=dynamo.example.com` - connect to a custom S3 endpoint.
 - `use_fips_endpoint=true` -  [Configure DynamoDB FIPS endpoints](#configuring-aws-fips-endpoints).
 
-<Admonition
-  type="warning"
-  title="Access to DynamoDB"
->
-  Make sure that the IAM role assigned to
-  Teleport is configured with sufficient access to DynamoDB. Below is the
-  example of the IAM policy you can use:
-</Admonition>
+### Assigning permissions to the Teleport Auth Service
 
-```js
-{
-    "Version": "2012-10-17",
-    "Statement": [{
-            "Sid": "AllAPIActionsOnTeleportAuth",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth"
-        },
-        {
-            "Sid": "AllAPIActionsOnTeleportStreams",
-            "Effect": "Allow",
-            "Action": "dynamodb:*",
-            "Resource": "arn:aws:dynamodb:eu-west-1:123456789012:table/prod.teleport.auth/stream/*"
-        }
-    ]
-}
-```
+Make sure that the IAM role assigned to Teleport is configured with sufficient
+access to DynamoDB. Below is an example of the IAM policy we recommend.
+
+(!docs/pages/includes/dynamodb-iam-policy.mdx!)
 
 ### DynamoDB autoscaling
 

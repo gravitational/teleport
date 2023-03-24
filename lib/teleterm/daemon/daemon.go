@@ -23,12 +23,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
-	prehogapi "github.com/gravitational/teleport/lib/prehog/gen/prehog/v1alpha"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/usagereporter"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
 const (
@@ -47,7 +46,7 @@ func New(cfg Config) (*Service, error) {
 
 	closeContext, cancel := context.WithCancel(context.Background())
 
-	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
+	connectUsageReporter, err := usagereporter.NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -137,20 +136,20 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	return cluster, nil
 }
 
-// ResolveFullCluster returns full cluster information. It makes a request to the auth server and includes
-// details about the cluster and logged in user
-func (s *Service) ResolveFullCluster(ctx context.Context, uri string) (*clusters.Cluster, error) {
+// ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
+// details about the cluster and logged in user.
+func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, error) {
 	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err = cluster.EnrichWithDetails(ctx)
+	withDetails, err := cluster.GetWithDetails(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return cluster, nil
+	return withDetails, nil
 }
 
 // ClusterLogout logs a user out from the cluster
@@ -252,41 +251,6 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 	return nil
 }
 
-// RestartGateway stops a gateway and starts a new one with identical parameters.
-// It also keeps the original URI so that from the perspective of Connect it's still the same
-// gateway but with fresh certs.
-func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	oldGateway, err := s.findGateway(gatewayURI)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := s.removeGateway(oldGateway); err != nil {
-		return trace.Wrap(err)
-	}
-
-	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
-		TargetURI:             oldGateway.TargetURI(),
-		TargetUser:            oldGateway.TargetUser(),
-		TargetSubresourceName: oldGateway.TargetSubresourceName(),
-		LocalPort:             oldGateway.LocalPort(),
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
-	// the URI of the old gateway.
-	delete(s.gateways, newGateway.URI().String())
-	newGateway.SetURI(oldGateway.URI())
-	s.gateways[oldGateway.URI().String()] = newGateway
-
-	return nil
-}
-
 // findGateway assumes that mu is already held by a public method.
 func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 	if gateway, ok := s.gateways[gatewayURI]; ok {
@@ -376,21 +340,6 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	}()
 
 	return newGateway, nil
-}
-
-// GetAllServers returns a full list of nodes without pagination or sorting.
-func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := cluster.GetAllServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
 }
 
 // GetServers accepts parameterized input to enable searching, sorting, and pagination.
@@ -519,36 +468,6 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return nil
 }
 
-// ListServers returns cluster servers
-func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.App, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	apps, err := cluster.GetApps(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return apps, nil
-}
-
-// GetAllKubes lists kubernetes clusters
-func (s *Service) GetAllKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
-	cluster, err := s.ResolveCluster(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kubes, err := cluster.GetAllKubes(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return kubes, nil
-}
-
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
 	cluster, err := s.ResolveCluster(req.ClusterUri)
@@ -564,6 +483,15 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 	return response, nil
 }
 
+func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
+	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.usageReporter.AddEventsToQueue(prehogEvent)
+	return nil
+}
+
 // Stop terminates all cluster open connections
 func (s *Service) Stop() {
 	s.mu.RLock()
@@ -573,6 +501,13 @@ func (s *Service) Stop() {
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
+	}
+
+	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
+	defer cancel()
+
+	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
+		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
 	}
 
 	// s.closeContext is used for the tshd events client which might make requests as long as any of
@@ -610,7 +545,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 }
 
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
-	cluster, err := s.ResolveCluster(request.GetClusterUri())
+	cluster, err := s.ResolveCluster(request.GetServerUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -631,7 +566,7 @@ type Service struct {
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
 	// usageReporter batches the events and sends them to prehog
-	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest]
+	usageReporter *usagereporter.UsageReporter
 }
 
 type CreateGatewayParams struct {

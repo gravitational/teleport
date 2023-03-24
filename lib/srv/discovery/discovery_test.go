@@ -28,7 +28,9 @@ import (
 	"time"
 
 	"cloud.google.com/go/container/apiv1/containerpb"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -1083,7 +1085,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s.")
+				t.Fatal("Didn't receive reconcile event after 1s")
 			}
 		})
 	}
@@ -1131,4 +1133,236 @@ func mustNewDatabase(t *testing.T, meta types.Metadata, spec types.DatabaseSpecV
 	database, err := types.NewDatabaseV3(meta, spec)
 	require.NoError(t, err)
 	return database
+}
+
+type mockAzureRunCommandClient struct{}
+
+func (m *mockAzureRunCommandClient) Run(_ context.Context, _ azure.RunCommandRequest) error {
+	return nil
+}
+
+type mockAzureClient struct {
+	vms []*armcompute.VirtualMachine
+}
+
+func (m *mockAzureClient) Get(_ context.Context, _ string) (*azure.VirtualMachine, error) {
+	return nil, nil
+}
+
+func (m *mockAzureClient) GetByVMID(_ context.Context, _, _ string) (*azure.VirtualMachine, error) {
+	return nil, nil
+}
+
+func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*armcompute.VirtualMachine, error) {
+	return m.vms, nil
+}
+
+func TestAzureVMDiscovery(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		presentVMs    []types.Server
+		foundAzureVMs []*armcompute.VirtualMachine
+		logHandler    func(*testing.T, io.Reader, chan struct{})
+	}{
+		{
+			name:       "no nodes present, 1 found",
+			presentVMs: []types.Server{},
+			foundAzureVMs: []*armcompute.VirtualMachine{
+				{
+					ID: aws.String((&arm.ResourceID{
+						SubscriptionID:    "testsub",
+						ResourceGroupName: "rg",
+						Name:              "testvm",
+					}).String()),
+					Location: aws.String("westcentralus"),
+					Tags: map[string]*string{
+						"teleport": aws.String("yes"),
+					},
+					Properties: &armcompute.VirtualMachineProperties{
+						VMID: aws.String("test-vmid"),
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"Running Teleport installation on these virtual machines") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name: "nodes present, instance filtered",
+			presentVMs: []types.Server{
+				&types.ServerV2{
+					Kind: types.KindNode,
+					Metadata: types.Metadata{
+						Name: "name",
+						Labels: map[string]string{
+							types.SubscriptionIDLabel: "testsub",
+							types.VMIDLabel:           "test-vmid",
+						},
+						Namespace: defaults.Namespace,
+					},
+				},
+			},
+			foundAzureVMs: []*armcompute.VirtualMachine{
+				{
+					ID: aws.String((&arm.ResourceID{
+						SubscriptionID:    "testsub",
+						ResourceGroupName: "rg",
+						Name:              "testvm",
+					}).String()),
+					Location: aws.String("westcentralus"),
+					Tags: map[string]*string{
+						"teleport": aws.String("yes"),
+					},
+					Properties: &armcompute.VirtualMachineProperties{
+						VMID: aws.String("test-vmid"),
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"All discovered Azure VMs are already part of the cluster") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+		{
+			name: "nodes present, instance not filtered",
+			presentVMs: []types.Server{
+				&types.ServerV2{
+					Kind: types.KindNode,
+					Metadata: types.Metadata{
+						Name: "name",
+						Labels: map[string]string{
+							types.SubscriptionIDLabel: "testsub",
+							types.VMIDLabel:           "alternate-vmid",
+						},
+						Namespace: defaults.Namespace,
+					},
+				},
+			},
+			foundAzureVMs: []*armcompute.VirtualMachine{
+				{
+					ID: aws.String((&arm.ResourceID{
+						SubscriptionID:    "testsub",
+						ResourceGroupName: "rg",
+						Name:              "testvm",
+					}).String()),
+					Location: aws.String("westcentralus"),
+					Tags: map[string]*string{
+						"teleport": aws.String("yes"),
+					},
+					Properties: &armcompute.VirtualMachineProperties{
+						VMID: aws.String("test-vmid"),
+					},
+				},
+			},
+			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
+				scanner := bufio.NewScanner(logs)
+				for scanner.Scan() {
+					if strings.Contains(scanner.Text(),
+						"Running Teleport installation on these virtual machines") {
+						done <- struct{}{}
+						return
+					}
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			testClients := cloud.TestCloudClients{
+				AzureVirtualMachines: &mockAzureClient{
+					vms: tc.foundAzureVMs,
+				},
+				AzureRunCommand: &mockAzureRunCommandClient{},
+			}
+
+			ctx := context.Background()
+			testAuthServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+				Dir: t.TempDir(),
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
+
+			tlsServer, err := testAuthServer.NewTestTLSServer()
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+			// Auth client for discovery service.
+			authClient, err := tlsServer.NewClient(auth.TestServerID(types.RoleDiscovery, "hostID"))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+			for _, instance := range tc.presentVMs {
+				_, err := tlsServer.Auth().UpsertNode(ctx, instance)
+				require.NoError(t, err)
+			}
+
+			logger := logrus.New()
+			emitter := &mockEmitter{}
+			server, err := New(context.Background(), &Config{
+				Clients:     &testClients,
+				AccessPoint: tlsServer.Auth(),
+				AzureMatchers: []services.AzureMatcher{{
+					Types:          []string{"vm"},
+					Subscriptions:  []string{"testsub"},
+					ResourceGroups: []string{"testrg"},
+					Regions:        []string{"westcentralus"},
+					ResourceTags:   types.Labels{"teleport": {"yes"}},
+				}},
+				Emitter: emitter,
+				Log:     logger,
+			})
+
+			require.NoError(t, err)
+			emitter.server = server
+			emitter.t = t
+
+			r, w := io.Pipe()
+			t.Cleanup(func() {
+				require.NoError(t, r.Close())
+				require.NoError(t, w.Close())
+			})
+			if tc.logHandler != nil {
+				logger.SetOutput(w)
+				logger.SetLevel(logrus.DebugLevel)
+			}
+
+			go server.Start()
+
+			if tc.logHandler != nil {
+				done := make(chan struct{})
+				go tc.logHandler(t, r, done)
+				timeoutCtx, cancelfn := context.WithTimeout(ctx, time.Second*5)
+				defer cancelfn()
+				select {
+				case <-timeoutCtx.Done():
+					t.Fatal("Timeout waiting for log entries")
+					return
+				case <-done:
+					server.Stop()
+					return
+				}
+			}
+
+			server.Wait()
+		})
+
+	}
 }

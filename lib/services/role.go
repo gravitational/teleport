@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/google/uuid"
 	"github.com/gravitational/configure/cstrings"
 	"github.com/gravitational/trace"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
@@ -58,7 +60,6 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSSHSession, RO()),
 	types.NewRule(types.KindAppServer, RO()),
 	types.NewRule(types.KindRemoteCluster, RO()),
-	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindKubeServer, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
 	types.NewRule(types.KindDatabase, RO()),
@@ -78,6 +79,10 @@ var DefaultCertAuthorityRules = []types.Rule{
 	types.NewRule(types.KindReverseTunnel, RO()),
 	types.NewRule(types.KindCertAuthority, ReadNoSecrets()),
 }
+
+// ErrTrustedDeviceRequired is returned by AccessChecker when access to a
+// resource requires a trusted device.
+var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a trusted device")
 
 // ErrSessionMFARequired is returned by AccessChecker when access to a resource
 // requires an MFA check.
@@ -135,11 +140,12 @@ func RoleForUser(u types.User) types.Role {
 			BPF:               defaults.EnhancedEvents(),
 		},
 		Allow: types.RoleConditions{
-			Namespaces:       []string{defaults.Namespace},
-			NodeLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-			AppLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
-			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-			DatabaseLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+			Namespaces:            []string{defaults.Namespace},
+			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, RW()),
 				types.NewRule(types.KindAuthConnector, RW()),
@@ -149,6 +155,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindUIConfig, RW()),
 				types.NewRule(types.KindApp, RW()),
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
@@ -301,7 +308,7 @@ func warnInvalidAzureIdentities(candidates []string) {
 }
 
 // ParseResourceID from Azure SDK is too lenient; we use a strict regexp instead.
-var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-]+)$`)
+var azureIdentityPattern = regexp.MustCompile(`(?i)^/subscriptions/([a-fA-F0-9-]+)/resourceGroups/([0-9a-zA-Z-_]+)/providers/Microsoft\.ManagedIdentity/userAssignedIdentities/([0-9a-zA-Z-_]+)$`)
 
 func MatchValidAzureIdentity(identity string) bool {
 	if identity == types.Wildcard {
@@ -707,7 +714,7 @@ func RoleSetFromSpec(name string, spec types.RoleSpecV6) (RoleSet, error) {
 	return NewRoleSet(role), nil
 }
 
-// RW is a shortcut that returns all verbs.
+// RW is a shortcut that returns all CRUD verbs.
 func RW() []string {
 	return []string{types.VerbList, types.VerbCreate, types.VerbRead, types.VerbUpdate, types.VerbDelete}
 }
@@ -981,35 +988,74 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 
 	// check each individual user against the database.
 	for _, user := range users {
-		err := set.checkAccess(database, AccessState{MFAVerified: true}, &DatabaseUserMatcher{User: user})
+		err := set.checkAccess(database, AccessState{MFAVerified: true}, NewDatabaseUserMatcher(database, user))
 		result.allowedDeniedMap[user] = err == nil
 	}
 
 	return result
 }
 
-// EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
-// The wildcard selector is ignored, since it is now allowed for server logins
-func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
-	result := NewEnumerationResult()
+// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
+//
+// Supports the following resource types:
+//
+// - types.Server with GetKind() == types.KindNode
+//
+// - types.KindWindowsDesktop
+func (set RoleSet) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
+	// Create a map indexed by all logins in the RoleSet,
+	// mapped to false if any role has it in its deny section,
+	// true otherwise.
+	mapped := make(map[string]bool)
 
-	// gather logins for checking from the roles
-	// no need to check for wildcards
-	var logins []string
 	for _, role := range set {
-		logins = append(logins, role.GetLogins(types.Allow)...)
-		logins = append(logins, role.GetLogins(types.Deny)...)
+		var loginGetter func(types.RoleConditionType) []string
+
+		switch resource.GetKind() {
+		case types.KindNode:
+			loginGetter = role.GetLogins
+		case types.KindWindowsDesktop:
+			loginGetter = role.GetWindowsLogins
+		default:
+			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
+		}
+
+		for _, login := range loginGetter(types.Allow) {
+			mapped[login] = true
+		}
+		for _, login := range loginGetter(types.Deny) {
+			mapped[login] = false
+		}
 	}
 
-	logins = apiutils.Deduplicate(logins)
-
-	// check each individual user against the server.
-	for _, user := range logins {
-		err := set.checkAccess(server, AccessState{MFAVerified: true}, NewLoginMatcher(user))
-		result.allowedDeniedMap[user] = err == nil
+	// Create a list of only the logins not denied by a role in the set.
+	var notDenied []string
+	for login, isNotDenied := range mapped {
+		if isNotDenied {
+			notDenied = append(notDenied, login)
+		}
 	}
 
-	return result
+	var newLoginMatcher func(login string) RoleMatcher
+	switch resource.GetKind() {
+	case types.KindNode:
+		newLoginMatcher = NewLoginMatcher
+	case types.KindWindowsDesktop:
+		newLoginMatcher = NewWindowsLoginMatcher
+	default:
+		return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
+	}
+
+	// Filter the not-denied logins for those allowed to be used with the given resource.
+	var allowed []string
+	for _, login := range notDenied {
+		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newLoginMatcher(login))
+		if err == nil {
+			allowed = append(allowed, login)
+		}
+	}
+
+	return allowed, nil
 }
 
 // MatchNamespace returns true if given list of namespace matches
@@ -1071,9 +1117,12 @@ func MatchDatabaseName(selectors []string, name string) (bool, string) {
 }
 
 // MatchDatabaseUser returns true if provided database user matches selectors.
-func MatchDatabaseUser(selectors []string, user string) (bool, string) {
+func MatchDatabaseUser(selectors []string, user string, matchWildcard bool) (bool, string) {
 	for _, u := range selectors {
-		if u == user || u == types.Wildcard {
+		if u == user {
+			return true, "matched"
+		}
+		if matchWildcard && u == types.Wildcard {
 			return true, "matched"
 		}
 	}
@@ -1165,23 +1214,31 @@ func (set RoleSet) PinSourceIP() bool {
 	return false
 }
 
-// GetAccessState returns the AccessState for the user given their roles, the
-// cluster auth preference, and whether MFA and the user's device were verified.
+// GetAccessState returns the AccessState, setting [AccessState.MFARequired]
+// according to the user's roles and cluster auth preference.
 func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
+	return AccessState{
+		MFARequired: set.getMFARequired(authPref.GetRequireMFAType()),
+		// We don't set EnableDeviceVerification here, as both it and DeviceVerified
+		// should be set in tandem.
+	}
+}
+
+func (set RoleSet) getMFARequired(clusterRequireMFAType types.RequireMFAType) MFARequired {
 	// per-session MFA is overridden by hardware key PIV touch requirement.
 	// check if the auth pref or any roles have this option.
-	if authPref.GetRequireMFAType() == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-		return AccessState{MFARequired: MFARequiredNever}
+	if clusterRequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
+		return MFARequiredNever
 	}
 	for _, role := range set {
 		if role.GetOptions().RequireMFAType == types.RequireMFAType_HARDWARE_KEY_TOUCH {
-			return AccessState{MFARequired: MFARequiredNever}
+			return MFARequiredNever
 		}
 	}
 
 	// MFA is always required according to the cluster auth pref.
-	if authPref.GetRequireMFAType().IsSessionMFARequired() {
-		return AccessState{MFARequired: MFARequiredAlways}
+	if clusterRequireMFAType.IsSessionMFARequired() {
+		return MFARequiredAlways
 	}
 
 	// If MFA requirement is the same across all roles, we can skip the per-role check.
@@ -1191,17 +1248,17 @@ func (set RoleSet) GetAccessState(authPref types.AuthPreference) AccessState {
 		for _, role := range set[1:] {
 			if role.GetOptions().RequireMFAType.IsSessionMFARequired() != rolesMFARequired {
 				// This role differs from the MFA requirement of the other roles, return per-role.
-				return AccessState{MFARequired: MFARequiredPerRole}
+				return MFARequiredPerRole
 			}
 		}
 
 		if rolesMFARequired {
-			return AccessState{MFARequired: MFARequiredAlways}
+			return MFARequiredAlways
 		}
 	}
 
 	// No roles to check or no roles require MFA.
-	return AccessState{MFARequired: MFARequiredNever}
+	return MFARequiredNever
 }
 
 // PrivateKeyPolicy returns the enforced private key policy for this role set.
@@ -1503,6 +1560,32 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
 	}
 	return utils.StringsSliceFromSet(accounts), nil
+}
+
+// CheckAccessToSAMLIdP checks access to the SAML IdP.
+//
+//nolint:revive // Because we want this to be IdP.
+func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
+	if authPref != nil {
+		if !authPref.IsSAMLIdPEnabled() {
+			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
+		}
+	}
+	for _, role := range set {
+		options := role.GetOptions()
+
+		// This should never happen, but we should make sure that we don't get a nil pointer error here.
+		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+			continue
+		}
+
+		// If any role specifically denies access to the IdP, we'll return AccessDenied.
+		if !options.IDP.SAML.Enabled.Value {
+			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		}
+	}
+
+	return nil
 }
 
 // CheckLoginDuration checks if role set can login up to given duration and
@@ -2032,20 +2115,70 @@ func (m RoleMatchers) MatchAny(role types.Role, condition types.RoleConditionTyp
 	return false, nil, nil
 }
 
-// DatabaseUserMatcher matches a role against database account name.
-type DatabaseUserMatcher struct {
-	User string
+// databaseUserMatcher matches a role against database account name.
+type databaseUserMatcher struct {
+	// user is the name of the database user.
+	user string
+	// alternativeNames is a list of alternative names for the database user.
+	alternativeNames []string
+}
+
+// NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
+// database users match the specified condition.
+func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
+	if db.RequireAWSIAMRolesAsUsers() {
+		return &databaseUserMatcher{
+			user:             user,
+			alternativeNames: makeAlternativeNamesForAWSRole(db, user),
+		}
+	}
+
+	return &databaseUserMatcher{user: user}
 }
 
 // Match matches database account name against provided role and condition.
-func (m *DatabaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
-	match, _ := MatchDatabaseUser(role.GetDatabaseUsers(condition), m.User)
-	return match, nil
+func (m *databaseUserMatcher) Match(role types.Role, condition types.RoleConditionType) (bool, error) {
+	selectors := role.GetDatabaseUsers(condition)
+	if match, _ := MatchDatabaseUser(selectors, m.user, true); match {
+		return true, nil
+	}
+
+	for _, altName := range m.alternativeNames {
+		if match, _ := MatchDatabaseUser(selectors, altName, false); match {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // String returns the matcher's string representation.
-func (m *DatabaseUserMatcher) String() string {
-	return fmt.Sprintf("DatabaseUserMatcher(User=%v)", m.User)
+func (m *databaseUserMatcher) String() string {
+	return fmt.Sprintf("databaseUserMatcher(user=%v, alternativeNames=%v)", m.user, m.alternativeNames)
+}
+
+func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
+	metadata := db.GetAWS()
+	if metadata.Region == "" || metadata.AccountID == "" {
+		return nil
+	}
+
+	// If input database user is a role ARN, try the short role name.
+	// The input role ARN must have matching partition and account ID in
+	// order to try the short role name.
+	if arn.IsARN(user) {
+		roleName, err := awsutils.ValidateRoleARNAndExtractRoleName(user, metadata.Partition(), metadata.AccountID)
+		if err != nil {
+			return nil
+		}
+		return []string{roleName}
+	}
+
+	// If input database user is the short role name, try the full ARN.
+	roleARN, err := awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)
+	if err != nil {
+		return nil
+	}
+	return []string{roleARN}
 }
 
 // DatabaseNameMatcher matches a role against database name.
@@ -2239,15 +2372,15 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 	return isDebugEnabled, log.Debugf
 }
 
-// checkAccess checks if this role set has access to a particular resource,
-// optionally matching the resource's labels.
+// checkAccess checks if this role set has access to a particular resource r,
+// based on the passed AccessState, the resource's labels, and the passed matchers.
 func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
 	isDebugEnabled, debugf := rbacDebugLogger()
 
-	if state.MFARequired == MFARequiredAlways && !state.MFAVerified {
+	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
 		debugf("Access to %v %q denied, cluster requires per-session MFA", r.GetKind(), r.GetName())
 		return ErrSessionMFARequired
 	}
@@ -2260,16 +2393,13 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	additionalDeniedMessage := ""
 
 	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
-	resourceHasLabels := true
-	getEmptyLabels := func(r types.Role, rct types.RoleConditionType) types.Labels { return types.Labels{} }
 
 	switch r.GetKind() {
 	case types.KindDatabase:
 		getRoleLabels = types.Role.GetDatabaseLabels
 		additionalDeniedMessage = "Confirm database user and name."
 	case types.KindDatabaseService:
-		resourceHasLabels = false
-		getRoleLabels = getEmptyLabels
+		getRoleLabels = types.Role.GetDatabaseServiceLabels
 	case types.KindApp:
 		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
@@ -2319,6 +2449,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 		}
 	}
 
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
+
+	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
+	//  of opt-in.
+	deviceAllowed := !state.EnableDeviceVerification || state.DeviceVerified
+
 	var errs []error
 	allowed := false
 	// Check allow rules.
@@ -2337,8 +2473,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			return trace.Wrap(err)
 		}
 
-		// Deny only if the resourceHasLabels but there was no match.
-		if resourceHasLabels && !matchLabels {
+		if !matchLabels {
 			if isDebugEnabled {
 				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
 					role.GetName(), labelsMessage))
@@ -2360,21 +2495,38 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			continue
 		}
 
-		// if we've reached this point, namespace, labels, and matchers all match.
-		// if MFA is verified or never required, we're done.
-		if state.MFAVerified || state.MFARequired == MFARequiredNever {
+		// If we've reached this point, namespace, labels, and matchers all match.
+		//
+		// The following checks remain:
+		// 1. MFA verification (aka require_session_mfa)
+		// 2. Device verification (aka device_trust_mode)
+		//
+		// The more restrictive setting applies, so either the caller passes all
+		// (and gets an early exit) or we need to check every applicable role to
+		// ensure the access is permitted.
+
+		if mfaAllowed && deviceAllowed {
+			debugf("Access to %v %q granted, allow rule in role %q matched.",
+				r.GetKind(), r.GetName(), role.GetName())
 			return nil
 		}
-		// if MFA is not verified and we require session MFA, deny access
-		if role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+
+		// MFA verification.
+		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
 			debugf("Access to %v %q denied, role %q requires per-session MFA",
 				r.GetKind(), r.GetName(), role.GetName())
 			return ErrSessionMFARequired
 		}
 
-		// Check all remaining roles, even if we found a match.
-		// RequireSessionMFA should be enforced when at least one role has
-		// it.
+		// Device verification.
+		if !deviceAllowed && role.GetOptions().DeviceTrustMode == constants.DeviceTrustModeRequired {
+			debugf("Access to %v %q denied, role %q requires a trusted device",
+				r.GetKind(), r.GetName(), role.GetName())
+			return ErrTrustedDeviceRequired
+		}
+
+		// Current role allows access, but keep looking for a more restrictive
+		// setting.
 		allowed = true
 		debugf("Access to %v %q granted, allow rule in role %q matched.",
 			r.GetKind(), r.GetName(), role.GetName())
@@ -2908,6 +3060,17 @@ type AccessState struct {
 	MFARequired MFARequired
 	// MFAVerified is set when MFA has been verified by the caller.
 	MFAVerified bool
+	// EnableDeviceVerification enables device verification in access checks.
+	// It's recommended to set this in tandem with DeviceVerified, so device
+	// checks are easier to reason about and have a proper chance of succeeding.
+	// Defaults to false for backwards compatibility.
+	EnableDeviceVerification bool
+	// DeviceVerified is true if the user certificate contains all required
+	// device extensions.
+	// A value of true enables the caller to clear device trust checks.
+	// It's recommended to set this in tandem with EnableDeviceVerification.
+	// See [dtauthz.IsTLSDeviceVerified] and [dtauthz.IsSSHDeviceVerified].
+	DeviceVerified bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.

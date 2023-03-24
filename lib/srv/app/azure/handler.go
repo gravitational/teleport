@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // HandlerConfig is the configuration for an Azure app-access handler.
@@ -173,7 +172,7 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
 	}
 
-	payload, err := awsutils.GetAndReplaceReqBody(r)
+	payload, err := utils.GetAndReplaceRequestBody(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -293,6 +292,11 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	var tokenResult *azcore.AccessToken
 	var errorResult error
 
+	// call Clock.After() before FnCacheGet gets called in a different go-routine.
+	// this ensures there is no race condition in the timeout tests, as
+	// getAccessToken() ends up calling Clock.Advance() there
+	timeoutChan := s.Clock.After(getTokenTimeout)
+
 	go func() {
 		tokenResult, errorResult = utils.FnCacheGet(cancelCtx, s.tokenCache, key, func(ctx context.Context) (*azcore.AccessToken, error) {
 			return s.getAccessToken(ctx, managedIdentity, scope)
@@ -301,7 +305,7 @@ func (s *handler) getToken(ctx context.Context, managedIdentity string, scope st
 	}()
 
 	select {
-	case <-s.Clock.After(getTokenTimeout):
+	case <-timeoutChan:
 		return nil, trace.Wrap(context.DeadlineExceeded, "timeout waiting for access token for %v", getTokenTimeout)
 	case <-cancelCtx.Done():
 		return tokenResult, errorResult

@@ -75,6 +75,8 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("connection upgraded", func(t *testing.T) {
+		ctx := context.Background()
+
 		server := httptest.NewTLSServer(mockConnUpgradeHandler(t, "alpn", []byte("hello")))
 		t.Cleanup(server.Close)
 		addr, err := url.Parse(server.URL)
@@ -82,9 +84,9 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		pool := x509.NewCertPool()
 		pool.AddCert(server.Certificate())
 
-		ctx := context.TODO()
-		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
-		dialer := newALPNConnUpgradeDialer(preDialer, &tls.Config{RootCAs: pool})
+		tlsConfig := &tls.Config{RootCAs: pool}
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second, apiclient.WithTLSConfig(tlsConfig))
+		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 		require.NoError(t, err)
 
@@ -95,14 +97,16 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 	})
 
 	t.Run("connection upgrade API not found", func(t *testing.T) {
+		ctx := context.Background()
+
 		server := httptest.NewTLSServer(http.NotFoundHandler())
 		t.Cleanup(server.Close)
 		addr, err := url.Parse(server.URL)
 		require.NoError(t, err)
 
-		ctx := context.TODO()
-		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second)
-		dialer := newALPNConnUpgradeDialer(preDialer, &tls.Config{InsecureSkipVerify: true})
+		tlsConfig := &tls.Config{InsecureSkipVerify: true}
+		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second, apiclient.WithTLSConfig(tlsConfig))
+		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		_, err = dialer.DialContext(ctx, "tcp", addr.Host)
 		require.Error(t, err)
 	})

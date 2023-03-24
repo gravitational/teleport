@@ -28,9 +28,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -38,20 +38,25 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/joinserver"
@@ -496,6 +501,20 @@ func (g *GRPCServer) GenerateHostCerts(ctx context.Context, req *proto.HostCerts
 	return certs, nil
 }
 
+func (g *GRPCServer) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := auth.ServerWithRoles.GenerateOpenSSHCert(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return cert, nil
+}
+
 // DELETE IN: 12.0 (deprecated in v11, but required for back-compat with v10 clients)
 func (g *GRPCServer) UnstableAssertSystemRole(ctx context.Context, req *proto.UnstableSystemRoleAssertion) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -650,6 +669,48 @@ func (g *GRPCServer) UpsertClusterAlert(ctx context.Context, req *proto.UpsertCl
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) CreateAlertAck(ctx context.Context, ack *types.AlertAcknowledgement) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.CreateAlertAck(ctx, *ack); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetAlertAcks(ctx context.Context, _ *proto.GetAlertAcksRequest) (*proto.GetAlertAcksResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	acks, err := auth.GetAlertAcks(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &proto.GetAlertAcksResponse{
+		Acks: acks,
+	}, nil
+}
+
+func (g *GRPCServer) ClearAlertAcks(ctx context.Context, req *proto.ClearAlertAcksRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	if err := auth.ClearAlertAcks(ctx, *req); err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
 func (g *GRPCServer) GetUser(ctx context.Context, req *proto.GetUserRequest) (*types.UserV2, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -728,34 +789,6 @@ func (g *GRPCServer) GetUsers(req *proto.GetUsersRequest, stream proto.AuthServi
 	return nil
 }
 
-// DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
-func (g *GRPCServer) GetAccessRequests(ctx context.Context, f *types.AccessRequestFilter) (*proto.AccessRequests, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var filter types.AccessRequestFilter
-	if f != nil {
-		filter = *f
-	}
-	reqs, err := auth.ServerWithRoles.GetAccessRequests(ctx, filter)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	collector := make([]*types.AccessRequestV3, 0, len(reqs))
-	for _, req := range reqs {
-		r, ok := req.(*types.AccessRequestV3)
-		if !ok {
-			err = trace.BadParameter("unexpected access request type %T", req)
-			return nil, trace.Wrap(err)
-		}
-		collector = append(collector, r)
-	}
-	return &proto.AccessRequests{
-		AccessRequests: collector,
-	}, nil
-}
-
 func (g *GRPCServer) GetAccessRequestsV2(f *types.AccessRequestFilter, stream proto.AuthService_GetAccessRequestsV2Server) error {
 	ctx := stream.Context()
 	auth, err := g.authenticate(ctx)
@@ -792,6 +825,11 @@ func (g *GRPCServer) CreateAccessRequest(ctx context.Context, req *types.AccessR
 	if err := services.ValidateAccessRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	if err := services.ValidateAccessRequestClusterNames(auth, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if err := auth.ServerWithRoles.CreateAccessRequest(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -815,7 +853,7 @@ func (g *GRPCServer) SetAccessRequestState(ctx context.Context, req *proto.Reque
 		return nil, trace.Wrap(err)
 	}
 	if req.Delegator != "" {
-		ctx = WithDelegator(ctx, req.Delegator)
+		ctx = authz.WithDelegator(ctx, req.Delegator)
 	}
 	if err := auth.ServerWithRoles.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 		RequestID:   req.ID,
@@ -1444,6 +1482,51 @@ func (g *GRPCServer) GetSnowflakeSessions(ctx context.Context, e *emptypb.Empty)
 	}, nil
 }
 
+// GetSAMLIdPSession gets a SAML IdPsession.
+func (g *GRPCServer) GetSAMLIdPSession(ctx context.Context, req *proto.GetSAMLIdPSessionRequest) (*proto.GetSAMLIdPSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	samlSession, err := auth.GetSAMLIdPSession(ctx, types.GetSAMLIdPSessionRequest{SessionID: req.GetSessionID()})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := samlSession.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", samlSession)
+	}
+
+	return &proto.GetSAMLIdPSessionResponse{
+		Session: sess,
+	}, nil
+}
+
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (g *GRPCServer) ListSAMLIdPSessions(ctx context.Context, req *proto.ListSAMLIdPSessionsRequest) (*proto.ListSAMLIdPSessionsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessions, token, err := auth.ListSAMLIdPSessions(ctx, int(req.PageSize), req.PageToken, req.User)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*types.WebSessionV2, 0, len(sessions))
+	for _, sess := range sessions {
+		s, ok := sess.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter("unexpected type %T", sess)
+		}
+		out = append(out, s)
+	}
+
+	return &proto.ListSAMLIdPSessionsResponse{Sessions: out, NextPageToken: token}, nil
+}
+
 func (g *GRPCServer) DeleteSnowflakeSession(ctx context.Context, req *proto.DeleteSnowflakeSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -1525,6 +1608,31 @@ func (g *GRPCServer) CreateSnowflakeSession(ctx context.Context, req *proto.Crea
 	}, nil
 }
 
+// CreateSAMLIdPSession creates a SAML IdP session.
+func (g *GRPCServer) CreateSAMLIdPSession(ctx context.Context, req *proto.CreateSAMLIdPSessionRequest) (*proto.CreateSAMLIdPSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := auth.CreateSAMLIdPSession(ctx, types.CreateSAMLIdPSessionRequest{
+		SessionID:   req.GetSessionID(),
+		Username:    req.GetUsername(),
+		SAMLSession: req.GetSAMLSession(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := session.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", session)
+	}
+
+	return &proto.CreateSAMLIdPSessionResponse{
+		Session: sess,
+	}, nil
+}
+
 // DeleteAppSession removes an application web session.
 func (g *GRPCServer) DeleteAppSession(ctx context.Context, req *proto.DeleteAppSessionRequest) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
@@ -1563,6 +1671,50 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *proto.Delet
 	}
 
 	if err := auth.DeleteUserAppSessions(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (g *GRPCServer) DeleteSAMLIdPSession(ctx context.Context, req *proto.DeleteSAMLIdPSessionRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{
+		SessionID: req.GetSessionID(),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (g *GRPCServer) DeleteAllSAMLIdPSessions(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteAllSAMLIdPSessions(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteUserSAMLIdPSessions removes all of a user's SAML IdP sessions.
+func (g *GRPCServer) DeleteUserSAMLIdPSessions(ctx context.Context, req *proto.DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.DeleteUserSAMLIdPSessions(ctx, req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1755,91 +1907,6 @@ func (g *GRPCServer) UpdateRemoteCluster(ctx context.Context, req *types.RemoteC
 	if err := auth.UpdateRemoteCluster(ctx, req); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &emptypb.Empty{}, nil
-}
-
-// UpsertKubeService adds a kubernetes service.
-func (g *GRPCServer) UpsertKubeService(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	server := req.GetServer()
-	// If Addr in the server is localhost, replace it with the address we see
-	// from our end.
-	//
-	// Services that listen on "0.0.0.0:12345" will put that exact address in
-	// the server.Addr field. It's not useful for other services that want to
-	// connect to it (like a proxy). Remote address of the gRPC connection is
-	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
-		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
-	}
-	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
-
-	if err := auth.UpsertKubeService(ctx, server); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return new(emptypb.Empty), nil
-}
-
-// UpsertKubeServiceV2 adds a kubernetes service
-func (g *GRPCServer) UpsertKubeServiceV2(ctx context.Context, req *proto.UpsertKubeServiceRequest) (*types.KeepAlive, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	server := req.GetServer()
-	// If Addr in the server is localhost, replace it with the address we see
-	// from our end.
-	//
-	// Services that listen on "0.0.0.0:12345" will put that exact address in
-	// the server.Addr field. It's not useful for other services that want to
-	// connect to it (like a proxy). Remote address of the gRPC connection is
-	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
-		return nil, status.Errorf(codes.FailedPrecondition, "bug: client address not found in request context")
-	}
-	server.SetAddr(utils.ReplaceLocalhost(server.GetAddr(), clientAddr.String()))
-
-	keepAlive, err := auth.UpsertKubeServiceV2(ctx, server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return keepAlive, nil
-}
-
-// DeleteKubeService removes a kubernetes service.
-func (g *GRPCServer) DeleteKubeService(ctx context.Context, req *proto.DeleteKubeServiceRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.DeleteKubeService(ctx, req.GetName())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return &emptypb.Empty{}, nil
-}
-
-// DeleteAllKubeServices removes all kubernetes services.
-func (g *GRPCServer) DeleteAllKubeServices(ctx context.Context, req *proto.DeleteAllKubeServicesRequest) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	err = auth.DeleteAllKubeServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &emptypb.Empty{}, nil
 }
 
@@ -2373,18 +2440,6 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
-	authPref, err := actx.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	identity := actx.Identity.GetIdentity()
-
-	// Device trust: authorize device before issuing certificates, if applicable.
-	// This gives a better UX by failing earlier in the access attempt.
-	if err := dtauthz.VerifyTLSUser(authPref.GetDeviceTrust(), identity); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// The RPC is streaming both ways and the message sequence is:
 	// (-> means client-to-server, <- means server-to-client)
 	//
@@ -2404,6 +2459,17 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 	if err := validateUserSingleUseCertRequest(ctx, actx, initReq); err != nil {
 		g.Entry.Debugf("Validation of single-use cert request failed: %v", err)
+		return trace.Wrap(err)
+	}
+
+	// Device trust: authorize device before issuing certificates.
+	// We do this here, in addition to the check at generateUserCerts, so users
+	// won't be asked to tap the security key if using an untrusted device.
+	authPref, err := actx.authServer.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := actx.verifyUserDeviceForCertIssuance(initReq.Usage, authPref.GetDeviceTrust()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2453,6 +2519,8 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		}
 	case proto.UserCertsRequest_All:
 		return trace.BadParameter("must specify a concrete Usage in UserCertsRequest, one of SSH, Kubernetes or Database")
+	case proto.UserCertsRequest_App:
+		return trace.BadParameter("app access certificates cannot be issued by GenerateUserSingleUseCerts")
 	case proto.UserCertsRequest_WindowsDesktop:
 		if req.RouteToWindowsDesktop.WindowsDesktop == "" {
 			return trace.BadParameter("missing WindowsDesktop field in a windows-desktop-only UserCertsRequest")
@@ -2461,11 +2529,26 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
+	if isDBLocalProxyTunnelCertReq(req) {
+		// don't limit the cert expiry to 1 minute for db local proxy tunnel,
+		// because the certs will be kept in-memory by the client to protect
+		// against cert/key exfiltration. When MFA is required, cert expiration
+		// time is bounded by the lifetime of the local proxy tunnel process.
+		return nil
+	}
+
 	maxExpiry := actx.authServer.GetClock().Now().Add(teleport.UserSingleUseCertTTL)
 	if req.Expires.After(maxExpiry) {
 		req.Expires = maxExpiry
 	}
 	return nil
+}
+
+// isDBLocalProxyTunnelCertReq returns whether a cert request is for
+// a database cert and the requester is a local proxy tunnel.
+func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
+	return req.Usage == proto.UserCertsRequest_Database &&
+		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
 }
 
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) (*types.MFADevice, error) {
@@ -2518,7 +2601,7 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		ctx, req,
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
-		certRequestClientIP(clientIP),
+		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
 	)
 	if err != nil {
@@ -2738,7 +2821,7 @@ func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.Resource
 	}
 	githubConnectorV3, ok := gc.(*types.GithubConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected Github connector type: %T", gc)
+		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", gc)
 	}
 	return githubConnectorV3, nil
 }
@@ -2757,7 +2840,7 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	for i, gc := range gcs {
 		var ok bool
 		if githubConnectorsV3[i], ok = gc.(*types.GithubConnectorV3); !ok {
-			return nil, trace.Errorf("encountered unexpected Github connector type: %T", gc)
+			return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", gc)
 		}
 	}
 	return &types.GithubConnectorV3List{
@@ -2943,12 +3026,24 @@ func (g *GRPCServer) GetTokens(ctx context.Context, _ *emptypb.Empty) (*types.Pr
 	}, nil
 }
 
+// setDefaultTokenTTL replicates the old server-side behavior of universally
+// applying a 30 minute TTL default to newly created tokens.
+// This can be removed when CreateToken and UpsertToken are removed.
+func setDefaultTokenTTL(clock clockwork.Clock, token *types.ProvisionTokenV2) {
+	if token.Expiry().IsZero() || token.Expiry().Sub(clock.Now().UTC()) < time.Second {
+		token.SetExpiry(clock.Now().Add(defaults.ProvisioningTokenTTL))
+	}
+}
+
 // UpsertToken upserts a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
 func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	g.Warn("Deprecated RPC UpsertToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling UpsertTokenV2. This will stop functioning in Teleport 14.0.0.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
 	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2956,10 +3051,55 @@ func (g *GRPCServer) UpsertToken(ctx context.Context, token *types.ProvisionToke
 }
 
 // CreateToken creates a token.
+// Deprecated: use CreateTokenV2 instead. Delete in 14.0.0.
 func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionTokenV2) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	g.Warn("Deprecated RPC CreateToken invoked. Upgrade your client or if manually invoking our gRPC RPCs switch to calling CreateTokenV2. This will stop functioning in Teleport 14.0.0.")
+	setDefaultTokenTTL(g.AuthServer.GetClock(), token)
+	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// UpsertTokenV2 upserts a token.
+func (g *GRPCServer) UpsertTokenV2(ctx context.Context, req *proto.UpsertTokenV2Request) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When new token versions are introduced, this can be exchanged for a
+	// switch statement.
+	token := req.GetV2()
+	if token == nil {
+		return nil, trail.ToGRPC(
+			trace.BadParameter("token not provided in request"),
+		)
+	}
+	if err = auth.ServerWithRoles.UpsertToken(ctx, token); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// CreateTokenV2 creates a token.
+func (g *GRPCServer) CreateTokenV2(ctx context.Context, req *proto.CreateTokenV2Request) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// When new token versions are introduced, this can be exchanged for a
+	// switch statement.
+	token := req.GetV2()
+	if token == nil {
+		return nil, trail.ToGRPC(
+			trace.BadParameter("token not provided in request"),
+		)
 	}
 	if err = auth.ServerWithRoles.CreateToken(ctx, token); err != nil {
 		return nil, trace.Wrap(err)
@@ -2968,11 +3108,14 @@ func (g *GRPCServer) CreateToken(ctx context.Context, token *types.ProvisionToke
 }
 
 // GenerateToken generates a new auth token.
+// Deprecated: Use CreateToken or UpdateToken.
+// DELETE IN 14.0.0, replaced by methods above (strideynet).
 func (g *GRPCServer) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequest) (*proto.GenerateTokenResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	g.Warn("Deprecated GenerateToken RPC called. This will stop functioning in Teleport 14.0.0. Upgrade your client.")
 
 	token, err := auth.ServerWithRoles.GenerateToken(ctx, req)
 	if err != nil {
@@ -3666,8 +3809,9 @@ func (g *GRPCServer) UpsertWindowsDesktopService(ctx context.Context, service *t
 	// the server.Addr field. It's not useful for other services that want to
 	// connect to it (like a proxy). Remote address of the gRPC connection is
 	// the closest thing we have to a public IP for the service.
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		g.Logger.WithError(err).Warn("error getting client address from context")
 		return nil, status.Errorf(codes.FailedPrecondition, "client address not found in request context")
 	}
 	service.Spec.Addr = utils.ReplaceLocalhost(service.GetAddr(), clientAddr.String())
@@ -4021,13 +4165,6 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
-		case types.KindKubeService:
-			srv, ok := resource.(*types.ServerV2)
-			if !ok {
-				return nil, trace.BadParameter("kubernetes service has invalid type %T", resource)
-			}
-
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
 		case types.KindKubeServer:
 			srv, ok := resource.(*types.KubernetesServerV3)
 			if !ok {
@@ -4263,6 +4400,45 @@ func (g *GRPCServer) SetInstaller(ctx context.Context, req *types.InstallerV1) (
 	return &emptypb.Empty{}, nil
 }
 
+func (g *GRPCServer) SetUIConfig(ctx context.Context, req *types.UIConfigV1) (*emptypb.Empty, error) {
+	// TODO (avatus) send an audit event when SetUIConfig is called
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.SetUIConfig(ctx, req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (g *GRPCServer) GetUIConfig(ctx context.Context, _ *emptypb.Empty) (*types.UIConfigV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiconfig, err := auth.ServerWithRoles.GetUIConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	uiconfigv1, ok := uiconfig.(*types.UIConfigV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", uiconfig)
+	}
+	return uiconfigv1, nil
+}
+
+func (g *GRPCServer) DeleteUIConfig(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.DeleteUIConfig(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // GetInstaller retrieves the installer script resource
 func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceRequest) (*types.InstallerV1, error) {
 	auth, err := g.authenticate(ctx)
@@ -4271,8 +4447,13 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 	}
 	res, err := auth.GetInstaller(ctx, req.Name)
 	if err != nil {
-		if trace.IsNotFound(err) && req.Name == installers.InstallerScriptName {
-			return installers.DefaultInstaller, nil
+		if trace.IsNotFound(err) {
+			switch req.Name {
+			case installers.InstallerScriptName:
+				return installers.DefaultInstaller, nil
+			case installers.InstallerScriptNameAgentless:
+				return installers.DefaultAgentlessInstaller, nil
+			}
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -4294,28 +4475,22 @@ func (g *GRPCServer) GetInstallers(ctx context.Context, _ *emptypb.Empty) (*type
 		return nil, trace.Wrap(err)
 	}
 	var installersV1 []*types.InstallerV1
-	needDefault := true
+	defaultInstallers := map[string]*types.InstallerV1{
+		installers.InstallerScriptName:          installers.DefaultInstaller,
+		installers.InstallerScriptNameAgentless: installers.DefaultAgentlessInstaller,
+	}
+
 	for _, inst := range res {
 		instV1, ok := inst.(*types.InstallerV1)
 		if !ok {
 			return nil, trace.BadParameter("unsupported installer type %T", inst)
 		}
-		if inst.GetName() == installers.InstallerScriptName {
-			needDefault = false
-		}
+		delete(defaultInstallers, inst.GetName())
 		installersV1 = append(installersV1, instV1)
 	}
 
-	if len(installersV1) == 0 {
-		return &types.InstallerV1List{
-			Installers: []*types.InstallerV1{
-				installers.DefaultInstaller,
-			},
-		}, nil
-	}
-
-	if needDefault {
-		installersV1 = append(installersV1, installers.DefaultInstaller)
+	for _, inst := range defaultInstallers {
+		installersV1 = append(installersV1, inst)
 	}
 
 	return &types.InstallerV1List{
@@ -4529,12 +4704,203 @@ func (g *GRPCServer) ListReleases(ctx context.Context, req *proto.ListReleasesRe
 	}, nil
 }
 
+// ListSAMLIdPServiceProviders returns a paginated list of SAML IdP service provider resources.
+func (g *GRPCServer) ListSAMLIdPServiceProviders(ctx context.Context, req *proto.ListSAMLIdPServiceProvidersRequest) (*proto.ListSAMLIdPServiceProvidersResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serviceProviders, nextKey, err := auth.ListSAMLIdPServiceProviders(ctx, int(req.GetLimit()), req.GetNextKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProvidersV1 := make([]*types.SAMLIdPServiceProviderV1, len(serviceProviders))
+	for i, sp := range serviceProviders {
+		v1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected SAML IdP service provider type %T", sp)
+		}
+		serviceProvidersV1[i] = v1
+	}
+
+	return &proto.ListSAMLIdPServiceProvidersResponse{
+		ServiceProviders: serviceProvidersV1,
+		NextKey:          nextKey,
+	}, nil
+}
+
+// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+func (g *GRPCServer) GetSAMLIdPServiceProvider(ctx context.Context, req *proto.GetSAMLIdPServiceProviderRequest) (*types.SAMLIdPServiceProviderV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sp, err := auth.GetSAMLIdPServiceProvider(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProviderV1, ok := sp.(*types.SAMLIdPServiceProviderV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected SAML IdP service provider type %T", sp)
+	}
+
+	return serviceProviderV1, nil
+}
+
+// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+func (g *GRPCServer) CreateSAMLIdPServiceProvider(ctx context.Context, sp *types.SAMLIdPServiceProviderV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.CreateSAMLIdPServiceProvider(ctx, sp))
+}
+
+// UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
+func (g *GRPCServer) UpdateSAMLIdPServiceProvider(ctx context.Context, sp *types.SAMLIdPServiceProviderV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.UpdateSAMLIdPServiceProvider(ctx, sp))
+}
+
+// DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
+func (g *GRPCServer) DeleteSAMLIdPServiceProvider(ctx context.Context, req *proto.DeleteSAMLIdPServiceProviderRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteSAMLIdPServiceProvider(ctx, req.GetName()))
+}
+
+// DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
+func (g *GRPCServer) DeleteAllSAMLIdPServiceProviders(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllSAMLIdPServiceProviders(ctx))
+}
+
+// ListUserGroups returns a paginated list of user group resources.
+func (g *GRPCServer) ListUserGroups(ctx context.Context, req *proto.ListUserGroupsRequest) (*proto.ListUserGroupsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userGroups, nextKey, err := auth.ListUserGroups(ctx, int(req.GetLimit()), req.GetNextKey())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	userGroupsV1 := make([]*types.UserGroupV1, len(userGroups))
+	for i, g := range userGroups {
+		v1, ok := g.(*types.UserGroupV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected user group type %T", g)
+		}
+		userGroupsV1[i] = v1
+	}
+
+	return &proto.ListUserGroupsResponse{
+		UserGroups: userGroupsV1,
+		NextKey:    nextKey,
+	}, nil
+}
+
+// GetUserGroup returns the specified user group resources.
+func (g *GRPCServer) GetUserGroup(ctx context.Context, req *proto.GetUserGroupRequest) (*types.UserGroupV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sp, err := auth.GetUserGroup(ctx, req.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	serviceProviderV1, ok := sp.(*types.UserGroupV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected user group type %T", sp)
+	}
+
+	return serviceProviderV1, nil
+}
+
+// CreateUserGroup creates a new user group resource.
+func (g *GRPCServer) CreateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.CreateUserGroup(ctx, sp))
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (g *GRPCServer) UpdateUserGroup(ctx context.Context, sp *types.UserGroupV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.UpdateUserGroup(ctx, sp))
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (g *GRPCServer) DeleteUserGroup(ctx context.Context, req *proto.DeleteUserGroupRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteUserGroup(ctx, req.GetName()))
+}
+
+// DeleteAllUserGroups removes all user groups.
+func (g *GRPCServer) DeleteAllUserGroups(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, trace.Wrap(auth.DeleteAllUserGroups(ctx))
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req *proto.UpdateHeadlessAuthenticationStateRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return &emptypb.Empty{}, trace.Wrap(err)
+	}
+
+	err = auth.UpdateHeadlessAuthenticationState(ctx, req.Id, req.State, req.MfaResponse)
+	return &emptypb.Empty{}, trace.Wrap(err)
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.GetHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
+	return authReq, trace.Wrap(err)
+}
+
+// GetBackend returns the backend from the underlying auth server.
+func (g *GRPCServer) GetBackend() backend.Backend {
+	return g.AuthServer.bk
+}
+
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration
 	APIConfig
 	// TLS is GRPC server config
 	TLS *tls.Config
+	// Middleware is the request TLS client authenticator
+	Middleware *Middleware
 	// UnaryInterceptor intercepts individual GRPC requests
 	// for authentication and rate limiting
 	UnaryInterceptor grpc.UnaryServerInterceptor
@@ -4554,6 +4920,9 @@ func (cfg *GRPCServerConfig) CheckAndSetDefaults() error {
 	if cfg.StreamInterceptor == nil {
 		return trace.BadParameter("missing parameter StreamInterceptor")
 	}
+	if cfg.Middleware == nil {
+		return trace.BadParameter("missing parameter Middleware")
+	}
 	return nil
 }
 
@@ -4568,13 +4937,22 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("GRPC(SERVER): keep alive %v count: %v.", cfg.KeepAlivePeriod, cfg.KeepAliveCount)
-	opts := []grpc.ServerOption{
-		grpc.Creds(&httplib.TLSCreds{
-			Config: cfg.TLS,
-		}),
 
-		grpc.ChainUnaryInterceptor(otelgrpc.UnaryServerInterceptor(), cfg.UnaryInterceptor),
-		grpc.ChainStreamInterceptor(otelgrpc.StreamServerInterceptor(), cfg.StreamInterceptor),
+	// httplib.TLSCreds are explicitly used instead of credentials.NewTLS because the latter
+	// modifies the tls.Config.NextProtos which causes problems due to multiplexing on the auth
+	// listener.
+	creds, err := NewTransportCredentials(TransportCredentialsConfig{
+		TransportCredentials: &httplib.TLSCreds{Config: cfg.TLS},
+		UserGetter:           cfg.Middleware,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	server := grpc.NewServer(
+		grpc.Creds(creds),
+		grpc.ChainUnaryInterceptor(cfg.UnaryInterceptor),
+		grpc.ChainStreamInterceptor(cfg.StreamInterceptor),
 		grpc.KeepaliveParams(
 			keepalive.ServerParameters{
 				Time:    cfg.KeepAlivePeriod,
@@ -4587,8 +4965,10 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 				PermitWithoutStream: true,
 			},
 		),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	server := grpc.NewServer(opts...)
 	authServer := &GRPCServer{
 		APIConfig: cfg.APIConfig,
 		Entry: logrus.WithFields(logrus.Fields{
@@ -4596,8 +4976,19 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		}),
 		server: server,
 	}
+
 	proto.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
+
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		Cache:      cfg.AuthServer.Cache,
+		Backend:    cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	trustpb.RegisterTrustServiceServer(server, trust)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -4607,6 +4998,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	joinServiceServer := joinserver.NewJoinServiceGRPCServer(serverWithNopRole)
 	proto.RegisterJoinServiceServer(server, joinServiceServer)
 
+	oktaServiceServer, err := okta.NewService(okta.ServiceConfig{
+		Backend:    cfg.AuthServer.bk,
+		Authorizer: cfg.Authorizer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oktapb.RegisterOktaServiceServer(server, oktaServiceServer)
+
 	return authServer, nil
 }
 
@@ -4615,7 +5015,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	nopRole := BuiltinRole{
+	nopRole := authz.BuiltinRole{
 		Role:        types.RoleNop,
 		Username:    string(types.RoleNop),
 		ClusterName: clusterName.GetClusterName(),
@@ -4624,7 +5024,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	nopCtx, err := contextForBuiltinRole(nopRole, recConfig)
+	nopCtx, err := authz.ContextForBuiltinRole(nopRole, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4636,7 +5036,7 @@ func serverWithNopRole(cfg GRPCServerConfig) (*ServerWithRoles, error) {
 }
 
 type grpcContext struct {
-	*Context
+	*authz.Context
 	*ServerWithRoles
 }
 
@@ -4645,25 +5045,7 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	// HTTPS server expects auth context to be set by the auth middleware
 	authContext, err := g.Authorizer.Authorize(ctx)
 	if err != nil {
-		switch {
-		// propagate connection problem error so we can differentiate
-		// between connection failed and access denied
-		case trace.IsConnectionProblem(err):
-			return nil, trace.ConnectionProblem(err, "[10] failed to connect to the database")
-		case trace.IsNotFound(err):
-			// user not found, wrap error with access denied
-			return nil, trace.Wrap(err, "[10] access denied")
-		case trace.IsAccessDenied(err):
-			// don't print stack trace, just log the warning
-			log.Warn(err)
-		case keys.IsPrivateKeyPolicyError(err):
-			// private key policy errors should be returned to the client
-			// unaltered so that they know to reauthenticate with a valid key.
-			return nil, trace.Unwrap(err)
-		default:
-			log.Warn(trace.DebugReport(err))
-		}
-		return nil, trace.AccessDenied("[10] access denied")
+		return nil, authz.ConvertAuthorizerError(ctx, g.Logger, err)
 	}
 	return &grpcContext{
 		Context: authContext,

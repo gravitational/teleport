@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 // procIDToName maps procID to the special stored procedure name

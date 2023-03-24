@@ -144,24 +144,6 @@ func TestGatewayCRUD(t *testing.T) {
 			},
 		},
 		{
-			name:                 "RestartGateway",
-			gatewayNamesToCreate: []string{"gateway"},
-			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {
-				gateway := c.nameToGateway["gateway"]
-				require.Equal(t, 1, c.mockGatewayCreator.callCount)
-
-				err := daemon.RestartGateway(context.Background(), gateway.URI().String())
-				require.NoError(t, err)
-				require.Equal(t, 2, c.mockGatewayCreator.callCount)
-				require.Equal(t, 1, len(daemon.gateways))
-
-				// Check if the restarted gateway is still available under the same URI.
-				restartedGateway, err := daemon.findGateway(gateway.URI().String())
-				require.NoError(t, err)
-				require.Equal(t, gateway.URI(), restartedGateway.URI())
-			},
-		},
-		{
 			name:                 "SetGatewayLocalPort closes previous gateway if new port is free",
 			gatewayNamesToCreate: []string{"gateway"},
 			testFunc: func(t *testing.T, c *gatewayCRUDTestContext, daemon *Service) {

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -89,7 +90,7 @@ type Config struct {
 	// Limiter limits the number of connections per client IP.
 	Limiter *limiter.Limiter
 	// Authorizer is used to authorize requests coming from proxy.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// GetServerInfoFn returns function that returns database info for heartbeats.
@@ -117,8 +118,6 @@ type Config struct {
 	Auth common.Auth
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
-	// LockWatcher is a lock watcher.
-	LockWatcher *services.LockWatcher
 	// CloudClients creates cloud API clients.
 	CloudClients clients.Clients
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
@@ -129,6 +128,10 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
+	// ConnectionMonitor monitors and closes connections if session controls
+	// prevent the connections.
+	ConnectionMonitor ConnMonitor
+
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker discoveryResourceChecker
@@ -188,8 +191,8 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.CADownloader == nil {
 		c.CADownloader = NewRealDownloader()
 	}
-	if c.LockWatcher == nil {
-		return trace.BadParameter("missing LockWatcher")
+	if c.ConnectionMonitor == nil {
+		return trace.BadParameter("missing ConnectionMonitor")
 	}
 	if c.CloudClients == nil {
 		c.CloudClients = clients.NewClients()
@@ -344,6 +347,11 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clustername, err := config.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
@@ -358,7 +366,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		},
 		reconcileCh: make(chan struct{}),
 		middleware: &auth.Middleware{
-			AccessPoint:   config.AccessPoint,
+			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 	}
@@ -521,16 +529,30 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		s.log.Warnf("Failed to teardown IAM for %v: %v.", database, err)
 	}
 	// Stop heartbeat, labels, etc.
-	if err := s.stopProxyingDatabase(ctx, database); err != nil {
+	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
+
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
 // its heartbeat and dynamic labels and unregistering it from the list of
 // proxied databases.
 func (s *Server) stopProxyingDatabase(ctx context.Context, database types.Database) error {
+	// Stop heartbeat and dynamic labels updates.
+	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.proxiedDatabases, database.GetName())
+	return nil
+}
+
+// stopProxyingAndDeleteDatabase stops and deletes the database, then
+// unregisters it from the list of proxied databases.
+func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels updates.
 	if err := s.stopDatabase(ctx, database.GetName()); err != nil {
 		return trace.Wrap(err)
@@ -662,7 +684,7 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start cloud users that will be monitoring cloud users.
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
-	// Start hearbeating the Database Service itself.
+	// Start heartbeating the Database Service itself.
 	if err := s.startServiceHeartbeat(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -742,12 +764,23 @@ func (s *Server) startServiceHeartbeat() error {
 
 // Close stops proxying all server's databases and frees up other resources.
 func (s *Server) Close() error {
+	return trace.Wrap(s.close(s.closeContext))
+}
+
+// Shutdown performs a graceful shutdown.
+func (s *Server) Shutdown(ctx context.Context) error {
+	// TODO wait active connections.
+	return trace.Wrap(s.close(ctx))
+}
+
+func (s *Server) close(ctx context.Context) error {
 	var errors []error
 	// Stop proxying all databases.
 	for _, database := range s.getProxiedDatabases() {
-		if err := s.stopProxyingDatabase(s.closeContext, database); err != nil {
-			errors = append(errors, trace.WrapWithMessage(
-				err, "stopping database %v", database.GetName()))
+		if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+			errors = append(errors, trace.Wrap(s.stopProxyingAndDeleteDatabase(ctx, database)))
+		} else {
+			errors = append(errors, trace.Wrap(s.stopProxyingDatabase(ctx, database)))
 		}
 	}
 	// Signal to all goroutines to stop.
@@ -869,26 +902,13 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	clientConn, err = monitorConn(ctx, monitorConnConfig{
-		conn:         clientConn,
-		lockWatcher:  s.cfg.LockWatcher,
-		lockTargets:  sessionCtx.LockTargets,
-		identity:     sessionCtx.Identity,
-		checker:      sessionCtx.Checker,
-		clock:        s.cfg.Clock,
-		serverID:     s.cfg.HostID,
-		authClient:   s.cfg.AuthClient,
-		teleportUser: sessionCtx.Identity.Username,
-		emitter:      s.cfg.Emitter,
-		log:          s.log,
-		ctx:          s.closeContext,
-	})
+	ctx, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO(jakule): ClientIP should be required starting from 10.0.
-	clientIP := sessionCtx.Identity.ClientIP
+	// TODO(jakule): LoginIP should be required starting from 10.0.
+	clientIP := sessionCtx.Identity.LoginIP
 	if clientIP != "" {
 		s.log.Debugf("Real client IP %s", clientIP)
 
@@ -899,7 +919,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		}
 		defer release()
 	} else {
-		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
+		s.log.Debug("LoginIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
 	err = engine.HandleConnection(ctx, sessionCtx)
@@ -964,9 +984,13 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
-	userType := ctx.Value(auth.ContextUser)
+	userType, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch userType.(type) {
-	case auth.LocalUser, auth.RemoteUser:
+	case authz.LocalUser, authz.RemoteUser:
 	default:
 		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}
@@ -977,6 +1001,12 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Fetch the requested database server.
 	var database types.Database
 	registeredDatabases := s.getProxiedDatabases()
@@ -1001,6 +1031,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		Identity:          identity,
 		DatabaseUser:      identity.RouteToDatabase.Username,
 		DatabaseName:      identity.RouteToDatabase.Database,
+		AuthContext:       authContext,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
 		Log: s.log.WithFields(logrus.Fields{

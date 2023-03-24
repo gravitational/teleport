@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - branch/*
   pull_request:
     paths:
       - '**.go'
@@ -31,12 +32,13 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport12
+      image: ghcr.io/gravitational/teleport-buildbox:teleport13
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
         TELEPORT_BPF_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
     services:

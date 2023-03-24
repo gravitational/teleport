@@ -1,24 +1,14 @@
 name: "CodeQL"
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
-  pull_request:
-    branches:
-      - master
-      - branch/*
-    paths-ignore:
-      - 'docs/**'
-      - 'rfd/**'
-      - '**.md'
+  schedule:
+    - cron: '0 13 * * *' # At 1:00 PM UTC every day
 
 jobs:
   analyze:
     name: Analyze
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-22.04-32core
+    runs-on: ubuntu-22.04-16core
     permissions:
       actions: read
       contents: read
@@ -27,36 +17,33 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        branch: [ 'master', 'branch/v10', 'branch/v11', 'branch/v12' ]
         language: [ 'go', 'javascript' ]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        ref: ${{ matrix.branch }}
 
     - name: Set up Go
-      uses: actions/setup-go@v3
+      uses: actions/setup-go@v4
       with:
-        go-version-file: 'go.mod'
+        cache-dependency-path: '**/go.sum'
       if: ${{ matrix.language == 'go' }}
 
     - name: Initialize the CodeQL tools for scanning
       uses: github/codeql-action/init@v2
       with:
         languages: ${{ matrix.language }}
-      timeout-minutes: 10
+      timeout-minutes: 5
 
     - name: Autobuild
       uses: github/codeql-action/autobuild@v2
-      if: ${{ matrix.language != 'go' }}
       timeout-minutes: 30
-
-    - name: Build Teleport OSS
-      run: |
-        make full
-      if: ${{ matrix.language == 'go' }}
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
       with:
         category: "/language:${{matrix.language}}"
-      timeout-minutes: 30
+      timeout-minutes: 10

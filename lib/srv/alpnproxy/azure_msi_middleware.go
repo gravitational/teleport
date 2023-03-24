@@ -90,6 +90,10 @@ func (m *AzureMSIMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Req
 	return false
 }
 
+func (m *AzureMSIMiddleware) HandleResponse(*http.Response) error {
+	return nil
+}
+
 func (m *AzureMSIMiddleware) msiEndpoint(rw http.ResponseWriter, req *http.Request) error {
 	// request validation
 	if req.URL.Path != ("/" + m.Secret) {

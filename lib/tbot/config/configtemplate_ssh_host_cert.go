@@ -165,7 +165,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 		OverwriteDestination: true,
 	}
 
-	files, err := identityfile.Write(cfg)
+	files, err := identityfile.Write(ctx, cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}

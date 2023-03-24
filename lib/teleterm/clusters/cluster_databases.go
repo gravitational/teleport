@@ -24,12 +24,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -45,7 +45,7 @@ type Database struct {
 func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, error) {
 	// TODO(ravicious): Fetch a single db instead of filtering the response from GetDatabases.
 	// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
-	dbs, err := c.GetAllDatabases(ctx)
+	dbs, err := c.getAllDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,7 +60,9 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 }
 
 // GetDatabases returns databases
-func (c *Cluster) GetAllDatabases(ctx context.Context) ([]Database, error) {
+// TODO(ravicious): Remove this method in favor of fetching a single database in GetDatabase.
+// https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
+func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 	var dbs []types.Database
 	err := addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)

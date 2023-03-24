@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -69,7 +70,7 @@ type TestAuthServerConfig struct {
 	// Streamer allows a test to set its own audit events streamer.
 	Streamer events.Streamer
 	// AuditLog allows a test to configure its own audit log.
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 	// TraceClient allows a test to configure the trace client
 	TraceClient otlptrace.Client
 	// AuthPreferenceSpec is custom initial AuthPreference spec for the test.
@@ -194,11 +195,11 @@ type TestAuthServer struct {
 	// AuthServer is an auth server
 	AuthServer *Server
 	// AuditLog is an event audit log
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 	// Backend is a backend for auth server
 	Backend backend.Backend
 	// Authorizer is an authorizer used in tests
-	Authorizer Authorizer
+	Authorizer authz.Authorizer
 	// LockWatcher is a lock watcher used in tests.
 	LockWatcher *services.LockWatcher
 }
@@ -331,7 +332,7 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 
 	// Setup certificate and signing authorities.
 	for _, caType := range types.CertAuthTypes {
-		if err = srv.AuthServer.UpsertCertAuthority(suite.NewTestCAWithConfig(suite.TestCAConfig{
+		if err = srv.AuthServer.UpsertCertAuthority(ctx, suite.NewTestCAWithConfig(suite.TestCAConfig{
 			Type:        caType,
 			ClusterName: srv.ClusterName,
 			Clock:       cfg.Clock,
@@ -353,10 +354,20 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
 
-	srv.Authorizer, err = NewAuthorizer(AuthorizerOpts{
+	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(ctx, local.HeadlessAuthenticationWatcherConfig{
+		Backend: b,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
+
+	srv.Authorizer, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: srv.ClusterName,
 		AccessPoint: srv.AuthServer,
 		LockWatcher: srv.LockWatcher,
+		// AuthServer does explicit device authorization checks.
+		DisableDeviceAuthorization: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -366,6 +377,8 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 }
 
 func (a *TestAuthServer) Close() error {
+	defer a.LockWatcher.Close()
+
 	return trace.NewAggregate(
 		a.AuthServer.Close(),
 		a.Backend.Close(),
@@ -434,7 +447,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 	}
 
 	switch id := identity.I.(type) {
-	case LocalUser:
+	case authz.LocalUser:
 		user, err := authServer.GetUser(id.Username, false)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -464,7 +477,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			return nil, nil, trace.Wrap(err)
 		}
 		return certs.TLS, priv, nil
-	case BuiltinRole:
+	case authz.BuiltinRole:
 		certs, err := authServer.GenerateHostCerts(context.Background(),
 			&proto.HostCertsRequest{
 				HostID:       id.Username,
@@ -477,7 +490,7 @@ func generateCertificate(authServer *Server, identity TestIdentity) ([]byte, []b
 			return nil, nil, trace.Wrap(err)
 		}
 		return certs.TLS, priv, nil
-	case RemoteBuiltinRole:
+	case authz.RemoteBuiltinRole:
 		certs, err := authServer.GenerateHostCerts(context.Background(),
 			&proto.HostCertsRequest{
 				HostID:       id.Username,
@@ -522,7 +535,7 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.UpsertCertAuthority(ctx, remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -533,7 +546,7 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.UpsertCertAuthority(ctx, remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -544,7 +557,7 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.UpsertCertAuthority(ctx, remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -556,7 +569,7 @@ func (a *TestAuthServer) Trust(ctx context.Context, remote *TestAuthServer, role
 		return trace.Wrap(err)
 	}
 	remoteCA.SetRoleMap(roleMap)
-	err = a.AuthServer.UpsertCertAuthority(remoteCA)
+	err = a.AuthServer.UpsertCertAuthority(ctx, remoteCA)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -711,7 +724,7 @@ func NewTestTLSServer(cfg TestTLSServerConfig) (*TestTLSServer, error) {
 
 // TestIdentity is test identity spec used to generate identities in tests
 type TestIdentity struct {
-	I              interface{}
+	I              authz.IdentityGetter
 	TTL            time.Duration
 	AcceptedUsage  []string
 	RouteToCluster string
@@ -722,9 +735,23 @@ type TestIdentity struct {
 // TestUser returns TestIdentity for local user
 func TestUser(username string) TestIdentity {
 	return TestIdentity{
-		I: LocalUser{
+		I: authz.LocalUser{
 			Username: username,
 			Identity: tlsca.Identity{Username: username},
+		},
+	}
+}
+
+// TestUserWithDeviceExtensions returns a TestIdentity for a local user,
+// including the supplied device extensions in the tlsca.Identity.
+func TestUserWithDeviceExtensions(username string, exts tlsca.DeviceExtensions) TestIdentity {
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: username,
+			Identity: tlsca.Identity{
+				Username:         username,
+				DeviceExtensions: exts,
+			},
 		},
 	}
 }
@@ -733,7 +760,7 @@ func TestUser(username string) TestIdentity {
 // with renewable credentials.
 func TestRenewableUser(username string, generation uint64) TestIdentity {
 	return TestIdentity{
-		I: LocalUser{
+		I: authz.LocalUser{
 			Username: username,
 			Identity: tlsca.Identity{
 				Username: username,
@@ -759,7 +786,7 @@ func TestAdmin() TestIdentity {
 // TestBuiltin returns TestIdentity for builtin user
 func TestBuiltin(role types.SystemRole) TestIdentity {
 	return TestIdentity{
-		I: BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     role,
 			Username: string(role),
 		},
@@ -769,7 +796,7 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 // TestServerID returns a TestIdentity for a node with the passed in serverID.
 func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 	return TestIdentity{
-		I: BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     role,
 			Username: serverID,
 		},
@@ -779,7 +806,7 @@ func TestServerID(role types.SystemRole, serverID string) TestIdentity {
 // TestRemoteBuiltin returns TestIdentity for a remote builtin role.
 func TestRemoteBuiltin(role types.SystemRole, remoteCluster string) TestIdentity {
 	return TestIdentity{
-		I: RemoteBuiltinRole{
+		I: authz.RemoteBuiltinRole{
 			Role:        role,
 			Username:    string(role),
 			ClusterName: remoteCluster,
@@ -1077,18 +1104,27 @@ func CreateUser(clt clt, username string, roles ...types.Role) (types.User, erro
 }
 
 // CreateUserAndRole creates user and role and assigns role to a user, used in tests
-func CreateUserAndRole(clt clt, username string, allowedLogins []string) (types.User, types.Role, error) {
+// If allowRules is nil, the role has admin privileges.
+// If allowRules is not-nil, then the rules associated with the role will be
+// replaced with those specified.
+func CreateUserAndRole(clt clt, username string, allowedLogins []string, allowRules []types.Rule) (types.User, types.Role, error) {
 	ctx := context.TODO()
 	user, err := types.NewUser(username)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	role := services.RoleForUser(user)
 	role.SetLogins(types.Allow, allowedLogins)
+	if allowRules != nil {
+		role.SetRules(types.Allow, allowRules)
+	}
+
 	err = clt.UpsertRole(ctx, role)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+
 	user.AddRole(role.GetName())
 	err = clt.UpsertUser(user)
 	if err != nil {

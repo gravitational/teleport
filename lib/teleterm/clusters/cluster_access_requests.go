@@ -22,10 +22,10 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/services"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -124,9 +124,10 @@ func (c *Cluster) CreateAccessRequest(ctx context.Context, req *api.CreateAccess
 	resourceIDs := make([]types.ResourceID, 0, len(req.ResourceIds))
 	for _, resource := range req.ResourceIds {
 		resourceIDs = append(resourceIDs, types.ResourceID{
-			ClusterName: resource.ClusterName,
-			Name:        resource.Name,
-			Kind:        resource.Kind,
+			ClusterName:     resource.ClusterName,
+			Name:            resource.Name,
+			Kind:            resource.Kind,
+			SubResourceName: resource.SubResourceName,
 		})
 	}
 

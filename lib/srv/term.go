@@ -18,6 +18,7 @@ package srv
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -25,6 +26,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/gravitational/trace"
@@ -34,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
@@ -61,6 +64,9 @@ type Terminal interface {
 	// Continue will resume execution of the process after it completes its
 	// pre-processing routine (placed in a cgroup).
 	Continue()
+
+	// KillUnderlyingShell tries to gracefully stop the terminal process.
+	KillUnderlyingShell(ctx context.Context) error
 
 	// Kill will force kill the terminal.
 	Kill(ctx context.Context) error
@@ -108,7 +114,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -121,11 +127,15 @@ type terminal struct {
 
 	log *log.Entry
 
-	cmd *exec.Cmd
-	ctx *ServerContext
+	cmd           *exec.Cmd
+	serverContext *ServerContext
 
 	pty *os.File
 	tty *os.File
+
+	// terminateFD when closed informs the terminal that
+	// the process running in the shell should be killed.
+	terminateFD *os.File
 
 	pid int
 
@@ -141,7 +151,8 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentLocalTerm,
 		}),
-		ctx: ctx,
+		serverContext: ctx,
+		terminateFD:   ctx.killShellw,
 	}
 
 	// Open PTY and corresponding TTY.
@@ -168,10 +179,16 @@ func (t *terminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (t *terminal) Run(_ context.Context) error {
+func (t *terminal) Run(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = ConfigureCommand(t.ctx)
+	t.cmd, err = ConfigureCommand(t.serverContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -222,13 +239,44 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	if err := t.ctx.contw.Close(); err != nil {
+	if err := t.serverContext.contw.Close(); err != nil {
 		t.log.Warnf("failed to close server context")
 	}
 }
 
-// Kill will force kill the terminal.
-func (t *terminal) Kill(ctx context.Context) error {
+// KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
+func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
+	if err := t.terminateFD.Close(); err != nil {
+		if !errors.Is(err, os.ErrClosed) {
+			t.log.WithError(err).Debug("Failed to close the shell file descriptor")
+		}
+	}
+
+	pid := t.PID()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			return trace.Errorf("failed to find the shell process: %w", err)
+		}
+
+		if err := proc.Signal(syscall.Signal(0)); errors.Is(err, os.ErrProcessDone) {
+			t.log.Debugf("Terminal child process has been stopped")
+			return nil
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Kill will force kill the child Teleport process.
+func (t *terminal) Kill(_ context.Context) error {
 	if t.cmd != nil && t.cmd.Process != nil {
 		if err := t.cmd.Process.Kill(); err != nil {
 			if err.Error() != "os: process already finished" {
@@ -386,13 +434,13 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0620
+		mode = 0o620
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0600
+		mode = 0o600
 	}
 
 	return uid, gid, mode, nil
@@ -400,7 +448,7 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 
 // setOwner changes the owner and mode of the TTY.
 func (t *terminal) setOwner() error {
-	uid, gid, mode, err := getOwner(t.ctx.Identity.Login, user.Lookup, user.LookupGroup)
+	uid, gid, mode, err := getOwner(t.serverContext.Identity.Login, user.Lookup, user.LookupGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -546,6 +594,11 @@ func (t *remoteTerminal) Wait() (*ExecResult, error) {
 
 // Continue does nothing for remote command execution.
 func (t *remoteTerminal) Continue() {}
+
+// Terminate does nothing for remote command execution.
+func (t *remoteTerminal) KillUnderlyingShell(_ context.Context) error {
+	return nil
+}
 
 func (t *remoteTerminal) Kill(ctx context.Context) error {
 	err := t.session.Signal(ctx, ssh.SIGKILL)

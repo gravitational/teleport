@@ -1,12 +1,12 @@
 exposes a single port when running in multiplex mode:
   1: |
-    - name: https
+    - name: tls
       port: 443
       protocol: TCP
       targetPort: 3080
 exposes separate listener ports by default:
   1: |
-    - name: https
+    - name: tls
       port: 443
       protocol: TCP
       targetPort: 3080
@@ -28,7 +28,7 @@ exposes separate listener ports by default:
       targetPort: 3036
 exposes separate listener ports when running in separate mode:
   1: |
-    - name: https
+    - name: tls
       port: 443
       protocol: TCP
       targetPort: 3080

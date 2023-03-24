@@ -18,8 +18,10 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
@@ -39,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 )
+
+var errNoInstances = errors.New("all fetched nodes already enrolled")
 
 // Config provides configuration for the discovery server.
 type Config struct {
@@ -99,6 +103,9 @@ type Server struct {
 	ec2Installer *server.SSMInstaller
 	// azureWatcher periodically retrieves Azure virtual machines.
 	azureWatcher *server.Watcher
+	// azureInstaller is used to start the installation process on discovered Azure
+	// virtual machines.
+	azureInstaller *server.AzureInstaller
 	// kubeFetchers holds all kubernetes fetchers for Azure and other clouds.
 	kubeFetchers []common.Fetcher
 	// databaseFetchers holds all database fetchers.
@@ -210,6 +217,10 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		s.azureInstaller = &server.AzureInstaller{
+			Emitter:     s.Emitter,
+			AccessPoint: s.AccessPoint,
+		}
 	}
 
 	// Add database fetchers.
@@ -291,7 +302,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMat
 }
 
 func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
-	nodes := s.nodeWatcher.GetNodes(func(n services.Node) bool {
+	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
 		labels := n.GetAllLabels()
 		_, accountOK := labels[types.AWSAccountIDLabel]
 		_, instanceOK := labels[types.AWSInstanceIDLabel]
@@ -344,7 +355,10 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
-	client, err := s.Clients.GetAWSSSMClient(instances.Region)
+	// TODO(amk): once agentless node inventory management is
+	//            implemented, create nodes after a successful SSM run
+
+	ec2Client, err := s.Clients.GetAWSSSMClient(instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -355,9 +369,10 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 
 	s.Log.Debugf("Running Teleport installation on these instances: AccountID: %s, Instances: %s",
 		instances.AccountID, genEC2InstancesLogStr(instances.Instances))
+
 	req := server.SSMRunRequest{
 		DocumentName: instances.DocumentName,
-		SSM:          client,
+		SSM:          ec2Client,
 		Instances:    instances.Instances,
 		Params:       instances.Parameters,
 		Region:       instances.Region,
@@ -379,12 +394,14 @@ func (s *Server) handleEC2Discovery() {
 			ec2Instances := instances.EC2Instances
 			s.Log.Debugf("EC2 instances discovered (AccountID: %s, Instances: %v), starting installation",
 				instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
+
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
 				if trace.IsNotFound(err) {
 					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
 				}
+
 			}
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
@@ -393,12 +410,65 @@ func (s *Server) handleEC2Discovery() {
 	}
 }
 
+func (s *Server) filterExistingAzureNodes(instances *server.AzureInstances) {
+	nodes := s.nodeWatcher.GetNodes(s.ctx, func(n services.Node) bool {
+		labels := n.GetAllLabels()
+		_, subscriptionOK := labels[types.SubscriptionIDLabel]
+		_, vmOK := labels[types.VMIDLabel]
+		return subscriptionOK && vmOK
+	})
+	var filtered []*armcompute.VirtualMachine
+outer:
+	for _, inst := range instances.Instances {
+		for _, node := range nodes {
+			var vmID string
+			if inst.Properties != nil {
+				vmID = aws.StringValue(inst.Properties.VMID)
+			}
+			match := types.MatchLabels(node, map[string]string{
+				types.SubscriptionIDLabel: instances.SubscriptionID,
+				types.VMIDLabel:           vmID,
+			})
+			if match {
+				continue outer
+			}
+		}
+		filtered = append(filtered, inst)
+	}
+	instances.Instances = filtered
+}
+
 func (s *Server) handleAzureInstances(instances *server.AzureInstances) error {
-	s.Log.Error("Automatic Azure node joining not implemented")
-	return nil
+	client, err := s.Clients.GetAzureRunCommandClient(instances.SubscriptionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.filterExistingAzureNodes(instances)
+	if len(instances.Instances) == 0 {
+		return trace.Wrap(errNoInstances)
+	}
+
+	s.Log.Debugf("Running Teleport installation on these virtual machines: SubscriptionID: %s, VMs: %s",
+		instances.SubscriptionID, genAzureInstancesLogStr(instances.Instances),
+	)
+	req := server.AzureRunRequest{
+		Client:          client,
+		Instances:       instances.Instances,
+		Region:          instances.Region,
+		ResourceGroup:   instances.ResourceGroup,
+		Params:          instances.Parameters,
+		ScriptName:      instances.ScriptName,
+		PublicProxyAddr: instances.PublicProxyAddr,
+	}
+	return trace.Wrap(s.azureInstaller.Run(s.ctx, req))
 }
 
 func (s *Server) handleAzureDiscovery() {
+	if err := s.nodeWatcher.WaitInitialization(); err != nil {
+		s.Log.WithError(err).Error("Failed to initialize nodeWatcher.")
+		return
+	}
+
 	go s.azureWatcher.Run()
 	for {
 		select {
@@ -408,7 +478,7 @@ func (s *Server) handleAzureDiscovery() {
 				instances.SubscriptionID, genAzureInstancesLogStr(azureInstances.Instances),
 			)
 			if err := s.handleAzureInstances(azureInstances); err != nil {
-				if trace.IsNotFound(err) {
+				if errors.Is(err, errNoInstances) {
 					s.Log.Debug("All discovered Azure VMs are already part of the cluster.")
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered Azure VMs.")
@@ -477,9 +547,10 @@ func (s *Server) getAzureSubscriptions(ctx context.Context, subs []string) ([]st
 func (s *Server) initTeleportNodeWatcher() (err error) {
 	s.nodeWatcher, err = services.NewNodeWatcher(s.ctx, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: teleport.ComponentDiscovery,
-			Log:       s.Log,
-			Client:    s.AccessPoint,
+			Component:    teleport.ComponentDiscovery,
+			Log:          s.Log,
+			Client:       s.AccessPoint,
+			MaxStaleness: time.Minute,
 		},
 	})
 

@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	logrus "github.com/sirupsen/logrus"
@@ -41,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -85,6 +87,8 @@ type TLSServerConfig struct {
 	// If StaticLabels and CloudLabels define labels with the same key,
 	// StaticLabels take precedence over CloudLabels.
 	CloudLabels labels.Importer
+	// IngressReporter reports new and active connections.
+	IngressReporter *ingress.Reporter
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -108,6 +112,11 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing parameter AccessPoint")
 	}
+
+	if err := c.validateLabelKeys(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if c.Log == nil {
 		c.Log = logrus.New()
 	}
@@ -116,6 +125,17 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
+	}
+	return nil
+}
+
+// validateLabelKeys checks that all labels keys are valid.
+// Dynamic labels are validated in labels.NewDynamicLabels.
+func (c *TLSServerConfig) validateLabelKeys() error {
+	for name := range c.StaticLabels {
+		if !types.IsValidLabelKey(name) {
+			return trace.BadParameter("invalid label key: %q", name)
+		}
 	}
 	return nil
 }
@@ -169,11 +189,16 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.BadParameter("kube_service won't start because it has neither static clusters nor a resource watcher configured.")
 	}
 
+	clustername, err := cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   cfg.AccessPoint,
+		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 	authMiddleware.Wrap(fwd)
@@ -187,8 +212,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		TLSServerConfig: cfg,
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
-			ReadHeaderTimeout: apidefaults.DefaultDialTimeout * 2,
+			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
+			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 			TLSConfig:         cfg.TLS,
+			ConnState:         ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+				return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+			},
 		},
 		heartbeats: make(map[string]*srv.Heartbeat),
 		monitoredKubeClusters: monitoredKubeClusters{
@@ -205,6 +235,9 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 // Serve takes TCP listener, upgrades to TLS using config and starts serving
 func (t *TLSServer) Serve(listener net.Listener) error {
+	caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return t.CachingAuthClient.GetCertAuthority(ctx, id, loadKeys)
+	}
 	// Wrap listener with a multiplexer to get Proxy Protocol support.
 	mux, err := multiplexer.New(multiplexer.Config{
 		Context:                     t.Context,
@@ -212,6 +245,13 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 		Clock:                       t.Clock,
 		EnableExternalProxyProtocol: true,
 		ID:                          t.Component,
+		CertAuthorityGetter:         caGetter,
+		LocalClusterName:            t.ClusterName,
+		// Increases deadline until the agent receives the first byte to 10s.
+		// It's required to accommodate setups with high latency and where the time
+		// between the TCP being accepted and the time for the first byte is longer
+		// than the default value -  1s.
+		ReadDeadline: 10 * time.Second,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -251,9 +291,23 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 
 // Close closes the server and cleans up all resources.
 func (t *TLSServer) Close() error {
+	return trace.Wrap(t.close(t.closeContext))
+}
+
+// Shutdown closes the server and cleans up all resources.
+func (t *TLSServer) Shutdown(ctx context.Context) error {
+	// TODO(tigrato): handle connections gracefully and wait for them to finish.
+	// This might be problematic because exec and port forwarding connections
+	// are long lived connections and if we wait for them to finish, we might
+	// end up waiting forever.
+	return trace.Wrap(t.close(ctx))
+}
+
+// close closes the server and cleans up all resources.
+func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	for _, kubeCluster := range t.fwd.kubeClusters() {
-		errs = append(errs, t.unregisterKubeCluster(t.closeContext, kubeCluster.GetName()))
+		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
 	}
 	errs = append(errs, t.fwd.Close(), t.Server.Close())
 
@@ -263,8 +317,10 @@ func (t *TLSServer) Close() error {
 	if t.watcher != nil {
 		t.watcher.Close()
 	}
-
-	return trace.NewAggregate(errs...)
+	t.mu.Lock()
+	listClose := t.listener.Close()
+	t.mu.Unlock()
+	return trace.NewAggregate(append(errs, listClose)...)
 }
 
 // GetConfigForClient is getting called on every connection

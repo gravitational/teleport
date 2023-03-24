@@ -117,7 +117,7 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 		ClusterName:     req.Key.ClusterName,
 		TLSCertificates: resp.CACerts,
 	}}
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           req.OutputLocation,
 		Key:                  req.Key,
 		Format:               req.OutputFormat,

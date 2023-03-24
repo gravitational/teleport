@@ -16,6 +16,7 @@ package conntest
 
 import (
 	"context"
+	"encoding/base32"
 	"encoding/json"
 	"io"
 	"net"
@@ -25,16 +26,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/conntest"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -60,6 +64,7 @@ func startPostgresTestServer(t *testing.T, authServer *auth.Server) *postgres.Te
 
 func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 	ctx := context.Background()
+	diagnoseConnectionEndpoint := strings.Join([]string{"sites", "$site", "diagnostics", "connections"}, "/")
 
 	// Start Teleport Auth and Proxy services
 	authProcess, proxyProcess, provisionToken := helpers.MakeTestServers(t)
@@ -74,7 +79,7 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 	databaseResourceName := "mypsqldb"
 	databaseDBName := "dbname"
 	databaseDBUser := "dbuser"
-	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, nil /* resource matchers */, service.Database{
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, nil /* resource matchers */, servicecfg.Database{
 		Name:     databaseResourceName,
 		Protocol: defaults.ProtocolPostgres,
 		URI:      net.JoinHostPort("localhost", postgresTestServer.Port()),
@@ -211,7 +216,6 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 				DialTimeout:        time.Second,
 				InsecureSkipVerify: true,
 			}
-			diagnoseConnectionEndpoint := strings.Join([]string{"sites", "$site", "diagnostics", "connections"}, "/")
 			resp, err := webPack.DoRequest(http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
 			require.NoError(t, err)
 
@@ -260,6 +264,60 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 			require.Equal(t, expectedFailedTraces, gotFailedTraces)
 		})
 	}
+
+	// Test success with per-session MFA.
+
+	// Set up user.
+	user, err := types.NewUser("llama")
+	require.NoError(t, err)
+	user.AddRole(roleWithFullAccess.GetName())
+	require.NoError(t, authServer.UpsertUser(user))
+	userPassword := uuid.NewString()
+	require.NoError(t, authServer.UpsertPassword("llama", []byte(userPassword)))
+	webPack := helpers.LoginWebClient(t, proxyAddr.String(), "llama", userPassword)
+
+	// Require per-session mfa.
+	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
+		Type:           constants.Local,
+		SecondFactor:   constants.SecondFactorOTP,
+		RequireMFAType: types.RequireMFAType_SESSION,
+	})
+	require.NoError(t, err)
+	err = authServer.SetAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	// Set up otp device.
+	otpSecret := base32.StdEncoding.EncodeToString([]byte("abc123"))
+	dev, err := services.NewTOTPDevice("otp", otpSecret, authServer.GetClock().Now())
+	require.NoError(t, err)
+	err = authServer.UpsertMFADevice(ctx, "llama", dev)
+	require.NoError(t, err)
+	validToken, err := totp.GenerateCode(otpSecret, authServer.GetClock().Now())
+	require.NoError(t, err)
+
+	diagnoseReq := conntest.TestConnectionRequest{
+		ResourceKind: types.KindDatabase,
+		ResourceName: databaseResourceName,
+		DatabaseUser: databaseDBUser,
+		DatabaseName: databaseDBName,
+		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
+		DialTimeout:        time.Second,
+		InsecureSkipVerify: true,
+		MFAResponse: client.MFAChallengeResponse{
+			TOTPCode: validToken,
+		},
+	}
+	resp, err := webPack.DoRequest(http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
+	require.NoError(t, err)
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+
+	var connectionDiagnostic ui.ConnectionDiagnostic
+	require.NoError(t, json.Unmarshal(respBody, &connectionDiagnostic))
+	require.True(t, connectionDiagnostic.Success)
 }
 
 func waitForDatabases(t *testing.T, authServer *auth.Server, dbNames []string) {

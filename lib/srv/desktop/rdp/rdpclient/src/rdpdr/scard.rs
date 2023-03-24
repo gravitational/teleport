@@ -654,7 +654,7 @@ impl EstablishContext_Call {
         let scope = payload.read_u32::<LittleEndian>()?;
         Ok(Self {
             scope: Scope::from_u32(scope).ok_or_else(|| {
-                invalid_data_error(&format!("invalid smart card scope {:?}", scope))
+                invalid_data_error(&format!("invalid smart card scope {scope:?}"))
             })?,
         })
     }
@@ -767,8 +767,7 @@ fn decode_ptr(payload: &mut Payload, index: &mut u32) -> RdpResult<u32> {
     *index += 1;
     if ptr != expect_ptr {
         Err(invalid_data_error(&format!(
-            "invalid NDR pointer value {:#010X}, expected {:#010X}",
-            ptr, expect_ptr
+            "invalid NDR pointer value {ptr:#010X}, expected {expect_ptr:#010X}"
         )))
     } else {
         Ok(ptr)

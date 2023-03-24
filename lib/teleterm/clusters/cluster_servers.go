@@ -24,9 +24,9 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -36,40 +36,6 @@ type Server struct {
 	URI uri.ResourceURI
 
 	types.Server
-}
-
-// GetAllServers returns a full list of servers without pagination or sorting.
-func (c *Cluster) GetAllServers(ctx context.Context) ([]Server, error) {
-	var clusterServers []types.Server
-	err := addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		clusterServers, err = proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-			Namespace: defaults.Namespace,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	results := []Server{}
-	for _, server := range clusterServers {
-		results = append(results, Server{
-			URI:    c.URI.AppendServer(server.GetName()),
-			Server: server,
-		})
-	}
-
-	return results, nil
 }
 
 // GetServers returns a paginated list of servers.

@@ -1,6 +1,6 @@
 ---
 authors: Jeff Pihach (jeff.pihach@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 89 - Merge Webapps into Teleport
@@ -42,12 +42,11 @@ respective UI counterparts and the build systems correctly build all projects.
 
 The Day to day development experience shouldn't change. The webapps project
 will continue to be self-contained and only require access to the nodejs and
-yarn binaries. The locations of the enterprise assets will have to be changed
-but that should remain transparent to the day to day activities.
+yarn binaries.
 
 To work on the enterprise version of the application the developer will have to
 check out the enterprise version of Teleport which will bring with it the
-appropriate webapp assets.
+appropriate UI assets.
 
 Merging these repositories may cause some disruption when multiple developers
 are working on the same feature across the back and frontend. Using a
@@ -57,8 +56,8 @@ the webapps folder is an elegant way of approaching this issue
 ### Backports
 
 To avoid having different proceses and build systems depending on the version
-of teleport, all supported release branches (v9, v10, v11) will have their
-respective versions of the webapps repository.
+of teleport, all supported release branches (v10, v11, v12) will have their
+respective versions of the webapps repository merged.
 
 ### Build process
 
@@ -80,7 +79,9 @@ running its own CI jobs. This is primarily caused by the length of the CI run
 for `teleport` and as such there are some tasks to improve the performance of
 these jobs listed in the `Process` section below.
 
-In the near future the `teleport` repository will also have a merge queue implemented which will dramatically reduce the hand-holding require to sheppard a PR through.
+The `teleport` repository now has a merge queue which dramatically reduced the
+hand-holding require to sheppard a PR through. The CI tasks have also been
+migrated to Github Actions which has reduced the total run time considerably.
 
 ## Process
 
@@ -88,7 +89,52 @@ Below outlines the process for each repository in the order that the steps need
 to be taken. All repositories will be prepped for the final archival and merging
 but the final switch over steps will not be taken until v11 has been released.
 
-The git histories of each branch will be maintained while merging. [Merging repositories](https://stackoverflow.com/questions/13040958/merge-two-git-repositories-without-breaking-file-history)
+The git histories of each branch will be maintained while merging.
+
+### Step by step merge instructions
+
+install https://github.com/newren/git-filter-repo into path
+
+```
+mkdir teleport-merge
+cd teleport-merge
+```
+
+Checkout the v12 branches when doing v12 (v11, etc).
+
+```
+git clone git@github.com:gravitational/teleport.git && \
+git clone git@github.com:gravitational/webapps.git && \
+git clone git@github.com:gravitational/teleport.e.git && \
+git clone git@github.com:gravitational/webapps.e.git
+```
+
+Ensure that you have set your `git config` user values for all repos.
+
+```
+cd webapps
+git filter-repo --to-subdirectory-filter web # --force is required when doing branches
+
+cd ../teleport
+git checkout -b <dev>/teleport-merge
+git pull ../webapps --no-rebase --allow-unrelated-histories
+```
+
+Create a Pull request into the appropriate Teleport branch and then merge.
+
+```
+cd ../webapps.e
+git filter-repo --to-subdirectory-filter web # --force is required when doing branches
+
+cd ../teleport.e
+git checkout -b <dev>/teleport-merge
+git pull ../webapps.e --no-rebase --allow-unrelated-histories
+```
+
+Create a Pull request into the appropriate Teleport enterprise branch and then merge.
+
+At this point you'll need to make the necessary changes to the repositories
+build systems to successfully build Teleport.
 
 ### Webapps repository
 

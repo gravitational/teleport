@@ -20,7 +20,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -136,7 +135,7 @@ func (proxy *ProxyClient) GetSites(ctx context.Context) ([]types.Site, error) {
 	}()
 	select {
 	case <-done:
-	case <-time.After(apidefaults.DefaultDialTimeout):
+	case <-time.After(apidefaults.DefaultIOTimeout):
 		return nil, trace.ConnectionProblem(nil, "timeout")
 	}
 	log.Debugf("Found clusters: %v", stdout.String())
@@ -199,6 +198,8 @@ type ReissueParams struct {
 	MFACheck *proto.IsMFARequiredResponse
 	// AuthClient is the client used for the MFACheck that can be reused
 	AuthClient auth.ClientI
+	// RequesterName identifies who is sending the cert reissue request.
+	RequesterName proto.UserCertsRequest_Requester
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -595,6 +596,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		NodeName:              params.NodeName,
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
+		RequesterName:         params.RequesterName,
 	}, nil
 }
 
@@ -607,28 +609,7 @@ func (proxy *ProxyClient) RootClusterName(ctx context.Context) (string, error) {
 	)
 	defer span.End()
 
-	tlsKey, err := proxy.localAgent().GetCoreKey()
-	if err != nil {
-		if trace.IsNotFound(err) {
-			// Fallback to TLS client certificates.
-			tls := proxy.teleportClient.TLS
-			if len(tls.Certificates) == 0 || len(tls.Certificates[0].Certificate) == 0 {
-				return "", trace.BadParameter("missing TLS.Certificates")
-			}
-			cert, err := x509.ParseCertificate(tls.Certificates[0].Certificate[0])
-			if err != nil {
-				return "", trace.Wrap(err)
-			}
-
-			clusterName := cert.Issuer.CommonName
-			if clusterName == "" {
-				return "", trace.NotFound("failed to extract root cluster name from Teleport TLS cert")
-			}
-			return clusterName, nil
-		}
-		return "", trace.Wrap(err)
-	}
-	return tlsKey.RootClusterName()
+	return proxy.teleportClient.RootClusterName(ctx)
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -746,6 +727,7 @@ func (proxy *ProxyClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 
 // FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
 func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
+	req.ResourceType = types.KindNode
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindNodesByFiltersForCluster",
@@ -759,8 +741,6 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 		),
 	)
 	defer span.End()
-
-	req.ResourceType = types.KindNode
 
 	site, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
@@ -962,6 +942,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 
 // FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the provided cluster.
 func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
+	req.ResourceType = types.KindDatabaseServer
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindDatabaseServersByFiltersForCluster",
@@ -976,7 +957,6 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 	)
 	defer span.End()
 
-	req.ResourceType = types.KindDatabaseServer
 	authClient, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1103,19 +1083,7 @@ func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (auth.Client
 }
 
 func (proxy *ProxyClient) loadTLS(clusterName string) (*tls.Config, error) {
-	if proxy.teleportClient.SkipLocalAuth {
-		return proxy.teleportClient.TLS.Clone(), nil
-	}
-	tlsKey, err := proxy.localAgent().GetCoreKey()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
-	}
-
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{clusterName})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate client TLS config")
-	}
-	return tlsConfig.Clone(), nil
+	return proxy.teleportClient.LoadTLSConfigForClusters([]string{clusterName})
 }
 
 // ConnectToAuthServiceThroughALPNSNIProxy uses ALPN proxy service to connect to remote/local auth
@@ -1206,26 +1174,11 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 		return proxy.dialAuthServer(ctx, clusterName)
 	})
 
-	if proxy.teleportClient.SkipLocalAuth {
-		return auth.NewClient(client.Config{
-			Context: ctx,
-			Dialer:  dialer,
-			Credentials: []client.Credentials{
-				client.LoadTLS(proxy.teleportClient.TLS),
-			},
-			CircuitBreakerConfig: breaker.NoopBreakerConfig(),
-		})
+	tlsConfig, err := proxy.loadTLS(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	tlsKey, err := proxy.localAgent().GetCoreKey()
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
-	}
-	tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{clusterName})
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate client TLS config")
-	}
-	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
 	clt, err := auth.NewClient(client.Config{
 		Context: ctx,
 		Dialer:  dialer,
@@ -1244,65 +1197,30 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 // It returns a connected and authenticated tracing.Client that will export spans
 // to the auth server, where they will be forwarded onto the configured exporter.
 func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName string) (*tracing.Client, error) {
-	dialer := client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return proxy.dialAuthServer(ctx, clusterName)
-	})
+	tlsConfig, err := proxy.loadTLS(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clientConfig := client.Config{
+		DialInBackground: true,
+		Credentials: []client.Credentials{
+			client.LoadTLS(tlsConfig),
+		},
+	}
 
 	switch {
 	case proxy.teleportClient.TLSRoutingEnabled:
-		tlsConfig, err := proxy.loadTLS(clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		clt, err := client.NewTracingClient(ctx, client.Config{
-			Addrs:            []string{proxy.teleportClient.WebProxyAddr},
-			DialInBackground: true,
-			Credentials: []client.Credentials{
-				client.LoadTLS(tlsConfig),
-			},
-			ALPNSNIAuthDialClusterName: clusterName,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return clt, nil
-	case proxy.teleportClient.SkipLocalAuth:
-		clt, err := client.NewTracingClient(ctx, client.Config{
-			Dialer:           dialer,
-			DialInBackground: true,
-			Credentials: []client.Credentials{
-				client.LoadTLS(proxy.teleportClient.TLS),
-			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return clt, nil
+		clientConfig.Addrs = []string{proxy.teleportClient.WebProxyAddr}
+		clientConfig.ALPNSNIAuthDialClusterName = clusterName
 	default:
-		tlsKey, err := proxy.localAgent().GetCoreKey()
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to fetch TLS key for %v", proxy.teleportClient.Username)
-		}
-
-		tlsConfig, err := tlsKey.TeleportClientTLSConfig(nil, []string{clusterName})
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to generate client TLS config")
-		}
-		tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
-
-		clt, err := client.NewTracingClient(ctx, client.Config{
-			Dialer:           dialer,
-			DialInBackground: true,
-			Credentials: []client.Credentials{
-				client.LoadTLS(tlsConfig),
-			},
+		clientConfig.Dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
+			return proxy.dialAuthServer(ctx, clusterName)
 		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return clt, nil
 	}
+
+	clt, err := client.NewTracingClient(ctx, clientConfig)
+	return clt, trace.Wrap(err)
 }
 
 // nodeName removes the port number from the hostname, if present
@@ -1624,6 +1542,9 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
+			// TODO(codingllama): Improve error message below for device trust.
+			//  An alternative we have here is querying the cluster to check if device
+			//  trust is required, a check similar to `IsMFARequired`.
 			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
 			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
 		}

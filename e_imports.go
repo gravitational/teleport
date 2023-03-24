@@ -16,14 +16,45 @@
 
 package teleport
 
-// Hold a few imports done exclusively by e/, so tidying that doesn't have
-// access to it (like Dependabot) doesn't wrongly remove them.
-// Any import that is present only in this file, but not in e/, can be safely
-// removed.
+// This file should import all non-stdlib, non-teleport packages that are
+// imported by any package in ./e/ but not by packages in the rest of the main
+// teleport module, so tidying that doesn't have access to teleport.e (like
+// Dependabot) doesn't wrongly remove the modules they belong to.
+
+// Remember to check that e is up to date and that there is not a go.work file
+// before running the following command to generate the import list. The list of
+// tags that might be needed in e (currently only "piv") can be extracted with a
+// (cd e && git grep //go:build).
+
+// TODO(espadolini): turn this into a lint (needs access to teleport.e in CI and
+// ideally a resolution to https://github.com/golang/go/issues/42504 )
+
+/*
+comm -13 <(
+	go list ./... | sort -u | grep -Ev -e "^github.com/gravitational/teleport/e(/.*)?$" |
+	xargs go list -f '{{range .Imports}}{{println .}}{{end}}' |
+	sort -u | grep -Ev -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
+	xargs go list -f '{{if not .Standard}}{{println .ImportPath}}{{end}}'
+) <(
+	go list -f '{{range .Imports}}{{println .}}{{end}}' -tags piv ./e/... |
+	sort -u | grep -Ev -e "^github.com/gravitational/teleport(/.*)?$" -e "^C$" |
+	xargs go list -f '{{if not .Standard}}{{println .ImportPath}}{{end}}'
+) | awk '{ print "\t_ \"" $1 "\"" }'
+*/
+
 import (
-	_ "github.com/beevik/etree"          // hold for e/
-	_ "github.com/go-piv/piv-go/piv"     // hold for e/
-	_ "github.com/gravitational/form"    // hold for e/
-	_ "github.com/gravitational/license" // hold for e/
-	_ "gopkg.in/check.v1"                // hold for e/
+	_ "github.com/beevik/etree"
+	_ "github.com/coreos/go-oidc/oidc"
+	_ "github.com/go-piv/piv-go/piv"
+	_ "github.com/google/go-attestation/attest"
+	_ "github.com/gravitational/form"
+	_ "github.com/gravitational/teleport-plugins/access/common"
+	_ "github.com/gravitational/teleport-plugins/access/slack"
+	_ "github.com/okta/okta-sdk-golang/v2/okta"
+	_ "google.golang.org/api/admin/directory/v1"
+	_ "google.golang.org/api/cloudidentity/v1"
+	_ "google.golang.org/genproto/googleapis/rpc/status"
+	_ "gopkg.in/check.v1"
+
+	_ "github.com/gravitational/teleport-plugins/access/common"
 )

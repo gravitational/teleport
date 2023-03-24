@@ -37,11 +37,12 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// onAppLogin implements "tsh app login" command.
+// onAppLogin implements "tsh apps login" command.
 func onAppLogin(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -126,14 +127,16 @@ func onAppLogin(cf *CLIConf) error {
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
 	}
-	if app.IsAWSConsole() {
+
+	switch {
+	case app.IsAWSConsole():
 		return awsCliTpl.Execute(os.Stdout, map[string]string{
 			"awsAppName": app.GetName(),
 			"awsCmd":     "s3 ls",
 			"awsRoleARN": awsRoleARN,
 		})
-	}
-	if app.IsAzureCloud() {
+
+	case app.IsAzureCloud():
 		if azureIdentity == "" {
 			return trace.BadParameter("app is Azure Cloud but Azure identity is missing")
 		}
@@ -160,27 +163,38 @@ func onAppLogin(cf *CLIConf) error {
 			"appName":  app.GetName(),
 			"identity": azureIdentity,
 		})
-	}
-	if app.IsGCP() {
+
+	case app.IsGCP():
 		return gcpCliTpl.Execute(os.Stdout, map[string]string{
 			"appName":        app.GetName(),
 			"serviceAccount": gcpServiceAccount,
 		})
-	}
-	if app.IsTCP() {
+
+	case app.IsTCP():
 		return appLoginTCPTpl.Execute(os.Stdout, map[string]string{
 			"appName": app.GetName(),
 		})
+
+	case localProxyRequiredForApp(tc):
+		return appLoginLocalProxyTpl.Execute(os.Stdout, map[string]interface{}{
+			"appName": app.GetName(),
+		})
+
+	default:
+		curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
+			"appName":  app.GetName(),
+			"curlCmd":  curlCmd,
+			"insecure": cf.InsecureSkipVerify,
+		})
 	}
-	curlCmd, err := formatAppConfig(tc, profile, app.GetName(), app.GetPublicAddr(), appFormatCURL, rootCluster, awsRoleARN, azureIdentity, gcpServiceAccount)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return appLoginTpl.Execute(os.Stdout, map[string]interface{}{
-		"appName":  app.GetName(),
-		"curlCmd":  curlCmd,
-		"insecure": cf.InsecureSkipVerify,
-	})
+}
+
+func localProxyRequiredForApp(tc *client.TeleportClient) bool {
+	return alpnproxy.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
 }
 
 // appLoginTpl is the message that gets printed to a user upon successful login
@@ -192,6 +206,18 @@ var appLoginTpl = template.Must(template.New("").Parse(
 
 WARNING: tsh was called with --insecure, so this curl command will be unable to validate the certificate presented by Teleport.
 {{- end }}
+`))
+
+// appLoginLocalProxyTpl is the message that gets printed to a user upon successful login
+// into an HTTP application and local proxy is required.
+var appLoginLocalProxyTpl = template.Must(template.New("").Parse(
+	`Logged into app {{.appName}}. Start the local proxy for it:
+
+  tsh proxy app {{.appName}} -p 8080
+
+Then connect to the application through this proxy:
+
+  curl http://127.0.0.1:8080
 `))
 
 // appLoginTCPTpl is the message that gets printed to a user upon successful
@@ -249,12 +275,12 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 		return nil, trace.Wrap(err)
 	}
 	if len(apps) == 0 {
-		return nil, trace.NotFound("app %q not found, use `tsh app ls` to see registered apps", cf.AppName)
+		return nil, trace.NotFound("app %q not found, use `tsh apps ls` to see registered apps", cf.AppName)
 	}
 	return apps[0], nil
 }
 
-// onAppLogout implements "tsh app logout" command.
+// onAppLogout implements "tsh apps logout" command.
 func onAppLogout(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -299,7 +325,7 @@ func onAppLogout(cf *CLIConf) error {
 	return nil
 }
 
-// onAppConfig implements "tsh app config" command.
+// onAppConfig implements "tsh apps config" command.
 func onAppConfig(cf *CLIConf) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
@@ -441,7 +467,7 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 		return nil, trace.Wrap(err)
 	}
 	if len(profile.Apps) == 0 {
-		return nil, trace.NotFound("please login using 'tsh app login' first")
+		return nil, trace.NotFound("please login using 'tsh apps login' first")
 	}
 	name := cf.AppName
 	if name == "" {

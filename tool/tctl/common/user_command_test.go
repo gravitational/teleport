@@ -65,6 +65,7 @@ func TestTrimDurationSuffix(t *testing.T) {
 }
 
 func TestUserAdd(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -72,11 +73,11 @@ func TestUserAdd(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 
@@ -216,6 +217,7 @@ func TestUserAdd(t *testing.T) {
 }
 
 func TestUserUpdate(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -223,11 +225,11 @@ func TestUserUpdate(t *testing.T) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 	ctx := context.Background()
 	client := getAuthClient(ctx, t, fileConfig)
 

@@ -19,6 +19,8 @@ limitations under the License.
 
 package bpf
 
+import "github.com/gravitational/teleport/lib/service/servicecfg"
+
 // Service is used on non-Linux systems as a NOP service that allows the
 // caller to open and close sessions that do nothing on systems that don't
 // support eBPF.
@@ -26,7 +28,7 @@ type Service struct {
 }
 
 // New returns a new NOP service. Note this function does nothing.
-func New(_ *Config, _ *RestrictedSessionConfig) (BPF, error) {
+func New(_ *servicecfg.BPFConfig, _ *servicecfg.RestrictedSessionConfig) (BPF, error) {
 	return &NOP{}, nil
 }
 

@@ -32,15 +32,17 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
+type OnSessionLeaveAction string
+
 const (
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that terminates
 	// a session once the require policy is no longer fulfilled.
-	OnSessionLeaveTerminate = "terminate"
+	OnSessionLeaveTerminate OnSessionLeaveAction = "terminate"
 
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that pauses
 	// a session once the require policies is no longer fulfilled. It is resumed
 	// once the requirements are fulfilled again.
-	OnSessionLeavePause = "pause"
+	OnSessionLeavePause OnSessionLeaveAction = "pause"
 )
 
 // Role contains a set of permissions or settings
@@ -210,6 +212,11 @@ type Role interface {
 
 	// GetPrivateKeyPolicy returns the private key policy enforced for this role.
 	GetPrivateKeyPolicy() keys.PrivateKeyPolicy
+
+	// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
+	GetDatabaseServiceLabels(RoleConditionType) Labels
+	// SetDatabaseLabels sets the map of db service labels this role is allowed or denied access to.
+	SetDatabaseServiceLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V6 role.
@@ -512,6 +519,23 @@ func (r *RoleV6) SetKubernetesLabels(rct RoleConditionType, labels Labels) {
 	}
 }
 
+// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
+func (r *RoleV6) GetDatabaseServiceLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.DatabaseServiceLabels
+	}
+	return r.Spec.Deny.DatabaseServiceLabels
+}
+
+// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
+func (r *RoleV6) SetDatabaseServiceLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.DatabaseServiceLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.DatabaseServiceLabels = labels.Clone()
+	}
+}
+
 // GetDatabaseLabels gets the map of db labels this role is allowed or denied access to.
 func (r *RoleV6) GetDatabaseLabels(rct RoleConditionType) Labels {
 	if rct == Allow {
@@ -789,6 +813,14 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Options.SSHFileCopy == nil {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
+	}
+	if r.Spec.Options.IDP == nil {
+		// By default, allow users to access the IdP.
+		r.Spec.Options.IDP = &IdPOptions{
+			SAML: &IdPSAMLOptions{
+				Enabled: NewBoolOption(true),
+			},
+		}
 	}
 
 	switch r.Version {

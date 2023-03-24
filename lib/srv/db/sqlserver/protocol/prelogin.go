@@ -20,8 +20,8 @@ import (
 	"bytes"
 	"io"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/gravitational/trace"
+	mssql "github.com/microsoft/go-mssqldb"
 )
 
 // PreLoginPacket represents a Pre-Login packet which is sent by the client

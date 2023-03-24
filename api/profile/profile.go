@@ -96,6 +96,9 @@ type Profile struct {
 	// MFAMode ("auto", "platform", "cross-platform").
 	// Equivalent to the --mfa-mode tsh flag.
 	MFAMode string `yaml:"mfa_mode,omitempty"`
+
+	// PrivateKeyPolicy is a key policy enforced for this profile.
+	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
 }
 
 // Copy returns a shallow copy of p, or nil if p is nil.

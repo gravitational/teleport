@@ -38,14 +38,22 @@ type OptionFile struct {
 	path string
 }
 
+func DefaultConfigPath() (string, error) {
+	// Default location is .my.cnf file in the user's home directory.
+	usr, err := user.Current()
+	if err != nil {
+		return "", trace.ConvertSystemError(err)
+	}
+	return filepath.Join(usr.HomeDir, mysqlOptionFile), nil
+}
+
 // Load loads MySQL option file from the default location.
 func Load() (*OptionFile, error) {
-	// Default location is .my.cnf file in the user's home directory.
-	user, err := user.Current()
+	cnfPath, err := DefaultConfigPath()
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		return nil, trace.Wrap(err)
 	}
-	return LoadFromPath(filepath.Join(user.HomeDir, mysqlOptionFile))
+	return LoadFromPath(cnfPath)
 }
 
 // LoadFromPath loads MySQL option file from the specified path.
@@ -88,9 +96,10 @@ func (o *OptionFile) Upsert(profile profile.ConnectProfile) error {
 	} else {
 		section.NewKey("ssl-mode", MySQLSSLModeVerifyIdentity)
 	}
-	section.NewKey("ssl-ca", profile.CACertPath)
-	section.NewKey("ssl-cert", profile.CertPath)
-	section.NewKey("ssl-key", profile.KeyPath)
+	// On Windows paths will contain \, which must be escaped to \\ as per https://dev.mysql.com/doc/refman/8.0/en/option-files.html
+	section.NewKey("ssl-ca", strings.ReplaceAll(profile.CACertPath, `\`, `\\`))
+	section.NewKey("ssl-cert", strings.ReplaceAll(profile.CertPath, `\`, `\\`))
+	section.NewKey("ssl-key", strings.ReplaceAll(profile.KeyPath, `\`, `\\`))
 	ini.PrettyFormat = false
 	return o.iniFile.SaveTo(o.path)
 }

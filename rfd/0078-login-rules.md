@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 78 - Login Rules
@@ -246,17 +246,17 @@ Finds all literal string matches of `match` in `input`, and replaces them with
 `input` can be a string or a set of strings, in which case the replacement will
 be applied to all strings in the set.
 
-#### `upper(input)`
+#### `strings.upper(input)`
 
-`upper(input)` returns a copy of the input string converted to uppercase.
-`upper("ExAmPlE")` returns `"EXAMPLE"`.
+`strings.upper(input)` returns a copy of the input string converted to uppercase.
+`strings.upper("ExAmPlE")` returns `"EXAMPLE"`.
 `input` can be a string or a set of strings, in which case all strings in the
 set will be converted to uppercase.
 
-#### `lower(input)`
+#### `strings.lower(input)`
 
-`lower(input)` returns a copy of the input string converted to lowercase.
-`lower("ExAmPlE")` returns `"example"`.
+`strings.lower(input)` returns a copy of the input string converted to lowercase.
+`strings.lower("ExAmPlE")` returns `"example"`.
 `input` can be a string or a set of strings, in which case all strings in the
 set will be converted to lowercase.
 
@@ -400,7 +400,7 @@ to normal traits which are typically reference by `{{external.<trait_name>}}`.
 
 ### When login rules will be parsed and evaluated
 
-Login rules will be parsed and evaluated during each user login.
+Login rules will be parsed and evaluated during each SSO user login.
 This will occur after the SSO provider has returned its assertions/claims, and
 before Teleport maps these to internal Teleport roles via `attributes_to_roles` or
 `claims_to_roles` so that transformed traits can be used for this mapping.
@@ -410,6 +410,16 @@ Teleport roles which the user should have.
 
 During login, the auth server will load all `login_rule` resources in the
 cluster, sort them by `priority` and `name`, and apply all of them in order.
+
+### Local users
+
+Login rules will not apply to local users for the initial release of login
+rules.
+One technical reason for this is that the user's static traits are held in its
+`User` resource, and these are sometimes accessed by teleport subsystems to
+determine the traits of various users.
+If these were different than the dynamic traits the user would get on login it
+would create inconsistencies.
 
 ### Trusted clusters
 
@@ -435,14 +445,14 @@ your cluster.
 
 ```bash
 $ tctl test login_rule \
-  --load login_rule1.yaml \
-  --load login_rule2.yaml \
+  --resource-file login_rule1.yaml \
+  --resource-file login_rule2.yaml \
   --load-from-cluster \
-  --input_traits '{"groups": ["splunk"], "email": "nic@goteleport.com", "username": "nklaassen"}'
+  <<< '{"groups": ["splunk"], "email": "nic@goteleport.com", "username": "nklaassen"}'
 ```
 
-You can load multiple yaml files with `--load resource.yaml`, optionally load
-existing trait transforms from the cluster with `--load-from-cluster`, and
+You can load multiple yaml files with `--resource-file resource.yaml`, optionally load
+existing login rules from the cluster with `--load-from-cluster`, and
 provide a set of input traits to test with.
 
 The command will report any syntax errors, and will print the output traits for

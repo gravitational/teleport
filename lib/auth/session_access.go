@@ -235,12 +235,12 @@ func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticip
 	return false
 }
 
-// PolicyOptions is a set of settings for the session determined by the matched require policy.
+// PolicyOptions is a set of settings for the session determined by the matched required policy.
 type PolicyOptions struct {
-	TerminateOnLeave bool
+	OnLeaveAction types.OnSessionLeaveAction
 }
 
-// Generate a pretty-printed string of precise requirements for session start suitable for user display.
+// PrettyRequirementsList generates a pretty-printed string of precise requirements for session start suitable for user display.
 func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 	s := new(strings.Builder)
 	s.WriteString("require all:")
@@ -275,7 +275,7 @@ func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTra
 
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
-	options := PolicyOptions{TerminateOnLeave: true}
+	var options PolicyOptions
 
 	// Check every policy set to check if it's fulfilled.
 	// We need every policy set to match to allow the session.
@@ -284,6 +284,17 @@ policySetLoop:
 		policies := e.extractApplicablePolicies(policySet)
 		if len(policies) == 0 {
 			continue
+		}
+
+		if options.OnLeaveAction != types.OnSessionLeaveTerminate {
+			terminateOnLeave := types.OnSessionLeavePause
+			for _, p := range policies {
+				if p.OnLeave != string(types.OnSessionLeavePause) {
+					terminateOnLeave = types.OnSessionLeaveTerminate
+					break
+				}
+			}
+			options = PolicyOptions{OnLeaveAction: terminateOnLeave}
 		}
 
 		// Check every require policy to see if it's fulfilled.
@@ -309,10 +320,10 @@ policySetLoop:
 					// Evaluate the filter in the require policy against the participant and allow policy.
 					matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)
 					if err != nil {
-						return false, PolicyOptions{}, trace.Wrap(err)
+						return false, options, trace.Wrap(err)
 					}
 
-					// If the the filter matches the participant and the allow policy matches the session
+					// If the filter matches the participant and the allow policy matches the session
 					// we conclude that the participant matches against the require policy.
 					if matchesPredicate && e.matchesJoin(allowPolicy) {
 						left--
@@ -322,13 +333,6 @@ policySetLoop:
 
 				// If we've matched enough participants against the require policy, we can allow the session.
 				if left <= 0 {
-					switch requirePolicy.OnLeave {
-					case types.OnSessionLeaveTerminate:
-					case types.OnSessionLeavePause:
-						options.TerminateOnLeave = false
-					default:
-					}
-
 					// We matched at least one require policy within the set. Continue ahead.
 					continue policySetLoop
 				}

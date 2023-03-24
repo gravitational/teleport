@@ -399,6 +399,30 @@ tests:
             containerPort: 3000
             protocol: TCP
 
+  - it: should expose auth port
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: auth
+            containerPort: 3025
+            protocol: TCP
+
+  - it: should expose kube port
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: kube
+            containerPort: 3026
+            protocol: TCP
+
   - it: should set postStart command if set in values
     template: auth/deployment.yaml
     set:

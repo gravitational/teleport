@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
@@ -141,11 +142,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		}
 
 		// Realistically, this would happen too.
-		if err := prompt.PromptTouch(); err != nil {
+		ackTouch, err := prompt.PromptTouch()
+		if err != nil {
 			return nil, err
 		}
 
-		return solveWebauthn(ctx, origin, assertion, prompt)
+		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
+		if err != nil {
+			return nil, err
+		}
+		return resp, ackTouch()
 	}
 
 	ctx := context.Background()
@@ -212,7 +218,6 @@ func TestTeleportClient_Login_local(t *testing.T) {
 			secondFactor:          constants.SecondFactorOptional,
 			inputReader:           prompt.NewFakeReader(), // no inputs
 			solveWebauthn:         solvePwdless,
-			authConnector:         constants.LocalConnector,
 			hasTouchIDCredentials: true,
 		},
 		{
@@ -224,9 +229,32 @@ func TestTeleportClient_Login_local(t *testing.T) {
 					panic("this should not be called")
 				}),
 			solveWebauthn:           solveWebauthn,
-			authConnector:           constants.LocalConnector,
 			hasTouchIDCredentials:   true,
 			authenticatorAttachment: wancli.AttachmentCrossPlatform,
+		},
+		{
+			name:         "local connector doesn't default to passwordless",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader: prompt.NewFakeReader().
+				AddString(password).
+				AddReply(func(ctx context.Context) (string, error) {
+					panic("this should not be called")
+				}),
+			solveWebauthn:         solveWebauthn,
+			authConnector:         constants.LocalConnector,
+			hasTouchIDCredentials: true,
+		},
+		{
+			name:         "OTP preferred doesn't default to passwordless",
+			secondFactor: constants.SecondFactorOptional,
+			inputReader: prompt.NewFakeReader().
+				AddString(password).
+				AddReply(solveOTP),
+			solveWebauthn: func(ctx context.Context, origin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt) (*proto.MFAAuthenticateResponse, error) {
+				panic("this should not be called")
+			},
+			preferOTP:             true,
+			hasTouchIDCredentials: true,
 		},
 	}
 	for _, test := range tests {
@@ -534,7 +562,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	user.AddRole(role.GetName())
 
 	// AuthServer setup.
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
@@ -616,7 +644,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, authServer.UpsertMFADevice(ctx, username, otpDevice))
 
 	// Proxy setup.
-	cfg = service.MakeDefaultConfig()
+	cfg = servicecfg.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
@@ -651,7 +679,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	}
 }
 
-func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.TeleportProcess {
+func startAndWait(t *testing.T, cfg *servicecfg.Config, eventName string) *service.TeleportProcess {
 	instance, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())

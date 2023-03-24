@@ -17,18 +17,16 @@ limitations under the License.
 package events
 
 import (
-	"context"
 	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/session"
 )
 
 // NewMultiLog returns a new instance of a multi logger
-func NewMultiLog(loggers ...IAuditLog) (*MultiLog, error) {
+func NewMultiLog(loggers ...AuditLogger) (*MultiLog, error) {
 	emitters := make([]apievents.Emitter, 0, len(loggers))
 	for _, logger := range loggers {
 		emitter, ok := logger.(apievents.Emitter)
@@ -47,7 +45,7 @@ func NewMultiLog(loggers ...IAuditLog) (*MultiLog, error) {
 // to all loggers, and performs all read and search operations
 // on the first logger that implements the operation
 type MultiLog struct {
-	loggers []IAuditLog
+	loggers []AuditLogger
 	*MultiEmitter
 }
 
@@ -58,35 +56,6 @@ func (m *MultiLog) Close() error {
 		errors = append(errors, log.Close())
 	}
 	return trace.NewAggregate(errors...)
-}
-
-// GetSessionChunk returns a reader which can be used to read a byte stream
-// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-// beginning) up to maxBytes bytes.
-//
-// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-func (m *MultiLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) (data []byte, err error) {
-	for _, log := range m.loggers {
-		data, err = log.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
-		if !trace.IsNotImplemented(err) {
-			return data, err
-		}
-	}
-	return data, err
-}
-
-// Returns all events that happen during a session sorted by time
-// (oldest first).
-//
-// after is used to return events after a specified cursor ID
-func (m *MultiLog) GetSessionEvents(namespace string, sid session.ID, after int, fetchPrintEvents bool) (events []EventFields, err error) {
-	for _, log := range m.loggers {
-		events, err = log.GetSessionEvents(namespace, sid, after, fetchPrintEvents)
-		if !trace.IsNotImplemented(err) {
-			return events, err
-		}
-	}
-	return events, err
 }
 
 // SearchEvents is a flexible way to find events.
@@ -121,39 +90,4 @@ func (m *MultiLog) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, orde
 		}
 	}
 	return events, lastKey, err
-}
-
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
-func (m *MultiLog) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-
-	go func() {
-	loggers:
-		for _, log := range m.loggers {
-			subCh, subErrCh := log.StreamSessionEvents(ctx, sessionID, startIndex)
-
-			for {
-				select {
-				case event, more := <-subCh:
-					if !more {
-						close(c)
-						return
-					}
-
-					c <- event
-				case err := <-subErrCh:
-					if !trace.IsNotImplemented(err) {
-						e <- trace.Wrap(err)
-						return
-					}
-
-					continue loggers
-				}
-			}
-		}
-	}()
-
-	return c, e
 }

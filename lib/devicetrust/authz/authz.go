@@ -28,10 +28,27 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// IsTLSDeviceVerified returns true if ext contains all required device
+// extensions.
+func IsTLSDeviceVerified(ext *tlsca.DeviceExtensions) bool {
+	// Expect all device extensions to be present.
+	return ext != nil && ext.DeviceID != "" && ext.AssetTag != "" && ext.CredentialID != ""
+}
+
 // VerifyTLSUser verifies if the TLS identity has the required extensions to
 // fulfill the device trust configuration.
 func VerifyTLSUser(dt *types.DeviceTrust, identity tlsca.Identity) error {
-	return verifyDeviceExtensions(dt, identity.Username, identity.DeviceExtensions)
+	return verifyDeviceExtensions(dt, identity.Username, IsTLSDeviceVerified(&identity.DeviceExtensions))
+}
+
+// IsSSHDeviceVerified returns true if cert contains all required device
+// extensions.
+func IsSSHDeviceVerified(cert *ssh.Certificate) bool {
+	// Expect all device extensions to be present.
+	return cert != nil &&
+		cert.Extensions[teleport.CertExtensionDeviceID] != "" &&
+		cert.Extensions[teleport.CertExtensionDeviceAssetTag] != "" &&
+		cert.Extensions[teleport.CertExtensionDeviceCredentialID] != ""
 }
 
 // VerifySSHUser verifies if the SSH certificate has the required extensions to
@@ -42,32 +59,24 @@ func VerifySSHUser(dt *types.DeviceTrust, cert *ssh.Certificate) error {
 	}
 
 	username := cert.KeyId
-	return verifyDeviceExtensions(dt, username, tlsca.DeviceExtensions{
-		DeviceID:     cert.Extensions[teleport.CertExtensionDeviceID],
-		AssetTag:     cert.Extensions[teleport.CertExtensionDeviceAssetTag],
-		CredentialID: cert.Extensions[teleport.CertExtensionDeviceCredentialID],
-	})
+	return verifyDeviceExtensions(dt, username, IsSSHDeviceVerified(cert))
 }
 
-func verifyDeviceExtensions(dt *types.DeviceTrust, username string, ext tlsca.DeviceExtensions) error {
+func verifyDeviceExtensions(dt *types.DeviceTrust, username string, verified bool) error {
 	mode := config.GetEffectiveMode(dt)
 	maybeLogModeMismatch(mode, dt)
 
-	if mode != constants.DeviceTrustModeRequired {
+	switch {
+	case mode != constants.DeviceTrustModeRequired:
 		return nil // OK, extensions not enforced.
-	}
-
-	// Teleport-issued device certificates always contain all three fields, so we
-	// expect either all or none to be present.
-	// There's little value in trying to distinguish other situations.
-	if ext.DeviceID == "" || ext.AssetTag == "" || ext.CredentialID == "" {
+	case !verified:
 		log.
 			WithField("User", username).
 			Debug("Device Trust: denied access for unidentified device")
 		return trace.AccessDenied("unauthorized device")
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 var logModeOnce sync.Once

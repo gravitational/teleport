@@ -390,7 +390,7 @@ message ClientHello {
     repeated string ServerRoles = 4; 
 }
 
-// Heatbeat periodically 
+// Heartbeat periodically 
 message Heartbeat {
     // TODO
 }

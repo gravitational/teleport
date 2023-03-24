@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,12 +59,12 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a dynamic token
-	dynamicToken, err := a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles: types.SystemRoles{types.RoleNode},
-		TTL:   proto.Duration(time.Hour),
-	})
-	require.NoError(t, err)
-	require.NotNil(t, dynamicToken)
+	dynamicToken := generateTestToken(
+		ctx,
+		t,
+		types.SystemRoles{types.RoleNode}, time.Now().Add(time.Minute*30),
+		a,
+	)
 
 	sshPrivateKey, sshPublicKey, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
@@ -72,11 +73,12 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 	require.NoError(t, err)
 
 	testcases := []struct {
-		desc           string
-		req            *types.RegisterUsingTokenRequest
-		certsAssertion func(*proto.Certs)
-		errorAssertion func(error) bool
-		clock          clockwork.Clock
+		desc             string
+		req              *types.RegisterUsingTokenRequest
+		certsAssertion   func(*proto.Certs)
+		errorAssertion   func(error) bool
+		clock            clockwork.Clock
+		waitTokenDeleted bool // Expired tokens are deleted in background, might need slight delay in relevant test
 	}{
 		{
 			desc:           "reject empty",
@@ -222,8 +224,9 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 				PublicSSHKey: sshPublicKey,
 				PublicTLSKey: tlsPublicKey,
 			},
-			clock:          clockwork.NewFakeClockAt(time.Now().Add(time.Hour + 1)),
-			errorAssertion: trace.IsAccessDenied,
+			waitTokenDeleted: true,
+			clock:            clockwork.NewFakeClockAt(time.Now().Add(time.Hour + 1)),
+			errorAssertion:   trace.IsAccessDenied,
 		},
 		{
 			// relies on token being deleted during previous testcase
@@ -250,6 +253,12 @@ func TestAuth_RegisterUsingToken(t *testing.T) {
 			certs, err := a.RegisterUsingToken(ctx, tc.req)
 			if tc.errorAssertion != nil {
 				require.True(t, tc.errorAssertion(err))
+				if tc.waitTokenDeleted {
+					require.Eventually(t, func() bool {
+						_, err := a.ValidateToken(ctx, tc.req.Token)
+						return err != nil && strings.Contains(err.Error(), TokenExpiredOrNotFound)
+					}, time.Millisecond*100, time.Millisecond*10)
+				}
 				return
 			}
 			require.NoError(t, err)

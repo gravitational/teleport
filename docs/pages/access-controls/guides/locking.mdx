@@ -27,6 +27,7 @@ A lock can target the following objects or attributes:
 
 - a Teleport user by the user's name
 - a Teleport [RBAC](../reference.mdx) role by the role's name
+- a Teleport [trusted device](device-trust.mdx#optional-locking-a-device) by the device ID
 - an MFA device by the device's UUID
 - an OS/UNIX login
 - a Teleport Node by the Node's UUID (effectively unregistering it from the
@@ -57,6 +58,13 @@ with one of the following options:
   ```code
   $ tctl lock --role=contractor --message="All contractor access is disabled for 10h." --ttl=10h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
+  ```
+  </TabItem>
+  <TabItem label="Trusted device">
+  All connections initiated from a device matching the device ID will be locked.
+  ```code
+  $ tctl lock --device 9cdfc0ad-64b7-4d9c-9342-50e97f418ba0 --message="Compromised device" --ttl=48h
+  Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
   ```
   </TabItem>
   <TabItem label="Multi-factor device">
@@ -94,8 +102,8 @@ with one of the following options:
   opened={false}
 >
 
-If your user is missing a lock permission, you will get error when creating
-a role:
+If your user is missing a lock permission, you will get an error when creating
+a lock:
 
 ```txt
 ERROR: access denied to perform action "create" on "lock"

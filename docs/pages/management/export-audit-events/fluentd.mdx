@@ -1,169 +1,79 @@
 ---
-title: Forwarding Events with Fluentd
+title: Export Events with Fluentd
 description: Forwarding events with Fluentd and Teleport event handler
 videoBanner: HAqxs4rBv2c
 ---
 
-In this guide, we will explain how to:
+Fluentd is an open-source data collector for a unified logging layer. In this
+guide, we will:
 
-- Set up Teleport's event handler.
+- Set up Teleport's Event Handler plugin.
 - Forward events with Fluentd.
+
+This guide also serves as an explanation for the Teleport Event Handler plugin,
+using Fluentd as the target service. We'll create a local Docker container as a
+destination for the Event Handler:
+
+{/*
+ The Graph below is made with this mermaidjs logic:
+ graph LR
+subgraph workstation [fa:fa-laptop Workstation]
+    style workstation fill:#C0C0C0,stroke: #000000
+    direction LR
+    c(teleport-event-handler)
+    style c fill: #a379ff,color: #ffffff
+    subgraph Docker
+        style Docker fill:#0db7ed,stroke: #000000
+        d(fluentd)
+    end
+    c-->d
+end
+e(Teleport)
+style e fill: #844cff,color: #ffffff
+e-->c
+ */}
+
+![Fluentd example diagram](../../../img/management/fluentd-demo-dia.png)
+
+You can follow the instructions below for a local proof-of-concept demo, or use any
+of the additional installation instructions to configure the Teleport Event Handler
+to integrate with your infrastructure.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- Fluentd version v(=fluentd.version=).
+- Fluentd version v(=fluentd.version=) or greater.
 - Docker version v(=docker.version=).
 
 (!docs/pages/includes/tctl.mdx!)
 
-Create a folder called `fluentd` to hold configuration and plugin state:
+- On your workstation, create a folder called `event-handler`, to hold configuration files and plugin state:
 
-```code
-$ mkdir -p event-handler
-$ cd event-handler
-```
+  ```code
+  $ mkdir -p event-handler
+  $ cd event-handler
+  ```
 
 ## Step 1/6. Install the event handler plugin
 
 The Teleport event handler runs alongside the Fluentd forwarder, receives events
 from Teleport's events API, and forwards them to Fluentd.
 
-<Tabs>
-  <TabItem label="Linux">
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-linux-amd64-bin.tar.gz
-  ```
-  </TabItem>
-
-  <TabItem label="macOS">
-
-  ```code
-  $ curl -L -O https://get.gravitational.com/teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
-  $ tar -zxvf teleport-event-handler-v(=teleport.plugin.version=)-darwin-amd64-bin.tar.gz
-  ```
-
-  We currently only build the event handler plugin for amd64 machines. If your
-  macOS machine uses Apple silicon, you will need to [install
-  Rosetta](https://support.apple.com/en-us/HT211861) before you can run the
-  event handler plugin. You can also build from source.
-  </TabItem>
-
-  <TabItem label="Docker">
-  ```code
-  $ docker pull public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=)
-  ```
-  </TabItem>
-
-  <TabItem label="Helm">
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-  </TabItem>
-  <TabItem label="From Source">
-  Ensure that you have Docker installed and running.
-
-  Run the following commands to build the plugin:
-
-  ```code
-  $ git clone https://github.com/gravitational/teleport-plugins.git --depth 1
-  $ cd teleport-plugins/event-handler/build.assets
-  $ make build
-  ```
-
-  You can find the compiled binary within your clone of the `teleport-plugins`
-  repo, with the file path, `event-handler/build/teleport-event-handler`.
-
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/install-event-handler.mdx!)
 
 ## Step 2/6. Configure the plugin
 
-<Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+(!docs/pages/includes/configure-event-handler.mdx!)
 
-Run the `configure` command to generate a sample configuration. Replace
-`mytenant.teleport.sh` with the DNS name of your Teleport Cloud tenant:
-
-```code
-$ ./teleport-event-handler configure . mytenant.teleport.sh
-```
-
-</TabItem>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-
-Run the `configure` command to generate a sample configuration. Replace
-`teleport.example.com:443` with the DNS name and HTTPS port of Teleport's Proxy
-Service:
-
-```code
-$ ./teleport-event-handler configure . teleport.example.com:443
-```
-
-</TabItem>
-<TabItem scope={["oss", "enterprise", "cloud"]} label="Helm Chart">
-
-Run the `configure` command to generate a sample configuration. Assign `TELEPORT_CLUSTER_ADDRESS` to the DNS name and port of your Teleport Auth Service or Proxy Service:
-
-```code
-$ TELEPORT_CLUSTER_ADDRESS=mytenant.teleport.sh:443
-$ docker run -v `pwd`:/opt/teleport-plugin -w /opt/teleport-plugin public.ecr.aws/gravitational/teleport-plugin-event-handler:(=teleport.plugin.version=) configure . ${TELEPORT_CLUSTER_ADDRESS?}
-```
-
-In order to connect to Fluentd, you'll need to have the root certificate and the client credentials available as a secret. Use the following command to create that secret in Kubernetes:
-
-```code
-$ kubectl create secret generic teleport-event-handler-client-tls --from-file=ca.crt=ca.crt,client.crt=client.crt,client.key=client.key
-```
-
-This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the secret, so the Helm Chart can mount them to their appropriate path.
-
-</TabItem>
-</Tabs>
-
-You'll see the following output:
-
-```txt
-Teleport event handler 0.0.1 07617b0ad0829db043fe779faf1669defdc8d84e
-
-[1] mTLS Fluentd certificates generated and saved to ca.crt, ca.key, server.crt, server.key, client.crt, client.key
-[2] Generated sample teleport-event-handler role and user file teleport-event-handler-role.yaml
-[3] Generated sample fluentd configuration file fluent.conf
-[4] Generated plugin configuration file teleport-event-handler.toml
-
-Follow-along with our getting started guide:
-
-https://goteleport.com/setup/guides/fluentd
-```
-
-The plugin generates several setup files:
-
-```code
-$ ls -l
-# -rw------- 1 bob bob     1038 Jul  1 11:14 ca.crt
-# -rw------- 1 bob bob     1679 Jul  1 11:14 ca.key
-# -rw------- 1 bob bob     1042 Jul  1 11:14 client.crt
-# -rw------- 1 bob bob     1679 Jul  1 11:14 client.key
-# -rw------- 1 bob bob      541 Jul  1 11:14 fluent.conf
-# -rw------- 1 bob bob     1078 Jul  1 11:14 server.crt
-# -rw------- 1 bob bob     1766 Jul  1 11:14 server.key
-# -rw------- 1 bob bob      260 Jul  1 11:14 teleport-event-handler-role.yaml
-# -rw------- 1 bob bob      343 Jul  1 11:14 teleport-event-handler.toml
-```
-
-|File(s)|Purpose|
-|---|---|
-| `ca.crt` and `ca.key`| Self-signed CA certificate and private key for Fluentd|
-| `server.crt` and `server.key`| Fluentd server certificate and key|
-| `client.crt` and `client.key`| Fluentd client certificate and key, all signed by the generated CA|
-| `teleport-event-handler-role.yaml`| `user` and `role` resource definitions for Teleport's event handler |client.
-| `fluent.conf`| Fluentd plugin configuration|
+If you have an existing Fluentd setup with TLS, issue a client certificate and
+key from the same certificate authority for the Teleport Event Handler to use.
 
 ## Step 3/6. Create a user and role for reading audit events
 
-The `configure` command generates a file called
-`teleport-event-handler-role.yaml` that defines a `teleport-event-handler` role
-and a user with read-only access to the `event` API:
+The `configure` command generates a file called `teleport-event-handler-role.yaml`
+that defines a `teleport-event-handler` role and a user with read-only access to
+the `event` API:
 
 ```yaml
 kind: user
@@ -188,8 +98,8 @@ Use `tctl` to create the role and the user:
 
 ```code
 $ tctl create -f teleport-event-handler-role.yaml
-# user "teleport-event-handler" has been created
-# role 'teleport-event-handler' has been created
+user 'teleport-event-handler' has been created
+role 'teleport-event-handler' has been created
 ```
 
 ## Step 4/6. Create teleport-event-handler credentials
@@ -242,11 +152,14 @@ command.
 <Tabs>
 <TabItem label="Self-Hosted" scope={["oss","enterprise"]}>
 ```code
-$ tctl auth sign --format=tls --user=teleport-event-handler --out=auth
+$ tctl auth sign --user=teleport-event-handler --out=identity
 ```
 
-This command should result in three PEM-encoded files: `auth.crt`, `auth.key`,
-and `auth.cas` (certificate, private key, and CA certs, respectively).
+This command creates one PEM-encoded file, `identity`. The identity file
+includes both TLS and SSH credentials. The Event Handler plugin uses the SSH
+credentials to connect to the Proxy Service, which establishes a reverse tunnel
+connection to the Auth Service. The plugin uses this reverse tunnel, along with
+your TLS credentials, to connect to the Auth Service's gRPC endpoint.
 
 </TabItem>
 <TabItem label="Teleport Cloud" scope={["cloud"]}>
@@ -254,7 +167,11 @@ and `auth.cas` (certificate, private key, and CA certs, respectively).
 $ tctl auth sign --user=teleport-event-handler --out=identity
 ```
 
-The above sequence should result in one PEM-encoded file, `identity`.
+This command creates one PEM-encoded file, `identity`. The identity file
+includes both TLS and SSH credentials. Your Event Handler plugin uses the SSH
+credentials to connect to the Proxy Service, which establishes a reverse tunnel
+connection to the Auth Service. The plugin uses this reverse tunnel, along with
+your TLS credentials, to connect to the Auth Service's gRPC endpoint.
 
 </TabItem>
 <TabItem label="Helm Chart" scope={["cloud"]}>
@@ -325,6 +242,8 @@ To try out this Fluentd configuration, start your fluentd instance:
 $ docker run -u $(id -u ${USER}):$(id -g ${USER}) -p 8888:8888 -v $(pwd):/keys -v $(pwd)/fluent.conf:/fluentd/etc/fluent.conf fluent/fluentd:edge
 ```
 
+This will consume your current terminal, so open a new one to continue following along.
+
 ## Step 6/6. Start the event handler plugin
 
 Earlier, we generated a file called `teleport-event-handler.toml` to configure
@@ -340,9 +259,9 @@ batch = 20
 namespace = "default"
 
 [forward.fluentd]
-ca = "/home/sasha/scripts/event-handler/ca.crt"
-cert = "/home/sasha/scripts/event-handler/client.crt"
-key = "/home/sasha/scripts/event-handler/client.key"
+ca = "/home/bob/event-handler/ca.crt"
+cert = "/home/bob/event-handler/client.crt"
+key = "/home/bob/event-handler/client.key"
 url = "https://localhost:8888/test.log"
 
 [teleport]
@@ -366,19 +285,17 @@ batch = 20
 namespace = "default"
 
 [forward.fluentd]
-ca = "/home/sasha/scripts/event-handler/ca.crt"
-cert = "/home/sasha/scripts/event-handler/client.crt"
-key = "/home/sasha/scripts/event-handler/client.key"
+ca = "/home/bob/event-handler/ca.crt"
+cert = "/home/bob/event-handler/client.crt"
+key = "/home/bob/event-handler/client.key"
 url = "https://localhost:8888/test.log"
 
 [teleport]
 addr = "example.teleport.com:443"
-client_key = "auth.key"
-client_crt = "auth.crt"
-root_cas = "auth.cas"
+identity = "identity"
 ```
 
-To start the event handler, run the following command:
+To start the Event Handler, run the following command:
 
 ```code
 $ ./teleport-event-handler start --config teleport-event-handler.toml

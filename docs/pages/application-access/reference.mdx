@@ -14,9 +14,9 @@ appearing in the `teleport.yaml` configuration file:
 app_service:
   # Enables application proxy service.
   enabled: yes
-  # Enable debug app that can be used to make sure application access is
-  # working correctly. It'll output JWTs so it can be useful for when
-  # extending your application.
+  # Teleport provides a small debug app called "dumper" that can be used
+  # to make sure application access is working correctly. It outputs JWTs,
+  #  so it can be useful when extending your application.
   debug_app: true
   # Matchers for application resources created with "tctl create" command.
   resources:
@@ -132,20 +132,20 @@ $ tctl create -f app.yaml
 
 This section shows CLI commands relevant for Application Access.
 
-### tsh app ls
+### tsh apps ls
 
 Lists available applications.
 
 ```code
-$ tsh app ls
+$ tsh apps ls
 ```
 
-### tsh app login
+### tsh apps login
 
 Retrieves short-lived X.509 certificate for CLI application access.
 
 ```code
-$ tsh app login grafana
+$ tsh apps login grafana
 ```
 
 | Flag | Description |
@@ -153,44 +153,44 @@ $ tsh app login grafana
 | `--aws-role` | For AWS CLI access, the role ARN or role name of an AWS IAM role. |
 | `--azure-identity` | For Azure CLI access, the name or URI of an Azure managed identity to use for accessing the Azure CLI. |
 
-### tsh app logout
+### tsh apps logout
 
 Removes CLI application access certificate.
 
 ```code
 # Log out of a particular app.
-$ tsh app logout grafana
+$ tsh apps logout grafana
 
 # Log out of all apps.
-$ tsh app logout
+$ tsh apps logout
 ```
 
-### tsh app config
+### tsh apps config
 
 Prints application connection information.
 
 ```code
 # Print app information in a table form.
-$ tsh app config
+$ tsh apps config
 
 # Print information for a particular app.
-$ tsh app config grafana
+$ tsh apps config grafana
 
 # Print an example curl command.
-$ tsh app config --format=curl
+$ tsh apps config --format=curl
 
 # Construct a curl command.
-$ curl $(tsh app config --format=uri) \
-  --cacert $(tsh app config --format=ca) \
-  --cert $(tsh app config --format=cert) \
-  --key $(tsh app config --format=key)
+$ curl $(tsh apps config --format=uri) \
+  --cacert $(tsh apps config --format=ca) \
+  --cert $(tsh apps config --format=cert) \
+  --key $(tsh apps config --format=key)
 ```
 
 | Flag | Description |
 | - | - |
 | `--format` | Optional print format, one of: `uri` to print app address, `ca` to print CA cert path, `cert` to print cert path, `key` print key path, `curl` to print example curl command.|
 
-### tsh az 
+### tsh az
 
 Run an Azure CLI command via the Teleport Application Service:
 
@@ -207,5 +207,4 @@ To run this command, one of the user's roles must include the
 `spec.allow.azure_identities` field with one of the identities used by the
 Application Service. To learn how to set up secure access to Azure via Teleport,
 read [Protect the Azure CLI with Teleport Application
-Access](guides/azure.mdx).
-
+Access](cloud-apis/azure.mdx).

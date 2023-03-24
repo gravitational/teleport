@@ -184,12 +184,8 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Name:      "dev",
 					Namespace: "dev",
 				},
-				{
-					Kind:      types.KindKubePod,
-					Name:      "test-3",
-					Namespace: "test",
-				},
 			},
+			wantDenied:   emptySet,
 			assertAccess: require.NoError,
 		},
 		{
@@ -197,6 +193,7 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 			kubeCluster: prodKubeCluster,
 			fields: fields{
 				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
 					AllowedResourceIDs: []types.ResourceID{
 						{
 							Kind:        types.KindApp,
@@ -229,17 +226,163 @@ func TestAccessCheckerKubeResources(t *testing.T) {
 					Namespace: "any1",
 				},
 			},
+			wantAllowed:  nil,
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "dev cluster with kube_cluster resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindApp,
+							ClusterName: localCluster,
+							Name:        "devapp",
+						},
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        devKubeCluster.GetName(),
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      types.KindKubePod,
+					Name:      "dev",
+					Namespace: "dev",
+				},
+			},
 			wantAllowed: []types.KubernetesResource{
 				{
 					Kind:      types.KindKubePod,
-					Name:      "test-2",
-					Namespace: "prod",
+					Name:      "any1",
+					Namespace: "any1",
+				},
+				{
+					Kind:      types.KindKubePod,
+					Name:      "any1",
+					Namespace: "any2",
+				},
+				{
+					Kind:      types.KindKubePod,
+					Name:      "dev",
+					Namespace: "dev",
 				},
 			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "access dev cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
+			kubeCluster: devKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        prodKubeCluster.GetName(),
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      types.KindKubePod,
+					Name:      "dev",
+					Namespace: "dev",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Name:      "dev",
+					Namespace: "dev",
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.NoError,
+		},
+		{
+			name:        "access prod cluster with kube cluster<prodCluster> and kube pod<devCluster> resource access request",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:        types.KindKubernetesCluster,
+							ClusterName: localCluster,
+							Name:        prodKubeCluster.GetName(),
+						},
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            devKubeCluster.GetName(),
+							SubResourceName: "dev/dev",
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      types.KindKubePod,
+					Name:      "dev",
+					Namespace: "dev",
+				},
+			},
+			wantAllowed: []types.KubernetesResource{
+				{
+					Kind:      types.KindKubePod,
+					Name:      "any1",
+					Namespace: "any1",
+				},
+				{
+					Kind:      types.KindKubePod,
+					Name:      "any1",
+					Namespace: "any2",
+				},
+			},
+			wantDenied:   emptySet,
+			assertAccess: require.Error,
+		},
+		{
+			name:        "access pod outside namespace allowed by roles",
+			kubeCluster: prodKubeCluster,
+			fields: fields{
+				roleSet: roleSet,
+				info: &AccessInfo{
+					Roles: []string{"any", "dev"},
+					AllowedResourceIDs: []types.ResourceID{
+						{
+							Kind:            types.KindKubePod,
+							ClusterName:     localCluster,
+							Name:            prodKubeCluster.GetName(),
+							SubResourceName: "wrongNamespace/wrongPodName",
+						},
+					},
+				},
+				resource: types.KubernetesResource{
+					Kind:      types.KindKubePod,
+					Name:      "wrongPodName",
+					Namespace: "wrongNamespace",
+				},
+			},
+			wantAllowed:  nil,
+			wantDenied:   emptySet,
 			assertAccess: require.Error,
 		},
 	}
-	for _, tt := range tests[len(tests)-2:] {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			accessChecker := NewAccessCheckerWithRoleSet(tt.fields.info, localCluster, tt.fields.roleSet)
 			gotAllowed, gotDenied := accessChecker.GetKubeResources(tt.kubeCluster)

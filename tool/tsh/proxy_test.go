@@ -45,7 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -56,12 +56,12 @@ func TestSSH(t *testing.T) {
 	defer lib.SetInsecureDevMode(false)
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *service.Config) {
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 		withLeafCluster(),
-		withLeafConfigFunc(func(cfg *service.Config) {
+		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 		}),
 	)
@@ -192,12 +192,12 @@ func TestSSHLoadAllCAs(t *testing.T) {
 		{
 			name: "TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 					cfg.Auth.LoadAllCAs = true
 				}),
-				withLeafConfigFunc(func(cfg *service.Config) {
+				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -206,11 +206,11 @@ func TestSSHLoadAllCAs(t *testing.T) {
 		{
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 					cfg.Auth.LoadAllCAs = true
 				}),
-				withLeafConfigFunc(func(cfg *service.Config) {
+				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -262,7 +262,7 @@ func TestProxySSH(t *testing.T) {
 		{
 			name: "TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -271,7 +271,7 @@ func TestProxySSH(t *testing.T) {
 		{
 			name: "TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Version = defaults.TeleportConfigVersionV2
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -358,10 +358,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing enabled for root and leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
-				withLeafConfigFunc(func(cfg *service.Config) {
+				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -369,10 +369,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing enabled for root and disabled for leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
-				withLeafConfigFunc(func(cfg *service.Config) {
+				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -380,10 +380,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing disabled for root and enabled for leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
-				withLeafConfigFunc(func(cfg *service.Config) {
+				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
 			},
@@ -391,10 +391,10 @@ func TestProxySSHJumpHost(t *testing.T) {
 		{
 			name: "TLS routing disabled for root and leaf",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
-				withLeafConfigFunc(func(cfg *service.Config) {
+				withLeafConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
 			},
@@ -497,7 +497,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "node recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -506,7 +506,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "proxy recording mode with TLS routing enabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}),
@@ -515,7 +515,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "node recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtNode)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -524,7 +524,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 		{
 			name: "proxy recording mode with TLS routing disabled",
 			opts: []testSuiteOptionFunc{
-				withRootConfigFunc(func(cfg *service.Config) {
+				withRootConfigFunc(func(cfg *servicecfg.Config) {
 					cfg.Auth.SessionRecordingConfig.SetMode(types.RecordAtProxy)
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Separate)
 				}),
@@ -623,12 +623,12 @@ func TestList(t *testing.T) {
 	})
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *service.Config) {
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 		withLeafCluster(),
-		withLeafConfigFunc(func(cfg *service.Config) {
+		withLeafConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Version = defaults.TeleportConfigVersionV2
 		}),
 	)

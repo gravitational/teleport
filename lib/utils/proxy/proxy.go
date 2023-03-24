@@ -29,9 +29,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -186,6 +186,23 @@ func (d proxyDial) getTLSConfig(addr *utils.NetAddr) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
+// getTLSConfigForProxy configures the dialer's TLS config for the HTTPS proxy
+// address. If the proxy is HTTP, a nil error and nil config are returned.
+func (d proxyDial) getTLSConfigForProxy() (*tls.Config, error) {
+	if d.proxyURL.Scheme != "https" {
+		return nil, nil
+	}
+	netAddr, err := utils.ParseAddr(d.proxyURL.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig, err := d.getTLSConfig(netAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return tlsConfig, nil
+}
+
 // DialTimeout acts like Dial but takes a timeout.
 func (d proxyDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
 	// Build a proxy connection first.
@@ -194,7 +211,13 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 		defer cancel()
 		ctx = timeoutCtx
 	}
-	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address)
+
+	tlsConfig, err := d.getTLSConfigForProxy()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address, apiclient.WithTLSConfig(tlsConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -220,8 +243,12 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 // Dial first connects to a proxy, then uses the connection to establish a new
 // SSH connection.
 func (d proxyDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
+	tlsConfig, err := d.getTLSConfigForProxy()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	// Build a proxy connection first.
-	pconn, err := apiclient.DialProxy(ctx, d.proxyURL, addr)
+	pconn, err := apiclient.DialProxy(ctx, d.proxyURL, addr, apiclient.WithTLSConfig(tlsConfig))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,7 +315,7 @@ func WithInsecureSkipTLSVerify(insecure bool) DialerOptionFunc {
 // server directly.
 func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	// Try and get proxy addr from the environment.
-	proxyURL := apiproxy.GetProxyURL(addr)
+	proxyURL := apiutils.GetProxyURL(addr)
 
 	var options dialerOptions
 	for _, opt := range opts {

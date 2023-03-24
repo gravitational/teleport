@@ -1,0 +1,107 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render DocumentBlank 1`] = `
+.c4 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c4:active {
+  opacity: 0.56;
+}
+
+.c4:hover,
+.c4:focus {
+  background: #651FFF;
+}
+
+.c4:active {
+  background: #354AA4;
+}
+
+.c4:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c3 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-bottom: 40px;
+  margin-top: 72px;
+  color: #01172C;
+  font-size: 256px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin: -16px;
+  height: 100%;
+  width: 100%;
+  background-color: #010B1C;
+  display: flex;
+}
+
+.c1 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+}
+
+<div
+  class="c0"
+  height="100%"
+  style="position: absolute;"
+  width="100%"
+>
+  <div
+    class="c1"
+    style="overflow: auto; background: rgb(1, 11, 28); display: flex; position: relative;"
+  >
+    <div
+      class="c2"
+    >
+      <span
+        class="c3 icon icon-terminal "
+        color="#01172C"
+        font-size="256px"
+      />
+      <button
+        class="c4"
+        kind="primary"
+      >
+        Start a New Session
+      </button>
+    </div>
+  </div>
+</div>
+`;

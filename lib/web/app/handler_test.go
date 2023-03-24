@@ -398,6 +398,104 @@ func TestMatchApplicationServers(t *testing.T) {
 	require.Equal(t, expectedContent, content)
 }
 
+func TestHealthCheckAppServer(t *testing.T) {
+	ctx := context.Background()
+	clusterName := "test-cluster"
+
+	for _, tc := range []struct {
+		desc                string
+		publicAddr          string
+		appServersFunc      func(t *testing.T, remoteSite *reversetunnel.FakeRemoteSite) []types.AppServer
+		expectedTunnelCalls int
+		expectErr           require.ErrorAssertionFunc
+	}{
+		{
+			desc:       "match and online services",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, _ *reversetunnel.FakeRemoteSite) []types.AppServer {
+				return []types.AppServer{createAppServer(t, "valid.example.com")}
+			},
+			expectedTunnelCalls: 1,
+			expectErr:           require.NoError,
+		},
+		{
+			desc:       "match and but no online services",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+				appServer := createAppServer(t, "valid.example.com")
+				tunnel.OfflineTunnels = map[string]struct{}{
+					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
+				}
+				return []types.AppServer{appServer}
+			},
+			expectedTunnelCalls: 1,
+			expectErr:           require.Error,
+		},
+		{
+			desc:       "no match",
+			publicAddr: "valid.example.com",
+			appServersFunc: func(t *testing.T, tunnel *reversetunnel.FakeRemoteSite) []types.AppServer {
+				return []types.AppServer{}
+			},
+			expectedTunnelCalls: 0,
+			expectErr:           require.Error,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			key, cert, err := tlsca.GenerateSelfSignedCA(
+				pkix.Name{CommonName: clusterName},
+				[]string{tc.publicAddr, apiutils.EncodeClusterName(clusterName)},
+				defaults.CATTL,
+			)
+			require.NoError(t, err)
+
+			fakeClock := clockwork.NewFakeClockAt(time.Date(2017, 05, 10, 18, 53, 0, 0, time.UTC))
+			appSession := createAppSession(t, fakeClock, key, cert, clusterName, tc.publicAddr)
+			authClient := &mockAuthClient{
+				clusterName: clusterName,
+				appSession:  appSession,
+				caKey:       key,
+				caCert:      cert,
+			}
+
+			fakeRemoteSite := reversetunnel.NewFakeRemoteSite(clusterName, authClient)
+			authClient.appServers = tc.appServersFunc(t, fakeRemoteSite)
+
+			// Create a httptest server to serve the application requests. It must serve
+			// TLS content with the generated certificate.
+			tlsCert, err := tls.X509KeyPair(cert, key)
+			require.NoError(t, err)
+			server := &httptest.Server{
+				TLS: &tls.Config{
+					Certificates: []tls.Certificate{tlsCert},
+				},
+				Listener: &fakeRemoteListener{fakeRemoteSite},
+				Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					fmt.Fprint(w, "Hello application")
+				})},
+			}
+			server.StartTLS()
+
+			tunnel := &reversetunnel.FakeServer{
+				Sites: []reversetunnel.RemoteSite{fakeRemoteSite},
+			}
+
+			appHandler, err := NewHandler(ctx, &HandlerConfig{
+				Clock:        fakeClock,
+				AuthClient:   authClient,
+				AccessPoint:  authClient,
+				ProxyClient:  tunnel,
+				CipherSuites: utils.DefaultCipherSuites(),
+			})
+			require.NoError(t, err)
+
+			err = appHandler.HealthCheckAppServer(ctx, tc.publicAddr, clusterName)
+			tc.expectErr(t, err)
+			require.Equal(t, int64(tc.expectedTunnelCalls), fakeRemoteSite.DialCount())
+		})
+	}
+}
+
 type testServer struct {
 	serverURL *url.URL
 }
@@ -536,7 +634,7 @@ func (c *mockAuthClient) GetApplicationServers(_ context.Context, _ string) ([]t
 	return c.appServers, nil
 }
 
-func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *mockAuthClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,
 		ClusterName: c.clusterName,

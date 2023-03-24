@@ -257,6 +257,16 @@ type Identity interface {
 	// GetKeyAttestationData gets a verified public key attestation response.
 	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
+	// CreateHeadlessAuthenticationStub creates a headless authentication stub.
+	CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
+
+	// CompareAndSwapHeadlessAuthentication performs a compare
+	// and swap replacement on a headless authentication resource.
+	CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+
+	// DeleteHeadlessAuthentication deletes a headless authentication from the backend by name.
+	DeleteHeadlessAuthentication(ctx context.Context, name string) error
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
@@ -264,6 +274,8 @@ type Identity interface {
 	AppSession
 	// SnowflakeSession defines Snowflake session features.
 	SnowflakeSession
+	// SAMLIdPSession defines SAML IdP session features.
+	SAMLIdPSession
 }
 
 // AppSession defines application session features.
@@ -296,6 +308,22 @@ type SnowflakeSession interface {
 	DeleteSnowflakeSession(context.Context, types.DeleteSnowflakeSessionRequest) error
 	// DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 	DeleteAllSnowflakeSessions(context.Context) error
+}
+
+// SAMLIdPSession defines SAML IdP session features.
+type SAMLIdPSession interface {
+	// GetSAMLIdPSession gets a SAML IdP session.
+	GetSAMLIdPSession(context.Context, types.GetSAMLIdPSessionRequest) (types.WebSession, error)
+	// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+	ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+	// UpsertSAMLIdPSession upserts a SAML IdP session.
+	UpsertSAMLIdPSession(context.Context, types.WebSession) error
+	// DeleteSAMLIdPSession removes a SAML IdP session.
+	DeleteSAMLIdPSession(context.Context, types.DeleteSAMLIdPSessionRequest) error
+	// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+	DeleteAllSAMLIdPSessions(context.Context) error
+	// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
+	DeleteUserSAMLIdPSessions(ctx context.Context, user string) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

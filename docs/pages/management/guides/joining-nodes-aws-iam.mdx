@@ -7,11 +7,10 @@ This guide will explain how to use the **IAM join method** to configure Teleport
 Nodes and Proxy Service instances to join your Teleport cluster without sharing
 any secrets when they are running in AWS.
 
-The IAM join method is available in Teleport 8.3+. It is available to any
-Teleport Node or Proxy running anywhere with access to IAM credentials, such as
-an EC2 instance with an attached IAM role. No specific permissions or IAM policy
-is required: an IAM role with no attached policies is sufficient. No IAM
-credentials are required on the Teleport Auth Service.
+The IAM join method is available to any Teleport service running anywhere with
+access to IAM credentials, such as an EC2 instance with an attached IAM role.
+No specific permissions or IAM policy is required: an IAM role with no attached
+policies is sufficient. No IAM credentials are required on the Teleport Auth Service.
 
 <Details
 scope={["oss", "enterprise"]}
@@ -23,10 +22,9 @@ title="Other AWS Node joining methods"
 There are two additional methods you can use to join your Nodes to a Teleport
 cluster.
 
-The **EC2 join method** is available in self-hosted versions of Teleport 8.3+.
-It is available to any Teleport Node or Proxy Service instance running on an EC2
-instance. Only one Teleport Node or Proxy Service instance per EC2 instance may
-use the EC2 join method.
+The **EC2 join method** is available in self-hosted versions of Teleport.
+It is available to any Teleport service instance running on an EC2 instance.
+Only one Teleport service instance per EC2 instance may use the EC2 join method.
 
 IAM credentials with `ec2:DescribeInstances` permissions are required on
 your Teleport Auth Service. No IAM credentials are required on the Nodes or
@@ -103,8 +101,6 @@ metadata:
   # the token name is not a secret because instances must prove that they are
   # running in your AWS account to use this token
   name: iam-token
-  # set a long expiry time, the default for tokens is only 30 minutes
-  expires: "3000-01-01T00:00:00Z"
 spec:
   # use the minimal set of roles required
   roles: [Node]
@@ -165,5 +161,9 @@ proxy_service:
 
 ## Step 4/4. Launch your Teleport Node
 
-Start Teleport on the Node and confirm that it is able to connect to and join
-your cluster. You're all set!
+(!docs/pages/includes/aws-credentials.mdx!)
+
+(!docs/pages/includes/start-teleport.mdx!)
+
+Once you have started Teleport, confirm that your Node is able to connect to and
+join your cluster. 

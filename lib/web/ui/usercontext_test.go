@@ -72,11 +72,6 @@ func TestNewUserContext(t *testing.T) {
 		},
 	})
 
-	// set some windows desktop logins
-	role1.SetWindowsLogins(types.Allow, []string{"a", "b"})
-	role1.SetWindowsLogins(types.Deny, []string{"c"})
-	role2.SetWindowsLogins(types.Allow, []string{"d"})
-
 	roleSet := []types.Role{role1, role2}
 	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
 	require.NoError(t, err)
@@ -100,7 +95,6 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b", "d"}))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
@@ -172,7 +166,6 @@ func TestNewUserContextCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b"}))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",

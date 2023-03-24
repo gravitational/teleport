@@ -30,6 +30,7 @@ import (
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
@@ -156,6 +157,16 @@ func (u *UserV2) SetResourceID(id int64) {
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (u *UserV2) Origin() string {
+	return u.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (u *UserV2) SetOrigin(origin string) {
+	u.Metadata.SetOrigin(origin)
 }
 
 // SetMetadata sets object metadata

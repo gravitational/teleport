@@ -16,9 +16,9 @@ package desktop
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"io"
-	"math/rand"
 	"testing"
 	"time"
 

@@ -23,11 +23,11 @@ import (
 	"net"
 	"strconv"
 
-	mssql "github.com/denisenkom/go-mssqldb"
-	"github.com/denisenkom/go-mssqldb/azuread"
-	"github.com/denisenkom/go-mssqldb/msdsn"
 	"github.com/gravitational/trace"
 	"github.com/jcmturner/gokrb5/v8/client"
+	mssql "github.com/microsoft/go-mssqldb"
+	"github.com/microsoft/go-mssqldb/azuread"
+	"github.com/microsoft/go-mssqldb/msdsn"
 
 	"github.com/gravitational/teleport/lib/auth/windows"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -106,6 +106,7 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 		Encryption:   msdsn.EncryptionRequired,
 		TLSConfig:    tlsConfig,
 		PacketSize:   loginPacket.PacketSize(),
+		Protocols:    []string{"tcp"},
 	}
 
 	var connector *mssql.Connector
@@ -118,10 +119,12 @@ func (c *connector) Connect(ctx context.Context, sessionCtx *common.Session, log
 			return nil, nil, trace.Wrap(err)
 		}
 
-		connector, err = azuread.NewConnectorFromConfig(dsnConfig, map[string]string{
+		dsnConfig.Parameters = map[string]string{
 			"fedauth":     azuread.ActiveDirectoryManagedIdentity,
 			"resource id": managedIdentityID,
-		})
+		}
+
+		connector, err = azuread.NewConnectorFromConfig(dsnConfig)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

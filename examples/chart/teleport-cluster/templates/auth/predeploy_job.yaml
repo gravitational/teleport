@@ -1,4 +1,4 @@
-{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- if $auth.validateConfigOnDeploy }}
 apiVersion: batch/v1
 kind: Job
@@ -25,6 +25,10 @@ spec:
       - name: "teleport-config-check"
         image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
+{{- if $auth.resources }}
+        resources:
+  {{- toYaml $auth.resources | nindent 10 }}
+{{- end }}        
 {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
         env:
   {{- if (gt (len $auth.extraEnv) 0) }}

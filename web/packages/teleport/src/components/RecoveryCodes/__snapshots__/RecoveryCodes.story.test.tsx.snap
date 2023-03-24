@@ -1,0 +1,872 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render correct dialog after creating a new account 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c15 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c15:active {
+  opacity: 0.56;
+}
+
+.c15:hover,
+.c15:focus {
+  background: #651FFF;
+}
+
+.c15:active {
+  background: #354AA4;
+}
+
+.c15:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c16 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.c16:active {
+  opacity: 0.56;
+}
+
+.c16:hover,
+.c16:focus {
+  background: #651FFF;
+}
+
+.c16:active {
+  background: #354AA4;
+}
+
+.c16:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c2 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  background-color: #222C59;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 28px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 4px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
+}
+
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c1 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  background-color: #222C59;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c3 {
+  box-sizing: border-box;
+  min-width: 584px;
+  padding: 32px;
+  background-color: #222C59;
+  flex: 4;
+  display: flex;
+  flex-direction: column;
+}
+
+.c10 {
+  box-sizing: border-box;
+  padding: 8px;
+  padding-bottom: 24px;
+  padding-left: 16px;
+  background-color: #111B48;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-left: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.c17 {
+  box-sizing: border-box;
+  min-width: 384px;
+  padding: 32px;
+  background-color: #1C254D;
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.c0 {
+  box-sizing: border-box;
+}
+
+.c0 .print-only {
+  visibility: hidden;
+}
+
+.c14 {
+  max-width: 48px;
+  width: 100%;
+  padding: 4px 8px;
+  min-height: 10px;
+  font-size: 10px;
+}
+
+@media print {
+  .c0 {
+    overflow: hidden;
+  }
+
+  .c0 .print,
+  .c0 .print-only {
+    visibility: visible;
+  }
+
+  .c0 .no-print {
+    visibility: hidden;
+  }
+
+  .c0 .codes {
+    font-size: 16px;
+  }
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1 sc-AxirZ c2 no-print"
+    overflow="hidden"
+  >
+    <div
+      class="c3 print"
+    >
+      <div
+        class="c4"
+      >
+        <div
+          class="c5"
+          color="light"
+        >
+          Backup & Recovery Codes
+        </div>
+        <div
+          class="c6"
+        >
+          Please save these account recovery codes in a safe offline place.
+        </div>
+        <div
+          class="c7"
+        >
+          You can use each code once if you lose your second factor authenticator or password.
+        </div>
+      </div>
+      <div
+        class="c8"
+      >
+        <div
+          class="c9"
+        >
+          Recovery Codes (
+          3
+           Total)
+        </div>
+        <div
+          class="c10"
+        >
+          <div
+            class="c11 codes"
+            style="white-space: pre-wrap;"
+          >
+            tele-testword-testword-testword-testword-testword-testword-testword
+
+tele-testword-testword-testword-testword-testword-testword-testword-testword
+
+tele-testword-testword-testword-testword-testword-testword-testword
+          </div>
+          <div
+            class="c12 no-print"
+          >
+            <button
+              class="c13 c14"
+              kind="primary"
+            >
+              COPY
+            </button>
+            <button
+              class="c15 c14"
+              kind="primary"
+            >
+              PRINT
+            </button>
+          </div>
+        </div>
+        <div
+          class="c7 print-only"
+        >
+          Created: Fri Aug 30 2019 11:00:00 GMT+0000 (Coordinated Universal Time)
+        </div>
+        <button
+          class="c16 no-print"
+          kind="primary"
+          width="100%"
+        >
+          I have saved my Recovery Codes - Continue
+        </button>
+      </div>
+    </div>
+    <div
+      class="c17"
+    >
+      <div
+        class="c18"
+      >
+        <div
+          class="c19"
+        >
+          Why do I need these codes?
+        </div>
+        <div
+          class="c20"
+          color="text.secondary"
+        >
+          Use them in the event of losing your password or two-factor device.
+        </div>
+      </div>
+      <div
+        class="c18"
+      >
+        <div
+          class="c19"
+        >
+          How long do the codes last for?
+        </div>
+        <div
+          class="c20"
+          color="text.secondary"
+        >
+          Recovery codes can only be used once. After recovering your account, we will generate a new set of codes for you.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render correct dialog after resetting account 1`] = `
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+.c18 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #651FFF;
+}
+
+.c13:active {
+  background: #354AA4;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c15 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  margin-top: 8px;
+}
+
+.c15:active {
+  opacity: 0.56;
+}
+
+.c15:hover,
+.c15:focus {
+  background: #651FFF;
+}
+
+.c15:active {
+  background: #354AA4;
+}
+
+.c15:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c16 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.c16:active {
+  opacity: 0.56;
+}
+
+.c16:hover,
+.c16:focus {
+  background: #651FFF;
+}
+
+.c16:active {
+  background: #354AA4;
+}
+
+.c16:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c2 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  background-color: #222C59;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-radius: 8px;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 28px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 16px;
+  color: #FFFFFF;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 4px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c11 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-top: 8px;
+}
+
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  color: rgba(255,255,255,0.56);
+}
+
+.c1 {
+  box-sizing: border-box;
+  max-width: 1024px;
+  min-width: 584px;
+  margin-left: auto;
+  margin-right: auto;
+  background-color: #222C59;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.c3 {
+  box-sizing: border-box;
+  min-width: 584px;
+  padding: 32px;
+  background-color: #222C59;
+  flex: 4;
+  display: flex;
+  flex-direction: column;
+}
+
+.c10 {
+  box-sizing: border-box;
+  padding: 8px;
+  padding-bottom: 24px;
+  padding-left: 16px;
+  background-color: #111B48;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-left: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+.c17 {
+  box-sizing: border-box;
+  min-width: 384px;
+  padding: 32px;
+  background-color: #1C254D;
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+}
+
+.c0 {
+  box-sizing: border-box;
+}
+
+.c0 .print-only {
+  visibility: hidden;
+}
+
+.c14 {
+  max-width: 48px;
+  width: 100%;
+  padding: 4px 8px;
+  min-height: 10px;
+  font-size: 10px;
+}
+
+@media print {
+  .c0 {
+    overflow: hidden;
+  }
+
+  .c0 .print,
+  .c0 .print-only {
+    visibility: visible;
+  }
+
+  .c0 .no-print {
+    visibility: hidden;
+  }
+
+  .c0 .codes {
+    font-size: 16px;
+  }
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1 sc-AxirZ c2 no-print"
+    overflow="hidden"
+  >
+    <div
+      class="c3 print"
+    >
+      <div
+        class="c4"
+      >
+        <div
+          class="c5"
+          color="light"
+        >
+          New Backup & Recovery Codes
+        </div>
+        <div
+          class="c6"
+        >
+          Please save these account recovery codes in a safe offline place.
+        </div>
+        <div
+          class="c7"
+        >
+          You can use each code once if you lose your second factor authenticator or password.
+        </div>
+      </div>
+      <div
+        class="c8"
+      >
+        <div
+          class="c9"
+        >
+          Recovery Codes (
+          3
+           Total)
+        </div>
+        <div
+          class="c10"
+        >
+          <div
+            class="c11 codes"
+            style="white-space: pre-wrap;"
+          >
+            tele-testword-testword-testword-testword-testword-testword-testword
+
+tele-testword-testword-testword-testword-testword-testword-testword-testword
+
+tele-testword-testword-testword-testword-testword-testword-testword
+          </div>
+          <div
+            class="c12 no-print"
+          >
+            <button
+              class="c13 c14"
+              kind="primary"
+            >
+              COPY
+            </button>
+            <button
+              class="c15 c14"
+              kind="primary"
+            >
+              PRINT
+            </button>
+          </div>
+        </div>
+        <div
+          class="c7 print-only"
+        >
+          Created: Fri Aug 30 2019 11:00:00 GMT+0000 (Coordinated Universal Time)
+        </div>
+        <button
+          class="c16 no-print"
+          kind="primary"
+          width="100%"
+        >
+          I have saved my new Recovery Codes - Return to login
+        </button>
+      </div>
+    </div>
+    <div
+      class="c17"
+    >
+      <div
+        class="c18"
+      >
+        <div
+          class="c19"
+        >
+          Why do I need these codes?
+        </div>
+        <div
+          class="c20"
+          color="text.secondary"
+        >
+          Use them in the event of losing your password or two-factor device.
+        </div>
+      </div>
+      <div
+        class="c18"
+      >
+        <div
+          class="c19"
+        >
+          How long do the codes last for?
+        </div>
+        <div
+          class="c20"
+          color="text.secondary"
+        >
+          Recovery codes can only be used once. After recovering your account, we will generate a new set of codes for you.
+        </div>
+      </div>
+      <div
+        class="c8"
+      >
+        <div
+          class="c19"
+        >
+          What about my old codes?
+        </div>
+        <div
+          class="c20"
+          color="text.secondary"
+        >
+          Your old recovery codes are no longer valid, please replace them with these new ones.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

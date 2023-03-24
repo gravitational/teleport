@@ -333,9 +333,9 @@ func (a *LocalKeyAgent) UserRefusedHosts() bool {
 	return len(a.noHosts) > 0
 }
 
-// CheckHostKey checks if the given host key was signed by a Teleport
+// HostKeyCallback checks if the given host key was signed by a Teleport
 // certificate authority (CA) or a host certificate the user has seen before.
-func (a *LocalKeyAgent) CheckHostKey(addr string, remote net.Addr, hostKey ssh.PublicKey) error {
+func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ssh.PublicKey) error {
 	key, err := a.GetCoreKey()
 	if err != nil {
 		return trace.Wrap(err)
@@ -381,7 +381,6 @@ func (a *LocalKeyAgent) checkHostCertificateForClusters(clusters ...string) func
 	return func(key ssh.PublicKey, addr string) bool {
 		// Check the local cache (where all Teleport CAs are placed upon login) to
 		// see if any of them match.
-
 		keys, err := a.clientStore.GetTrustedHostKeys(clusters...)
 		if err != nil {
 			a.log.Errorf("Unable to fetch certificate authorities: %v.", err)
@@ -494,6 +493,15 @@ func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
 	return a.addKey(key)
 }
 
+// AddKubeKey activates a new signed Kubernetes key by adding it into the keystore.
+// key must contain at least one Kubernetes cert. ssh cert is not required.
+func (a *LocalKeyAgent) AddKubeKey(key *Key) error {
+	if len(key.KubeTLSCerts) == 0 {
+		return trace.BadParameter("key must contains at least one Kubernetes access certificate")
+	}
+	return a.addKey(key)
+}
+
 // addKey activates a new signed session key by adding it into the keystore.
 func (a *LocalKeyAgent) addKey(key *Key) error {
 	if key == nil {
@@ -525,11 +533,6 @@ func (a *LocalKeyAgent) addKey(key *Key) error {
 
 	// Save the new key to the keystore (usually into ~/.tsh).
 	if err := a.clientStore.AddKey(key); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Save the new key to the keystore (usually into ~/.tsh).
-	if err := a.clientStore.SaveTrustedCerts(key.ProxyHost, key.TrustedCerts); err != nil {
 		return trace.Wrap(err)
 	}
 

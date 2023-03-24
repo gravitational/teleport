@@ -467,3 +467,13 @@ tests:
           of: ConfigMap
       - matchSnapshot:
           path: data.teleport\.yaml
+
+  - it: adds a proxy token by default
+    set:
+      clusterName: teleport.example.com
+    asserts:
+      - notEqual:
+          path: data.apply-on-startup\.yaml
+          value: null
+      - matchSnapshot:
+          path: data.apply-on-startup\.yaml

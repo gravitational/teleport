@@ -288,7 +288,7 @@ func (y *yubiKey) generatePrivateKey(slot piv.Slot, touchPolicy piv.TouchPolicy)
 	}
 
 	// Create a self signed certificate and store it in the PIV slot so that other
-	// Teleport Clients know to reuse the stored key instead of genearting a new one.
+	// Teleport Clients know to reuse the stored key instead of generating a new one.
 	priv, err := yk.PrivateKey(slot, pub, piv.KeyAuth{})
 	if err != nil {
 		return nil, trace.Wrap(err)

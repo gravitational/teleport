@@ -38,7 +38,7 @@ func TestStreamerCompleteEmpty(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	events := GenerateTestSession(SessionParams{PrintEvents: 1})

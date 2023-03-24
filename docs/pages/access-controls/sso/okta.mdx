@@ -42,8 +42,8 @@ statements (special signed metadata exposed via a SAML XML response).
 
 GENERAL
 
-- Single sign on URL `https://teleport-proxy.example.com:443/v1/webapi/saml/acs/connectorName`
-- Audience URI (SP Entity ID)`https://teleport-proxy.example.com:443/v1/webapi/saml/acs/connectorName`
+- Single sign on URL `https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`
+- Audience URI (SP Entity ID)`https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`
 - Name ID format `EmailAddress`
 - Application username `Okta username`
 
@@ -88,9 +88,11 @@ Assign groups and people to your SAML app:
 ![Configure APP](../../../img/sso/okta/okta-saml-3.1.png)
 
 Make sure to download the metadata in the form of an XML document. It will be used it to
-configure a Teleport connector:
+configure a Teleport connector. You can find this on the "View SAML Setup
+Instructions" page under "Optional - Provide the following **IDP metadata** to
+your **SP provider**.":
 
-![Download metadata](../../../img/sso/okta/okta-saml-4.png)
+![Download metadata](../../../img/sso/okta/okta-saml-5.png)
 
 ## Create a SAML Connector
 
@@ -99,6 +101,10 @@ Now, create a SAML connector [resource](../../reference/resources.mdx):
 ```yaml
 (!examples/resources/saml-connector.yaml!)
 ```
+The above example includes the `entity_descriptor` field as multiple lines, although a single line with no spaces will also be accepted.
+
+The `attributes_to_roles` field in the connector resource maps key/value-like attributes of
+the assertion from Okta into a list of Teleport roles to apply to the session.
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 
@@ -113,8 +119,8 @@ $ tctl create okta-connector.yaml
 We are going to create a new role that'll pull in external information from Okta. Notice
 `{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim
 and use that field as an allowed login for each user.  This example uses email as the
-username format.  The `email.local(external.trait)` function will remove the `@domain`
-and just have the username prefix.
+username format.  The `email.local(external.username)` function call will remove
+the `@domain` and leave the username prefix.
 
 ```yaml
 kind: role

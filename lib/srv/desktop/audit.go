@@ -46,7 +46,7 @@ func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emit
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktop.GetAddr(),
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -116,7 +116,7 @@ func (s *WindowsService) onClipboardSend(ctx context.Context, emitter events.Emi
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -140,7 +140,7 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -182,7 +182,7 @@ func (s *WindowsService) onSharedDirectoryAnnounce(
 				WithMFA:   id.MFAVerified,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
-				LocalAddr:  id.ClientIP,
+				LocalAddr:  id.LoginIP,
 				RemoteAddr: desktopAddr,
 				Protocol:   libevents.EventProtocolTDP,
 			},
@@ -235,7 +235,7 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -294,7 +294,7 @@ func (s *WindowsService) onSharedDirectoryReadRequest(
 				WithMFA:   id.MFAVerified,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
-				LocalAddr:  id.ClientIP,
+				LocalAddr:  id.LoginIP,
 				RemoteAddr: desktopAddr,
 				Protocol:   libevents.EventProtocolTDP,
 			},
@@ -366,7 +366,7 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},
@@ -428,7 +428,7 @@ func (s *WindowsService) onSharedDirectoryWriteRequest(
 				WithMFA:   id.MFAVerified,
 			},
 			ConnectionMetadata: events.ConnectionMetadata{
-				LocalAddr:  id.ClientIP,
+				LocalAddr:  id.LoginIP,
 				RemoteAddr: desktopAddr,
 				Protocol:   libevents.EventProtocolTDP,
 			},
@@ -500,7 +500,7 @@ func (s *WindowsService) onSharedDirectoryWriteResponse(
 			WithMFA:   id.MFAVerified,
 		},
 		ConnectionMetadata: events.ConnectionMetadata{
-			LocalAddr:  id.ClientIP,
+			LocalAddr:  id.LoginIP,
 			RemoteAddr: desktopAddr,
 			Protocol:   libevents.EventProtocolTDP,
 		},

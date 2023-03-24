@@ -154,6 +154,8 @@ type AzureClients interface {
 	// GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible Server client for the
 	// specified subscription.
 	GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error)
+	// GetAzureRunCommandClient returns an Azure Run Command client for the given subscription.
+	GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error)
 }
 
 // NewClients returns a new instance of cloud clients retriever.
@@ -171,6 +173,7 @@ func NewClients() Clients {
 			azureManagedSQLServerClients:    azure.NewClientMap(azure.NewManagedSQLClient),
 			azureMySQLFlexServersClients:    azure.NewClientMap(azure.NewMySQLFlexServersClient),
 			azurePostgresFlexServersClients: azure.NewClientMap(azure.NewPostgresFlexServersClient),
+			azureRunCommandClients:          azure.NewClientMap(azure.NewRunCommandClient),
 		},
 	}
 }
@@ -224,6 +227,8 @@ type azureClients struct {
 	// azurePostgresFlexServersClients is the cached Azure PostgreSQL Flexible Server
 	// client.
 	azurePostgresFlexServersClients azure.ClientMap[azure.PostgresFlexServersClient]
+	// azureRunCommandClients contains the cached Azure Run Command clients.
+	azureRunCommandClients azure.ClientMap[azure.RunCommandClient]
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -505,6 +510,12 @@ func (c *cloudClients) GetAzurePostgresFlexServersClient(subscription string) (a
 	return c.azurePostgresFlexServersClients.Get(subscription, c.GetAzureCredential)
 }
 
+// GetAzureRunCommandClient returns an Azure Run Command client for the given
+// subscription.
+func (c *cloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
+	return c.azureRunCommandClients.Get(subscription, c.GetAzureCredential)
+}
+
 // Close closes all initialized clients.
 func (c *cloudClients) Close() (err error) {
 	c.mtx.Lock()
@@ -747,6 +758,7 @@ type TestCloudClients struct {
 	AzureManagedSQLServer   azure.ManagedSQLServerClient
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
+	AzureRunCommand         azure.RunCommandClient
 }
 
 // GetAWSSession returns AWS session for the specified region.
@@ -919,6 +931,11 @@ func (c *TestCloudClients) GetAzureMySQLFlexServersClient(subscription string) (
 // GetAzurePostgresFlexServersClient returns an Azure PostgreSQL Flexible server client for listing PostgreSQL Flexible servers.
 func (c *TestCloudClients) GetAzurePostgresFlexServersClient(subscription string) (azure.PostgresFlexServersClient, error) {
 	return c.AzurePostgresFlex, nil
+}
+
+// GetAzureRunCommand returns an Azure Run Command client for the given subscription.
+func (c *TestCloudClients) GetAzureRunCommandClient(subscription string) (azure.RunCommandClient, error) {
+	return c.AzureRunCommand, nil
 }
 
 // Close closes all initialized clients.

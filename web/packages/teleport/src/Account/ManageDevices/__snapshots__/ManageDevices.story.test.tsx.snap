@@ -1,0 +1,1161 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render device dashboard 1`] = `
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c13 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c13:active {
+  opacity: 0.56;
+}
+
+.c13:hover,
+.c13:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c13:active {
+  opacity: 0.24;
+}
+
+.c13:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c11 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c12 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c8 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+}
+
+.c8 > thead > tr > th,
+.c8 > tbody > tr > th,
+.c8 > tfoot > tr > th,
+.c8 > thead > tr > td,
+.c8 > tbody > tr > td,
+.c8 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c8 > thead > tr > th:first-child,
+.c8 > tbody > tr > th:first-child,
+.c8 > tfoot > tr > th:first-child,
+.c8 > thead > tr > td:first-child,
+.c8 > tbody > tr > td:first-child,
+.c8 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c8 > thead > tr > th:last-child,
+.c8 > tbody > tr > th:last-child,
+.c8 > tfoot > tr > th:last-child,
+.c8 > thead > tr > td:last-child,
+.c8 > tbody > tr > td:last-child,
+.c8 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c8 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c8 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c8 > thead > tr > th .c10 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c8 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c8 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c8 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c4 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c7 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
+  border-radius: 200px;
+}
+
+.c5 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c6 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c6:hover,
+.c6:focus,
+.c6:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c6::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c9 > tbody > tr td {
+  vertical-align: middle;
+  height: 32px;
+}
+
+<div
+  class="c0"
+  style="width: 904px; padding: 0px; overflow: hidden;"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Two-Factor Devices
+    </div>
+    <button
+      class="c3"
+      kind="primary"
+      title=""
+    >
+      Add two-factor device
+    </button>
+  </div>
+  <nav
+    class="c4"
+  >
+    <div
+      class="c5"
+    >
+      <input
+        class="c6"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c7"
+      />
+    </div>
+  </nav>
+  <table
+    class="c8 c9"
+    style="max-width: 100%;"
+  >
+    <thead>
+      <tr>
+        <th
+          style="cursor: default;"
+        >
+          Type
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Device Name
+        </th>
+        <th>
+          <a>
+            Registered
+            <span
+              class="c10 c11 icon icon-chevron-down "
+              color="light"
+              title="sort items desc"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Last Used
+            <span
+              class="c10 c11 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Authenticator App
+        </td>
+        <td
+          title="iphone 12"
+        >
+          <div
+            class="c12"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            iphone 12
+          </div>
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="solokey"
+        >
+          <div
+            class="c12"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            solokey
+          </div>
+        </td>
+        <td>
+          2021-06-15
+        </td>
+        <td>
+          2021-06-18
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="backup yubikey"
+        >
+          <div
+            class="c12"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            backup yubikey
+          </div>
+        </td>
+        <td>
+          2021-04-18
+        </td>
+        <td>
+          2021-07-16
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="yubikey"
+        >
+          <div
+            class="c12"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            yubikey
+          </div>
+        </td>
+        <td>
+          2021-02-05
+        </td>
+        <td>
+          2021-02-28
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c13"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+exports[`render failed state for creating restricted privilege token 1`] = `
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c4 a {
+  color: #FFFFFF;
+}
+
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c14 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c14:active {
+  opacity: 0.56;
+}
+
+.c14:hover,
+.c14:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c14:active {
+  opacity: 0.24;
+}
+
+.c14:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c12 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c9 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+}
+
+.c9 > thead > tr > th,
+.c9 > tbody > tr > th,
+.c9 > tfoot > tr > th,
+.c9 > thead > tr > td,
+.c9 > tbody > tr > td,
+.c9 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c9 > thead > tr > th:first-child,
+.c9 > tbody > tr > th:first-child,
+.c9 > tfoot > tr > th:first-child,
+.c9 > thead > tr > td:first-child,
+.c9 > tbody > tr > td:first-child,
+.c9 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c9 > thead > tr > th:last-child,
+.c9 > tbody > tr > th:last-child,
+.c9 > tfoot > tr > th:last-child,
+.c9 > thead > tr > td:last-child,
+.c9 > tbody > tr > td:last-child,
+.c9 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c9 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c9 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c9 > thead > tr > th .c11 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c9 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c9 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c9 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c5 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c8 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
+  border-radius: 200px;
+}
+
+.c6 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c7 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c7::placeholder {
+  color: rgba(255,255,255,0.24);
+  font-size: 12px;
+}
+
+.c10 > tbody > tr td {
+  vertical-align: middle;
+  height: 32px;
+}
+
+<div
+  class="c0"
+  style="width: 904px; padding: 0px; overflow: hidden;"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Two-Factor Devices
+    </div>
+    <button
+      class="c3"
+      kind="primary"
+      title=""
+    >
+      Add two-factor device
+    </button>
+  </div>
+  <div
+    class="c4"
+    kind="danger"
+  >
+    failed to create privilege token
+  </div>
+  <nav
+    class="c5"
+  >
+    <div
+      class="c6"
+    >
+      <input
+        class="c7"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c8"
+      />
+    </div>
+  </nav>
+  <table
+    class="c9 c10"
+    style="max-width: 100%;"
+  >
+    <thead>
+      <tr>
+        <th
+          style="cursor: default;"
+        >
+          Type
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Device Name
+        </th>
+        <th>
+          <a>
+            Registered
+            <span
+              class="c11 c12 icon icon-chevron-down "
+              color="light"
+              title="sort items desc"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Last Used
+            <span
+              class="c11 c12 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          Authenticator App
+        </td>
+        <td
+          title="iphone 12"
+        >
+          <div
+            class="c13"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            iphone 12
+          </div>
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td>
+          2021-08-12
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="solokey"
+        >
+          <div
+            class="c13"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            solokey
+          </div>
+        </td>
+        <td>
+          2021-06-15
+        </td>
+        <td>
+          2021-06-18
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="backup yubikey"
+        >
+          <div
+            class="c13"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            backup yubikey
+          </div>
+        </td>
+        <td>
+          2021-04-18
+        </td>
+        <td>
+          2021-07-16
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          Hardware Key
+        </td>
+        <td
+          title="yubikey"
+        >
+          <div
+            class="c13"
+            style="max-width: 96px; white-space: nowrap;"
+          >
+            yubikey
+          </div>
+        </td>
+        <td>
+          2021-02-05
+        </td>
+        <td>
+          2021-02-28
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c14"
+            kind="border"
+            title=""
+          >
+            Remove
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+exports[`render failed state for fetching devices 1`] = `
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-bottom: 16px;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c4 a {
+  color: #FFFFFF;
+}
+
+.c3 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+}
+
+.c3:active {
+  opacity: 0.56;
+}
+
+.c3:hover,
+.c3:focus {
+  background: #651FFF;
+}
+
+.c3:active {
+  background: #354AA4;
+}
+
+.c3:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div
+  class="c0"
+  style="width: 904px; padding: 0px; overflow: hidden;"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Two-Factor Devices
+    </div>
+    <button
+      class="c3"
+      kind="primary"
+      title=""
+    >
+      Add two-factor device
+    </button>
+  </div>
+  <div
+    class="c4"
+    kind="danger"
+  >
+    failed to fetch devices
+  </div>
+</div>
+`;

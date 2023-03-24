@@ -53,6 +53,7 @@ func TestNew(t *testing.T) {
 // TestLogRotation makes sure that logs are rotated
 // on the day boundary and symlinks are created and updated
 func TestLogRotation(t *testing.T) {
+	ctx := context.Background()
 	start := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(start)
 
@@ -72,7 +73,7 @@ func TestLogRotation(t *testing.T) {
 			Metadata:     events.Metadata{Type: "resize", Time: now},
 			TerminalSize: "10:10",
 		}
-		err := alog.EmitAuditEvent(context.TODO(), event)
+		err := alog.EmitAuditEvent(ctx, event)
 		require.NoError(t, err)
 		logfile := alog.localLog.file.Name()
 
