@@ -264,8 +264,8 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Headless Login (Preview)",
-              "slug": "/access-controls/guides/headless-login/"
+              "title": "Headless WebAuthn (Preview)",
+              "slug": "/access-controls/guides/headless/"
             }
           ]
         },
