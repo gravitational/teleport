@@ -1,4 +1,4 @@
-****---
+---
 authors: Marco Dinis (marco.dinis@goteleport.com)
 state: draft
 ---
@@ -64,8 +64,10 @@ It'll leverage the `subkind` prop to distinguish future integrations.
 
 Multiple AWS Integrations might exist in the same cluster.
 
-For security reasons, AWS stores a thumbprint associated with the CA that issue the HTTPS cert for Teleport.
-If Teleport moves to another CA, then AWS will no longer accept calls from Teleport and a new set up is required.
+For security reasons, AWS stores a thumbprint associated with the CA that issued the HTTPS cert for Teleport.
+If Teleport moves to another CA, then AWS will no longer accept calls from Teleport.
+When that happens, a Cluster Alert is created informing the user about it and asking them to reset the thumbprint in AWS.
+
 More information about this in the Security section.
 
 ### High Level Flow
