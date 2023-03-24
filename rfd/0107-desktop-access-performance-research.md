@@ -308,16 +308,22 @@ towards running it in the browser, and it already has a WASM compilation target 
                -----------------------------------------------------------------------
                |                                                                     |
 +----------------------+     +------------------+  +------------------+     +------------------+
-|                      |     |                  |  |                  |     |                  |
+|                      |     |                  |  | (Audit Logging)  |     |                  |
 |  (IronRDP)           |     |                  |  |    Teleport      |     |                  |
 |  User's Web Browser  ------|  Teleport Proxy -----  Windows Desktop ------|  Windows Desktop |
 |                      |     |                  |  |     Service      |     |                  |
 +----------------------+     +------------------+  +------------------+     +------------------+
 ```
 
-The primary problem with this option is that there's no obvious way for us to log audit events and do session recording. Currently this is all being done at the Teleport WDS, where the RDP client is translated to TDP
-and sent to the browser. In the proposed setup, however, the WDS is acting as merely another proxy, meaning that the RDP connection is not terminated there. This means that it's a non-trivial task to "unmask" the RDP
-messages at that point in the system, [particularly if we ever want to enable NLA](https://github.com/Devolutions/devolutions-gateway/issues/290).
+A key challenge with such an architecture is figuring out how to do audit logging and session recording. An ordinary RDP connection is TLS encrypted from the
+client to the server, making traffic inspection impossible. One could set up the TLS connection to the RDP server on the Windows Desktop Service, and pipe
+all of its traffic into a connection to the Proxy and ultimately to IronRDP. However, doing so is liable to [cause problems with NLA](https://github.com/Devolutions/devolutions-gateway/issues/290),
+which is on our roadmap. Fortunately, the core IronRDP team has figured out a way to solve for this using [a custom PDU](https://github.com/Devolutions/IronRDP/blob/eba943d812a2b5f27144461091aaf06e088396ca/ironrdp-rdcleanpath/src/lib.rs#L50-L94), which we can co-opt.
+
+A related point is that IronRDP doesn't currently support smart card authentication. Since smart card auth requires passing Teleport's private key to the
+simulated card, this process will need to take place on the Windows Desktop Service in order to avoid exposing this sensitive information to the client.
+Since we will already need to parse RDP messages at the WDS for auditing and recording, there will be a natural extension to that logic which detects smart
+card specific messages and processes them locally (instead of passing them along to the Proxy/browser).
 
 ##### UX changes
 
@@ -371,5 +377,7 @@ Processing bitmaps in the Rust library is a no-brainer per it being simple to bu
 A proof of concept for bitmap caching was created, with underwhelming results. While there may be some overall improvement, it wasn't immediately obvious to the naked eye, which is the primary standard that's relevant
 to improving UX at this point in the feature's maturity.
 
-Contrast that with the clear improvements demonstrated in the performance comparison videos using `IronRDP` above. As such, we've decided to move forward with swapping out `rdp-rs` with `IronRDP`.
-Given the relative technical difficulty and related security risks of attempting to unmask RDP at the WDS were we to run IronRDP in browser, we are going to use architecture Option 1.
+Contrast that with the clear improvements demonstrated in the performance comparison videos using `IronRDP` above. As such, we've decided to move forward
+with swapping out `rdp-rs` with `IronRDP`. An POC was created for "Option 1: IronRDP in WDS", however the performance improvement was underwhelming, the cause
+of which was inferred to be the fact that PNG's are still being encoded and sent over the wire. Therefore, we will be moving ahead with "Option 2: IronRDP in
+browser".
