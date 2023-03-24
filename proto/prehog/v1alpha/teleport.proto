@@ -43,6 +43,27 @@ message ResourceCreateEvent {
   // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
 }
 
+// the kind of a "resource" as intended by ResourceHeartbeatEvent
+enum ResourceKind {
+  RESOURCE_KIND_UNSPECIFIED = 0;
+  RESOURCE_KIND_NODE = 1;
+  RESOURCE_KIND_APP_SERVER = 2;
+  RESOURCE_KIND_KUBE_SERVER = 3;
+  RESOURCE_KIND_DB_SERVER = 4;
+  RESOURCE_KIND_WINDOWS_DESKTOP = 5;
+  RESOURCE_KIND_NODE_OPENSSH = 6;
+}
+
+// a heartbeat for a resource served by a Teleport instance outside of the
+// control plane (i.e. not auth, not proxy)
+message ResourceHeartbeatEvent {
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes resource_name = 1;
+  ResourceKind resource_kind = 2;
+  // true if the heartbeat has no expiration
+  bool static = 3;
+}
+
 message SessionStartEvent {
   // anonymized
   string user_name = 1;
@@ -382,6 +403,7 @@ message SubmitEventRequest {
     KubeRequestEvent kube_request = 36;
     SFTPEvent sftp = 37;
     AgentMetadataEvent agent_metadata_event = 38;
+    ResourceHeartbeatEvent resource_heartbeat = 39;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
@@ -398,7 +420,9 @@ message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
-  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {
+    option deprecated = true;
+  }
   rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }
