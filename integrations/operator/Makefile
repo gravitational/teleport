@@ -78,7 +78,7 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 		-I=$(PROTOBUF_MOD_PATH) \
 		--plugin=./crdgen/protoc-gen-crd \
 		--crd_out=:./config/crd/bases \
-		../../api/proto/teleport/legacy/types/types.proto
+		teleport/legacy/types/types.proto
 
 # Some comments have `{{xyz}}` which triggers the golang templating engine when installing the chart.
 # We don't want that, so we escape them.

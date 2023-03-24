@@ -1,0 +1,70 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  name: teleportloginrules.resources.teleport.dev
+spec:
+  group: resources.teleport.dev
+  names:
+    kind: TeleportLoginRule
+    listKind: TeleportLoginRuleList
+    plural: teleportloginrules
+    shortNames:
+    - loginrule
+    - loginrules
+    singular: teleportloginrule
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: LoginRule is the Schema for the loginrules API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: LoginRule resource definition v1 from Teleport
+            properties:
+              priority:
+                description: Priority is the priority of the login rule relative to
+                  other login rules in the same cluster. Login rules with a lower
+                  numbered priority will be evaluated first.
+                format: int32
+                type: integer
+              traits_expression:
+                description: TraitsExpression is a predicate expression which should
+                  return the desired traits for the user upon login.
+                type: string
+              traits_map:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                description: TraitsMap is a map of trait keys to lists of predicate
+                  expressions which should evaluate to the desired values for that
+                  trait.
+                nullable: true
+                type: object
+            type: object
+          status: {}
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
+  storedVersions: null
