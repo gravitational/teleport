@@ -4980,6 +4980,8 @@ message PluginSpecV1 {
   oneof settings {
     // Settings for the Slack access plugin
     PluginSlackAccessSettings slack_access_plugin = 1;
+    // Settings for the Opsgenie access plugin
+    PluginOpsgenieAccessSettings opsgenie = 2;
   }
 }
 
@@ -4987,6 +4989,19 @@ message PluginSlackAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;
+}
+
+message PluginOpsgenieAccessSettings {
+  option (gogoproto.equal) = true;
+
+  // Addr is the address of Opsgenie API.
+  string addr = 1;
+  // Priority to create Opsgenie alerts with
+  string priority = 2;
+  // List of tags to be added to alerts created in Opsgenie
+  repeated string alert_tags = 3;
+  // Default on-call schedules to check if none are provided in the access request annotations
+  repeated string default_schedules = 4;
 }
 
 message PluginBootstrapCredentialsV1 {
