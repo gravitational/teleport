@@ -1085,7 +1085,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s.")
+				t.Fatal("Didn't receive reconcile event after 1s")
 			}
 		})
 	}

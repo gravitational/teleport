@@ -425,6 +425,10 @@ const (
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
 
+	// OriginOkta is an origin value indicating that the resource was
+	// created from the Okta service.
+	OriginOkta = "okta"
+
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -469,7 +473,14 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
+var OriginValues = []string{
+	OriginDefaults,
+	OriginConfigFile,
+	OriginDynamic,
+	OriginCloud,
+	OriginKubernetes,
+	OriginOkta,
+}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

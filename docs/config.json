@@ -567,6 +567,10 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
+              "title": "Joining Nodes via Azure",
+              "slug": "/management/guides/joining-nodes-azure/"
+            },
+            {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
             }
@@ -847,6 +851,10 @@
             {
               "title": "Register a Cluster with Static kubeconfigs",
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
+            },
+            {
+              "title": "Register a Cluster with IAM Joining",
+              "slug": "/kubernetes-access/register-clusters/iam-joining/"
             },
             {
               "title": "Register Clusters Dynamically",
