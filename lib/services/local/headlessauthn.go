@@ -31,17 +31,12 @@ import (
 
 // CreateHeadlessAuthenticationStub creates a headless authentication stub in the backend.
 func (s *IdentityService) CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	expires := s.Clock().Now().Add(defaults.CallbackTimeout)
-	headlessAuthn := &types.HeadlessAuthentication{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name:    name,
-				Expires: &expires,
-			},
-		},
+	headlessAuthn, err := types.NewHeadlessAuthenticationStub(name, s.Clock().Now().Add(defaults.CallbackTimeout))
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	item, err := marshalHeadlessAuthenticationToItem(headlessAuthn)
+	item, err := MarshalHeadlessAuthenticationToItem(headlessAuthn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -60,12 +55,12 @@ func (s *IdentityService) CompareAndSwapHeadlessAuthentication(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
-	oldItem, err := marshalHeadlessAuthenticationToItem(old)
+	oldItem, err := MarshalHeadlessAuthenticationToItem(old)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newItem, err := marshalHeadlessAuthenticationToItem(new)
+	newItem, err := MarshalHeadlessAuthenticationToItem(new)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -120,7 +115,7 @@ func (s *IdentityService) DeleteHeadlessAuthentication(ctx context.Context, name
 	return trace.Wrap(err)
 }
 
-func marshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
+func MarshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
 	if err := headlessAuthn.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

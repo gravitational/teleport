@@ -285,8 +285,8 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
-	// LicenseWarnings contains a list of license compliance warning messages
-	LicenseWarnings []string `json:"license_warnings,omitempty"`
+
+	// reserved: license_warnings ([]string)
 }
 
 // PingErrorResponse contains the error message if the requested connector

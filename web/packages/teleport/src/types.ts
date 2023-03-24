@@ -90,4 +90,5 @@ export interface FeatureFlags {
   downloadCenter: boolean;
   discover: boolean;
   plugins: boolean;
+  deviceTrust: boolean;
 }
