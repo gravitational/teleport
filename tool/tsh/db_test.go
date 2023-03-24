@@ -62,40 +62,41 @@ func TestDatabaseLogin(t *testing.T) {
 		withAuthConfig(func(cfg *service.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}))
-	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
-		Name:     "postgres",
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-	}, service.Database{
-		Name:     "mysql",
-		Protocol: defaults.ProtocolMySQL,
-		URI:      "localhost:3306",
-	}, service.Database{
-		Name:     "cassandra",
-		Protocol: defaults.ProtocolCassandra,
-		URI:      "localhost:9042",
-	}, service.Database{
-		Name:     "snowflake",
-		Protocol: defaults.ProtocolSnowflake,
-		URI:      "localhost.snowflakecomputing.com",
-	}, service.Database{
-		Name:     "mongo",
-		Protocol: defaults.ProtocolMongoDB,
-		URI:      "localhost:27017",
-	}, service.Database{
-		Name:     "mssql",
-		Protocol: defaults.ProtocolSQLServer,
-		URI:      "localhost:1433",
-	}, service.Database{
-		Name:     "dynamodb",
-		Protocol: defaults.ProtocolDynamoDB,
-		URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
-		AWS: service.DatabaseAWS{
-			AccountID:  "12345",
-			ExternalID: "123123123",
-			Region:     "us-west-1",
-		},
-	})
+	makeTestDatabaseServer(t, authProcess, proxyProcess,
+		service.Database{
+			Name:     "postgres",
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+		}, service.Database{
+			Name:     "mysql",
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+		}, service.Database{
+			Name:     "cassandra",
+			Protocol: defaults.ProtocolCassandra,
+			URI:      "localhost:9042",
+		}, service.Database{
+			Name:     "snowflake",
+			Protocol: defaults.ProtocolSnowflake,
+			URI:      "localhost.snowflakecomputing.com",
+		}, service.Database{
+			Name:     "mongo",
+			Protocol: defaults.ProtocolMongoDB,
+			URI:      "localhost:27017",
+		}, service.Database{
+			Name:     "mssql",
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      "localhost:1433",
+		}, service.Database{
+			Name:     "dynamodb",
+			Protocol: defaults.ProtocolDynamoDB,
+			URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+			AWS: service.DatabaseAWS{
+				AccountID:  "123456789012",
+				ExternalID: "123123123",
+				Region:     "us-west-1",
+			},
+		})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
