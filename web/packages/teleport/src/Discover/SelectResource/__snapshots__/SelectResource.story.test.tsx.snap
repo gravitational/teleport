@@ -137,7 +137,9 @@ exports[`render with URL loc state set to "server" 1`] = `
 .c14 {
   box-sizing: border-box;
   margin-right: 16px;
+  width: 24px;
   display: flex;
+  justify-content: center;
 }
 
 .c10 {
@@ -295,6 +297,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <div
           class="c14"
+          width="24px"
         >
           <img
             class="c15"
@@ -335,6 +338,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <div
           class="c14"
+          width="24px"
         >
           <img
             class="c15"
@@ -375,6 +379,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <div
           class="c14"
+          width="24px"
         >
           <img
             class="c15"
@@ -415,6 +420,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <div
           class="c14"
+          width="24px"
         >
           <img
             class="c19"
@@ -455,6 +461,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <div
           class="c14"
+          width="24px"
         >
           <span
             class="c20 icon icon-apple "
@@ -492,6 +499,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <div
           class="c14"
+          width="24px"
         >
           <img
             class="c15"
@@ -531,6 +539,7 @@ exports[`render with URL loc state set to "server" 1`] = `
       >
         <div
           class="c14"
+          width="24px"
         >
           <img
             class="c15"
@@ -690,7 +699,9 @@ exports[`render with all access 1`] = `
 .c10 {
   box-sizing: border-box;
   margin-right: 16px;
+  width: 24px;
   display: flex;
+  justify-content: center;
 }
 
 .c6 {
@@ -811,6 +822,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -822,6 +834,7 @@ exports[`render with all access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c13"
             color="white"
@@ -845,6 +858,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -856,6 +870,7 @@ exports[`render with all access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c15"
           >
@@ -878,6 +893,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -918,6 +934,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -958,6 +975,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -998,6 +1016,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1038,6 +1057,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -1078,6 +1098,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <span
             class="c18 icon icon-apple "
@@ -1117,6 +1138,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -1157,6 +1179,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -1197,6 +1220,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1237,6 +1261,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1275,6 +1300,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1314,6 +1340,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -1353,6 +1380,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -1392,6 +1420,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -1431,6 +1460,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -1470,6 +1500,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1509,6 +1540,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1548,6 +1580,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1587,6 +1620,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1626,6 +1660,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1665,6 +1700,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1704,6 +1740,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1743,6 +1780,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1754,6 +1792,7 @@ exports[`render with all access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c13"
             color="white"
@@ -1775,6 +1814,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1814,6 +1854,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1853,6 +1894,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1892,6 +1934,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1931,6 +1974,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -1970,6 +2014,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -2009,6 +2054,7 @@ exports[`render with all access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -2020,6 +2066,7 @@ exports[`render with all access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c13"
             color="white"
@@ -2161,7 +2208,9 @@ exports[`render with no access 1`] = `
 .c11 {
   box-sizing: border-box;
   margin-right: 16px;
+  width: 24px;
   display: flex;
+  justify-content: center;
 }
 
 .c6 {
@@ -2286,6 +2335,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2297,6 +2347,7 @@ exports[`render with no access 1`] = `
         <div
           class="c13"
         >
+          
           <div
             class="c14"
             color="white"
@@ -2320,6 +2371,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2331,6 +2383,7 @@ exports[`render with no access 1`] = `
         <div
           class="c13"
         >
+          
           <div
             class="c15"
           >
@@ -2353,6 +2406,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2393,6 +2447,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2433,6 +2488,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2473,6 +2529,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2513,6 +2570,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c17"
@@ -2553,6 +2611,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <span
             class="c18 icon icon-apple "
@@ -2592,6 +2651,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c17"
@@ -2632,6 +2692,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c17"
@@ -2672,6 +2733,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2712,6 +2774,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2754,6 +2817,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -2797,6 +2861,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c17"
@@ -2840,6 +2905,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c17"
@@ -2883,6 +2949,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c17"
@@ -2926,6 +2993,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c17"
@@ -2969,6 +3037,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3012,6 +3081,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3055,6 +3125,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3098,6 +3169,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3141,6 +3213,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3184,6 +3257,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3227,6 +3301,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3270,6 +3345,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3281,6 +3357,7 @@ exports[`render with no access 1`] = `
         <div
           class="c13"
         >
+          
           <div
             class="c14"
             color="white"
@@ -3306,6 +3383,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3349,6 +3427,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3392,6 +3471,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3435,6 +3515,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3478,6 +3559,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3521,6 +3603,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3564,6 +3647,7 @@ exports[`render with no access 1`] = `
       >
         <div
           class="c11"
+          width="24px"
         >
           <img
             class="c12"
@@ -3575,6 +3659,7 @@ exports[`render with no access 1`] = `
         <div
           class="c13"
         >
+          
           <div
             class="c14"
             color="white"
@@ -3716,7 +3801,9 @@ exports[`render with partial access 1`] = `
 .c10 {
   box-sizing: border-box;
   margin-right: 16px;
+  width: 24px;
   display: flex;
+  justify-content: center;
 }
 
 .c6 {
@@ -3870,6 +3957,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -3881,6 +3969,7 @@ exports[`render with partial access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c13"
             color="white"
@@ -3904,6 +3993,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -3915,6 +4005,7 @@ exports[`render with partial access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c15"
           >
@@ -3937,6 +4028,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -3977,6 +4069,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4017,6 +4110,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4057,6 +4151,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4097,6 +4192,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -4137,6 +4233,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <span
             class="c18 icon icon-apple "
@@ -4176,6 +4273,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -4216,6 +4314,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -4256,6 +4355,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4296,6 +4396,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4338,6 +4439,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4381,6 +4483,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -4424,6 +4527,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -4467,6 +4571,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -4510,6 +4615,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c17"
@@ -4553,6 +4659,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4596,6 +4703,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4639,6 +4747,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4682,6 +4791,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4725,6 +4835,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4768,6 +4879,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4811,6 +4923,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4854,6 +4967,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4865,6 +4979,7 @@ exports[`render with partial access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c13"
             color="white"
@@ -4890,6 +5005,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4933,6 +5049,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -4976,6 +5093,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -5019,6 +5137,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -5062,6 +5181,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -5105,6 +5225,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -5148,6 +5269,7 @@ exports[`render with partial access 1`] = `
       >
         <div
           class="c10"
+          width="24px"
         >
           <img
             class="c11"
@@ -5159,6 +5281,7 @@ exports[`render with partial access 1`] = `
         <div
           class="c12"
         >
+          
           <div
             class="c13"
             color="white"

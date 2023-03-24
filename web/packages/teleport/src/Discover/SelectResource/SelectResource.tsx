@@ -30,7 +30,7 @@ import {
   PermissionsErrorMessage,
 } from 'teleport/Discover/Shared';
 import {
-  getResourceTitles,
+  getResourcePretitle,
   RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
 
@@ -66,14 +66,14 @@ export function SelectResource(props: SelectResourceProps) {
     // Apply access check to each resource.
     const userContext = ctx.storeUser.state;
     const { acl } = userContext;
-    const updatedResources = checkAndSetHasNoAccessFieldToResources(acl);
+    const updatedResources = makeResourcesWithHasAccessField(acl);
 
     // Sort resources that user has access to the
     // the top of the list, so it is more visible to
     // the user.
     const filteredResourcesByPerm = [
-      ...updatedResources.filter(r => !r.hasNoAccess),
-      ...updatedResources.filter(r => r.hasNoAccess),
+      ...updatedResources.filter(r => r.hasAccess),
+      ...updatedResources.filter(r => !r.hasAccess),
     ];
     setDefaultResources(filteredResourcesByPerm);
 
@@ -121,11 +121,10 @@ export function SelectResource(props: SelectResourceProps) {
         <>
           <Grid>
             {resources.map((r, index) => {
-              const { pretitle, title } = getResourceTitles(r);
+              const title = r.name;
+              const pretitle = getResourcePretitle(r);
               const selectResourceFn =
-                r.unguidedLink || r.hasNoAccess
-                  ? null
-                  : () => props.onSelect(r);
+                r.unguidedLink || !r.hasAccess ? null : () => props.onSelect(r);
 
               // There can be two types of click behavior with the resource cards:
               //  1) If the resource has no interactive UI flow ("unguided"),
@@ -137,17 +136,17 @@ export function SelectResource(props: SelectResourceProps) {
                 <ResourceCard
                   data-testid={r.kind}
                   key={`${index}${pretitle}${title}`}
-                  hasNoAccess={r.hasNoAccess}
+                  hasAccess={r.hasAccess}
                   as={r.unguidedLink ? Link : null}
-                  href={r.hasNoAccess ? null : r.unguidedLink}
+                  href={r.hasAccess ? r.unguidedLink : null}
                   target={r.unguidedLink ? '_blank' : null}
                   onClick={selectResourceFn}
                   className={r.unguidedLink ? 'unguided' : ''}
                 >
-                  {!r.unguidedLink && !r.hasNoAccess && (
+                  {!r.unguidedLink && r.hasAccess && (
                     <BadgeGuided>Guided</BadgeGuided>
                   )}
-                  {r.hasNoAccess && (
+                  {!r.hasAccess && (
                     <ToolTip
                       children={
                         <PermissionsErrorMessage resourceKind={r.kind} />
@@ -155,7 +154,9 @@ export function SelectResource(props: SelectResourceProps) {
                     />
                   )}
                   <Flex px={2} alignItems="center">
-                    <Flex mr={3}>{r.Icon}</Flex>
+                    <Flex mr={3} justifyContent="center" width="24px">
+                      {r.Icon}
+                    </Flex>
                     <Box>
                       {pretitle && (
                         <Text fontSize="12px" color="#a8afb2">
@@ -276,12 +277,26 @@ const ToolTip: React.FC = ({ children }) => {
   );
 };
 
-function checkHasNoAccess(acl: Acl, perms: boolean[]) {
-  const basePermissionsNeeded = [acl.tokens.create];
-  const permissionsNeeded = [...basePermissionsNeeded, ...perms];
+function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
+  const basePerm = acl.tokens.create;
+  if (!basePerm) {
+    return false;
+  }
 
-  // if some (1+) are false, we do not have enough permissions
-  return permissionsNeeded.some(value => !value);
+  switch (resourceKind) {
+    case ResourceKind.Application:
+      return acl.appServers.read && acl.appServers.list;
+    case ResourceKind.Database:
+      return acl.dbServers.read && acl.dbServers.list;
+    case ResourceKind.Desktop:
+      return acl.desktops.read && acl.desktops.list;
+    case ResourceKind.Kubernetes:
+      return acl.kubeServers.read && acl.kubeServers.list;
+    case ResourceKind.Server:
+      return acl.nodes.list;
+    default:
+      return false;
+  }
 }
 
 function sortResourcesByKind(
@@ -324,44 +339,14 @@ function sortResourcesByKind(
   return sorted;
 }
 
-function checkAndSetHasNoAccessFieldToResources(acl: Acl) {
+function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
   return RESOURCES.map(r => {
+    const hasAccess = checkHasAccess(acl, r.kind);
     switch (r.kind) {
       case ResourceKind.Database:
-        return {
-          ...r,
-          dbMeta: { ...r.dbMeta },
-          hasNoAccess: checkHasNoAccess(acl, [
-            acl.dbServers.read,
-            acl.dbServers.list,
-          ]),
-        };
-      case ResourceKind.Application:
-        return {
-          ...r,
-          hasNoAccess: checkHasNoAccess(acl, [
-            acl.appServers.read,
-            acl.appServers.list,
-          ]),
-        };
-      case ResourceKind.Server:
-        return { ...r, hasNoAccess: checkHasNoAccess(acl, [acl.nodes.list]) };
-      case ResourceKind.Desktop:
-        return {
-          ...r,
-          hasNoAccess: checkHasNoAccess(acl, [
-            acl.desktops.read,
-            acl.desktops.list,
-          ]),
-        };
-      case ResourceKind.Kubernetes:
-        return {
-          ...r,
-          hasNoAccess: checkHasNoAccess(acl, [
-            acl.kubeServers.read,
-            acl.kubeServers.list,
-          ]),
-        };
+        return { ...r, dbMeta: { ...r.dbMeta }, hasAccess };
+      default:
+        return { ...r, hasAccess };
     }
   });
 }
@@ -386,7 +371,7 @@ const ResourceCard = styled.div`
   cursor: pointer;
   height: 48px;
 
-  opacity: ${props => (props.hasNoAccess ? '0.45' : '1')};
+  opacity: ${props => (props.hasAccess ? '1' : '0.45')};
 
   &.unguided {
     text-decoration: none;

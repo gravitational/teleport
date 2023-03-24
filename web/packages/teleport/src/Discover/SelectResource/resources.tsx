@@ -99,38 +99,31 @@ export const RESOURCES: ResourceSpec[] = [
   ...DATABASES_UNGUIDED,
 ];
 
-export function getResourceTitles(r: ResourceSpec) {
+export function getResourcePretitle(r: ResourceSpec) {
   if (!r) {
     return {};
   }
 
-  let pretitle;
   switch (r.kind) {
     case ResourceKind.Database:
       if (r.dbMeta) {
         switch (r.dbMeta.location) {
           case DatabaseLocation.AWS:
-            pretitle = 'Amazon Web Services (AWS)';
-            break;
+            return 'Amazon Web Services (AWS)';
           case DatabaseLocation.GCP:
-            pretitle = 'Google Cloud Provider (GCP)';
-            break;
+            return 'Google Cloud Provider (GCP)';
           case DatabaseLocation.SelfHosted:
-            pretitle = 'Self-Hosted';
-            break;
+            return 'Self-Hosted';
           case DatabaseLocation.Azure:
-            pretitle = 'Azure';
-            break;
+            return 'Azure';
         }
       }
       break;
     case ResourceKind.Desktop:
-      pretitle = 'Windows Desktop';
-      break;
+      return 'Windows Desktop';
     case ResourceKind.Server:
-      pretitle = 'Server';
-      break;
+      return 'Server';
   }
 
-  return { pretitle, title: r.name };
+  return '';
 }

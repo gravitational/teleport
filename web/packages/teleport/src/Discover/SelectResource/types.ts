@@ -47,9 +47,9 @@ export interface ResourceSpec {
   // keywords are filter words that user may use to search for
   // this resource.
   keywords: string;
-  // hasNoAccess is a flag to mean that user does not
-  // have the preliminary permissions to add this resource.
-  hasNoAccess?: boolean;
+  // hasAccess is a flag to mean that user has
+  // the preliminary permissions to add this resource.
+  hasAccess?: boolean;
   // unguidedLink is the link out to this resources documentation.
   // It is used as a flag, that when defined, means that
   // this resource is not "guided" (has no UI interactive flow).
