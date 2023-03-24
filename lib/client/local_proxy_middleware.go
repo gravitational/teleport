@@ -19,7 +19,6 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
 	"net"
 	"time"
@@ -31,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DBCertChecker is a middleware that ensures that the local proxy has valid TLS database certs.
@@ -45,7 +45,7 @@ type DBCertChecker struct {
 	clock clockwork.Clock
 }
 
-func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) alpnproxy.LocalProxyMiddleware {
+func NewDBCertChecker(tc *TeleportClient, dbRoute tlsca.RouteToDatabase, clock clockwork.Clock) *DBCertChecker {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
@@ -118,13 +118,16 @@ func (c *DBCertChecker) renewCerts(ctx context.Context, lp *alpnproxy.LocalProxy
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	x509cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
+	leaf, err := utils.TLSCertLeaf(tlsCert)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	certTTL := x509cert.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
-	fmt.Printf("Database certificate renewed: valid until %s [valid for %v]\n",
-		x509cert.NotAfter.Format(time.RFC3339), certTTL)
+	certTTL := leaf.NotAfter.Sub(c.clock.Now()).Round(time.Minute)
+	fmt.Fprintf(c.tc.Stderr,
+		"Database certificate renewed: valid until %s [valid for %v]\n",
+		leaf.NotAfter.Format(time.RFC3339), certTTL)
+	// reduce per-handshake processing by setting the parsed leaf.
+	tlsCert.Leaf = leaf
 	lp.SetCerts([]tls.Certificate{tlsCert})
 	return nil
 }
