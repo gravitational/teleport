@@ -61,6 +61,8 @@ message Device {
   DeviceEnrollToken enroll_token = 7;
 
   // Enrollment status of the device.
+  // May be changed to DEVICE_ENROLL_STATUS_NOT_ENROLLED at any time to
+  // forcefully unenroll a device (server-side only).
   // System managed.
   DeviceEnrollStatus enroll_status = 8;
 

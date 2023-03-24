@@ -160,6 +160,7 @@ func TestNewResourceItemGithub(t *testing.T) {
 metadata:
   name: githubName
 spec:
+  api_endpoint_url: ""
   client_id: ""
   client_secret: ""
   display: ""

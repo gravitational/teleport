@@ -122,6 +122,8 @@ type Device struct {
 	// Transient.
 	EnrollToken *DeviceEnrollToken `protobuf:"bytes,7,opt,name=enroll_token,json=enrollToken,proto3" json:"enroll_token,omitempty"`
 	// Enrollment status of the device.
+	// May be changed to DEVICE_ENROLL_STATUS_NOT_ENROLLED at any time to
+	// forcefully unenroll a device (server-side only).
 	// System managed.
 	EnrollStatus DeviceEnrollStatus `protobuf:"varint,8,opt,name=enroll_status,json=enrollStatus,proto3,enum=teleport.devicetrust.v1.DeviceEnrollStatus" json:"enroll_status,omitempty"`
 	// Currently enrolled device credential.

@@ -1101,18 +1101,12 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
-	pr, err := h.cfg.ProxyClient.Ping(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return webclient.PingResponse{
 		Auth:             authSettings,
 		Proxy:            *proxyConfig,
 		ServerVersion:    teleport.Version,
 		MinClientVersion: teleport.MinClientVersion,
 		ClusterName:      h.auth.clusterName,
-		LicenseWarnings:  pr.LicenseWarnings,
 	}, nil
 }
 
