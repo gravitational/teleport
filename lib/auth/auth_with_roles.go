@@ -1412,6 +1412,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
 
+	// Increase the limit to one more than was requested so
+	// that an additional page load is not needed to determine
+	// the next key.
+	req.Limit++
+
 	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
 	if err != nil {
 		return nil, trace.Wrap(err)

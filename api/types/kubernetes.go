@@ -195,6 +195,17 @@ func (k *KubernetesClusterV3) SetName(name string) {
 	k.Metadata.Name = name
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (k *KubernetesClusterV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := k.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := k.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetStaticLabels returns the static labels.
 func (k *KubernetesClusterV3) GetStaticLabels() map[string]string {
 	return k.Metadata.Labels
@@ -579,6 +590,13 @@ func (k *KubernetesResourceV1) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (k *KubernetesResourceV1) SetOrigin(origin string) {
 	k.Metadata.SetOrigin(origin)
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (k *KubernetesResourceV1) GetLabel(key string) (value string, ok bool) {
+	v, ok := k.Metadata.Labels[key]
+	return v, ok
 }
 
 // GetAllLabels returns all resource's labels.
