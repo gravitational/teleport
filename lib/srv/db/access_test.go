@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
@@ -1886,18 +1887,25 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Create test audit events emitter.
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
+	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+		Clock:       testCtx.clock,
+		ServerID:    testCtx.hostID,
+		Emitter:     testCtx.emitter,
+		Logger:      utils.NewLoggerForTests(),
+	})
+	require.NoError(t, err)
+
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
-		AuthClient:  proxyAuthClient,
-		AccessPoint: proxyAuthClient,
-		Authorizer:  proxyAuthorizer,
-		Tunnel:      tunnel,
-		TLSConfig:   tlsConfig,
-		Limiter:     connLimiter,
-		Emitter:     testCtx.emitter,
-		Clock:       testCtx.clock,
-		ServerID:    "proxy-server",
-		LockWatcher: proxyLockWatcher,
+		AuthClient:        proxyAuthClient,
+		AccessPoint:       proxyAuthClient,
+		Authorizer:        proxyAuthorizer,
+		Tunnel:            tunnel,
+		TLSConfig:         tlsConfig,
+		Limiter:           connLimiter,
+		ConnectionMonitor: connMonitor,
 	})
 	require.NoError(t, err)
 
@@ -1980,6 +1988,16 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 	connLimiter, err := limiter.NewLimiter(limiter.Config{})
 	require.NoError(t, err)
 
+	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+		AccessPoint: c.authClient,
+		LockWatcher: lockWatcher,
+		Clock:       c.clock,
+		ServerID:    p.HostID,
+		Emitter:     c.emitter,
+		Logger:      utils.NewLoggerForTests(),
+	})
+	require.NoError(t, err)
+
 	// Create database server agent itself.
 	server, err := New(ctx, Config{
 		Clock:            c.clock,
@@ -2011,8 +2029,8 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		CADownloader: &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
 		},
-		OnReconcile: p.OnReconcile,
-		LockWatcher: lockWatcher,
+		OnReconcile:       p.OnReconcile,
+		ConnectionMonitor: connMonitor,
 		CloudClients: &clients.TestCloudClients{
 			STS:            &cloud.STSMock{},
 			RDS:            &cloud.RDSMock{},
