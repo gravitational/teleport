@@ -558,10 +558,15 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	apiEndpointURL, err := url.Parse(connector.GetAPIEndpointURL())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ghClient := &githubAPIClient{
-		token:            token.AccessToken,
-		authServer:       a,
-		endpointHostname: endpointURL.Host,
+		token:               token.AccessToken,
+		authServer:          a,
+		endpointHostname:    endpointURL.Host,
+		apiEndpointHostname: apiEndpointURL.Host,
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
@@ -839,6 +844,9 @@ type githubAPIClient struct {
 	authServer *Server
 	// endpointHostname is the Github hostname to connect to.
 	endpointHostname string
+	// apiEndpointHostname is the API endpoint of the Github instance
+	// to connect to.
+	apiEndpointHostname string
 }
 
 // userResponse represents response from "user" API call
@@ -949,8 +957,8 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 }
 
 // get makes a GET request to the provided URL using the client's token for auth
-func (c *githubAPIClient) get(url string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("https://api.%s/%s", c.endpointHostname, url), nil)
+func (c *githubAPIClient) get(page string) ([]byte, string, error) {
+	request, err := http.NewRequest("GET", fmt.Sprintf("https://%s/%s", c.apiEndpointHostname, page), nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
