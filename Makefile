@@ -636,6 +636,18 @@ test-operator:
 	make -C operator test
 
 #
+# Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
+#
+.PHONY: test-teleport-usage
+test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-teleport-usage: FLAGS ?= -race -shuffle on
+test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
+test-teleport-usage:
+	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/teleport-usage.json \
+		| ${RENDER_TESTS}
+
+#
 # Runs cargo test on our Rust modules.
 # (a no-op if cargo and rustc are not installed)
 #

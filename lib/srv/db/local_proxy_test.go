@@ -19,8 +19,10 @@ package db
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgconn"
+	"github.com/jackc/pgerrcode"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 
@@ -49,9 +51,21 @@ func TestLocalProxyPostgres(t *testing.T) {
 	})
 
 	// Execute a query.
-	result, err := conn.Exec(ctx, "select 1").ReadAll()
+	results, err := conn.Exec(ctx, "select 1").ReadAll()
 	require.NoError(t, err)
-	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, result)
+	require.Equal(t, []*pgconn.Result{postgres.TestQueryResponse}, results)
+
+	// Execute a "long running" query and cancel it.
+	resultReader := conn.Exec(ctx, postgres.TestLongRunningQuery)
+	require.NoError(t, conn.CancelRequest(ctx))
+	// timeout this test quickly if the cancel request fails to propagate.
+	conn.Conn().SetDeadline(time.Now().Add(time.Second * 10))
+	results, err = resultReader.ReadAll()
+	require.Error(t, err)
+	var pgErr *pgconn.PgError
+	require.ErrorAs(t, err, &pgErr)
+	require.Equal(t, pgerrcode.QueryCanceled, pgErr.Code)
+	require.Len(t, results, 0)
 }
 
 // TestLocalProxyMySQL verifies connecting to a MySQL database
