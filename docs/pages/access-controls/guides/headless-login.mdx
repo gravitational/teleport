@@ -7,8 +7,7 @@ description: Headless WebAuthn
   Headless WebAuthn is currently in Preview mode.
 </Notice>
 
-Headless WebAuthn provides a secure way to authenticate with WebAuthn from a machine without access to a WebAuthn device. This enables use cases which are usually not with WebAuthn
-features, such as:
+Headless WebAuthn provides a secure way to authenticate with WebAuthn from a machine without access to a WebAuthn device. This enables the use of WebAuthn features which are usually not usable in WebAuthn-incompatible environments. For example:
 
 - Logging into Teleport with WebAuthn from a remote dev box
 - Connecting to a Teleport SSH Service from a remote dev box with per-session MFA 
@@ -38,7 +37,10 @@ features, such as:
 
 A v12.2+ Teleport cluster capable of WebAuthn is automatically capable of Headless WebAuthn without any additional configuration.
 
-### Optional: Make Headless WebAuthn the default login connector
+<Details 
+title="Optional: make Headless WebAuthn the default auth connector" 
+opened={false}
+>
 
 To make Headless WebAuthn the default authentication method for your Teleport Cluster, add `connector_name: headless` to your cluster configuration.
 
@@ -64,8 +66,12 @@ Update the configuration:
 $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
+</Details>
 
-### Optional: Disable Headless WebAuthn
+<Details 
+title="Alternative: disable Headless WebAuthn" 
+opened={false}
+>
 
 Headless WebAuthn is enabled automatically when WebAuthn is configured. If you want to forbid Headless WebAuthn in your cluster, add `headless: false` to your configuration.
 
@@ -91,6 +97,8 @@ Update the configuration:
 $ tctl create -f cap.yaml
 # cluster auth preference has been updated
 ```
+
+</Details>
 
 ## Step 2/3. Initiate Headless WebAuthn
 

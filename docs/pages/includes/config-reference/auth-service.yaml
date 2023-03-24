@@ -147,7 +147,7 @@ auth_service:
         #passwordless: true
 
         # Sets whether headless authentication is allowed.
-        # Passwordless requires WebAuthn.
+        # Headless authentication requires WebAuthn.
         # Defaults to "true".
         #headless: true
 
