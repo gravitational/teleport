@@ -75,7 +75,7 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	tlsConfig, err := id.TLSConfig(nil /* cipherSuites */)
+	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -473,6 +473,8 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Expires:            &expires,
+		FIPS:               b.cfg.FIPS,
+		CipherSuites:       b.cfg.CipherSuites(),
 	}
 	if params.JoinMethod == types.JoinMethodAzure {
 		params.AzureParams = auth.AzureParams{

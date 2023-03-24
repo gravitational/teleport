@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -264,6 +265,14 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
 		)
+	}
+
+	if b.cfg.FIPS {
+		if !modules.GetModules().IsBoringBinary() {
+			// TODO BEFORE MERGE: Turn this into a hard-fail
+			b.log.Error("FIPS mode enabled but binary was not compiled with boringcrypto :(")
+		}
+		b.log.Info("Bot is running in FIPS mode.")
 	}
 
 	// First, try to make sure all destinations are usable.
