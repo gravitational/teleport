@@ -19,6 +19,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -2084,6 +2085,13 @@ func (c *kubeService) processEvent(ctx context.Context, event types.Event) error
 				return trace.Wrap(err)
 			}
 		}
+
+		if c.deleteVirtualKubeServers(ctx, event.Resource.GetName()) != nil {
+			if !trace.IsNotFound(err) {
+				c.Logger.WithError(err).Warn("Failed to delete resource.")
+				return trace.Wrap(err)
+			}
+		}
 	case types.OpPut:
 		resource, ok := event.Resource.(types.Server)
 		if !ok {
@@ -2100,6 +2108,30 @@ func (c *kubeService) processEvent(ctx context.Context, event types.Event) error
 
 func (c *kubeService) watchKind() types.WatchKind {
 	return c.watch
+}
+
+func (c *kubeService) deleteVirtualKubeServers(ctx context.Context, hostID string) error {
+	kubeServers, err := c.presenceCache.GetKubernetesServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	for _, kubeServer := range kubeServers {
+		if kubeServer.GetHostID() != hostID || !expiredOrNearExpiration(kubeServer.GetCluster().Expiry()) {
+			continue
+		}
+
+		err := c.presenceCache.DeleteKubernetesServer(ctx, kubeServer.GetHostID(), kubeServer.GetName())
+		if err != nil && !trace.IsNotFound(err) {
+			c.Logger.WithError(err).Warn("Failed to delete resource.")
+			return trace.Wrap(err)
+		}
+
+	}
+	return nil
+}
+
+func expiredOrNearExpiration(t time.Time) bool {
+	return !t.IsZero() && time.Until(t) <= apidefaults.ServerAnnounceTTL/2
 }
 
 type kubeServer struct {
