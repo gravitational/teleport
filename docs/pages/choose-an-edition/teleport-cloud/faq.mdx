@@ -139,9 +139,15 @@ Currently there is no option to select an alternative region for storage.
 
 ## Will Teleport be automatically upgraded with each release?
 
-The Teleport control plane is routinely upgraded within 1-2 weeks of a Teleport Core or Enterprise Release.
-New features may not be available to cloud users until compatibility is tested and fixed, and some features may not work in the cloud environment.
-Individual customers may not be upgraded to the latest release if they are running agents that are outside of the supported compatibility of the control plane.
+Teleport Cloud follows the Teleport [Production
+readiness](../../preview/upcoming-releases.mdx) guidelines.
+
+- Major version upgrades for customer Auth and Proxy Servers occur after the
+  first minor release (for example (=teleport.major_version=).1.0) of Teleport.
+  This typically happens within one month of a new major release of Teleport
+  becoming available.
+- After the first minor release, subsequent minor and patch upgrades typically
+  occur within a week.
 
 ## Does your SOC 2 report include Teleport Enterprise Cloud?
 
