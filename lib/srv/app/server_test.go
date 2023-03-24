@@ -59,6 +59,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	oktaAppURL = "https://okta.com/app"
+)
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
@@ -82,6 +86,7 @@ type Suite struct {
 	testhttp              *httptest.Server
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
+	oktaCertificate       tls.Certificate
 
 	user       types.User
 	role       types.Role
@@ -270,6 +275,19 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		PublicAddr: "aws.example.com",
 	})
 	require.NoError(t, err)
+	oktaLabels := map[string]string{}
+	for k, v := range staticLabels {
+		oktaLabels[k] = v
+	}
+	oktaLabels[types.OriginLabel] = types.OriginOkta
+	appOkta, err := types.NewAppV3(types.Metadata{
+		Name:   "okta",
+		Labels: oktaLabels,
+	}, types.AppSpecV3{
+		URI:        oktaAppURL,
+		PublicAddr: "okta.example.com",
+	})
+	require.NoError(t, err)
 
 	// Create a client with a machine role of RoleApp.
 	s.authClient, err = s.tlsServer.NewClient(auth.TestServerID(types.RoleApp, s.hostUUID))
@@ -291,6 +309,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Generate certificate for AWS console application.
 	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
+	// Generate certificate for the Okta application.
+	s.oktaCertificate = s.generateCertificate(t, s.user, "okta.example.com", "")
+
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
@@ -309,7 +330,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{appFoo, appAWS}
+	apps := types.Apps{appFoo, appAWS, appOkta}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -847,6 +868,17 @@ func TestAWSConsoleRedirect(t *testing.T) {
 		location, err := resp.Location()
 		require.NoError(t, err)
 		require.Equal(t, location.String(), "https://signin.aws.amazon.com")
+	})
+}
+
+// TestOktaAppRedirect verifies Okta app access.
+func TestOktaAppRedirect(t *testing.T) {
+	s := SetUpSuite(t)
+	s.checkHTTPResponse(t, s.oktaCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, location.String(), oktaAppURL)
 	})
 }
 
