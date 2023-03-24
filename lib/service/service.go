@@ -3037,9 +3037,7 @@ func (l *proxyListeners) Close() {
 	if l.kube != nil {
 		l.kube.Close()
 	}
-	if !l.db.Empty() {
-		l.db.Close()
-	}
+	l.db.Close()
 	if l.alpn != nil {
 		l.alpn.Close()
 	}
