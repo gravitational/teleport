@@ -1036,7 +1036,7 @@ This release of Teleport contains multiple bug fixes.
 
 Teleport 6.0 is a major release with new features, functionality, and bug fixes.
 
-We have implemented [Database Access](https://goteleport.com/teleport/docs/database-access/),
+We have implemented [Database Access](./docs/pages/database-access/introduction.mdx),
 open sourced role-based access control (RBAC), and added official API and a Go client library.
 
 Users can review the [6.0 milestone](https://github.com/gravitational/teleport/milestone/33?closed=1) on Github for more details.
@@ -1051,23 +1051,23 @@ With Database Access users can connect to PostgreSQL and MySQL databases using s
 
 ##### Getting Started
 
-Configure Database Access following the [Getting Started](https://goteleport.com/teleport/docs/database-access/getting-started/) guide.
+Configure Database Access following the [Getting Started](./docs/pages/database-access/introduction.mdx#getting-started/) guide.
 
 ##### Guides
 
-* [AWS RDS/Aurora PostgreSQL](https://goteleport.com/teleport/docs/database-access/guides/postgres-aws/)
-* [AWS RDS/Aurora MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-aws/)
-* [Self-hosted PostgreSQL](https://goteleport.com/teleport/docs/database-access/guides/postgres-self-hosted/)
-* [Self-hosted MySQL](https://goteleport.com/teleport/docs/database-access/guides/mysql-self-hosted/)
+* [AWS RDS/Aurora PostgreSQL](./docs/pages/database-access/guides/rds.mdx)
+* [AWS RDS/Aurora MySQL](./docs/pages/database-access/guides/rds.mdx)
+* [Self-hosted PostgreSQL](./docs/pages/database-access/guides/postgres-self-hosted.mdx)
+* [Self-hosted MySQL](./docs/pages/database-access/guides/mysql-self-hosted.mdx)
 * [GUI clients](https://goteleport.com/docs/connect-your-client/gui-clients/)
 
 ##### Resources
 
-To learn more about configuring role-based access control for Database Access, check out [RBAC](https://goteleport.com/teleport/docs/database-access/rbac/) section.
+To learn more about configuring role-based access control for Database Access, check out [RBAC](./docs/pages/database-access/introduction.mdx/) section.
 
-[Architecture](https://goteleport.com/teleport/docs/database-access/architecture/) provides a more in-depth look at Database Access internals such as networking and security.
+[Architecture](./docs/pages/database-access/introduction.mdx/) provides a more in-depth look at Database Access internals such as networking and security.
 
-See [Reference](https://goteleport.com/teleport/docs/database-access/reference/) for an overview of Database Access related configuration and CLI commands.
+See [Reference](./docs/pages/database-access/reference.mdx) for an overview of Database Access related configuration and CLI commands.
 
 Finally, check out [Frequently Asked Questions](docs/pages/database-access/faq.mdx).
 
@@ -1133,7 +1133,7 @@ if err = clt.CreateAccessRequest(ctx, accessRequest); err != nil {
 
 ### Upgrade Notes
 
-Please follow our [standard upgrade procedure](https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport) to upgrade your cluster.
+Please follow our [standard upgrade procedure](./docs/pages/management/admin.mdx) to upgrade your cluster.
 
 Note, for clusters using GitHub SSO and Trusted Clusters, when upgrading SSO users will lose connectivity to leaf clusters. Local users will not be affected.
 
@@ -1269,7 +1269,7 @@ proxy_service:
     cert_file: /etc/letsencrypt/live/*.teleport.example.com/fullchain.pem
 ```
 
-You can learn more at [https://goteleport.com/teleport/docs/application-access/](https://goteleport.com/teleport/docs/application-access/)
+You can learn more in the [Application Access introduction](./docs/pages/application-access/introduction.mdx).
 
 ##### Teleport Kubernetes Access
 
@@ -1353,11 +1353,11 @@ We've added two new RBAC resources; these provide the ability to limit token cre
   verbs: [list,create,read,update,delete]
 ```
 
-Learn more about [Teleport's RBAC Resources](https://goteleport.com/teleport/docs/enterprise/ssh-rbac/)
+Learn more about [Teleport's RBAC Resources](./docs/pages/access-controls/introduction.mdx)
 
 ##### Cluster Labels
 
-Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with Access Workflows, cluster access can easily be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](https://goteleport.com/teleport/docs/trustedclusters/#dynamic-join-tokens)
+Teleport 5.0 also adds the ability to set labels on Trusted Clusters. The labels are set when creating a trusted cluster invite token. This lets teams use the same RBAC controls used on nodes to approve or deny access to clusters. This can be especially useful for MSPs that connect hundreds of customers' clusters - when combined with Access Workflows, cluster access can easily be delegated. Learn more by reviewing our [Truster Cluster Setup & RBAC Docs](./docs/pages/management/admin/trustedclusters.mdx)
 
 Creating a trusted cluster join token for a production environment:
 
@@ -1418,7 +1418,8 @@ We've added an [API Reference](https://goteleport.com/docs/api-reference/) to si
 
 #### Upgrade Notes
 
-Please follow our [standard upgrade procedure](https://goteleport.com/teleport/docs/admin-guide/#upgrading-teleport).
+Please follow our [standard upgrade
+procedure](./docs/pages/management/admin/upgrading-the-teleport-binary.mdx).
 
 * Optional: Consider updating `https_key_file` & `https_cert_file` to our new `https_keypairs:` format.
 * Optional: Consider migrating Kubernetes Access from `proxy_service` to `kubernetes_service` after the upgrade.
