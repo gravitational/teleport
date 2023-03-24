@@ -3,7 +3,7 @@ authors: Trent Clarke (trent@goteleport.com)
 state: draft
 ---
 
-# RFD 0096 - Delivering secure Teleport OCI Images
+# RFD 0112 - Delivering secure Teleport OCI Images
 
 # Required Approvers
 * Engineering: @r0mant
@@ -43,9 +43,10 @@ For the sake of this RFD, I will define _delivering a secure image_ as
 
 Where
 
- * **reasonably known provenance** means that the software comes from either ourselves
-   or a known, reputable source.
- * **a timely fashion** for updates is as per the Teleport Vulnerability Management Policy:
+ * **reasonably known provenance** means that the software comes from
+   either ourselves or a known, reputable source.
+ * **a timely fashion** for updates is as per the Teleport Vulnerability 
+   Management Policy:
 
    | Severity | Resolution time |
    |----------|-----------------|
@@ -102,8 +103,8 @@ on that image expires (i.e. falls out of our 3-version support window)
 
 What is the minimal set of requirements to run Teleport on Linux in a container?
 
-Most Teleport dependencies are statically compiled into the `teleport` binary, giving us a 
-smaller set of runtime dependencies than you might imagine:
+Most Teleport dependencies are statically compiled into the `teleport` binary, 
+giving us a smaller set of runtime dependencies than you might imagine:
 
    1. Teleport
    2. C Runtime libraries (e.g. `GLIBC` >= 2.17, `libgcc`, etc)
@@ -146,18 +147,10 @@ validating the provenance of the base image itself.
 
 It is technically possible for the image to be poisoned post-validation (e.g.
 in a shared build environment, where a malicious peer could re-tag a malicious
-image as the base).
-
-While we _could_ verify that the validated base image appears in the parent 
-chain of the final image, this is still no protection against the malicious 
-image being based on the same parent. We could _also_ assert that the final 
-image's parent chain has an expeceted number of steps (inferred from the number
-of steps in the Docker file), but this is error-prone and would drastically 
-reduce the flexibility of the build system.
-
-For the above reasons, Teleport images for public consumption must not be 
-built in such a shared environment.
-
+image as the base). We can avoid this poisoning scenario because `cosign` returns
+the hash of an image after verifying its signature. If we only refer to the 
+base image by the returned hash once it has been verified, any tag poisoning
+attack will not be effective.
 ### Building the image for a Release
 
 The image will be built from a multi-stage docker file, using build stages to download
@@ -245,10 +238,23 @@ workflow. It also provides "keyless" signing via OIDC, meaning that our build
 process can use its GitHub identity to sign the image, obviating the need for
 extra keys for us to manage.
 
-More information keyless signing:
+After some experimentation it seems that the OIDC Keyless Signing doesn't work
+with our GitHub Organisation. For this reason, at least for the first iteration
+of image sigining, we will be using the keyed option. This also resolves any 
+question of how much using OIDC-based signing ties us to GitHub for identity.
+
+More information on image signing:
  * https://docs.sigstore.dev/cosign/sign/#keyless-signing
  * https://docs.google.com/document/d/1461lQUoVqbhCve7PuKNf-2_NfpjrzBG5tFohuMVTuK4/edit
  * https://www.appvia.io/blog/tutorial-keyless-sign-and-verify-your-container-images/#oidc-flow-with-interaction-free-with-github-actions
+
+The distroless images will be signed at creation time with an internal key,
+allowing us to ensure that any images we promote have not been tampered with
+between creation and promotion. Unfortunately, the image signature leaks the 
+registry and repository names used for the temporary image storage between build
+and promotion. For this reason, once candidate image's internal signature has 
+been verified, thie _internal_ signature will not be copied to the release 
+repository; it will be re-signed with a separate production key.
 
 ### Build-time scanning
 
@@ -258,8 +264,10 @@ SIEM can observe any alerts and instigate corrective action.
 
 ### Software Bill-of-Materials
 
-We can use `syft` to generate a SBOM and `cosign` to attach it to the resulting image. Any
-software components add to the image must be automatically discoverable by `syft` (for 
+We can use the Docker `buildx` tools to automatically generate and include a
+SBOM at build time. Internally, docker buildx uses the `syft` to generate a 
+SBOM and attach it to the resulting image. This means that any software 
+components added to the image must be automatically discoverable by `syft` (for 
 example, making sure the package control file is included in `/var/lib/dpkg/status.d` 
 for Debian packages).
 
@@ -275,7 +283,7 @@ graph TD
     third_party_debs[/Third party Debian packages<br/>from Debian package repository/]
     df[/Dockerfile from<br/>Teleport git repository/]
     base[/Distroless base image/]
-    candidate_image[/Candidate Telport image/]
+    candidate_image[/Candidate Telport image</br>with SBOM/]
     smoke_test[Smoke test to see if<br/>Teleport starts in container image]
     smoke_test_pass?{Smoke test<br/>passes?}
     push_internal[Push Candidate Image<br/>to private ECR]
@@ -284,12 +292,11 @@ graph TD
     upload_results[Upload scan results<br/>to GitHub Code Scanning]
 
     fail_build[Fail the build]
-    sign_image[Sign Candidate Image<br/>with Cosign]
+    sign_image[Sign Candidate Image<br/>with Internal key]
     promote_build[/Release engineer<br/>promotes build/]
-    promote_image[Candidate Image, Signature & SBOM<br/>copied to Public ECR]
+    promote_image[Candidate Image with SBOM<br/>copied to Public ECR]
     build_ok?{Does all go well<br/>with the rest of<br/>the build?}
-    sbom[Generate SBOM with syft]
-    attach_sbom[Attach SBOM to<br/>Candidate Image with cosign]
+    sign_build[Sign Candidate Image<br/>with Release key]
     
     pull_base --> signature_valid?
     signature_valid? -- yes --> base    
@@ -299,26 +306,22 @@ graph TD
     df --> build
     base --> build    
     build --> candidate_image
-
-    candidate_image --> smoke_test   
-    smoke_test --> smoke_test_pass?
-    smoke_test_pass? -- yes --> push_internal
-    smoke_test_pass? -- no --> fail_build
-    push_internal --> trivy_scan
-    push_internal --> sbom
-    trivy_scan --> upload_results 
+    candidate_image --> push_internal
     push_internal --> sign_image
-    sbom --> attach_sbom
+    sign_image --> trivy_scan
+    trivy_scan --> upload_results 
+    upload_results --> smoke_test
+    smoke_test --> smoke_test_pass?
+    smoke_test_pass? -- yes --> build_ok?
+    smoke_test_pass? -- no --> fail_build
+
     upload_results --> code_scanning_alerts[(GitHub Code<br/>Scanning alerts)]
     code_scanning_alerts --> panther[(Panther SIEM)]
-    
-    sign_image --> build_ok?
-    upload_results --> build_ok?
-    attach_sbom --> build_ok?
-    
-    promote_build --> promote_image
-    build_ok? -- yes --> promote_build
+        
     build_ok? -- no --> fail_build
+    build_ok? -- yes --> promote_build
+    promote_build --> promote_image
+    promote_image --> sign_build
 ```    
 
 ### Debug Images
@@ -368,10 +371,11 @@ Policy.
 
 ### Periodic rebuilding
 
-Our current process rebuilds the docker images once a day, using the same 
-sources and build artifacts used in the original published release. This is 
-to ensure that any updates to the underlying base image are quickly and automatically 
-integrated into the released image. 
+Our current process rebuilds the docker images for the latest release of in a 
+major version series once a day, using the same sources and build artifacts used
+in the original published release. This is to ensure that any updates to the 
+underlying base image are quickly and automatically integrated into the released
+image. 
 
 We should continue rebuilding these images daily, but incorporate the same 
 supply chain checks as with the release builds described above (e.g. verifying
