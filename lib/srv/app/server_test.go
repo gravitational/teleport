@@ -406,46 +406,22 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo, err := types.NewAppV3(types.Metadata{
-		Name:   "foo",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:                s.testhttp.URL,
-		PublicAddr:         "foo.example.com",
-		InsecureSkipVerify: true,
-		DynamicLabels: map[string]types.CommandLabelV2{
-			dynamicLabelName: {
-				Period:  dynamicLabelPeriod,
-				Command: dynamicLabelCommand,
-				Result:  "4",
-			},
+	appFoo := s.appServer.apps["foo"].(*types.AppV3)
+	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
+		dynamicLabelName: &types.CommandLabelV2{
+			Period:  dynamicLabelPeriod,
+			Command: dynamicLabelCommand,
+			Result:  "4",
 		},
 	})
 	require.NoError(t, err)
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
 	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
-		Name:   "awsconsole",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "aws.example.com",
-	})
+	appAWS := s.appServer.apps["awsconsole"].(*types.AppV3)
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
-	oktaLabels := map[string]string{}
-	for k, v := range staticLabels {
-		oktaLabels[k] = v
-	}
-	oktaLabels[types.OriginLabel] = types.OriginOkta
-	appOkta, err := types.NewAppV3(types.Metadata{
-		Name:   "okta",
-		Labels: oktaLabels,
-	}, types.AppSpecV3{
-		URI:        oktaAppURL,
-		PublicAddr: "okta.example.com",
-	})
+	appOkta := s.appServer.apps["okta"].(*types.AppV3)
 	require.NoError(t, err)
 	serverOkta, err := types.NewAppServerV3FromApp(appOkta, "test", s.hostUUID)
 	require.NoError(t, err)
