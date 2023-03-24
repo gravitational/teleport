@@ -91,11 +91,16 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	exists := !trace.IsNotFound(err)
 
-	newOwnershipCondition, isOwned := checkOwnership(existingResource)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
-	if !isOwned {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
+	if exists {
+		newOwnershipCondition, isOwned := checkOwnership(existingResource)
+		meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
+		if !isOwned {
+			silentUpdateStatus(ctx, r.Client, k8sResource)
+			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
+		}
+	} else {
+		// The resource does not yet exist
+		meta.SetStatusCondition(&k8sResource.Status.Conditions, newResourceCondition)
 	}
 
 	r.addTeleportResourceOrigin(teleportResource)
