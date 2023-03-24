@@ -5584,6 +5584,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				ResourceName: tt.resourceName,
 				SSHPrincipal: tt.nodeUser,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
+				// A value too low (eg 1s) will introduce test flakiness on some systems.
 				DialTimeout: 5 * time.Second,
 			})
 			require.NoError(t, err)
@@ -5655,7 +5656,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		ResourceName: nodeName,
 		SSHPrincipal: osUsername,
 		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-		DialTimeout: time.Second,
+		DialTimeout: 5 * time.Second,
 		MFAResponse: client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
