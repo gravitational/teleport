@@ -29,6 +29,9 @@ import (
 type OktaImportRule interface {
 	ResourceWithLabels
 
+	// GetPriority will return the priority of the Okta import rule.
+	GetPriority() int32
+
 	// GetMappings will return the list of mappings for the Okta import rule.
 	GetMappings() []OktaImportRuleMapping
 }
@@ -47,6 +50,7 @@ func NewOktaImportRule(metadata Metadata, spec OktaImportRuleSpecV1) (OktaImport
 	return o, nil
 }
 
+// GetPriority will return the priority of the Okta import rule.
 func (o *OktaImportRuleV1) GetPriority() int32 {
 	return o.Spec.Priority
 }

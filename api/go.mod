@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/coreos/go-semver v0.3.1
-	github.com/crewjam/saml v0.4.12
+	github.com/crewjam/saml v0.4.13
 	github.com/go-piv/piv-go v1.11.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.5.9
