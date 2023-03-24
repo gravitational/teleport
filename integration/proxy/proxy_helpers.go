@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -477,6 +478,17 @@ func mustCreateListener(t *testing.T) net.Listener {
 	return listener
 }
 
+func mustCreateKubeLocalProxyListener(t *testing.T, teleportCluster string, caCert, caKey []byte) net.Listener {
+	ca, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+
+	listener, err := alpnproxy.NewKubeListener(map[string]tls.Certificate{
+		teleportCluster: ca,
+	})
+	require.NoError(t, err)
+	return listener
+}
+
 func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
 	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
@@ -500,10 +512,36 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	})
 
 	go func() {
-		err := lp.Start(context.Background())
+		var err error
+		if config.HTTPMiddleware == nil {
+			err = lp.Start(context.Background())
+		} else {
+			err = lp.StartHTTPAccessProxy(context.Background())
+		}
 		require.NoError(t, err)
 	}()
 	return lp
+}
+
+func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardProxy {
+	fp, err := alpnproxy.NewKubeForwardProxy(context.Background(), "", lpAddr)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		fp.Close()
+	})
+
+	go func() {
+		require.NoError(t, fp.Start())
+	}()
+	return fp
+}
+
+func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeCluster string, userCert, userKey []byte) alpnproxy.LocalProxyHTTPMiddleware {
+	cert, err := tls.X509KeyPair(userCert, userKey)
+	require.NoError(t, err)
+	certs := make(alpnproxy.KubeClientCerts)
+	certs.Add(teleportCluster, kubeCluster, cert)
+	return alpnproxy.NewKubeMiddleware(certs)
 }
 
 func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
@@ -596,4 +634,10 @@ func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server
 		time.Second,
 		"Peer proxy connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
+}
+
+func mustParseURL(t *testing.T, rawURL string) *url.URL {
+	url, err := url.Parse(rawURL)
+	require.NoError(t, err)
+	return url
 }

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -336,7 +339,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 		withStandardRoleMapping(),
 	)
 
-	k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
+	k8Client, k8ClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
 		T:                   suite.root,
 		Username:            kubeRoleSpec.Allow.Logins[0],
 		PinnedIP:            "127.0.0.1",
@@ -350,6 +353,53 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+
+	// Simulate how tsh uses a kube local proxy to send kube requests to
+	// Teleport Proxy with a L7 LB in front.
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		teleportCluster := suite.root.Config.Auth.ClusterName.GetClusterName()
+		kubeCluster := "gke_project_europecentral2a_cluster1"
+
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+
+		// Generate a self-signed CA for kube local proxy.
+		localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+			CommonName: "localhost",
+		}, []string{alpncommon.KubeLocalProxyWildcardDomain(teleportCluster)}, defaults.CATTL)
+		require.NoError(t, err)
+
+		// Create the kube local proxy.
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			Listener:                mustCreateKubeLocalProxyListener(t, teleportCluster, localCACert, localCAKey),
+			RemoteProxyAddr:         albProxy.Addr().String(),
+			ALPNConnUpgradeRequired: true,
+			InsecureSkipVerify:      true,
+			SNI:                     localK8SNI,
+			HTTPMiddleware:          mustCreateKubeLocalProxyMiddleware(t, teleportCluster, kubeCluster, k8ClientConfig.CertData, k8ClientConfig.KeyData),
+			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+		})
+		require.NoError(t, err)
+
+		// Create a proxy-url for kube clients.
+		fp := mustStartKubeForwardProxy(t, lp.GetAddr())
+
+		k8Client, err := kubernetes.NewForConfig(&rest.Config{
+			Host:  "https://" + teleportCluster,
+			Proxy: http.ProxyURL(mustParseURL(t, "http://"+fp.GetAddr())),
+			TLSClientConfig: rest.TLSClientConfig{
+				CAData:     localCACert, // Client uses same cert as local proxy server.
+				CertData:   localCACert,
+				KeyData:    localCAKey,
+				ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+			},
+		})
+		require.NoError(t, err)
+		resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	})
 }
 
 // TestALPNSNIProxyKubeV2Leaf tests remove cluster kubernetes configuration where root and leaf proxies
