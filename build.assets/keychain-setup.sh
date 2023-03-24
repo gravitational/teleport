@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 #
 # keychain-setup.sh creates a MacOS keychain for application binary signing
 # and for installer package signing. Each use separate keys that need to
@@ -14,18 +14,20 @@
 #
 #-----------------------------------------------------------------------------
 usage() {
-	printf 'Usage: %s {<options>...}\n' "${0##*/}"
-	printf 'Available options:\n'
-	printf '  -a <envvar>    take base64-encoded application key from <envvar>\n'
-	printf '  -a @<file>     take application key from <file>\n'
-	printf '  -A <envvar>    take password for application key from <envvar>\n'
-	printf '  -i <envvar>    take base64-encoded installation key from <envvar>\n'
-	printf '  -i @<file>     take installation key from <file>\n'
-	printf '  -I <envvar>    take password for installation key from <envvar>\n'
-	printf '  -k <keychain>  create <keychain>.keychain (default "build")\n'
-	printf '  -p <password>  use <password> on keychain (default "insecure")\n'
-	printf '  -v             verbose. Print commands before running them\n'
-	printf '  -n             dry run. Do not run commands, just print them\n'
+	cat <<EOF
+Usage: ${0##*/} {<options>...}
+Available options:
+  -a <envvar>    take base64-encoded application key from <envvar>
+  -a @<file>     take application key from <file>
+  -A <envvar>    take password for application key from <envvar>
+  -i <envvar>    take base64-encoded installation key from <envvar>
+  -i @<file>     take installation key from <file>
+  -I <envvar>    take password for installation key from <envvar>
+  -k <keychain>  create <keychain>.keychain (default "build")
+  -p <password>  use <password> on keychain (default "insecure")
+  -v             verbose. Print commands before running them
+  -n             dry run. Do not run commands, just print them
+EOF
 }
 
 #-----------------------------------------------------------------------------
@@ -59,12 +61,13 @@ main() {
 # Create a keychain ($1) with a password ($2) and put it on the user keychain
 # search path.
 create_keychain() {
-	local keychain="$1" password="$2" kpath
+	local keychain="$1" password="$2"
 	run security create-keychain -p "${password}" "${keychain}"
 	run security unlock-keychain -p "${password}" "${keychain}"
 	run security set-keychain-settings "${keychain}" # keep keychain unlocked
 
 	# Add the new keychain to the search path, otherwise codesign does not find the keys
+	local kpath
 	kpath="$(security list-keychains -d user | sed 's/.*"\([^"]*\)"/\1/')"
 	# shellcheck disable=SC2086 # Double quote to prevent globbing and word splitting.
 	# We want word splitting on ${kpath}
