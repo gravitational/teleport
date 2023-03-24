@@ -396,6 +396,10 @@ func GetResourceMarshalerKinds() []string {
 }
 
 // RegisterResourceMarshaler registers a marshaler for resources of a specific kind.
+// WARNING!!
+// Registering a resource Marshaler requires lib/services/local.CreateResources
+// supports the resource kind or the standard backup/restore procedure of using
+// `tctl get all` and then BootstrapResources in Teleport will fail.
 func RegisterResourceMarshaler(kind string, marshaler ResourceMarshaler) {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()

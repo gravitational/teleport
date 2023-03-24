@@ -127,6 +127,42 @@ func TestValidateDatabase(t *testing.T) {
 			expectError: true,
 		},
 		{
+			inputName: "invalid-database-assume-role-arn",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
+				AWS: types.AWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "foobar",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-assume-role-arn-resource-type",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
+				AWS: types.AWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:sts::123456789012:federated-user/Alice",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-assume-role-arn-account-id-mismatch",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
+				AWS: types.AWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::111222333444:federated-user/Alice",
+				},
+			},
+			expectError: true,
+		},
+		{
 			inputName: "invalid-database-CA-cert",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolPostgres,

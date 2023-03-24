@@ -12,7 +12,7 @@ inputs:
   attempts:
     description: Number of runs
     required: false
-    default: 30
+    default: 100
 
   bin:
     description: difftest binary location
@@ -23,7 +23,7 @@ inputs:
     description: difftest path
     required: false
     default: ${GITHUB_WORKSPACE}
-        
+
 runs:
   using: "composite"
   steps:
@@ -36,7 +36,7 @@ runs:
       shell: bash
       run: |
         ${{ inputs.bin }} diff --path ${{ inputs.path }} --branch remotes/origin/${GITHUB_BASE_REF} ${{ inputs.flags }}
-        echo "subject=$(${{ inputs.bin }} test --path ${{ inputs.path }} --branch remotes/origin/${GITHUB_BASE_REF} ${{ inputs.flags }} -u -d)" > $GITHUB_OUTPUT
+        echo "subject=$(${{ inputs.bin }} test --path ${{ inputs.path }} --branch remotes/origin/${GITHUB_BASE_REF} ${{ inputs.flags }} -d)" > $GITHUB_OUTPUT
 
     - name: Run
       shell: bash
