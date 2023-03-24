@@ -189,13 +189,11 @@ These steps will need to be repeated if Teleport's user certificate authority is
 </Admonition>
 
 
-1. Get the Teleport user CA certificate by running:
+Get the Teleport user CA certificate by running the following in the Windows machine where you can manage your group policy.
 
 ```code
-$ tctl auth export --type=windows > user-ca.cer
+$ curl https://teleport.example.com/webapi/auth/export?type=windows > user-ca.cer
 ```
-
-2. Transfer the `user-ca.cer` file to a Windows machine where you can manage your group policy.
 
 <Admonition type="note" title="Take note of the location">
   Take note of the path to the `user-ca.cer` file, as you will need this in the next step.

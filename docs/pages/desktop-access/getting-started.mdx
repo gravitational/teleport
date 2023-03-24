@@ -47,13 +47,11 @@ to your Windows system, and prepare it for passwordless access through Teleport.
 
 ### Import the Teleport root certificate
 
-Use `tctl` to export the Teleport user certificate authority:
+Export the Teleport user certificate authority by running the following from your Windows system:
 
 ```code
-$ tctl auth export --type=windows > teleport.cer
+curl 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows' > teleport.cer
 ```
-
-Copy this certificate to your Windows system, if you didn't run `tctl` from there.
 
 ### Install the Teleport service for Windows
 
