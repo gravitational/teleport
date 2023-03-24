@@ -192,7 +192,7 @@ These steps will need to be repeated if Teleport's user certificate authority is
 Get the Teleport user CA certificate by running the following in the Windows machine where you can manage your group policy.
 
 ```code
-$ curl https://teleport.example.com/webapi/auth/export?type=windows > user-ca.cer
+$ curl 'https://teleport.example.com/webapi/auth/export?type=windows' > user-ca.cer
 ```
 
 <Admonition type="note" title="Take note of the location">
