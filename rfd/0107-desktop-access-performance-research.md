@@ -269,7 +269,7 @@ Meanwhile, IronRDP's default setup looks like this when built for a native targe
 +----------------------+                           +------------------+
 |                      |                           |                  |
 |  (IronRDP)           |                           |                  |
-|  User's Web Browser  -----------------------------  Windows Desktop |
+|  User's Workstation  -----------------------------  Windows Desktop |
 |                      |                           |                  |
 +----------------------+                           +------------------+
 ```
