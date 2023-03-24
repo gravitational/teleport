@@ -94,8 +94,8 @@ type FileConfig struct {
 	// Okta is the "okta_service" section in the Teleport configuration file
 	Okta Okta `yaml:"okta_service,omitempty"`
 
-	// PluginService is the section of the config for configuring the plugin service.
-	PluginService PluginService `yaml:"plugin_service,omitempty"`
+	// Plugins is the section of the config for configuring the plugin service.
+	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML

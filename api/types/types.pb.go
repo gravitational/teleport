@@ -12916,7 +12916,7 @@ func (m *PluginSlackAccessSettings) XXX_DiscardUnknown() {
 var xxx_messageInfo_PluginSlackAccessSettings proto.InternalMessageInfo
 
 type PluginOpsgenieAccessSettings struct {
-	// Address of Opsgenie
+	// Addr is the address of Opsgenie API.
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	// Priority to create Opsgenie alerts with
 	Priority string `protobuf:"bytes,2,opt,name=priority,proto3" json:"priority,omitempty"`
