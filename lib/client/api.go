@@ -911,9 +911,11 @@ func (c *Config) ProxySpecified() bool {
 	return c.WebProxyAddr != ""
 }
 
-// DefaultResourceFilter returns the default list resource request.
-func (c *Config) DefaultResourceFilter() *proto.ListResourcesRequest {
+// ResourceFilter returns the default list resource request for the
+// provided resource kind.
+func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	return &proto.ListResourcesRequest{
+		ResourceType:        kind,
 		Namespace:           c.Namespace,
 		Labels:              c.Labels,
 		SearchKeywords:      c.SearchKeywords,
@@ -1185,7 +1187,7 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListResourcesClient, options SSHOptions) ([]string, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.GetResourcesClient, options SSHOptions) ([]string, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
@@ -1211,15 +1213,13 @@ func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListRes
 	}
 
 	// find the nodes matching the labels that were provided
-	filter := tc.DefaultResourceFilter()
-	filter.ResourceType = types.KindNode
-	resources, err := client.GetResourcesWithFilters(ctx, clt, *filter)
+	nodes, err := client.GetAllResources[types.Server](ctx, clt, tc.ResourceFilter(types.KindNode))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	retval := make([]string, 0, len(resources))
-	for _, resource := range resources {
+	retval := make([]string, 0, len(nodes))
+	for _, resource := range nodes {
 		// always dial nodes by UUID
 		retval = append(retval, fmt.Sprintf("%s:0", resource.GetName()))
 	}
@@ -2200,9 +2200,7 @@ func isRemoteDest(name string) bool {
 // ListNodesWithFilters returns all nodes that match the filters in the current cluster
 // that the logged in user has access to.
 func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Server, error) {
-	req := tc.DefaultResourceFilter()
-	req.ResourceType = types.KindNode
-
+	req := tc.ResourceFilter(types.KindNode)
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListNodesWithFilters",
@@ -2222,12 +2220,7 @@ func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Ser
 	}
 	defer clt.Close()
 
-	resources, err := client.GetResourcesWithFilters(ctx, clt.AuthClient, *req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, req)
 	return servers, trace.Wrap(err)
 }
 
@@ -2263,7 +2256,7 @@ func (tc *TeleportClient) ListNodesWithFiltersAllClusters(ctx context.Context) (
 	}
 	servers := make(map[string][]types.Server, len(clusters))
 	for _, cluster := range clusters {
-		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, *tc.DefaultResourceFilter(), cluster.Name)
+		s, err := proxyClient.FindNodesByFiltersForCluster(ctx, tc.ResourceFilter(types.KindNode), cluster.Name)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2289,7 +2282,7 @@ func (tc *TeleportClient) ListAppServersWithFilters(ctx context.Context, customF
 
 	filter := customFilter
 	if filter == nil {
-		filter = tc.DefaultResourceFilter()
+		filter = tc.ResourceFilter(types.KindAppServer)
 	}
 
 	servers, err := proxyClient.FindAppServersByFilters(ctx, *filter)
@@ -2310,7 +2303,7 @@ func (tc *TeleportClient) listAppServersWithFiltersAllClusters(ctx context.Conte
 
 	filter := customFilter
 	if customFilter == nil {
-		filter = tc.DefaultResourceFilter()
+		filter = tc.ResourceFilter(types.KindAppServer)
 	}
 
 	clusters, err := proxyClient.GetSites(ctx)
@@ -2436,7 +2429,7 @@ func (tc *TeleportClient) ListDatabaseServersWithFilters(ctx context.Context, cu
 
 	filter := customFilter
 	if filter == nil {
-		filter = tc.DefaultResourceFilter()
+		filter = tc.ResourceFilter(types.KindDatabaseServer)
 	}
 
 	servers, err := proxyClient.FindDatabaseServersByFilters(ctx, *filter)
@@ -2457,7 +2450,7 @@ func (tc *TeleportClient) listDatabaseServersWithFiltersAllClusters(ctx context.
 
 	filter := customFilter
 	if customFilter == nil {
-		filter = tc.DefaultResourceFilter()
+		filter = tc.ResourceFilter(types.KindDatabaseServer)
 	}
 
 	clusters, err := proxyClient.GetSites(ctx)
@@ -2534,15 +2527,10 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	}
 	defer clt.Close()
 
-	resources, err := client.GetResourcesWithFilters(ctx, clt.AuthClient, proto.ListResourcesRequest{
+	servers, err := client.GetAllResources[types.Server](ctx, clt.AuthClient, &proto.ListResourcesRequest{
 		Namespace:    tc.Namespace,
 		ResourceType: types.KindNode,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsServers()
 	return servers, trace.Wrap(err)
 }
 
