@@ -707,7 +707,6 @@ func TestServer_Authenticate_headless(t *testing.T) {
 
 	ctx := context.Background()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
-	const timeout = time.Millisecond * 200
 
 	type updateHeadlessAuthnFn func(*types.HeadlessAuthentication, *types.MFADevice)
 	updateHeadlessAuthnInGoroutine := func(ctx context.Context, srv *TestTLSServer, mfa *types.MFADevice, update updateHeadlessAuthnFn) chan error {
@@ -784,7 +783,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			mfa := configureForMFA(t, srv)
 			username := mfa.User
 
-			// Fail a login attempt so have a non-empty list of attempts.
+			// Fail a login attempt so we have a non-empty list of attempts.
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					Username:  username,
@@ -793,16 +792,12 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				},
 				TTL: 24 * time.Hour,
 			})
-			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied")
+			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied", err)
 			attempts, err := srv.Auth().GetUserLoginAttempts(username)
 			require.NoError(t, err)
 			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
 
-			t.Cleanup(func() {
-				srv.Auth().DeleteHeadlessAuthentication(ctx, headlessID)
-			})
-
-			ctx, cancel := context.WithTimeout(ctx, timeout)
+			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			defer cancel()
 
 			errC := updateHeadlessAuthnInGoroutine(ctx, srv, mfa.WebDev.MFA, tc.update)
@@ -821,6 +816,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				TTL: defaults.CallbackTimeout,
 			})
 			require.NoError(t, <-errC)
+
 			if tc.expectErr {
 				require.Error(t, err)
 				// Verify login attempts unchanged. This is a proxy for various other user
