@@ -88,6 +88,10 @@ type Suite struct {
 	awsConsoleCertificate tls.Certificate
 	oktaCertificate       tls.Certificate
 
+	appFoo  *types.AppV3
+	appAWS  *types.AppV3
+	appOkta *types.AppV3
+
 	user       types.User
 	role       types.Role
 	serverPort string
@@ -257,7 +261,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	appFoo, err := types.NewAppV3(types.Metadata{
+	s.appFoo, err = types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
@@ -267,7 +271,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		DynamicLabels:      types.LabelsToV2(dynamicLabels),
 	})
 	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
+	s.appAWS, err = types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
@@ -280,7 +284,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		oktaLabels[k] = v
 	}
 	oktaLabels[types.OriginLabel] = types.OriginOkta
-	appOkta, err := types.NewAppV3(types.Metadata{
+	s.appOkta, err = types.NewAppV3(types.Metadata{
 		Name:   "okta",
 		Labels: oktaLabels,
 	}, types.AppSpecV3{
@@ -330,7 +334,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{appFoo, appAWS, appOkta}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appOkta.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -406,11 +410,9 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	s.appServer.mu.Lock()
-	appFoo := s.appServer.apps["foo"].Copy()
-	appAWS := s.appServer.apps["awsconsole"].Copy()
-	appOkta := s.appServer.apps["okta"].Copy()
-	s.appServer.mu.Unlock()
+	appFoo := s.appFoo.Copy()
+	appAWS := s.appAWS.Copy()
+	appOkta := s.appOkta.Copy()
 
 	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
 		dynamicLabelName: &types.CommandLabelV2{
