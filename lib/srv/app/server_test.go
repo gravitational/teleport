@@ -406,7 +406,12 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo := s.appServer.apps["foo"].(*types.AppV3)
+	s.appServer.mu.Lock()
+	appFoo := s.appServer.apps["foo"].Copy()
+	appAWS := s.appServer.apps["awsconsole"].Copy()
+	appOkta := s.appServer.apps["okta"].Copy()
+	s.appServer.mu.Unlock()
+
 	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
 		dynamicLabelName: &types.CommandLabelV2{
 			Period:  dynamicLabelPeriod,
@@ -414,14 +419,10 @@ func TestStart(t *testing.T) {
 			Result:  "4",
 		},
 	})
-	require.NoError(t, err)
+
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
 	require.NoError(t, err)
-	appAWS := s.appServer.apps["awsconsole"].(*types.AppV3)
-	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
-	require.NoError(t, err)
-	appOkta := s.appServer.apps["okta"].(*types.AppV3)
 	require.NoError(t, err)
 	serverOkta, err := types.NewAppServerV3FromApp(appOkta, "test", s.hostUUID)
 	require.NoError(t, err)
