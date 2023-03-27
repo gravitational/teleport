@@ -133,7 +133,7 @@ proxy_service:
         enabled: yes
 
     # Configuration options for the Web UI served by the Proxy Service.
-    ui_config:
+    ui:
       # The amount of scrollback in the terminal. Scrollback is the amount of
       # rows that are retained when lines are scrolled beyond the initial
       # viewport. Does not apply to session recording view.
