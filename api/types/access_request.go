@@ -23,6 +23,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
@@ -103,6 +104,8 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// Copy returns a copy of the access request resource.
+	Copy() AccessRequest
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -410,6 +413,11 @@ func (r *AccessRequestV3) GetDryRun() bool {
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
+}
+
+// Copy returns a copy of the access request resource.
+func (r *AccessRequestV3) Copy() AccessRequest {
+	return proto.Clone(r).(*AccessRequestV3)
 }
 
 // GetLabel retrieves the label with the provided key. If not found
