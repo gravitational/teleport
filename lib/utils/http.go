@@ -99,6 +99,14 @@ func RenameHeader(header http.Header, oldKey, newKey string) {
 	header.Del(oldKey)
 }
 
+// IsRedirect returns true if the status code is a 3xx code.
+func IsRedirect(code int) bool {
+	if code >= http.StatusMultipleChoices && code <= http.StatusPermanentRedirect {
+		return true
+	}
+	return false
+}
+
 // GetAnyHeader returns the first non-empty value by the provided keys.
 func GetAnyHeader(header http.Header, keys ...string) string {
 	for _, key := range keys {

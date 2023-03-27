@@ -36,6 +36,13 @@ Machine ID will issue short-lived credentials based on GitLab CI's workload
 identity, making it possible to use Teleport to access resource in CI/CD
 workflows without any long-lived secrets or join tokens.
 
+#### (Preview) Headless SSO
+
+Teleport will introduce a new `tsh --headless` mode to allow authentication
+of SSH commands on a remote machine when webauthn is enabled.
+Currently, only `tsh ls`, `tsh ssh`and `tsh scp` are supported.
+Support for more commands will come in a later release.
+
 | Version | Date            |
 |---------|-----------------|
 | 12.2.0  | April 3rd, 2023 |

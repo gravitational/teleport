@@ -2175,7 +2175,11 @@ func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
 	}
 
 	// If input database user is the short role name, try the full ARN.
-	return []string{awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)}
+	roleARN, err := awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)
+	if err != nil {
+		return nil
+	}
+	return []string{roleARN}
 }
 
 // DatabaseNameMatcher matches a role against database name.

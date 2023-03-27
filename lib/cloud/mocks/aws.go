@@ -243,11 +243,11 @@ func (m *IAMMock) GetRolePolicyWithContext(ctx aws.Context, input *iam.GetRolePo
 	defer m.mu.RUnlock()
 	policy, ok := m.attachedRolePolicies[*input.RoleName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("role policy %v not found", *input.RoleName)
 	}
 	policyDocument, ok := policy[*input.PolicyName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("role %v policy name %v not found", *input.RoleName, *input.PolicyName)
 	}
 	return &iam.GetRolePolicyOutput{
 		PolicyDocument: &policyDocument,
@@ -283,11 +283,11 @@ func (m *IAMMock) GetUserPolicyWithContext(ctx aws.Context, input *iam.GetUserPo
 	defer m.mu.RUnlock()
 	policy, ok := m.attachedUserPolicies[*input.UserName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("user policy %v not found", *input.UserName)
 	}
 	policyDocument, ok := policy[*input.PolicyName]
 	if !ok {
-		return nil, trace.NotFound("policy not found")
+		return nil, trace.NotFound("user %v policy name %v not found", *input.UserName, *input.PolicyName)
 	}
 	return &iam.GetUserPolicyOutput{
 		PolicyDocument: &policyDocument,

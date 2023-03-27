@@ -35,6 +35,7 @@ type PluginsService struct {
 	backend backend.Backend
 }
 
+// NewPluginsService constructs a new PluginsService
 func NewPluginsService(backend backend.Backend) *PluginsService {
 	return &PluginsService{backend: backend}
 }

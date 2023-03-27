@@ -29,10 +29,6 @@ Previous versions of Teleport can implement Windows Access by integrating with
 an [Active Directory domain](./active-directory.mdx).
 </Details>
 
-<Admonition type="warning">
-Passwordless access for local users is not yet compatible with Windows Server 2022.
-</Admonition>
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -62,7 +58,7 @@ Copy this certificate to your Windows system, if you didn't run `tctl` from ther
 ### Install the Teleport service for Windows
 
 From the Windows system, download the [Teleport Windows Auth
-Setup](https://github.com/gravitational/teleport/releases/tag/v12.0.0-passwordless-windows).
+Setup](https://github.com/gravitational/teleport/releases/tag/v12.1.1-passwordless-windows).
 Extract the `.exe` file from the archive and run it. When prompted, select the
 Teleport certificate file from the previous step. Once complete, reboot the system.
 
