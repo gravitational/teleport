@@ -20,6 +20,7 @@ import (
 	"flag"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/docker/distribution/reference"
@@ -69,7 +70,7 @@ func main() {
 	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Hour, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification.")
 	flag.BoolVar(&disableLeaderElection, "disable-leader-election", false, "Disable leader election, used to run the kube-agent-updater out of Kubernetes.")
-	flag.StringVar(&versionServer, "version-server", "https://update.gravitational.io/v1/", "URL of the HTTP server advertising target version and critical maintenances.")
+	flag.StringVar(&versionServer, "version-server", "https://update.gravitational.io/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "cloud/stable", "Version channel to get updates from.")
 	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
 
@@ -113,14 +114,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	versionServerUrl, err := url.Parse(versionServer + "/" + versionChannel)
+	versionServerURL, err := url.Parse(strings.TrimRight(versionServer, "/") + "/" + versionChannel)
 	if err != nil {
 		ctrl.Log.Error(err, "failed to pasre version server URL, exiting")
 		os.Exit(1)
 	}
-	versionGetter := version.NewBasicHTTPVersionGetter(versionServerUrl)
+	versionGetter := version.NewBasicHTTPVersionGetter(versionServerURL)
 	maintenanceTriggers := maintenance.Triggers{
-		maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerUrl),
+		maintenance.NewBasicHTTPMaintenanceTrigger("critical update", versionServerURL),
 		maintenance.NewUnhealthyWorkloadTrigger("unhealthy pods", mgr.GetClient()),
 		maintenance.NewWindowTrigger("maintenance window", mgr.GetClient()),
 	}

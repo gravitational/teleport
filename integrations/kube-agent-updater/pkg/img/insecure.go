@@ -1,3 +1,19 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package img
 
 import (
@@ -25,8 +41,9 @@ func (v *insecureValidator) Name() string {
 // we might get called in a loop indefinitely. To mitigate the impact of such
 // failure, ValidateAndResolveDigest should cache its result.
 
-// ValidateAndResolveDigest resolves the image digest and validates it was
-// signed with cosign using a trusted static key.
+// ValidateAndResolveDigest resolves the image digest and always return the
+// image is valid. Using this validator makes you vulnerable in case of image
+// registry compromise.
 func (v *insecureValidator) ValidateAndResolveDigest(ctx context.Context, image reference.NamedTagged) (NamedTaggedDigested, error) {
 	ref, err := NamedTaggedToDigest(image)
 	if err != nil {
