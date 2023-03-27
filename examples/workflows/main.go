@@ -14,10 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Example Allow List based access plugin.
-//
+
 // This plugin automatically approves access requests based on the approver's role.
-// Once the role has a defined review_requests, those roles will be auto-approved.
+// It is required to have a teleport user and role with review_requests defined
+// Any request submitted for role listed under the review_requests will be auto-approved.
 
 package main
 
@@ -43,8 +43,6 @@ type config struct {
 	// IdentityFile is used to authenticate a connection to the Teleport
 	// Auth server and authorize client requests.
 	IdentityFile string `toml:"identity_file"`
-	// AllowList is a list of users to automatically approve access requests for.
-	AllowList []string `toml:"allow_list"`
 }
 
 func loadConfig(filepath string) (*config, error) {
