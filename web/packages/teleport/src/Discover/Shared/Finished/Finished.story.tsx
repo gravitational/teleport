@@ -16,8 +16,6 @@
 
 import React from 'react';
 
-import { ResourceKind } from 'teleport/Discover/Shared';
-
 import { Finished as Component } from './Finished';
 
 import type { AgentStepProps } from '../../types';
@@ -32,5 +30,4 @@ const props: AgentStepProps = {
   agentMeta: { resourceName: 'some-resource-name' } as any,
   updateAgentMeta: () => null,
   nextStep: () => null,
-  selectedResourceKind: ResourceKind.Server,
 };
