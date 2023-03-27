@@ -70,6 +70,8 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
+  plugins: Access;
+  deviceTrust: Access;
 }
 
 export interface User {

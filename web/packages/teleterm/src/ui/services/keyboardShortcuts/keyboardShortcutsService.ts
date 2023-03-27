@@ -20,6 +20,7 @@ import {
   ConfigService,
 } from 'teleterm/services/config';
 
+import { getKeyName } from './getKeyName';
 import {
   KeyboardShortcutEvent,
   KeyboardShortcutEventSubscriber,
@@ -29,8 +30,13 @@ export class KeyboardShortcutsService {
   private eventsSubscribers = new Set<KeyboardShortcutEventSubscriber>();
   private readonly acceleratorsToActions = new Map<
     string,
-    KeyboardShortcutAction
+    KeyboardShortcutAction[]
   >();
+  /**
+   * Modifier keys must be defined in the following order:
+   * Control-Option-Shift-Command for macOS
+   * Ctrl-Alt-Shift for other platforms
+   */
   private readonly shortcutsConfig: Record<KeyboardShortcutAction, string>;
 
   constructor(
@@ -51,7 +57,7 @@ export class KeyboardShortcutsService {
       previousTab: this.configService.get('keymap.previousTab').value,
       nextTab: this.configService.get('keymap.nextTab').value,
       newTab: this.configService.get('keymap.newTab').value,
-      openQuickInput: this.configService.get('keymap.openQuickInput').value,
+      openCommandBar: this.configService.get('keymap.openCommandBar').value,
       openConnections: this.configService.get('keymap.openConnections').value,
       openClusters: this.configService.get('keymap.openClusters').value,
       openProfiles: this.configService.get('keymap.openProfiles').value,
@@ -70,6 +76,22 @@ export class KeyboardShortcutsService {
 
   getShortcutsConfig() {
     return this.shortcutsConfig;
+  }
+
+  /**
+   * Some actions can get assigned the same accelerators.
+   * This method returns them.
+   */
+  getDuplicateAccelerators(): Record<string, KeyboardShortcutAction[]> {
+    return Array.from(this.acceleratorsToActions.entries())
+      .filter(([, shortcuts]) => shortcuts.length > 1)
+      .reduce<Record<string, KeyboardShortcutAction[]>>(
+        (accumulator, [accelerator, actions]) => {
+          accumulator[accelerator] = actions;
+          return accumulator;
+        },
+        {}
+      );
   }
 
   private attachKeydownHandler(): void {
@@ -92,24 +114,40 @@ export class KeyboardShortcutsService {
   private getShortcutAction(
     event: KeyboardEvent
   ): KeyboardShortcutAction | undefined {
-    const getEventKey = () =>
-      event.key.length === 1 ? event.key.toUpperCase() : event.key;
-
-    const accelerator = [...this.getPlatformModifierKeys(event), getEventKey()]
+    // If only a modifier is pressed, `code` is this modifier name
+    // (in case of a combination like "Cmd+A", `code` is "A").
+    // We do not support modifier-only accelerators, so we can skip the further checks.
+    if (
+      event.code.includes('Shift') ||
+      event.code.includes('Meta') ||
+      event.code.includes('Alt') ||
+      event.code.includes('Control')
+    ) {
+      return;
+    }
+    const accelerator = [
+      ...this.getPlatformModifierKeys(event),
+      getKeyName(event),
+    ]
       .filter(Boolean)
       .join('+');
 
-    return this.acceleratorsToActions.get(accelerator);
+    // always return the first action (in case of duplicate accelerators)
+    return this.acceleratorsToActions.get(accelerator)?.[0];
   }
 
+  /**
+   * It is important that these modifiers are in the same order as in `getKeyboardShortcutSchema#getSupportedModifiers`.
+   * Consider creating "one source of truth" for them.
+   */
   private getPlatformModifierKeys(event: KeyboardEvent): string[] {
     switch (this.platform) {
       case 'darwin':
         return [
-          event.metaKey && 'Command',
           event.ctrlKey && 'Control',
           event.altKey && 'Option',
           event.shiftKey && 'Shift',
+          event.metaKey && 'Command',
         ];
       default:
         return [
@@ -128,11 +166,17 @@ export class KeyboardShortcutsService {
 /** Inverts shortcuts-keys pairs to allow accessing shortcut by an accelerator. */
 function mapAcceleratorsToActions(
   shortcutsConfig: Record<KeyboardShortcutAction, string>
-): Map<string, KeyboardShortcutAction> {
-  const acceleratorsToActions = new Map<string, KeyboardShortcutAction>();
+): Map<string, KeyboardShortcutAction[]> {
+  const acceleratorsToActions = new Map<string, KeyboardShortcutAction[]>();
   Object.entries(shortcutsConfig).forEach(([action, accelerator]) => {
-    acceleratorsToActions.set(accelerator, action as KeyboardShortcutAction);
+    // empty accelerator means that an empty string was provided in the config file, so the shortcut is disabled.
+    if (!accelerator) {
+      return;
+    }
+    acceleratorsToActions.set(accelerator, [
+      ...(acceleratorsToActions.get(accelerator) || []),
+      action as KeyboardShortcutAction,
+    ]);
   });
-
   return acceleratorsToActions;
 }

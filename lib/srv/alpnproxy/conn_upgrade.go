@@ -47,7 +47,7 @@ import (
 // preserve the ALPN and SNI information.
 func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 	netDialer := &net.Dialer{
-		Timeout: defaults.DefaultDialTimeout,
+		Timeout: defaults.DefaultIOTimeout,
 	}
 	tlsConfig := &tls.Config{
 		NextProtos:         []string{string(common.ProtocolReverseTunnel)},

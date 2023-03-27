@@ -193,7 +193,10 @@ func (optpb *OsPackageToolPipelineBuilder) buildPromoteOsPackagePipeline() pipel
 
 	p := optpb.buildBaseOsPackagePipeline(pipelineName, checkoutPath, commitName)
 	p.Trigger = triggerPromote
-	p.Trigger.Repo.Include = []string{"gravitational/teleport"}
+	p.Trigger.Repo.Include = []string{
+		"gravitational/teleport",
+		"gravitational/teleport-private",
+	}
 
 	setupSteps := []step{
 		verifyTaggedStep(),
@@ -369,13 +372,17 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			"mkdir -pv \"$ARTIFACT_PATH\"",
 			// Clear out old versions from previous steps
 			"rm -rf \"$ARTIFACT_PATH\"/*",
+			// Conditionally match ONLY enterprise and fips binaries based off of file name,
+			// if running in the context of a private repo (teleport-private)
+			"if [ \"${DRONE_REPO_PRIVATE}\" = true ]; then ENT_FILTER=\"*ent\"; fi",
+			fmt.Sprintf("FILTER=\"$${ENT_FILTER}*.%s*\"", optpb.packageType),
 			strings.Join(
 				[]string{
 					"aws s3 sync",
 					"--no-progress",
 					"--delete",
 					"--exclude \"*\"",
-					fmt.Sprintf("--include \"*.%s*\"", optpb.packageType),
+					"--include \"$FILTER\"",
 					fmt.Sprintf("s3://$AWS_S3_BUCKET/teleport/tag/%s/", bucketFolder),
 					"\"$ARTIFACT_PATH\"",
 				},

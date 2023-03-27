@@ -28,8 +28,8 @@ import (
 	proto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -56,6 +56,7 @@ func New(cfg Config) (*Server, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return &Server{cfg: cfg, proxyAddress: addr, kubeProxySNI: sni}, nil
 }
 
@@ -67,7 +68,7 @@ type Config struct {
 	// from the backend.
 	AccessPoint services.RoleGetter
 	// Authz authenticates user.
-	Authz auth.Authorizer
+	Authz authz.Authorizer
 	// Log is the logger function.
 	Log logrus.FieldLogger
 	// Emitter is used to emit audit events.
@@ -161,34 +162,17 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 }
 
 // authorize checks if the user is authorized to connect to the cluster.
-func (s *Server) authorize(ctx context.Context) (*auth.Context, error) {
-	accessDeniedMsg := "access denied"
-	userContext, err := s.cfg.Authz.Authorize(ctx)
-
-	switch {
-	case err == nil:
-		return userContext, nil
-	// propagate connection problem error so we can differentiate
-	// between connection failed and access denied
-	case trace.IsConnectionProblem(err):
-		return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-	case trace.IsAccessDenied(err):
-		// don't print stack trace, just log the warning
-		s.cfg.Log.Warn(err)
-		return nil, trace.AccessDenied(accessDeniedMsg)
-	case keys.IsPrivateKeyPolicyError(err):
-		// private key policy errors should be returned to the client
-		// unaltered so that they know to reauthenticate with a valid key.
-		return nil, trace.Unwrap(err)
-	default:
-		s.cfg.Log.Warn(trace.DebugReport(err))
-		return nil, trace.AccessDenied(accessDeniedMsg)
+func (s *Server) authorize(ctx context.Context) (*authz.Context, error) {
+	authCtx, err := s.cfg.Authz.Authorize(ctx)
+	if err != nil {
+		return nil, authz.ConvertAuthorizerError(ctx, s.cfg.Log, err)
 	}
+	return authCtx, nil
 }
 
 // emitAuditEvent emits an audit event for a resource search action and logs
 // the roles used to perform the search.
-func (s *Server) emitAuditEvent(ctx context.Context, userContext *auth.Context, req *proto.ListKubernetesResourcesRequest) error {
+func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context, req *proto.ListKubernetesResourcesRequest) error {
 	err := s.cfg.Emitter.EmitAuditEvent(
 		ctx,
 		&apievents.AccessRequestResourceSearch{
@@ -196,7 +180,7 @@ func (s *Server) emitAuditEvent(ctx context.Context, userContext *auth.Context, 
 				Type: events.AccessRequestResourceSearch,
 				Code: events.AccessRequestResourceSearchCode,
 			},
-			UserMetadata:        auth.ClientUserMetadata(ctx),
+			UserMetadata:        authz.ClientUserMetadata(ctx),
 			SearchAsRoles:       userContext.Checker.RoleNames(),
 			ResourceType:        req.ResourceType,
 			Namespace:           defaults.Namespace,

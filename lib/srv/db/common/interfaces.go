@@ -21,7 +21,7 @@ import (
 	"net"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,7 +63,7 @@ type ProxyContext struct {
 	// Servers is a list of database Servers that proxy the requested database.
 	Servers []types.DatabaseServer
 	// AuthContext is a context of authenticated user.
-	AuthContext *auth.Context
+	AuthContext *authz.Context
 }
 
 // Engine defines an interface for specific database protocol engine such

@@ -6,13 +6,10 @@ on:
     paths:
       - '**.go'
 
-env:
-  ATTEMPTS: 30
-
 jobs:
   test:
-    name: Flaky tests detector
-    runs-on: ubuntu-22.04-32core
+    name: Flaky Tests Detector
+    runs-on: ubuntu-22.04-16core
 
     permissions:
       contents: read
@@ -25,6 +22,7 @@ jobs:
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
         TELEPORT_BPF_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
     services:
@@ -58,7 +56,7 @@ jobs:
       - name: Run base difftest
         uses: ./.github/actions/difftest
         with:
-          flags: -e "operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"
+          flags: -e "integrations/operator/**/*" -e "tool/tsh/**/*" -e "integration/**/*" -e "build.assets/**/*" -e "lib/auth/webauthncli/**/*" -e "lib/auth/touchid/**/*" -e "api/**/*"  -e "integrations/kube-agent-updater/**/*" -e "examples/teleport-usage/**/*" -e "integrations/access/**" -e "integrations/lib/**" -e "integrations/lib/backoff/backoff_test.go"
           target: test-go-unit
 
       - name: Run libfido2 difftest
@@ -84,3 +82,15 @@ jobs:
         with:
           flags: --include "api/**/*" --relative "api"
           target: test-api
+
+      - name: Run kube-agent-updater difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --include "integrations/kube-agent-updater/**/*" --relative "integrations/kube-agent-updater"
+          target: test-kube-agent-updater
+
+      - name: Run teleport-usage difftest
+        uses: ./.github/actions/difftest
+        with:
+          flags: --include "examples/teleport-usage/**/*" --relative "examples/teleport-usage"
+          target: test-teleport-usage

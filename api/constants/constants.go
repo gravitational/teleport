@@ -72,7 +72,7 @@ const (
 	Github = "github"
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
-	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
+	HumanDateFormatSeconds = "Jan _2 2006 15:04:05 UTC"
 
 	// MaxLeases serves as an identifying error string indicating that the
 	// semaphore system is rejecting an acquisition attempt due to max
@@ -379,6 +379,14 @@ const (
 	// TraitGCPServiceAccounts is the name of the role variable used to store
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
+)
+const (
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	//
+	// This is also leveraged by tsh to propagate its tracing span ID.
+	ProxyHelloSignature = "Teleport-Proxy"
 )
 
 const (

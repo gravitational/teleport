@@ -139,9 +139,15 @@ Currently there is no option to select an alternative region for storage.
 
 ## Will Teleport be automatically upgraded with each release?
 
-The Teleport control plane is routinely upgraded within 1-2 weeks of a Teleport Core or Enterprise Release.
-New features may not be available to cloud users until compatibility is tested and fixed, and some features may not work in the cloud environment.
-Individual customers may not be upgraded to the latest release if they are running agents that are outside of the supported compatibility of the control plane.
+Teleport Cloud follows the Teleport [Production
+readiness](../../preview/upcoming-releases.mdx) guidelines.
+
+- Major version upgrades for customer Auth and Proxy Servers occur after the
+  first minor release (for example (=teleport.major_version=).1.0) of Teleport.
+  This typically happens within one month of a new major release of Teleport
+  becoming available.
+- After the first minor release, subsequent minor and patch upgrades typically
+  occur within a week.
 
 ## Does your SOC 2 report include Teleport Enterprise Cloud?
 
@@ -173,12 +179,29 @@ for customer data including session recordings and user records.
 
 ## Can I get a list of IP addresses to configure a firewall?
 
-We don't currently offer a list of addresses for firewall configuration and plan to make this available in the future.
+We do not have plans to offer a list of IP addresses for Teleport Enterprise
+Cloud at the moment.
 
-## Can I configure Teleport Enterprise Cloud to only allow connections from an allowlist of IP addresses?
+Teleport Enterprise Cloud infrastructure is elastic and IP addresses can and do
+change when we make infrastructure changes. This would make the maintenance of
+IP allowlists a cumbersome and brittle process for customers.
 
-No. We believe mTLS with strong identity is the best standard available for authenticating and access clients.
-We are also investigating additional and new features that can be used as a defense in depth strategy for use with Teleport Enterprise Cloud in 2022.
+However, we do provide customers with a stable tenant DNS name backed with a
+TLS certificates from [letsencrypt.org](https://letsencrypt.org) that can be
+utilized to verify the integrity of any outbound connections to Teleport
+Enterprise Cloud.
+
+## Can I configure an allowlist of inbound IP addresses to Teleport Enterprise Cloud?
+
+We do not have plans to offer support for inbound connection IP allowlists.
+
+We believe mTLS with strong user and [device
+identity](../../access-controls/guides/device-trust.mdx) provide the best
+available security for client authentication.
+
+For customers that require IP-based control for compliance purposes, we do
+support IP Pinning. For more information see `pin_source_ip` in our [Teleport
+Access Controls Reference](../../access-controls/reference.mdx).
 
 ## Is IPv6 Supported for connections to Teleport Enterprise Cloud?
 
@@ -223,3 +246,27 @@ If you plan on connecting more than 10,000 nodes or agents, please contact your 
 
 Teleport components communicate with themselves using mTLS, with a separate certificate authority for each tenant. Connections to AWS services, such as DynamoDB and
 S3, are established using encryption provided by AWS, both at rest and in transit. Each tenant has its own credentials that isolate it to interacting with only its own data.
+
+## How can I find version information on connected agents?
+
+To find the version of Teleport agent is attached to your cluster, run the
+following commands for the different protocols we support.
+
+```code
+$ tctl get nodes --format=text
+$ tctl get kube_server --format=text
+$ tctl get app_server --format=text
+$ tctl get db_server --format=text
+$ tctl get windows_desktop_service --format=text
+```
+
+Below you can see sample output of `tctl get nodes --format=text`. Note the
+`Version` column will contain the version of the attached agent.
+
+```code
+$ tctl get nodes --format=text
+Host     UUID                                 Public Address Labels Version
+-------- ------------------------------------ -------------- ------ ----------
+server01 46d8cad0-8967-4815-a01a-77aae62c34fe 127.0.0.1:3022        12.0.0
+server02 c33b5513-a9eb-463b-8f1b-1f209afe5b4f 127.0.0.1:3122        12.0.0
+```

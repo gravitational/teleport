@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -77,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -431,6 +433,12 @@ type CLIConf struct {
 
 	// tracer is the tracer used to trace tsh commands.
 	tracer oteltrace.Tracer
+
+	// Headless uses headless login for the client session.
+	Headless bool
+
+	// HeadlessAuthenticationID is the ID of a headless authentication.
+	HeadlessAuthenticationID string
 }
 
 // Stdout returns the stdout writer.
@@ -506,6 +514,7 @@ const (
 	loginEnvVar       = "TELEPORT_LOGIN"
 	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
 	proxyEnvVar       = "TELEPORT_PROXY"
+	headlessEnvVar    = "TELEPORT_HEADLESS"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar               = "TELEPORT_SITE"
@@ -623,6 +632,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
+	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).BoolVar(&cf.Headless)
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
@@ -919,6 +929,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
+
+	// Headless login approval
+	headless := app.Command("headless", "headless commands").Interspersed(true)
+	approve := headless.Command("approve", "headless approval").Interspersed(true)
+	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1231,6 +1246,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args[idx:])
+	case approve.FullCommand():
+		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1718,11 +1735,6 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
-	pingResp, err := tc.Ping(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Regular login without -i flag.
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
@@ -1787,11 +1799,6 @@ func onLogin(cf *CLIConf) error {
 	// Print status to show information of the logged in user.
 	if err := onStatus(cf); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Display any license compliance warnings
-	for _, warning := range pingResp.LicenseWarnings {
-		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
@@ -1876,16 +1883,9 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		// Get the address of the active Kubernetes proxy to find AuthInfos,
-		// Clusters, and Contexts in kubeconfig.
-		clusterName, _ := tc.KubeProxyHostPort()
-		if tc.SiteName != "" {
-			clusterName = fmt.Sprintf("%v.%v", tc.SiteName, clusterName)
-		}
-
 		// Remove Teleport related entries from kubeconfig.
-		log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", clusterName)
-		err = kubeconfig.Remove("", clusterName)
+		log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
+		err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1898,10 +1898,15 @@ func onLogout(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
+		log.Debugf("Removing Teleport related entries with server '%v' from kubeconfig.", tc.KubeClusterAddr())
+		if err = kubeconfig.RemoveByServerAddr("", tc.KubeClusterAddr()); err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Remove Teleport related entries from kubeconfig for all clusters.
 		for _, profile := range profiles {
-			log.Debugf("Removing Teleport related entries for '%v' from kubeconfig.", profile.Cluster)
-			err = kubeconfig.Remove("", profile.Cluster)
+			log.Debugf("Removing Teleport related entries for cluster '%v' from kubeconfig.", profile.Cluster)
+			err = kubeconfig.RemoveByClusterName("", profile.Cluster)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -1943,6 +1948,8 @@ func onListNodes(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	tc.AllowHeadless = true
 
 	// Get list of all nodes in backend and sort by "Node Name".
 	var nodes []types.Server
@@ -2693,7 +2700,6 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			formatUsersForDB(database, roleSet),
 			database.LabelsString(),
 			connect,
-			database.Expiry().Format(constants.HumanDateFormatSeconds),
 		)
 	} else {
 		row = append(row,
@@ -2720,7 +2726,7 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	}
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
+		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
@@ -3028,6 +3034,8 @@ func onSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	tc.AllowHeadless = true
+
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
@@ -3146,6 +3154,8 @@ func onSCP(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	tc.AllowHeadless = true
+
 	// allow the file transfer to be gracefully stopped if the user wishes
 	ctx, cancel := signal.NotifyContext(cf.Context, os.Interrupt)
 	cf.Context = ctx
@@ -3259,6 +3269,21 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.JumpHosts = hosts
 	}
 
+	// --headless is shorthand for --auth=headless
+	if cf.Headless {
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.HeadlessConnector {
+			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
+		}
+		cf.AuthConnector = constants.HeadlessConnector
+	}
+
+	if cf.AuthConnector == constants.HeadlessConnector {
+		// Lock the process memory to prevent rsa keys and certificates from being exposed in a swap.
+		if err := mlock.LockMemory(); err != nil {
+			return nil, trace.Wrap(err, "failed to lock system memory for headless login")
+		}
+	}
+
 	c.ClientStore, err = initClientStore(cf, proxy)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3337,7 +3362,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	// If a TTY was requested, make sure to allocate it. Note this applies to
 	// "exec" command because a shell always has a TTY allocated.
 	if cf.Interactive || options.RequestTTY {
-		c.Interactive = true
+		c.InteractiveCommand = true
 	}
 
 	if !cf.NoCache {
@@ -3412,7 +3437,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 
 	if cf.IdentityFileIn != "" {
-		c.SkipLocalAuth = true
+		c.NonInteractive = true
 	}
 
 	tc, err := client.NewClient(c)
@@ -3459,28 +3484,29 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	if cf.IdentityFileIn != "" {
-		keyStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+	switch {
+	case cf.IdentityFileIn != "":
+		// Import identity file keys to in-memory client store.
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return keyStore, nil
-	}
+		return clientStore, nil
 
-	// When logging in with an identity file output, we want to avoid writing
-	// any keys to disk, so we use a full memory client store.
-	if cf.IdentityFileOut != "" {
+	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
+		// Store client keys in memory, where they can be exported to non-standard
+		// FS formats (e.g. identity file) or used for a single client call in memory.
 		return client.NewMemClientStore(), nil
-	}
 
-	clientStore := client.NewFSClientStore(cf.HomePath)
-
-	// Store client keys in memory, but still save trusted certs and profile to disk.
-	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
+		// Store client keys in memory, but save trusted certs and profile to disk.
+		clientStore := client.NewFSClientStore(cf.HomePath)
 		clientStore.KeyStore = client.NewMemKeyStore()
-	}
+		return clientStore, nil
 
-	return clientStore, nil
+	default:
+		return client.NewFSClientStore(cf.HomePath), nil
+	}
 }
 
 func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
@@ -3583,6 +3609,24 @@ var defaultWebProxyPorts = []int{
 	defaults.HTTPListenPort, teleport.StandardHTTPSPort,
 }
 
+// proxyHostsErrorMsgDefault returns the error message from attempting hosts at
+// different ports for the Web Proxy.
+func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
+	buf := &bytes.Buffer{}
+	buf.WriteString("Teleport proxy not available at proxy address ")
+
+	for i, port := range ports {
+		if i > 0 {
+			buf.WriteString(" or ")
+		}
+		buf.WriteString(proxyAddress)
+		buf.WriteString(":")
+		buf.WriteString(strconv.Itoa(port))
+	}
+
+	return buf.String()
+}
+
 // setClientWebProxyAddr configures the client WebProxyAddr and SSHProxyAddr
 // configuration values. Values that are not fully specified via configuration
 // or command-line options will be deduced if necessary.
@@ -3609,7 +3653,7 @@ func setClientWebProxyAddr(ctx context.Context, cf *CLIConf, c *client.Config) e
 			proxyAddress, err = pickDefaultAddr(
 				timeout, cf.InsecureSkipVerify, parsedAddrs.Host, defaultWebProxyPorts)
 			if err != nil {
-				return trace.Wrap(err)
+				return trace.Wrap(err, proxyHostsErrorMsgDefault(parsedAddrs.Host, defaultWebProxyPorts))
 			}
 		}
 
@@ -3707,7 +3751,9 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 			count = count + 1
 		}
 	}
-	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	if len(p.Logins) > 0 {
+		fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	}
 	if p.KubernetesEnabled {
 		fmt.Printf("  Kubernetes:         enabled\n")
 		if kubeCluster != "" {
@@ -3840,6 +3886,22 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	if p == nil {
 		return nil
 	}
+
+	// Filter out login names that were added internally.
+	// These are for internal use and are not valid UNIX login names
+	// because they start with a hyphen.
+	var logins []string
+	for _, login := range p.Logins {
+		// Specifically filters out these:
+		//   - api/constants.NoLoginPrefix
+		//   - teleport/constants.SSHSessionJoinPrincipal
+		isTeleportDefinedLogin := strings.HasPrefix(login, "-teleport-")
+
+		if !isTeleportDefinedLogin {
+			logins = append(logins, login)
+		}
+	}
+
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
@@ -3847,7 +3909,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
-		Logins:             p.Logins,
+		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
 		KubernetesCluster:  selectedKubeCluster(p.Cluster),
 		KubernetesUsers:    p.KubeUsers,
@@ -4606,4 +4668,18 @@ func warnOnDeprecatedKubeConfigServerName(cf *CLIConf, tc *client.TeleportClient
 	}
 	fmt.Printf("Deprecated tls-server-name value detected in %s KUBECONFIG file for [%v] clusters\n", kubeConfigPath, strings.Join(outdatedClusters, ", "))
 	fmt.Printf("Please re-login and update your KUBECONFIG cluster configuration by running the 'tsh kube login' command.\n\n")
+}
+
+// onHeadlessApprove executes 'tsh headless approve' command
+func onHeadlessApprove(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.Stdin = os.Stdin
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+	})
+	return trace.Wrap(err)
 }

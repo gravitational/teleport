@@ -124,8 +124,15 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource
+	// KindNode is node resource. It can be either a Teleport node or
+	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
+
+	// SubKindTeleportNode is a Teleport node.
+	SubKindTeleportNode = "teleport"
+
+	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
+	SubKindOpenSSHNode = "openssh"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -251,10 +258,6 @@ const (
 
 	// KindState is local on disk process state
 	KindState = "state"
-
-	// KindKubeService is a kubernetes service resource
-	// DELETE in 13.0.0
-	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
@@ -422,6 +425,10 @@ const (
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
 
+	// OriginOkta is an origin value indicating that the resource was
+	// created from the Okta service.
+	OriginOkta = "okta"
+
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -466,7 +473,14 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
+var OriginValues = []string{
+	OriginDefaults,
+	OriginConfigFile,
+	OriginDynamic,
+	OriginCloud,
+	OriginKubernetes,
+	OriginOkta,
+}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.

@@ -93,6 +93,10 @@ type userACL struct {
 	Download access `json:"download"`
 	// Download defines whether the user has access to download the license
 	License access `json:"license"`
+	// Plugins defines whether the user has access to manage hosted plugin instances
+	Plugins access `json:"plugins"`
+	// DeviceTrust defines access to device trust.
+	DeviceTrust access `json:"deviceTrust"`
 }
 
 type authType string
@@ -191,12 +195,18 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
+	var pluginsAccess access
+	if features.Plugins {
+		pluginsAccess = newAccess(userRoles, ctx, types.KindPlugin)
+	}
+
 	accessStrategy := getAccessStrategy(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 	directorySharing := userRoles.DesktopDirectorySharing()
 	download := newAccess(userRoles, ctx, types.KindDownload)
 	license := newAccess(userRoles, ctx, types.KindLicense)
+	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -221,6 +231,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		DirectorySharing:        directorySharing,
 		Download:                download,
 		License:                 license,
+		Plugins:                 pluginsAccess,
+		DeviceTrust:             deviceTrust,
 	}
 
 	// local user

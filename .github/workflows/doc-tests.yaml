@@ -5,7 +5,13 @@ on:
     branches:
       - master
   pull_request:
+    paths:
+      - 'docs/**'
+      - 'examples/**'
   merge_group:
+    paths:
+      - 'docs/**'
+      - 'examples/**'
 
 jobs:
   doc-tests:
@@ -19,11 +25,24 @@ jobs:
     container:
       image: ghcr.io/gravitational/docs:latest
       volumes:
-        - ${{ github.workspace }}:/src/content
+        - ${{ github.workspace }}:/src/content/docs
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Prepare config
+        # The docs engine expects a config.json file at the root of the
+        # gravitational/docs clone that associates directories with git
+        # submodules. 
+        #
+        # By default, these directories represent versioned branches
+        # of gravitational/teleport. We override this in order to build only a
+        # single version of the docs.
+        run: 'echo "{\"versions\": [{\"name\": \"docs\", \"branch\": \"$GITHUB_REF_NAME\", \"deprecated\": false}]}" > /src/config.json'
+
+      - name: Test the docs build
+        run: cd /src && yarn install && yarn build
 
       - name: Run tests
         run: cd /src && yarn markdown-lint

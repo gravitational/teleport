@@ -16,16 +16,20 @@ limitations under the License.
 
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { css, useTheme } from 'styled-components';
-import { ButtonIcon, Flex, Text } from 'design';
+import { ButtonIcon, Flex, Link, Text } from 'design';
 import { Close } from 'design/Icon';
 
 import type { NotificationItem, NotificationItemContent } from './types';
 
 interface NotificationProps {
   item: NotificationItem;
+
   onRemove(): void;
+
   Icon: React.ElementType;
+
   getColor(theme): string;
+
   isAutoRemovable: boolean;
   autoRemoveDurationMs?: number;
   // Workaround until `styled` gets types.
@@ -146,7 +150,7 @@ function getRenderedContent(
           `}
         >
           <Text
-            fontSize={14}
+            fontSize={13}
             bold
             mr="30px"
             css={`
@@ -171,16 +175,50 @@ function getRenderedContent(
           color="text.secondary"
           css={longerTextCss}
         >
+          {content.list && <List items={content.list} />}
           {content.description}
+          {content.link && (
+            <Link
+              css={`
+                display: block;
+              `}
+              href={content.link.href}
+              target="_blank"
+              onClick={e => e.stopPropagation()} // prevents notification from collapsing
+            >
+              {content.link.text}
+            </Link>
+          )}
         </Text>
       </Flex>
     );
   }
 }
 
+function List(props: { items: string[] }) {
+  return (
+    <ul
+      // Ideally we'd align the bullet point to the left without using list-style-position: inside
+      // (because it looks bad when the list item spans multiple lines).
+      //
+      // However, it seems impossible to use padding-inline-start for that because the result looks
+      // different on Retina vs non-Retina screens, the bullet point looks cut off on the latter if
+      // padding-inline-start is set to 1em. So instead we just set it to 2em.
+      css={`
+        margin: 0;
+        padding-inline-start: 2em;
+      `}
+    >
+      {props.items.map((item, index) => (
+        <li key={index}>{item}</li>
+      ))}
+    </ul>
+  );
+}
+
 const textCss = css`
   line-height: 20px;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-line;
 `;
 

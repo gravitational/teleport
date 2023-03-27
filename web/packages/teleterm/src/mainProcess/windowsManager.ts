@@ -197,7 +197,7 @@ export class WindowsManager {
   }
 
   private getWindowState(): WindowState {
-    const windowState = this.fileStorage.get<WindowState>(this.storageKey);
+    const windowState = this.fileStorage.get(this.storageKey) as WindowState;
     const getDefaults = () => ({
       height: 720,
       width: 1280,

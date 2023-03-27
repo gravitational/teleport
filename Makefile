@@ -207,8 +207,13 @@ ifeq ("$(ARCH)","arm64")
 		CGOFLAG += CC=aarch64-linux-gnu-gcc
 	endif
 else ifeq ("$(ARCH)","arm")
+CGOFLAG = CGO_ENABLED=1 
+
 # ARM builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
+ifeq ($(IS_NATIVE_BUILD),"no")
+CC=arm-linux-gnueabihf-gcc
+endif
+
 # Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
 BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 endif
@@ -424,6 +429,8 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
+include darwin-signing.mk
+
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
@@ -431,12 +438,7 @@ release-darwin-unsigned: clean full build-archive
 .PHONY: release-darwin
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	# Only run if Apple username/pass for notarization are provided
-	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
-		cd ./build.assets/tooling/ && \
-		go run ./cmd/notarize-apple-binaries/*.go \
-			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
-	fi
+	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
@@ -588,7 +590,7 @@ test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDE
 # Runs base unit tests
 .PHONY: test-go-unit
 test-go-unit: FLAGS ?= -race -shuffle on
-test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
+test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
@@ -643,7 +645,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= -race -shuffle on
-test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e operator)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit-root.json \
@@ -667,7 +669,38 @@ test-api:
 #
 .PHONY: test-operator
 test-operator:
-	make -C operator test
+	make -C integrations/operator test
+#
+# Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
+#
+.PHONY: test-kube-agent-updater
+test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-kube-agent-updater: FLAGS ?= -race -shuffle on
+test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
+test-kube-agent-updater:
+	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
+		| ${RENDER_TESTS}
+
+.PHONY: test-access-integrations
+test-access-integrations:
+	make -C integrations test-access
+
+.PHONY: test-integrations-lib
+test-integrations-lib:
+	make -C integrations test-lib
+
+#
+# Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
+#
+.PHONY: test-teleport-usage
+test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-teleport-usage: FLAGS ?= -race -shuffle on
+test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
+test-teleport-usage:
+	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/teleport-usage.json \
+		| ${RENDER_TESTS}
 
 #
 # Runs cargo test on our Rust modules.
@@ -704,7 +737,7 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES = $(shell go list ./... | grep integration)
+integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
@@ -718,7 +751,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES = $(shell go list ./... | grep integration)
+integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
@@ -730,7 +763,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
+lint: lint-sh lint-helm lint-api lint-kube-agent-updater lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
@@ -766,7 +799,7 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	gci write -s 'standard,default,prefix(github.com/gravitational/teleport)' --skip-generated .
+	gci write -s standard -s default -s 'prefix(github.com/gravitational/teleport)' --skip-generated .
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
@@ -783,6 +816,11 @@ lint-backport:
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
 	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
+
+.PHONY: lint-kube-agent-updater
+lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
+lint-kube-agent-updater:
+	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -1075,6 +1113,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1086,6 +1125,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
@@ -1126,12 +1166,12 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport && cp web/packages/build/index.ejs webassets/teleport/index.html; \
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/build/index.ejs webassets/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport && cp web/packages/build/index.ejs webassets/e/teleport/index.html; \
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/build/index.ejs webassets/e/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
 .PHONY: init-submodules-e

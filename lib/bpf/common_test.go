@@ -18,6 +18,7 @@ package bpf
 
 import (
 	"io"
+	"net/http"
 	"os"
 	osexec "os/exec"
 	"testing"
@@ -25,21 +26,40 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// reexecInCGroupCmd is a cmd argument used to re-exec the test binary.
-const reexecInCGroupCmd = "reexecCgroup"
+const (
+	// reexecInCGroupCmd is a cmd used to re-exec the test binary and call arbitrary program.
+	reexecInCGroupCmd = "reexecCgroup"
+	// networkInCgroupCmd is a cmd used to re-exec the test binary and make HTTP call.
+	networkInCgroupCmd = "networkCgroup"
+)
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 
 	// Check if the re-exec was requested.
-	if len(os.Args) >= 3 && os.Args[1] == reexecInCGroupCmd {
-		// Get the command to run passed as the 3rd argument.
-		cmd := os.Args[2]
+	if len(os.Args) == 3 {
+		var err error
 
-		if err := waitAndRun(cmd); err != nil {
+		switch os.Args[1] {
+		case reexecInCGroupCmd:
+			// Get the command to run passed as the 3rd argument.
+			cmd := os.Args[2]
+
+			err = waitAndRun(cmd)
+		case networkInCgroupCmd:
+			// Get the endpoint to call.
+			endpoint := os.Args[2]
+
+			err = callEndpoint(endpoint)
+		default:
+			os.Exit(2)
+		}
+
+		if err != nil {
 			// Something went wrong, exit with error.
 			os.Exit(1)
 		}
@@ -60,17 +80,17 @@ func TestCheckAndSetDefaults(t *testing.T) {
 	var zeroPageCount = 0
 
 	var tests = []struct {
-		inConfig  *Config
-		outConfig *Config
+		inConfig  *servicecfg.BPFConfig
+		outConfig *servicecfg.BPFConfig
 	}{
 		// Empty values get defaults.
 		{
-			inConfig: &Config{
+			inConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: nil,
 				DiskBufferSize:    nil,
 				NetworkBufferSize: nil,
 			},
-			outConfig: &Config{
+			outConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &perfBufferPageCount,
 				DiskBufferSize:    &openPerfBufferPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
@@ -78,12 +98,12 @@ func TestCheckAndSetDefaults(t *testing.T) {
 		},
 		// Values are not wiped out with defaults.
 		{
-			inConfig: &Config{
+			inConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
 			},
-			outConfig: &Config{
+			outConfig: &servicecfg.BPFConfig{
 				CommandBufferSize: &zeroPageCount,
 				DiskBufferSize:    &zeroPageCount,
 				NetworkBufferSize: &perfBufferPageCount,
@@ -100,9 +120,35 @@ func TestCheckAndSetDefaults(t *testing.T) {
 	}
 }
 
-// waitAndRun opens FD 3 and waits for at least one byte. After it runs the
+// waitAndRun wait for continue signal to be generated an executes the
 // passed command and waits until returns.
 func waitAndRun(cmd string) error {
+	if err := waitForContinue(); err != nil {
+		return err
+	}
+
+	return osexec.Command(cmd).Run()
+}
+
+// callEndpoint wait for continue signal to be generated an executes HTTP GET
+// on provided endpoint.
+func callEndpoint(endpoint string) error {
+	if err := waitForContinue(); err != nil {
+		return err
+	}
+
+	resp, err := http.Get(endpoint)
+	if resp != nil {
+		// Close the body to make our linter happy.
+		_ = resp.Body.Close()
+	}
+
+	return err
+}
+
+// waitForContinue opens FD 3 and waits the signal from parent process that
+// the cgroup is being observed and the even can be generated.
+func waitForContinue() error {
 	waitFD := os.NewFile(3, "/proc/self/fd/3")
 	defer waitFD.Close()
 
@@ -111,5 +157,5 @@ func waitAndRun(cmd string) error {
 		return err
 	}
 
-	return osexec.Command(cmd).Run()
+	return nil
 }

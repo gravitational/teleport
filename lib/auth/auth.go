@@ -68,11 +68,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/githubactions"
+	"github.com/gravitational/teleport/lib/gitlab"
 	"github.com/gravitational/teleport/lib/inventory"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/kubernetestoken"
@@ -188,7 +190,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.UserGroups == nil {
-		cfg.UserGroups = local.NewUserGroupService(cfg.Backend)
+		cfg.UserGroups, err = local.NewUserGroupService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
@@ -199,9 +204,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.Enforcer == nil {
-		cfg.Enforcer = local.NewNoopEnforcer()
-	}
 	if cfg.AssertionReplayService == nil {
 		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
 	}
@@ -210,6 +212,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.UsageReporter == nil {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
+	}
+	if cfg.Okta == nil {
+		cfg.Okta, err = local.NewOktaService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -252,21 +260,23 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Kubernetes:              cfg.Kubernetes,
 		Databases:               cfg.Databases,
 		DatabaseServices:        cfg.DatabaseServices,
-		IAuditLog:               cfg.AuditLog,
+		AuditLogSessionStreamer: cfg.AuditLog,
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
 		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
-		Enforcer:                cfg.Enforcer,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
+
+		okta: cfg.Okta,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:              cfg.Backend,
+		clock:           cfg.Clock,
 		limiter:         limiter,
 		Authority:       cfg.Authority,
 		AuthServiceName: cfg.AuthServiceName,
@@ -280,7 +290,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, inventory.WithAuthServerID(cfg.HostUUID)),
+		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
@@ -313,6 +323,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 				Clock: as.clock,
 			},
 		)
+	}
+	if as.gitlabIDTokenValidator == nil {
+		as.gitlabIDTokenValidator, err = gitlab.NewIDTokenValidator(
+			gitlab.IDTokenValidatorConfig{
+				Clock:             as.clock,
+				ClusterNameGetter: services,
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if as.circleCITokenValidate == nil {
 		as.circleCITokenValidate = func(
@@ -347,12 +368,13 @@ type Services struct {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
-	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	usagereporter.UsageReporter
 	types.Events
-	events.IAuditLog
+	events.AuditLogSessionStreamer
+
+	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -365,6 +387,11 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 // Implements ReadAccessPoint
 func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
+}
+
+// OktaClient returns the okta client.
+func (r *Services) OktaClient() services.Okta {
+	return r.okta
 }
 
 var (
@@ -527,6 +554,10 @@ type Server struct {
 	// by the auth server. It can be overridden for the purpose of tests.
 	ghaIDTokenValidator ghaIDTokenValidator
 
+	// gitlabIDTokenValidator allows ID tokens from GitLab CI to be validated by
+	// the auth server. It can be overridden for the purpose of tests.
+	gitlabIDTokenValidator gitlabIDTokenValidator
+
 	// circleCITokenValidate allows ID tokens from CircleCI to be validated by
 	// the auth server. It can be overridden for the purpose of tests.
 	circleCITokenValidate func(ctx context.Context, organizationID, token string) (*circleci.IDTokenClaims, error)
@@ -540,6 +571,10 @@ type Server struct {
 
 	// license is the Teleport Enterprise license used to start the auth server
 	license *liblicense.License
+
+	// headlessAuthenticationWatcher is a headless authentication watcher,
+	// used to catch and propagate headless authentication request changes.
+	headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -600,6 +635,12 @@ func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.Lo
 		return trace.BadParameter("lockWatcher is not set")
 	}
 	return a.lockWatcher.CheckLockInForce(mode, targets...)
+}
+
+func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -1013,8 +1054,8 @@ func (a *Server) SetClock(clock clockwork.Clock) {
 }
 
 // SetAuditLog sets the server's audit log
-func (a *Server) SetAuditLog(auditLog events.IAuditLog) {
-	a.Services.IAuditLog = auditLog
+func (a *Server) SetAuditLog(auditLog events.AuditLogSessionStreamer) {
+	a.Services.AuditLogSessionStreamer = auditLog
 }
 
 // GetEmitter fetches the current audit log emitter implementation.
@@ -1026,11 +1067,6 @@ func (a *Server) GetEmitter() apievents.Emitter {
 // use before main server start.
 func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
-}
-
-// SetEnforcer sets the server's enforce service
-func (a *Server) SetEnforcer(enforcer services.Enforcer) {
-	a.Services.Enforcer = enforcer
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
@@ -1268,6 +1304,58 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
+func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("username is empty")
+	}
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("public key is empty")
+	}
+	if req.TTL == 0 {
+		return nil, trace.BadParameter("TTL is not set")
+	}
+	if req.TTL < 0 {
+		return nil, trace.BadParameter("TTL must be positive")
+	}
+	if req.Cluster == "" {
+		return nil, trace.BadParameter("cluster is empty")
+	}
+
+	user, err := a.GetUser(req.Username, false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	accessInfo := services.AccessInfoFromUser(user)
+	clusterName, err := a.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	checker, err := services.NewAccessChecker(accessInfo, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.generateOpenSSHCert(certRequest{
+		user:          user,
+		publicKey:     req.PublicKey,
+		compatibility: constants.CertificateFormatStandard,
+		checker:       checker,
+		ttl:           time.Duration(req.TTL),
+		traits: map[string][]string{
+			constants.TraitLogins: {req.Username},
+		},
+		routeToCluster:  req.Cluster,
+		disallowReissue: true,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.OpenSSHCert{
+		Cert: certs.SSH,
+	}, nil
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
 func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
 	user, err := a.GetUser(username, false)
@@ -1380,6 +1468,8 @@ type DatabaseTestCertRequest struct {
 	Username string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+	// PinnedIP is an IP new certificate should be pinned to.
+	PinnedIP string
 }
 
 // GenerateDatabaseTestCert generates a database access certificate for the
@@ -1401,6 +1491,8 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
+		loginIP:   req.PinnedIP,
+		pinIP:     req.PinnedIP != "",
 		checker:   checker,
 		ttl:       time.Hour,
 		traits: map[string][]string{
@@ -1448,7 +1540,7 @@ type AugmentUserCertificateOpts struct {
 // Used by Device Trust to add device extensions to the user certificate.
 func (a *Server) AugmentContextUserCertificates(
 	ctx context.Context,
-	authCtx *Context, opts *AugmentUserCertificateOpts,
+	authCtx *authz.Context, opts *AugmentUserCertificateOpts,
 ) (*proto.Certs, error) {
 	switch {
 	case authCtx == nil:
@@ -1478,9 +1570,9 @@ func (a *Server) AugmentContextUserCertificates(
 	}
 
 	// Fetch user TLS certificate.
-	x509Cert, ok := ctx.Value(contextUserCertificate).(*x509.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("user certificate missing from context")
+	x509Cert, err := authz.UserCertificateFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	// Sanity check: x509Cert matches identity.
@@ -1547,7 +1639,7 @@ func (a *Server) AugmentContextUserCertificates(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCA, sshSigner, _, err := a.getUserSigningCAs(ctx, domainName)
+	tlsCA, sshSigner, _, err := a.getSigningCAs(ctx, domainName, types.UserCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1698,7 +1790,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -1706,13 +1798,20 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		UsageApp:        app,
 		UsageKubernetes: kubernetes,
 		UsageDesktop:    desktop,
-	}); err != nil {
-		log.Debugf("Unable to submit certificate issued usage event: %v", err)
-	}
+	})
 }
 
-// generateUserCert generates user certificates
+// generateUserCert generates certificates signed with User CA
 func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
+	return generateCert(a, req, types.UserCA)
+}
+
+// generateOpenSSHCert generates certificates signed with OpenSSH CA
+func (a *Server) generateOpenSSHCert(req certRequest) (*proto.Certs, error) {
+	return generateCert(a, req, types.OpenSSHCA)
+}
+
+func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto.Certs, error) {
 	ctx := context.TODO()
 	err := req.check()
 	if err != nil {
@@ -1816,11 +1915,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 	}
 
-	tlsCA, sshSigner, userCA, err := a.getUserSigningCAs(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Add the special join-only principal used for joining sessions.
 	// All users have access to this and join RBAC rules are checked after the connection is established.
 	allowedLogins = append(allowedLogins, teleport.SSHSessionJoinPrincipal)
@@ -1839,6 +1933,18 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		}
 
 		pinnedIP = req.loginIP
+	}
+
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
+		DomainName: clusterName,
+	}, true)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	params := services.UserCertParams{
@@ -1871,7 +1977,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		DeviceAssetTag:          req.deviceExtensions.AssetTag,
 		DeviceCredentialID:      req.deviceExtensions.CredentialID,
 	}
-	sshCert, err := a.GenerateUserCert(params)
+	signedSSHCert, err := a.GenerateUserCert(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1919,7 +2025,6 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// generate TLS certificate
 	identity := tlsca.Identity{
 		Username:          req.user.GetName(),
 		Impersonator:      req.impersonator,
@@ -1969,23 +2074,38 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
 	}
-	subject, err := identity.Subject()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	certRequest := tlsca.CertificateRequest{
-		Clock:     a.clock,
-		PublicKey: cryptoPubKey,
-		Subject:   subject,
-		NotAfter:  a.clock.Now().UTC().Add(sessionTTL),
-	}
-	tlsCert, err := tlsCA.GenerateCertificate(certRequest)
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var signedTLSCert []byte
+	notAfter := a.clock.Now().UTC().Add(sessionTTL)
+	// generate TLS certificate if the signing CA isn't OpenSSH CA, as
+	// OpenSSH CA doesn't have any TLS keypairs
+	if caType != types.OpenSSHCA {
+		tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsCA, err := tlsca.FromCertAndSigner(tlsCert, tlsSigner)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		subject, err := identity.Subject()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		certRequest := tlsca.CertificateRequest{
+			Clock:     a.clock,
+			PublicKey: cryptoPubKey,
+			Subject:   subject,
+			NotAfter:  notAfter,
+		}
+		signedTLSCert, err = tlsCA.GenerateCertificate(certRequest)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	eventIdentity := identity.GetEventIdentity()
-	eventIdentity.Expires = certRequest.NotAfter
+	eventIdentity.Expires = notAfter
 	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
@@ -1999,12 +2119,12 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	// create certs struct to return to user
 	certs := &proto.Certs{
-		SSH: sshCert,
-		TLS: tlsCert,
+		SSH: signedSSHCert,
+		TLS: signedTLSCert,
 	}
 
-	// always include user CA TLS and SSH certs
-	cas := []types.CertAuthority{userCA}
+	// always include specified CA
+	cas := []types.CertAuthority{ca}
 
 	// also include host CA certs if requested
 	if req.includeHostCA {
@@ -2069,19 +2189,18 @@ func (a *Server) verifyLocksForUserCerts(req verifyLocksForUserCertsReq) error {
 	return trace.Wrap(a.checkLockInForce(lockingMode, lockTargets))
 }
 
-// getUserSigningCAs returns the necessary resources to issue/sign new user
-// certificates.
-func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
+// getSigningCAs returns the necessary resources to issue/sign new certificates.
+func (a *Server) getSigningCAs(ctx context.Context, domainName string, caType types.CertAuthType) (*tlsca.CertAuthority, ssh.Signer, types.CertAuthority, error) {
 	const loadKeys = true
-	userCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
+	ca, err := a.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       caType,
 		DomainName: domainName,
 	}, loadKeys)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, userCA)
+	tlsCert, tlsSigner, err := a.keyStore.GetTLSCertAndSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
@@ -2090,12 +2209,12 @@ func (a *Server) getUserSigningCAs(ctx context.Context, domainName string) (*tls
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	sshSigner, err := a.keyStore.GetSSHSigner(ctx, userCA)
+	sshSigner, err := a.keyStore.GetSSHSigner(ctx, ca)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	return tlsCA, sshSigner, userCA, nil
+	return tlsCA, sshSigner, ca, nil
 }
 
 // WithUserLock executes function authenticateFn that performs user authentication
@@ -2233,7 +2352,7 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 
 	default: // unset or CreateAuthenticateChallengeRequest_ContextUser.
 		var err error
-		username, err = GetClientUsername(ctx)
+		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2384,7 +2503,7 @@ func (a *Server) GetMFADevices(ctx context.Context, req *proto.GetMFADevicesRequ
 
 	if username == "" {
 		var err error
-		username, err = GetClientUsername(ctx)
+		username, err = authz.GetClientUsername(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2494,7 +2613,7 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 			Code:        events.MFADeviceDeleteEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      ClientUserMetadataWithUser(ctx, user),
+		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, user),
 		MFADeviceMetadata: mfaDeviceEventMetadata(deviceToDelete),
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -2595,7 +2714,7 @@ func (a *Server) verifyMFARespAndAddDevice(ctx context.Context, req *newMFADevic
 			Code:        events.MFADeviceAddEventCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:      ClientUserMetadataWithUser(ctx, req.username),
+		UserMetadata:      authz.ClientUserMetadataWithUser(ctx, req.username),
 		MFADeviceMetadata: mfaDeviceEventMetadata(dev),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit add mfa device event.")
@@ -2888,7 +3007,7 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		return "", trace.Wrap(err)
 	}
 
-	userMetadata := ClientUserMetadata(ctx)
+	userMetadata := authz.ClientUserMetadata(ctx)
 	for _, role := range req.Roles {
 		if role == types.RoleTrustedCluster {
 			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
@@ -3506,7 +3625,7 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 			Type: events.AccessRequestCreateEvent,
 			Code: events.AccessRequestCreateCode,
 		},
-		UserMetadata: ClientUserMetadataWithUser(ctx, req.GetUser()),
+		UserMetadata: authz.ClientUserMetadataWithUser(ctx, req.GetUser()),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Expires: req.GetAccessExpiry(),
 		},
@@ -3531,7 +3650,7 @@ func (a *Server) DeleteAccessRequest(ctx context.Context, name string) error {
 			Type: events.AccessRequestDeleteEvent,
 			Code: events.AccessRequestDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		RequestID:    name,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit access request delete event.")
@@ -3550,7 +3669,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 			Code: events.AccessRequestUpdateCode,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
-			UpdatedBy: ClientUsername(ctx),
+			UpdatedBy: authz.ClientUsername(ctx),
 			Expires:   req.GetAccessExpiry(),
 		},
 		RequestID:    params.RequestID,
@@ -3652,6 +3771,149 @@ func (a *Server) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	}
 	go k.forwardKeepAlives()
 	return k, nil
+}
+
+// KeepAliveServer implements [services.Presence] by delegating to
+// [Server.Services] and potentially emitting a [usagereporter] event.
+func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
+	if err := a.Services.KeepAliveServer(ctx, h); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ResourceHeartbeatEvent only cares about a few KeepAlive types
+	kind := usagereporter.ResourceKindFromKeepAliveType(h.Type)
+	if kind == 0 {
+		return nil
+	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   h.Name,
+		Kind:   kind,
+		Static: h.Expires.IsZero(),
+	})
+
+	return nil
+}
+
+// UpsertNode implements [services.Presence] by delegating to [Server.Services]
+// and potentially emitting a [usagereporter] event.
+func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertNode(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kind := usagereporter.ResourceKindNode
+	if server.GetSubKind() == types.SubKindOpenSSHNode {
+		kind = usagereporter.ResourceKindNodeOpenSSH
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   kind,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// UpsertKubernetesServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	k, err := a.Services.UpsertKubernetesServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		// the name of types.KubeServer might include a -proxy_service suffix
+		Name:   server.GetCluster().GetName(),
+		Kind:   usagereporter.ResourceKindKubeServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return k, nil
+}
+
+// UpsertApplicationServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertApplicationServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// UpsertDatabaseServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindDBServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.CreateWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
+// UpdateWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.UpdateWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
+// UpsertWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.UpsertWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
@@ -3780,7 +4042,7 @@ func (a *Server) CreateApp(ctx context.Context, app types.Application) error {
 			Type: events.AppCreateEvent,
 			Code: events.AppCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
@@ -3806,7 +4068,7 @@ func (a *Server) UpdateApp(ctx context.Context, app types.Application) error {
 			Type: events.AppUpdateEvent,
 			Code: events.AppUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    app.GetName(),
 			Expires: app.Expiry(),
@@ -3832,7 +4094,7 @@ func (a *Server) DeleteApp(ctx context.Context, name string) error {
 			Type: events.AppDeleteEvent,
 			Code: events.AppDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -3866,7 +4128,7 @@ func (a *Server) CreateDatabase(ctx context.Context, database types.Database) er
 			Type: events.DatabaseCreateEvent,
 			Code: events.DatabaseCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    database.GetName(),
 			Expires: database.Expiry(),
@@ -3896,7 +4158,7 @@ func (a *Server) UpdateDatabase(ctx context.Context, database types.Database) er
 			Type: events.DatabaseUpdateEvent,
 			Code: events.DatabaseUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    database.GetName(),
 			Expires: database.Expiry(),
@@ -3926,7 +4188,7 @@ func (a *Server) DeleteDatabase(ctx context.Context, name string) error {
 			Type: events.DatabaseDeleteEvent,
 			Code: events.DatabaseDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -3987,7 +4249,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 			Type: events.KubernetesClusterCreateEvent,
 			Code: events.KubernetesClusterCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
 			Expires: kubeCluster.Expiry(),
@@ -4011,7 +4273,7 @@ func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.
 			Type: events.KubernetesClusterUpdateEvent,
 			Code: events.KubernetesClusterUpdateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    kubeCluster.GetName(),
 			Expires: kubeCluster.Expiry(),
@@ -4035,7 +4297,7 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 			Type: events.KubernetesClusterDeleteEvent,
 			Code: events.KubernetesClusterDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -4047,7 +4309,7 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 
 // SubmitUsageEvent submits an external usage event.
 func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-	username, err := GetClientUsername(ctx)
+	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4057,9 +4319,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	if err := a.AnonymizeAndSubmit(event); err != nil {
-		return trace.Wrap(err)
-	}
+	a.AnonymizeAndSubmit(event)
 
 	return nil
 }
@@ -4559,7 +4819,7 @@ func (a *Server) createSelfSignedCA(ctx context.Context, caID types.CertAuthID) 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := a.CreateCertAuthority(ca); err != nil {
+	if err := a.CreateCertAuthority(ctx, ca); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -4595,12 +4855,43 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
 }
 
-// GetLicense return the license used the star the teleport enterprise auth server
+// GetLicense return the license used the start the teleport enterprise auth server
 func (a *Server) GetLicense(ctx context.Context) (string, error) {
+	if modules.GetModules().Features().Cloud {
+		return "", trace.AccessDenied("license cannot be downloaded on Cloud")
+	}
 	if a.license == nil {
 		return "", trace.NotFound("license not found")
 	}
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
+}
+
+// GetHeadlessAuthentication returns a headless authentication from the backend by name.
+// If it does not yet exist, a stub will be created to signal the login process to upsert
+// login details. This method will wait for the updated headless authentication and return it.
+func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	// Try to create a stub if it doesn't already exist, then wait for full login details.
+	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil && !trace.IsAlreadyExists(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// wait for the headless authentication to be updated with valid login details
+	// by the login process. If the headless authentication is already updated,
+	// Wait will return it immediately.
+	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+		return services.ValidateHeadlessAuthentication(ha) == nil, nil
+	})
+	return headlessAuthn, trace.Wrap(err)
+}
+
+// CompareAndSwapHeadlessAuthentication performs a compare
+// and swap replacement on a headless authentication resource.
+func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
+	return headlessAuthn, trace.Wrap(err)
 }
 
 // authKeepAliver is a keep aliver using auth server directly

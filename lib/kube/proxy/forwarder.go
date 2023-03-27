@@ -68,12 +68,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -81,7 +82,9 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -115,7 +118,7 @@ type ForwarderConfig struct {
 	// Keygen points to a key generator implementation
 	Keygen sshca.Authority
 	// Authz authenticates user
-	Authz auth.Authorizer
+	Authz authz.Authorizer
 	// AuthClient is a auth server client.
 	AuthClient auth.ClientI
 	// CachingAuthClient is a caching auth server client for read-only access.
@@ -153,9 +156,11 @@ type ForwarderConfig struct {
 	LockWatcher *services.LockWatcher
 	// CheckImpersonationPermissions is an optional override of the default
 	// impersonation permissions check, for use in testing
-	CheckImpersonationPermissions ImpersonationPermissionsChecker
+	CheckImpersonationPermissions servicecfg.ImpersonationPermissionsChecker
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 	// log is the logger function
 	log logrus.FieldLogger
 	// TracerProvider is used to create tracers capable
@@ -190,6 +195,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
+	}
+	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
+		return trace.BadParameter("missing parameter PROXYSigner")
 	}
 	if f.Namespace == "" {
 		f.Namespace = apidefaults.Namespace
@@ -360,7 +368,7 @@ func (f *Forwarder) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // authContext is a context of authenticated user,
 // contains information about user, target cluster and authenticated groups
 type authContext struct {
-	auth.Context
+	authz.Context
 	kubeGroups        map[string]struct{}
 	kubeUsers         map[string]struct{}
 	kubeClusterLabels map[string]string
@@ -461,13 +469,17 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	const accessDeniedMsg = "[00] access denied"
 	var isRemoteUser bool
-	userTypeI := req.Context().Value(auth.ContextUser)
+	userTypeI, err := authz.UserFromContext(ctx)
+	if err != nil {
+		f.log.WithError(err).Warn("error getting user from context")
+		return nil, trace.AccessDenied(accessDeniedMsg)
+	}
 	switch userTypeI.(type) {
-	case auth.LocalUser:
+	case authz.LocalUser:
 
-	case auth.RemoteUser:
+	case authz.RemoteUser:
 		isRemoteUser = true
-	case auth.BuiltinRole:
+	case authz.BuiltinRole:
 		f.log.Warningf("Denying proxy access to unauthenticated user of type %T - this can sometimes be caused by inadvertently using an HTTP load balancer instead of a TCP load balancer on the Kubernetes port.", userTypeI)
 		return nil, trace.AccessDenied(accessDeniedMsg)
 	default:
@@ -477,22 +489,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 
 	userContext, err := f.cfg.Authz.Authorize(ctx)
 	if err != nil {
-		switch {
-		// propagate connection problem error so we can differentiate
-		// between connection failed and access denied
-		case trace.IsConnectionProblem(err):
-			return nil, trace.ConnectionProblem(err, "[07] failed to connect to the database")
-		case trace.IsAccessDenied(err):
-			// don't print stack trace, just log the warning
-			f.log.Warn(err)
-		case keys.IsPrivateKeyPolicyError(err):
-			// private key policy errors should be returned to the client
-			// unaltered so that they know to reauthenticate with a valid key.
-			return nil, trace.Unwrap(err)
-		default:
-			f.log.Warn(trace.DebugReport(err))
-		}
-		return nil, trace.AccessDenied(accessDeniedMsg)
+		return nil, authz.ConvertAuthorizerError(ctx, f.log, err)
 	}
 	peers := req.TLS.PeerCertificates
 	if len(peers) > 1 {
@@ -701,7 +698,7 @@ func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr er
 	}
 }
 
-func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
+func (f *Forwarder) setupContext(ctx context.Context, authCtx authz.Context, req *http.Request, isRemoteUser bool, clientIdentity *tlsca.Identity, kubeResource *types.KubernetesResource) (*authContext, error) {
 	ctx, span := f.cfg.tracer.Start(
 		ctx,
 		"kube.Forwarder/setupContext",
@@ -776,6 +773,10 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, authCtx.User.GetName())
 
+	clientSrc, clientDst := utils.ClientAddrFromContext(req.Context())
+
+	forwarderType := f.cfg.KubeServiceType
+
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
 	// endpoint for a leaf teleport cluster.
 	var dialFn dialFunc
@@ -805,11 +806,12 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 			)
 			defer span.End()
 			return targetCluster.DialTCP(reversetunnel.DialParams{
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
-				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				ConnType:              types.KubeTunnel,
+				ServerID:              endpoint.serverID,
+				ProxyIDs:              endpoint.proxyIDs,
+				OriginalClientDstAddr: clientDst,
 			})
 		}
 		isRemoteClosed = targetCluster.IsClosed
@@ -835,12 +837,18 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 				),
 			)
 			defer span.End()
+
+			// Make sure we will only send signed PROXY headers to teleport kube service node, not real kube cluster
+			if forwarderType != ProxyService && endpoint.serverID == "" {
+				clientDst = nil
+			}
 			return localCluster.DialTCP(reversetunnel.DialParams{
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
-				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				ConnType:              types.KubeTunnel,
+				ServerID:              endpoint.serverID,
+				ProxyIDs:              endpoint.proxyIDs,
+				OriginalClientDstAddr: clientDst,
 			})
 		}
 		isRemoteClosed = localCluster.IsClosed
@@ -858,7 +866,27 @@ func (f *Forwarder) setupContext(ctx context.Context, authCtx auth.Context, req 
 				),
 			)
 			defer span.End()
-			return new(net.Dialer).DialContext(ctx, network, endpoint.addr)
+			conn, err := new(net.Dialer).DialContext(ctx, network, endpoint.addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Make sure we will only send signed PROXY headers to teleport kube service node, not real kube cluster
+			if forwarderType != ProxyService && endpoint.serverID == "" {
+				clientDst = nil
+			}
+			// Teleport proxy will send signed PROXY headers to the kube service
+			if f.cfg.PROXYSigner != nil && clientSrc != nil && clientDst != nil {
+				signedHeader, err := f.cfg.PROXYSigner.SignPROXYHeader(clientSrc, clientDst)
+				if err != nil {
+					return nil, trace.Wrap(err, "could not create signed PROXY header")
+				}
+				if _, err := conn.Write(signedHeader); err != nil {
+					return nil, trace.Wrap(err, "could not write signed PROXY header into connection")
+				}
+			}
+
+			return conn, nil
 		}
 		isRemoteClosed = func() bool { return false }
 	}
@@ -1077,6 +1105,11 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		),
 	)
 	defer span.End()
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, actx.Identity.GetIdentity(), actx.Checker.PinSourceIP()); err != nil {
+		return trace.Wrap(err)
+	}
 
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote
@@ -2058,10 +2091,7 @@ func (f *Forwarder) getExecutor(ctx authContext, sess *clusterSession, req *http
 			return nil, trace.Wrap(err)
 		}
 	}
-	rt = otelhttp.NewTransport(
-		rt,
-		otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-	)
+	rt = tracehttp.NewTransport(rt)
 
 	return remotecommand.NewSPDYExecutorForTransports(rt, upgradeRoundTripper, req.Method, req.URL)
 }
@@ -2084,7 +2114,7 @@ func (f *Forwarder) getDialer(ctx authContext, sess *clusterSession, req *http.R
 		}
 	}
 	client := &http.Client{
-		Transport: otelhttp.NewTransport(rt, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+		Transport: tracehttp.NewTransport(rt),
 	}
 
 	return spdy.NewDialer(upgradeRoundTripper, client, req.Method, req.URL), nil
@@ -2352,10 +2382,7 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forward
 		}
 	}
 
-	rt = otelhttp.NewTransport(
-		rt,
-		otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter),
-	)
+	rt = tracehttp.NewTransport(rt)
 
 	forwarder, err := forward.New(
 		forward.FlushInterval(100*time.Millisecond),

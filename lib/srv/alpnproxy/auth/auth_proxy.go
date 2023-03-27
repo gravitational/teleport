@@ -125,7 +125,7 @@ func (s *AuthProxyDialerService) dialLocalAuthServer(ctx context.Context, client
 
 	addr := utils.ChooseRandomString(s.authServers)
 	d := &net.Dialer{
-		Timeout: defaults.DefaultDialTimeout,
+		Timeout: defaults.DefaultIOTimeout,
 	}
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {

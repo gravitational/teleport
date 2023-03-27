@@ -79,7 +79,7 @@ type Config struct {
 	// User is a user who runs SCP command
 	User string
 	// AuditLog is AuditLog log
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 	// ProgressWriter is a writer for printing the progress
 	// (used only on the client)
 	ProgressWriter io.Writer
@@ -517,9 +517,13 @@ func (cmd *command) receiveFile(st *state, fc newFileCmd, ch io.ReadWriter) erro
 		return trace.Errorf("unexpected file copy length: %v", n)
 	}
 
-	if err := cmd.FileSystem.Chmod(path, int(fc.Mode)); err != nil {
-		return trace.Wrap(err)
+	// Change the file permissions only when client requested it.
+	if cmd.Flags.PreserveAttrs {
+		if err := cmd.FileSystem.Chmod(path, int(fc.Mode)); err != nil {
+			return trace.Wrap(err)
+		}
 	}
+
 	if st.stat != nil {
 		err = cmd.FileSystem.Chtimes(path, st.stat.Atime, st.stat.Mtime)
 		if err != nil {

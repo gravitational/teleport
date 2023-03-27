@@ -27,14 +27,14 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/observability/tracing"
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -136,7 +136,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// to be equal to the name of the remote cluster it is connecting to.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(ctx, trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -155,7 +155,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 		// Force name to the name of the trusted cluster.
 		trustedCluster.SetName(remoteCAs[0].GetClusterName())
 
-		if err := a.addCertAuthorities(trustedCluster, remoteCAs); err != nil {
+		if err := a.addCertAuthorities(ctx, trustedCluster, remoteCAs); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -174,7 +174,7 @@ func (a *Server) UpsertTrustedCluster(ctx context.Context, trustedCluster types.
 			Type: events.TrustedClusterCreateEvent,
 			Code: events.TrustedClusterCreateCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: trustedCluster.GetName(),
 		},
@@ -220,7 +220,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 
 	// Remove all CAs
 	for _, caType := range []types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA, types.OpenSSHCA} {
-		if err := a.DeleteCertAuthority(types.CertAuthID{Type: caType, DomainName: name}); err != nil {
+		if err := a.DeleteCertAuthority(ctx, types.CertAuthID{Type: caType, DomainName: name}); err != nil {
 			if !trace.IsNotFound(err) {
 				return trace.Wrap(err)
 			}
@@ -242,7 +242,7 @@ func (a *Server) DeleteTrustedCluster(ctx context.Context, name string) error {
 			Type: events.TrustedClusterDeleteEvent,
 			Code: events.TrustedClusterDeleteCode,
 		},
-		UserMetadata: ClientUserMetadata(ctx),
+		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: name,
 		},
@@ -317,7 +317,7 @@ func (a *Server) establishTrust(ctx context.Context, trustedCluster types.Truste
 	return validateResponse.CAs, nil
 }
 
-func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
+func (a *Server) addCertAuthorities(ctx context.Context, trustedCluster types.TrustedCluster, remoteCAs []types.CertAuthority) error {
 	// the remote auth server has verified our token. add the
 	// remote certificate authority to our backend
 	for _, remoteCertAuthority := range remoteCAs {
@@ -335,7 +335,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 
 		// we use create here instead of upsert to prevent people from wiping out
 		// their own ca if it has the same name as the remote ca
-		err := a.CreateCertAuthority(remoteCertAuthority)
+		err := a.CreateCertAuthority(ctx, remoteCertAuthority)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -346,7 +346,7 @@ func (a *Server) addCertAuthorities(trustedCluster types.TrustedCluster, remoteC
 
 // DeleteRemoteCluster deletes remote cluster resource, all certificate authorities
 // associated with it
-func (a *Server) DeleteRemoteCluster(clusterName string) error {
+func (a *Server) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	// To make sure remote cluster exists - to protect against random
 	// clusterName requests (e.g. when clusterName is set to local cluster name)
 	_, err := a.GetRemoteCluster(clusterName)
@@ -354,7 +354,7 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 		return trace.Wrap(err)
 	}
 	// delete cert authorities associated with the cluster
-	err = a.DeleteCertAuthority(types.CertAuthID{
+	err = a.DeleteCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	})
@@ -368,7 +368,7 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 	}
 	// there should be no User CA in trusted clusters on the main cluster side
 	// per standard automation but clean up just in case
-	err = a.DeleteCertAuthority(types.CertAuthID{
+	err = a.DeleteCertAuthority(ctx, types.CertAuthID{
 		Type:       types.UserCA,
 		DomainName: clusterName,
 	})
@@ -377,7 +377,7 @@ func (a *Server) DeleteRemoteCluster(clusterName string) error {
 			return trace.Wrap(err)
 		}
 	}
-	return a.Services.DeleteRemoteCluster(clusterName)
+	return a.Services.DeleteRemoteCluster(ctx, clusterName)
 }
 
 // GetRemoteCluster returns remote cluster by name
@@ -526,7 +526,7 @@ func (a *Server) validateTrustedCluster(ctx context.Context, validateRequest *Va
 		}
 	}
 
-	err = a.UpsertCertAuthority(remoteCA)
+	err = a.UpsertCertAuthority(ctx, remoteCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -644,7 +644,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		tr.TLSClientConfig = tlsConfig
 
 		insecureWebClient := &http.Client{
-			Transport: otelhttp.NewTransport(tr, otelhttp.WithSpanNameFormatter(tracing.HTTPTransportFormatter)),
+			Transport: tracehttp.NewTransport(tr),
 		}
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}

@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -174,7 +174,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	}
 
 	// Create the kube server to service listener.
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: teleportClusterName,
 		AccessPoint: accessPoint,
 		LockWatcher: lockWatcher,
@@ -189,7 +189,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
-	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}

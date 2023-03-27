@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -38,11 +39,16 @@ type Anonymizable interface {
 type UserLoginEvent prehogv1.UserLoginEvent
 
 func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	var deviceID string
+	if u.DeviceId != "" {
+		deviceID = a.AnonymizeString(u.DeviceId)
+	}
 	return prehogv1.SubmitEventRequest{
 		Event: &prehogv1.SubmitEventRequest_UserLogin{
 			UserLogin: &prehogv1.UserLoginEvent{
 				UserName:      a.AnonymizeString(u.UserName),
 				ConnectorType: u.ConnectorType,
+				DeviceId:      deviceID,
 			},
 		},
 	}
@@ -329,6 +335,73 @@ func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 			Sftp: &prehogv1.SFTPEvent{
 				UserName: a.AnonymizeString(u.UserName),
 				Action:   u.Action,
+			},
+		},
+	}
+}
+
+// AgentMetadataEvent is an event emitted after an agent first connects to the auth server.
+type AgentMetadataEvent prehogv1.AgentMetadataEvent
+
+func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_AgentMetadataEvent{
+			AgentMetadataEvent: &prehogv1.AgentMetadataEvent{
+				Version:               u.Version,
+				HostId:                a.AnonymizeString(u.HostId),
+				Services:              u.Services,
+				Os:                    u.Os,
+				OsVersion:             u.OsVersion,
+				HostArchitecture:      u.HostArchitecture,
+				GlibcVersion:          u.GlibcVersion,
+				InstallMethods:        u.InstallMethods,
+				ContainerRuntime:      u.ContainerRuntime,
+				ContainerOrchestrator: u.ContainerOrchestrator,
+				CloudEnvironment:      u.CloudEnvironment,
+			},
+		},
+	}
+}
+
+type ResourceKind = prehogv1.ResourceKind
+
+const (
+	ResourceKindNode           = prehogv1.ResourceKind_RESOURCE_KIND_NODE
+	ResourceKindAppServer      = prehogv1.ResourceKind_RESOURCE_KIND_APP_SERVER
+	ResourceKindKubeServer     = prehogv1.ResourceKind_RESOURCE_KIND_KUBE_SERVER
+	ResourceKindDBServer       = prehogv1.ResourceKind_RESOURCE_KIND_DB_SERVER
+	ResourceKindWindowsDesktop = prehogv1.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindNodeOpenSSH    = prehogv1.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+)
+
+func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind {
+	switch t {
+	case types.KeepAlive_NODE:
+		return ResourceKindNode
+	case types.KeepAlive_APP:
+		return ResourceKindAppServer
+	case types.KeepAlive_KUBERNETES:
+		return ResourceKindKubeServer
+	case types.KeepAlive_DATABASE:
+		return ResourceKindDBServer
+	default:
+		return 0
+	}
+}
+
+type ResourceHeartbeatEvent struct {
+	Name   string
+	Kind   prehogv1.ResourceKind
+	Static bool
+}
+
+func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_ResourceHeartbeat{
+			ResourceHeartbeat: &prehogv1.ResourceHeartbeatEvent{
+				ResourceName: a.AnonymizeNonEmpty(u.Name),
+				ResourceKind: u.Kind,
+				Static:       u.Static,
 			},
 		},
 	}

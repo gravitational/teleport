@@ -880,6 +880,11 @@ install_from_repo() {
         yum install -y yum-utils
         yum-config-manager --add-repo \
         "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${REPO_CHANNEL}/teleport.repo")"
+
+        # Remove metadata cache to prevent cache from other channel (eg, prior version)
+        # See: https://github.com/gravitational/teleport/issues/22581
+        yum --disablerepo="*" --enablerepo="teleport" clean metadata
+        
         yum install -y ${TELEPORT_PACKAGE_NAME}
     else
         echo "Unsupported distro: $ID"
@@ -935,6 +940,10 @@ elif [[ "${DB_INSTALL_MODE}" == "true" ]]; then
 else
     install_teleport_node_config
 fi
+
+
+# Used to track whether a Teleport agent was installed using this method.
+export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"
 
 # install systemd unit if applicable (linux hosts)
 if is_using_systemd; then

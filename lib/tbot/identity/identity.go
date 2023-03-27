@@ -243,7 +243,7 @@ func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
 		User:            i.SSHCert.ValidPrincipals[0],
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }
 

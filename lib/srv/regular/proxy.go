@@ -24,15 +24,19 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -43,6 +47,11 @@ import (
 type PROXYHeaderSigner interface {
 	SignPROXYHeader(source, destination net.Addr) ([]byte, error)
 }
+
+// CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
+// We define our own version to avoid circular dependencies in multiplexer package (it can't depend on 'services'),
+// where this function is used.
+type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
@@ -251,7 +260,13 @@ func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterNa
 func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrcAddr, clientDstAddr net.Addr) error {
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, t.SpecifiedPort())
 
-	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, t.ctx.StartAgentChannel)
+	aGetter := t.ctx.StartAgentChannel
+	signerCreator := func() (ssh.Signer, error) {
+		validBefore := time.Unix(int64(t.ctx.Identity.Certificate.ValidBefore), 0)
+		ttl := time.Until(validBefore)
+		return agentless.CreateAuthSigner(ctx, t.ctx.Identity.TeleportUser, t.clusterName, ttl, t.router)
+	}
+	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signerCreator)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -262,6 +277,7 @@ func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrc
 	go func() {
 		t.close(utils.ProxyConn(ctx, ch, conn))
 	}()
+
 	return nil
 }
 
@@ -302,7 +318,7 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 			t.log.Error(err)
 		} else {
 			// send a JSON payload sandwiched between 'teleport proxy signature' and 0x00:
-			payload := fmt.Sprintf("%s%s\x00", apisshutils.ProxyHelloSignature, payloadJSON)
+			payload := fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON)
 			_, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				t.log.Error(err)

@@ -64,3 +64,12 @@ proxied to the `exporter_url` defined for the Auth Service of the cluster the co
 $ tsh --trace ssh root@myserver
 $ tsh --trace ls
 ```
+
+Exporting traces from `tsh` to a different exporter than the one defined in the Auth Service config
+is also possible via the `--trace-exporter` flag. A URL must be provided that adheres to the same
+format as the `exporter_url` of the `tracing_service`.
+
+```code
+$ tsh --trace --trace-exporter=grpc://collector.example.com:4317 ssh root@myserver
+$ tsh --trace --trace-exporter=file:///var/lib/teleport/traces ls
+```

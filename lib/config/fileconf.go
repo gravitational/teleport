@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -46,14 +47,13 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -90,6 +90,12 @@ type FileConfig struct {
 	// Discovery is the "discovery_service" section in the Teleport
 	// configuration file
 	Discovery Discovery `yaml:"discovery_service,omitempty"`
+
+	// Okta is the "okta_service" section in the Teleport configuration file
+	Okta Okta `yaml:"okta_service,omitempty"`
+
+	// Plugins is the section of the config for configuring the plugin service.
+	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -194,7 +200,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		}
 	}
 
-	conf := service.MakeDefaultConfig()
+	conf := servicecfg.MakeDefaultConfig()
 
 	var g Global
 
@@ -292,7 +298,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
+func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -316,7 +322,7 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 	return s, nil
 }
 
-func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
+func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
 	if enabled {
 		a.ListenAddress = conf.Auth.ListenAddr.Addr
@@ -338,7 +344,7 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 	return a
 }
 
-func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
+func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Proxy, error) {
 	var p Proxy
 	if enabled {
 		p.EnabledFlag = "yes"
@@ -380,7 +386,7 @@ func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool
 	return p, nil
 }
 
-func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
+func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
 	if enabled || flags.AppURI != "" || flags.AppName != "" {
@@ -436,6 +442,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
+	conf.Okta.defaultEnabled = false
 	if conf.Version == "" {
 		conf.Version = defaults.TeleportConfigVersionV1
 	}
@@ -506,6 +513,16 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
 					region, regions)
 			}
+		}
+
+		if matcher.AssumeRoleARN != "" {
+			_, err := awsutils.ParseRoleARN(matcher.AssumeRoleARN)
+			if err != nil {
+				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
+			}
+		} else if matcher.ExternalID != "" {
+			return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
+				matcher.ExternalID)
 		}
 
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
@@ -828,6 +845,8 @@ type CachePolicy struct {
 	EnabledFlag string `yaml:"enabled,omitempty"`
 	// TTL sets maximum TTL for the cached values
 	TTL string `yaml:"ttl,omitempty"`
+	// MaxBackoff sets the maximum backoff on error.
+	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
 }
 
 // Enabled determines if a given "_service" section has been set to 'true'
@@ -840,9 +859,10 @@ func (c *CachePolicy) Enabled() bool {
 }
 
 // Parse parses cache policy from Teleport config
-func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
-	out := service.CachePolicy{
-		Enabled: c.Enabled(),
+func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
+	out := servicecfg.CachePolicy{
+		Enabled:        c.Enabled(),
+		MaxRetryPeriod: c.MaxBackoff,
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -982,6 +1002,23 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// HostedPlugins configures the hosted plugins runtime.
+	// This is currently Cloud-specific.
+	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+}
+
+// PluginService represents the configuration for the plugin service.
+type PluginService struct {
+	Enabled bool `yaml:"enabled"`
+	// Plugins is a map of matchers for enabled plugin resources.
+	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// Opsgenie represents the configuration for the Opsgenie plugin.
+type Opsgenie struct {
+	// APIKeyFile is the path to a file containing an Opsgenie API key.
+	APIKeyFile string `yaml:"api_key_file"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1300,6 +1337,66 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	}, nil
 }
 
+// HostedPlugins defines 'auth_service/plugins' Enterprise extension
+type HostedPlugins struct {
+	Enabled        bool                 `yaml:"enabled"`
+	OAuthProviders PluginOAuthProviders `yaml:"oauth_providers,omitempty"`
+}
+
+// PluginOAuthProviders holds application credentials for each
+// 3rd party API provider.
+type PluginOAuthProviders struct {
+	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
+}
+
+func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) {
+	out := servicecfg.PluginOAuthProviders{}
+	if p.Slack == nil {
+		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
+	}
+
+	slack, err := p.Slack.Parse()
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.Slack = slack
+	return out, nil
+}
+
+// OAuthClientCredentials holds paths from which to read
+// client credentials for Teleport's OAuth app.
+type OAuthClientCredentials struct {
+	// ClientID is the path to the file containing the Client ID
+	ClientID string `yaml:"client_id"`
+	// ClientSecret is the path to the file containing the Client Secret
+	ClientSecret string `yaml:"client_secret"`
+}
+
+func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+	if o.ClientID == "" || o.ClientSecret == "" {
+		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
+	}
+
+	var clientID, clientSecret string
+
+	content, err := os.ReadFile(o.ClientID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientID = strings.TrimSpace(string(content))
+
+	content, err = os.ReadFile(o.ClientSecret)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientSecret = strings.TrimSpace(string(content))
+
+	return &oauth2.ClientCredentials{
+		ID:     clientID,
+		Secret: clientSecret,
+	}, nil
+}
+
 // SSH is 'ssh_service' section of the config file
 type SSH struct {
 	Service               `yaml:",inline"`
@@ -1453,14 +1550,14 @@ type PAM struct {
 	Environment map[string]string `yaml:"environment,omitempty"`
 }
 
-// Parse returns a parsed pam.Config.
-func (p *PAM) Parse() *pam.Config {
+// Parse returns a parsed PAM config.
+func (p *PAM) Parse() *servicecfg.PAMConfig {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &pam.Config{
+	return &servicecfg.PAMConfig{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
@@ -1487,9 +1584,9 @@ type BPF struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (b *BPF) Parse() *bpf.Config {
+func (b *BPF) Parse() *servicecfg.BPFConfig {
 	enabled, _ := apiutils.ParseBool(b.Enabled)
-	return &bpf.Config{
+	return &servicecfg.BPFConfig{
 		Enabled:           enabled,
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
@@ -1509,13 +1606,13 @@ type RestrictedSession struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*bpf.RestrictedSessionConfig, error) {
+func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
 	enabled, err := apiutils.ParseBool(r.Enabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &bpf.RestrictedSessionConfig{
+	return &servicecfg.RestrictedSessionConfig{
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
 	}, nil
@@ -1562,6 +1659,11 @@ type AWSMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// InstallParams sets the join method when installing on
@@ -1720,6 +1822,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// AssumeRoleARN is the AWS role to assume to before accessing the database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
@@ -1943,9 +2047,9 @@ type ACME struct {
 }
 
 // Parse parses ACME section values
-func (a ACME) Parse() (*service.ACME, error) {
+func (a ACME) Parse() (*servicecfg.ACME, error) {
 	// ACME is disabled by default
-	out := service.ACME{}
+	out := servicecfg.ACME{}
 	if a.EnabledFlag == "" {
 		return &out, nil
 	}
@@ -2222,4 +2326,15 @@ func (s *TracingService) Enabled() bool {
 		return false
 	}
 	return v
+}
+
+// Okta represents an okta_service section in the config file.
+type Okta struct {
+	Service `yaml:",inline"`
+
+	// APIEndpoint is the Okta API endpoint to use.
+	APIEndpoint string `yaml:"api_endpoint,omitempty"`
+
+	// APITokenPath is the path to the Okta API token.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
 }

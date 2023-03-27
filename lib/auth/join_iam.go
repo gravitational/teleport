@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -376,9 +376,9 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		opt(cfg)
 	}
 
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
-		return nil, trace.BadParameter("logic error: client address was not set")
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	challenge, err := generateIAMChallenge()

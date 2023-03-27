@@ -32,14 +32,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 )
 
 // InventoryCommand implements the `tctl inventory` family of commands.
 type InventoryCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	serverID string
 
@@ -59,7 +59,7 @@ type InventoryCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *InventoryCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *InventoryCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 	inventory := app.Command("inventory", "Manage Teleport instance inventory").Hidden()
 

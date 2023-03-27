@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - branch/*
   pull_request:
     paths:
       - '**.go'
@@ -37,6 +38,7 @@ jobs:
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
         TELEPORT_BPF_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
     services:

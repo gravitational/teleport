@@ -157,8 +157,6 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindSemaphore, nil
 	case types.KindKubernetesCluster, "kube_clusters":
 		return types.KindKubernetesCluster, nil
-	case types.KindKubeService, "kube_services":
-		return types.KindKubeService, nil
 	case types.KindKubeServer, "kube_servers":
 		return types.KindKubeServer, nil
 	case types.KindLock, "locks":
@@ -171,6 +169,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindDatabase, nil
 	case types.KindApp, "apps":
 		return types.KindApp, nil
+	case types.KindAppServer, "app_servers":
+		return types.KindAppServer, nil
 	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
@@ -396,6 +396,10 @@ func GetResourceMarshalerKinds() []string {
 }
 
 // RegisterResourceMarshaler registers a marshaler for resources of a specific kind.
+// WARNING!!
+// Registering a resource Marshaler requires lib/services/local.CreateResources
+// supports the resource kind or the standard backup/restore procedure of using
+// `tctl get all` and then BootstrapResources in Teleport will fail.
 func RegisterResourceMarshaler(kind string, marshaler ResourceMarshaler) {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()

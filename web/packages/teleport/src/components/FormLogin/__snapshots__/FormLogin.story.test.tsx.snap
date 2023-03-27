@@ -76,6 +76,18 @@ exports[`auth2faType: off 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -117,18 +129,6 @@ exports[`auth2faType: off 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
 }
 
 .c4 {
@@ -353,6 +353,18 @@ exports[`auth2faType: optional rendering 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -404,18 +416,6 @@ exports[`auth2faType: optional rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
 }
 
 .c4 {
@@ -497,7 +497,7 @@ exports[`auth2faType: optional rendering 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -797,6 +797,18 @@ exports[`auth2faType: otp rendering 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -848,18 +860,6 @@ exports[`auth2faType: otp rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
 }
 
 .c4 {
@@ -941,7 +941,7 @@ exports[`auth2faType: otp rendering 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1255,6 +1255,18 @@ exports[`auth2faType: webauthn rendering 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -1306,18 +1318,6 @@ exports[`auth2faType: webauthn rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
 }
 
 .c4 {
@@ -1399,7 +1399,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 .c12 .react-select__control,
 .c12 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -1766,6 +1766,18 @@ exports[`cloud auth2faType: on rendering 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
 .c7 {
   appearance: none;
   border: none;
@@ -1817,18 +1829,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
 }
 
 .c4 {
@@ -1910,7 +1910,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 .c17 .react-select__control,
 .c17 .react-select__control--is-focused {
   min-height: 40px;
-  height: 40px;
+  height: fit-content;
   background-color: transparent;
   border-color: transparent;
   border-radius: 4px;
@@ -2323,6 +2323,18 @@ exports[`server error rendering 1`] = `
   border-radius: 8px;
 }
 
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
+}
+
 .c8 {
   appearance: none;
   border: none;
@@ -2364,18 +2376,6 @@ exports[`server error rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  color: #FFFFFF;
-  text-align: center;
 }
 
 .c5 {

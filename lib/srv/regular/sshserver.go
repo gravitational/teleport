@@ -51,10 +51,10 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv"
@@ -149,7 +149,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *pam.Config
+	pamConfig *servicecfg.PAMConfig
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -229,6 +229,8 @@ type Server struct {
 
 	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
 	proxySigner PROXYHeaderSigner
+	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
+	caGetter CertAuthorityGetter
 }
 
 // TargetMetadata returns metadata about the server.
@@ -266,7 +268,7 @@ func (s *Server) GetUtmpPath() (string, string) {
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() (*pam.Config, error) {
+func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
 	return s.pamConfig, nil
 }
 
@@ -549,7 +551,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *pam.Config) ServerOption {
+func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -691,6 +693,14 @@ func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
 	}
 }
 
+// SetCAGetter sets the cert authority getter
+func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
+	return func(s *Server) error {
+		s.caGetter = caGetter
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -813,6 +823,11 @@ func New(
 		SessionRegistry: s.reg,
 	}
 
+	clusterName, err := s.GetAccessPoint().GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	server, err := sshutils.NewServer(
 		component,
 		addr, s, signers,
@@ -826,6 +841,8 @@ func New(
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
 		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
+		sshutils.SetCAGetter(s.caGetter),
+		sshutils.SetClusterName(clusterName.GetClusterName()),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -845,7 +862,6 @@ func New(
 		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
 			InventoryHandle: s.inventoryHandle,
 			GetServer:       s.getServerInfo,
-			Announcer:       s.authService,
 			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {

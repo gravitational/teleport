@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
@@ -113,7 +114,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -433,13 +434,13 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0620
+		mode = 0o620
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0600
+		mode = 0o600
 	}
 
 	return uid, gid, mode, nil

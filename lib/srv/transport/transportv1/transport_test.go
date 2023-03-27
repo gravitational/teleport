@@ -398,10 +398,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
 			conn := newEchoConn()
 
 			srv := newServer(t, ServerConfig{
@@ -410,6 +407,7 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 						fakeHost: conn,
 					},
 				},
+				Logger:          utils.NewLoggerForTests(),
 				accessCheckerFn: test.checkerFn,
 			})
 

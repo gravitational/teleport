@@ -1142,10 +1142,12 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	remoteSite.remoteAccessPoint = accessPoint
 	nodeWatcher, err := services.NewNodeWatcher(closeContext, services.NodeWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: srv.Component,
-			Client:    accessPoint,
-			Log:       srv.Log,
+			Component:    srv.Component,
+			Client:       accessPoint,
+			Log:          srv.Log,
+			MaxStaleness: time.Minute,
 		},
+		NodesGetter: accessPoint,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

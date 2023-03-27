@@ -52,7 +52,9 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -63,7 +65,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestServiceSelfSignedHTTPS(t *testing.T) {
-	cfg := &Config{
+	cfg := &servicecfg.Config{
 		DataDir:  t.TempDir(),
 		Hostname: "example.com",
 		Log:      utils.WrapLogger(logrus.New().WithField("test", "TestServiceSelfSignedHTTPS")),
@@ -78,7 +80,7 @@ func TestMonitor(t *testing.T) {
 	t.Parallel()
 	fakeClock := clockwork.NewFakeClock()
 
-	cfg := MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Clock = fakeClock
 	var err error
 	cfg.DataDir = t.TempDir()
@@ -278,7 +280,7 @@ func TestServiceInitExternalLog(t *testing.T) {
 				AuditEventsURI: tt.events,
 			})
 			require.NoError(t, err)
-			loggers, err := initAuthAuditLog(context.Background(), auditConfig, backend)
+			loggers, err := initAuthExternalAuditLog(context.Background(), auditConfig, backend)
 			if tt.isErr {
 				require.Error(t, err)
 			} else {
@@ -296,29 +298,29 @@ func TestServiceInitExternalLog(t *testing.T) {
 
 func TestGetAdditionalPrincipals(t *testing.T) {
 	p := &TeleportProcess{
-		Config: &Config{
+		Config: &servicecfg.Config{
 			Hostname:    "global-hostname",
 			HostUUID:    "global-uuid",
 			AdvertiseIP: "1.2.3.4",
-			Proxy: ProxyConfig{
+			Proxy: servicecfg.ProxyConfig{
 				PublicAddrs:         utils.MustParseAddrList("proxy-public-1", "proxy-public-2"),
 				SSHPublicAddrs:      utils.MustParseAddrList("proxy-ssh-public-1", "proxy-ssh-public-2"),
 				TunnelPublicAddrs:   utils.MustParseAddrList("proxy-tunnel-public-1", "proxy-tunnel-public-2"),
 				PostgresPublicAddrs: utils.MustParseAddrList("proxy-postgres-public-1", "proxy-postgres-public-2"),
 				MySQLPublicAddrs:    utils.MustParseAddrList("proxy-mysql-public-1", "proxy-mysql-public-2"),
-				Kube: KubeProxyConfig{
+				Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: utils.MustParseAddrList("proxy-kube-public-1", "proxy-kube-public-2"),
 				},
 				WebAddr: *utils.MustParseAddr(":443"),
 			},
-			Auth: AuthConfig{
+			Auth: servicecfg.AuthConfig{
 				PublicAddrs: utils.MustParseAddrList("auth-public-1", "auth-public-2"),
 			},
-			SSH: SSHConfig{
+			SSH: servicecfg.SSHConfig{
 				PublicAddrs: utils.MustParseAddrList("node-public-1", "node-public-2"),
 			},
-			Kube: KubeConfig{
+			Kube: servicecfg.KubeConfig{
 				PublicAddrs: utils.MustParseAddrList("kube-public-1", "kube-public-2"),
 			},
 		},
@@ -446,7 +448,7 @@ func TestDesktopAccessFIPS(t *testing.T) {
 	t.Parallel()
 
 	// Create and configure a default Teleport configuration.
-	cfg := MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clockwork.NewFakeClock()
 	cfg.DataDir = t.TempDir()
@@ -483,6 +485,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"http/1.1",
 				"h2",
 				"acme-tls/1",
+				"teleport-tcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -514,6 +517,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
+				"teleport-tcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -548,7 +552,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cfg := MakeDefaultConfig()
+			cfg := servicecfg.MakeDefaultConfig()
 			cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 			cfg.Proxy.ACME.Enabled = tc.acmeEnabled
 			cfg.DataDir = t.TempDir()
@@ -583,7 +587,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	// Create and configure a default Teleport configuration.
-	cfg := MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
 	cfg.Clock = clock
 	cfg.DataDir = t.TempDir()
@@ -644,7 +648,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	token := "join-token"
 
 	// Create Node process.
-	nodeCfg := MakeDefaultConfig()
+	nodeCfg := servicecfg.MakeDefaultConfig()
 	nodeCfg.SetAuthServerAddress(listenAddr)
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.SetToken(token)
@@ -672,7 +676,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	authCfg := MakeDefaultConfig()
+	authCfg := servicecfg.MakeDefaultConfig()
 	authCfg.SetAuthServerAddress(listenAddr)
 	authCfg.DataDir = t.TempDir()
 	authCfg.Auth.Enabled = true
@@ -701,7 +705,7 @@ func TestTeleportProcessAuthVersionCheck(t *testing.T) {
 	})
 }
 
-func testVersionCheck(t *testing.T, nodeCfg *Config, skipVersionCheck bool) {
+func testVersionCheck(t *testing.T, nodeCfg *servicecfg.Config, skipVersionCheck bool) {
 	nodeCfg.SkipVersionCheck = skipVersionCheck
 
 	nodeProc, err := NewTeleport(nodeCfg)
@@ -860,7 +864,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			cfg := &Config{
+			cfg := &servicecfg.Config{
 				DataDir:    dataDir,
 				Log:        logrus.New(),
 				JoinMethod: types.JoinMethodToken,
@@ -959,8 +963,12 @@ func TestProxyGRPCServers(t *testing.T) {
 	log := logrus.New()
 	process := &TeleportProcess{
 		Supervisor: NewSupervisor(hostID, log),
-		Config: &Config{
-			Proxy: ProxyConfig{Kube: KubeProxyConfig{Enabled: true}},
+		Config: &servicecfg.Config{
+			Proxy: servicecfg.ProxyConfig{
+				Kube: servicecfg.KubeProxyConfig{
+					Enabled: true,
+				},
+			},
 		},
 		log: log,
 	}
@@ -1070,6 +1078,64 @@ func TestProxyGRPCServers(t *testing.T) {
 				grpc.FailOnNonTempDialError(true),
 			)
 			tt.assertErr(t, err)
+		})
+	}
+}
+
+func TestEnterpriseServicesEnabled(t *testing.T) {
+	tests := []struct {
+		name       string
+		enterprise bool
+		config     *servicecfg.Config
+		expected   bool
+	}{
+		{
+			name:       "enterprise enabled, okta enabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: true,
+				},
+			},
+			expected: true,
+		},
+		{
+			name:       "enterprise disabled, okta enabled",
+			enterprise: false,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: true,
+				},
+			},
+			expected: false,
+		},
+		{
+			name:       "enterprise enabled, okta disabled",
+			enterprise: true,
+			config: &servicecfg.Config{
+				Okta: servicecfg.OktaConfig{
+					Enabled: false,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			buildType := modules.BuildOSS
+			if tt.enterprise {
+				buildType = modules.BuildEnterprise
+			}
+			modules.SetTestModules(t, &modules.TestModules{
+				TestBuildType: buildType,
+			})
+
+			process := &TeleportProcess{
+				Config: tt.config,
+			}
+
+			require.Equal(t, tt.expected, process.enterpriseServicesEnabled())
 		})
 	}
 }

@@ -46,7 +46,7 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), addr)
 	}
 	dialer := net.Dialer{
-		Timeout: apidefaults.DefaultDialTimeout,
+		Timeout: apidefaults.DefaultIOTimeout,
 	}
 	serverConn, err := dialer.DialContext(ctx, addr.AddrNetwork, addr.String())
 	if err != nil {

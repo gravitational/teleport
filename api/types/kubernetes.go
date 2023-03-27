@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"time"
 
@@ -195,6 +196,17 @@ func (k *KubernetesClusterV3) SetName(name string) {
 	k.Metadata.Name = name
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (k *KubernetesClusterV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := k.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := k.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetStaticLabels returns the static labels.
 func (k *KubernetesClusterV3) GetStaticLabels() map[string]string {
 	return k.Metadata.Labels
@@ -317,6 +329,12 @@ func (k *KubernetesClusterV3) setStaticFields() {
 	k.Version = V3
 }
 
+// validKubeClusterName filters the allowed characters in kubernetes cluster
+// names. We need this because cluster names are used for cert filenames on the
+// client side, in the ~/.tsh directory. Restricting characters helps with
+// sneaky cluster names being used for client directory traversal and exploits.
+var validKubeClusterName = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
 // CheckAndSetDefaults checks and sets default values for any missing fields.
 func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 	k.setStaticFields()
@@ -329,11 +347,19 @@ func (k *KubernetesClusterV3) CheckAndSetDefaults() error {
 		}
 	}
 
+	if !validKubeClusterName.MatchString(k.Metadata.Name) {
+		return trace.BadParameter("invalid kubernetes cluster name: %q", k.Metadata.Name)
+	}
+
 	if err := k.Spec.Azure.CheckAndSetDefaults(); err != nil && k.IsAzure() {
 		return trace.Wrap(err)
 	}
 
 	if err := k.Spec.AWS.CheckAndSetDefaults(); err != nil && k.IsAWS() {
+		return trace.Wrap(err)
+	}
+
+	if err := k.Spec.GCP.CheckAndSetDefaults(); err != nil && k.IsGCP() {
 		return trace.Wrap(err)
 	}
 
@@ -367,6 +393,22 @@ func (k KubeAWS) CheckAndSetDefaults() error {
 
 	if len(k.AccountID) == 0 {
 		return trace.BadParameter("invalid AWS AccountID")
+	}
+
+	return nil
+}
+
+func (k KubeGCP) CheckAndSetDefaults() error {
+	if len(k.Location) == 0 {
+		return trace.BadParameter("invalid GCP Location")
+	}
+
+	if len(k.ProjectID) == 0 {
+		return trace.BadParameter("invalid GCP ProjectID")
+	}
+
+	if len(k.Name) == 0 {
+		return trace.BadParameter("invalid GCP Name")
 	}
 
 	return nil
@@ -579,6 +621,13 @@ func (k *KubernetesResourceV1) Origin() string {
 // SetOrigin sets the origin value of the resource.
 func (k *KubernetesResourceV1) SetOrigin(origin string) {
 	k.Metadata.SetOrigin(origin)
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (k *KubernetesResourceV1) GetLabel(key string) (value string, ok bool) {
+	v, ok := k.Metadata.Labels[key]
+	return v, ok
 }
 
 // GetAllLabels returns all resource's labels.
