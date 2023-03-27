@@ -98,8 +98,6 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 	}
 
 	c, err := authclient.Connect(ctx, authClientConfig)
-
-	// TODO: Ping server and if it does not indicate FIPS enabled, reject.
 	return c, trace.Wrap(err)
 }
 

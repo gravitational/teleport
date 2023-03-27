@@ -396,6 +396,23 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	b.setClient(authClient)
 	b.setIdent(ident)
 
+	pong, err := b.AuthPing(ctx)
+	if err != nil {
+		return unlock, trace.Wrap(err)
+	}
+	b.log.
+		WithField("server_version", pong.ServerVersion).
+		Info("Initialisation complete. Connected to Teleport cluster.")
+
+	// If tbot is running in FIPS mode, check the server is also compiled with
+	// boringcrypto before proceeding. This is a relatively loose sanity check,
+	// a malicious auth server could easily return a faked value for this.
+	if b.cfg.FIPS {
+		if pong.IsBoring {
+			return nil, trace.BadParameter("tbot running in fips mode but auth server did not indicate it was compiled with boringcrypto")
+		}
+	}
+
 	return unlock, nil
 }
 
