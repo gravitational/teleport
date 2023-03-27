@@ -236,6 +236,7 @@ type BotConfig struct {
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
 	// - Rejected a non-boringcrypto auth server
+	// - RSA2048 should be used for private key generation
 	FIPS bool `yaml:"fips"`
 }
 
