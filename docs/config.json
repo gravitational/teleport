@@ -567,6 +567,10 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
+              "title": "Joining Nodes via Azure",
+              "slug": "/management/guides/joining-nodes-azure/"
+            },
+            {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
             }
@@ -637,6 +641,10 @@
         {
           "title": "Using tsh",
           "slug": "/connect-your-client/tsh/"
+        },
+        {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
         },
         {
           "title": "Using Teleport Connect",
@@ -843,6 +851,10 @@
             {
               "title": "Register a Cluster with Static kubeconfigs",
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
+            },
+            {
+              "title": "Register a Cluster with IAM Joining",
+              "slug": "/kubernetes-access/register-clusters/iam-joining/"
             },
             {
               "title": "Register Clusters Dynamically",
@@ -1376,7 +1388,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.1.1",
+      "version": "12.1.2",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.5%",

@@ -99,14 +99,6 @@ exports[`render dialog with instructions to connect to database 1`] = `
   color: rgba(255,255,255,0.3);
 }
 
-.c14 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,6 +115,14 @@ exports[`render dialog with instructions to connect to database 1`] = `
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
+}
+
+.c14 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c9 {
@@ -475,14 +475,6 @@ exports[`render dialog with instructions to connect to database with requestId 1
   color: rgba(255,255,255,0.3);
 }
 
-.c14 {
-  color: #03a9f4;
-  font-weight: normal;
-  background: none;
-  text-decoration: underline;
-  text-transform: none;
-}
-
 .c5 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -499,6 +491,14 @@ exports[`render dialog with instructions to connect to database with requestId 1
   text-overflow: ellipsis;
   font-weight: 600;
   margin: 0px;
+}
+
+.c14 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
 }
 
 .c9 {

@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "build-ui": "yarn build-ui-oss && yarn build-ui-e",
-    "build-ui-oss": "yarn workspace @gravitational/teleport build --output-path=../../../webassets/teleport/app",
-    "build-ui-e": "yarn workspace @gravitational/teleport.e build --output-path=../../../webassets/e/teleport/app",
+    "build-ui-oss": "yarn workspace @gravitational/teleport build",
+    "build-ui-e": "yarn workspace @gravitational/teleport.e build",
     "start-teleport": "yarn workspace @gravitational/teleport start",
     "start-teleport-e": "yarn workspace @gravitational/teleport.e start",
     "build-term": "yarn workspace @gravitational/teleterm build",
@@ -18,7 +18,7 @@
     "tdd": "jest --watch",
     "lint": "yarn prettier-check && yarn eslint",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx}'",
-    "type-check": "tsc --noEmit",
+    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "nop": "exit 0"
@@ -28,6 +28,7 @@
     "react": "16.14.0",
     "**/minimist": "^1.2.5",
     "**/@types/react": "^16.8.19",
+    "webpack": "^5.76.2",
     "x-default-browser": "^0.5.2"
   },
   "workspaces": {

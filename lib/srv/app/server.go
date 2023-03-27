@@ -61,6 +61,12 @@ const (
 	connContextKey appServerContextKey = "teleport-connContextKey"
 )
 
+// ConnMonitor monitors authorized connnections and terminates them when
+// session controls dictate so.
+type ConnMonitor interface {
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+}
+
 // Config is the configuration for an application server.
 type Config struct {
 	// Clock is used to control time.
@@ -116,15 +122,12 @@ type Config struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
-	// LockWatcher is the lock watcher for app access targets.
-	LockWatcher *services.LockWatcher
-
 	// Emitter is an event emitter.
 	Emitter events.Emitter
 
-	// MonitorCloseChannel will be signaled when the monitor closes a connection.
-	// Used only for testing. Optional.
-	MonitorCloseChannel chan struct{}
+	// ConnectionMonitor monitors connections and terminates any if
+	// any session controls prevent them.
+	ConnectionMonitor ConnMonitor
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -683,9 +686,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 
 	if err != nil {
-		s.log.WithError(err).Warnf("Failed to handle client connection.")
-		if err := conn.Close(); err != nil {
-			s.log.WithError(err).Warnf("Failed to close client connection.")
+		if !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to handle client connection.")
+		}
+		if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to close client connection.")
 		}
 		return
 	}
@@ -695,25 +700,15 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	// Make sure everything here is wrapped in the tracking read connection for monitoring.
-	ctx, cancel := context.WithCancel(s.closeContext)
-	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
-		Conn:    conn,
-		Clock:   s.c.Clock,
-		Context: ctx,
-		Cancel:  cancel,
-	})
+	// Proxy sends a X.509 client certificate to pass identity information,
+	// extract it and run authorization checks on it.
+	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Proxy sends a X.509 client certificate to pass identity information,
-	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(ctx, tc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authCtx, _, err := s.authorizeContext(authz.ContextWithUser(ctx, user))
+	ctx := authz.ContextWithUser(s.closeContext, user)
+	authCtx, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -728,7 +723,8 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		err = s.monitorConn(ctx, tc, authCtx)
+		// Monitor the connection an update the context.
+		ctx, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, conn)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -746,48 +742,9 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	}, s.handleHTTPApp(ctx, tlsConn)
 }
 
-// monitorConn takes a TrackingReadConn and starts a connection monitor. The tracking connection will be
-// auto-terminated if disconnect_expired_cert or idle timeout is configured.
-func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, authCtx *authz.Context) error {
-	authPref, err := s.c.AuthClient.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	netConfig, err := s.c.AuthClient.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	identity := authCtx.Identity.GetIdentity()
-	checker := authCtx.Checker
-
-	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
-
-	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
-	err = srv.StartMonitor(srv.MonitorConfig{
-		LockWatcher:           s.c.LockWatcher,
-		LockTargets:           authCtx.LockTargets(),
-		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity),
-		ClientIdleTimeout:     idleTimeout,
-		Conn:                  tc,
-		Tracker:               tc,
-		Context:               ctx,
-		Clock:                 s.c.Clock,
-		ServerID:              s.c.HostID,
-		TeleportUser:          identity.Username,
-		Emitter:               s.c.Emitter,
-		Entry:                 s.log,
-		MonitorCloseChannel:   s.c.MonitorCloseChannel,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // handleTCPApp handles connection for a TCP application.
 func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
-	err := s.tcpServer.handleConnection(s.closeContext, conn, identity, app)
+	err := s.tcpServer.handleConnection(ctx, conn, identity, app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -797,7 +754,7 @@ func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsc
 // handleHTTPApp handles connection for an HTTP application.
 func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 	// Wrap a TLS authorizing conn in a single-use listener.
-	listener := newListener(s.closeContext, conn)
+	listener := newListener(ctx, conn)
 
 	// Serve will return as soon as tlsConn is running in its own goroutine
 	err := s.httpServer.Serve(listener)
@@ -866,6 +823,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	case app.IsGCP():
 		return s.serveSession(w, r, &identity, app, s.withGCPHandler)
 
+	case app.Origin() == types.OriginOkta:
+		return s.serveOktaApp(w, r, &identity, app)
+
 	default:
 		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
 	}
@@ -910,6 +870,15 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 
 	// Forward request to the target application.
 	session.handler.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	return nil
+}
+
+// serveOktaApp redirects users directly to the app URI.
+func (s *Server) serveOktaApp(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application) error {
+	s.log.Debugf("Redirecting %v to Okta app %s (%s) URI %s.",
+		identity.Username, app.GetName(), app.GetDescription(), app.GetURI())
+
+	http.Redirect(w, r, app.GetURI(), http.StatusFound)
 	return nil
 }
 

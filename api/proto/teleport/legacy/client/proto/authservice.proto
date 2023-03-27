@@ -126,6 +126,10 @@ message Event {
     types.UserGroupV1 UserGroup = 38 [(gogoproto.jsontag) = "user_group,omitempty"];
     // UIConfig provides a way for users to adjust settings of the UI served by the proxy service.
     types.UIConfigV1 UIConfig = 39 [(gogoproto.jsontag) = "ui_config,omitempty"];
+    // OktaImportRule is an OktaImportRule resource.
+    types.OktaImportRuleV1 OktaImportRule = 40 [(gogoproto.jsontag) = "okta_import_rule,omitempty"];
+    // OktaAssignment is an OktaAssignment resource.
+    types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
   }
 }
 
@@ -395,11 +399,6 @@ message ChangePasswordRequest {
   webauthn.CredentialAssertionResponse Webauthn = 5 [(gogoproto.jsontag) = "webauthn"];
 }
 
-// AccessRequests is a collection of AccessRequest values.
-message AccessRequests {
-  repeated types.AccessRequestV3 AccessRequests = 1 [(gogoproto.jsontag) = "access_requests"];
-}
-
 // PluginDataSeq is a sequence of plugin data.
 message PluginDataSeq {
   repeated types.PluginDataV3 PluginData = 1 [(gogoproto.jsontag) = "plugin_data"];
@@ -543,14 +542,15 @@ message PingResponse {
   string ProxyPublicAddr = 4 [(gogoproto.jsontag) = "proxy_public_addr"];
   // IsBoring signals whether or not the server was compiled with BoringCrypto.
   bool IsBoring = 5 [(gogoproto.jsontag) = "is_boring"];
-  // LicenseWarnings is a list of license compliance warnings.
-  repeated string LicenseWarnings = 6 [(gogoproto.jsontag) = "license_warnings"];
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
   // LoadAllCAs signals whether or not tsh should load all CAs when trying
   // to ssh into a node.
   bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
+
+  reserved 6; // LicenseWarnings, jsontag "license_warnings"
+  reserved "LicenseWarnings";
 }
 
 // Features are auth server features.
@@ -2323,9 +2323,6 @@ service AuthService {
   // target.
   rpc IsMFARequired(IsMFARequiredRequest) returns (IsMFARequiredResponse);
 
-  // GetAccessRequests gets all pending access requests.
-  // DEPRECATED, DELETE IN 11.0.0: Use GetAccessRequestsV2 instead.
-  rpc GetAccessRequests(types.AccessRequestFilter) returns (AccessRequests);
   // GetAccessRequestsV2 gets all pending access requests.
   rpc GetAccessRequestsV2(types.AccessRequestFilter) returns (stream types.AccessRequestV3);
   // CreateAccessRequest creates a new access request.

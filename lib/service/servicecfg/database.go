@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // DatabasesConfig configures the database proxy service.
@@ -99,6 +100,17 @@ func (d *Database) CheckAndSetDefaults() error {
 		}
 	}
 
+	// If AWS account ID is missing, but assume role ARN is given,
+	// try to parse the role arn and set the account id to match.
+	if d.AWS.AccountID == "" && d.AWS.AssumeRoleARN != "" {
+		parsed, err := awsutils.ParseRoleARN(d.AWS.AssumeRoleARN)
+		if err != nil {
+			return trace.BadParameter("database %q invalid AWS assume_role_arn: %v",
+				d.Name, err)
+		}
+		d.AWS.AccountID = parsed.AccountID
+	}
+
 	// Do a test run with extra validations.
 	db, err := d.ToDatabase()
 	if err != nil {
@@ -126,9 +138,10 @@ func (d *Database) ToDatabase() (types.Database, error) {
 			ServerVersion: d.MySQL.ServerVersion,
 		},
 		AWS: types.AWS{
-			AccountID:  d.AWS.AccountID,
-			ExternalID: d.AWS.ExternalID,
-			Region:     d.AWS.Region,
+			AccountID:     d.AWS.AccountID,
+			AssumeRoleARN: d.AWS.AssumeRoleARN,
+			ExternalID:    d.AWS.ExternalID,
+			Region:        d.AWS.Region,
 			Redshift: types.Redshift{
 				ClusterID: d.AWS.Redshift.ClusterID,
 			},
@@ -204,6 +217,8 @@ type DatabaseAWS struct {
 	SecretStore DatabaseAWSSecretStore
 	// AccountID is the AWS account ID.
 	AccountID string
+	// AssumeRoleARN is the AWS role to assume to before accessing the database.
+	AssumeRoleARN string
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string
 	// RedshiftServerless contains AWS Redshift Serverless specific settings.

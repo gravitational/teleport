@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { EventMeta } from 'teleport/services/userEvent';
 
 export type Base64urlString = string;
 
@@ -56,4 +57,14 @@ export type ResetToken = {
   tokenId: string;
   qrCode: string;
   user: string;
+};
+
+export type ResetPasswordReqWithEvent = {
+  req: NewCredentialRequest;
+  eventMeta?: EventMeta;
+};
+
+export type ResetPasswordWithWebauthnReqWithEvent = {
+  req: NewCredentialRequest;
+  eventMeta?: EventMeta;
 };

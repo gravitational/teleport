@@ -132,6 +132,15 @@ func NewTracingClient(ctx context.Context, cfg Config) (*tracing.Client, error) 
 	return tracing.NewClient(clt.GetConnection()), nil
 }
 
+// NewOktaClient creates a new Okta client for managing Okta resources.
+func NewOktaClient(ctx context.Context, cfg Config) (*okta.Client, error) {
+	clt, err := New(ctx, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return okta.NewClient(oktapb.NewOktaServiceClient(clt.GetConnection())), nil
+}
+
 // newClient constructs a new client.
 func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client {
 	return &Client{
@@ -868,31 +877,9 @@ func (c *Client) GetAccessRequests(ctx context.Context, filter types.AccessReque
 		}
 
 		if err != nil {
-			err := trail.FromGRPC(err)
-			if trace.IsNotImplemented(err) {
-				return c.getAccessRequestsLegacy(ctx, filter)
-			}
-
-			return nil, err
+			return nil, trail.FromGRPC(err)
 		}
 		reqs = append(reqs, req)
-	}
-
-	return reqs, nil
-}
-
-// getAccessRequestsLegacy retrieves a list of all access requests matching the provided filter using the old access request API.
-//
-// DELETE IN: 11.0.0. Used for compatibility with old auth servers that don't support the GetAccessRequestsV2 RPC.
-func (c *Client) getAccessRequestsLegacy(ctx context.Context, filter types.AccessRequestFilter) ([]types.AccessRequest, error) {
-	requests, err := c.grpc.GetAccessRequests(ctx, &filter, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	reqs := make([]types.AccessRequest, len(requests.AccessRequests))
-	for i, request := range requests.AccessRequests {
-		reqs[i] = request
 	}
 
 	return reqs, nil
@@ -1683,7 +1670,7 @@ func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAML
 // GetGithubConnector returns a Github connector by name.
 func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
 	if name == "" {
-		return nil, trace.BadParameter("cannot get Github Connector, missing name")
+		return nil, trace.BadParameter("cannot get GitHub Connector, missing name")
 	}
 	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
 	resp, err := c.grpc.GetGithubConnector(ctx, req, c.callOpts...)
@@ -1720,7 +1707,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.Gith
 // DeleteGithubConnector deletes a Github connector by name.
 func (c *Client) DeleteGithubConnector(ctx context.Context, name string) error {
 	if name == "" {
-		return trace.BadParameter("cannot delete Github Connector, missing name")
+		return trace.BadParameter("cannot delete GitHub Connector, missing name")
 	}
 	_, err := c.grpc.DeleteGithubConnector(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -3283,14 +3270,6 @@ func (c *Client) DeleteLoginRule(ctx context.Context, name string) error {
 		Name: name,
 	}, c.callOpts...)
 	return trail.FromGRPC(err)
-}
-
-// OktaClient returns an Okta client.
-// Clients connecting older Teleport versions still get an okta client when
-// calling this method, but all RPCs will return "not implemented" errors (as per
-// the default gRPC behavior).
-func (c *Client) OktaClient() *okta.Client {
-	return okta.NewClient(oktapb.NewOktaServiceClient(c.conn))
 }
 
 // GetCertAuthority retrieves a CA by type and domain.
