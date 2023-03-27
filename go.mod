@@ -142,7 +142,7 @@ require (
 	golang.org/x/text v0.8.0
 	google.golang.org/api v0.114.0
 	google.golang.org/genproto v0.0.0-20230320184635-7606e756e683
-	google.golang.org/grpc v1.53.0
+	google.golang.org/grpc v1.54.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
