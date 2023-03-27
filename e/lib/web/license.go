@@ -14,7 +14,7 @@ import (
 // getLicenseCheckStatusHandle is GET handle that returns the license check status
 // TODO(espadolini): delete once we're sure that the web UI doesn't use this
 func (p *Plugin) getLicenseCheckStatusHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
-	return nil, nil
+	return (*struct{})(nil), nil
 }
 
 // getLicense is GET handle that returns the license
