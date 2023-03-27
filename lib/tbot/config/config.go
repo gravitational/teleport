@@ -235,6 +235,7 @@ type BotConfig struct {
 	// - Refuse to run if not compiled with boringcrypto
 	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
 	// - Restrict TLS / SSH cipher suites and TLS version
+	// - Rejected a non-boringcrypto auth server
 	FIPS bool `yaml:"fips"`
 }
 
