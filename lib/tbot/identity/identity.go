@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/gravitational/teleport/lib/defaults"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -240,16 +241,21 @@ func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 	if len(i.SSHCert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("user cert has no valid principals")
 	}
-	return &ssh.ClientConfig{
-		// TODO: Should we be limiting KEX, MAC and Ciphers here to
-		// - defaults.FIPSKEXAlgorithms
-		// - defaults.FIPSMACAlgorithms
-		// - defaults.FIPSCiphers
+	config := &ssh.ClientConfig{
 		User:            i.SSHCert.ValidPrincipals[0],
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultIOTimeout,
-	}, nil
+	}
+	if fips {
+		config.Config = ssh.Config{
+			KeyExchanges: defaults.FIPSKEXAlgorithms,
+			MACs:         defaults.FIPSMACAlgorithms,
+			Ciphers:      defaults.FIPSCiphers,
+		}
+	}
+
+	return config, nil
 }
 
 // ReadIdentityFromStore reads stored identity credentials
