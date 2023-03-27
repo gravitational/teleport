@@ -429,18 +429,25 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
+include darwin-signing.mk
+
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
 
 .PHONY: release-darwin
+# Only run signing/notarization if Apple username/pass are provided.
+# Export DEVELOPER_ID_APPLICATION so it can be used by e/Makefile.
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	# Only run if Apple username/pass for notarization are provided
 	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
+		$(eval export DEVELOPER_ID_APPLICATION) \
 		cd ./build.assets/tooling/ && \
 		go run ./cmd/notarize-apple-binaries/*.go \
-			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
+			--developer-id=$(DEVELOPER_ID_APPLICATION) \
+			--bundle-id=$(TELEPORT_BUNDLEID) \
+			--log-level=debug \
+			$(ABSOLUTE_BINARY_PATHS); \
 	fi
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
@@ -1116,6 +1123,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1127,6 +1135,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
