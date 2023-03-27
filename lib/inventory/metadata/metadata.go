@@ -18,7 +18,10 @@ package metadata
 
 import (
 	"context"
+	"crypto/tls"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -26,9 +29,7 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -71,11 +72,7 @@ type fetchConfig struct {
 	execCommand func(name string, args ...string) ([]byte, error)
 	// httpDo is the method called to perform an http request.
 	// It is configurable so that it can be mocked in tests.
-	httpDo func(req *http.Request) (*http.Response, error)
-	// kubeClient is a kubernetes client used to retrieve the
-	// server version.
-	// It is configurable so that it can be mocked in tests.
-	kubeClient kubernetes.Interface
+	httpDo func(req *http.Request, insecureSkipVerify bool) (*http.Response, error)
 }
 
 // setDefaults sets the values of several methods used to read files, execute
@@ -97,34 +94,25 @@ func (c *fetchConfig) setDefaults() {
 		}
 	}
 	if c.httpDo == nil {
-		c.httpDo = func(req *http.Request) (*http.Response, error) {
-			client, err := defaults.HTTPClient()
+		c.httpDo = func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+			transport, err := defaults.Transport()
 			if err != nil {
-				return nil, err
+				return nil, trace.Wrap(err)
 			}
-			client.Timeout = 5 * time.Second
+
+			// Initialize transport.TLSClientConfig if defaults.Transport() returns a nil one
+			if transport.TLSClientConfig == nil {
+				transport.TLSClientConfig = &tls.Config{}
+			}
+
+			transport.TLSClientConfig.InsecureSkipVerify = insecureSkipVerify
+			client := &http.Client{
+				Transport: transport,
+				Timeout:   5 * time.Second,
+			}
 			return client.Do(req)
 		}
 	}
-	if c.kubeClient == nil {
-		c.kubeClient = getKubeClient()
-	}
-}
-
-// getKubeClient returns a kubernetes client in case the instance is running on
-// kubernetes. It returns nil otherwise.
-func getKubeClient() kubernetes.Interface {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		log.Debugf("Failed to get kubernetes cluster config: %s", err)
-		return nil
-	}
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.Debugf("Failed to create kubernetes client: %s", err)
-		return nil
-	}
-	return client
 }
 
 // fetch fetches all metadata.
@@ -210,14 +198,41 @@ func (c *fetchConfig) fetchContainerRuntime() string {
 
 // fetchContainerOrchestrator returns kubernetes-${GIT_VERSION} if the instance is
 // running on kubernetes.
+// This function performs the equivalent of the following:
+// curl -k https://$KUBERNETES_SERVICE_HOST:$KUBERNETES_SERVICE_PORT/version | jq .gitVersion
 func (c *fetchConfig) fetchContainerOrchestrator() string {
-	if c.kubeClient == nil {
+	host := c.getenv("KUBERNETES_SERVICE_HOST")
+	port := c.getenv("KUBERNETES_SERVICE_PORT")
+	if host == "" || port == "" {
 		return ""
 	}
 
-	version, err := c.kubeClient.Discovery().ServerVersion()
+	url := fmt.Sprintf("https://%s:%s/version", host, port)
+	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to retrieve kubernetes server version: %s", err)
+		return ""
+	}
+
+	const insecureSkipVerify = true
+	resp, err := c.httpDo(req, insecureSkipVerify)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return ""
+	}
+
+	var version struct {
+		GitVersion string `json:"gitVersion"`
+	}
+	if err := json.Unmarshal(body, &version); err != nil {
+		return ""
+	}
+	if version.GitVersion == "" {
+		return ""
 	}
 
 	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
@@ -245,7 +260,6 @@ func (c *fetchConfig) awsHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/latest/meta-data/"
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create AWS http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -259,7 +273,6 @@ func (c *fetchConfig) gcpHTTPGetSuccess() bool {
 	url := "http://metadata.google.internal/computeMetadata/v1"
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create GCP http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -274,7 +287,6 @@ func (c *fetchConfig) azureHTTPGetSuccess() bool {
 	url := "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
 	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
 	if err != nil {
-		log.Debugf("Failed to create Azure http GET request '%s': %s", url, err)
 		return false
 	}
 
@@ -286,7 +298,6 @@ func (c *fetchConfig) azureHTTPGetSuccess() bool {
 func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 	out, err := c.execCommand(name, args...)
 	if err != nil {
-		log.Debugf("Failed to execute command '%s': %s", name, err)
 		return "", err
 	}
 
@@ -297,7 +308,6 @@ func (c *fetchConfig) exec(name string, args ...string) (string, error) {
 func (c *fetchConfig) read(name string) (string, error) {
 	out, err := c.readFile(name)
 	if err != nil {
-		log.Debugf("Failed to read file '%s': %s", name, err)
 		return "", err
 	}
 
@@ -307,9 +317,9 @@ func (c *fetchConfig) read(name string) (string, error) {
 // httpReqSuccess performs an http request, returning true if the status code
 // is 200.
 func (c *fetchConfig) httpReqSuccess(req *http.Request) bool {
-	resp, err := c.httpDo(req)
+	const insecureSkipVerify = false
+	resp, err := c.httpDo(req, insecureSkipVerify)
 	if err != nil {
-		log.Debugf("Failed to perform http GET request: %s", err)
 		return false
 	}
 	defer resp.Body.Close()

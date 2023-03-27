@@ -112,6 +112,8 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
+		{Kind: types.KindOktaImportRule},
+		{Kind: types.KindOktaAssignment},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -363,6 +365,25 @@ func ForDiscovery(cfg Config) Config {
 	return cfg
 }
 
+// ForOkta sets up watch configuration for Okta servers.
+func ForOkta(cfg Config) Config {
+	cfg.target = "okta"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindUser},
+
+		// The access request entry here is primarily for event propagation and not for
+		// cache reads. The Okta service is not expected to read access requests from
+		// the cache.
+		{Kind: types.KindAccessRequest},
+		{Kind: types.KindApp},
+		{Kind: types.KindUserGroup},
+		{Kind: types.KindOktaImportRule},
+		{Kind: types.KindOktaAssignment},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
+	return cfg
+}
+
 // SetupConfigFn is a function that sets up configuration
 // for cache
 type SetupConfigFn func(c Config) Config
@@ -438,6 +459,7 @@ type Cache struct {
 	windowsDesktopsCache         services.WindowsDesktops
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
+	oktaCache                    services.Okta
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -504,6 +526,7 @@ func (c *Cache) read() (readGuard, error) {
 			windowsDesktops:         c.windowsDesktopsCache,
 			samlIdPServiceProviders: c.samlIdPServiceProvidersCache,
 			userGroups:              c.userGroupsCache,
+			okta:                    c.oktaCache,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -528,6 +551,7 @@ func (c *Cache) read() (readGuard, error) {
 		windowsDesktops:         c.Config.WindowsDesktops,
 		samlIdPServiceProviders: c.Config.SAMLIdPServiceProviders,
 		userGroups:              c.Config.UserGroups,
+		okta:                    c.Config.Okta,
 		release:                 nil,
 	}, nil
 }
@@ -557,6 +581,7 @@ type readGuard struct {
 	windowsDesktops         services.WindowsDesktops
 	samlIdPServiceProviders services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroups              services.UserGroups
+	okta                    services.Okta
 	release                 func()
 	released                bool
 }
@@ -628,6 +653,8 @@ type Config struct {
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
 	UserGroups services.UserGroups
+	// Okta is an Okta service.
+	Okta services.Okta
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -762,6 +789,18 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	userGroupsCache, err := local.NewUserGroupService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	oktaCache, err := local.NewOktaService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -787,7 +826,8 @@ func New(config Config) (*Cache, error) {
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
-		userGroupsCache:              local.NewUserGroupService(config.Backend),
+		userGroupsCache:              userGroupsCache,
+		oktaCache:                    oktaCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2287,6 +2327,58 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 	}
 	defer rg.Release()
 	return rg.userGroups.GetUserGroup(ctx, name)
+}
+
+// ListOktaImportRules returns a paginated list of all Okta import rule resources.
+func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey string) ([]types.OktaImportRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaImportRules")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.ListOktaImportRules(ctx, pageSize, nextKey)
+}
+
+// GetOktaImportRule returns the specified Okta import rule resources.
+func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaImportRule")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.GetOktaImportRule(ctx, name)
+}
+
+// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey string) ([]types.OktaAssignment, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaAssignments")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.ListOktaAssignments(ctx, pageSize, nextKey)
+}
+
+// GetOktaAssignment returns the specified Okta assignment resources.
+func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaAssignment")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.GetOktaAssignment(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

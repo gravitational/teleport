@@ -123,7 +123,7 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 				types.Wildcard: apiutils.Strings{types.Wildcard},
 			},
 			AWSRoleARNs: []string{
-				"arn:aws:iam::123456890:role/some-aws-role",
+				"arn:aws:iam::123456789012:role/some-aws-role",
 			},
 		},
 	})

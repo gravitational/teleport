@@ -85,6 +85,7 @@ type testPack struct {
 	windowsDesktops         services.WindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
+	okta                    services.Okta
 }
 
 func (t *testPack) Close() {
@@ -204,7 +205,15 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.userGroups = local.NewUserGroupService(p.backend)
+	p.userGroups, err = local.NewUserGroupService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oktaSvc, err := local.NewOktaService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.okta = oktaSvc
 
 	return p, nil
 }
@@ -241,6 +250,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -627,6 +637,7 @@ func TestCompletenessInit(t *testing.T) {
 			WindowsDesktops:         p.windowsDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
+			Okta:                    p.okta,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -693,6 +704,7 @@ func TestCompletenessReset(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -871,6 +883,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -947,6 +960,7 @@ func initStrategy(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -2529,14 +2543,129 @@ func TestUserGroups(t *testing.T) {
 	})
 }
 
+// TestOktaImportRules tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaImportRules(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaImportRule]{
+		newResource: func(name string) (types.OktaImportRule, error) {
+			return types.NewOktaImportRule(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaImportRuleSpecV1{
+					Mappings: []*types.OktaImportRuleMappingV1{
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									AppIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									GroupIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.CreateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
+			results, _, err := p.okta.ListOktaImportRules(ctx, 0, "")
+			return results, err
+		},
+		cacheList: func(ctx context.Context) ([]types.OktaImportRule, error) {
+			results, _, err := p.cache.ListOktaImportRules(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaImportRules,
+	})
+}
+
+// TestOktaAssignments tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaAssignments(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaAssignment]{
+		newResource: func(name string) (types.OktaAssignment, error) {
+			return types.NewOktaAssignment(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaAssignmentSpecV1{
+					User: "test-user@test.user",
+					Actions: []*types.OktaAssignmentActionV1{
+						{
+							Status: types.OktaAssignmentActionV1_PENDING,
+							Target: &types.OktaAssignmentActionTargetV1{
+								Type: types.OktaAssignmentActionTargetV1_APPLICATION,
+								Id:   "123456",
+							},
+						},
+						{
+							Status: types.OktaAssignmentActionV1_SUCCESSFUL,
+							Target: &types.OktaAssignmentActionTargetV1{
+								Type: types.OktaAssignmentActionTargetV1_GROUP,
+								Id:   "234567",
+							},
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.CreateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
+			results, _, err := p.okta.ListOktaAssignments(ctx, 0, "")
+			return results, err
+		},
+		cacheList: func(ctx context.Context) ([]types.OktaAssignment, error) {
+			results, _, err := p.cache.ListOktaAssignments(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaAssignments,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
 	// Create a resource.
 	r, err := funcs.newResource("test-sp")
-	r.SetExpiry(time.Now().Add(30 * time.Minute))
 	require.NoError(t, err)
+	r.SetExpiry(time.Now().Add(30 * time.Minute))
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
@@ -2875,6 +3004,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		"ForKubernetes":     ForKubernetes(Config{}),
 		"ForApps":           ForApps(Config{}),
 		"ForDatabases":      ForDatabases(Config{}),
+		"ForOkta":           ForOkta(Config{}),
 	}
 
 	events := map[string]types.Resource{
@@ -2917,6 +3047,8 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
 		types.KindUserGroup:               &types.UserGroupV1{},
+		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
+		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
 	}
 
 	for name, cfg := range cases {

@@ -19,7 +19,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net"
@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -596,19 +595,19 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 	}
 
 	opts, err := prepareLocalProxyOptions(&localProxyConfig{
-		cliConf:          cf,
-		teleportClient:   tc,
+		cf:               cf,
+		tc:               tc,
 		profile:          profile,
-		routeToDatabase:  route,
+		route:            *route,
 		database:         db,
-		listener:         listener,
-		localProxyTunnel: requires.tunnel,
+		autoReissueCerts: requires.tunnel,
+		tunnel:           requires.tunnel,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	lp, err := mkLocalProxy(cf.Context, opts)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -640,92 +639,99 @@ func maybeStartLocalProxy(ctx context.Context, cf *CLIConf,
 
 // localProxyConfig is an argument pack used in prepareLocalProxyOptions().
 type localProxyConfig struct {
-	cliConf         *CLIConf
-	teleportClient  *client.TeleportClient
-	profile         *client.ProfileStatus
-	routeToDatabase *tlsca.RouteToDatabase
-	database        types.Database
-	listener        net.Listener
-	// localProxyTunnel keeps the same value as cliConf.LocalProxyTunnel, but
-	// it's always true for Snowflake database. Value is copied here to not modify
-	// cli arguments directly.
-	localProxyTunnel bool
+	cf       *CLIConf
+	tc       *client.TeleportClient
+	profile  *client.ProfileStatus
+	route    tlsca.RouteToDatabase
+	database types.Database
+	// autoReissueCerts indicates whether a cert auto reissuer should be used
+	// for the local proxy to keep certificates valid.
+	// - when `tsh db connect` needs to tunnel it will set this field.
+	// - when `tsh proxy db` is used with `--tunnel` cli flag it will set this field.
+	autoReissueCerts bool
+	// tunnel controls whether client certs will always be used to dial upstream.
+	tunnel bool
 }
 
 // prepareLocalProxyOptions created localProxyOpts needed to create local proxy from localProxyConfig.
-func prepareLocalProxyOptions(arg *localProxyConfig) (*localProxyOpts, error) {
-	certFile := arg.cliConf.LocalProxyCertFile
-	keyFile := arg.cliConf.LocalProxyKeyFile
-	if arg.routeToDatabase.Protocol == defaults.ProtocolSQLServer ||
-		arg.routeToDatabase.Protocol == defaults.ProtocolCassandra ||
-		(arg.localProxyTunnel && certFile == "") {
-		// For SQL Server and Cassandra connections, local proxy must be configured with the
-		// client certificate that will be used to route connections.
-		certFile = arg.profile.DatabaseCertPathForCluster(arg.teleportClient.SiteName, arg.routeToDatabase.ServiceName)
-		keyFile = arg.profile.KeyPath()
-	}
-	certs, err := mkLocalProxyCerts(certFile, keyFile)
-	if err != nil {
-		if !arg.localProxyTunnel {
-			return nil, trace.Wrap(err)
-		}
-		// local proxy with tunnel monitors its certs, so it's ok if a cert file can't be loaded.
-		certs = nil
-	}
-
-	alpnProtocol, err := common.ToALPNProtocol(arg.routeToDatabase.Protocol)
-	if err != nil {
+func prepareLocalProxyOptions(arg *localProxyConfig) ([]alpnproxy.LocalProxyConfigOpt, error) {
+	if err := checkAndSetDBRouteDefaults(&arg.route); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	opts := &localProxyOpts{
-		proxyAddr: arg.teleportClient.WebProxyAddr,
-		listener:  arg.listener,
-		protocols: []common.Protocol{alpnProtocol},
-		insecure:  arg.cliConf.InsecureSkipVerify,
-		certs:     certs,
+	opts := []alpnproxy.LocalProxyConfigOpt{
+		alpnproxy.WithDatabaseProtocol(arg.route.Protocol),
+		alpnproxy.WithALPNConnUpgradeTest(arg.cf.Context, arg.tc.RootClusterCACertPool),
 	}
-	opts.configOpts = append(opts.configOpts, alpnproxy.WithALPNConnUpgradeTest(arg.cliConf.Context, arg.teleportClient.RootClusterCACertPool))
 
-	if arg.localProxyTunnel {
-		dbRoute := *arg.routeToDatabase
-		if err := checkAndSetDBRouteDefaults(&dbRoute); err != nil {
+	if !arg.tunnel && arg.route.Protocol == defaults.ProtocolPostgres {
+		opts = append(opts, alpnproxy.WithCheckCertsNeeded())
+	}
+
+	// load certs if local proxy needs to be able to tunnel.
+	// certs are needed for non-tunnel postgres cancel requests.
+	if arg.tunnel || arg.route.Protocol == defaults.ProtocolPostgres {
+		certs, err := getDBLocalProxyCerts(arg)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		opts.middleware = client.NewDBCertChecker(arg.teleportClient, dbRoute, nil)
+		opts = append(opts, alpnproxy.WithClientCerts(certs...))
+	}
+
+	if arg.autoReissueCerts {
+		opts = append(opts, alpnproxy.WithMiddleware(client.NewDBCertChecker(arg.tc, arg.route, nil)))
 	}
 
 	// To set correct MySQL server version DB proxy needs additional protocol.
-	if !arg.localProxyTunnel && arg.routeToDatabase.Protocol == defaults.ProtocolMySQL {
+	if !arg.tunnel && arg.route.Protocol == defaults.ProtocolMySQL {
 		if arg.database == nil {
 			var err error
-			arg.database, err = getDatabase(arg.cliConf, arg.teleportClient, arg.routeToDatabase.ServiceName)
+			arg.database, err = getDatabase(arg.cf, arg.tc, arg.route.ServiceName)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
 
-		mysqlServerVersionProto := mySQLVersionToProto(arg.database)
-		if mysqlServerVersionProto != "" {
-			opts.protocols = append(opts.protocols, common.Protocol(mysqlServerVersionProto))
-		}
+		opts = append(opts, alpnproxy.WithMySQLVersionProto(arg.database))
 	}
-
 	return opts, nil
 }
 
-// mySQLVersionToProto returns base64 encoded MySQL server version with MySQL protocol prefix.
-// If version is not set in the past database an empty string is returned.
-func mySQLVersionToProto(database types.Database) string {
-	version := database.GetMySQLServerVersion()
-	if version == "" {
-		return ""
+// getDBLocalProxyCerts gets cert/key file specified by cli config, or
+// if both are not specified then it tries to load certs from the profile.
+// This is a helper func for preparing local proxy options.
+func getDBLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
+	if arg.cf.LocalProxyCertFile != "" || arg.cf.LocalProxyKeyFile != "" {
+		return getUserSpecifiedLocalProxyCerts(arg)
 	}
+	// if neither --cert-file nor --key-file are specified, load db cert from client store.
+	cert, err := loadDBCertificate(arg.tc, arg.route.ServiceName)
+	if err != nil {
+		if arg.autoReissueCerts {
+			// If using a reissuer, just return nil certs and let the reissuer
+			// fetch new certs when the local proxy starts instead.
+			// We don't do this for user specified certs (above), because it is
+			// surprising UX to get a login prompt when a user passes
+			// --cert-file/--key-file, and we don't know how the user wants to
+			// proceed.
+			return nil, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	return []tls.Certificate{cert}, nil
+}
 
-	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
-
-	// Include MySQL server version
-	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
+// getUserSpecifiedLocalProxyCerts loads certs from files specified by cli arguments.
+// This is a helper func for preparing local proxy options.
+func getUserSpecifiedLocalProxyCerts(arg *localProxyConfig) ([]tls.Certificate, error) {
+	if arg.cf.LocalProxyCertFile == "" || arg.cf.LocalProxyKeyFile == "" {
+		return nil, trace.BadParameter("both --cert-file and --key-file are required")
+	}
+	cert, err := keys.LoadX509KeyPair(arg.cf.LocalProxyCertFile, arg.cf.LocalProxyKeyFile)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return []tls.Certificate{cert}, nil
 }
 
 // onDatabaseConnect implements "tsh db connect" command.
@@ -853,7 +859,12 @@ func getDatabase(cf *CLIConf, tc *client.TeleportClient, dbName string) (types.D
 	return databases[0], nil
 }
 
-func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase, profile *client.ProfileStatus) (bool, error) {
+func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.RouteToDatabase, profile *client.ProfileStatus, requires *dbLocalProxyRequirement) (bool, error) {
+	if (requires.localProxy && requires.tunnel) || isLocalProxyTunnelRequested(cf) {
+		// We don't need to login if using a local proxy tunnel,
+		// because a local proxy tunnel will handle db login itself.
+		return false, nil
+	}
 	found := false
 	activeDatabases, err := profile.DatabasesForCluster(tc.SiteName)
 	if err != nil {
@@ -887,12 +898,7 @@ func needDatabaseRelogin(cf *CLIConf, tc *client.TeleportClient, route *tlsca.Ro
 // maybeDatabaseLogin checks if cert is still valid. If not valid, trigger db login logic.
 // returns a true/false indicating whether database login was triggered.
 func maybeDatabaseLogin(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, route *tlsca.RouteToDatabase, requires *dbLocalProxyRequirement) error {
-	if requires.localProxy && requires.tunnel {
-		// We only need to (possibly) login if not using a local proxy tunnel,
-		// because a local proxy tunnel will handle db login itself.
-		return nil
-	}
-	reloginNeeded, err := needDatabaseRelogin(cf, tc, route, profile)
+	reloginNeeded, err := needDatabaseRelogin(cf, tc, route, profile, requires)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1071,7 +1077,7 @@ type dbLocalProxyRequirement struct {
 	localProxy bool
 	// localProxyReasons is a list of reasons for why local proxy is required.
 	localProxyReasons []string
-	// localProxy is whether a local proxy tunnel is required to connect.
+	// tunnel is whether a local proxy tunnel is required to connect.
 	tunnel bool
 	// tunnelReasons is a list of reasons for why a tunnel is required.
 	tunnelReasons []string
@@ -1104,12 +1110,13 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 		out.addLocalProxyWithTunnel(formatKeyPolicyReason(tc.PrivateKeyPolicy))
 	}
 
-	// Some protocols (Snowflake, DynamoDB) only works in the local tunnel mode.
 	switch route.Protocol {
-	case defaults.ProtocolSnowflake, defaults.ProtocolDynamoDB:
+	case defaults.ProtocolSnowflake,
+		defaults.ProtocolDynamoDB,
+		defaults.ProtocolSQLServer,
+		defaults.ProtocolCassandra:
+		// Some protocols only work in the local tunnel mode.
 		out.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
-	case defaults.ProtocolSQLServer, defaults.ProtocolCassandra:
-		out.addLocalProxy(formatDBProtocolReason(route.Protocol))
 	case defaults.ProtocolMySQL:
 		if tc.TLSRoutingEnabled {
 			out.addLocalProxy(fmt.Sprintf("%v and %v",
