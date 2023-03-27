@@ -823,6 +823,9 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	case app.IsGCP():
 		return s.serveSession(w, r, &identity, app, s.withGCPHandler)
 
+	case app.Origin() == types.OriginOkta:
+		return s.serveOktaApp(w, r, &identity, app)
+
 	default:
 		return s.serveSession(w, r, &identity, app, s.withJWTTokenForwarder)
 	}
@@ -867,6 +870,15 @@ func (s *Server) serveSession(w http.ResponseWriter, r *http.Request, identity *
 
 	// Forward request to the target application.
 	session.handler.ServeHTTP(w, common.WithSessionContext(r, sessionCtx))
+	return nil
+}
+
+// serveOktaApp redirects users directly to the app URI.
+func (s *Server) serveOktaApp(w http.ResponseWriter, r *http.Request, identity *tlsca.Identity, app types.Application) error {
+	s.log.Debugf("Redirecting %v to Okta app %s (%s) URI %s.",
+		identity.Username, app.GetName(), app.GetDescription(), app.GetURI())
+
+	http.Redirect(w, r, app.GetURI(), http.StatusFound)
 	return nil
 }
 

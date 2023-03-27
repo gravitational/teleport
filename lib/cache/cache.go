@@ -375,6 +375,7 @@ func ForOkta(cfg Config) Config {
 		// cache reads. The Okta service is not expected to read access requests from
 		// the cache.
 		{Kind: types.KindAccessRequest},
+		{Kind: types.KindApp},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
@@ -801,7 +802,13 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	oktaSvc, err := local.NewOktaService(config.Backend)
+	userGroupsCache, err := local.NewUserGroupService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	oktaCache, err := local.NewOktaService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -832,8 +839,8 @@ func New(config Config) (*Cache, error) {
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
-		userGroupsCache:              local.NewUserGroupService(config.Backend),
-		oktaCache:                    oktaSvc,
+		userGroupsCache:              userGroupsCache,
+		oktaCache:                    oktaCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,

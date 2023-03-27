@@ -39,6 +39,10 @@ spec:
                 description: AssertionConsumerService is a URL for assertion consumer
                   service on the service provider (Teleport's side).
                 type: string
+              allow_idp_initiated:
+                description: AllowIDPInitiated is a flag that indicates if the connector
+                  can be used for IdP-initiated logins.
+                type: boolean
               assertion_key_pair:
                 description: EncryptionKeyPair is a key pair used for decrypting SAML
                   assertions.

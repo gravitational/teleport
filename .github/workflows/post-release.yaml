@@ -1,0 +1,11 @@
+name: Post-release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dummy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Greeting
+        run: echo "This is a dummy build to placate GitHub."
