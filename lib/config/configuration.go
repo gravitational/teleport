@@ -145,6 +145,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
 	DatabaseAWSAccountID string
+	// DatabaseAWSAssumeRoleARN is an optional AWS IAM role ARN to assume when accessing the database.
+	DatabaseAWSAssumeRoleARN string
 	// DatabaseAWSExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
@@ -1215,9 +1217,13 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			services.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
-				Tags:    matcher.Tags,
-				Params:  installParams,
-				SSM:     &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+				AssumeRole: services.AssumeRole{
+					RoleARN:    matcher.AssumeRoleARN,
+					ExternalID: matcher.ExternalID,
+				},
+				Tags:   matcher.Tags,
+				Params: installParams,
+				SSM:    &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
@@ -1321,6 +1327,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
+				AssumeRole: services.AssumeRole{
+					RoleARN:    matcher.AssumeRoleARN,
+					ExternalID: matcher.ExternalID,
+				},
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
@@ -1370,9 +1380,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
 			AWS: servicecfg.DatabaseAWS{
-				AccountID:  database.AWS.AccountID,
-				ExternalID: database.AWS.ExternalID,
-				Region:     database.AWS.Region,
+				AccountID:     database.AWS.AccountID,
+				AssumeRoleARN: database.AWS.AssumeRoleARN,
+				ExternalID:    database.AWS.ExternalID,
+				Region:        database.AWS.Region,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -1905,9 +1916,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				CACert: caBytes,
 			},
 			AWS: servicecfg.DatabaseAWS{
-				Region:     clf.DatabaseAWSRegion,
-				AccountID:  clf.DatabaseAWSAccountID,
-				ExternalID: clf.DatabaseAWSExternalID,
+				Region:        clf.DatabaseAWSRegion,
+				AccountID:     clf.DatabaseAWSAccountID,
+				AssumeRoleARN: clf.DatabaseAWSAssumeRoleARN,
+				ExternalID:    clf.DatabaseAWSExternalID,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},

@@ -549,6 +549,8 @@ func TestDynamoDBConfig(t *testing.T) {
 		uri        string
 		region     string
 		account    string
+		roleARN    string
+		externalID string
 		wantSpec   DatabaseSpecV3
 		wantErrMsg string
 	}{
@@ -561,6 +563,22 @@ func TestDynamoDBConfig(t *testing.T) {
 				AWS: AWS{
 					Region:    "us-west-1",
 					AccountID: "123456789012",
+				},
+			},
+		},
+		{
+			desc:       "account and region and assume role is correct",
+			region:     "us-west-1",
+			account:    "123456789012",
+			roleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+			externalID: "externalid123",
+			wantSpec: DatabaseSpecV3{
+				URI: "aws://dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:        "us-west-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalid123",
 				},
 			},
 		},
@@ -627,6 +645,21 @@ func TestDynamoDBConfig(t *testing.T) {
 			},
 		},
 		{
+			desc:       "configured external ID but not assume role is ok",
+			uri:        "localhost:8080",
+			region:     "us-west-1",
+			account:    "123456789012",
+			externalID: "externalid123",
+			wantSpec: DatabaseSpecV3{
+				URI: "localhost:8080",
+				AWS: AWS{
+					Region:     "us-west-1",
+					AccountID:  "123456789012",
+					ExternalID: "externalid123",
+				},
+			},
+		},
+		{
 			desc:       "region and different AWS URI region is an error",
 			uri:        "dynamodb.us-west-2.amazonaws.com",
 			region:     "us-west-1",
@@ -644,12 +677,12 @@ func TestDynamoDBConfig(t *testing.T) {
 			desc:       "custom URI and missing region is an error",
 			uri:        "localhost:8080",
 			account:    "123456789012",
-			wantErrMsg: "region is missing",
+			wantErrMsg: "region is empty",
 		},
 		{
 			desc:       "missing URI and missing region is an error",
 			account:    "123456789012",
-			wantErrMsg: "URI is missing",
+			wantErrMsg: "URI is empty",
 		},
 		{
 			desc:       "invalid AWS account ID is an error",
@@ -657,6 +690,11 @@ func TestDynamoDBConfig(t *testing.T) {
 			region:     "us-west-1",
 			account:    "12345",
 			wantErrMsg: "must be 12-digit",
+		},
+		{
+			region:     "us-west-1",
+			desc:       "missing account id",
+			wantErrMsg: "account ID is empty",
 		},
 	}
 
@@ -670,8 +708,10 @@ func TestDynamoDBConfig(t *testing.T) {
 				Protocol: "dynamodb",
 				URI:      tt.uri,
 				AWS: AWS{
-					Region:    tt.region,
-					AccountID: tt.account,
+					Region:        tt.region,
+					AccountID:     tt.account,
+					AssumeRoleARN: tt.roleARN,
+					ExternalID:    tt.externalID,
 				},
 			})
 			if tt.wantErrMsg != "" {

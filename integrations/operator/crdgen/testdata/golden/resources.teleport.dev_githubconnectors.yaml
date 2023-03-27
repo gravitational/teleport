@@ -44,6 +44,8 @@ spec:
               display:
                 description: Display is the connector display name.
                 type: string
+              endpoint_url:
+                type: string
               redirect_url:
                 description: RedirectURL is the authorization callback URL.
                 type: string

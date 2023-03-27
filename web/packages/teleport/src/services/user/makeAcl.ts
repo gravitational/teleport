@@ -54,6 +54,8 @@ export function makeAcl(json): Acl {
   const license = json.license || defaultAccess;
   const download = json.download || defaultAccess;
 
+  const deviceTrust = json.deviceTrust || defaultAccess;
+
   return {
     authConnectors,
     trustedClusters,
@@ -78,6 +80,7 @@ export function makeAcl(json): Acl {
     connectionDiagnostic,
     license,
     download,
+    deviceTrust,
   };
 }
 
