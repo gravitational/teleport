@@ -264,7 +264,12 @@ func (r *AccessRequestV3) SetRoleThresholdMapping(rtm map[string]ThresholdIndexS
 
 // SetReviews sets the list of currently applied access reviews.
 func (r *AccessRequestV3) SetReviews(revs []AccessReview) {
-	r.Spec.Reviews = revs
+	utcRevs := make([]AccessReview, len(revs))
+	for i, rev := range revs {
+		utcRevs[i] = rev
+		utcRevs[i].Created = rev.Created.UTC()
+	}
+	r.Spec.Reviews = utcRevs
 }
 
 // GetReviews gets the list of currently applied access reviews.
