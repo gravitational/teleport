@@ -43,6 +43,7 @@ type Bot struct {
 	cfg        *config.BotConfig
 	log        logrus.FieldLogger
 	reloadChan chan struct{}
+	modules    modules.Modules
 
 	// These are protected by getter/setters with mutex locks
 	mu         sync.Mutex
@@ -63,6 +64,7 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}
 		cfg:        cfg,
 		log:        log,
 		reloadChan: reloadChan,
+		modules:    modules.GetModules(),
 
 		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
@@ -268,7 +270,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	if b.cfg.FIPS {
-		if !modules.GetModules().IsBoringBinary() {
+		if !b.modules.IsBoringBinary() {
 			b.log.Error("FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
 			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
 		}
