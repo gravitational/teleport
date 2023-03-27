@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -43,7 +44,18 @@ import (
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+	return cmp.Equal(lhs, rhs,
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		// Optimize types.CAKeySet comparison.
+		cmp.Comparer(func(a, b types.CAKeySet) bool {
+			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
+			// plus using proto.Equal is more efficient than cmp.Equal.
+			aClone := a.Clone()
+			bClone := b.Clone()
+			return proto.Equal(&aClone, &bClone)
+		}),
+	)
 }
 
 // ValidateCertAuthority validates the CertAuthority

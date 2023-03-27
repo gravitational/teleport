@@ -2918,6 +2918,11 @@ message RegisterUsingTokenRequest {
     // EC2IdentityDocument is used for the EC2 join method to prove the identity
     // of a joining EC2 instance.
     bytes EC2IdentityDocument = 10 [ (gogoproto.jsontag) = "ec2_id" ];
+    // Expires is a desired time of the expiry of user certificates returned by
+    // registration. This only applies to bot joining, and will be ignored by
+    // node joining.
+    google.protobuf.Timestamp Expires = 12
+        [ (gogoproto.stdtime) = true, (gogoproto.jsontag) = "expires,omitempty" ];
 }
 
 // RecoveryCodes holds a user's recovery code information. Recovery codes allows users to regain
@@ -2957,6 +2962,21 @@ message RecoveryCode {
     bytes HashedCode = 1 [ (gogoproto.jsontag) = "hashed_code" ];
     // IsUsed determines if this recovery code was used.
     bool IsUsed = 2 [ (gogoproto.jsontag) = "is_used" ];
+}
+
+message NullableSessionState {
+    SessionState State = 1 [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "state,omitempty" ];
+}
+
+// SessionTrackerFilter are filters to apply when searching for session trackers.
+message SessionTrackerFilter {
+    // Kind describes what kind of session this is.
+    string Kind = 1 [ (gogoproto.jsontag) = "kind,omitempty" ];
+    // State is the current state of this session.
+    NullableSessionState State = 2
+        [ (gogoproto.nullable) = true, (gogoproto.jsontag) = "state,omitempty" ];
+    // DesktopName is the windows desktop server this session belongs to.
+    string DesktopName = 3 [ (gogoproto.jsontag) = "desktop_name,omitempty" ];
 }
 
 // SessionTrackerV1 represents a live session resource.

@@ -18,7 +18,8 @@ OS ?= linux
 ARCH ?= amd64
 BUILDBOX_VERSION=teleport9
 GOLANG_VERSION ?= go1.17.11
-RUST_VERSION ?= 1.63.0 # don't bump this without checking GLIBC compatibility
+# run lint-rust check locally before merging code after you bump this
+RUST_VERSION ?= 1.66.0
 BORINGCRYPTO_RUNTIME=$(GOLANG_VERSION)b7
 LIBBPF_VERSION ?= 0.7.0-teleport
 
@@ -35,13 +36,15 @@ RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 PROTOC_VER ?= 3.13.0
 GOGO_PROTO_TAG ?= v1.3.2
 
-BUILDBOX=public.ecr.aws/gravitational/teleport-buildbox:$(BUILDBOX_VERSION)
-BUILDBOX_FIPS=public.ecr.aws/gravitational/teleport-buildbox-fips:$(BUILDBOX_VERSION)
-BUILDBOX_CENTOS7=public.ecr.aws/gravitational/teleport-buildbox-centos7:$(BUILDBOX_VERSION)
-BUILDBOX_CENTOS7_FIPS=public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$(BUILDBOX_VERSION)
-BUILDBOX_ARM=public.ecr.aws/gravitational/teleport-buildbox-arm:$(BUILDBOX_VERSION)
-BUILDBOX_ARM_FIPS=public.ecr.aws/gravitational/teleport-buildbox-arm-fips:$(BUILDBOX_VERSION)
-BUILDBOX_TELETERM=public.ecr.aws/gravitational/teleport-buildbox-teleterm:$(BUILDBOX_VERSION)
+BUILDBOX_BASE_NAME ?= public.ecr.aws/gravitational/teleport-buildbox
+
+BUILDBOX=$(BUILDBOX_BASE_NAME):$(BUILDBOX_VERSION)
+BUILDBOX_FIPS=$(BUILDBOX_BASE_NAME)-fips:$(BUILDBOX_VERSION)
+BUILDBOX_CENTOS7=$(BUILDBOX_BASE_NAME)-centos7:$(BUILDBOX_VERSION)
+BUILDBOX_CENTOS7_FIPS=$(BUILDBOX_BASE_NAME)-centos7-fips:$(BUILDBOX_VERSION)
+BUILDBOX_ARM=$(BUILDBOX_BASE_NAME)-arm:$(BUILDBOX_VERSION)
+BUILDBOX_ARM_FIPS=$(BUILDBOX_BASE_NAME)-arm-fips:$(BUILDBOX_VERSION)
+BUILDBOX_TELETERM=$(BUILDBOX_BASE_NAME)-teleterm:$(BUILDBOX_VERSION)
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -55,8 +58,11 @@ ifneq ("$(KUBECONFIG)","")
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(KUBECONFIG):/mnt/kube/config -e KUBECONFIG=/mnt/kube/config -e TEST_KUBE=$(TEST_KUBE)
 endif
 
-# conditionally force the use of UID/GID 1000:1000 if we're running in Drone
+# conditionally force the use of UID/GID 1000:1000 if we're running in Drone or Github Actions (in which case CI env var will be set)
 ifeq ("$(DRONE)","true")
+CI := true
+endif
+ifeq ("$(CI)","true")
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
@@ -337,10 +343,6 @@ release-386:
 release-arm: buildbox-arm
 	$(MAKE) release ARCH=arm BUILDBOX_NAME=$(BUILDBOX_ARM)
 
-.PHONY: release-arm64
-release-arm64: buildbox-arm
-	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
-
 .PHONY: release-amd64-centos7
 release-amd64-centos7: buildbox-centos7
 	$(MAKE) release-centos7 ARCH=amd64
@@ -348,6 +350,59 @@ release-amd64-centos7: buildbox-centos7
 .PHONY: release-amd64-centos7-fips
 release-amd64-centos7-fips: buildbox-centos7-fips
 	$(MAKE) release-centos7-fips ARCH=amd64 FIPS=yes
+
+# #############################################################################
+# Legacy Drone ARM build targets
+# #############################################################################
+
+.PHONY: release-arm64
+release-arm64: buildbox-arm
+	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
+
+# #############################################################################
+# GHA release build targets
+# #############################################################################
+
+#
+# The `release-oss` and `release-enterprise` make targets are for building OSS 
+# and Enterprise releases from GitHub actions. These make targets execute in a
+# container based on a caller-supplied `BUILDBOX` image.
+#
+# Unlike the other release targets, these release targets do not attempt to
+# automatically construct the buildbox image at build time - the build box 
+# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the 
+# make command line
+#
+# Separating the construction of build environment from the actual build itself 
+# allows us to use the appropriate GHA actions to pre-build the buildbox 
+# image, so that the image construction works nicely with GHA.
+#
+
+define RELEASE_RECIPE
+		docker run \
+			--rm \
+			--platform linux/$(ARCH) \
+			--memory-swap -1 \
+			-h buildbox \
+			-e GOMODCACHE=$(GOMODCACHE) \
+			-e GOCACHE=$(GOCACHE) \
+			-v "/tmp:/tmp" \
+			-v "$(WORKSPACE):/go/teleport" \
+			-w /go/teleport \
+			-u 1000:1000 \
+			$(BUILDBOX) \
+		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
+endef
+
+.PHONY: release-oss
+release-oss:
+	$(call RELEASE_RECIPE,full build-archive)
+
+.PHONY: release-enterprise
+release-enterprise:
+	$(call RELEASE_RECIPE,release-unix-only)
+
+# #############################################################################
 
 #
 # Create a Teleport FIPS package using the build container.

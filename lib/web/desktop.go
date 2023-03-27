@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -48,7 +49,7 @@ func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
 	p httprouter.Params,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
@@ -56,10 +57,10 @@ func (h *Handler) desktopConnectHandle(
 		return nil, trace.BadParameter("missing desktopName in request URL")
 	}
 
-	log := ctx.log.WithField("desktop-name", desktopName)
+	log := sctx.cfg.Log.WithField("desktop-name", desktopName).WithField("cluster-name", site.GetName())
 	log.Debug("New desktop access websocket connection")
 
-	if err := h.createDesktopConnection(w, r, desktopName, log, ctx, site); err != nil {
+	if err := h.createDesktopConnection(w, r, desktopName, site.GetName(), log, sctx, site); err != nil {
 		// createDesktopConnection makes a best effort attempt to send an error to the user
 		// (via websocket) before terminating the connection. We log the error here, but
 		// return nil because our HTTP middleware will try to write the returned error in JSON
@@ -80,8 +81,9 @@ func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
 	r *http.Request,
 	desktopName string,
+	clusterName string,
 	log *logrus.Entry,
-	ctx *SessionContext,
+	sctx *SessionContext,
 	site reversetunnel.RemoteSite,
 ) error {
 	upgrader := websocket.Upgrader{
@@ -128,17 +130,17 @@ func (h *Handler) createDesktopConnection(
 
 	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
 
-	// TODO(awly): trusted cluster support - if this request is for a different
-	// cluster, dial their proxy and forward the websocket request as is.
-
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
 	// the services in agent mode.
 	//
 	// In the future, we may want to do something smarter like latency-based
 	// routing.
-	winDesktops, err := ctx.unsafeCachedAuthClient.GetWindowsDesktops(r.Context(),
-		types.WindowsDesktopFilter{Name: desktopName})
+	clt, err := sctx.GetUserClient(r.Context(), site)
+	if err != nil {
+		return sendTDPError(ws, trace.Wrap(err))
+	}
+	winDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{Name: desktopName})
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot get Windows desktops"))
 	}
@@ -160,23 +162,23 @@ func (h *Handler) createDesktopConnection(
 
 	c := &connector{
 		log:      log,
-		clt:      ctx.clt,
+		clt:      clt,
 		site:     site,
 		userAddr: r.RemoteAddr,
 	}
-	serviceConn, err := c.connectToWindowsService(ctx.parent.clusterName, validServiceIDs)
+	serviceConn, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err, "cannot connect to Windows Desktop Service"))
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), ctx, h.ProxyHostPort(), username)
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username)
 	if err != nil {
 		return sendTDPError(ws, trace.Wrap(err))
 	}
 	defer pc.Close()
 
-	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, ctx, desktopName, username, site.GetName())
+	tlsConfig, err := desktopTLSConfig(r.Context(), ws, pc, sctx, desktopName, username, site.GetName())
 	if err != nil {
 		return sendTDPError(ws, err)
 	}
@@ -197,9 +199,10 @@ func (h *Handler) createDesktopConnection(
 		return sendTDPError(ws, err)
 	}
 
-	if err := proxyWebsocketConn(ws, serviceConnTLS); err != nil {
-		log.WithError(err).Warningf("Error proxying a desktop protocol websocket to windows_desktop_service")
-	}
+	// proxyWebsocketConn hangs here until connection is closed
+	handleProxyWebsocketConnErr(
+		proxyWebsocketConn(ws, serviceConnTLS), log)
+
 	return nil
 }
 
@@ -228,13 +231,16 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 	return pc, nil
 }
 
-func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
-	priv, err := ssh.ParsePrivateKey(sessCtx.session.GetPriv())
+func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sctx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
+	priv, err := ssh.ParsePrivateKey(sctx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var wsLock sync.Mutex
+	stream, err := NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -243,12 +249,12 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		RouteToCluster: siteName,
 		ExistingCreds: &client.Key{
 			Pub:                 ssh.MarshalAuthorizedKey(priv.PublicKey()),
-			Priv:                sessCtx.session.GetPriv(),
-			Cert:                sessCtx.session.GetPub(),
-			TLSCert:             sessCtx.session.GetTLSCert(),
+			Priv:                sctx.cfg.Session.GetPriv(),
+			Cert:                sctx.cfg.Session.GetPub(),
+			TLSCert:             sctx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
+	}, promptMFAChallenge(stream, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -256,11 +262,11 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	if !ok {
 		return nil, trace.NotFound("failed to find windows desktop certificates for %q", desktopName)
 	}
-	certConf, err := tls.X509KeyPair(windowsDesktopCerts, sessCtx.session.GetPriv())
+	certConf, err := tls.X509KeyPair(windowsDesktopCerts, sctx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsConfig, err := sessCtx.ClientTLSConfig()
+	tlsConfig, err := sctx.ClientTLSConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -272,7 +278,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 
 type connector struct {
 	log      *logrus.Entry
-	clt      *auth.Client
+	clt      auth.ClientI
 	site     reversetunnel.RemoteSite
 	userAddr string
 }
@@ -382,4 +388,38 @@ func proxyWebsocketConn(ws *websocket.Conn, wds net.Conn) error {
 		retErrs = append(retErrs, <-errs)
 	}
 	return trace.NewAggregate(retErrs...)
+}
+
+// handleProxyWebsocketConnErr handles the error returned by proxyWebsocketConn by
+// unwrapping it and determining whether to log an error.
+func handleProxyWebsocketConnErr(proxyWsConnErr error, log *logrus.Entry) {
+	if proxyWsConnErr == nil {
+		log.Debug("proxyWebsocketConn returned with no error")
+		return
+	}
+
+	errs := []error{proxyWsConnErr}
+	for len(errs) > 0 {
+		err := errs[0] // pop first error
+		errs = errs[1:]
+
+		switch err := err.(type) {
+		case trace.Aggregate:
+			errs = append(errs, err.Errors()...)
+		case *websocket.CloseError:
+			switch err.Code {
+			case websocket.CloseNormalClosure, // when the user hits "disconnect" from the menu
+				websocket.CloseGoingAway: // when the user closes the tab
+				log.Debugf("Web socket closed by client with code: %v", err.Code)
+				return
+			}
+			return
+		default:
+			if wrapped := errors.Unwrap(err); wrapped != nil {
+				errs = append(errs, wrapped)
+			}
+		}
+	}
+
+	log.WithError(proxyWsConnErr).Warning("Error proxying a desktop protocol websocket to windows_desktop_service")
 }

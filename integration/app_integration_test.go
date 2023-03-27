@@ -40,12 +40,14 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -66,37 +68,69 @@ import (
 // within a single cluster and trusted cluster.
 func TestAppAccessForward(t *testing.T) {
 	// Create cluster, user, sessions, and credentials package.
-	pack := setup(t)
+	p := setup(t)
 
+	rootCookies := helpers.ParseCookies(t, p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName))
+	leafCookies := helpers.ParseCookies(t, p.CreateAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName))
 	tests := []struct {
 		desc          string
-		inCookie      string
+		inCookies     []*http.Cookie
 		outStatusCode int
 		outMessage    string
 	}{
 		{
 			desc:          "root cluster, valid application session cookie, success",
-			inCookie:      pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName),
+			inCookies:     rootCookies.ToSlice(),
 			outStatusCode: http.StatusOK,
-			outMessage:    pack.rootMessage,
+			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid application session cookie, success",
-			inCookie:      pack.createAppSession(t, pack.leafAppPublicAddr, pack.leafAppClusterName),
+			inCookies:     leafCookies.ToSlice(),
 			outStatusCode: http.StatusOK,
-			outMessage:    pack.leafMessage,
+			outMessage:    p.leafMessage,
 		},
 		{
-			desc:          "invalid application session cookie, redirect to login",
-			inCookie:      "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C",
+			desc:          "missing root subject session cookie, redirect to login",
+			inCookies:     rootCookies.WithSubjectCookie(nil).ToSlice(),
 			outStatusCode: http.StatusFound,
 			outMessage:    "",
 		},
+		{
+			desc: "root subject session cookie invalid, redirect to login",
+			inCookies: rootCookies.WithSubjectCookie(&http.Cookie{
+				Name:  app.SubjectCookieName,
+				Value: "letmeinplease",
+			}).ToSlice(),
+			outStatusCode: http.StatusFound,
+		},
+		{
+			desc:          "missing leaf subject session cookie, redirect to login",
+			inCookies:     leafCookies.WithSubjectCookie(nil).ToSlice(),
+			outStatusCode: http.StatusFound,
+		},
+		{
+			desc: "leaf subject session cookie invalid, redirect to login",
+			inCookies: leafCookies.WithSubjectCookie(&http.Cookie{
+				Name:  app.SubjectCookieName,
+				Value: "letmeinplease",
+			}).ToSlice(),
+			outStatusCode: http.StatusFound,
+		},
+		{
+			desc: "invalid application session cookie, redirect to login",
+			inCookies: []*http.Cookie{{
+				Name:  app.CookieName,
+				Value: "D25C463CD27861559CC6A0A6AE54818079809AA8731CB18037B4B37A80C4FC6C"},
+			},
+			outStatusCode: http.StatusFound,
+		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			status, body, err := pack.makeRequest(tt.inCookie, http.MethodGet, "/")
+			t.Parallel()
+			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
 			require.NoError(t, err)
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
@@ -107,44 +141,61 @@ func TestAppAccessForward(t *testing.T) {
 // TestAppAccessWebsockets makes sure that websocket requests get forwarded.
 func TestAppAccessWebsockets(t *testing.T) {
 	// Create cluster, user, sessions, and credentials package.
-	pack := setup(t)
+	p := setup(t)
 
 	tests := []struct {
 		desc       string
-		inCookie   string
+		inCookies  []*http.Cookie
 		outMessage string
 		err        error
 	}{
 		{
 			desc:       "root cluster, valid application session cookie, successful websocket (ws://) request",
-			inCookie:   pack.createAppSession(t, pack.rootWSPublicAddr, pack.rootAppClusterName),
-			outMessage: pack.rootWSMessage,
+			inCookies:  p.CreateAppSession(t, p.rootWSPublicAddr, p.rootAppClusterName),
+			outMessage: p.rootWSMessage,
 		},
 		{
 			desc:       "root cluster, valid application session cookie, successful secure websocket (wss://) request",
-			inCookie:   pack.createAppSession(t, pack.rootWSSPublicAddr, pack.rootAppClusterName),
-			outMessage: pack.rootWSSMessage,
+			inCookies:  p.CreateAppSession(t, p.rootWSSPublicAddr, p.rootAppClusterName),
+			outMessage: p.rootWSSMessage,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful websocket (ws://) request",
-			inCookie:   pack.createAppSession(t, pack.leafWSPublicAddr, pack.leafAppClusterName),
-			outMessage: pack.leafWSMessage,
+			inCookies:  p.CreateAppSession(t, p.leafWSPublicAddr, p.leafAppClusterName),
+			outMessage: p.leafWSMessage,
 		},
 		{
 			desc:       "leaf cluster, valid application session cookie, successful secure websocket (wss://) request",
-			inCookie:   pack.createAppSession(t, pack.leafWSSPublicAddr, pack.leafAppClusterName),
-			outMessage: pack.leafWSSMessage,
+			inCookies:  p.CreateAppSession(t, p.leafWSSPublicAddr, p.leafAppClusterName),
+			outMessage: p.leafWSSMessage,
 		},
 		{
-			desc:     "invalid application session cookie, websocket request fails to dial",
-			inCookie: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-			err:      errors.New(""),
+			desc: "valid application session cookie, invalid subject session cookie, websocket request fails to dial",
+			inCookies: helpers.ParseCookies(t, p.CreateAppSession(t, p.rootWSPublicAddr, p.rootAppClusterName)).WithSubjectCookie(
+				&http.Cookie{
+					Name:  app.SubjectCookieName,
+					Value: "foobarbaz",
+				},
+			).ToSlice(),
+			err: errors.New(""),
+		},
+		{
+			desc: "invalid application session cookie, websocket request fails to dial",
+			inCookies: []*http.Cookie{
+				{
+					Name:  app.CookieName,
+					Value: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+				},
+			},
+			err: errors.New(""),
 		},
 	}
+
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			body, err := pack.makeWebsocketRequest(tt.inCookie, "/")
+			t.Parallel()
+			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
 			if tt.err != nil {
 				require.IsType(t, tt.err, trace.Unwrap(err))
 			} else {
@@ -155,10 +206,235 @@ func TestAppAccessWebsockets(t *testing.T) {
 	}
 }
 
+// TestWSSLock tests locks with WSS connections.
+func TestWSSLock(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{}, 1)
+
+	p := setupWithOptions(t, appTestOptions{
+		clock:               clock,
+		monitorCloseChannel: mCloseChannel,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	header := http.Header{}
+	dialer := websocket.Dialer{}
+
+	// Start the session for the two way communication app.
+	cookies := p.CreateAppSession(t, p.rootWSSTwoWayPublicAddr, p.rootAppClusterName)
+	for _, c := range cookies {
+		header.Add("Cookie", c.String())
+	}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	var conn *websocket.Conn
+	var err error
+	var httpResponse *http.Response
+	var n int
+	var stream *web.WebsocketIO
+	buf := make([]byte, 1024)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), "/"), header)
+		if err != nil {
+			return false
+		}
+
+		// Read, write, and read again to make sure its working as expected.
+		stream = &web.WebsocketIO{Conn: conn}
+		n, err = stream.Read(buf)
+		if err != nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
+
+	defer conn.Close()
+	defer httpResponse.Body.Close()
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, p.rootWSSTwoWayMessage, resp)
+
+	// Once we've read successfully, write, and then read again to verify the connection
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	n, err = stream.Read(buf)
+	require.NoError(t, err)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, p.rootWSSTwoWayMessage, resp)
+
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	clock.Advance(24 * time.Hour)
+
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	_, err = stream.Read(buf)
+	require.Error(t, err)
+	// Close and re-open the connection. We don't care about the error message here.
+	_ = conn.Close()
+
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), "/"), header)
+		if err == nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err != nil
+	}, time.Second*5, time.Millisecond*100)
+
+	if conn != nil {
+		defer conn.Close()
+	}
+
+	if httpResponse != nil {
+		defer httpResponse.Body.Close()
+	}
+}
+
+// TestWSSCertExpiration tests WSS application with certs expiring.
+func TestWSSCertExpiration(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	mCloseChannel := make(chan struct{}, 1)
+
+	p := setupWithOptions(t, appTestOptions{
+		clock:               clock,
+		monitorCloseChannel: mCloseChannel,
+	})
+
+	msg := []byte(uuid.New().String())
+
+	header := http.Header{}
+	dialer := websocket.Dialer{}
+
+	// Start the session for the two way communication app.
+	cookies := p.CreateAppSession(t, p.rootWSSTwoWayPublicAddr, p.rootAppClusterName)
+	for _, c := range cookies {
+		header.Add("Cookie", c.String())
+	}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	var conn *websocket.Conn
+	var err error
+	var httpResponse *http.Response
+	var n int
+	var stream *web.WebsocketIO
+	buf := make([]byte, 1024)
+
+	// Try to read for a short amount of time.
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), "/"), header)
+		if err != nil {
+			return false
+		}
+
+		// Read, write, and read again to make sure its working as expected.
+		stream = &web.WebsocketIO{Conn: conn}
+		n, err = stream.Read(buf)
+		if err != nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err == nil
+	}, time.Second*5, time.Millisecond*100)
+
+	defer conn.Close()
+	defer httpResponse.Body.Close()
+
+	resp := strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, p.rootWSSTwoWayMessage, resp)
+
+	// Once we've read successfully, write, and then read again to verify the connection
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	n, err = stream.Read(buf)
+	require.NoError(t, err)
+
+	resp = strings.TrimSpace(string(buf[:n]))
+	require.Equal(t, p.rootWSSTwoWayMessage, resp)
+
+	// Let the cert expire. We'll choose 24 hours to make sure we go above
+	// any cert durations that could be chosen here.
+	clock.Advance(24 * time.Hour)
+
+	// Wait for the channel closure signal
+	select {
+	case <-mCloseChannel:
+	case <-time.After(time.Second * 10):
+		require.Fail(t, "timeout waiting for monitor channel signal")
+	}
+	_, err = stream.Write(msg)
+	require.NoError(t, err)
+
+	_, err = stream.Read(buf)
+	require.Error(t, err)
+	// Close and re-open the connection. We don't care about the error message here.
+	_ = conn.Close()
+
+	require.Eventually(t, func() bool {
+		// These are closed outside of the scope of this function.
+		//nolint:bodyclose
+		conn, httpResponse, err = dialer.Dial(fmt.Sprintf("wss://%s%s", net.JoinHostPort(Loopback, p.rootCluster.GetPortWeb()), "/"), header)
+		if err == nil {
+			conn.Close()
+			httpResponse.Body.Close()
+		}
+		return err != nil
+	}, time.Second*5, time.Millisecond*100)
+
+	if conn != nil {
+		defer conn.Close()
+	}
+
+	if httpResponse != nil {
+		defer httpResponse.Body.Close()
+	}
+}
+
 // TestAppAccessClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func TestAppAccessClientCert(t *testing.T) {
-	pack := setup(t)
+	p := setup(t)
+	evilUser, _ := p.createUser(t, appTestOptions{
+		userTraits: map[string][]string{"env": {"production"}},
+	})
+
+	rootWs, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.user.GetName(),
+		PublicAddr:  p.rootAppPublicAddr,
+		ClusterName: p.rootAppClusterName,
+	})
+	require.NoError(t, err)
+
+	leafWs, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
+		Username:    p.user.GetName(),
+		PublicAddr:  p.leafAppPublicAddr,
+		ClusterName: p.leafAppClusterName,
+	})
+	require.NoError(t, err)
 
 	tests := []struct {
 		desc          string
@@ -168,26 +444,39 @@ func TestAppAccessClientCert(t *testing.T) {
 	}{
 		{
 			desc:          "root cluster, valid TLS config, success",
-			inTLSConfig:   pack.makeTLSConfig(t, pack.rootAppPublicAddr, pack.rootAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), rootWs.GetUser(), p.rootAppPublicAddr, p.rootAppClusterName),
 			outStatusCode: http.StatusOK,
-			outMessage:    pack.rootMessage,
+			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid TLS config, success",
-			inTLSConfig:   pack.makeTLSConfig(t, pack.leafAppPublicAddr, pack.leafAppClusterName),
+			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), leafWs.GetUser(), p.leafAppPublicAddr, p.leafAppClusterName),
 			outStatusCode: http.StatusOK,
-			outMessage:    pack.leafMessage,
+			outMessage:    p.leafMessage,
 		},
 		{
 			desc:          "root cluster, invalid session ID",
-			inTLSConfig:   pack.makeTLSConfigNoSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName),
+			inTLSConfig:   p.makeTLSConfigNoSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
 			outStatusCode: http.StatusFound,
+		},
+		{
+			desc:          "root cluster, invalid session owner",
+			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), p.rootAppPublicAddr, p.rootAppClusterName),
+			outStatusCode: http.StatusFound,
+			outMessage:    "",
+		},
+		{
+			desc:          "leaf cluster, invalid session owner",
+			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), p.leafAppPublicAddr, p.leafAppClusterName),
+			outStatusCode: http.StatusFound,
+			outMessage:    "",
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			status, body, err := pack.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
+			t.Parallel()
+			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
 			require.NoError(t, err)
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
@@ -198,16 +487,15 @@ func TestAppAccessClientCert(t *testing.T) {
 // TestAppAccessFlush makes sure that application access periodically flushes
 // buffered data to the response.
 func TestAppAccessFlush(t *testing.T) {
-	pack := setup(t)
+	p := setup(t)
 
-	req, err := http.NewRequest("GET", pack.assembleRootProxyURL("/"), nil)
+	req, err := http.NewRequest("GET", p.assembleRootProxyURL("/"), nil)
 	require.NoError(t, err)
 
-	cookie := pack.createAppSession(t, pack.flushAppPublicAddr, pack.flushAppClusterName)
-	req.AddCookie(&http.Cookie{
-		Name:  app.CookieName,
-		Value: cookie,
-	})
+	cookies := p.CreateAppSession(t, p.flushAppPublicAddr, p.flushAppClusterName)
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 
 	client := &http.Client{
 		Transport: &http.Transport{
@@ -239,42 +527,43 @@ func TestAppAccessFlush(t *testing.T) {
 func TestAppAccessForwardModes(t *testing.T) {
 	// Create cluster, user, sessions, and credentials package.
 	ctx := context.Background()
-	pack := setup(t)
+	p := setup(t)
 
 	// Update root and leaf clusters to record sessions at the proxy.
 	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
 	require.NoError(t, err)
-	err = pack.rootCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
+	err = p.rootCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
-	err = pack.leafCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
+	err = p.leafCluster.Process.GetAuthServer().SetSessionRecordingConfig(ctx, recConfig)
 	require.NoError(t, err)
 
 	// Requests to root and leaf cluster are successful.
 	tests := []struct {
 		desc          string
-		inCookie      string
+		inCookies     []*http.Cookie
 		outStatusCode int
 		outMessage    string
 	}{
 		{
 			desc:          "root cluster, valid application session cookie, success",
-			inCookie:      pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName),
+			inCookies:     p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
 			outStatusCode: http.StatusOK,
-			outMessage:    pack.rootMessage,
+			outMessage:    p.rootMessage,
 		},
 		{
 			desc:          "leaf cluster, valid application session cookie, success",
-			inCookie:      pack.createAppSession(t, pack.leafAppPublicAddr, pack.leafAppClusterName),
+			inCookies:     p.CreateAppSession(t, p.leafAppPublicAddr, p.leafAppClusterName),
 			outStatusCode: http.StatusOK,
-			outMessage:    pack.leafMessage,
+			outMessage:    p.leafMessage,
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			tt := tt
-			status, body, err := pack.makeRequest(tt.inCookie, http.MethodGet, "/")
+			t.Parallel()
+			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
 			require.NoError(t, err)
 			require.Equal(t, tt.outStatusCode, status)
 			require.Contains(t, body, tt.outMessage)
@@ -285,18 +574,18 @@ func TestAppAccessForwardModes(t *testing.T) {
 // TestAppAccessLogout verifies the session is removed from the backend when the user logs out.
 func TestAppAccessLogout(t *testing.T) {
 	// Create cluster, user, and credentials package.
-	pack := setup(t)
+	p := setup(t)
 
 	// Create an application session.
-	appCookie := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+	appCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
 
 	// Log user out of session.
-	status, _, err := pack.makeRequest(appCookie, http.MethodGet, "/teleport-logout")
+	status, _, err := p.MakeRequest(appCookies, http.MethodGet, "/teleport-logout")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
 	// Wait until requests using the session cookie have failed.
-	status, err = pack.waitForLogout(appCookie)
+	status, err = p.waitForLogout(appCookies)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusFound, status)
 }
@@ -305,23 +594,23 @@ func TestAppAccessLogout(t *testing.T) {
 // be validated.
 func TestAppAccessJWT(t *testing.T) {
 	// Create cluster, user, and credentials package.
-	pack := setup(t)
+	p := setup(t)
 
 	// Create an application session.
-	appCookie := pack.createAppSession(t, pack.jwtAppPublicAddr, pack.jwtAppClusterName)
+	appCookies := p.CreateAppSession(t, p.jwtAppPublicAddr, p.jwtAppClusterName)
 
 	// Get JWT.
-	status, token, err := pack.makeRequest(appCookie, http.MethodGet, "/")
+	status, token, err := p.MakeRequest(appCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
 	// Verify JWT token.
-	verifyJWT(t, pack, token, pack.jwtAppURI)
+	verifyJWT(t, p, token, p.jwtAppURI)
 }
 
 func verifyJWT(t *testing.T, pack *pack, token, appURI string) {
 	// Get and unmarshal JWKs
-	status, body, err := pack.makeRequest("", http.MethodGet, "/.well-known/jwks.json")
+	status, body, err := pack.MakeRequest(nil, http.MethodGet, "/.well-known/jwks.json")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	var jwks web.JWKSResponse
@@ -352,31 +641,30 @@ func verifyJWT(t *testing.T, pack *pack, token, appURI string) {
 // by values passed in by the user.
 func TestAppAccessNoHeaderOverrides(t *testing.T) {
 	// Create cluster, user, and credentials package.
-	pack := setup(t)
+	p := setup(t)
 
 	// Create an application session.
-	appCookie := pack.createAppSession(t, pack.headerAppPublicAddr, pack.headerAppClusterName)
+	appCookies := p.CreateAppSession(t, p.headerAppPublicAddr, p.headerAppClusterName)
 
 	// Get HTTP headers forwarded to the application.
-	status, origHeaderResp, err := pack.makeRequest(appCookie, http.MethodGet, "/")
+	status, origHeaderResp, err := p.MakeRequest(appCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	origHeaders := strings.Split(origHeaderResp, "\n")
 	require.Equal(t, len(origHeaders), len(forwardedHeaderNames)+1)
 
 	// Construct HTTP request with custom headers.
-	req, err := http.NewRequest(http.MethodGet, pack.assembleRootProxyURL("/"), nil)
+	req, err := http.NewRequest(http.MethodGet, p.assembleRootProxyURL("/"), nil)
 	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  app.CookieName,
-		Value: appCookie,
-	})
+	for _, c := range appCookies {
+		req.AddCookie(c)
+	}
 	for _, headerName := range forwardedHeaderNames {
 		req.Header.Set(headerName, uuid.New().String())
 	}
 
 	// Issue the request.
-	status, newHeaderResp, err := pack.sendRequest(req, nil)
+	status, newHeaderResp, err := p.sendRequest(req, nil)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 	newHeaders := strings.Split(newHeaderResp, "\n")
@@ -400,7 +688,7 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 	publicAddr := "dumper-root.example.com"
 
 	// Setup the test with additional dumper application in root cluster.
-	pack := setupWithOptions(t, appTestOptions{
+	p := setupWithOptions(t, appTestOptions{
 		extraRootApps: []service.App{
 			{
 				Name:       "dumper-root",
@@ -465,10 +753,10 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 	})
 
 	// Create an application session for dumper app in root cluster.
-	appCookie := pack.createAppSession(t, publicAddr, "example.com")
+	appCookies := p.CreateAppSession(t, "dumper-root.example.com", "example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := pack.makeRequest(appCookie, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookies, http.MethodGet, "/", service.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)
@@ -490,7 +778,7 @@ func TestAppAccessRewriteHeadersRoot(t *testing.T) {
 
 	// Verify JWT tokens.
 	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {
-		verifyJWT(t, pack, req.Header.Get(header), dumperServer.URL)
+		verifyJWT(t, p, req.Header.Get(header), dumperServer.URL)
 	}
 }
 
@@ -506,7 +794,7 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 	publicAddr := "dumper-leaf.example.com"
 
 	// Setup the test with additional dumper application in leaf cluster.
-	pack := setupWithOptions(t, appTestOptions{
+	p := setupWithOptions(t, appTestOptions{
 		extraLeafApps: []service.App{
 			{
 				Name:       "dumper-leaf",
@@ -572,10 +860,10 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 	})
 
 	// Create an application session for dumper app in leaf cluster.
-	appCookie := pack.createAppSession(t, publicAddr, "leaf.example.com")
+	appCookies := p.CreateAppSession(t, "dumper-leaf.example.com", "leaf.example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := pack.makeRequest(appCookie, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookies, http.MethodGet, "/", service.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)
@@ -597,28 +885,28 @@ func TestAppAccessRewriteHeadersLeaf(t *testing.T) {
 
 func TestAppAuditEvents(t *testing.T) {
 	// Create cluster, user, sessions, and credentials package.
-	pack := setup(t)
-	inCookie := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+	p := setup(t)
+	inCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
 
-	status, body, err := pack.makeRequest(inCookie, http.MethodGet, "/")
+	status, body, err := p.MakeRequest(inCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, body, pack.rootMessage)
+	require.Contains(t, body, p.rootMessage)
 
 	// session start event
-	pack.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionStartEvent, func(event apievents.AuditEvent) {
 		expectedEvent := &apievents.AppSessionStart{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionStartEvent,
 				Code:        events.AppSessionStartCode,
-				ClusterName: pack.rootAppClusterName,
+				ClusterName: p.rootAppClusterName,
 			},
 			AppMetadata: apievents.AppMetadata{
-				AppURI:        pack.rootAppURI,
-				AppPublicAddr: pack.rootAppPublicAddr,
-				AppName:       pack.rootAppName,
+				AppURI:        p.rootAppURI,
+				AppPublicAddr: p.rootAppPublicAddr,
+				AppName:       p.rootAppName,
 			},
-			PublicAddr: pack.rootAppPublicAddr,
+			PublicAddr: p.rootAppPublicAddr,
 		}
 		require.Empty(t, cmp.Diff(
 			expectedEvent,
@@ -629,17 +917,17 @@ func TestAppAuditEvents(t *testing.T) {
 	})
 
 	// session chunk event
-	pack.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
+	p.ensureAuditEvent(t, events.AppSessionChunkEvent, func(event apievents.AuditEvent) {
 		expectedEvent := &apievents.AppSessionChunk{
 			Metadata: apievents.Metadata{
 				Type:        events.AppSessionChunkEvent,
 				Code:        events.AppSessionChunkCode,
-				ClusterName: pack.rootAppClusterName,
+				ClusterName: p.rootAppClusterName,
 			},
 			AppMetadata: apievents.AppMetadata{
-				AppURI:        pack.rootAppURI,
-				AppPublicAddr: pack.rootAppPublicAddr,
-				AppName:       pack.rootAppName,
+				AppURI:        p.rootAppURI,
+				AppPublicAddr: p.rootAppPublicAddr,
+				AppName:       p.rootAppName,
 			},
 		}
 		require.Empty(t, cmp.Diff(
@@ -676,7 +964,7 @@ func TestAppServersHA(t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startRootAppServers(t, count, []service.App{})
+				return pack.startRootAppServers(t, count, appTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
 				waitForActiveTunnelConnections(t, pack.rootCluster.Tunnel, pack.rootCluster.Secrets.SiteName, count)
@@ -692,7 +980,7 @@ func TestAppServersHA(t *testing.T) {
 				}
 			},
 			startAppServers: func(pack *pack, count int) []*service.TeleportProcess {
-				return pack.startLeafAppServers(t, count, []service.App{})
+				return pack.startLeafAppServers(t, count, appTestOptions{})
 			},
 			waitForTunnelConn: func(t *testing.T, pack *pack, count int) {
 				waitForActiveTunnelConnections(t, pack.leafCluster.Tunnel, pack.leafCluster.Secrets.SiteName, count)
@@ -721,11 +1009,11 @@ func TestAppServersHA(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	makeRequests := func(t *testing.T, pack *pack, httpCookie, wsCookie string, responseAssertion func(*testing.T, int, error)) {
-		status, _, err := pack.makeRequest(httpCookie, http.MethodGet, "/")
+	makeRequests := func(t *testing.T, pack *pack, httpCookies, wsCookies []*http.Cookie, responseAssertion func(*testing.T, int, error)) {
+		status, _, err := pack.MakeRequest(httpCookies, http.MethodGet, "/")
 		responseAssertion(t, status, err)
 
-		_, err = pack.makeWebsocketRequest(wsCookie, "/")
+		_, err = pack.makeWebsocketRequest(wsCookies, "/")
 		responseAssertion(t, 0, err)
 	}
 
@@ -734,11 +1022,12 @@ func TestAppServersHA(t *testing.T) {
 	for name, test := range testCases {
 		name, test := name, test
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			info := test.packInfo(p)
-			httpCookie := p.createAppSession(t, info.publicHTTPAddr, info.clusterName)
-			wsCookie := p.createAppSession(t, info.publicWSAddr, info.clusterName)
+			httpCookies := p.CreateAppSession(t, info.publicHTTPAddr, info.clusterName)
+			wsCookies := p.CreateAppSession(t, info.publicWSAddr, info.clusterName)
 
-			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 
 			// Stop all root app servers.
 			for i, appServer := range info.appServers {
@@ -747,17 +1036,17 @@ func TestAppServersHA(t *testing.T) {
 
 				if i == len(info.appServers)-1 {
 					// fails only when the last one is closed.
-					makeRequests(t, p, httpCookie, wsCookie, responseWithError)
+					makeRequests(t, p, httpCookies, wsCookies, responseWithError)
 				} else {
 					// otherwise the request should be handled by another
 					// server.
-					makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+					makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 				}
 			}
 
 			servers := test.startAppServers(p, 1)
 			test.waitForTunnelConn(t, p, 1)
-			makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+			makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 
 			// Start an additional app server and stop all current running
 			// ones.
@@ -775,7 +1064,7 @@ func TestAppServersHA(t *testing.T) {
 				// Everytime an app server stops we issue a request to
 				// guarantee that the requests are going to be resolved by
 				// the remaining app servers.
-				makeRequests(t, p, httpCookie, wsCookie, responseWithoutError)
+				makeRequests(t, p, httpCookies, wsCookies, responseWithoutError)
 			}
 		})
 	}
@@ -783,18 +1072,18 @@ func TestAppServersHA(t *testing.T) {
 
 func TestAppInvalidateAppSessionsOnLogout(t *testing.T) {
 	// Create cluster, user, and credentials package.
-	pack := setup(t)
+	p := setup(t)
 
 	// Create an application session.
-	appCookie := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+	appCookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
 
 	// Issue a request to the application to guarantee everything is working correctly.
-	status, _, err := pack.makeRequest(appCookie, http.MethodGet, "/")
+	status, _, err := p.MakeRequest(appCookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
 	// Logout from Teleport.
-	status, _, err = pack.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
+	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
@@ -803,7 +1092,7 @@ func TestAppInvalidateAppSessionsOnLogout(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// Issue another request to the application. Now, it should receive a
 		// redirect because the application sessions are gone.
-		status, _, err = pack.makeRequest(appCookie, http.MethodGet, "/")
+		status, _, err = p.MakeRequest(appCookies, http.MethodGet, "/")
 		require.NoError(t, err)
 		return status == http.StatusFound
 	}, time.Second, 250*time.Millisecond)
@@ -811,19 +1100,23 @@ func TestAppInvalidateAppSessionsOnLogout(t *testing.T) {
 
 func TestAppInvalidateCertificatesSessionsOnLogout(t *testing.T) {
 	// Create cluster, user, and credentials package.
-	pack := setup(t)
+	p := setup(t)
+
+	// Create an application session.
+	cookies := p.CreateAppSession(t, p.rootAppPublicAddr, p.rootAppClusterName)
+	sessionID := helpers.ParseCookies(t, cookies).SessionCookie.Value
 
 	// Generates TLS config for making app requests.
-	reqTLS := pack.makeTLSConfig(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+	reqTLS := p.makeTLSConfig(t, sessionID, p.username, p.rootAppPublicAddr, p.rootAppClusterName)
 	require.NotNil(t, reqTLS)
 
 	// Issue a request to the application to guarantee everything is working correctly.
-	status, _, err := pack.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
+	status, _, err := p.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
 	// Logout from Teleport.
-	status, _, err = pack.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
+	status, _, err = p.makeWebapiRequest(http.MethodDelete, "sessions", []byte{})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
@@ -832,7 +1125,7 @@ func TestAppInvalidateCertificatesSessionsOnLogout(t *testing.T) {
 	require.Eventually(t, func() bool {
 		// Issue another request to the application. Now, it should receive a
 		// redirect because the application sessions are gone.
-		status, _, err = pack.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
+		status, _, err = p.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
 		require.NoError(t, err)
 		return status == http.StatusFound
 	}, time.Second, 250*time.Millisecond)
@@ -869,6 +1162,11 @@ type pack struct {
 	rootWSSPublicAddr string
 	rootWSSMessage    string
 	rootWSSAppURI     string
+
+	rootWSSTwoWayAppName    string
+	rootWSSTwoWayPublicAddr string
+	rootWSSTwoWayMessage    string
+	rootWSSTwoWayAppURI     string
 
 	jwtAppName        string
 	jwtAppPublicAddr  string
@@ -914,6 +1212,8 @@ type appTestOptions struct {
 	leafClusterPorts    *InstancePorts
 	rootAppServersCount int
 	leafAppServersCount int
+	clock               clockwork.FakeClock
+	monitorCloseChannel chan struct{}
 
 	rootConfig          func(config *service.Config)
 	leafConfig          func(config *service.Config)
@@ -953,6 +1253,10 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		rootWSSAppName:    "wss-01",
 		rootWSSPublicAddr: "wss-01.example.com",
 		rootWSSMessage:    uuid.New().String(),
+
+		rootWSSTwoWayAppName:    "wss-twoway",
+		rootWSSTwoWayPublicAddr: "wss-twoway.example.com",
+		rootWSSTwoWayMessage:    uuid.New().String(),
 
 		leafAppName:        "app-02",
 		leafAppPublicAddr:  "app-02.example.com",
@@ -1010,6 +1314,20 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 		conn.Close()
 	}))
 	t.Cleanup(rootWSSServer.Close)
+	// WSS application that reads after every write in the root cluster (tcp://).
+	rootWSSTwoWayServer := httptest.NewTLSServer(createHandler(func(conn *websocket.Conn) {
+		for {
+			if err := conn.WriteMessage(websocket.BinaryMessage, []byte(p.rootWSSTwoWayMessage)); err != nil {
+				break
+			}
+			if _, _, err := conn.ReadMessage(); err != nil {
+				break
+			}
+		}
+		conn.Close()
+	}))
+	t.Cleanup(func() { rootWSSTwoWayServer.Close() })
+	// HTTP server in leaf cluster.
 	leafServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, p.leafMessage)
 	}))
@@ -1059,6 +1377,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	p.rootAppURI = rootServer.URL
 	p.rootWSAppURI = rootWSServer.URL
 	p.rootWSSAppURI = rootWSSServer.URL
+	p.rootWSSTwoWayAppURI = rootWSSTwoWayServer.URL
 	p.leafAppURI = leafServer.URL
 	p.leafWSAppURI = leafWSServer.URL
 	p.leafWSSAppURI = leafWSSServer.URL
@@ -1071,6 +1390,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	p.rootCluster = NewInstance(InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -1082,6 +1402,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 	// Create a new Teleport instance with passed in configuration.
 	p.leafCluster = NewInstance(InstanceConfig{
+		Clock:       opts.clock,
 		ClusterName: "leaf.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Host,
@@ -1097,6 +1418,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Auth.Preference.SetSecondFactor("off")
+	rcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebService = false
 	rcConf.Proxy.DisableWebInterface = true
@@ -1105,6 +1427,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootConfig != nil {
 		opts.rootConfig(rcConf)
 	}
+	rcConf.Clock = opts.clock
 
 	lcConf := service.MakeDefaultConfig()
 	lcConf.Console = nil
@@ -1112,6 +1435,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	lcConf.DataDir = t.TempDir()
 	lcConf.Auth.Enabled = true
 	lcConf.Auth.Preference.SetSecondFactor("off")
+	lcConf.Auth.Preference.SetDisconnectExpiredCert(true)
 	lcConf.Proxy.Enabled = true
 	lcConf.Proxy.DisableWebService = false
 	lcConf.Proxy.DisableWebInterface = true
@@ -1120,6 +1444,7 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootConfig != nil {
 		opts.rootConfig(lcConf)
 	}
+	lcConf.Clock = opts.clock
 
 	err = p.leafCluster.CreateEx(t, p.rootCluster.Secrets.AsSlice(), lcConf)
 	require.NoError(t, err)
@@ -1138,14 +1463,14 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 	if opts.rootAppServersCount > 0 {
 		rootAppServersCount = opts.rootAppServersCount
 	}
-	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts.extraRootApps)
+	p.rootAppServers = p.startRootAppServers(t, rootAppServersCount, opts)
 
 	// At least one leafAppServer should start during the setup
 	leafAppServersCount := 1
 	if opts.leafAppServersCount > 0 {
 		leafAppServersCount = opts.leafAppServersCount
 	}
-	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts.extraLeafApps)
+	p.leafAppServers = p.startLeafAppServers(t, leafAppServersCount, opts)
 
 	// Create user for tests.
 	p.initUser(t, opts)
@@ -1164,10 +1489,16 @@ func setupWithOptions(t *testing.T, opts appTestOptions) *pack {
 
 // initUser will create a user within the root cluster.
 func (p *pack) initUser(t *testing.T, opts appTestOptions) {
-	p.username = uuid.New().String()
-	p.password = uuid.New().String()
+	p.user, p.password = p.createUser(t, opts)
+	p.username = p.user.GetName()
+}
 
-	user, err := types.NewUser(p.username)
+// CreateUser creates and upserts a new user into the root cluster, and returns the new user and password.
+func (p *pack) createUser(t *testing.T, opts appTestOptions) (types.User, string) {
+	username := uuid.New().String()
+	password := uuid.New().String()
+
+	user, err := types.NewUser(username)
 	require.NoError(t, err)
 
 	role := services.RoleForUser(user)
@@ -1184,10 +1515,9 @@ func (p *pack) initUser(t *testing.T, opts appTestOptions) {
 	err = p.rootCluster.Process.GetAuthServer().CreateUser(context.Background(), user)
 	require.NoError(t, err)
 
-	err = p.rootCluster.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(p.password))
+	err = p.rootCluster.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))
 	require.NoError(t, err)
-
-	p.user = user
+	return user, password
 }
 
 // initWebSession creates a Web UI session within the root cluster.
@@ -1247,26 +1577,29 @@ func (p *pack) initWebSession(t *testing.T) {
 // initTeleportClient initializes a Teleport client with this pack's user
 // credentials.
 func (p *pack) initTeleportClient(t *testing.T) {
+	p.tc = p.MakeTeleportClient(t, p.username)
+}
+
+func (p *pack) MakeTeleportClient(t *testing.T, user string) *client.TeleportClient {
 	creds, err := GenerateUserCreds(UserCredsRequest{
 		Process:  p.rootCluster.Process,
-		Username: p.user.GetName(),
+		Username: user,
 	})
 	require.NoError(t, err)
 
 	tc, err := p.rootCluster.NewClientWithCreds(ClientConfig{
-		Login:   p.user.GetName(),
+		Login:   user,
 		Cluster: p.rootCluster.Secrets.SiteName,
 		Host:    Loopback,
 		Port:    p.rootCluster.GetPortSSHInt(),
 	}, *creds)
 	require.NoError(t, err)
-
-	p.tc = tc
+	return tc
 }
 
-// createAppSession creates an application session with the root cluster. The
+// CreateAppSession creates an application session with the root cluster. The
 // application that the user connects to may be running in a leaf cluster.
-func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) string {
+func (p *pack) CreateAppSession(t *testing.T, publicAddr, clusterName string) []*http.Cookie {
 	require.NotEmpty(t, p.webCookie)
 	require.NotEmpty(t, p.webToken)
 
@@ -1284,7 +1617,31 @@ func (p *pack) createAppSession(t *testing.T, publicAddr, clusterName string) st
 	err = json.Unmarshal(body, &casResp)
 	require.NoError(t, err)
 
-	return casResp.CookieValue
+	return []*http.Cookie{
+		{
+			Name:  app.CookieName,
+			Value: casResp.CookieValue,
+		},
+		{
+			Name:  app.SubjectCookieName,
+			Value: casResp.SubjectCookieValue,
+		},
+	}
+}
+
+// LockUser will lock the configured user for this pack.
+func (p *pack) LockUser(t *testing.T) {
+	err := p.rootCluster.Process.GetAuthServer().UpsertLock(context.Background(), &types.LockV2{
+		Spec: types.LockSpecV2{
+			Target: types.LockTarget{
+				User: p.username,
+			},
+		},
+		Metadata: types.Metadata{
+			Name: "test-lock",
+		},
+	})
+	require.NoError(t, err)
 }
 
 // makeWebapiRequest makes a request to the root cluster Web API.
@@ -1348,25 +1705,25 @@ func (p *pack) initCertPool(t *testing.T) {
 }
 
 // makeTLSConfig returns TLS config suitable for making an app access request.
-func (p *pack) makeTLSConfig(t *testing.T, publicAddr, clusterName string) *tls.Config {
+func (p *pack) makeTLSConfig(t *testing.T, sessionID, username, publicAddr, clusterName string) *tls.Config {
 	privateKey, publicKey, err := p.rootCluster.Process.GetAuthServer().GenerateKeyPair("")
 	require.NoError(t, err)
 
-	ws, err := p.tc.CreateAppSession(context.Background(), types.CreateAppSessionRequest{
-		Username:    p.user.GetName(),
-		PublicAddr:  publicAddr,
-		ClusterName: clusterName,
-	})
-	require.NoError(t, err)
-
+	// Make sure the session ID can be seen in the backend before we continue onward.
+	require.Eventually(t, func() bool {
+		_, err := p.rootCluster.Process.GetAuthServer().GetAppSession(context.Background(), types.GetAppSessionRequest{
+			SessionID: sessionID,
+		})
+		return err == nil
+	}, 5*time.Second, 100*time.Millisecond)
 	certificate, err := p.rootCluster.Process.GetAuthServer().GenerateUserAppTestCert(
 		auth.AppTestCertRequest{
 			PublicKey:   publicKey,
-			Username:    p.user.GetName(),
+			Username:    username,
 			TTL:         time.Hour,
 			PublicAddr:  publicAddr,
 			ClusterName: clusterName,
-			SessionID:   ws.GetName(),
+			SessionID:   sessionID,
 		})
 	require.NoError(t, err)
 
@@ -1408,19 +1765,16 @@ func (p *pack) makeTLSConfigNoSession(t *testing.T, publicAddr, clusterName stri
 	}
 }
 
-// makeRequest makes a request to the root cluster with the given session cookie.
-func (p *pack) makeRequest(sessionCookie string, method string, endpoint string, headers ...service.Header) (int, string, error) {
+// MakeRequest makes a request to the root cluster with the given session cookie.
+func (p *pack) MakeRequest(cookies []*http.Cookie, method string, endpoint string, headers ...service.Header) (int, string, error) {
 	req, err := http.NewRequest(method, p.assembleRootProxyURL(endpoint), nil)
 	if err != nil {
 		return 0, "", trace.Wrap(err)
 	}
 
-	// Only attach session cookie if passed in.
-	if sessionCookie != "" {
-		req.AddCookie(&http.Cookie{
-			Name:  app.CookieName,
-			Value: sessionCookie,
-		})
+	// attach session cookies if passed in.
+	for _, c := range cookies {
+		req.AddCookie(c)
 	}
 
 	for _, h := range headers {
@@ -1441,15 +1795,12 @@ func (p *pack) makeRequestWithClientCert(tlsConfig *tls.Config, method, endpoint
 }
 
 // makeWebsocketRequest makes a websocket request with the given session cookie.
-func (p *pack) makeWebsocketRequest(sessionCookie, endpoint string) (string, error) {
+func (p *pack) makeWebsocketRequest(cookies []*http.Cookie, endpoint string) (string, error) {
 	header := http.Header{}
 	dialer := websocket.Dialer{}
 
-	if sessionCookie != "" {
-		header.Set("Cookie", (&http.Cookie{
-			Name:  app.CookieName,
-			Value: sessionCookie,
-		}).String())
+	for _, c := range cookies {
+		header.Add("Cookie", c.String())
 	}
 	dialer.TLSClientConfig = &tls.Config{
 		InsecureSkipVerify: true,
@@ -1512,7 +1863,7 @@ func (p *pack) sendRequest(req *http.Request, tlsConfig *tls.Config) (int, strin
 
 // waitForLogout keeps making request with the passed in session cookie until
 // they return a non-200 status.
-func (p *pack) waitForLogout(appCookie string) (int, error) {
+func (p *pack) waitForLogout(appCookies []*http.Cookie) (int, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
@@ -1521,7 +1872,7 @@ func (p *pack) waitForLogout(appCookie string) (int, error) {
 	for {
 		select {
 		case <-ticker.C:
-			status, _, err := p.makeRequest(appCookie, http.MethodGet, "/")
+			status, _, err := p.MakeRequest(appCookies, http.MethodGet, "/")
 			if err != nil {
 				return 0, trace.Wrap(err)
 			}
@@ -1534,13 +1885,14 @@ func (p *pack) waitForLogout(appCookie string) (int, error) {
 	}
 }
 
-func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *pack) startRootAppServers(t *testing.T, count int, opts appTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		raConf := service.MakeDefaultConfig()
+		raConf.Clock = opts.clock
 		raConf.Console = nil
 		raConf.Log = log
 		raConf.DataDir = t.TempDir()
@@ -1555,6 +1907,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 		raConf.Proxy.Enabled = false
 		raConf.SSH.Enabled = false
 		raConf.Apps.Enabled = true
+		raConf.Apps.MonitorCloseChannel = opts.monitorCloseChannel
 		raConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.rootAppName,
@@ -1572,6 +1925,11 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				PublicAddr: p.rootWSSPublicAddr,
 			},
 			{
+				Name:       p.rootWSSTwoWayAppName,
+				URI:        p.rootWSSTwoWayAppURI,
+				PublicAddr: p.rootWSSTwoWayPublicAddr,
+			},
+			{
 				Name:       p.jwtAppName,
 				URI:        p.jwtAppURI,
 				PublicAddr: p.jwtAppPublicAddr,
@@ -1586,7 +1944,7 @@ func (p *pack) startRootAppServers(t *testing.T, count int, extraApps []service.
 				URI:        p.flushAppURI,
 				PublicAddr: p.flushAppPublicAddr,
 			},
-		}, extraApps...)
+		}, opts.extraRootApps...)
 
 		configs[i] = raConf
 	}
@@ -1612,12 +1970,13 @@ func waitForAppServer(t *testing.T, tunnel reversetunnel.Server, name string, ho
 	waitForAppRegInRemoteSiteCache(t, tunnel, name, apps, hostUUID)
 }
 
-func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.App) []*service.TeleportProcess {
+func (p *pack) startLeafAppServers(t *testing.T, count int, opts appTestOptions) []*service.TeleportProcess {
 	log := utils.NewLoggerForTests()
 	configs := make([]*service.Config, count)
 
 	for i := 0; i < count; i++ {
 		laConf := service.MakeDefaultConfig()
+		laConf.Clock = opts.clock
 		laConf.Console = nil
 		laConf.Log = log
 		laConf.DataDir = t.TempDir()
@@ -1632,6 +1991,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 		laConf.Proxy.Enabled = false
 		laConf.SSH.Enabled = false
 		laConf.Apps.Enabled = true
+		laConf.Apps.MonitorCloseChannel = opts.monitorCloseChannel
 		laConf.Apps.Apps = append([]service.App{
 			{
 				Name:       p.leafAppName,
@@ -1648,7 +2008,7 @@ func (p *pack) startLeafAppServers(t *testing.T, count int, extraApps []service.
 				URI:        p.leafWSSAppURI,
 				PublicAddr: p.leafWSSPublicAddr,
 			},
-		}, extraApps...)
+		}, opts.extraLeafApps...)
 
 		configs[i] = laConf
 	}

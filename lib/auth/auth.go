@@ -1160,7 +1160,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 
 	eventIdentity := identity.GetEventIdentity()
 	eventIdentity.Expires = certRequest.NotAfter
-	if a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.CertificateCreate{
 		Metadata: apievents.Metadata{
 			Type: events.CertificateCreateEvent,
 			Code: events.CertificateCreateCode,
@@ -1225,16 +1225,14 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 				user.GetName(), defaults.MaxAccountRecoveryAttempts, apiutils.HumanTimeFormat(status.RecoveryAttemptLockExpires))
 
 			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
-			return err
+			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 		if status.LockExpires.After(a.clock.Now().UTC()) {
 			log.Debugf("%v exceeds %v failed login attempts, locked until %v",
 				user.GetName(), defaults.MaxLoginAttempts, apiutils.HumanTimeFormat(status.LockExpires))
 
 			err := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-			err.AddField(ErrFieldKeyUserMaxedAttempts, true)
-			return err
+			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
 	fnErr := authenticateFn()
@@ -1278,8 +1276,7 @@ func (a *Server) WithUserLock(username string, authenticateFn func() error) erro
 	}
 
 	retErr := trace.AccessDenied(MaxFailedAttemptsErrMsg)
-	retErr.AddField(ErrFieldKeyUserMaxedAttempts, true)
-	return retErr
+	return trace.WithField(retErr, ErrFieldKeyUserMaxedAttempts, true)
 }
 
 // PreAuthenticatedSignIn is for 2-way authentication methods like U2F where the password is

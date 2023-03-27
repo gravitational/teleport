@@ -151,7 +151,7 @@ func tagCopyArtifactCommands(b buildType) []string {
 func tagPipelines() []pipeline {
 	var ps []pipeline
 	// regular tarball builds
-	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
+	for _, arch := range []string{"amd64", "386", "arm"} {
 		for _, fips := range []bool{false, true} {
 			if arch != "amd64" && fips {
 				// FIPS mode only supported on linux/amd64
@@ -169,6 +169,14 @@ func tagPipelines() []pipeline {
 			}
 		}
 	}
+
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:       buildType{os: "linux", arch: "arm64", fips: false},
+		trigger:         triggerTag,
+		uploadArtifacts: true,
+		srcRefVar:       "DRONE_TAG",
+		workflowRefVar:  "DRONE_TAG",
+	}))
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
@@ -349,7 +357,7 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
   fi
   shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
 
-  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" "$RELEASES_HOST/assets";
+  release_params="" # List of "-F releaseId=XXX" parameters to curl
 
   for product in $products; do
     status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
@@ -358,8 +366,11 @@ find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r fi
       cat $WORKSPACE_DIR/curl_out.txt
       exit 1
     fi
-    curl $CREDENTIALS --fail -o /dev/null -X PUT "$RELEASES_HOST/releases/$product@$VERSION/assets/$(basename "$file" | sed 's/ /%%20/g')"
+
+    release_params="$release_params -F releaseId=$product@$VERSION"
   done
+
+  curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="%[2]s" -F arch="%[3]s" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
 done`,
 			b.Description(packageType, extraQualifications...), b.os, b.arch),
 	}

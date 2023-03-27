@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2021-2022 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,15 +18,17 @@
 package srv
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/sys/unix"
 )
 
 func init() {
 	// errors in open/openat are signaled by returning -1, we don't really care
-	// about the specifics anyway so we can just ignore the error value
+	// about the specifics anyway, so we can just ignore the error value
 	//
 	// we're opening with O_PATH rather than O_RDONLY because the binary might
 	// not actually be readable (but only executable)
@@ -82,7 +84,27 @@ func userCommandOSTweaks(cmd *exec.Cmd) {
 	}
 	// Linux only: when parent process (this process) dies unexpectedly, kill
 	// the child process instead of orphaning it.
-	// SIGKILL because we don't control the child process and it could choose
+	// SIGKILL because we don't control the child process, and it could choose
 	// to ignore other signals.
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
+}
+
+// setNeutralOOMScore sets the OOM score for the current process to 0 (the
+// middle between -1000 and 1000). This value is inherited by all child processes.
+func setNeutralOOMScore() error {
+	// Use os.OpenFile() instead of os.WriteFile() to avoid creating the file
+	// if for some extremely weird reason doesn't exist. Permission in this case
+	// won't be used as os.O_WRONLY won't create the file.
+	f, err := os.OpenFile("/proc/self/oom_score_adj", os.O_WRONLY, 0)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	if _, err := f.WriteString("0"); err != nil {
+		return trace.NewAggregate(err, f.Close())
+	}
+
+	// Make sure to return errors from Close(),
+	// as sync error may be returned here.
+	return trace.Wrap(f.Close())
 }

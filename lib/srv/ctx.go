@@ -28,6 +28,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
@@ -47,11 +51,6 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/parse"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 )
 
 var ctxID int32
@@ -70,6 +69,8 @@ var (
 		},
 	)
 )
+
+var errCannotStartUnattendedSession = trace.AccessDenied("lacking privileges to start unattended session")
 
 func init() {
 	prometheus.MustRegister(serverTX)
@@ -223,6 +224,10 @@ type IdentityContext struct {
 // and other resources. SessionContext also holds a ServerContext which can be
 // used to access resources on the underlying server. SessionContext can also
 // be used to attach resources that should be closed once the session closes.
+//
+// Any events that need to be recorded should be emitted via session and not
+// ServerContext directly. Failure to use the session emitted will result in
+// incorrect event indexes that may ultimately cause events to be overwritten.
 type ServerContext struct {
 	// ConnectionContext is the parent context which manages connection-level
 	// resources.
@@ -406,13 +411,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		trace.ComponentFields: fields,
 	})
 
-	lockTargets, err := ComputeLockTargets(srv, identityContext)
+	clusterName, err := srv.GetAccessPoint().GetClusterName()
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
 	}
+
 	monitorConfig := MonitorConfig{
 		LockWatcher:           child.srv.GetLockWatcher(),
-		LockTargets:           lockTargets,
+		LockTargets:           ComputeLockTargets(clusterName.GetClusterName(), srv.HostUUID(), identityContext),
 		LockingMode:           identityContext.RoleSet.LockingMode(authPref.GetLockingMode()),
 		DisconnectExpiredCert: child.disconnectExpiredCert,
 		ClientIdleTimeout:     child.clientIdleTimeout,
@@ -596,6 +603,29 @@ func (c *ServerContext) getSession() *session {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.session
+}
+
+// CheckSFTPAllowed returns an error if remote file operations via SCP
+// or SFTP are not allowed because the user is not allowed to start
+// unattended sessions.
+func (c *ServerContext) CheckSFTPAllowed() error {
+	// ensure moderated session policies allow starting an unattended session
+	var policySets []*types.SessionTrackerPolicySet
+	for _, role := range c.Identity.RoleSet {
+		policySet := role.GetSessionPolicySet()
+		policySets = append(policySets, &policySet)
+	}
+
+	checker := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind)
+	canStart, _, err := checker.FulfilledFor(nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !canStart {
+		return errCannotStartUnattendedSession
+	}
+
+	return nil
 }
 
 // OpenXServerListener opens a new XServer unix listener.
@@ -858,7 +888,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 // available proxy. if public_address is not set, fall back to the hostname
 // of the first proxy we get back.
 func (c *ServerContext) ProxyPublicAddress() string {
-	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
+	// TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
 	return "<proxyhost>:3080"
 }
 
@@ -905,16 +935,19 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 				return nil, trace.Wrap(err)
 			}
 
-			if expr.Namespace() != teleport.TraitExternalPrefix && expr.Namespace() != parse.LiteralNamespace {
-				return nil, trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
+			varValidation := func(namespace, name string) error {
+				if namespace != teleport.TraitExternalPrefix && namespace != parse.LiteralNamespace {
+					return trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
+				}
+				return nil
 			}
 
-			result, err := expr.Interpolate(traits)
+			result, err := expr.Interpolate(varValidation, traits)
 			if err != nil {
 				// If the trait isn't passed by the IdP due to misconfiguration
 				// we fallback to setting a value which will indicate this.
 				if trace.IsNotFound(err) {
-					c.Logger.Warnf("Attempted to interpolate custom PAM environment with external trait %[1]q but received SAML response does not contain claim %[1]q", expr.Name())
+					c.Logger.WithError(err).Warnf("Attempted to interpolate custom PAM environment with external trait but received SAML response does not contain claim")
 					continue
 				}
 
@@ -1081,28 +1114,19 @@ func newUaccMetadata(c *ServerContext) (*UaccMetadata, error) {
 	}, nil
 }
 
-// ComputeLockTargets computes lock targets inferred from a Server
-// and an IdentityContext.
-func ComputeLockTargets(s Server, id IdentityContext) ([]types.LockTarget, error) {
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+// ComputeLockTargets computes lock targets inferred from the clusterName, serverID and IdentityContext.
+func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []types.LockTarget {
 	lockTargets := []types.LockTarget{
 		{User: id.TeleportUser},
 		{Login: id.Login},
-		{Node: s.HostUUID()},
-		{Node: auth.HostFQDN(s.HostUUID(), clusterName.GetClusterName())},
+		{Node: serverID},
+		{Node: auth.HostFQDN(serverID, clusterName)},
 		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
 	roles := apiutils.Deduplicate(append(id.RoleSet.RoleNames(), id.UnmappedRoles...))
-	lockTargets = append(lockTargets,
-		services.RolesToLockTargets(roles)...,
-	)
-	lockTargets = append(lockTargets,
-		services.AccessRequestsToLockTargets(id.ActiveRequests)...,
-	)
-	return lockTargets, nil
+	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
+	lockTargets = append(lockTargets, services.AccessRequestsToLockTargets(id.ActiveRequests)...)
+	return lockTargets
 }
 
 // SetRequest sets the ssh request that was issued by the client.

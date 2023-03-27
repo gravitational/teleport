@@ -18,12 +18,12 @@ import "fmt"
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(fips bool) []string {
-	commands := []string{
-		`mkdir -p /go/src/github.com/gravitational/teleport /go/cache`,
-		`cd /go/src/github.com/gravitational/teleport`,
-		`git init && git remote add origin ${DRONE_REMOTE_URL}`,
-		`git fetch origin`,
-		`git checkout -qf ${DRONE_COMMIT_SHA}`,
+	cloneDirectory := "/go/src/github.com/gravitational/teleport"
+	var commands []string
+
+	commands = append(commands, cloneRepoCommands(cloneDirectory, "${DRONE_COMMIT_SHA}")...)
+
+	commands = append(commands,
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init webassets || true`,
 		`mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa && chmod 600 /root/.ssh/id_rsa`,
@@ -32,8 +32,9 @@ func pushCheckoutCommands(fips bool) []string {
 		// do a recursive submodule checkout to get both webassets and webassets/e
 		// this is allowed to fail because pre-4.3 Teleport versions don't use the webassets submodule
 		`git submodule update --init --recursive webassets || true`,
+		`mkdir -pv /go/cache`,
 		`rm -f /root/.ssh/id_rsa`,
-	}
+	)
 	if fips {
 		commands = append(commands, `if [[ "${DRONE_TAG}" != "" ]]; then echo "${DRONE_TAG##v}" > /go/.version.txt; else egrep ^VERSION Makefile | cut -d= -f2 > /go/.version.txt; fi; cat /go/.version.txt`)
 	}
@@ -61,7 +62,7 @@ func pushBuildCommands(b buildType) []string {
 // pushPipelines builds all applicable push pipeline combinations
 func pushPipelines() []pipeline {
 	var ps []pipeline
-	for _, arch := range []string{"amd64", "386", "arm", "arm64"} {
+	for _, arch := range []string{"amd64", "386", "arm"} {
 		for _, fips := range []bool{false, true} {
 			if arch != "amd64" && fips {
 				// FIPS mode only supported on linux/amd64
@@ -70,6 +71,16 @@ func pushPipelines() []pipeline {
 			ps = append(ps, pushPipeline(buildType{os: "linux", arch: arch, fips: fips}))
 		}
 	}
+
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:       buildType{os: "linux", arch: "arm64"},
+		trigger:         triggerPush,
+		namePrefix:      "push-",
+		uploadArtifacts: false,
+		slackOnError:    true,
+		srcRefVar:       "DRONE_COMMIT",
+		workflowRefVar:  "DRONE_BRANCH",
+	}))
 
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, pushPipeline(buildType{os: "windows", arch: "amd64", windowsUnsigned: true}))
@@ -131,14 +142,20 @@ func pushPipeline(b buildType) pipeline {
 			Volumes:     []volumeRef{volumeRefDocker},
 			Commands:    pushBuildCommands(b),
 		},
-		{
-			Name:  "Send Slack notification",
-			Image: "plugins/slack",
-			Settings: map[string]value{
-				"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
-			},
-			Template: []string{
-				`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
+		sendErrorToSlackStep(),
+	}
+	return p
+}
+
+func sendErrorToSlackStep() step {
+	return step{
+		Name:  "Send Slack notification",
+		Image: "plugins/slack",
+		Settings: map[string]value{
+			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
+		},
+		Template: []string{
+			`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
 ` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
 *Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
 Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
@@ -146,9 +163,7 @@ Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.br
 Author: <https://github.com/{{ build.author }}|{{ build.author }}>
 <{{ build.link }}|Visit Drone build page ↗>
 `,
-			},
-			When: &condition{Status: []string{"failure"}},
 		},
+		When: &condition{Status: []string{"failure"}},
 	}
-	return p
 }

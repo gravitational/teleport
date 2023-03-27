@@ -616,12 +616,12 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 		ClusterName:  s.forwarder.cfg.ClusterName,
 	})
-
-	s.recorder = recorder
-	s.emitter = recorder
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.recorder = recorder
+	s.emitter = recorder
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 
@@ -1086,7 +1086,7 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 
 	go func() {
 		if err := s.tracker.UpdateExpirationLoop(s.forwarder.ctx, s.forwarder.cfg.Clock); err != nil {
-			s.log.WithError(err).Debug("Failed to update session tracker expiration")
+			s.log.WithError(err).Warn("Failed to update session tracker expiration")
 		}
 	}()
 

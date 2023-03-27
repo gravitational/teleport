@@ -146,7 +146,17 @@ clusterRoleName: ""
 # (optional) Override the name of the ClusterRoleBinding used by the agent's service account.
 clusterRoleBindingName: ""
 # (optional) Override the name of the service account used by the agent.
+# DEPRECATED Use serviceAccount:name instead
 serviceAccountName: ""
+# (optional) Kubernetes service account to create/use.
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true 
+  # The name of the ServiceAccount to use.
+  # If not set and serviceAccount.create is true, the name is generated using the release name.
+  # If create is false, the name will be used to reference an existing service account.
+  name: ""
+
 # Name of the Secret to store the teleport join token.
 secretName: teleport-kube-agent-join-token
 

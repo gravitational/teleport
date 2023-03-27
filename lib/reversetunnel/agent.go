@@ -23,6 +23,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -585,17 +586,17 @@ func (a *Agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 				a.log.Infof("Connection closed, returning")
 				return
 			}
-			r, err := unmarshalDiscoveryRequest(req.Payload)
-			if err != nil {
-				a.log.Warningf("Bad payload: %v.", err)
+
+			var r discoveryRequest
+			if err := json.Unmarshal(req.Payload, &r); err != nil {
+				a.log.WithError(err).Warn("Bad payload")
 				return
 			}
-			r.ClusterAddr = a.Addr
+
+			proxies := r.ProxyNames()
+			a.log.Debugf("Received discovery request: %v", proxies)
 			if a.Tracker != nil {
-				// Notify tracker of all known proxies.
-				for _, p := range r.Proxies {
-					a.Tracker.TrackExpected(p.GetName())
-				}
+				a.Tracker.TrackExpected(proxies...)
 			}
 		}
 	}

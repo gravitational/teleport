@@ -361,10 +361,16 @@ func (e *remoteExec) PID() int {
 	return 0
 }
 
+// emitExecAuditEvent emits either an SCP or exec event based on the
+// command run.
+//
+// Note: to ensure that the event is recorded ctx.session must be used
+// instead of ctx.srv.
 func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 	// Create common fields for event.
 	serverMeta := apievents.ServerMetadata{
 		ServerID:        ctx.srv.HostUUID(),
+		ServerHostname:  ctx.srv.GetInfo().GetHostname(),
 		ServerNamespace: ctx.srv.GetNamespace(),
 	}
 
@@ -432,13 +438,14 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 				scpEvent.Code = events.SCPDownloadCode
 			}
 		}
-		if err := ctx.srv.EmitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
+		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), scpEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit scp event.")
 		}
 	} else {
 		execEvent := &apievents.Exec{
 			Metadata: apievents.Metadata{
-				Type: events.ExecEvent,
+				Type:        events.ExecEvent,
+				ClusterName: ctx.ClusterName,
 			},
 			ServerMetadata:     serverMeta,
 			SessionMetadata:    sessionMeta,
@@ -451,7 +458,7 @@ func emitExecAuditEvent(ctx *ServerContext, cmd string, execErr error) {
 		} else {
 			execEvent.Code = events.ExecCode
 		}
-		if err := ctx.srv.EmitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
+		if err := ctx.session.emitAuditEvent(ctx.srv.Context(), execEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit exec event.")
 		}
 	}

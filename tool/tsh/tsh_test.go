@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/url"
@@ -265,8 +266,10 @@ func findMOTD(t *testing.T, sc *bufio.Scanner, motd string) {
 }
 
 // TestLoginIdentityOut makes sure that "tsh login --out <ident>" command
-// writes identity credentials to the specified path.
+// writes identity credentials to the specified path. It also supports
+// specifying the output format via `--format=<format>`.
 func TestLoginIdentityOut(t *testing.T) {
+	const kubeClusterName = "kubeTest"
 	tmpHomePath := t.TempDir()
 
 	connector := mockConnector(t)
@@ -276,30 +279,102 @@ func TestLoginIdentityOut(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice))
-
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
 
 	proxyAddr, err := proxyProcess.ProxyWebAddr()
 	require.NoError(t, err)
 
-	identPath := filepath.Join(t.TempDir(), "ident")
-
-	err = Run(context.Background(), []string{
-		"login",
-		"--insecure",
-		"--debug",
-		"--auth", connector.GetName(),
-		"--proxy", proxyAddr.String(),
-		"--out", identPath,
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
+	kubeService, err := types.NewServer(kubeClusterName, types.KindKubeService, types.ServerSpecV2{
+		KubernetesClusters: []*types.KubernetesCluster{
+			{
+				Name: kubeClusterName,
+			},
+		},
+	})
+	require.NoError(t, err)
+	_, err = authServer.UpsertKubeServiceV2(context.Background(), kubeService)
 	require.NoError(t, err)
 
-	_, err = client.KeyFromIdentityFile(identPath)
+	cases := []struct {
+		name               string
+		extraArgs          []string
+		validationFunc     func(t *testing.T, identityPath string)
+		requiresTLSRouting bool
+	}{
+		{
+			name: "write indentity out",
+			validationFunc: func(t *testing.T, identityPath string) {
+				_, err := client.KeyFromIdentityFile(identityPath)
+				require.NoError(t, err)
+			},
+		},
+		{
+			name:      "write identity in kubeconfig format with tls routing enabled",
+			extraArgs: []string{"--format", "kubernetes", "--kube-cluster", kubeClusterName},
+			validationFunc: func(t *testing.T, identityPath string) {
+				cfg, err := kubeconfig.Load(identityPath)
+				require.NoError(t, err)
+				kubeCtx := cfg.Contexts[cfg.CurrentContext]
+				require.NotNil(t, kubeCtx)
+				cluster := cfg.Clusters[kubeCtx.Cluster]
+				require.NotNil(t, cluster)
+				require.NotEmpty(t, cluster.TLSServerName)
+			},
+			requiresTLSRouting: true,
+		},
+		{
+			name:      "write identity in kubeconfig format with tls routing disabled",
+			extraArgs: []string{"--format", "kubernetes", "--kube-cluster", kubeClusterName},
+			validationFunc: func(t *testing.T, identityPath string) {
+				cfg, err := kubeconfig.Load(identityPath)
+				require.NoError(t, err)
+				kubeCtx := cfg.Contexts[cfg.CurrentContext]
+				require.NotNil(t, kubeCtx)
+				cluster := cfg.Clusters[kubeCtx.Cluster]
+				require.NotNil(t, cluster)
+				require.Empty(t, cluster.TLSServerName)
+			},
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			identPath := filepath.Join(t.TempDir(), "ident")
+			if tt.requiresTLSRouting {
+				switchProxyListenerMode(t, authServer, types.ProxyListenerMode_Multiplex)
+			}
+			err = Run(context.Background(), append([]string{
+				"login",
+				"--insecure",
+				"--debug",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--out", identPath,
+			}, tt.extraArgs...), setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+				return nil
+			})
+			require.NoError(t, err)
+			tt.validationFunc(t, identPath)
+		})
+	}
+}
+
+// switchProxyListenerMode switches the proxy listener mode to the specified mode
+// and schedules a reversion to the previous value once the sub-test completes.
+func switchProxyListenerMode(t *testing.T, authServer *auth.Server, mode types.ProxyListenerMode) {
+	networkCfg, err := authServer.GetClusterNetworkingConfig(context.Background())
 	require.NoError(t, err)
+	prevValue := networkCfg.GetProxyListenerMode()
+	networkCfg.SetProxyListenerMode(mode)
+	err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		networkCfg.SetProxyListenerMode(prevValue)
+		err = authServer.SetClusterNetworkingConfig(context.Background(), networkCfg)
+		require.NoError(t, err)
+	})
 }
 
 func TestRelogin(t *testing.T) {
@@ -1086,7 +1161,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1097,7 +1173,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1107,7 +1184,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTimeout: time.Minute,
 			},
-		}, {
+		},
+		{
 			desc: "$DISPLAY not set",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1127,7 +1205,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1135,7 +1214,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1143,7 +1223,8 @@ func TestSetX11Config(t *testing.T) {
 			expectConfig: client.Config{
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=yes",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=yes"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1152,7 +1233,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11=yes with -oForwardX11Trusted=no",
 			opts:        []string{"ForwardX11=yes", "ForwardX11Trusted=no"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1161,7 +1243,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc:        "-oForwardX11Timeout=60",
 			opts:        []string{"ForwardX11Timeout=60"},
 			envMap:      map[string]string{x11.DisplayEnv: ":0"},
@@ -1183,7 +1266,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1195,7 +1279,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-X with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingUntrusted: true,
@@ -1207,7 +1292,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: false,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=yes",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1219,7 +1305,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "-Y with -oForwardX11Trusted=no",
 			cf: CLIConf{
 				X11ForwardingTrusted: true,
@@ -1231,7 +1318,8 @@ func TestSetX11Config(t *testing.T) {
 				EnableX11Forwarding:  true,
 				X11ForwardingTrusted: true,
 			},
-		}, {
+		},
+		{
 			desc: "--x11-untrustedTimeout=1m with -oForwardX11Timeout=120",
 			cf: CLIConf{
 				X11ForwardingTimeout: time.Minute,
@@ -1487,9 +1575,23 @@ func mockSSOLogin(t *testing.T, authServer *auth.Server, user types.User) client
 	}
 }
 
+func setOverrideStdout(stdout io.Writer) cliOption {
+	return func(cf *CLIConf) error {
+		cf.overrideStdout = stdout
+		return nil
+	}
+}
+
 func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
+		return nil
+	}
+}
+
+func setKubeConfigPath(path string) cliOption {
+	return func(cf *CLIConf) error {
+		cf.kubeConfigPath = path
 		return nil
 	}
 }
@@ -2181,34 +2283,35 @@ func TestSerializeMFADevices(t *testing.T) {
 	})
 }
 
-func TestExportingTraces(t *testing.T) {
-	connector := mockConnector(t)
-	alice, err := types.NewUser("alice@example.com")
-	require.NoError(t, err)
-	alice.SetRoles([]string{"access"})
+func spanAssertion(containsTSH, empty bool) func(t *testing.T, spans []*otlp.ScopeSpans) {
+	return func(t *testing.T, spans []*otlp.ScopeSpans) {
+		if empty {
+			require.Empty(t, spans)
+			return
+		}
 
-	spanAssertion := func(containsTSH bool) func(t require.TestingT, i interface{}, i2 ...interface{}) {
-		return func(t require.TestingT, i interface{}, i2 ...interface{}) {
-			spans, ok := i.([]*otlp.ScopeSpans)
-			require.True(t, ok)
+		require.NotEmpty(t, spans)
 
-			var scopes []string
-			for _, span := range spans {
-				scopes = append(scopes, span.Scope.Name)
-			}
+		var scopes []string
+		for _, span := range spans {
+			scopes = append(scopes, span.Scope.Name)
+		}
 
-			if containsTSH {
-				require.Contains(t, scopes, teleport.ComponentTSH)
-			} else {
-				require.NotContains(t, scopes, teleport.ComponentTSH)
-			}
+		if containsTSH {
+			require.Contains(t, scopes, teleport.ComponentTSH)
+		} else {
+			require.NotContains(t, scopes, teleport.ComponentTSH)
 		}
 	}
+}
+
+func TestForwardingTraces(t *testing.T) {
+	t.Parallel()
 
 	cases := []struct {
 		name          string
 		cfg           func(c *tracing.Collector) service.TracingConfig
-		spanAssertion require.ValueAssertionFunc
+		spanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
 	}{
 		{
 			name: "spans exported with auth sampling all",
@@ -2219,7 +2322,7 @@ func TestExportingTraces(t *testing.T) {
 					SamplingRate: 1.0,
 				}
 			},
-			spanAssertion: spanAssertion(true),
+			spanAssertion: spanAssertion(true, false),
 		},
 		{
 			name: "spans exported with auth sampling none",
@@ -2230,21 +2333,30 @@ func TestExportingTraces(t *testing.T) {
 					SamplingRate: 0.0,
 				}
 			},
-			spanAssertion: spanAssertion(true),
+			spanAssertion: spanAssertion(true, false),
 		},
 		{
 			name: "spans not exported when tracing disabled",
 			cfg: func(c *tracing.Collector) service.TracingConfig {
 				return service.TracingConfig{}
 			},
-			spanAssertion: require.Empty,
+			spanAssertion: func(t *testing.T, spans []*otlp.ScopeSpans) {
+				require.Empty(t, spans)
+			},
 		},
 	}
 
 	for _, tt := range cases {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			tmpHomePath := t.TempDir()
+
+			connector := mockConnector(t)
+			alice, err := types.NewUser("alice@example.com")
+			require.NoError(t, err)
+			alice.SetRoles([]string{"access"})
+
 			collector, err := tracing.NewCollector(tracing.CollectorConfig{})
 			require.NoError(t, err)
 
@@ -2259,10 +2371,11 @@ func TestExportingTraces(t *testing.T) {
 				require.NoError(t, <-errCh)
 			})
 
+			traceCfg := tt.cfg(collector)
 			authProcess, proxyProcess := makeTestServers(t,
 				withBootstrap(connector, alice),
 				withConfig(func(cfg *service.Config) {
-					cfg.Tracing = tt.cfg(collector)
+					cfg.Tracing = traceCfg
 				}),
 			)
 
@@ -2284,10 +2397,13 @@ func TestExportingTraces(t *testing.T) {
 				return nil
 			})
 			require.NoError(t, err)
-			// ensure login doesn't generate any spans from tsh. we can't
-			// check for an empty span list here because other spans may be
-			// generated from background components running within the auth/proxy
-			loginAssertion := spanAssertion(false)
+
+			if traceCfg.Enabled {
+				collector.WaitForExport()
+			}
+
+			// ensure login doesn't generate any spans from tsh if spans are being sampled
+			loginAssertion := spanAssertion(false, !traceCfg.Enabled)
 			loginAssertion(t, collector.Spans())
 
 			err = Run(context.Background(), []string{
@@ -2298,7 +2414,138 @@ func TestExportingTraces(t *testing.T) {
 				"--trace",
 			}, setHomePath(tmpHomePath))
 			require.NoError(t, err)
+
+			if traceCfg.Enabled {
+				collector.WaitForExport()
+			}
+
 			tt.spanAssertion(t, collector.Spans())
+		})
+	}
+}
+
+func TestExportingTraces(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                  string
+		cfg                   func(c *tracing.Collector) service.TracingConfig
+		teleportSpanAssertion func(t *testing.T, spans []*otlp.ScopeSpans)
+		tshSpanAssertion      func(t *testing.T, spans []*otlp.ScopeSpans)
+	}{
+		{
+			name: "spans exported with auth sampling all",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.GRPCAddr(),
+					SamplingRate: 1.0,
+				}
+			},
+			teleportSpanAssertion: spanAssertion(false, false),
+			tshSpanAssertion:      spanAssertion(true, false),
+		},
+		{
+			name: "spans exported with auth sampling none",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{
+					Enabled:      true,
+					ExporterURL:  c.HTTPAddr(),
+					SamplingRate: 0.0,
+				}
+			},
+			teleportSpanAssertion: spanAssertion(false, false),
+			tshSpanAssertion:      spanAssertion(true, false),
+		},
+		{
+			name: "spans not exported when tracing disabled",
+			cfg: func(c *tracing.Collector) service.TracingConfig {
+				return service.TracingConfig{}
+			},
+			teleportSpanAssertion: spanAssertion(false, true),
+			tshSpanAssertion:      spanAssertion(true, false),
+		},
+	}
+
+	for _, tt := range cases {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tmpHomePath := t.TempDir()
+
+			connector := mockConnector(t)
+			alice, err := types.NewUser("alice@example.com")
+			require.NoError(t, err)
+			alice.SetRoles([]string{"access"})
+
+			teleportCollector, err := tracing.NewCollector(tracing.CollectorConfig{})
+			require.NoError(t, err)
+
+			tshCollector, err := tracing.NewCollector(tracing.CollectorConfig{})
+			require.NoError(t, err)
+
+			errCh := make(chan error, 2)
+			go func() {
+				errCh <- teleportCollector.Start()
+			}()
+			go func() {
+				errCh <- tshCollector.Start()
+			}()
+
+			traceCfg := tt.cfg(teleportCollector)
+			authProcess, proxyProcess := makeTestServers(t,
+				withBootstrap(connector, alice),
+				withConfig(func(cfg *service.Config) {
+					cfg.Tracing = traceCfg
+				}),
+			)
+
+			authServer := authProcess.GetAuthServer()
+			require.NotNil(t, authServer)
+
+			proxyAddr, err := proxyProcess.ProxyWebAddr()
+			require.NoError(t, err)
+
+			// login events should be included since there is
+			// no forwarding
+			err = Run(context.Background(), []string{
+				"login",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+				"--trace-exporter", tshCollector.GRPCAddr(),
+			}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
+				cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
+				return nil
+			})
+			require.NoError(t, err)
+
+			if traceCfg.Enabled {
+				teleportCollector.WaitForExport()
+			}
+			tshCollector.WaitForExport()
+
+			tt.teleportSpanAssertion(t, teleportCollector.Spans())
+			tt.tshSpanAssertion(t, tshCollector.Spans())
+
+			err = Run(context.Background(), []string{
+				"ls",
+				"--insecure",
+				"--auth", connector.GetName(),
+				"--proxy", proxyAddr.String(),
+				"--trace",
+				"--trace-exporter", tshCollector.GRPCAddr(),
+			}, setHomePath(tmpHomePath))
+			require.NoError(t, err)
+
+			if traceCfg.Enabled {
+				teleportCollector.WaitForExport()
+			}
+			tshCollector.WaitForExport()
+
+			tt.teleportSpanAssertion(t, teleportCollector.Spans())
+			tt.tshSpanAssertion(t, tshCollector.Spans())
 		})
 	}
 }

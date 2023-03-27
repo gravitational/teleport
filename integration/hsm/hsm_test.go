@@ -298,6 +298,15 @@ func newProxyConfig(ctx context.Context, t *testing.T, authAddr utils.NetAddr, l
 	return config
 }
 
+// etcdTestEndpoint returns etcd host used in tests.
+func etcdTestEndpoint() string {
+	host := os.Getenv("TELEPORT_ETCD_TEST_ENDPOINT")
+	if host != "" {
+		return host
+	}
+	return "https://127.0.0.1:2379"
+}
+
 // Tests a single CA rotation with a single HSM auth server
 func TestHSMRotation(t *testing.T) {
 	if os.Getenv("SOFTHSM2_PATH") == "" {
@@ -403,7 +412,7 @@ func TestHSMDualAuthRotation(t *testing.T) {
 	storageConfig := backend.Config{
 		Type: "etcd",
 		Params: backend.Params{
-			"peers":         []string{"https://127.0.0.1:2379"},
+			"peers":         []string{etcdTestEndpoint()},
 			"prefix":        backendPrefix,
 			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
 			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",
@@ -716,7 +725,7 @@ func TestHSMMigrate(t *testing.T) {
 	storageConfig := backend.Config{
 		Type: "etcd",
 		Params: backend.Params{
-			"peers":         []string{"https://127.0.0.1:2379"},
+			"peers":         []string{etcdTestEndpoint()},
 			"prefix":        backendPrefix,
 			"tls_key_file":  "../../examples/etcd/certs/client-key.pem",
 			"tls_cert_file": "../../examples/etcd/certs/client-cert.pem",

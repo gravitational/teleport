@@ -371,6 +371,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			dbcmd.WithNoTLS(),
 			dbcmd.WithLogger(log),
 			dbcmd.WithPrintFormat(),
+			dbcmd.WithTolerateMissingCLIClient(),
 		).GetConnectCommand()
 		if err != nil {
 			return trace.Wrap(err)
@@ -401,10 +402,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 	}
 
 	defer lp.Close()
-	// To avoid termination of background DB teleport proxy when a SIGINT is received don't use the cf.Context.
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if err := lp.Start(ctx); err != nil {
+	if err := lp.Start(cf.Context); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

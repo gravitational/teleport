@@ -1115,7 +1115,7 @@ mod tests {
         let _pdu_header = vchan::ChannelPDUHeader::decode(&mut payload).unwrap();
         let header = ClipboardPDUHeader::decode(&mut payload).unwrap();
         let format_list =
-            FormatListPDU::<LongFormatName>::decode(&mut payload, header.data_len as u32).unwrap();
+            FormatListPDU::<LongFormatName>::decode(&mut payload, header.data_len).unwrap();
         assert_eq!(ClipboardPDUType::CB_FORMAT_LIST, header.msg_type);
         assert_eq!(1, format_list.format_names.len());
         assert_eq!(

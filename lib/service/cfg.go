@@ -468,6 +468,26 @@ type KeyPairPath struct {
 	Certificate string
 }
 
+// WebPublicAddr returns the address for the web endpoint on this proxy that
+// can be reached by clients.
+func (c ProxyConfig) WebPublicAddr() (string, error) {
+	return c.getDefaultAddr(c.WebAddr.Port(defaults.HTTPListenPort)), nil
+}
+
+func (c ProxyConfig) getDefaultAddr(port int) string {
+	host := "<proxyhost>"
+	// Try to guess the hostname from the HTTP public_addr.
+	if len(c.PublicAddrs) > 0 {
+		host = c.PublicAddrs[0].Host()
+	}
+
+	u := url.URL{
+		Scheme: "https",
+		Host:   net.JoinHostPort(host, strconv.Itoa(port)),
+	}
+	return u.String()
+}
+
 // KubeAddr returns the address for the Kubernetes endpoint on this proxy that
 // can be reached by clients.
 func (c ProxyConfig) KubeAddr() (string, error) {
@@ -477,16 +497,8 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 	if len(c.Kube.PublicAddrs) > 0 {
 		return fmt.Sprintf("https://%s", c.Kube.PublicAddrs[0].Addr), nil
 	}
-	host := "<proxyhost>"
-	// Try to guess the hostname from the HTTP public_addr.
-	if len(c.PublicAddrs) > 0 {
-		host = c.PublicAddrs[0].Host()
-	}
-	u := url.URL{
-		Scheme: "https",
-		Host:   net.JoinHostPort(host, strconv.Itoa(c.Kube.ListenAddr.Port(defaults.KubeListenPort))),
-	}
-	return u.String(), nil
+
+	return c.getDefaultAddr(c.Kube.ListenAddr.Port(defaults.KubeListenPort)), nil
 }
 
 // KubeProxyConfig specifies configuration for proxy service
@@ -890,6 +902,10 @@ type AppsConfig struct {
 
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
+
+	// MonitorCloseChannel will be signaled when a monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // App is the specific application that will be proxied by the application
@@ -1106,22 +1122,40 @@ type LDAPDiscoveryConfig struct {
 }
 
 // HostLabelRules is a collection of rules describing how to apply labels to hosts.
-type HostLabelRules []HostLabelRule
+type HostLabelRules struct {
+	rules  []HostLabelRule
+	labels map[string]map[string]string
+}
+
+func NewHostLabelRules(rules ...HostLabelRule) HostLabelRules {
+	return HostLabelRules{
+		rules: rules,
+	}
+}
 
 // LabelsForHost returns the set of all labels that should be applied
 // to the specified host. If multiple rules match and specify the same
 // label keys, the value will be that of the last matching rule.
 func (h HostLabelRules) LabelsForHost(host string) map[string]string {
-	// TODO(zmb3): consider memoizing this call - the set of rules doesn't
-	// change, so it may be worth not matching regexps on each heartbeat.
+	labels, ok := h.labels[host]
+	if ok {
+		return labels
+	}
+
 	result := make(map[string]string)
-	for _, rule := range h {
+	for _, rule := range h.rules {
 		if rule.Regexp.MatchString(host) {
 			for k, v := range rule.Labels {
 				result[k] = v
 			}
 		}
 	}
+
+	if h.labels == nil {
+		h.labels = make(map[string]map[string]string)
+	}
+	h.labels[host] = result
+
 	return result
 }
 
@@ -1140,8 +1174,12 @@ type LDAPConfig struct {
 	Domain string
 	// Username for LDAP authentication.
 	Username string
+	// SID is the SID for the user specified by Username.
+	SID string
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool
+	// ServerName is the name of the LDAP server for TLS.
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
 	CA *x509.Certificate
 }

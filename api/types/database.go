@@ -23,9 +23,9 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Database represents a database proxied by a database server.
@@ -279,7 +279,7 @@ func (d *DatabaseV3) SetMySQLServerVersion(version string) {
 
 // IsEmpty returns true if AWS metadata is empty.
 func (a AWS) IsEmpty() bool {
-	return cmp.Equal(a, AWS{})
+	return protoEqual(&a, &AWS{})
 }
 
 // GetAWS returns the database AWS metadata.

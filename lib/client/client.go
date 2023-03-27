@@ -23,6 +23,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,17 +70,27 @@ type ProxyClient struct {
 	authMethods     []ssh.AuthMethod
 	siteName        string
 	clientAddr      string
+
+	// currentCluster is a client for the local teleport auth server that
+	// the proxy is connected to. This should be reused for the duration
+	// of the ProxyClient to ensure the auth server is only dialed once.
+	currentCluster auth.ClientI
 }
 
 // NodeClient implements ssh client to a ssh node (teleport or any regular ssh node)
 // NodeClient can run shell and commands or upload and download files.
 type NodeClient struct {
-	Namespace string
-	Tracer    oteltrace.Tracer
-	Client    *tracessh.Client
-	Proxy     *ProxyClient
-	TC        *TeleportClient
-	OnMFA     func()
+	Namespace   string
+	Tracer      oteltrace.Tracer
+	Client      *tracessh.Client
+	TC          *TeleportClient
+	OnMFA       func()
+	FIPSEnabled bool
+}
+
+// ClusterName returns the name of the cluster the proxy is a member of.
+func (proxy *ProxyClient) ClusterName() string {
+	return proxy.siteName
 }
 
 // GetSites returns list of the "sites" (AKA teleport clusters) connected to the proxy
@@ -178,6 +190,12 @@ type ReissueParams struct {
 	// TODO(awly): refactor lib/web to use a Keystore implementation that
 	// mimics LocalKeystore and remove this.
 	ExistingCreds *Key
+
+	// MFACheck is optional parameter passed if MFA check was already done.
+	// It can be nil.
+	MFACheck *proto.IsMFARequiredResponse
+	// AuthClient is the client used for the MFACheck that can be reused
+	AuthClient auth.ClientI
 }
 
 func (p ReissueParams) usage() proto.UserCertsRequest_CertUsage {
@@ -383,13 +401,24 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 	}
 
-	// Connect to the target cluster (root or leaf) to check whether MFA is
-	// required.
-	clt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var clt auth.ClientI
+	// requiredCheck passed from param can be nil.
+	requiredCheck := params.MFACheck
+	if requiredCheck == nil || requiredCheck.Required {
+		// Connect to the target cluster (root or leaf) to check whether MFA is
+		// required or if we know from param that it's required, connect because
+		// it will be needed to do MFA check.
+		if params.AuthClient != nil {
+			clt = params.AuthClient
+		} else {
+			authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			clt = authClt
+			defer clt.Close()
+		}
 	}
-	defer clt.Close()
 
 	requiredCheck, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
 	if err != nil {
@@ -457,7 +486,13 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		}
 		return nil, trace.Wrap(err)
 	}
-	defer stream.CloseSend()
+	defer func() {
+		// CloseSend closes the client side of the stream
+		stream.CloseSend()
+		// Recv to wait for the server side of the stream to end, this needs to
+		// be called to ensure the spans are finished properly
+		stream.Recv()
+	}()
 
 	initReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
@@ -595,10 +630,8 @@ func (proxy *ProxyClient) CreateAccessRequest(ctx context.Context, req types.Acc
 	)
 	defer span.End()
 
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	site := proxy.CurrentCluster()
+
 	return site.CreateAccessRequest(ctx, req)
 }
 
@@ -615,10 +648,8 @@ func (proxy *ProxyClient) GetAccessRequests(ctx context.Context, filter types.Ac
 	)
 	defer span.End()
 
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxy.CurrentCluster()
+
 	reqs, err := site.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -638,10 +669,8 @@ func (proxy *ProxyClient) GetRole(ctx context.Context, name string) (types.Role,
 	)
 	defer span.End()
 
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxy.CurrentCluster()
+
 	role, err := site.GetRole(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -661,32 +690,13 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	)
 	defer span.End()
 
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxy.CurrentCluster()
+
 	watcher, err := site.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return watcher, nil
-}
-
-// isAuthBoring checks whether or not the auth server for the current cluster was compiled with BoringCrypto.
-func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/isAuthBoring",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	site, err := proxy.ConnectToCurrentCluster(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	resp, err := site.Ping(ctx)
-	return resp.IsBoring, trace.Wrap(err)
 }
 
 // FindServersByLabels returns list of the nodes which have labels exactly matching
@@ -697,13 +707,19 @@ func (proxy *ProxyClient) isAuthBoring(ctx context.Context) (bool, error) {
 //
 // DELETE IN 11.0.0 replaced by FindNodesByFilters.
 func (proxy *ProxyClient) FindServersByLabels(ctx context.Context, namespace string, labels map[string]string) ([]types.Server, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/FindServersByLabels",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	if namespace == "" {
 		return nil, trace.BadParameter(auth.MissingNamespaceError)
 	}
-	site, err := proxy.CurrentClusterAccessPoint(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	site := proxy.CurrentCluster()
+	defer site.Close()
+
 	return auth.GetNodesWithLabels(ctx, site, namespace, labels)
 }
 
@@ -722,16 +738,13 @@ func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.List
 	)
 	defer span.End()
 
-	cluster, err := proxy.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, cluster.Name)
+	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, proxy.siteName)
 	return servers, trace.Wrap(err)
 }
 
 // FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
 func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
+	req.ResourceType = types.KindNode
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindNodesByFiltersForCluster",
@@ -746,9 +759,7 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 	)
 	defer span.End()
 
-	req.ResourceType = types.KindNode
-
-	site, err := proxy.ClusterAccessPoint(ctx, cluster)
+	site, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -793,11 +804,7 @@ func (proxy *ProxyClient) FindAppServersByFilters(ctx context.Context, req proto
 	)
 	defer span.End()
 
-	cluster, err := proxy.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := proxy.FindAppServersByFiltersForCluster(ctx, req, cluster.Name)
+	servers, err := proxy.FindAppServersByFiltersForCluster(ctx, req, proxy.siteName)
 	return servers, trace.Wrap(err)
 }
 
@@ -818,7 +825,7 @@ func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context,
 	defer span.End()
 
 	req.ResourceType = types.KindAppServer
-	authClient, err := proxy.ClusterAccessPoint(ctx, cluster)
+	authClient, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -874,7 +881,7 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 		return nil, trace.Wrap(err)
 	}
 	// Make sure to wait for the created app session to propagate through the cache.
-	accessPoint, err := proxy.ClusterAccessPoint(ctx, clusterName)
+	accessPoint, err := proxy.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -946,16 +953,13 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 	)
 	defer span.End()
 
-	cluster, err := proxy.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, cluster.Name)
+	servers, err := proxy.FindDatabaseServersByFiltersForCluster(ctx, req, proxy.siteName)
 	return servers, trace.Wrap(err)
 }
 
 // FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the provided cluster.
 func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
+	req.ResourceType = types.KindDatabaseServer
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindDatabaseServersByFiltersForCluster",
@@ -970,8 +974,7 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 	)
 	defer span.End()
 
-	req.ResourceType = types.KindDatabaseServer
-	authClient, err := proxy.ClusterAccessPoint(ctx, cluster)
+	authClient, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1003,12 +1006,20 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 // FindDatabasesByFilters returns registered databases that match the provided
 // filter in the current cluster.
 func (proxy *ProxyClient) FindDatabasesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Database, error) {
-	cluster, err := proxy.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/FindDatabasesByFilters",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
+	)
+	defer span.End()
 
-	databases, err := proxy.FindDatabasesByFiltersForCluster(ctx, req, cluster.Name)
+	databases, err := proxy.FindDatabasesByFiltersForCluster(ctx, req, proxy.siteName)
 	return databases, trace.Wrap(err)
 }
 
@@ -1037,10 +1048,8 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	)
 	defer span.End()
 
-	authClient, err := proxy.CurrentClusterAccessPoint(ctx)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+	authClient := proxy.CurrentCluster()
+
 	resp, err := authClient.ListResources(ctx, proto.ListResourcesRequest{
 		Namespace:    namespace,
 		ResourceType: resource,
@@ -1053,73 +1062,27 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	return resp.Resources, resp.NextKey, nil
 }
 
-// CurrentClusterAccessPoint returns cluster access point to the currently
-// selected cluster and is used for discovery
-// and could be cached based on the access policy
-func (proxy *ProxyClient) CurrentClusterAccessPoint(ctx context.Context) (auth.ClientI, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/CurrentClusterAccessPoint",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	// get the current cluster:
-	cluster, err := proxy.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return proxy.ClusterAccessPoint(ctx, cluster.Name)
+// sharedAuthClient is a wrapper around auth.ClientI which
+// prevents the underlying client from being closed.
+type sharedAuthClient struct {
+	auth.ClientI
 }
 
-// ClusterAccessPoint returns cluster access point used for discovery
-// and could be cached based on the access policy
-func (proxy *ProxyClient) ClusterAccessPoint(ctx context.Context, clusterName string) (auth.ClientI, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/ClusterAccessPoint",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("cluster", clusterName),
-		),
-	)
-	defer span.End()
-
-	if clusterName == "" {
-		return nil, trace.BadParameter("parameter clusterName is missing")
-	}
-	clt, err := proxy.ConnectToCluster(ctx, clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return clt, nil
+// Close is a no-op
+func (a sharedAuthClient) Close() error {
+	return nil
 }
 
-// ConnectToCurrentCluster connects to the auth server of the currently selected
-// cluster via proxy. It returns connected and authenticated auth server client
-//
-// if 'quiet' is set to true, no errors will be printed to stdout, otherwise
-// any connection errors are visible to a user.
-func (proxy *ProxyClient) ConnectToCurrentCluster(ctx context.Context) (auth.ClientI, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/ConnectToCurrentCluster",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	cluster, err := proxy.currentCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return proxy.ConnectToCluster(ctx, cluster.Name)
+// CurrentCluster returns an authenticated auth server client for the local cluster.
+func (proxy *ProxyClient) CurrentCluster() auth.ClientI {
+	// The auth.ClientI is wrapped in an sharedAuthClient to prevent callers from
+	// being able to close the client. The auth.ClientI is only to be closed
+	// when the ProxyClient is closed.
+	return sharedAuthClient{ClientI: proxy.currentCluster}
 }
 
 // ConnectToRootCluster connects to the auth server of the root cluster
 // via proxy. It returns connected and authenticated auth server client
-//
-// if 'quiet' is set to true, no errors will be printed to stdout, otherwise
-// any connection errors are visible to a user.
 func (proxy *ProxyClient) ConnectToRootCluster(ctx context.Context) (auth.ClientI, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
@@ -1204,6 +1167,12 @@ func (proxy *ProxyClient) shouldDialWithTLSRouting(ctx context.Context) (string,
 // ConnectToCluster connects to the auth server of the given cluster via proxy.
 // It returns connected and authenticated auth server client
 func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName string) (auth.ClientI, error) {
+	// If connecting to the local cluster then return the already
+	// established auth client instead of dialing it a second time.
+	if clusterName == proxy.siteName && proxy.currentCluster != nil {
+		return proxy.CurrentCluster(), nil
+	}
+
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/ConnectToCluster",
@@ -1345,10 +1314,60 @@ type proxyResponse struct {
 	err      error
 }
 
+// clusterDetails retrieves information about the current cluster needed to connect to nodes.
+func (proxy *ProxyClient) clusterDetails(ctx context.Context) (sshutils.ClusterDetails, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/clusterDetails",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	var details sshutils.ClusterDetails
+	ok, resp, err := proxy.Client.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	// server understood the ClusterDetailsReqType
+	if ok {
+		err = ssh.Unmarshal(resp, &details)
+		return details, trace.Wrap(err)
+	}
+
+	// talking to an older server which doesn't know about ClusterDetailsReqType
+	// fallback to sending multiple requests
+	recordingProxy, err := proxy.isRecordingProxy(ctx)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	pong, err := proxy.CurrentCluster().Ping(ctx)
+	if err != nil {
+		return details, trace.Wrap(err)
+	}
+
+	details.RecordingProxy = recordingProxy
+	details.FIPSEnabled = pong.IsBoring
+
+	return details, nil
+}
+
 // isRecordingProxy returns true if the proxy is in recording mode. Note, this
 // function can only be called after authentication has occurred and should be
 // called before the first session is created.
+//
+// DEPRECATED: clusterDetails should be used instead to avoid multiple round trips for
+// cluster information.
+// TODO(tross):DELETE IN 12.0
 func (proxy *ProxyClient) isRecordingProxy(ctx context.Context) (bool, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/isRecordingProxy",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
 	responseCh := make(chan proxyResponse)
 
 	// we have to run this in a goroutine because older version of Teleport handled
@@ -1449,18 +1468,22 @@ func (proxy *ProxyClient) dialAuthServer(ctx context.Context, clusterName string
 	), nil
 }
 
-// NodeAddr is a full node address
-type NodeAddr struct {
+// NodeDetails is a full node address
+type NodeDetails struct {
 	// Addr is an address to dial
 	Addr string
 	// Namespace is the node namespace
 	Namespace string
 	// Cluster is the name of the target cluster
 	Cluster string
+
+	// MFACheck is optional parameter passed if MFA check was already done.
+	// It can be nil.
+	MFACheck *proto.IsMFARequiredResponse
 }
 
 // String returns a user-friendly name
-func (n NodeAddr) String() string {
+func (n *NodeDetails) String() string {
 	parts := []string{nodeName(n.Addr)}
 	if n.Cluster != "" {
 		parts = append(parts, "on cluster", n.Cluster)
@@ -1470,7 +1493,7 @@ func (n NodeAddr) String() string {
 
 // ProxyFormat returns the address in the format
 // used by the proxy subsystem
-func (n *NodeAddr) ProxyFormat() string {
+func (n *NodeDetails) ProxyFormat() string {
 	parts := []string{n.Addr}
 	if n.Namespace != "" {
 		parts = append(parts, n.Namespace)
@@ -1505,7 +1528,7 @@ func requestSubsystem(ctx context.Context, session *tracessh.Session, name strin
 
 // ConnectToNode connects to the ssh server via Proxy.
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAddr, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDetails, user string, details sshutils.ClusterDetails, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/ConnectToNode",
@@ -1520,12 +1543,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 
 	log.Infof("Client=%v connecting to node=%v", proxy.clientAddr, nodeAddress)
 	if len(proxy.teleportClient.JumpHosts) > 0 {
-		return proxy.PortForwardToNode(ctx, nodeAddress, user)
-	}
-
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
+		return proxy.PortForwardToNode(ctx, nodeAddress, user, details, authMethods)
 	}
 
 	// parse destination first:
@@ -1534,13 +1552,6 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return nil, trace.Wrap(err)
 	}
 	fakeAddr, err := utils.ParseAddr("tcp://" + nodeAddress.Addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// after auth but before we create the first session, find out if the proxy
-	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1574,7 +1585,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
+	if details.RecordingProxy {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
@@ -1603,6 +1614,7 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		return nil, trace.ConnectionProblem(err, "failed connecting to node %v. %s",
 			nodeName(nodeAddress.Addr), serverErrorMsg)
 	}
+
 	pipeNetConn := utils.NewPipeNetConn(
 		proxyReader,
 		proxyWriter,
@@ -1616,39 +1628,14 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeAdd
 		Auth:            authMethods,
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, pipeNetConn, nodeAddress.ProxyFormat(), sshConfig)
-	if err != nil {
-		if utils.IsHandshakeFailedError(err) {
-			proxySession.Close()
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
-		}
-		return nil, trace.Wrap(err)
-	}
 
-	// We pass an empty channel which we close right away to ssh.NewClient
-	// because the client need to handle requests itself.
-	emptyCh := make(chan *ssh.Request)
-	close(emptyCh)
-
-	nc := &NodeClient{
-		Client:    tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:     proxy,
-		Namespace: apidefaults.Namespace,
-		TC:        proxy.teleportClient,
-		Tracer:    proxy.Tracer,
-	}
-
-	// Start a goroutine that will run for the duration of the client to process
-	// global requests from the client. Teleport clients will use this to update
-	// terminal sizes when the remote PTY size has changed.
-	go nc.handleGlobalRequests(ctx, reqs)
-
-	return nc, nil
+	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn, nodeAddress.ProxyFormat(), proxy.teleportClient, details.FIPSEnabled)
+	return nc, trace.Wrap(err)
 }
 
 // PortForwardToNode connects to the ssh server via Proxy
 // It returns connected and authenticated NodeClient
-func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeAddr, user string) (*NodeClient, error) {
+func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress NodeDetails, user string, details sshutils.ClusterDetails, authMethods []ssh.AuthMethod) (*NodeClient, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/PortForwardToNode",
@@ -1663,27 +1650,15 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 
 	log.Infof("Client=%v jumping to node=%s", proxy.clientAddr, nodeAddress)
 
-	authMethods, err := proxy.sessionSSHCertificate(ctx, nodeAddress)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// after auth but before we create the first session, find out if the proxy
-	// is in recording mode or not
-	recordingProxy, err := proxy.isRecordingProxy(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// the client only tries to forward an agent when the proxy is in recording
 	// mode. we always try and forward an agent here because each new session
 	// creates a new context which holds the agent. if ForwardToAgent returns an error
 	// "already have handler for" we ignore it.
-	if recordingProxy {
+	if details.RecordingProxy {
 		if proxy.teleportClient.localAgent == nil {
 			return nil, trace.BadParameter("cluster is in proxy recording mode and requires agent forwarding for connections, but no agent was initialized")
 		}
-		err = agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
+		err := agent.ForwardToAgent(proxy.Client.Client, proxy.teleportClient.localAgent.Agent)
 		if err != nil && !strings.Contains(err.Error(), "agent: already have handler for") {
 			return nil, trace.Wrap(err)
 		}
@@ -1699,11 +1674,28 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		Auth:            authMethods,
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
-	conn, chans, reqs, err := newClientConn(ctx, proxyConn, nodeAddress.Addr, sshConfig)
+
+	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, proxy.teleportClient, details.FIPSEnabled)
+	return nc, trace.Wrap(err)
+}
+
+// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress
+func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"NewNodeClient",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("node", nodeAddress),
+		),
+	)
+	defer span.End()
+
+	sshconn, chans, reqs, err := newClientConn(ctx, conn, nodeAddress, sshConfig)
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
-			proxyConn.Close()
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, user, nodeAddress)
+			conn.Close()
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1714,11 +1706,11 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	close(emptyCh)
 
 	nc := &NodeClient{
-		Client:    tracessh.NewClient(conn, chans, emptyCh),
-		Proxy:     proxy,
-		Namespace: apidefaults.Namespace,
-		TC:        proxy.teleportClient,
-		Tracer:    proxy.Tracer,
+		Client:      tracessh.NewClient(sshconn, chans, emptyCh),
+		Namespace:   apidefaults.Namespace,
+		TC:          tc,
+		Tracer:      tc.Tracer,
+		FIPSEnabled: fipsEnabled,
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
@@ -1727,6 +1719,56 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 	go nc.handleGlobalRequests(ctx, reqs)
 
 	return nc, nil
+}
+
+// RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
+// to and from the node and local shell. This will block until the interactive shell on the node
+// is terminated.
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin *session.Session) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/RunInteractiveShell",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	env := make(map[string]string)
+	env[teleport.EnvSSHJoinMode] = string(mode)
+	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
+	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
+	encoded, err := json.Marshal(&c.TC.Config.Invited)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	env[teleport.EnvSSHSessionInvited] = string(encoded)
+	for key, value := range c.TC.Env {
+		env[key] = value
+	}
+
+	nodeSession, err := newSession(ctx, c, sessToJoin, c.TC.Config.Env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.useLegacyID(ctx, c), c.TC.EnableEscapeSequences)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = nodeSession.runShell(ctx, mode, nil, c.TC.OnShellCreated); err != nil {
+		switch e := trace.Unwrap(err).(type) {
+		case *ssh.ExitError:
+			c.TC.ExitStatus = e.ExitStatus()
+		case *ssh.ExitMissingError:
+			c.TC.ExitStatus = 1
+		}
+
+		return trace.Wrap(err)
+	}
+
+	if nodeSession.ExitMsg == "" {
+		fmt.Fprintln(c.TC.Stderr, "the connection was closed on the remote side at ", time.Now().Format(time.RFC822))
+	} else {
+		fmt.Fprintln(c.TC.Stderr, nodeSession.ExitMsg)
+	}
+
+	return nil
 }
 
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
@@ -1816,8 +1858,9 @@ func newClientConn(
 	}
 }
 
+// Close closes the proxy and auth clients
 func (proxy *ProxyClient) Close() error {
-	return proxy.Client.Close()
+	return trace.NewAggregate(proxy.Client.Close(), proxy.currentCluster.Close())
 }
 
 // ExecuteSCP runs remote scp command(shellCmd) on the remote server and
@@ -2091,34 +2134,7 @@ func (c *NodeClient) Close() error {
 	return c.Client.Close()
 }
 
-// currentCluster returns the connection to the API of the current cluster
-func (proxy *ProxyClient) currentCluster(ctx context.Context) (*types.Site, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/currentCluster",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	sites, err := proxy.GetSites(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if len(sites) == 0 {
-		return nil, trace.NotFound("no clusters registered")
-	}
-	if proxy.siteName == "" {
-		return &sites[0], nil
-	}
-	for _, site := range sites {
-		if site.Name == proxy.siteName {
-			return &site, nil
-		}
-	}
-	return nil, trace.NotFound("cluster %v not found", proxy.siteName)
-}
-
-func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeAddr) ([]ssh.AuthMethod, error) {
+func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeDetails) ([]ssh.AuthMethod, error) {
 	if _, err := proxy.teleportClient.localAgent.GetKey(nodeAddr.Cluster); err != nil {
 		if trace.IsNotFound(err) {
 			// Either running inside the web UI in a proxy or using an identity

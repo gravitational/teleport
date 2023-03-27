@@ -17,13 +17,12 @@ limitations under the License.
 package utils
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
+	"regexp"
 	"runtime"
-	"strings"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
@@ -52,6 +51,12 @@ func KernelVersion() (*semver.Version, error) {
 	return ver, nil
 }
 
+// kernelVersionRegex extracts the first three digits of a version from
+// a kernel version - this strips off any additional digits or additional
+// information appended to the kernel version e.g:
+// 5.15.68.1-microsoft-standard-WSL2 => 5.15.68
+var kernelVersionRegex = regexp.MustCompile(`^\d+\.\d+\.\d+`)
+
 // kernelVersion reads in the kernel version from the reader and returns
 // a *semver.Version.
 func kernelVersion(reader io.Reader) (*semver.Version, error) {
@@ -60,10 +65,13 @@ func kernelVersion(reader io.Reader) (*semver.Version, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Only keep the major, minor, and patch, throw away everything after "-".
-	parts := bytes.Split(buf, []byte("-"))
-	s := strings.TrimSpace(string(parts[0]))
-
+	s := kernelVersionRegex.FindString(string(buf))
+	if s == "" {
+		return nil, trace.BadParameter(
+			"unable to extract kernel semver from string %q",
+			string(buf),
+		)
+	}
 	ver, err := semver.NewVersion(s)
 	if err != nil {
 		return nil, trace.Wrap(err)

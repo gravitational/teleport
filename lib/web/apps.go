@@ -39,46 +39,30 @@ import (
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	appClusterName := p.ByName("site")
 
-	identity, err := ctx.GetIdentity()
+	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get a list of application servers and their proxied apps.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindAppServer)
+	res, err := handleClusterAppsGet(clt, r, ui.MakeAppsConfig{
+		LocalClusterName:  h.auth.clusterName,
+		LocalProxyDNSName: h.proxyDNSName(),
+		AppClusterName:    appClusterName,
+		Identity:          identity,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var apps types.Apps
-	for _, server := range appServers {
-		apps = append(apps, server.GetApp())
-	}
-
-	return listResourcesGetResponse{
-		Items: ui.MakeApps(ui.MakeAppsConfig{
-			LocalClusterName:  h.auth.clusterName,
-			LocalProxyDNSName: h.proxyDNSName(),
-			AppClusterName:    appClusterName,
-			Identity:          identity,
-			Apps:              apps,
-		}),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
-	}, nil
+	return res, nil
 }
 
 type GetAppFQDNRequest resolveAppParams
@@ -93,6 +77,8 @@ type CreateAppSessionRequest resolveAppParams
 type CreateAppSessionResponse struct {
 	// CookieValue is the application session cookie value.
 	CookieValue string `json:"value"`
+	// SubjectCookieValue is the application session subject cookie token.
+	SubjectCookieValue string `json:"subject"`
 	// FQDN is application FQDN.
 	FQDN string `json:"fqdn"`
 }
@@ -234,8 +220,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return &CreateAppSessionResponse{
-		CookieValue: ws.GetName(),
-		FQDN:        result.FQDN,
+		CookieValue:        ws.GetName(),
+		SubjectCookieValue: ws.GetBearerToken(),
+		FQDN:               result.FQDN,
 	}, nil
 }
 

@@ -402,7 +402,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI auth.Clie
 		filePath = principals[0]
 	}
 
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           filePath,
 		Key:                  key,
 		Format:               a.outputFormat,
@@ -478,7 +478,7 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 	}
 	key.TLSCert = resp.Cert
 	key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
@@ -568,7 +568,7 @@ tls-protocols "TLSv1.2 TLSv1.3"
 
 func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.ClientI) error {
 	// Validate --proxy flag.
-	if err := a.checkProxyAddr(clusterAPI); err != nil {
+	if err := a.checkProxyAddr(ctx, clusterAPI); err != nil {
 		return trace.Wrap(err)
 	}
 	// parse compatibility parameter
@@ -687,11 +687,28 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	kubeTLSServerName := ""
 	if proxyListenerMode == types.ProxyListenerMode_Multiplex {
 		log.Debug("Using Proxy SNI for kube TLS server name")
-		kubeTLSServerName = client.GetKubeTLSServerName(a.config.Proxy.WebAddr.Host())
+		u, err := parseURL(a.proxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// extract host part if present
+		split := strings.Split(u.Host, ":")
+		kubeTLSServerName = client.GetKubeTLSServerName(split[0])
+	}
+
+	expires, err := key.TeleportTLSCertValidBefore()
+	if err != nil {
+		log.WithError(err).Warn("Failed to check TTL validity")
+		// err swallowed on purpose
+	} else if reqExpiry.Sub(expires) > time.Minute {
+		maxAllowedTTL := time.Until(expires).Round(time.Second)
+		return trace.BadParameter(`The credential was not issued because the requested TTL of %s exceeded the maximum allowed value of %s. To successfully request a credential, please reduce the requested TTL.`,
+			a.genTTL,
+			maxAllowedTTL)
 	}
 
 	// write the cert+private key to the output:
-	filesWritten, err := identityfile.Write(identityfile.WriteConfig{
+	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
 		Key:                  key,
 		Format:               a.outputFormat,
@@ -703,19 +720,6 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 		return trace.Wrap(err)
 	}
 	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
-
-	expires, err := key.TeleportTLSCertValidBefore()
-	if err != nil {
-		log.WithError(err).Warn("Failed to check TTL validity")
-		// err swallowed on purpose
-		return nil
-	}
-	if reqExpiry.Sub(expires) > time.Minute {
-		log.Warnf("Requested TTL of %s was not granted. User may have a role with a shorter max session TTL"+
-			" or an existing session ending before the requested TTL. Proceeding with %s",
-			a.genTTL,
-			time.Until(expires).Round(time.Second))
-	}
 
 	return nil
 }
@@ -772,7 +776,7 @@ func (a *AuthCommand) checkKubeCluster(ctx context.Context, clusterAPI auth.Clie
 	return nil
 }
 
-func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
+func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.ClientI) error {
 	if a.outputFormat != identityfile.FormatKubernetes && a.proxyAddr != "" {
 		// User set --proxy but it's not actually used for the chosen --format.
 		// Print a warning but continue.
@@ -784,7 +788,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 	}
 	if a.proxyAddr != "" {
 		// User set --proxy. Validate it and set its scheme to https in case it was omitted.
-		u, err := url.Parse(a.proxyAddr)
+		u, err := parseURL(a.proxyAddr)
 		if err != nil {
 			return trace.WrapWithMessage(err, "specified --proxy URL is invalid")
 		}
@@ -805,8 +809,17 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 	// Is the auth server also a proxy?
 	if a.config.Proxy.Kube.Enabled {
 		var err error
+		if a.config.Auth.NetworkingConfig != nil &&
+			a.config.Auth.NetworkingConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			a.proxyAddr, err = a.config.Proxy.WebPublicAddr()
+			return trace.Wrap(err)
+		}
 		a.proxyAddr, err = a.config.Proxy.KubeAddr()
 		return trace.Wrap(err)
+	}
+	netConfig, err := clusterAPI.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.WrapWithMessage(err, "couldn't load cluster network configuration, try setting --proxy manually")
 	}
 	// Fetch proxies known to auth server and try to find a public address.
 	proxies, err := clusterAPI.GetProxies()
@@ -818,6 +831,16 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 		if addr == "" {
 			continue
 		}
+
+		if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
+			u := url.URL{
+				Scheme: "https",
+				Host:   addr,
+			}
+			a.proxyAddr = u.String()
+			return nil
+		}
+
 		uaddr, err := utils.ParseAddr(addr)
 		if err != nil {
 			logrus.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
@@ -840,7 +863,7 @@ func (a *AuthCommand) checkProxyAddr(clusterAPI auth.ClientI) error {
 // base64-encoded key, comment.
 // For example:
 //
-//    cert-authority AAA... type=user&clustername=cluster-a
+//	cert-authority AAA... type=user&clustername=cluster-a
 //
 // URL encoding is used to pass the CA type and cluster name into the comment field.
 func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
@@ -852,7 +875,7 @@ func userCAFormat(ca types.CertAuthority, keyBytes []byte) (string, error) {
 // authorized_hosts format, a space-separated list of: marker, hosts, key, and comment.
 // For example:
 //
-//    @cert-authority *.cluster-a ssh-rsa AAA... type=host
+//	@cert-authority *.cluster-a ssh-rsa AAA... type=host
 //
 // URL encoding is used to pass the CA type and allowed logins into the comment field.
 func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) (string, error) {
@@ -862,6 +885,22 @@ func hostCAFormat(ca types.CertAuthority, keyBytes []byte, client auth.ClientI) 
 	}
 	allowedLogins, _ := roles.GetLoginsForTTL(defaults.MinCertDuration + time.Second)
 	return sshutils.MarshalAuthorizedHostsFormat(ca.GetClusterName(), keyBytes, allowedLogins)
+}
+
+func parseURL(rawurl string) (*url.URL, error) {
+	u, err := url.Parse(rawurl)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// If no scheme is provided url.Parse fails the parsing and considers the host
+	// as scheme, leaving the host empty.
+	if u.Host == "" {
+		return &url.URL{
+			Host: rawurl,
+		}, nil
+	}
+
+	return u, nil
 }
 
 func getApplicationServer(ctx context.Context, clusterAPI auth.ClientI, appName string) (types.AppServer, error) {

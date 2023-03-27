@@ -26,7 +26,12 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
+	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
+	"go.opentelemetry.io/otel/attribute"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport"
@@ -40,9 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/ghodss/yaml"
-	"github.com/gravitational/trace"
 )
 
 // onListDatabases implements "tsh db ls" command.
@@ -99,7 +101,7 @@ func isRoleSetRequiredForShowDatabases(cf *CLIConf) bool {
 }
 
 func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
-	cluster, err := proxy.ClusterAccessPoint(ctx, clusterName)
+	cluster, err := proxy.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -140,78 +142,90 @@ func (l databaseListings) Swap(i, j int) {
 }
 
 func listDatabasesAllClusters(cf *CLIConf) error {
-	// Fetch database listings for profiles in parallel. Set an arbitrary limit
-	// just in case.
-	group, groupCtx := errgroup.WithContext(cf.Context)
-	group.SetLimit(4)
+	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	clusters, err := getClusterClients(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	dbListingsResultChan := make(chan databaseListings)
-	dbListingsCollectChan := make(chan databaseListings)
-	go func() {
-		var dbListings databaseListings
-		for {
-			select {
-			case items := <-dbListingsCollectChan:
-				dbListings = append(dbListings, items...)
-			case <-groupCtx.Done():
-				dbListingsResultChan <- dbListings
-				return
-			}
+	defer func() {
+		// close all clients
+		for _, cluster := range clusters {
+			_ = cluster.Close()
 		}
 	}()
 
-	err := forEachProfile(cf, func(tc *client.TeleportClient, profile *client.ProfileStatus) error {
+	// Fetch database listings for all clusters in parallel with an upper limit
+	group, groupCtx := errgroup.WithContext(cf.Context)
+	group.SetLimit(10)
+
+	// mu guards access to dbListings
+	var (
+		mu         sync.Mutex
+		dbListings databaseListings
+		errors     []error
+	)
+	for _, cluster := range clusters {
+		cluster := cluster
+		if cluster.connectionError != nil {
+			mu.Lock()
+			errors = append(errors, cluster.connectionError)
+			mu.Unlock()
+			continue
+		}
+
 		group.Go(func() error {
-			proxy, err := tc.ConnectToProxy(groupCtx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			defer proxy.Close()
+			ctx, span := tracer.Start(
+				groupCtx,
+				"ListDatabases",
+				oteltrace.WithAttributes(attribute.String("cluster", cluster.name)))
+			defer span.End()
 
-			sites, err := proxy.GetSites(groupCtx)
+			logger := log.WithField("cluster", cluster.name)
+			databases, err := cluster.proxy.FindDatabasesByFiltersForCluster(ctx, cluster.req, cluster.name)
 			if err != nil {
-				return trace.Wrap(err)
+				logger.Errorf("Failed to get databases: %v.", err)
+
+				mu.Lock()
+				errors = append(errors, trace.ConnectionProblem(err, "failed to list databases for cluster %s: %v", cluster.name, err))
+				mu.Unlock()
+				return nil
 			}
 
-			var dbListings databaseListings
-			for _, site := range sites {
-				databases, err := proxy.FindDatabasesByFiltersForCluster(groupCtx, *tc.DefaultResourceFilter(), site.Name)
+			var roleSet services.RoleSet
+			if isRoleSetRequiredForShowDatabases(cf) {
+				roleSet, err = fetchRoleSetForCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
 				if err != nil {
-					return trace.Wrap(err)
-				}
-
-				var roleSet services.RoleSet
-				if isRoleSetRequiredForShowDatabases(cf) {
-					roleSet, err = fetchRoleSetForCluster(groupCtx, profile, proxy, site.Name)
-					if err != nil {
-						log.Debugf("Failed to fetch user roles: %v.", err)
-					}
-				}
-
-				for _, database := range databases {
-					dbListings = append(dbListings, databaseListing{
-						Proxy:    profile.ProxyURL.Host,
-						Cluster:  site.Name,
-						roleSet:  roleSet,
-						Database: database,
-					})
+					log.Debugf("Failed to fetch user roles: %v.", err)
 				}
 			}
 
-			dbListingsCollectChan <- dbListings
+			localDBListings := make(databaseListings, 0, len(databases))
+			for _, database := range databases {
+				localDBListings = append(localDBListings, databaseListing{
+					Proxy:    cluster.profile.ProxyURL.Host,
+					Cluster:  cluster.name,
+					roleSet:  roleSet,
+					Database: database,
+				})
+			}
+			mu.Lock()
+			dbListings = append(dbListings, localDBListings...)
+			mu.Unlock()
+
 			return nil
+
 		})
-		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
 	}
 
 	if err := group.Wait(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	dbListings := <-dbListingsResultChan
+	if len(dbListings) == 0 && len(errors) > 0 {
+		return trace.NewAggregate(errors...)
+	}
+
 	sort.Sort(dbListings)
 
 	profile, err := client.StatusCurrent(cf.HomePath, cf.Proxy, cf.IdentityFileIn)
@@ -236,7 +250,8 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 	default:
 		return trace.BadParameter("unsupported format %q", format)
 	}
-	return nil
+
+	return trace.NewAggregate(errors...)
 }
 
 // onDatabaseLogin implements "tsh db login" command.
@@ -528,7 +543,7 @@ func serializeDatabaseConfig(configInfo *dbConfigInfo, format string) (string, e
 // maybeStartLocalProxy starts local TLS ALPN proxy if needed depending on the
 // connection scenario and returns a list of options to use in the connect
 // command.
-func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
+func maybeStartLocalProxy(ctx context.Context, cf *CLIConf, tc *client.TeleportClient, profile *client.ProfileStatus, db *tlsca.RouteToDatabase,
 	database types.Database, cluster string) ([]dbcmd.ConnectCommandFunc, error) {
 	// Local proxy is started if TLS routing is enabled, or if this is a SQL
 	// Server connection which always requires a local proxy.
@@ -559,7 +574,7 @@ func maybeStartLocalProxy(cf *CLIConf, tc *client.TeleportClient, profile *clien
 
 	go func() {
 		defer listener.Close()
-		if err := lp.Start(cf.Context); err != nil {
+		if err := lp.Start(ctx); err != nil {
 			log.WithError(err).Errorf("Failed to start local proxy")
 		}
 	}()
@@ -676,8 +691,11 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// To avoid termination of background DB teleport proxy when a SIGINT is received don't use the cf.Context.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	opts, err := maybeStartLocalProxy(cf, tc, profile, routeToDatabase, database, rootClusterName)
+	opts, err := maybeStartLocalProxy(ctx, cf, tc, profile, routeToDatabase, database, rootClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

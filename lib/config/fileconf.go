@@ -55,9 +55,9 @@ import (
 )
 
 var validCASigAlgos = []string{
-	ssh.SigAlgoRSA,
-	ssh.SigAlgoRSASHA2256,
-	ssh.SigAlgoRSASHA2512,
+	ssh.KeyAlgoRSA,
+	ssh.KeyAlgoRSASHA256,
+	ssh.KeyAlgoRSASHA512,
 }
 
 // FileConfig structre represents the teleport configuration stored in a config file
@@ -1541,6 +1541,8 @@ type LDAPConfig struct {
 	Domain string `yaml:"domain"`
 	// Username for LDAP authentication.
 	Username string `yaml:"username"`
+	// SID is the Security Identifier for the service account specified by Username.
+	SID string `yaml:"sid"`
 	// InsecureSkipVerify decides whether whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
 	InsecureSkipVerify bool `yaml:"insecure_skip_verify"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).

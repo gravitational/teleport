@@ -176,13 +176,13 @@ func (a *ServerWithRoles) actionWithExtendedContext(namespace, kind, verb string
 // actionForKindSession is a special checker that grants access to session
 // recordings.  It can allow access to a specific recording based on the
 // `where` section of the user's access rule for kind `session`.
-func (a *ServerWithRoles) actionForKindSession(namespace, verb string, sid session.ID) error {
+func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID) error {
 	extendContext := func(ctx *services.Context) error {
 		sessionEnd, err := a.findSessionEndEvent(namespace, sid)
 		ctx.Session = sessionEnd
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, verb, extendContext))
+	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
 // actionForKindSSHSession is a special checker that grants access to active SSH
@@ -435,6 +435,34 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 // GetActiveSessionTrackers returns a list of active session trackers.
 func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error) {
 	sessions, err := a.authServer.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.serverAction(); err == nil {
+		return sessions, nil
+	}
+
+	var filteredSessions []types.SessionTracker
+	user := a.context.User
+	joinerRoles, err := services.FetchRoles(user.GetRoles(), a.authServer, user.GetTraits())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	for _, sess := range sessions {
+		ok := a.filterSessionTracker(ctx, joinerRoles, sess)
+		if ok {
+			filteredSessions = append(filteredSessions, sess)
+		}
+	}
+
+	return filteredSessions, nil
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error) {
+	sessions, err := a.authServer.GetActiveSessionTrackersWithFilter(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1149,7 +1177,9 @@ type nodeChecker struct {
 }
 
 // newNodeChecker returns a new nodeChecker that checks access to nodes with the
-//  provided user if necessary. This prevents the need to load the role set each time
+//
+//	provided user if necessary. This prevents the need to load the role set each time
+//
 // a node is checked.
 func newNodeChecker(authContext Context) (*nodeChecker, error) {
 	// For certain built-in roles, continue to allow full access and return
@@ -2905,7 +2935,7 @@ func (a *ServerWithRoles) UploadSessionRecording(r events.SessionRecording) erro
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2913,7 +2943,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 }
 
 func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
-	if err := a.actionForKindSession(namespace, types.VerbRead, sid); err != nil {
+	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3580,14 +3610,14 @@ func (a *ServerWithRoles) SignDatabaseCSR(ctx context.Context, req *proto.Databa
 //
 // This certificate can be requested by:
 //
-//  - Cluster administrator using "tctl auth sign --format=db" command locally
-//    on the auth server to produce a certificate for configuring a self-hosted
-//    database.
-//  - Remote user using "tctl auth sign --format=db" command with a remote
-//    proxy (e.g. Teleport Cloud), as long as they can impersonate system
-//    role Db.
-//  - Database service when initiating connection to a database instance to
-//    produce a client certificate.
+//   - Cluster administrator using "tctl auth sign --format=db" command locally
+//     on the auth server to produce a certificate for configuring a self-hosted
+//     database.
+//   - Remote user using "tctl auth sign --format=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they can impersonate system
+//     role Db.
+//   - Database service when initiating connection to a database instance to
+//     produce a client certificate.
 func (a *ServerWithRoles) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
 	// Check if this is a local cluster admin, or a datababase service, or a
 	// user that is allowed to impersonate database service.
@@ -4120,7 +4150,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		return nil, e
 	}
 
-	if err := a.actionForKindSession(apidefaults.Namespace, types.VerbList, sessionID); err != nil {
+	if err := a.actionForKindSession(apidefaults.Namespace, sessionID); err != nil {
 		return createErrorChannel(err)
 	}
 

@@ -549,13 +549,13 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		},
 	})
 
-	sess := pack.createAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
-	status, _, err := pack.makeRequest(sess, http.MethodGet, "/")
+	cookies := pack.CreateAppSession(t, pack.rootAppPublicAddr, pack.rootAppClusterName)
+	status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 
-	sess = pack.createAppSession(t, pack.leafAppPublicAddr, pack.leafAppClusterName)
-	status, _, err = pack.makeRequest(sess, http.MethodGet, "/")
+	cookies = pack.CreateAppSession(t, pack.leafAppPublicAddr, pack.leafAppClusterName)
+	status, _, err = pack.MakeRequest(cookies, http.MethodGet, "/")
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
 }

@@ -52,8 +52,8 @@ Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 $ helm repo add teleport https://charts.releases.teleport.dev
 
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster tele.example.com.
-$ CLUSTER='cookie'
-$ PROXY='tele.example.com:443'
+$ CLUSTER=cookie
+$ PROXY=tele.example.com:443
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```
@@ -102,8 +102,8 @@ Switch `kubectl` to the Kubernetes cluster `cookie` and run:
 $ helm repo add teleport https://charts.releases.teleport.dev
 
 # Deploy a Kubernetes agent. It dials back to the Teleport cluster mytenant.teleport.sh.
-$ CLUSTER='cookie'
-$ PROXY='mytenant.teleport.sh'
+$ CLUSTER=cookie
+$ PROXY=mytenant.teleport.sh
 $ helm install teleport-agent teleport/teleport-kube-agent --set kubeClusterName=${CLUSTER?} \
   --set proxyAddr=${PROXY?} --set authToken=${TOKEN?} --create-namespace --namespace=teleport-agent
 ```

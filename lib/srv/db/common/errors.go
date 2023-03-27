@@ -18,6 +18,7 @@ package common
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -100,4 +101,13 @@ type causer interface {
 // pgError defines an interface for errors wrapped by Postgres driver.
 type pgError interface {
 	Unwrap() error
+}
+
+// IsUnrecognizedAWSEngineNameError checks if the err is non-nil and came from using an engine filter that the
+// AWS region does not recognize.
+func IsUnrecognizedAWSEngineNameError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "unrecognized engine name")
 }

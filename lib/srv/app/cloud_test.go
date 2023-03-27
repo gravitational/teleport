@@ -221,7 +221,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			expectedToken: "generated-token",
 		},
 		{
-			name:               "validate URL parameters termporary session",
+			name:               "validate URL parameters temporary session",
 			sessionCredentials: credentials.NewStaticCredentials("id", "secret", "sessiontoken"),
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				values := r.URL.Query()

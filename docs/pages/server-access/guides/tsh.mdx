@@ -124,16 +124,13 @@ To retrieve a user's certificate, execute:
 
 ```code
 # Full form:
-$ tsh login --proxy=proxy_host:<https_proxy_port>,<ssh_proxy_port>
+$ tsh login --proxy=proxy_host:<https_proxy_port>
 
 # Using default ports:
 $ tsh login --proxy=work.example.com
 
 # Using custom HTTPS port:
 $ tsh login --proxy=work.example.com:5000
-
-# Using a custom SSH proxy port, which is set on the Auth Server:
-$ tsh login --proxy=work.example.com:2002
 ```
 
 </ScopedBlock>
@@ -141,7 +138,7 @@ $ tsh login --proxy=work.example.com:2002
 
 ```code
 # Full form:
-$ tsh login --proxy=proxy_host:<https_proxy_port>,<ssh_proxy_port>
+$ tsh login --proxy=proxy_host:<https_proxy_port>
 
 $ tsh login --proxy=mytenant.teleport.sh
 ```
@@ -153,7 +150,6 @@ $ tsh login --proxy=mytenant.teleport.sh
 | Port | Description |
 | - | - |
 | https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `3080`). |
-| ssh_proxy_port | the SSH port the proxy is listening to (defaults to `3023`). |
 
 The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) if there is one running.

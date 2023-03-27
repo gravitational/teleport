@@ -17,11 +17,13 @@ limitations under the License.
 package db
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -49,7 +51,7 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 		return nil
 	}
 	// It's not set so download it or see if it's already downloaded.
-	bytes, err := s.getCACert(ctx, database)
+	bytes, err := s.getCACerts(ctx, database)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -62,19 +64,38 @@ func (s *Server) initCACert(ctx context.Context, database types.Database) error 
 	return nil
 }
 
-// getCACert returns automatically downloaded root certificate for the provided
+// getCACerts returns automatically downloaded root certificate for the provided
 // cloud database instance.
-//
-// The cert can already be cached in the filesystem, otherwise we will attempt
-// to download it.
-func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte, error) {
+func (s *Server) getCACerts(ctx context.Context, database types.Database) ([]byte, error) {
 	// Auto-downloaded certs reside in the data directory.
-	filePath, err := s.getCACertPath(database)
+	filePaths, err := s.getCACertPaths(database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	var all [][]byte
+	for _, filePath := range filePaths {
+		caBytes, err := s.getCACert(ctx, database, filePath)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		all = append(all, caBytes)
+	}
+
+	// Add new lines between files in case one doesn't end with a new line.
+	// It's ok if there are multiple new lines between certs.
+	return bytes.Join(all, []byte("\n")), nil
+}
+
+// getCACert returns the downloaded certificate for provided database and file
+// path.
+//
+// The cert can already be cached in the filesystem, otherwise we will attempt
+// to download it.
+func (s *Server) getCACert(ctx context.Context, database types.Database, filePath string) ([]byte, error) {
 	// Check if we already have it.
-	_, err = utils.StatFile(filePath)
+	_, err := utils.StatFile(filePath)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
@@ -85,7 +106,7 @@ func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte
 	}
 	// Otherwise download it.
 	s.log.Debugf("Downloading CA certificate for %v.", database)
-	bytes, err := s.cfg.CADownloader.Download(ctx, database)
+	bytes, err := s.cfg.CADownloader.Download(ctx, database, filepath.Base(filePath))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,42 +119,48 @@ func (s *Server) getCACert(ctx context.Context, database types.Database) ([]byte
 	return bytes, nil
 }
 
-// getCACertPath returns the path where automatically downloaded root certificate
-// for the provided database is stored in the filesystem.
-func (s *Server) getCACertPath(database types.Database) (string, error) {
-	// All RDS and Redshift instances share the same root CA which can be
-	// downloaded from a well-known URL (sometimes region-specific). Each
-	// Cloud SQL instance has its own CA.
+func (s *Server) getCACertPaths(database types.Database) ([]string, error) {
 	switch database.GetType() {
+	// All RDS instances share the same root CA (per AWS region) which can be
+	// downloaded from a well-known URL.
 	case types.DatabaseTypeRDS:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database))), nil
+		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(rdsCAURLForDatabase(database)))}, nil
+
+	// All Redshift instances share the same root CA which can be downloaded
+	// from a well-known URL.
 	case types.DatabaseTypeRedshift:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database))), nil
+		return []string{filepath.Join(s.cfg.DataDir, filepath.Base(redshiftCAURLForDatabase(database)))}, nil
+
+	// Each Cloud SQL instance has its own CA.
 	case types.DatabaseTypeCloudSQL:
-		return filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName())), nil
+		return []string{filepath.Join(s.cfg.DataDir, fmt.Sprintf("%v-root.pem", database.GetName()))}, nil
+
 	case types.DatabaseTypeAzure:
-		return filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURL)), nil
+		return []string{
+			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLBaltimore)),
+			filepath.Join(s.cfg.DataDir, filepath.Base(azureCAURLDigiCert)),
+		}, nil
 	}
-	return "", trace.BadParameter("%v doesn't support automatic CA download", database)
+
+	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
 
 // CADownloader defines interface for cloud databases CA cert downloaders.
 type CADownloader interface {
 	// Download downloads CA certificate for the provided database instance.
-	Download(context.Context, types.Database) ([]byte, error)
+	Download(context.Context, types.Database, string) ([]byte, error)
 }
 
 type realDownloader struct {
-	dataDir string
 }
 
 // NewRealDownloader returns real cloud database CA downloader.
-func NewRealDownloader(dataDir string) CADownloader {
-	return &realDownloader{dataDir: dataDir}
+func NewRealDownloader() CADownloader {
+	return &realDownloader{}
 }
 
 // Download downloads CA certificate for the provided cloud database instance.
-func (d *realDownloader) Download(ctx context.Context, database types.Database) ([]byte, error) {
+func (d *realDownloader) Download(ctx context.Context, database types.Database, hint string) ([]byte, error) {
 	switch database.GetType() {
 	case types.DatabaseTypeRDS:
 		return d.downloadFromURL(rdsCAURLForDatabase(database))
@@ -142,7 +169,12 @@ func (d *realDownloader) Download(ctx context.Context, database types.Database) 
 	case types.DatabaseTypeCloudSQL:
 		return d.downloadForCloudSQL(ctx, database)
 	case types.DatabaseTypeAzure:
-		return d.downloadFromURL(azureCAURL)
+		if strings.HasSuffix(azureCAURLBaltimore, hint) {
+			return d.downloadFromURL(azureCAURLBaltimore)
+		} else if strings.HasSuffix(azureCAURLDigiCert, hint) {
+			return d.downloadFromURL(azureCAURLDigiCert)
+		}
+		return nil, trace.BadParameter("unknown Azure CA %q", hint)
 	}
 	return nil, trace.BadParameter("%v doesn't support automatic CA download", database)
 }
@@ -220,12 +252,16 @@ const (
 	//
 	// https://docs.aws.amazon.com/redshift/latest/mgmt/connecting-ssl-support.html
 	redshiftDefaultCAURL = "https://s3.amazonaws.com/redshift-downloads/amazon-trust-ca-bundle.crt"
-	// azureCAURL is the URL of the CA certificate for validating certificates
+	// azureCAURLBaltimore is the URL of the CA certificate for validating certificates
 	// presented by Azure hosted databases. See:
 	//
 	// https://docs.microsoft.com/en-us/azure/postgresql/concepts-ssl-connection-security
 	// https://docs.microsoft.com/en-us/azure/mysql/howto-configure-ssl
-	azureCAURL = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
+	azureCAURLBaltimore = "https://www.digicert.com/CACerts/BaltimoreCyberTrustRoot.crt.pem"
+	// azureCAURLDigiCert is the URL of the new CA certificate for validating
+	// certificates presented by Azure hosted databases.
+	azureCAURLDigiCert = "https://cacerts.digicert.com/DigiCertGlobalRootG2.crt.pem"
+
 	// cloudSQLDownloadError is the error message that gets returned when
 	// we failed to download root certificate for Cloud SQL instance.
 	cloudSQLDownloadError = `Could not download Cloud SQL CA certificate for database %v due to the following error:

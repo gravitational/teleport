@@ -135,6 +135,7 @@ func newSession(
 		closeWait:             &sync.WaitGroup{},
 		enableEscapeSequences: enableEscapeSequences,
 		terminal:              term,
+		shouldClearOnExit:     client.FIPSEnabled || isFIPS(),
 	}
 	// if we're joining an existing session, we need to assume that session's
 	// existing/current terminal size:
@@ -168,16 +169,6 @@ func newSession(
 	}
 
 	ns.env[sshutils.SessionEnvVar] = string(ns.id)
-
-	// Determine if terminal should clear on exit.
-	ns.shouldClearOnExit = isFIPS()
-	if client.Proxy != nil {
-		boring, err := client.Proxy.isAuthBoring(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		ns.shouldClearOnExit = ns.shouldClearOnExit || boring
-	}
 
 	// Close the Terminal when finished.
 	ns.closeWait.Add(1)
@@ -261,7 +252,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 	// if agent forwarding was requested (and we have a agent to forward),
 	// forward the agent to endpoint.
-	tc := ns.nodeClient.Proxy.teleportClient
+	tc := ns.nodeClient.TC
 	targetAgent := selectKeyAgent(tc)
 
 	if targetAgent != nil {
@@ -452,7 +443,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 
 			// Send the "window-change" request over the channel.
 			if err = s.WindowChange(ctx, int(currHeight), int(currWidth)); err != nil {
-				log.Warnf("Unable to send %v reqest: %v.", sshutils.WindowChangeRequest, err)
+				log.Warnf("Unable to send %v request: %v.", sshutils.WindowChangeRequest, err)
 				continue
 			}
 

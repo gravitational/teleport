@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 	"github.com/gravitational/teleport/tool/teleport/common"
 
 	"github.com/google/uuid"
@@ -1092,88 +1093,129 @@ func testShutdown(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-
-	// get a reference to site obj:
-	site := teleport.GetSiteAPI(Site)
-	require.NotNil(t, site)
-
-	person := NewTerminal(250)
-
-	cl, err := teleport.NewClient(ClientConfig{
-		Login:   suite.me.Username,
-		Cluster: Site,
-		Host:    Host,
-		Port:    teleport.GetPortSSHInt(),
-	})
-	require.NoError(t, err)
-	cl.Stdout = person
-	cl.Stdin = person
-
-	sshCtx, sshCancel := context.WithCancel(context.Background())
-	t.Cleanup(sshCancel)
 	sshErr := make(chan error)
-	go func() {
-		sshErr <- cl.SSH(sshCtx, nil, false)
-		sshCancel()
-	}()
 
-	retry := func(command, pattern string) {
-		person.Type(command)
-		// wait for both sites to see each other via their reverse tunnels (for up to 10 seconds)
-		abortTime := time.Now().Add(10 * time.Second)
-		var matched bool
-		var output string
-		for {
-			output = replaceNewlines(person.Output(1000))
-			matched, _ = regexp.MatchString(pattern, output)
-			if matched {
-				break
-			}
-			time.Sleep(time.Millisecond * 200)
-			if time.Now().After(abortTime) {
-				require.FailNowf(t, "failed to capture output: %v", pattern)
-			}
-		}
-		if !matched {
-			require.FailNowf(t, "output %q does not match pattern %q", output, pattern)
-		}
+	tests := []struct {
+		name          string
+		createSession func(t *testing.T, i *TeleInstance, term *Terminal, cfg ClientConfig)
+	}{
+		{
+			name: "cli sessions",
+			createSession: func(t *testing.T, i *TeleInstance, term *Terminal, cfg ClientConfig) {
+				tc, err := i.NewClient(cfg)
+				require.NoError(t, err)
+
+				tc.Stdin = term
+				tc.Stdout = term
+
+				sshCtx, sshCancel := context.WithCancel(context.Background())
+				t.Cleanup(sshCancel)
+				go func() {
+					sshErr <- tc.SSH(sshCtx, nil, false)
+					sshCancel()
+				}()
+			},
+		},
+		{
+			name: "web sessions",
+			createSession: func(t *testing.T, i *TeleInstance, term *Terminal, cfg ClientConfig) {
+				wc, err := i.NewWebClient(cfg)
+				require.NoError(t, err)
+
+				stream, err := wc.SSH(web.TerminalRequest{
+					Server: net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port)),
+					Login:  cfg.Login,
+					Term: session.TerminalParams{
+						W: 100,
+						H: 100,
+					},
+				})
+				require.NoError(t, err)
+
+				go func() {
+					err := utils.ProxyConn(context.Background(), term, stream)
+					sshErr <- err
+				}()
+			},
+		},
 	}
 
-	retry("echo start \r\n", ".*start.*")
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-	// initiate shutdown
-	ctx := context.TODO()
-	shutdownContext := teleport.Process.StartShutdown(ctx)
+			// Enable web service.
+			cfg := suite.defaultServiceConfig()
+			cfg.Auth.Enabled = true
+			cfg.Auth.Preference.SetSecondFactor("off")
+			cfg.Proxy.DisableWebService = false
+			cfg.Proxy.DisableWebInterface = true
+			cfg.Proxy.Enabled = true
+			cfg.SSH.Enabled = true
 
-	require.Eventually(t, func() bool {
-		// TODO: check that we either get a connection that fully works or a connection refused error
-		c, err := net.DialTimeout("tcp", teleport.GetReverseTunnelAddr(), 250*time.Millisecond)
-		if err != nil {
-			require.True(t, utils.IsConnectionRefused(trace.Unwrap(err)))
-			return true
-		}
-		require.NoError(t, c.Close())
-		return false
-	}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+			teleport := suite.newTeleportWithConfig(t, []string{"test"}, nil, cfg)
 
-	// make sure that terminal still works
-	retry("echo howdy \r\n", ".*howdy.*")
+			password := uuid.NewString()
+			teleport.CreateWebUser(t, suite.me.Username, password)
 
-	// now type exit and wait for shutdown to complete
-	person.Type("exit\n\r")
+			// get a reference to site obj:
+			site := teleport.GetSiteAPI(Site)
+			require.NotNil(t, site)
 
-	select {
-	case err := <-sshErr:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "failed to shutdown ssh session")
-	}
+			person := NewTerminal(250)
 
-	select {
-	case <-shutdownContext.Done():
-	case <-time.After(5 * time.Second):
-		require.FailNow(t, "Failed to shut down the server.")
+			test.createSession(t, teleport, person, ClientConfig{
+				Login:    suite.me.Username,
+				Password: password,
+				Cluster:  Site,
+				Host:     Loopback,
+				Port:     int(*teleport.SSH),
+			})
+
+			person.Type("echo start \r\n")
+			require.Eventually(t, func() bool {
+				output := replaceNewlines(person.Output(1000))
+				matched, _ := regexp.MatchString(".*start.*", output)
+				return matched
+			}, 10*time.Second, 200*time.Millisecond)
+
+			// initiate shutdown
+			shutdownContext := teleport.Process.StartShutdown(context.Background())
+
+			require.Eventually(t, func() bool {
+				// TODO: check that we either get a connection that fully works or a connection refused error
+				c, err := net.DialTimeout("tcp", teleport.GetReverseTunnelAddr(), 250*time.Millisecond)
+				if err != nil {
+					return utils.IsConnectionRefused(trace.Unwrap(err))
+				}
+				return c.Close() == nil
+			}, time.Second*5, time.Millisecond*500, "proxy should not accept new connections while shutting down")
+
+			// make sure that terminal still works
+			person.Type("echo howdy \r\n")
+			require.Eventually(t, func() bool {
+				output := replaceNewlines(person.Output(1000))
+				matched, _ := regexp.MatchString(".*howdy.*", output)
+				return matched
+			}, 10*time.Second, 200*time.Millisecond)
+
+			// now type exit and wait for shutdown to complete
+			person.Type("exit\n\r")
+
+			select {
+			case err := <-sshErr:
+				require.NoError(t, err)
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "failed to shutdown ssh session")
+			}
+
+			select {
+			case <-shutdownContext.Done():
+			case <-time.After(5 * time.Second):
+				require.FailNow(t, "Failed to shut down the server.")
+			}
+		})
 	}
 }
 
@@ -1495,21 +1537,25 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	teleport := suite.newTeleport(t, nil, true)
-	defer teleport.StopAll()
+	instance := suite.newTeleport(t, nil, true)
+	defer func() {
+		require.NoError(t, instance.StopAll())
+	}()
 
 	cmd := []string{"echo", "success"}
 
 	// try the wrong site:
-	tc, err := teleport.NewClient(ClientConfig{
+	tc, err := instance.NewClient(ClientConfig{
 		Login:   suite.me.Username,
 		Cluster: "wrong-site",
 		Host:    Host,
-		Port:    teleport.GetPortSSHInt(),
+		Port:    instance.GetPortSSHInt(),
 	})
 	require.NoError(t, err)
-	err = tc.SSH(context.TODO(), cmd, false)
-	require.Regexp(t, "cluster wrong-site not found", err.Error())
+
+	err = tc.SSH(context.Background(), cmd, false)
+	require.True(t, trace.IsConnectionProblem(err))
+	require.Contains(t, err.Error(), `unknown cluster "wrong-site"`)
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -2357,9 +2403,9 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	require.Len(t, remoteClusters, 1)
 	require.Equal(t, clusterAux, remoteClusters[0].GetName())
 
-	// after removing the remote cluster, the connection will start failing
-	err = main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux)
-	require.NoError(t, err)
+	// after removing the remote cluster and trusted cluster, the connection will start failing
+	require.NoError(t, main.Process.GetAuthServer().DeleteRemoteCluster(clusterAux))
+	require.NoError(t, aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName()))
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Millisecond * 50)
 		err = tc.SSH(ctx, cmd, false)
@@ -2369,10 +2415,7 @@ func trustedClusters(t *testing.T, suite *integrationTestSuite, test trustedClus
 	}
 	require.Error(t, err, "expected tunnel to close and SSH client to start failing")
 
-	// remove trusted cluster from aux cluster side, and recrete right after
-	// this should re-establish connection
-	err = aux.Process.GetAuthServer().DeleteTrustedCluster(ctx, trustedCluster.GetName())
-	require.NoError(t, err)
+	// recreating the trusted cluster should re-establish connection
 	_, err = aux.Process.GetAuthServer().UpsertTrustedCluster(ctx, trustedCluster)
 	require.NoError(t, err)
 
@@ -4405,12 +4448,12 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 
 	t.Log("change signature algorithm with custom config value and manual rotation")
 	// Change the signing algorithm in config file.
-	signingAlg := ssh.SigAlgoRSA
+	signingAlg := ssh.KeyAlgoRSA
 	config.CASignatureAlgorithm = &signingAlg
 	svc, cancel = restart(svc, cancel)
 	// Do a manual rotation - this should change the signing algorithm.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	t.Log("preserve signature algorithm with empty config value and manual rotation")
 	// Unset the config value.
@@ -4420,7 +4463,7 @@ func testRotateChangeSigningAlg(t *testing.T, suite *integrationTestSuite) {
 	// Do a manual rotation - this should leave the signing algorithm
 	// unaffected because config value is not set.
 	svc = rotate(svc, types.RotationModeManual)
-	assertSigningAlg(svc, ssh.SigAlgoRSA)
+	assertSigningAlg(svc, ssh.KeyAlgoRSA)
 
 	// shut down the service
 	cancel()

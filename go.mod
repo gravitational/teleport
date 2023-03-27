@@ -10,7 +10,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v0.19.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v0.11.0
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1
-	github.com/HdrHistogram/hdrhistogram-go v1.0.1
+	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.4.16
 	github.com/ThalesIgnite/crypto11 v1.2.4
 	github.com/alicebob/miniredis/v2 v2.17.0
@@ -50,17 +50,17 @@ require (
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
 	github.com/gravitational/kingpin v2.1.11-0.20220506065057-8b7839c62700+incompatible
 	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
-	github.com/gravitational/oxy v0.0.0-20211213172937-a1ba0900a4c9
+	github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680
 	github.com/gravitational/reporting v0.0.0-20210923183620-237377721140
 	github.com/gravitational/roundtrip v1.0.1
 	github.com/gravitational/teleport/api v0.0.0
-	github.com/gravitational/trace v1.1.19-0.20220627095334-f3550c86f648
+	github.com/gravitational/trace v1.2.1
 	github.com/gravitational/ttlmap v0.0.0-20171116003245-91fd36b9004c
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2 v2.0.0-20220308023801-e4a6915ea237
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jackc/pgconn v1.11.0
 	github.com/jackc/pgerrcode v0.0.0-20201024163028-a0d42d470451
-	github.com/jackc/pgproto3/v2 v2.2.0
+	github.com/jackc/pgproto3/v2 v2.3.1
 	github.com/jackc/pgx/v4 v4.15.0
 	github.com/jcmturner/gokrb5/v8 v8.4.2
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
@@ -91,7 +91,7 @@ require (
 	github.com/vulcand/predicate v1.2.0
 	go.etcd.io/etcd/api/v3 v3.5.1
 	go.etcd.io/etcd/client/v3 v3.5.1
-	go.mongodb.org/mongo-driver v1.5.3
+	go.mongodb.org/mongo-driver v1.10.1
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.31.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.31.0
@@ -103,15 +103,15 @@ require (
 	go.opentelemetry.io/otel/trace v1.7.0
 	go.opentelemetry.io/proto/otlp v0.16.0
 	go.uber.org/atomic v1.7.0
-	golang.org/x/crypto v0.0.0-20220126234351-aa10faf2a1f8
-	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
+	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
+	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4
+	golang.org/x/net v0.0.0-20221002022538-bcab6841153b
 	golang.org/x/oauth2 v0.0.0-20220622183110-fd043fe589d2
-	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
 	golang.org/x/sys v0.0.0-20220829200755-d48e67d00261
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211
 	golang.org/x/text v0.3.7
-	golang.org/x/tools v0.1.10
+	golang.org/x/tools v0.1.12
 	google.golang.org/api v0.91.0
 	google.golang.org/genproto v0.0.0-20220808204814-fd01256a5276
 	google.golang.org/grpc v1.49.0
@@ -159,7 +159,6 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.3+incompatible // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.1 // indirect
 	github.com/go-logr/logr v1.2.3 // indirect
-	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/gofrs/flock v0.8.1
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang-sql/civil v0.0.0-20190719163853-cb61b32ac6fe // indirect
@@ -189,7 +188,7 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/klauspost/compress v1.9.5 // indirect
+	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mailgun/metrics v0.0.0-20150124003306-2b3c4565aafd // indirect
@@ -222,8 +221,8 @@ require (
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
-	github.com/xdg-go/scram v1.0.2 // indirect
-	github.com/xdg-go/stringprep v1.0.2 // indirect
+	github.com/xdg-go/scram v1.1.1 // indirect
+	github.com/xdg-go/stringprep v1.0.3 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20180127040702-4e3ac2762d5f // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
@@ -245,7 +244,6 @@ require (
 	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
 	k8s.io/utils v0.0.0-20211116205334-6203023598ed
-	launchpad.net/gocheck v0.0.0-20140225173054-000000000087 // indirect
 	sigs.k8s.io/json v0.0.0-20211020170558-c049b76a60c6 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.1 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
@@ -280,6 +278,7 @@ require (
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
+	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
 	github.com/russross/blackfriday v1.5.2 // indirect
 	github.com/spf13/cobra v1.2.1 // indirect
@@ -294,7 +293,7 @@ replace (
 	github.com/denisenkom/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20220202000043-bec708e9bfd0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible => github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/go-mysql-org/go-mysql v1.5.0 => github.com/gravitational/go-mysql v1.5.0-teleport.1
-	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.1
+	github.com/go-redis/redis/v9 => github.com/gravitational/redis/v9 v9.0.0-teleport.2
 	github.com/gogo/protobuf => github.com/gravitational/protobuf v1.3.2-0.20201123192827-2b9fcfaffcbf
 	github.com/gravitational/teleport/api => ./api
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5

@@ -589,7 +589,7 @@ func (s *IdentityService) UpsertPassword(user string, password []byte) error {
 
 func (s *IdentityService) UpsertU2FRegisterChallenge(token string, u2fChallenge *u2f.Challenge) error {
 	if token == "" {
-		return trace.BadParameter("missing parmeter token")
+		return trace.BadParameter("missing parameter token")
 	}
 	value, err := json.Marshal(u2fChallenge)
 	if err != nil {

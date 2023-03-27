@@ -27,6 +27,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	apitypes "github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,6 +82,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	FIPS bool
 	// Log is the logger
 	Log logrus.FieldLogger
+	// IsRemoteCluster indicates the agent pool is connecting to a remote cluster.
+	IsRemoteCluster bool
 }
 
 func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
@@ -171,7 +174,7 @@ func (w *RemoteClusterTunnelManager) Run(ctx context.Context) {
 func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 	// Fetch desired reverse tunnels and convert them to a set of
 	// remoteClusterKeys.
-	wantTunnels, err := w.cfg.AuthClient.GetReverseTunnels(ctx)
+	wantTunnels, err := w.cfg.AccessPoint.GetReverseTunnels(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -191,6 +194,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 		pool.Stop()
+		trustedClustersStats.DeleteLabelValues(pool.cfg.Cluster)
 		delete(w.pools, k)
 	}
 
@@ -201,6 +205,7 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 			continue
 		}
 
+		trustedClustersStats.WithLabelValues(k.cluster).Set(0)
 		pool, err := w.newAgentPool(ctx, w.cfg, k.cluster, k.addr)
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
@@ -228,8 +233,9 @@ func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig,
 		Component: teleport.ComponentProxy,
 
 		// Configs for remote cluster.
-		Cluster:  cluster,
-		Resolver: StaticResolver(addr),
+		Cluster:         cluster,
+		Resolver:        StaticResolver(addr, apitypes.ProxyListenerMode_Separate),
+		IsRemoteCluster: true,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed creating reverse tunnel pool for remote cluster %q at address %q: %v", cluster, addr, err)

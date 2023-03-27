@@ -189,7 +189,7 @@ Restart=on-failure
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
-LimitNOFILE=8192
+LimitNOFILE=524288
 
 [Install]
 WantedBy=multi-user.target

@@ -7,7 +7,7 @@ The `teleport-kube-agent` Helm chart is used to configure a Teleport instance
 that runs in a remote Kubernetes cluster and joins back to a Teleport cluster to
 provide access to services running there.
 
-You can [browse the source on GitHub](https://github.com/gravitational/teleport/tree/master/examples/chart/teleport-kube-agent).
+You can [browse the source on GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-kube-agent).
 
 The `teleport-kube-agent` chart can run any or all of three Teleport services:
 
@@ -863,27 +863,51 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   </TabItem>
 </Tabs>
 
-## `serviceAccountName`
+## `serviceAccount.create`
 
-<Admonition type="note">
-  Most users will not need to change this.
-</Admonition>
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `boolean` | `true` | No | ✅ |
 
-| Type | Default value |
-| - | - |
-| `string` | `nil` |
+[Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 
-`serviceAccountName` can be optionally used to override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+Boolean value to control whether Helm Chart should create the `ServiceAccount`.
+When off, the `serviceAccount.name` parameter should be set to the existing `ServiceAccount` name.
 
 <Tabs>
   <TabItem label="values.yaml">
   ```yaml
-  serviceAccountName: kubernetes-serviceaccount
+  serviceAccount:
+    create: false
+    name: kubernetes-serviceaccount
   ```
   </TabItem>
   <TabItem label="--set">
   ```code
-  $ --set serviceAccountName=kubernetes-serviceaccount
+  $ --set serviceAccount.create=false
+  $ --set serviceAccount.name=kubernetes-serviceaccount
+  ```
+  </TabItem>
+</Tabs>
+
+## `serviceAccount.name`
+
+| Type | Default value | Required? | Can be used in `custom` mode? |
+| - | - | - | - |
+| `string` | `""` | No | ✅ |
+
+`serviceAccount.name` can be optionally used to override the name of the Kubernetes `ServiceAccount` used by the `teleport-kube-agent` chart.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  serviceAccount:
+    name: kubernetes-serviceaccount
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set serviceAccount.name=kubernetes-serviceaccount
   ```
   </TabItem>
 </Tabs>

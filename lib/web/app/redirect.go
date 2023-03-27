@@ -55,6 +55,7 @@ const js = `
         var params = new URLSearchParams(url.search);
         var searchParts = window.location.search.split('=');
         var stateValue = params.get("state");
+        var subjectValue = params.get("subject");
         var path = params.get("path");
         if (!stateValue) {
           return;
@@ -66,6 +67,7 @@ const js = `
         const data = {
           state_value: stateValue,
           cookie_value: hashParts[1],
+          subject_cookie_value: subjectValue,
         };
         fetch('/x-teleport-auth', {
           method: 'POST',

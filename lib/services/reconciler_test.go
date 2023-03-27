@@ -60,6 +60,21 @@ func TestReconciler(t *testing.T) {
 			},
 		},
 		{
+			description: "resources that equal don't overwrite each other ",
+			selectors: []ResourceMatcher{{
+				Labels: types.Labels{"*": []string{"*"}},
+			}},
+			registeredResources: types.ResourcesWithLabels{
+				makeDynamicResource("res1", nil),
+			},
+			newResources: types.ResourcesWithLabels{
+				makeDynamicResource("res1", nil, func(r *testResource) {
+					// XXX_unrecognized should be ignored by CompareResources.
+					r.Metadata.XXX_unrecognized = []byte{11, 0}
+				}),
+			},
+		},
+		{
 			description: "resources with different origins don't overwrite each other",
 			selectors: []ResourceMatcher{{
 				Labels: types.Labels{"*": []string{"*"}},
@@ -193,25 +208,29 @@ func makeStaticResource(name string, labels map[string]string) types.ResourceWit
 	})
 }
 
-func makeDynamicResource(name string, labels map[string]string) types.ResourceWithLabels {
+func makeDynamicResource(name string, labels map[string]string, opts ...func(*testResource)) types.ResourceWithLabels {
 	return makeResource(name, labels, map[string]string{
 		types.OriginLabel: types.OriginDynamic,
-	})
+	}, opts...)
 }
 
-func makeResource(name string, labels map[string]string, additionalLabels map[string]string) types.ResourceWithLabels {
+func makeResource(name string, labels map[string]string, additionalLabels map[string]string, opts ...func(*testResource)) types.ResourceWithLabels {
 	if labels == nil {
 		labels = make(map[string]string)
 	}
 	for k, v := range additionalLabels {
 		labels[k] = v
 	}
-	return &testResource{
+	r := &testResource{
 		Metadata: types.Metadata{
 			Name:   name,
 			Labels: labels,
 		},
 	}
+	for _, opt := range opts {
+		opt(r)
+	}
+	return r
 }
 
 type testResource struct {

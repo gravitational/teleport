@@ -20,7 +20,7 @@
 //! - Functions to be called from Go (any function prefixed with the `#[no_mangle]`
 //!   macro and a `pub unsafe extern "C"`).
 //! - Structs for passing between the two (those prefixed with the `#[repr(C)]` macro
-//!   and whose name begins with `CGO`)
+//!   and whose name begins with `CGO`).
 //!
 //! Memory management at this interface can be tricky, given the long list of rules
 //! required by CGO (https://pkg.go.dev/cmd/cgo). We can simplify our job in this
@@ -55,6 +55,7 @@ use rand::SeedableRng;
 use rdp::core::event::*;
 use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
+use rdp::core::global::ServerError;
 use rdp::core::mcs;
 use rdp::core::sec;
 use rdp::core::tpkt;
@@ -64,7 +65,7 @@ use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use std::convert::TryFrom;
-use std::ffi::CStr;
+use std::ffi::{CStr, CString, NulError};
 use std::io::Error as IoError;
 use std::io::ErrorKind;
 use std::io::{Cursor, Read, Write};
@@ -188,8 +189,8 @@ pub unsafe extern "C" fn connect_rdp(
     allow_directory_sharing: bool,
 ) -> ClientOrError {
     // Convert from C to Rust types.
-    let addr = from_go_string(go_addr);
-    let username = from_go_string(go_username);
+    let addr = from_c_string(go_addr);
+    let username = from_c_string(go_username);
     let cert_der = from_go_array(cert_der, cert_der_len);
     let key_der = from_go_array(key_der, key_der_len);
 
@@ -759,11 +760,7 @@ impl TryFrom<BitmapEvent> for CGOBitmap {
 
         // e.decompress consumes e, so we need to call it separately, after populating the fields
         // above.
-        let mut data = if e.is_compress {
-            e.decompress()?
-        } else {
-            e.data
-        };
+        let mut data = e.decompress()?;
         res.data_ptr = data.as_mut_ptr();
         res.data_len = data.len();
         res.data_cap = data.capacity();
@@ -1117,22 +1114,23 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
 /// `client_ptr` must be a valid pointer to a Client.
 /// `handle_bitmap` *must not* free the memory of CGOBitmap.
 #[no_mangle]
-pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOErrCode {
+pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpOutputReturns {
     let client = match Client::from_ptr(client_ptr) {
         Ok(client) => client,
         Err(cgo_error) => {
-            return cgo_error;
+            return ReadRdpOutputReturns {
+                user_message: "invalid Rust client pointer".to_string(),
+                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                err_code: cgo_error,
+            }
+            .into();
         }
     };
-    if let Some(err) = read_rdp_output_inner(client) {
-        error!("{}", err);
-        CGOErrCode::ErrCodeFailure
-    } else {
-        CGOErrCode::ErrCodeSuccess
-    }
+
+    read_rdp_output_inner(client).into()
 }
 
-fn read_rdp_output_inner(client: &Client) -> Option<String> {
+fn read_rdp_output_inner(client: &Client) -> ReadRdpOutputReturns {
     let tcp_fd = client.tcp_fd;
     let client_ref = client.go_ref;
 
@@ -1140,7 +1138,7 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
     //
     // Wait for some data to be available on the TCP socket FD before consuming it. This prevents
     // us from locking the mutex in Client permanently while no data is available.
-    while wait_for_fd(tcp_fd as usize) {
+    while wait_for_fd(tcp_fd) {
         let mut err = CGOErrCode::ErrCodeSuccess;
         let res = client.rdp_client.lock().unwrap().read(|rdp_event| {
             // This callback can be called multiple times per rdp_client.read()
@@ -1174,17 +1172,59 @@ fn read_rdp_output_inner(client: &Client) -> Option<String> {
             }
         });
         match res {
-            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => return None,
-            Err(e) => {
-                return Some(format!("RDP read failed: {:?}", e));
+            Err(RdpError::Io(io_err)) if io_err.kind() == ErrorKind::UnexpectedEof => {
+                debug!("client disconnect detected");
+                return ReadRdpOutputReturns {
+                    user_message: "Client successfully disconnected".to_string(),
+                    disconnect_code: CGODisconnectCode::DisconnectCodeClient,
+                    err_code: CGOErrCode::ErrCodeSuccess,
+                };
             }
-            _ => {}
+            Err(RdpError::RdpError(rdp_err)) if rdp_err.kind() == RdpErrorKind::Disconnect => {
+                // RdpErrorKind::Disconnect means we encountered a Disconnect Provider Ultimatum.
+                // If we don't know why that was sent, return an failure, otherwise return a success.
+                debug!("server disconnect detected");
+                let disconnect_code = CGODisconnectCode::DisconnectCodeServer;
+                let server_error = client.rdp_client.lock().unwrap().global.server_error();
+                let mut message = server_error.to_string();
+                let mut err_code = CGOErrCode::ErrCodeSuccess;
+                if server_error == ServerError::None || server_error.is_error() {
+                    err_code = CGOErrCode::ErrCodeFailure;
+                    if server_error == ServerError::None {
+                        message = "RDP server disconnected for an unknown reason".to_string();
+                    }
+                }
+                return ReadRdpOutputReturns {
+                    user_message: message,
+                    disconnect_code,
+                    err_code,
+                };
+            }
+            Err(e) => {
+                return ReadRdpOutputReturns {
+                    user_message: format!("RDP read failed: {:?}", e),
+                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                    err_code: CGOErrCode::ErrCodeFailure,
+                };
+            }
+            Ok(()) => {
+                // continue
+            }
         }
         if err != CGOErrCode::ErrCodeSuccess {
-            return Some("failed forwarding RDP bitmap frame".to_string());
+            return ReadRdpOutputReturns {
+                user_message: "failed forwarding RDP bitmap frame".to_string(),
+                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                err_code: err,
+            };
         }
     }
-    None
+
+    ReadRdpOutputReturns {
+        user_message: "RDP read failed for an unknown reason".to_string(),
+        disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+        err_code: CGOErrCode::ErrCodeFailure,
+    }
 }
 
 /// CGOMousePointerEvent is a CGO-compatible version of PointerEvent that we pass back to Go.
@@ -1345,11 +1385,53 @@ pub unsafe extern "C" fn close_rdp(client_ptr: *mut Client) -> CGOErrCode {
     };
 
     if let Err(err) = client.tcp.tcp.shutdown(net::Shutdown::Both) {
-        error!("failed shutting down TCP socket: {:?}", err);
-        return CGOErrCode::ErrCodeFailure;
+        match err.kind() {
+            ErrorKind::NotConnected => {
+                debug!("TCP socket was not connected");
+                return CGOErrCode::ErrCodeSuccess;
+            }
+            _ => {
+                error!("failed shutting down TCP socket: {:?}", err);
+                return CGOErrCode::ErrCodeFailure;
+            }
+        }
     }
 
     res
+}
+
+#[repr(C)]
+pub enum CGODisconnectCode {
+    /// DisconnectCodeUnknown is for when we can't determine whether
+    /// a disconnect was caused by the RDP client or server.
+    DisconnectCodeUnknown = 0,
+    /// DisconnectCodeClient is for when the RDP client initiated a disconnect.
+    DisconnectCodeClient = 1,
+    /// DisconnectCodeServer is for when the RDP server initiated a disconnect.
+    DisconnectCodeServer = 2,
+}
+
+struct ReadRdpOutputReturns {
+    user_message: String,
+    disconnect_code: CGODisconnectCode,
+    err_code: CGOErrCode,
+}
+
+#[repr(C)]
+pub struct CGOReadRdpOutputReturns {
+    user_message: *const c_char,
+    disconnect_code: CGODisconnectCode,
+    err_code: CGOErrCode,
+}
+
+impl From<ReadRdpOutputReturns> for CGOReadRdpOutputReturns {
+    fn from(r: ReadRdpOutputReturns) -> CGOReadRdpOutputReturns {
+        CGOReadRdpOutputReturns {
+            user_message: to_c_string(&r.user_message).unwrap(),
+            disconnect_code: r.disconnect_code,
+            err_code: r.err_code,
+        }
+    }
 }
 
 /// free_rdp lets the Go side inform us when it's done with Client and it can be dropped.
@@ -1368,7 +1450,7 @@ pub unsafe extern "C" fn free_rdp(client_ptr: *mut Client) {
 /// s must be a C-style null terminated string.
 /// s is cloned here, and the caller is responsible for
 /// ensuring its memory is freed.
-unsafe fn from_go_string(s: *const c_char) -> String {
+unsafe fn from_c_string(s: *const c_char) -> String {
     // # Safety
     //
     // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
@@ -1387,6 +1469,27 @@ unsafe fn from_go_array<T: Clone>(data: *mut T, len: u32) -> Vec<T> {
     // In other words, all pointer data that needs to persist after this function returns MUST
     // be copied into Rust-owned memory.
     slice::from_raw_parts(data, len as usize).to_vec()
+}
+
+/// to_c_string can be used to return string values over the Go boundary.
+/// To avoid memory leaks, the Go function must call free_go_string once
+/// it's done with the memory.
+///
+/// See https://doc.rust-lang.org/std/ffi/struct.CString.html#method.into_raw
+fn to_c_string(s: &str) -> Result<*const c_char, NulError> {
+    let c_string = CString::new(s)?;
+    Ok(c_string.into_raw())
+}
+
+/// See the docstring for to_c_string.
+///
+/// # Safety
+///
+/// s must be a pointer originally created by to_c_string
+#[no_mangle]
+pub unsafe extern "C" fn free_c_string(s: *mut c_char) {
+    // retake pointer to free memory
+    let _ = CString::from_raw(s);
 }
 
 #[repr(C)]
@@ -1420,7 +1523,7 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
         unsafe {
             SharedDirectoryAnnounce {
                 directory_id: cgo.directory_id,
-                name: from_go_string(cgo.name),
+                name: from_c_string(cgo.name),
             }
         }
     }
@@ -1542,7 +1645,7 @@ impl From<CGOFileSystemObject> for FileSystemObject {
                 size: cgo_fso.size,
                 file_type: cgo_fso.file_type,
                 is_empty: cgo_fso.is_empty,
-                path: UnixPath::from(from_go_string(cgo_fso.path)),
+                path: UnixPath::from(from_c_string(cgo_fso.path)),
             }
         }
     }
@@ -1882,6 +1985,6 @@ pub(crate) type Message = Vec<u8>;
 pub(crate) type Messages = Vec<Message>;
 
 /// Encode is an object that can be encoded for sending to the RDP server.
-trait Encode: std::fmt::Debug {
+pub(crate) trait Encode: std::fmt::Debug {
     fn encode(&self) -> RdpResult<Message>;
 }

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -487,9 +487,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME enabled, teleport ALPN protocols should be appended",
 			acmeEnabled: true,
 			wantNextProtos: []string{
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"acme-tls/1",
 				"teleport-postgres",
 				"teleport-mysql",
@@ -505,9 +505,9 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
-				// Ensure h2 has precedence over http/1.1.
-				"h2",
+				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
+				"h2",
 				"teleport-postgres",
 				"teleport-mysql",
 				"teleport-mongodb",

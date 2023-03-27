@@ -19,16 +19,18 @@ package alpnproxy
 import (
 	"context"
 	"crypto/tls"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httputil"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -149,43 +151,21 @@ func (l *LocalProxy) GetAddr() string {
 func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamConn net.Conn, serverName string) error {
 	defer downstreamConn.Close()
 
-	upstreamConn, err := tls.Dial("tcp", l.cfg.RemoteProxyAddr, &tls.Config{
+	const defaultKeepAlive = time.Second * 15
+	dialer := apiclient.NewDialer(ctx, defaultKeepAlive, defaults.DefaultDialTimeout)
+	conn, err := dialer.DialContext(ctx, "tcp", l.cfg.RemoteProxyAddr)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	upstreamConn := tls.Client(conn, &tls.Config{
 		NextProtos:         l.cfg.GetProtocols(),
 		InsecureSkipVerify: l.cfg.InsecureSkipVerify,
 		ServerName:         serverName,
 		Certificates:       l.cfg.Certs,
 	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	defer upstreamConn.Close()
 
-	errC := make(chan error, 2)
-	go func() {
-		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(downstreamConn, upstreamConn)
-		errC <- err
-	}()
-	go func() {
-		defer downstreamConn.Close()
-		defer upstreamConn.Close()
-		_, err := io.Copy(upstreamConn, downstreamConn)
-		errC <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case <-ctx.Done():
-			return trace.NewAggregate(append(errs, ctx.Err())...)
-		case err := <-errC:
-			if err != nil && !utils.IsOKNetworkError(err) {
-				errs = append(errs, err)
-			}
-		}
-	}
-	return trace.NewAggregate(errs...)
+	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
 }
 
 func (l *LocalProxy) Close() error {

@@ -46,7 +46,7 @@ type fileTransferRequest struct {
 	filename string
 }
 
-func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
 		cluster:        p.ByName("site"),
@@ -57,13 +57,13 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		namespace:      defaults.Namespace,
 	}
 
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ft := fileTransfer{
-		ctx:           ctx,
+		ctx:           sctx,
 		authClient:    clt,
 		proxyHostPort: h.ProxyHostPort(),
 	}

@@ -16,6 +16,8 @@ RUN (groupadd ci --gid=$GID -o && useradd ci --uid=$UID --gid=$GID --create-home
 # Install dev tools (make, etc) and a Perl package needed to build OpenSSL.
 RUN yum groupinstall -y "Development Tools"
 RUN yum install -y pam-devel net-tools tree git zip libatomic perl-IPC-Cmd && \
+    yum -y install https://packages.endpointdev.com/rhel/7/os/x86_64/endpoint-repo.x86_64.rpm && \
+    yum -y install git && \
     yum clean all
 
 # Install etcd.

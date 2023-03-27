@@ -3,7 +3,7 @@
 #  all    : builds all binaries in development mode, without web assets (default)
 #  full   : builds all binaries for PRODUCTION use
 #  release: prepares a release tarball
-#  clean  : removes all buld artifacts
+#  clean  : removes all build artifacts
 #  test   : runs tests
 
 # To update the Teleport version, update VERSION variable:
@@ -11,11 +11,9 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=9.3.22
+VERSION=9.3.26
 
-DOCKER_IMAGE_QUAY ?= quay.io/gravitational/teleport
-DOCKER_IMAGE_ECR ?= public.ecr.aws/gravitational/teleport
-DOCKER_IMAGE_STAGING ?= 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport
+DOCKER_IMAGE ?= teleport
 
 GOPATH ?= $(shell go env GOPATH)
 
@@ -41,6 +39,11 @@ CGOFLAG = CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc CXX=x86_64-w64-mingw32-g++
 CGOFLAG_TSH = $(CGOFLAG)
 endif
 
+# Is this build targeting the same OS & architecture it is being compiled on, or
+# will it require cross-compilation? We need to know this (especially for ARM) so we 
+# can set the cross-compiler path (and possibly feature flags) correctly. 
+IS_CROSS_BUILD = $(if $(filter-out $(ARCH), $(shell go env GOARCH)),yes)
+
 ifeq ("$(OS)","linux")
 # ARM builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm")
@@ -49,7 +52,11 @@ CGOFLAG_TSH = $(CGOFLAG)
 endif
 # ARM64 builds need to specify the correct C compiler
 ifeq ("$(ARCH)","arm64")
-CGOFLAG = CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc
+# ARM64 requires CGO but does not need to do any special linkage due to its reduced 
+# featureset. Also, if we 're not guaranteed to be building natively on an arm64 system
+# then we'll need to configure the cross compiler.
+CGOFLAG = CGO_ENABLED=1 $(if $(IS_CROSS_BUILD),CC=aarch64-linux-gnu-gcc)
+
 CGOFLAG_TSH = $(CGOFLAG)
 endif
 endif
@@ -192,6 +199,13 @@ all: version
 	@echo "---> Building OSS binaries."
 	$(MAKE) $(BINARIES)
 
+#
+# make binaries builds all binaries defined in the BINARIES environment variable
+#
+.PHONY: binaries
+binaries:
+	$(MAKE) $(BINARIES)
+
 # By making these 3 targets below (tsh, tctl and teleport) PHONY we are solving
 # several problems:
 # * Build will rely on go build internal caching https://golang.org/doc/go1.10 at all times
@@ -323,6 +337,8 @@ release:
 	@echo "---> $(RELEASE_MESSAGE)"
 ifeq ("$(OS)", "windows")
 	$(MAKE) --no-print-directory release-windows
+else ifeq ("$(OS)", "darwin")
+	$(MAKE) --no-print-directory release-darwin
 else
 	$(MAKE) --no-print-directory release-unix
 endif
@@ -345,11 +361,10 @@ release-arm64:
 	$(MAKE) release ARCH=arm64
 
 #
-# make release-unix - Produces a binary release tarball containing teleport,
-# tctl, and tsh.
+# make build-archive - Packages the results of a build into a release tarball
 #
-.PHONY:
-release-unix: clean full
+.PHONY: build-archive
+build-archive:
 	@echo "---> Creating OSS release archive."
 	mkdir teleport
 	cp -rf $(BUILDDIR)/* \
@@ -362,10 +377,41 @@ release-unix: clean full
 	tar $(TAR_FLAGS) -c teleport | gzip -n > $(RELEASE).tar.gz
 	rm -rf teleport
 	@echo "---> Created $(RELEASE).tar.gz."
+	
+#
+# make release-unix - Produces binary release tarballs for both OSS and 
+# Enterprise editions, containing teleport, tctl, tbot and tsh.
+#
+.PHONY:
+release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then \
 		rm -fr $(ASSETS_BUILDDIR)/webassets; \
 		$(MAKE) -C e release; \
 	fi
+
+.PHONY: release-darwin-unsigned
+release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
+release-darwin-unsigned: clean full build-archive
+
+.PHONY: release-darwin
+release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
+release-darwin: release-darwin-unsigned
+	# Only run if Apple username/pass for notarization are provided
+	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
+		cd ./build.assets/tooling/ && \
+		go run ./cmd/notarize-apple-binaries/*.go \
+			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
+	fi
+	$(MAKE) build-archive
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
+
+#
+# make release-unix-only - Produces an Enterprise binary release tarball containing
+# teleport, tctl, and tsh *WITHOUT* also creating an OSS build tarball.
+#
+.PHONY: release-unix-only
+release-unix-only: clean
+	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
 #
 # make release-windows-unsigned - Produces a binary release archive containing only tsh.
@@ -461,7 +507,7 @@ $(RENDER_TESTS): $(wildcard $(TOOLINGDIR)/cmd/render-tests/*.go)
 # Runs all Go/shell tests, called by CI/CD.
 #
 .PHONY: test
-test: test-sh test-ci test-api test-go test-rust
+test: test-sh test-api test-go test-rust
 
 $(TEST_LOG_DIR):
 	mkdir $(TEST_LOG_DIR)
@@ -485,13 +531,6 @@ test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(ROLETESTER_TAG) $(RDPCLIENT_TAG)" -test.run=TestChaos $(CHAOS_FOLDERS) \
 		| tee $(TEST_LOG_DIR)/chaos.json \
 		| ${RENDER_TESTS}
-
-.PHONY: test-ci
-test-ci: $(TEST_LOG_DIR) $(RENDER_TESTS)
-	(cd .cloudbuild/scripts && \
-		go test -cover -json ./... \
-		| tee $(TEST_LOG_DIR)/ci.json \
-		| ${RENDER_TESTS})
 
 #
 # Runs all Go tests except integration and chaos, called by CI/CD.
@@ -582,7 +621,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools
 
 .PHONY: lint-tools
-lint-tools: lint-build-tooling lint-ci-scripts lint-backport
+lint-tools: lint-build-tooling lint-backport
 
 #
 # Runs the clippy linter on our rust modules
@@ -614,11 +653,6 @@ lint-build-tooling:
 lint-backport: GO_LINT_FLAGS ?=
 lint-backport:
 	cd assets/backport && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
-
-.PHONY: lint-ci-scripts
-lint-ci-scripts: GO_LINT_FLAGS ?=
-lint-ci-scripts:
-	cd .cloudbuild/scripts/ && golangci-lint run -c ../../.golangci.yml $(GO_LINT_FLAGS)
 
 # api is no longer part of the teleport package, so golangci-lint skips it by default
 .PHONY: lint-api
@@ -745,6 +779,7 @@ update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
+	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
 	git push origin $(GITTAG) && git push origin api/$(GITTAG)
 
 # build/webassets directory contains the web assets (UI) which get
@@ -785,6 +820,13 @@ sloccount:
 .PHONY: remove-temp-files
 remove-temp-files:
 	find . -name flymake_* -delete
+
+#
+# print-go-version outputs Go version as a semver without "go" prefix
+#
+.PHONY: print-go-version
+print-go-version:
+	@$(MAKE) -C build.assets print-go-version | sed "s/go//"
 
 # Dockerized build: useful for making Linux releases on OSX
 .PHONY:docker
@@ -907,45 +949,16 @@ install: build
 	cp -f $(BUILDDIR)/teleport  $(BINDIR)/
 	mkdir -p $(DATADIR)
 
-
 # Docker image build. Always build the binaries themselves within docker (see
 # the "docker" rule) to avoid dependencies on the host libc version.
 .PHONY: image
-image: clean docker-binaries
+image: OS=linux
+image: TARBALL_PATH_SECTION:=-s "$(shell pwd)"
+image: clean docker-binaries build-archive oss-deb
 	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_QUAY):$(VERSION)
+	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE):$(VERSION)-$(ARCH) --target teleport \
+		--build-arg DEB_PATH="./teleport_$(VERSION)_$(ARCH).deb"
 	if [ -f e/Makefile ]; then $(MAKE) -C e image; fi
-
-.PHONY: publish
-publish: image
-	docker push $(DOCKER_IMAGE_QUAY):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish; fi
-
-.PHONY: publish-ecr
-publish-ecr: image
-	docker tag $(DOCKER_IMAGE_QUAY) $(DOCKER_IMAGE_ECR)
-	docker push $(DOCKER_IMAGE_ECR):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ecr; fi
-
-# Docker image build in CI.
-# This is run to build and push Docker images to a private repository as part of the build process.
-# When we are ready to make the images public after testing (i.e. when publishing a release), we pull these
-# images down, retag them and push them up to the production repo so they're available for use.
-# This job can be removed/consolidated after we switch over completely from using Jenkins to using Drone.
-.PHONY: image-ci
-image-ci: clean docker-binaries
-	cp ./build.assets/charts/Dockerfile $(BUILDDIR)/
-	cd $(BUILDDIR) && docker build --no-cache . -t $(DOCKER_IMAGE_STAGING):$(VERSION)
-	if [ -f e/Makefile ]; then $(MAKE) -C e image-ci; fi
-
-.PHONY: publish-ci
-publish-ci: image-ci
-	@if DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect $(DOCKER_IMAGE_STAGING):$(VERSION) 2>&1 >/dev/null; then\
-		echo "$(DOCKER_IMAGE_STAGING):$(VERSION) already exists. ";     \
-	else                                                                \
-		docker push $(DOCKER_IMAGE_STAGING):$(VERSION);                 \
-	fi
-	if [ -f e/Makefile ]; then $(MAKE) -C e publish-ci; fi
 
 .PHONY: print-version
 print-version:
@@ -1002,13 +1015,17 @@ rpm:
 rpm-unsigned:
 	$(MAKE) UNSIGNED_RPM=true rpm
 
-# build .deb
-.PHONY: deb
-deb:
+# build open source .deb only
+.PHONY: oss-deb
+oss-deb:
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p deb -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+
+# build .deb
+.PHONY: deb
+deb: oss-deb
 	if [ -f e/Makefile ]; then $(MAKE) -C e deb; fi
 
 # check binary compatibility with different OSes

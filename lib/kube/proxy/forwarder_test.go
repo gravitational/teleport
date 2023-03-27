@@ -70,7 +70,7 @@ var (
 		Usage:            []string{"usage a", "usage b"},
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"remote k8s group a", "remote k8s group b"},
-		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+		Traits:           map[string][]string{"trait a": {"b", "c"}},
 	})
 	unmappedIdentity = auth.WrapIdentity(tlsca.Identity{
 		Username:         "bob",
@@ -78,7 +78,7 @@ var (
 		Usage:            []string{"usage a", "usage b"},
 		Principals:       []string{"principal a", "principal b"},
 		KubernetesGroups: []string{"k8s group a", "k8s group b"},
-		Traits:           map[string][]string{"trait a": []string{"b", "c"}},
+		Traits:           map[string][]string{"trait a": {"b", "c"}},
 	})
 )
 
@@ -143,7 +143,12 @@ func TestAuthenticate(t *testing.T) {
 		authPref:        authPref,
 	}
 
-	user, err := types.NewUser("user-a")
+	const (
+		username = "user-a"
+	)
+	certExpiration := time.Now().Add(time.Hour)
+
+	user, err := types.NewUser(username)
 	require.NoError(t, err)
 
 	tun := mockRevTunnel{
@@ -152,7 +157,6 @@ func TestAuthenticate(t *testing.T) {
 			"local":  mockRemoteSite{name: "local"},
 		},
 	}
-
 	f := &Forwarder{
 		log: logrus.New(),
 		cfg: ForwarderConfig{
@@ -198,6 +202,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -223,6 +228,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -247,6 +253,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -262,8 +269,9 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:         tun,
 
 			wantCtx: &authContext{
-				kubeUsers:  utils.StringsSet([]string{"user-a"}),
-				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -280,8 +288,9 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:         tun,
 
 			wantCtx: &authContext{
-				kubeUsers:  utils.StringsSet([]string{"user-a"}),
-				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -298,8 +307,9 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:         tun,
 
 			wantCtx: &authContext{
-				kubeUsers:  utils.StringsSet([]string{"user-a"}),
-				kubeGroups: utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				kubeUsers:   utils.StringsSet([]string{"user-a"}),
+				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -338,6 +348,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"kube-user-a", "kube-user-b"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -379,6 +390,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "local",
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -425,6 +437,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
 				kubeCluster: "foo",
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -444,6 +457,7 @@ func TestAuthenticate(t *testing.T) {
 				kubeUsers:   utils.StringsSet([]string{"user-a"}),
 				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				kubeCluster: "foo",
+				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
@@ -482,7 +496,7 @@ func TestAuthenticate(t *testing.T) {
 				RemoteAddr: remoteAddr,
 				TLS: &tls.ConnectionState{
 					PeerCertificates: []*x509.Certificate{
-						{NotAfter: time.Now().Add(time.Hour)},
+						{NotAfter: certExpiration},
 					},
 				},
 			}
@@ -508,6 +522,19 @@ func TestAuthenticate(t *testing.T) {
 				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert"),
 				cmpopts.IgnoreFields(teleportClusterClient{}, "dial", "isRemoteClosed"),
 			))
+
+			// validate authCtx.key() to make sure it includes certExpires timestamp.
+			// this is important to make sure user's credentials are correctly cached
+			// and once user's re-login, Teleport won't reuse their previous cache entry.
+			ctxKey := fmt.Sprintf("%v:%v:%v:%v:%v:%v",
+				tt.wantCtx.teleportCluster.name,
+				username,
+				tt.wantCtx.kubeUsers,
+				tt.wantCtx.kubeGroups,
+				tt.wantCtx.kubeCluster,
+				certExpiration.Unix(),
+			)
+			require.Equal(t, ctxKey, gotCtx.key())
 		})
 	}
 }
@@ -1157,6 +1184,177 @@ func TestKubernetesConnectionLimit(t *testing.T) {
 					testCase.assert(t, err)
 				}
 			}
+		})
+	}
+}
+
+func TestForwarder_clientCreds_cache(t *testing.T) {
+	now := time.Now()
+
+	cache, err := ttlmap.New(10)
+	require.NoError(t, err)
+
+	cl, err := newMockCSRClient()
+	require.NoError(t, err)
+
+	f := &Forwarder{
+		cfg: ForwarderConfig{
+			Keygen:     testauthority.New(),
+			AuthClient: cl,
+			Clock:      clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Minute)),
+		},
+		clientCredentials: cache,
+		log:               logrus.New(),
+	}
+
+	type args struct {
+		ctx authContext
+	}
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "store first certificate",
+			args: args{
+				ctx: authContext{
+					kubeUsers:   utils.StringsSet([]string{"user-a"}),
+					kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeCluster: "local",
+					Context: auth.Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "user-a",
+							},
+						},
+						Identity:         identity,
+						UnmappedIdentity: unmappedIdentity,
+					},
+					certExpires: now.Add(1 * time.Hour),
+					teleportCluster: teleportClusterClient{
+						name: "local",
+					},
+					sessionTTL: 1 * time.Hour,
+				},
+			},
+		},
+		{
+			name: "store certificate with different certExpires value",
+			args: args{
+				ctx: authContext{
+					kubeUsers:   utils.StringsSet([]string{"user-a"}),
+					kubeGroups:  utils.StringsSet([]string{"kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeCluster: "local",
+					Context: auth.Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "user-a",
+							},
+						},
+						Identity:         identity,
+						UnmappedIdentity: unmappedIdentity,
+					},
+					certExpires: now.Add(2 * time.Hour),
+					teleportCluster: teleportClusterClient{
+						name: "local",
+					},
+					sessionTTL: 1 * time.Hour,
+				},
+			},
+		},
+		{
+			name: "store certificate with different kube groups",
+			args: args{
+				ctx: authContext{
+					kubeUsers:   utils.StringsSet([]string{"user-a"}),
+					kubeGroups:  utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeCluster: "local",
+					Context: auth.Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "user-a",
+							},
+						},
+						Identity:         identity,
+						UnmappedIdentity: unmappedIdentity,
+					},
+					certExpires: now.Add(1 * time.Hour),
+					teleportCluster: teleportClusterClient{
+						name: "local",
+					},
+					sessionTTL: 1 * time.Hour,
+				},
+			},
+		},
+		{
+			name: "store certificate with different kube user",
+			args: args{
+				ctx: authContext{
+					kubeUsers:   utils.StringsSet([]string{"user-test"}),
+					kubeGroups:  utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeCluster: "local",
+					Context: auth.Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "user-a",
+							},
+						},
+						Identity:         identity,
+						UnmappedIdentity: unmappedIdentity,
+					},
+					certExpires: now.Add(1 * time.Hour),
+					teleportCluster: teleportClusterClient{
+						name: "local",
+					},
+					sessionTTL: 1 * time.Hour,
+				},
+			},
+		},
+		{
+			name: "store certificate for different user",
+			args: args{
+				ctx: authContext{
+					kubeUsers:   utils.StringsSet([]string{"user-test"}),
+					kubeGroups:  utils.StringsSet([]string{"kube-group-b", teleport.KubeSystemAuthenticated}),
+					kubeCluster: "local",
+					Context: auth.Context{
+						User: &types.UserV2{
+							Metadata: types.Metadata{
+								Name: "user-b",
+							},
+						},
+						Identity:         identity,
+						UnmappedIdentity: unmappedIdentity,
+					},
+					certExpires: now.Add(1 * time.Hour),
+					teleportCluster: teleportClusterClient{
+						name: "local",
+					},
+					sessionTTL: 1 * time.Hour,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// make sure cert is not cached
+			cachedTLSCfg := f.getClientCreds(tt.args.ctx)
+			require.Nil(t, cachedTLSCfg)
+
+			// request a new cert
+			tlsCfg, err := f.requestCertificate(tt.args.ctx)
+			require.NoError(t, err)
+
+			// store the certificate in cache
+			err = f.saveClientCreds(tt.args.ctx, tlsCfg)
+			require.NoError(t, err)
+
+			// make sure cache has our entry.
+			cachedTLSCfg = f.getClientCreds(tt.args.ctx)
+			require.NotNil(t, cachedTLSCfg)
+			require.Equal(t, tlsCfg, cachedTLSCfg)
 		})
 	}
 }

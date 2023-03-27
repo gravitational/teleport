@@ -98,6 +98,8 @@ type AgentPoolConfig struct {
 	Cluster string
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// IsRemoteCluster indicates the agent pool is connecting to a remote cluster.
+	IsRemoteCluster bool
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -282,7 +284,7 @@ func (m *AgentPool) getReverseTunnelDetails() *reverseTunnelDetails {
 // transfers into the AgentPool, and will be released when the AgentPool
 // is done with it.
 func (m *AgentPool) addAgent(lease track.Lease) error {
-	addr, err := m.cfg.Resolver(m.ctx)
+	addr, _, err := m.cfg.Resolver(m.ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -340,6 +342,10 @@ func (m *AgentPool) removeDisconnected() {
 	m.agents = filterAndClose(m.agents, func(agent *Agent) bool {
 		return agent.getState() == agentStateDisconnected
 	})
+
+	if m.cfg.IsRemoteCluster {
+		trustedClustersStats.WithLabelValues(m.cfg.Cluster).Set(float64(len(m.agents)))
+	}
 }
 
 // Make sure ServerHandlerToListener implements both interfaces.

@@ -216,7 +216,7 @@ func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter AnnouncePeriod")
 	}
 	if cfg.ServerTTL == 0 {
-		return trace.BadParameter("missing parmeter ServerTTL")
+		return trace.BadParameter("missing parameter ServerTTL")
 	}
 	if cfg.GetServerInfo == nil {
 		return trace.BadParameter("missing parameter GetServerInfo")

@@ -227,6 +227,10 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			eventStream, err = auth.CreateAuditStream(stream.Context(), session.ID(create.SessionID))
 			if err != nil {
+				// Log the reason why audit stream creation failed. This will
+				// surface things like AWS/GCP/MinIO credential/configuration
+				// errors.
+				g.Errorf("Failed to create audit stream: %q.", err)
 				return trace.Wrap(err)
 			}
 			sessionID = session.ID(create.SessionID)
@@ -2434,9 +2438,6 @@ func (g *GRPCServer) UpsertSAMLConnector(ctx context.Context, samlConnector *typ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err = services.ValidateSAMLConnector(samlConnector); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err = auth.ServerWithRoles.UpsertSAMLConnector(ctx, samlConnector); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3818,6 +3819,33 @@ func (g *GRPCServer) GetActiveSessionTrackers(_ *empty.Empty, stream proto.AuthS
 		return trace.Wrap(err)
 	}
 	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, session := range sessions {
+		defined, ok := session.(*types.SessionTrackerV1)
+		if !ok {
+			return trace.BadParameter("unexpected session type %T", session)
+		}
+
+		err := stream.Send(defined)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	return nil
+}
+
+// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+func (g *GRPCServer) GetActiveSessionTrackersWithFilter(filter *types.SessionTrackerFilter, stream proto.AuthService_GetActiveSessionTrackersWithFilterServer) error {
+	ctx := stream.Context()
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessions, err := auth.ServerWithRoles.GetActiveSessionTrackersWithFilter(ctx, filter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

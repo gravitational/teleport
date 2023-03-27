@@ -352,10 +352,7 @@ func (p *proxyCollector) getResourcesAndUpdateCurrent(ctx context.Context) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(proxies) == 0 {
-		// At least one proxy ought to exist.
-		return trace.NotFound("empty proxy list")
-	}
+
 	newCurrent := make(map[string]types.Server, len(proxies))
 	for _, proxy := range proxies {
 		newCurrent[proxy.GetName()] = proxy
@@ -456,11 +453,13 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 		LockWatcherConfig: cfg,
 		fanout:            NewFanout(),
 	}
+	// Resource watcher require the fanout to be initialized before passing in.
+	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
+	collector.fanout.SetInit()
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	collector.fanout.SetInit()
 	return &LockWatcher{watcher, collector}, nil
 }
 
@@ -951,13 +950,14 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	for _, t := range cfg.Types {
 		collector.cas[t] = make(map[string]types.CertAuthority)
 	}
-
+	// Resource watcher require the fanout to be initialized before passing in.
+	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
+	collector.fanout.SetInit()
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	collector.fanout.SetInit()
 	return &CertAuthorityWatcher{watcher, collector}, nil
 }
 

@@ -28,7 +28,7 @@ const (
 	// SystemdDefaultPIDFile is the default path to the PID file for the systemd unit file config
 	SystemdDefaultPIDFile = "/run/teleport.pid"
 	// SystemdDefaultFileDescriptorLimit is the default max number of open file descriptors for the systemd unit file config
-	SystemdDefaultFileDescriptorLimit = 8192
+	SystemdDefaultFileDescriptorLimit = 524288
 )
 
 // systemdUnitFileTemplate is the systemd unit file configuration template.

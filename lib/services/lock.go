@@ -35,8 +35,7 @@ func LockInForceAccessDenied(lock types.Lock) error {
 		s += ": " + msg
 	}
 	err := trace.AccessDenied(s)
-	err.AddField("lock-in-force", lock)
-	return err
+	return trace.WithField(err, "lock-in-force", lock)
 }
 
 // StrictLockingModeAccessDenied is an AccessDenied error returned when strict

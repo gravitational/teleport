@@ -17,8 +17,10 @@ limitations under the License.
 package integration
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
@@ -26,6 +28,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -37,8 +40,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/roundtrip"
+
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -50,15 +56,18 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/web"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -157,6 +166,8 @@ func (s *InstanceSecrets) String() string {
 
 // InstanceConfig is an instance configuration
 type InstanceConfig struct {
+	// Clock is an optional clock to use
+	Clock clockwork.Clock
 	// ClusterName is a cluster name of the instance
 	ClusterName string
 	// HostID is a host id of the instance
@@ -361,7 +372,7 @@ func (s *InstanceSecrets) AsSlice() []*InstanceSecrets {
 }
 
 func (s *InstanceSecrets) GetIdentity() *auth.Identity {
-	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &proto.Certs{
+	i, err := auth.ReadIdentityFromKeyPair(s.PrivKey, &clientproto.Certs{
 		SSH:        s.Cert,
 		TLS:        s.TLSCert,
 		TLSCACerts: [][]byte{s.TLSCACert},
@@ -1298,6 +1309,14 @@ type ClientConfig struct {
 	Interactive bool
 	// EnableEscapeSequences will scan Stdin for SSH escape sequences during command/shell execution.
 	EnableEscapeSequences bool
+	// Password to use when creating a web session
+	Password string
+	// Stdin overrides standard input for the session
+	Stdin io.Reader
+	// Stderr overrides standard error for the session
+	Stderr io.Writer
+	// Stdout overrides standard output for the session
+	Stdout io.Writer
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1409,6 +1428,259 @@ func (i *TeleInstance) NewClient(cfg ClientConfig) (*client.TeleportClient, erro
 		}
 	}
 	return tc, nil
+}
+
+// AddClientCredentials adds authenticated credentials to a client.
+// (server CAs and signed session key).
+func (i *TeleInstance) AddClientCredentials(tc *client.TeleportClient, cfg ClientConfig) (*client.TeleportClient, error) {
+	// Generate certificates for the user simulating login.
+	creds, err := GenerateUserCreds(UserCredsRequest{
+		Process:  i.Process,
+		Username: cfg.Login,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Add key to client and update CAs that will be trusted (equivalent to
+	// updating "known hosts" with OpenSSH.
+	_, err = tc.AddKey(&creds.Key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	cas, err := i.Secrets.GetCAs()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, ca := range cas {
+		err = tc.AddTrustedCA(context.Background(), ca)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return tc, nil
+}
+
+// CreateWebUser creates a user with the provided password which can be
+// used to create a web session.
+func (i *TeleInstance) CreateWebUser(t *testing.T, username, password string) {
+	user, err := types.NewUser(username)
+	require.NoError(t, err)
+
+	role := services.RoleForUser(user)
+	role.SetLogins(types.Allow, []string{username})
+	err = i.Process.GetAuthServer().UpsertRole(context.Background(), role)
+	require.NoError(t, err)
+
+	user.AddRole(role.GetName())
+	err = i.Process.GetAuthServer().CreateUser(context.Background(), user)
+	require.NoError(t, err)
+
+	err = i.Process.GetAuthServer().UpsertPassword(user.GetName(), []byte(password))
+	require.NoError(t, err)
+}
+
+// WebClient allows web sessions to be created as
+// if they were from the UI.
+type WebClient struct {
+	tc      *client.TeleportClient
+	i       *TeleInstance
+	token   string
+	cookies []*http.Cookie
+}
+
+// NewWebClient returns a fully configured and authenticated client
+func (i *TeleInstance) NewWebClient(cfg ClientConfig) (*WebClient, error) {
+	resp, cookies, err := CreateWebSession(i.GetWebAddr(), cfg.Login, cfg.Password)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Extract session cookie and bearer token.
+	if len(cookies) != 1 {
+		return nil, trace.BadParameter("unexpected number of cookies returned; got %d, want %d", len(cookies), 1)
+	}
+	cookie := cookies[0]
+	if cookie.Name != web.CookieName {
+		return nil, trace.BadParameter("unexpected session cookies returned; got %s, want %s", cookie.Name, web.CookieName)
+	}
+
+	tc, err := i.NewUnauthenticatedClient(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if tc, err = i.AddClientCredentials(tc, cfg); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &WebClient{
+		tc:      tc,
+		i:       i,
+		token:   resp.Token,
+		cookies: cookies,
+	}, nil
+}
+
+// CreateWebSession establishes a web session in the same manner that the web UI
+// does. There is no MFA performed, the session will only successfully be created
+// if second factor configuration is `off`. The [web.CreateSessionResponse.Token] and
+// cookies can be used to interact with any authenticated web api endpoints.
+func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionResponse, []*http.Cookie, error) {
+	csReq, err := json.Marshal(web.CreateSessionReq{
+		User: user,
+		Pass: password,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Create POST request to create session.
+	u := url.URL{
+		Scheme: "https",
+		Host:   proxyHost,
+		Path:   "/v1/webapi/sessions/web",
+	}
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Attach CSRF token in cookie and header.
+	csrfToken, err := utils.CryptoRandomHex(32)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	req.AddCookie(&http.Cookie{
+		Name:  csrf.CookieName,
+		Value: csrfToken,
+	})
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Set(csrf.HeaderName, csrfToken)
+
+	// Issue request.
+	httpClient := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	if http.StatusOK != resp.StatusCode {
+		return nil, nil, trace.ConnectionProblem(nil, "received unexpected status code: %d", resp.StatusCode)
+	}
+
+	// Read in response.
+	var csResp *web.CreateSessionResponse
+	err = json.NewDecoder(resp.Body).Decode(&csResp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return csResp, resp.Cookies(), nil
+}
+
+// SSH establishes an SSH connection via the web api in the same manner that
+// the web UI does. The returned [web.TerminalStream] should be used as stdin/stdout
+// for the session.
+func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error) {
+	httpClient := &http.Client{
+		Timeout: 5 * time.Second,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+
+	data, err := json.Marshal(termReq)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("https://%s/v1/webapi/sites/%v/sessions", w.i.GetWebAddr(), w.tc.SiteName), bytes.NewBuffer(data))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.Header.Set("Content-Type", "application/json; charset=utf-8")
+	req.Header.Add("Authorization", "Bearer "+w.token)
+	for _, cookie := range w.cookies {
+		req.Header.Add("Cookie", cookie.String())
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+	if http.StatusOK != resp.StatusCode {
+		return nil, trace.ConnectionProblem(nil, "received unexpected status code: %d", resp.StatusCode)
+	}
+
+	type siteSessionGenerateResponse struct {
+		Session session.Session `json:"session"`
+	}
+
+	// Read in response.
+	var sessionResp *siteSessionGenerateResponse
+	err = json.NewDecoder(resp.Body).Decode(&sessionResp)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	termReq.SessionID = sessionResp.Session.ID
+
+	u := url.URL{
+		Host:   w.i.GetWebAddr(),
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", w.tc.SiteName),
+	}
+
+	data, err = json.Marshal(termReq)
+	if err != nil {
+		return nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, w.token)
+	u.RawQuery = q.Encode()
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	for _, cookie := range w.cookies {
+		header.Add("Cookie", cookie.String())
+	}
+
+	dialer := websocket.Dialer{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+	ws, resp, err := dialer.Dial(u.String(), header)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	defer resp.Body.Close()
+
+	stream, err := web.NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return stream, nil
 }
 
 // StopProxy loops over the extra nodes in a TeleInstance and stops all
@@ -1848,7 +2120,7 @@ func enableKube(config *service.Config, clusterName string) error {
 // getKubeClusters gets all kubernetes clusters accessible from a given auth server.
 func getKubeClusters(t *testing.T, as *auth.Server) []*types.KubernetesCluster {
 	ctx := context.Background()
-	resources, err := apiclient.GetResourcesWithFilters(ctx, as, proto.ListResourcesRequest{
+	resources, err := apiclient.GetResourcesWithFilters(ctx, as, clientproto.ListResourcesRequest{
 		ResourceType: types.KindKubeService,
 	})
 	require.NoError(t, err)

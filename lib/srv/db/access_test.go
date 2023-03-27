@@ -1871,6 +1871,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		TLSConfig:        tlsConfig,
 		Limiter:          connLimiter,
 		Auth:             testAuth,
+		Emitter:          c.emitter,
 		Databases:        p.Databases,
 		OnHeartbeat:      p.OnHeartbeat,
 		ResourceMatchers: p.ResourceMatchers,

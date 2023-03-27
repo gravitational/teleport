@@ -1008,6 +1008,43 @@ func TestGetAndList_Nodes(t *testing.T) {
 	require.Empty(t, cmp.Diff(testResources[0:1], resp.Resources))
 }
 
+// TestStreamSessionEventsRBAC ensures that session events can not be streamed
+// by users who lack the read permission on the session resource.
+func TestStreamSessionEventsRBAC(t *testing.T) {
+	t.Parallel()
+
+	role, err := types.NewRole("deny-sessions", types.RoleSpecV5{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{
+				"*": []string{types.Wildcard},
+			},
+		},
+		Deny: types.RoleConditions{
+			Rules: []types.Rule{
+				types.NewRule(types.KindSession, []string{types.VerbRead}),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	srv := newTestTLSServer(t)
+
+	user, err := CreateUser(srv.Auth(), "user", role)
+	require.NoError(t, err)
+
+	identity := TestUser(user.GetName())
+	clt, err := srv.NewClient(identity)
+	require.NoError(t, err)
+
+	_, errC := clt.StreamSessionEvents(context.Background(), "foo", 0)
+	select {
+	case err := <-errC:
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+	case <-time.After(1 * time.Second):
+		require.FailNow(t, "expected access denied error but stream succeeded")
+	}
+}
+
 // TestStreamSessionEvents_User ensures that when a user streams a session's events, it emits an audit event.
 func TestStreamSessionEvents_User(t *testing.T) {
 	t.Parallel()

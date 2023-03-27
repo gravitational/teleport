@@ -19,21 +19,27 @@ package srv
 import (
 	"context"
 	"io"
+	"os/user"
+	"sync/atomic"
 	"testing"
 	"time"
-
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/services"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
@@ -70,7 +76,7 @@ func TestParseAccessRequestIDs(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.comment, func(t *testing.T) {
-			out, err := parseAccessRequestIDs(tt.input)
+			out, err := ParseAccessRequestIDs(tt.input)
 			tt.assertErr(t, err)
 			require.Equal(t, out, tt.result)
 		})
@@ -86,11 +92,6 @@ func TestSession_newRecorder(t *testing.T) {
 
 	proxyRecordingSync, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxySync,
-	})
-	require.NoError(t, err)
-
-	nodeRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: types.RecordAtNode,
 	})
 	require.NoError(t, err)
 
@@ -155,28 +156,6 @@ func TestSession_newRecorder(t *testing.T) {
 				_, ok := i.(*events.DiscardStream)
 				require.True(t, ok)
 			},
-		},
-		{
-			desc: "err-new-streamer-fails",
-			sess: &session{
-				id:  "test",
-				log: logger,
-				registry: &SessionRegistry{
-					SessionRegistryConfig: SessionRegistryConfig{
-						Srv: &mockServer{
-							component: teleport.ComponentNode,
-						},
-					},
-				},
-			},
-			sctx: &ServerContext{
-				SessionRecordingConfig: nodeRecording,
-				srv: &mockServer{
-					component: teleport.ComponentNode,
-				},
-			},
-			errAssertion: require.Error,
-			recAssertion: require.Nil,
 		},
 		{
 			desc: "err-new-audit-writer-fails",
@@ -266,17 +245,6 @@ func TestInteractiveSession(t *testing.T) {
 			return !found
 		}
 		require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
-	})
-
-	t.Run("BrokenRecorder", func(t *testing.T) {
-		t.Parallel()
-		sess, _ := testOpenSession(t, reg, nil)
-
-		// The recorder might be closed in the case of an error downstream.
-		// Closing the session recorder should result in the session ending.
-		err := sess.recorder.Close(context.Background())
-		require.NoError(t, err)
-		require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 	})
 }
 
@@ -424,4 +392,176 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, roleSet services.RoleSe
 
 	require.NotNil(t, scx.session)
 	return scx.session, sshChanOpen
+}
+
+type mockRecorder struct {
+	events.StreamWriter
+	emitter *eventstest.ChannelEmitter
+	done    bool
+}
+
+func (m *mockRecorder) Done() <-chan struct{} {
+	ch := make(chan struct{})
+	if m.done {
+		close(ch)
+	}
+
+	return ch
+}
+
+func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return m.emitter.EmitAuditEvent(ctx, event)
+}
+
+type trackerService struct {
+	created     int32
+	createError error
+	services.SessionTrackerService
+}
+
+func (t *trackerService) CreatedCount() int {
+	return int(atomic.LoadInt32(&t.created))
+}
+
+func (t *trackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
+	atomic.AddInt32(&t.created, 1)
+
+	if t.createError != nil {
+		return nil, t.createError
+	}
+
+	return t.SessionTrackerService.CreateSessionTracker(ctx, tracker)
+}
+
+type sessionEvaluator struct {
+	moderated bool
+	SessionAccessEvaluator
+}
+
+func (s sessionEvaluator) IsModerated() bool {
+	return s.moderated
+}
+
+func TestTrackingSession(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	me, err := user.Current()
+	require.NoError(t, err)
+
+	cases := []struct {
+		name            string
+		component       string
+		recordingMode   string
+		createError     error
+		moderated       bool
+		assertion       require.ErrorAssertionFunc
+		createAssertion func(t *testing.T, count int)
+	}{
+		{
+			name:          "node with proxy recording mode",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtProxy,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
+			},
+		},
+		{
+			name:          "node with node recording mode",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "proxy with proxy recording mode",
+			component:     teleport.ComponentProxy,
+			recordingMode: types.RecordAtProxy,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "proxy with node recording mode",
+			component:     teleport.ComponentProxy,
+			recordingMode: types.RecordAtNode,
+			assertion:     require.NoError,
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 0, count)
+			},
+		},
+		{
+			name:          "auth outage for non moderated session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNodeSync,
+			assertion:     require.NoError,
+			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+		{
+			name:          "auth outage for moderated session",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNodeSync,
+			moderated:     true,
+			assertion:     require.Error,
+			createError:   trace.ConnectionProblem(context.DeadlineExceeded, ""),
+			createAssertion: func(t *testing.T, count int) {
+				require.Equal(t, 1, count)
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newMockServer(t)
+			srv.component = tt.component
+
+			trackingService := &trackerService{
+				SessionTrackerService: &mockSessiontrackerService{
+					trackers: make(map[string]types.SessionTracker),
+				},
+				createError: tt.createError,
+			}
+
+			scx := newTestServerContext(t, srv, nil)
+			scx.SessionRecordingConfig = &types.SessionRecordingConfigV2{
+				Kind:    types.KindSessionRecordingConfig,
+				Version: types.V2,
+				Spec: types.SessionRecordingConfigSpecV2{
+					Mode: tt.recordingMode,
+				},
+			}
+
+			sess := &session{
+				id:  rsession.NewID(),
+				log: utils.NewLoggerForTests().WithField(trace.Component, "test-session"),
+				registry: &SessionRegistry{
+					SessionRegistryConfig: SessionRegistryConfig{
+						Srv:                   srv,
+						SessionTrackerService: trackingService,
+						clock:                 clockwork.NewFakeClock(), //use a fake clock to prevent the update loop from running
+					},
+				},
+				serverMeta: apievents.ServerMetadata{
+					ServerHostname: "test",
+					ServerID:       "123",
+				},
+				scx:       scx,
+				serverCtx: ctx,
+				login:     me.Name,
+				access:    sessionEvaluator{moderated: tt.moderated},
+			}
+
+			err = sess.trackSession(ctx, me.Name, nil)
+			tt.assertion(t, err)
+			tt.createAssertion(t, trackingService.CreatedCount())
+		})
+	}
+
 }

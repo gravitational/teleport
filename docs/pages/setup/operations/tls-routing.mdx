@@ -15,7 +15,7 @@ description: How to upgrade an existing Teleport cluster to single-port TLS rout
 
 <Admonition scope={["cloud"]} type="tip" scopeOnly>
 
-Teleport Cloud manages the Proxy Service's networking configuration for you. 
+Teleport Cloud manages the Proxy Service's networking configuration for you.
 
 To see which ports and networking settings the Proxy Service is configured to
 use in your Teleport Cloud tenant, run the following command, replacing
@@ -24,8 +24,6 @@ use in your Teleport Cloud tenant, run the following command, replacing
 ```code
 $ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
 ```
-
-TLS routing is not currently supported in Teleport Cloud.
 
 </Admonition>
 
