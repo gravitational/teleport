@@ -16,62 +16,67 @@ limitations under the License.
 
 package utils
 
-// CopyByteSlice returns a copy of the byte slice.
-func CopyByteSlice(in []byte) []byte {
-	if in == nil {
-		return nil
+import (
+	"strings"
+)
+
+// JoinStrings returns a string that is all the elements in the slice `T[]` joined by `sep`
+// This being generic allows for the usage of custom string times, without having to convert
+// the elements to a string to be passed into `strings.Join`.
+func JoinStrings[T ~string](elems []T, sep string) T {
+	switch len(elems) {
+	case 0:
+		return ""
+	case 1:
+		return elems[0]
 	}
-	out := make([]byte, len(in))
-	copy(out, in)
-	return out
+	n := len(sep) * (len(elems) - 1)
+	for i := 0; i < len(elems); i++ {
+		n += len(elems[i])
+	}
+
+	var b strings.Builder
+	b.Grow(n)
+	b.WriteString(string(elems[0]))
+	for _, s := range elems[1:] {
+		b.WriteString(sep)
+		b.WriteString(string(s))
+	}
+	return T(b.String())
 }
 
-// CopyByteSlices returns a copy of the byte slices.
-func CopyByteSlices(in [][]byte) [][]byte {
-	if in == nil {
-		return nil
-	}
-	out := make([][]byte, len(in))
-	for i := range in {
-		out[i] = CopyByteSlice(in[i])
-	}
-	return out
-}
-
-// StringSlicesEqual returns true if string slices equal
-func StringSlicesEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// SliceContainsStr returns 'true' if the slice contains the given value
-func SliceContainsStr(slice []string, value string) bool {
-	for i := range slice {
-		if slice[i] == value {
-			return true
-		}
-	}
-	return false
-}
-
-// Deduplicate deduplicates list of strings
-func Deduplicate(in []string) []string {
+// Deduplicate deduplicates list of comparable values.
+func Deduplicate[T comparable](in []T) []T {
 	if len(in) == 0 {
 		return in
 	}
-	out := make([]string, 0, len(in))
-	seen := make(map[string]bool, len(in))
+	out := make([]T, 0, len(in))
+	seen := make(map[T]struct{}, len(in))
 	for _, val := range in {
 		if _, ok := seen[val]; !ok {
 			out = append(out, val)
-			seen[val] = true
+			seen[val] = struct{}{}
+		}
+	}
+	return out
+}
+
+// DeduplicateAny deduplicates list of any values with compare function.
+func DeduplicateAny[T any](in []T, compare func(T, T) bool) []T {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]T, 0, len(in))
+	for _, val := range in {
+		var seen bool
+		for _, outVal := range out {
+			if compare(val, outVal) {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			out = append(out, val)
 		}
 	}
 	return out

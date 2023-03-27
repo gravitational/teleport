@@ -21,10 +21,8 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -248,14 +246,12 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if c.GetReverseTunnelAddress() != t.GetReverseTunnelAddress() {
 		return immutableFieldErr("tunnel_addr")
 	}
-	if !utils.StringSlicesEqual(c.GetRoles(), t.GetRoles()) {
+	if !slices.Equal(c.GetRoles(), t.GetRoles()) {
 		return immutableFieldErr("roles")
 	}
-	if !cmp.Equal(c.GetRoleMap(), t.GetRoleMap()) {
-		return immutableFieldErr("role_map")
-	}
+	roleMapUpdated := !cmp.Equal(c.GetRoleMap(), t.GetRoleMap())
 
-	if c.GetEnabled() == t.GetEnabled() {
+	if c.GetEnabled() == t.GetEnabled() && !roleMapUpdated {
 		if t.GetEnabled() {
 			return trace.AlreadyExists("leaf cluster is already enabled, this update would have no effect")
 		}

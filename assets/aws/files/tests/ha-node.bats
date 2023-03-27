@@ -15,9 +15,9 @@ load fixtures/common
     [ ${GENERATE_EXIT_CODE?} -eq 0 ]
 }
 
-@test "[${TEST_SUITE?}] teleport.auth_servers is set correctly" {
+@test "[${TEST_SUITE?}] teleport.auth_server is set correctly" {
     load ${TELEPORT_CONFD_DIR?}/conf
-    cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^  auth_servers:" -A1 | grep -q "${TELEPORT_AUTH_SERVER_LB?}"
+    cat "${TELEPORT_CONFIG_PATH?}" | grep -E "^  auth_server:" -A1 | grep -q "${TELEPORT_AUTH_SERVER_LB?}"
 }
 
 # in each test, we echo the block so that if the test fails, the block is outputted

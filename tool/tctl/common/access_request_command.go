@@ -26,19 +26,23 @@ import (
 	"time"
 
 	"github.com/gravitational/kingpin"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/trace"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // AccessRequestCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type AccessRequestCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 	reqIDs string
 
 	user        string
@@ -65,7 +69,7 @@ type AccessRequestCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 	requests := app.Command("requests", "Manage access requests").Alias("request")
 
@@ -214,7 +218,7 @@ func (c *AccessRequestCommand) splitRoles() []string {
 
 func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {
@@ -236,7 +240,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 
 func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {
@@ -263,7 +267,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client auth.ClientI) 
 	req.SetRequestReason(c.reason)
 
 	if c.dryRun {
-		err = services.ValidateAccessRequestForUser(ctx, client, req, services.ExpandVars(true))
+		err = services.ValidateAccessRequestForUser(ctx, clockwork.NewRealClock(), client, req, tlsca.Identity{}, services.ExpandVars(true))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -309,7 +313,7 @@ func (c *AccessRequestCommand) Delete(ctx context.Context, client auth.ClientI) 
 		fmt.Println("the user's access to these roles. If you would like to lock the user's access to the")
 		fmt.Printf("requested roles instead, you can run:\n\n")
 		for _, reqID := range approvedTokens {
-			fmt.Printf("> tctl lock --access_request %s\n", reqID)
+			fmt.Printf("> tctl lock --access-request %s\n", reqID)
 		}
 		fmt.Printf("\nTo disregard this warning and delete the request anyway, re-run this command with --force.\n\n")
 	}
@@ -399,6 +403,8 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"[+]",
 			"Requested resources truncated, use the `tctl requests get` subcommand to view the full list")
 		table.AddColumn(asciitable.Column{Title: "Created At (UTC)"})
+		table.AddColumn(asciitable.Column{Title: "Request TTL"})
+		table.AddColumn(asciitable.Column{Title: "Session TTL"})
 		table.AddColumn(asciitable.Column{Title: "Status"})
 		table.AddColumn(asciitable.Column{
 			Title:         "Request Reason",
@@ -419,15 +425,14 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			if resourceIDsString == "" {
-				resourceIDsString = "[none]"
-			}
 			table.AddRow([]string{
 				req.GetName(),
 				req.GetUser(),
 				fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ",")),
 				resourceIDsString,
 				req.GetCreationTime().Format(time.RFC822),
+				time.Until(req.Expiry()).Round(time.Minute).String(),
+				time.Until(req.GetAccessExpiry()).Round(time.Minute).String(),
 				req.GetState().String(),
 				quoteOrDefault(req.GetRequestReason(), ""),
 				quoteOrDefault(req.GetResolveReason(), ""),

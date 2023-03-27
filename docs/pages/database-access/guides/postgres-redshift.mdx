@@ -13,32 +13,27 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access Redshift Self-Hosted](../../../img/database-access/guides/redshift_selfhosted.png)
 </ScopedBlock>
-
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access Redshift Cloud](../../../img/database-access/guides/redshift_cloud.png)
 </ScopedBlock>
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with a Redshift cluster and permissions to create and attach IAM
   policies.
+- Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
-
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/6. Install Teleport
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/6. Create a Teleport user
+## Step 1/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/6. Create a Database Service configuration
+## Step 2/5. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -75,38 +70,30 @@ The command will generate a Database Service configuration with Redshift
 database auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
-## Step 4/6. Create an IAM policy for Teleport
+## Step 3/5. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
 - Discover and register Redshift databases.
 - Manage IAM user or IAM role policies.
 
+Before you can generate IAM permissions, you must provide the Teleport Database
+Service access to AWS credentials.
+
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
+
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/6. Start the Database Service
+## Step 4/5. Start the Database Service
 
-Run the following command on the Database Service node:
-
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
 The Database Service will discover all Redshift databases according to the configuration
-and register them in the cluster. The agent will also attempt to configure IAM
+and register them in the cluster. The Database Service will also attempt to configure IAM
 access policies for the discovered databases. Keep in mind that AWS IAM changes
 may not propagate immediately and can take a few minutes to come into effect.
 
-<Admonition type="note" title="AWS credentials">
-
-  The Teleport Database Service uses the default credential provider chain to
-  find AWS credentials. See
-  [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials)
-  for more information.
-
-</Admonition>
-
-## Step 6/6. Connect
+## Step 5/5. Connect
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -139,21 +126,21 @@ $ tsh db ls
 
 </ScopedBlock>
 
-Log in to a particular database using the `tsh db login` command:
+<Admonition type="note" title="Note">
+  You can override the database name by applying the `teleport.dev/database_name` AWS tag to the resource. The value of the tag will be used as the database name.
+</Admonition>
+
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login my-redshift
+$ tsh db connect my-redshift
 ```
-
-<Admonition type="tip" title="Tip">
-  You can be logged into multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=awsuser --db-name=dev my-redshift
+$ tsh db connect --db-user=awsuser --db-name=dev my-redshift
 ```
 
 <Admonition type="note" title="Database users must exist">
@@ -161,22 +148,17 @@ $ tsh db login --db-user=awsuser --db-name=dev my-redshift
   tokens for Redshift databases. Users must exist in the database.
 </Admonition>
 
-Now connect to the database:
-
-```code
-$ tsh db connect my-redshift
-```
-
-<Admonition type="note" title="Note">
-  The `psql` command-line client should be available in `PATH` in order to be
-  able to connect.
-</Admonition>
-
 To log out of the database and remove credentials:
 
 ```code
 $ tsh db logout my-redshift
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
+
+(!docs/pages/includes/database-access/aws-troubleshooting-max-policy-size.mdx!)
 
 ## Next steps
 

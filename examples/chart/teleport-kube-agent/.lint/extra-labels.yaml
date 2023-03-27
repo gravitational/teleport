@@ -2,6 +2,12 @@ authToken: auth-token
 proxyAddr: proxy.example.com:3080
 kubeClusterName: test-kube-cluster
 extraLabels:
+  role:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "role"
+  roleBinding:
+    app.kubernetes.io/name: "teleport-kube-agent"
+    resource: "rolebinding"
   clusterRole:
     app.kubernetes.io/name: "teleport-kube-agent"
     resource: "clusterrole"

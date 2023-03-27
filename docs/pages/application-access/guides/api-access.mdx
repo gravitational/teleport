@@ -5,8 +5,13 @@ description: How to access REST APIs with Teleport Application Access.
 
 # Application API Access
 
-Teleport Application Access can be used to access applications' (REST or Teleport's own gRPC) APIs with
-tools like [curl](https://man7.org/linux/man-pages/man1/curl.1.html) or Postman.
+Teleport Application Access can be used to access HTTP applications' APIs with
+tools like [curl](https://man7.org/linux/man-pages/man1/curl.1.html) or
+Postman.
+
+<Admonition type="note" title="Non-HTTP API Support">
+Use [TCP Application Access](./tcp.mdx) for non-HTTP APIs (like gRPC).
+</Admonition>
 
 ## Prerequisites
 
@@ -43,7 +48,7 @@ Log into your Teleport cluster and view available applications:
 
 ```code
 $ tsh login --proxy=teleport.example.com
-$ tsh app ls
+$ tsh apps ls
 
 # Application Description         Public Address               Labels
 # ----------- ------------------- ---------------------------- -------
@@ -53,11 +58,10 @@ $ tsh app ls
 Retrieve short-lived X.509 certificate for the application:
 
 ```code
-$ tsh app login grafana
+$ tsh apps login grafana
 # Logged into app grafana. Example curl command:
 
 $ curl \
-  --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
   https://grafana.teleport.example.com:3080
@@ -70,7 +74,11 @@ target application's API through Teleport App Access.
   type="note"
   title="CA and Key Pair Files"
 >
-  Note the paths to the CA certificate and your user's certificate/key pair in the command - `curl` will use a client certificate to authenticate with Teleport.
+  Note the paths to your user's certificate/key pair in the command - `curl` will use a client certificate to authenticate with Teleport.
+  
+  <ScopedBlock scope={["oss", "enterprise"]}>
+    The Teleport Proxy Service is usually configured with a wildcard certificate issued by a public certificate authority such as Let's Encrypt. If your Teleport Proxy Service has been configured to use a self-signed certificate instead, you will need to include it in your `curl` command using `--cacert <path>`.
+  </ScopedBlock>
 </Admonition>
 
 As Grafana's API requires authentication, let's update the `curl` command to
@@ -79,7 +87,6 @@ call its `/api/users` endpoint:
 
 ```code
 $ curl --user admin:admin \
-  --cacert /Users/alice/.tsh/keys/teleport.example.com/certs.pem \
   --cert /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem \
   --key /Users/alice/.tsh/keys/teleport.example.com/alice \
     https://grafana.teleport.example.com:3080/api/users
@@ -91,14 +98,14 @@ The app's X.509 certificate will expire on its own after the TTL allowed by
 your user's role. You can also remove it explicitly:
 
 ```code
-$ tsh app logout
+$ tsh apps logout
 # Logged out of app "grafana"
 ```
 
 ## Application information
 
 ```code
-$ tsh app config
+$ tsh apps config
 ```
 
 shows current app URI and paths to the secrets.
@@ -108,7 +115,7 @@ This is useful when configuring CLI tools (such as `curl`) or GUI tools (such as
 Let's print the app information in a table format:
 
 ```code
-$ tsh app config
+$ tsh apps config
 
 # Name:      grafana
 # URI:       https://grafana.teleport.example.com:3080
@@ -121,16 +128,16 @@ We can also provide different `--format` values to print specific parts
 of the app configuration:
 
 ```code
-$ tsh app config --format=uri
+$ tsh apps config --format=uri
 # https://grafana-root.gravitational.io:3080
 
-$ tsh app config --format=ca
+$ tsh apps config --format=ca
 # /Users/alice/.tsh/keys/teleport.example.com/certs.pem
 
-$ tsh app config --format=cert
+$ tsh apps config --format=cert
 # /Users/alice/.tsh/keys/teleport.example.com/alice-app/cluster-name/grafana-x509.pem
 
-$ tsh app config --format=key
+$ tsh apps config --format=key
 # /Users/alice/.tsh/keys/teleport.example.com/alice
 ```
 
@@ -139,8 +146,7 @@ appropriate `curl` command. Using our Grafana `/api/users` example above:
 
 ```code
 $ curl --user admin:admin \
-  --cacert $(tsh app config --format=ca) \
-  --cert $(tsh app config --format=cert) \
-  --key $(tsh app config --format=key) \
-    $(tsh app config --format=uri)/api/users
+  --cert $(tsh apps config --format=cert) \
+  --key $(tsh apps config --format=key) \
+    $(tsh apps config --format=uri)/api/users
 ```

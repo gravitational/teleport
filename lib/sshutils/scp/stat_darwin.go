@@ -23,10 +23,10 @@ import (
 )
 
 // Source: os/stat_darwin.go
-func atime(fi os.FileInfo) time.Time {
+func GetAtime(fi os.FileInfo) time.Time {
 	return timespecToTime(fi.Sys().(*syscall.Stat_t).Atimespec)
 }
 
 func timespecToTime(ts syscall.Timespec) time.Time {
-	return time.Unix(int64(ts.Sec), int64(ts.Nsec)) //nolint:unconvert
+	return time.Unix(ts.Sec, ts.Nsec)
 }

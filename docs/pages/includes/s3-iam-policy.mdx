@@ -1,0 +1,40 @@
+You'll need to replace these values in the policy example below:
+
+| Placeholder value | Replace with |
+| - | - |
+| `your-sessions-bucket` | Name to use for the Teleport S3 session recording bucket |
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "BucketActions",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutEncryptionConfiguration",
+                "s3:PutBucketVersioning",
+                "s3:ListBucketVersions",
+                "s3:ListBucketMultipartUploads",
+                "s3:ListBucket",
+                "s3:GetEncryptionConfiguration",
+                "s3:GetBucketVersioning",
+                "s3:CreateBucket"
+            ],
+            "Resource": "arn:aws:s3:::your-sessions-bucket"
+        },
+        {
+            "Sid": "ObjectActions",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObjectVersion",
+                "s3:GetObjectRetention",
+                "s3:*Object",
+                "s3:ListMultipartUploadParts",
+                "s3:AbortMultipartUpload"
+            ],
+            "Resource": "arn:aws:s3:::your-sessions-bucket/*"
+        }
+    ]
+}
+```

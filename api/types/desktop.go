@@ -19,8 +19,9 @@ package types
 import (
 	"sort"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // WindowsDesktopService represents a Windows desktop service instance.
@@ -37,15 +38,24 @@ type WindowsDesktopService interface {
 	ProxiedService
 }
 
+type WindowsDesktopServices []WindowsDesktopService
+
+// AsResources returns windows desktops as type resources with labels.
+func (s WindowsDesktopServices) AsResources() []ResourceWithLabels {
+	resources := make([]ResourceWithLabels, 0, len(s))
+	for _, server := range s {
+		resources = append(resources, ResourceWithLabels(server))
+	}
+	return resources
+}
+
 var _ WindowsDesktopService = &WindowsDesktopServiceV3{}
 
 // NewWindowsDesktopServiceV3 creates a new WindowsDesktopServiceV3 resource.
-func NewWindowsDesktopServiceV3(name string, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
+func NewWindowsDesktopServiceV3(meta Metadata, spec WindowsDesktopServiceSpecV3) (*WindowsDesktopServiceV3, error) {
 	s := &WindowsDesktopServiceV3{
 		ResourceHeader: ResourceHeader{
-			Metadata: Metadata{
-				Name: name,
-			},
+			Metadata: meta,
 		},
 		Spec: spec,
 	}
@@ -86,16 +96,6 @@ func (s *WindowsDesktopServiceV3) GetTeleportVersion() string {
 	return s.Spec.TeleportVersion
 }
 
-// Origin returns the origin value of the resource.
-func (s *WindowsDesktopServiceV3) Origin() string {
-	return s.Metadata.Origin()
-}
-
-// SetOrigin sets the origin value of the resource.
-func (s *WindowsDesktopServiceV3) SetOrigin(origin string) {
-	s.Metadata.SetOrigin(origin)
-}
-
 // GetProxyID returns a list of proxy ids this server is connected to.
 func (s *WindowsDesktopServiceV3) GetProxyIDs() []string {
 	return s.Spec.ProxyIDs
@@ -106,21 +106,6 @@ func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
-// GetAllLabels returns the resources labels.
-func (s *WindowsDesktopServiceV3) GetAllLabels() map[string]string {
-	return s.Metadata.Labels
-}
-
-// GetStaticLabels returns the windows desktop static labels.
-func (s *WindowsDesktopServiceV3) GetStaticLabels() map[string]string {
-	return s.Metadata.Labels
-}
-
-// SetStaticLabels sets the windows desktop static labels.
-func (s *WindowsDesktopServiceV3) SetStaticLabels(sl map[string]string) {
-	s.Metadata.Labels = sl
-}
-
 // GetHostname returns the windows hostname of this service.
 func (s *WindowsDesktopServiceV3) GetHostname() string {
 	return s.Spec.Hostname
@@ -129,7 +114,8 @@ func (s *WindowsDesktopServiceV3) GetHostname() string {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (s *WindowsDesktopServiceV3) MatchSearch(values []string) bool {
-	return MatchSearch(nil, values, nil)
+	fieldVals := append(utils.MapToStrings(s.GetAllLabels()), s.GetName(), s.GetHostname())
+	return MatchSearch(fieldVals, values, nil)
 }
 
 // WindowsDesktop represents a Windows desktop host.
@@ -144,6 +130,9 @@ type WindowsDesktop interface {
 	GetDomain() string
 	// GetHostID returns the ID of the Windows Desktop Service reporting the desktop.
 	GetHostID() string
+	// NonAD checks whether this is a standalone host that
+	// is not joined to an Active Directory domain.
+	NonAD() bool
 }
 
 var _ WindowsDesktop = &WindowsDesktopV3{}
@@ -183,6 +172,11 @@ func (d *WindowsDesktopV3) CheckAndSetDefaults() error {
 	return nil
 }
 
+// NonAD checks whether host is part of Active Directory
+func (d *WindowsDesktopV3) NonAD() bool {
+	return d.Spec.NonAD
+}
+
 // GetAddr returns the network address of this host.
 func (d *WindowsDesktopV3) GetAddr() string {
 	return d.Spec.Addr
@@ -193,22 +187,6 @@ func (d *WindowsDesktopV3) GetHostID() string {
 	return d.Spec.HostID
 }
 
-// GetAllLabels returns combined static and dynamic labels.
-func (d *WindowsDesktopV3) GetAllLabels() map[string]string {
-	// TODO(zmb3): add dynamic labels when running in agent mode
-	return CombineLabels(d.Metadata.Labels, nil)
-}
-
-// GetStaticLabels returns the windows desktop static labels.
-func (d *WindowsDesktopV3) GetStaticLabels() map[string]string {
-	return d.Metadata.Labels
-}
-
-// SetStaticLabels sets the windows desktop static labels.
-func (d *WindowsDesktopV3) SetStaticLabels(sl map[string]string) {
-	d.Metadata.Labels = sl
-}
-
 // LabelsString returns all desktop labels as a string.
 func (d *WindowsDesktopV3) LabelsString() string {
 	return LabelsAsString(d.Metadata.Labels, nil)
@@ -217,16 +195,6 @@ func (d *WindowsDesktopV3) LabelsString() string {
 // GetDomain returns the Active Directory domain of this host.
 func (d *WindowsDesktopV3) GetDomain() string {
 	return d.Spec.Domain
-}
-
-// Origin returns the origin value of the resource.
-func (d *WindowsDesktopV3) Origin() string {
-	return d.Metadata.Labels[OriginLabel]
-}
-
-// SetOrigin sets the origin value of the resource.
-func (d *WindowsDesktopV3) SetOrigin(o string) {
-	d.Metadata.Labels[OriginLabel] = o
 }
 
 // MatchSearch goes through select field values and tries to
@@ -341,6 +309,20 @@ type ListWindowsDesktopsResponse struct {
 // ListWindowsDesktopsRequest is a request type to ListWindowsDesktops.
 type ListWindowsDesktopsRequest struct {
 	WindowsDesktopFilter
+	Limit                         int
+	StartKey, PredicateExpression string
+	Labels                        map[string]string
+	SearchKeywords                []string
+}
+
+// ListWindowsDesktopServicesResponse is a response type to ListWindowsDesktopServices.
+type ListWindowsDesktopServicesResponse struct {
+	DesktopServices []WindowsDesktopService
+	NextKey         string
+}
+
+// ListWindowsDesktopServicesRequest is a request type to ListWindowsDesktopServices.
+type ListWindowsDesktopServicesRequest struct {
 	Limit                         int
 	StartKey, PredicateExpression string
 	Labels                        map[string]string

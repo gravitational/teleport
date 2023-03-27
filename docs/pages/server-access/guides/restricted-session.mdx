@@ -63,12 +63,12 @@ Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
 
 ```yaml
 # Example config to be saved as /etc/teleport.yaml
+version: v3
 teleport:
   nodename: graviton-node
   auth_token: exampletoken
-  auth_servers:
   # Replace with the address of the Teleport Auth Server.
-  - 127.0.0.1:3025
+  auth_server: 127.0.0.1:3025
   data_dir: /var/lib/teleport
 proxy_service:
   enabled: false
@@ -93,7 +93,7 @@ Create a file called `netpolicy.yaml`:
 
 ```yaml
 kind: network_restrictions
-version: v5
+version: v4
 metadata:
   name: network-restrictions
 spec:
@@ -190,5 +190,5 @@ Enhanced Recording sets the `action` to `0` (`OBSERVED`) while a Restricted Sess
 
 ## Next steps
 
-- See the [Teleport Configuration Reference](../../setup/reference/config.mdx) for more
+- See the [Teleport Configuration Reference](../../reference/config.mdx) for more
 information on configuring Restricted Sessions.

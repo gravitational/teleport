@@ -22,10 +22,11 @@ use rdp::model::error::*;
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::{BigUint, PublicKeyParts, RsaPrivateKey};
 use std::convert::TryFrom;
+use std::fmt::Write as _;
 use std::io::{Cursor, Read};
 use uuid::Uuid;
 
-// AID (Application ID) of PIV application, per
+// AID (Application ID) of PIV application, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
 const PIV_AID: Aid = Aid::new_truncatable(
     &[
@@ -36,7 +37,7 @@ const PIV_AID: Aid = Aid::new_truncatable(
 
 // Card implements a PIV-compatible smartcard, per:
 // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-73-4.pdf
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Card<const S: usize> {
     // Card-holder user ID (CHUID). In federal agencies, this value would be unique per employee
     // and encodes some agency information. In our case it's static.
@@ -44,8 +45,8 @@ pub struct Card<const S: usize> {
     piv_auth_cert: Vec<u8>,
     piv_auth_key: RsaPrivateKey,
     pin: String,
-    // Pending command and response to receive/send over multiple messages when they don't fit into
-    // one.
+    // Pending command and response to receive/send over multiple messages when
+    // they don't fit into one.
     pending_command: Option<Command<S>>,
     pending_response: Option<Cursor<Vec<u8>>>,
 }
@@ -53,7 +54,7 @@ pub struct Card<const S: usize> {
 impl<const S: usize> Card<S> {
     pub fn new(uuid: Uuid, cert_der: &[u8], key_der: &[u8], pin: String) -> RdpResult<Self> {
         let piv_auth_key = RsaPrivateKey::from_pkcs1_der(key_der).map_err(|e| {
-            invalid_data_error(&format!("failed to parse private key from DER: {:?}", e))
+            invalid_data_error(&format!("failed to parse private key from DER: {e:?}"))
         })?;
 
         Ok(Self {
@@ -138,12 +139,12 @@ impl<const S: usize> Card<S> {
     }
 
     fn handle_verify(&mut self, cmd: Command<S>) -> RdpResult<Response> {
-        return if cmd.data() == self.pin.as_bytes() {
+        if cmd.data() == self.pin.as_bytes() {
             Ok(Response::new(Status::Success))
         } else {
             warn!("PIN mismatch, want {}, got {:?}", self.pin, cmd.data());
             Ok(Response::new(Status::VerificationFailed))
-        };
+        }
     }
 
     fn handle_get_data(&mut self, cmd: Command<S>) -> RdpResult<Response> {
@@ -153,7 +154,7 @@ impl<const S: usize> Card<S> {
             return Ok(Response::new(Status::NotFound));
         }
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| invalid_data_error(&format!("TLV invalid: {:?}", e)))?;
+            .map_err(|e| invalid_data_error(&format!("TLV invalid: {e:?}")))?;
         if *request_tlv.tag() != tlv_tag(0x5C)? {
             return Ok(Response::new(Status::NotFound));
         }
@@ -245,11 +246,10 @@ impl<const S: usize> Card<S> {
         }
 
         let request_tlv = Tlv::from_bytes(cmd.data())
-            .map_err(|e| invalid_data_error(&format!("TLV invalid: {:?}", e)))?;
+            .map_err(|e| invalid_data_error(&format!("TLV invalid: {e:?}")))?;
         if *request_tlv.tag() != tlv_tag(TLV_TAG_DYNAMIC_AUTHENTICATION_TEMPLATE)? {
             return Err(invalid_data_error(&format!(
-                "general authenticate command TLV invalid: {:?}",
-                request_tlv
+                "general authenticate command TLV invalid: {request_tlv:?}"
             )));
         }
 
@@ -257,8 +257,7 @@ impl<const S: usize> Card<S> {
         let request_tlvs = match request_tlv.value() {
             Value::Primitive(_) => {
                 return Err(invalid_data_error(&format!(
-                    "general authenticate command TLV invalid: {:?}",
-                    request_tlv
+                    "general authenticate command TLV invalid: {request_tlv:?}"
                 )));
             }
             Value::Constructed(tlvs) => tlvs,
@@ -272,16 +271,14 @@ impl<const S: usize> Card<S> {
                 Value::Primitive(chal) => Some(chal),
                 Value::Constructed(_) => {
                     return Err(invalid_data_error(&format!(
-                        "general authenticate command TLV invalid: {:?}",
-                        request_tlv
+                        "general authenticate command TLV invalid: {request_tlv:?}"
                     )));
                 }
             };
         }
         let challenge = challenge.ok_or_else(|| {
             invalid_data_error(&format!(
-                "general authenticate command TLV invalid: {:?}, missing challenge data",
-                request_tlv
+                "general authenticate command TLV invalid: {request_tlv:?}, missing challenge data"
             ))
         })?;
 
@@ -405,12 +402,11 @@ const TLV_TAG_RESPONSE: u8 = 0x82;
 
 fn tlv(tag: u8, value: Value) -> RdpResult<Tlv> {
     Tlv::new(tlv_tag(tag)?, value)
-        .map_err(|e| invalid_data_error(&format!("TLV with tag {:#X} invalid: {:?}", tag, e)))
+        .map_err(|e| invalid_data_error(&format!("TLV with tag {tag:#X} invalid: {e:?}")))
 }
 
 fn tlv_tag(val: u8) -> RdpResult<Tag> {
-    Tag::try_from(val)
-        .map_err(|e| invalid_data_error(&format!("TLV tag {:#X} invalid: {:?}", val, e)))
+    Tag::try_from(val).map_err(|e| invalid_data_error(&format!("TLV tag {val:#X} invalid: {e:?}")))
 }
 
 fn hex_data<const S: usize>(cmd: &Command<S>) -> String {
@@ -420,7 +416,8 @@ fn hex_data<const S: usize>(cmd: &Command<S>) -> String {
 fn to_hex(bytes: &[u8]) -> String {
     let mut s = String::new();
     for b in bytes {
-        s.push_str(&format!("{:02X}", b));
+        // https://rust-lang.github.io/rust-clippy/master/index.html#format_push_string
+        let _ = write!(s, "{b:02X}");
     }
     s
 }

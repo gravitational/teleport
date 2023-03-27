@@ -1,7 +1,9 @@
 #!/bin/bash
 # This script prepares a Letsencrypt certificate before all-in-one Teleport starts for the first time (if needed)
 set -e
-set -x
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
 
 # Source variables from user-data (if present)
 if [ -f /etc/teleport.d/conf ]; then
@@ -15,4 +17,4 @@ if [[ "${USE_LETSENCRYPT}" != "true" ]]; then
 fi
 
 # copy certificates into place
-/bin/aws s3 sync s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport
+/bin/aws s3 sync --exact-timestamps s3://${TELEPORT_S3_BUCKET}/live/${TELEPORT_DOMAIN_NAME} /var/lib/teleport

@@ -26,9 +26,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 // Policy represents an AWS IAM policy.
@@ -70,9 +70,25 @@ type Statement struct {
 	// Effect is the statement effect such as Allow or Deny.
 	Effect string `json:"Effect"`
 	// Actions is a list of actions.
-	Actions []string `json:"Action"`
+	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
-	Resources []string `json:"Resource"`
+	Resources SliceOrString `json:"Resource"`
+}
+
+// ensureResource ensures that the statement contains the specified resource.
+//
+// Returns true if the resource was already a part of the statement.
+func (s *Statement) ensureResource(resource string) bool {
+	if slices.Contains(s.Resources, resource) {
+		return true
+	}
+	s.Resources = append(s.Resources, resource)
+	return false
+}
+func (s *Statement) ensureResources(resources []string) {
+	for _, resource := range resources {
+		s.ensureResource(resource)
+	}
 }
 
 // ParsePolicyDocument returns parsed AWS IAM policy document.
@@ -91,9 +107,10 @@ func ParsePolicyDocument(document string) (*PolicyDocument, error) {
 }
 
 // NewPolicyDocument returns new empty AWS IAM policy document.
-func NewPolicyDocument() *PolicyDocument {
+func NewPolicyDocument(statements ...*Statement) *PolicyDocument {
 	return &PolicyDocument{
-		Version: PolicyVersion,
+		Version:    PolicyVersion,
+		Statements: statements,
 	}
 }
 
@@ -103,25 +120,10 @@ func NewPolicyDocument() *PolicyDocument {
 // Returns true if the resource action was already a part of the policy and
 // false otherwise.
 func (p *PolicyDocument) Ensure(effect, action, resource string) bool {
-	for _, s := range p.Statements {
-		if s.Effect != effect {
-			continue
-		}
-		for _, a := range s.Actions {
-			if a != action {
-				continue
-			}
-			for _, r := range s.Resources {
-				// Resource action is already in the policy.
-				if r == resource {
-					return true
-				}
-			}
-			// Action exists but resource is missing.
-			s.Resources = append(s.Resources, resource)
-			return false
-		}
+	if existingStatement := p.findStatement(effect, action); existingStatement != nil {
+		return existingStatement.ensureResource(resource)
 	}
+
 	// No statement yet for this resource action, add it.
 	p.Statements = append(p.Statements, &Statement{
 		Effect:    effect,
@@ -158,6 +160,38 @@ func (p *PolicyDocument) Delete(effect, action, resource string) {
 	p.Statements = statements
 }
 
+// EnsureStatements ensures that the policy document contains all resource
+// actions from the provided statements.
+//
+// The main benefit of using this function (versus appending to p.Statements
+// directly) is to avoid duplications.
+func (p *PolicyDocument) EnsureStatements(statements ...*Statement) {
+	for _, statement := range statements {
+		if statement == nil {
+			continue
+		}
+
+		// Try to find an existing statement by the action, and add the resources there.
+		var newActions []string
+		for _, action := range statement.Actions {
+			if existingStatement := p.findStatement(statement.Effect, action); existingStatement != nil {
+				existingStatement.ensureResources(statement.Resources)
+			} else {
+				newActions = append(newActions, action)
+			}
+		}
+
+		// Add the leftover actions as a new statement.
+		if len(newActions) > 0 {
+			p.Statements = append(p.Statements, &Statement{
+				Effect:    statement.Effect,
+				Actions:   newActions,
+				Resources: statement.Resources,
+			})
+		}
+	}
+}
+
 // Marshal formats the PolicyDocument in a "friendly" format, which can be
 // presented to end users.
 func (p *PolicyDocument) Marshal() (string, error) {
@@ -167,6 +201,71 @@ func (p *PolicyDocument) Marshal() (string, error) {
 	}
 
 	return string(b), nil
+}
+
+// ForEach loops through each action and resource of each statement.
+func (p *PolicyDocument) ForEach(fn func(effect, action, resource string)) {
+	for _, statement := range p.Statements {
+		for _, action := range statement.Actions {
+			for _, resource := range statement.Resources {
+				fn(statement.Effect, action, resource)
+			}
+		}
+	}
+}
+
+func (p *PolicyDocument) findStatement(effect, action string) *Statement {
+	for _, s := range p.Statements {
+		if s.Effect != effect {
+			continue
+		}
+		if slices.Contains(s.Actions, action) {
+			return s
+		}
+	}
+	return nil
+
+}
+
+// SliceOrString defines a type that can be either a single string or a slice.
+//
+// For example, these types can be either a single string or a slice:
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_action.html
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html
+type SliceOrString []string
+
+// UnmarshalJSON implements json.Unmarshaller.
+func (s *SliceOrString) UnmarshalJSON(bytes []byte) error {
+	// Check if input is a slice of strings.
+	var slice []string
+	sliceErr := json.Unmarshal(bytes, &slice)
+	if sliceErr == nil {
+		*s = slice
+		return nil
+	}
+
+	// Check if input is a single string.
+	var str string
+	strErr := json.Unmarshal(bytes, &str)
+	if strErr == nil {
+		*s = []string{str}
+		return nil
+	}
+
+	// Failed both format.
+	return trace.NewAggregate(sliceErr, strErr)
+}
+
+// MarshalJSON implements json.Marshaler.
+func (s SliceOrString) MarshalJSON() ([]byte, error) {
+	switch len(s) {
+	case 0:
+		return json.Marshal([]string{})
+	case 1:
+		return json.Marshal(s[0])
+	default:
+		return json.Marshal([]string(s))
+	}
 }
 
 // Policies set of IAM Policy helper functions defined as an interface to make
@@ -188,6 +287,8 @@ type Policies interface {
 
 // policies default implementation of the policies functions.
 type policies struct {
+	// partitionID is the partition ID.
+	partitionID string
 	// accountID current AWS account ID.
 	accountID string
 	// iamClient already initialized IAM client.
@@ -195,9 +296,13 @@ type policies struct {
 }
 
 // NewPolicies creates new instance of Policies using the provided
-// identity and IAM client.
-func NewPolicies(accountID string, iamClient iamiface.IAMAPI) Policies {
-	return &policies{accountID, iamClient}
+// identity, partitionID and IAM client.
+func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI) Policies {
+	return &policies{
+		partitionID: partitionID,
+		accountID:   accountID,
+		iamClient:   iamClient,
+	}
 }
 
 // Upsert creates a new Policy or creates a Policy version if a policy with the
@@ -213,7 +318,7 @@ func NewPolicies(accountID string, iamClient iamiface.IAMAPI) Policies {
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:aws:iam::%s:policy/%s", p.accountID, policy.Name)
+	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.partitionID, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -222,7 +327,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 	// Retrieve policy versions.
 	_, versions, err := p.Retrieve(ctx, policyARN, policy.Tags)
 	if err != nil && !trace.IsNotFound(err) {
-		return "", trace.Wrap(ConvertRequestFailureError(err))
+		return "", trace.Wrap(err)
 	}
 
 	// Convert tags into IAM policy tags.
@@ -240,7 +345,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			Tags:           policyTags,
 		})
 		if err != nil {
-			return "", trace.Wrap(ConvertRequestFailureError(err))
+			return "", trace.Wrap(ConvertIAMError(err))
 		}
 
 		log.Debugf("Created new policy %q with ARN %q", policy.Name, aws.StringValue(resp.Policy.Arn))
@@ -269,7 +374,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 			VersionId: aws.String(policyVersionID),
 		})
 		if err != nil {
-			return "", trace.Wrap(ConvertRequestFailureError(err))
+			return "", trace.Wrap(ConvertIAMError(err))
 		}
 
 		log.Debugf("Max policy versions reached for policy %q, deleted policy version %q", policyARN, policyVersionID)
@@ -282,7 +387,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 		SetAsDefault:   aws.Bool(true),
 	})
 	if err != nil {
-		return "", trace.Wrap(ConvertRequestFailureError(err))
+		return "", trace.Wrap(ConvertIAMError(err))
 	}
 
 	log.Debugf("Created new policy version %q for %q", aws.StringValue(createPolicyResp.PolicyVersion.VersionId), policyARN)
@@ -298,7 +403,7 @@ func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
 func (p *policies) Retrieve(ctx context.Context, arn string, tags map[string]string) (*iam.Policy, []*iam.PolicyVersion, error) {
 	getPolicyResp, err := p.iamClient.GetPolicyWithContext(ctx, &iam.GetPolicyInput{PolicyArn: aws.String(arn)})
 	if err != nil {
-		return nil, nil, trace.Wrap(ConvertRequestFailureError(err))
+		return nil, nil, trace.Wrap(ConvertIAMError(err))
 	}
 
 	for tagName, tagValue := range tags {
@@ -309,7 +414,7 @@ func (p *policies) Retrieve(ctx context.Context, arn string, tags map[string]str
 
 	resp, err := p.iamClient.ListPolicyVersionsWithContext(ctx, &iam.ListPolicyVersionsInput{PolicyArn: aws.String(arn)})
 	if err != nil {
-		return nil, nil, trace.Wrap(ConvertRequestFailureError(err))
+		return nil, nil, trace.Wrap(ConvertIAMError(err))
 	}
 
 	return getPolicyResp.Policy, resp.Versions, nil
@@ -330,7 +435,7 @@ func (p *policies) Attach(ctx context.Context, arn string, identity Identity) er
 			UserName:  aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertRequestFailureError(err))
+			return trace.Wrap(ConvertIAMError(err))
 		}
 	case Role, *Role:
 		_, err := p.iamClient.AttachRolePolicyWithContext(ctx, &iam.AttachRolePolicyInput{
@@ -338,7 +443,7 @@ func (p *policies) Attach(ctx context.Context, arn string, identity Identity) er
 			RoleName:  aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertRequestFailureError(err))
+			return trace.Wrap(ConvertIAMError(err))
 		}
 	default:
 		return trace.BadParameter("policies can be attached to users and roles, received %q.", identity.GetType())
@@ -363,7 +468,7 @@ func (p *policies) AttachBoundary(ctx context.Context, arn string, identity Iden
 			UserName:            aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertRequestFailureError(err))
+			return trace.Wrap(ConvertIAMError(err))
 		}
 	case Role, *Role:
 		_, err := p.iamClient.PutRolePermissionsBoundaryWithContext(ctx, &iam.PutRolePermissionsBoundaryInput{
@@ -371,7 +476,7 @@ func (p *policies) AttachBoundary(ctx context.Context, arn string, identity Iden
 			RoleName:            aws.String(identity.GetName()),
 		})
 		if err != nil {
-			return trace.Wrap(ConvertRequestFailureError(err))
+			return trace.Wrap(ConvertIAMError(err))
 		}
 	default:
 		return trace.BadParameter("boundary policies can be attached to users and roles, received %q.", identity.GetType())

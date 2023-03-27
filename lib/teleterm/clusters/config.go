@@ -18,7 +18,6 @@ package clusters
 
 import (
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 )
@@ -32,7 +31,7 @@ type Config struct {
 	// InsecureSkipVerify is an option to skip TLS cert check
 	InsecureSkipVerify bool
 	// Log is a component logger
-	Log logrus.FieldLogger
+	Log *logrus.Entry
 }
 
 // CheckAndSetDefaults checks the configuration for its validity and sets default values if needed

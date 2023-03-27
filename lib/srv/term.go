@@ -17,6 +17,8 @@ limitations under the License.
 package srv
 
 import (
+	"context"
+	"errors"
 	"io"
 	"os"
 	"os/exec"
@@ -24,19 +26,19 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
+	"github.com/creack/pty"
+	"github.com/gravitational/trace"
+	"github.com/moby/term"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils"
-
-	"github.com/kr/pty"
-	"github.com/moby/term"
-	log "github.com/sirupsen/logrus"
-
-	"github.com/gravitational/trace"
 )
 
 // LookupUser is used to mock the value returned by user.Lookup(string).
@@ -54,7 +56,7 @@ type Terminal interface {
 	AddParty(delta int)
 
 	// Run will run the terminal.
-	Run() error
+	Run(ctx context.Context) error
 
 	// Wait will block until the terminal is complete.
 	Wait() (*ExecResult, error)
@@ -63,8 +65,11 @@ type Terminal interface {
 	// pre-processing routine (placed in a cgroup).
 	Continue()
 
+	// KillUnderlyingShell tries to gracefully stop the terminal process.
+	KillUnderlyingShell(ctx context.Context) error
+
 	// Kill will force kill the terminal.
-	Kill() error
+	Kill(ctx context.Context) error
 
 	// PTY returns the PTY backing the terminal.
 	PTY() io.ReadWriter
@@ -82,7 +87,7 @@ type Terminal interface {
 	GetWinSize() (*term.Winsize, error)
 
 	// SetWinSize sets the window size of the terminal.
-	SetWinSize(params rsession.TerminalParams) error
+	SetWinSize(ctx context.Context, params rsession.TerminalParams) error
 
 	// GetTerminalParams is a fast call to get cached terminal parameters
 	// and avoid extra system call.
@@ -109,7 +114,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -122,11 +127,15 @@ type terminal struct {
 
 	log *log.Entry
 
-	cmd *exec.Cmd
-	ctx *ServerContext
+	cmd           *exec.Cmd
+	serverContext *ServerContext
 
 	pty *os.File
 	tty *os.File
+
+	// terminateFD when closed informs the terminal that
+	// the process running in the shell should be killed.
+	terminateFD *os.File
 
 	pid int
 
@@ -142,13 +151,14 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 		log: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentLocalTerm,
 		}),
-		ctx: ctx,
+		serverContext: ctx,
+		terminateFD:   ctx.killShellw,
 	}
 
 	// Open PTY and corresponding TTY.
 	t.pty, t.tty, err = pty.Open()
 	if err != nil {
-		log.Warnf("Could not start PTY %v", err)
+		log.Warnf("Could not start PTY: %v", err)
 		return nil, err
 	}
 
@@ -169,12 +179,16 @@ func (t *terminal) AddParty(delta int) {
 }
 
 // Run will run the terminal.
-func (t *terminal) Run() error {
-	var err error
-	defer t.closeTTY()
+func (t *terminal) Run(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 
+	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = ConfigureCommand(t.ctx)
+	t.cmd, err = ConfigureCommand(t.serverContext)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -225,11 +239,44 @@ func (t *terminal) Wait() (*ExecResult, error) {
 // Continue will resume execution of the process after it completes its
 // pre-processing routine (placed in a cgroup).
 func (t *terminal) Continue() {
-	t.ctx.contw.Close()
+	if err := t.serverContext.contw.Close(); err != nil {
+		t.log.Warnf("failed to close server context")
+	}
 }
 
-// Kill will force kill the terminal.
-func (t *terminal) Kill() error {
+// KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
+func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
+	if err := t.terminateFD.Close(); err != nil {
+		if !errors.Is(err, os.ErrClosed) {
+			t.log.WithError(err).Debug("Failed to close the shell file descriptor")
+		}
+	}
+
+	pid := t.PID()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		proc, err := os.FindProcess(pid)
+		if err != nil {
+			return trace.Errorf("failed to find the shell process: %w", err)
+		}
+
+		if err := proc.Signal(syscall.Signal(0)); errors.Is(err, os.ErrProcessDone) {
+			t.log.Debugf("Terminal child process has been stopped")
+			return nil
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// Kill will force kill the child Teleport process.
+func (t *terminal) Kill(_ context.Context) error {
 	if t.cmd != nil && t.cmd.Process != nil {
 		if err := t.cmd.Process.Kill(); err != nil {
 			if err.Error() != "os: process already finished" {
@@ -270,10 +317,14 @@ func (t *terminal) Close() error {
 }
 
 func (t *terminal) closeTTY() error {
+	t.log.Debugf("Closing TTY")
+	defer t.log.Debugf("Closed TTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.tty == nil {
+		t.log.Debugf("TTY already closed")
 		return nil
 	}
 
@@ -288,14 +339,21 @@ func (t *terminal) closeTTY() error {
 }
 
 func (t *terminal) closePTY() {
+	defer t.log.Debugf("Closed PTY")
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	defer t.log.Debugf("Closed PTY")
 
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	t.pty.Close()
+	if t.pty == nil {
+		return
+	}
+
+	if err := t.pty.Close(); err != nil {
+		t.log.Warnf("Failed to close PTY: %v", err)
+	}
 	t.pty = nil
 }
 
@@ -314,7 +372,7 @@ func (t *terminal) GetWinSize() (*term.Winsize, error) {
 }
 
 // SetWinSize sets the window size of the terminal.
-func (t *terminal) SetWinSize(params rsession.TerminalParams) error {
+func (t *terminal) SetWinSize(ctx context.Context, params rsession.TerminalParams) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.pty == nil {
@@ -376,13 +434,13 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0620
+		mode = 0o620
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0600
+		mode = 0o600
 	}
 
 	return uid, gid, mode, nil
@@ -390,7 +448,7 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 
 // setOwner changes the owner and mode of the TTY.
 func (t *terminal) setOwner() error {
-	uid, gid, mode, err := getOwner(t.ctx.Identity.Login, user.Lookup, user.LookupGroup)
+	uid, gid, mode, err := getOwner(t.serverContext.Identity.Login, user.Lookup, user.LookupGroup)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -417,7 +475,7 @@ type remoteTerminal struct {
 
 	ctx *ServerContext
 
-	session   *ssh.Session
+	session   *tracessh.Session
 	params    rsession.TerminalParams
 	termModes ssh.TerminalModes
 	ptyBuffer *ptyBuffer
@@ -458,9 +516,9 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 	return b.w.Write(p)
 }
 
-func (t *remoteTerminal) Run() error {
-	// prepare the remote remote session by setting environment variables
-	t.prepareRemoteSession(t.session, t.ctx)
+func (t *remoteTerminal) Run(ctx context.Context) error {
+	// prepare the remote session by setting environment variables
+	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr
 	stdout, err := t.session.StdoutPipe()
@@ -484,15 +542,15 @@ func (t *remoteTerminal) Run() error {
 		t.termType = defaultTerm
 	}
 
-	if err := t.session.RequestPty(t.termType, t.params.H, t.params.W, t.termModes); err != nil {
+	if err := t.session.RequestPty(ctx, t.termType, t.params.H, t.params.W, t.termModes); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// we want to run a "exec" command within a pty
-	if t.ctx.ExecRequest.GetCommand() != "" {
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil && execRequest.GetCommand() != "" {
 		t.log.Debugf("Running exec request within a PTY")
 
-		if err := t.session.Start(t.ctx.ExecRequest.GetCommand()); err != nil {
+		if err := t.session.Start(ctx, execRequest.GetCommand()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -501,39 +559,49 @@ func (t *remoteTerminal) Run() error {
 
 	// we want an interactive shell
 	t.log.Debugf("Requesting an interactive terminal of type %v", t.termType)
-	if err := t.session.Shell(); err != nil {
+	if err := t.session.Shell(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
 func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	err := t.session.Wait()
+	execRequest, err := t.ctx.GetExecRequest()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = t.session.Wait()
 	if err != nil {
 		if exitErr, ok := err.(*ssh.ExitError); ok {
 			return &ExecResult{
 				Code:    exitErr.ExitStatus(),
-				Command: t.ctx.ExecRequest.GetCommand(),
+				Command: execRequest.GetCommand(),
 			}, err
 		}
 
 		return &ExecResult{
 			Code:    teleport.RemoteCommandFailure,
-			Command: t.ctx.ExecRequest.GetCommand(),
+			Command: execRequest.GetCommand(),
 		}, err
 	}
 
 	return &ExecResult{
 		Code:    teleport.RemoteCommandSuccess,
-		Command: t.ctx.ExecRequest.GetCommand(),
+		Command: execRequest.GetCommand(),
 	}, nil
 }
 
 // Continue does nothing for remote command execution.
 func (t *remoteTerminal) Continue() {}
 
-func (t *remoteTerminal) Kill() error {
-	err := t.session.Signal(ssh.SIGKILL)
+// Terminate does nothing for remote command execution.
+func (t *remoteTerminal) KillUnderlyingShell(_ context.Context) error {
+	return nil
+}
+
+func (t *remoteTerminal) Kill(ctx context.Context) error {
+	err := t.session.Signal(ctx, ssh.SIGKILL)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -556,6 +624,7 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
+	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
@@ -575,11 +644,11 @@ func (t *remoteTerminal) GetWinSize() (*term.Winsize, error) {
 	return t.params.Winsize(), nil
 }
 
-func (t *remoteTerminal) SetWinSize(params rsession.TerminalParams) error {
+func (t *remoteTerminal) SetWinSize(ctx context.Context, params rsession.TerminalParams) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	err := t.windowChange(params.W, params.H)
+	err := t.windowChange(ctx, params.W, params.H)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -611,35 +680,21 @@ func (t *remoteTerminal) SetTerminalModes(termModes ssh.TerminalModes) {
 	t.termModes = termModes
 }
 
-func (t *remoteTerminal) windowChange(w int, h int) error {
-	type windowChangeRequest struct {
-		W   uint32
-		H   uint32
-		Wpx uint32
-		Hpx uint32
-	}
-	req := windowChangeRequest{
-		W:   uint32(w),
-		H:   uint32(h),
-		Wpx: uint32(w * 8),
-		Hpx: uint32(h * 8),
-	}
-	_, err := t.session.SendRequest(sshutils.WindowChangeRequest, false, ssh.Marshal(&req))
-	return err
+func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
+	return trace.Wrap(t.session.WindowChange(ctx, h, w))
 }
 
 // prepareRemoteSession prepares the more session for execution.
-func (t *remoteTerminal) prepareRemoteSession(session *ssh.Session, ctx *ServerContext) {
+func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
-		teleport.SSHTeleportUser:        ctx.Identity.TeleportUser,
-		teleport.SSHSessionWebproxyAddr: ctx.ProxyPublicAddress(),
-		teleport.SSHTeleportHostUUID:    ctx.srv.ID(),
-		teleport.SSHTeleportClusterName: ctx.ClusterName,
-		teleport.SSHSessionID:           string(ctx.SessionID()),
+		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
+		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
+		teleport.SSHTeleportClusterName: scx.ClusterName,
+		teleport.SSHSessionID:           string(scx.SessionID()),
 	}
 
 	for k, v := range envs {
-		if err := session.Setenv(k, v); err != nil {
+		if err := session.Setenv(ctx, k, v); err != nil {
 			t.log.Debugf("Unable to set environment variable: %v: %v", k, v)
 		}
 	}

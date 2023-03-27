@@ -26,10 +26,11 @@ import (
 	"net"
 	"unsafe"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	api "github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -75,6 +76,7 @@ func newNetworkAuditEvent(ctx *bpf.SessionContext, hdr *auditEventHeader) events
 		},
 		ServerMetadata: events.ServerMetadata{
 			ServerID:        ctx.ServerID,
+			ServerHostname:  ctx.ServerHostname,
 			ServerNamespace: ctx.Namespace,
 		},
 		SessionMetadata: events.SessionMetadata{

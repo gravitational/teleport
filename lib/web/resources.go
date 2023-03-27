@@ -19,21 +19,60 @@ package web
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strings"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+	kyaml "k8s.io/apimachinery/pkg/util/yaml"
+
 	"github.com/gravitational/teleport/api/client/proto"
+	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-
-	"github.com/julienschmidt/httprouter"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 )
+
+// checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
+func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	// Get a client to the Auth Server with the logged in user's identity. The
+	// identity of the logged in user is used to fetch the list of resources.
+	clt, err := c.GetUserClient(r.Context(), site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop}
+	for _, kind := range resourceKinds {
+		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
+			ResourceType: kind,
+			Limit:        1,
+		})
+		if err != nil {
+			// Access denied error is returned when user does not have permissions
+			// to read/list a resource kind which can be ignored as this function is not
+			// about checking if user has the right perms.
+			if trace.IsAccessDenied(err) {
+				continue
+			}
+			return nil, trace.Wrap(err)
+		}
+
+		if len(res.Resources) > 0 {
+			return checkAccessToRegisteredResourceResponse{
+				HasResource: true,
+			}, nil
+		}
+	}
+
+	return checkAccessToRegisteredResourceResponse{
+		HasResource: false,
+	}, nil
+}
 
 func (h *Handler) getRolesHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	clt, err := ctx.GetClient()
@@ -78,10 +117,14 @@ func (h *Handler) upsertRoleHandle(w http.ResponseWriter, r *http.Request, param
 		return nil, trace.Wrap(err)
 	}
 
-	return upsertRole(r.Context(), clt, req.Content, r.Method)
+	return upsertRole(r.Context(), clt, req.Content, r.Method, params)
 }
 
-func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string) (*ui.ResourceItem, error) {
+func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
+	get := func(ctx context.Context, name string) (types.Resource, error) {
+		return clt.GetRole(ctx, name)
+	}
+
 	extractedRes, err := ExtractResourceAndValidate(content)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -91,8 +134,7 @@ func upsertRole(ctx context.Context, clt resourcesAPIGetter, content, httpMethod
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetRole(ctx, extractedRes.Metadata.Name)
-	if err := CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
+	if err := CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -151,10 +193,14 @@ func (h *Handler) upsertGithubConnectorHandle(w http.ResponseWriter, r *http.Req
 		return nil, trace.Wrap(err)
 	}
 
-	return upsertGithubConnector(r.Context(), clt, req.Content, r.Method)
+	return upsertGithubConnector(r.Context(), clt, req.Content, r.Method, params)
 }
 
-func upsertGithubConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string) (*ui.ResourceItem, error) {
+func upsertGithubConnector(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
+	get := func(ctx context.Context, name string) (types.Resource, error) {
+		return clt.GetGithubConnector(ctx, name, false)
+	}
+
 	extractedRes, err := ExtractResourceAndValidate(content)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -164,8 +210,7 @@ func upsertGithubConnector(ctx context.Context, clt resourcesAPIGetter, content,
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetGithubConnector(ctx, extractedRes.Metadata.Name, false)
-	if err := CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
+	if err := CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -224,10 +269,14 @@ func (h *Handler) upsertTrustedClusterHandle(w http.ResponseWriter, r *http.Requ
 		return nil, trace.Wrap(err)
 	}
 
-	return upsertTrustedCluster(r.Context(), clt, req.Content, r.Method)
+	return upsertTrustedCluster(r.Context(), clt, req.Content, r.Method, params)
 }
 
-func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string) (*ui.ResourceItem, error) {
+func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
+	get := func(ctx context.Context, name string) (types.Resource, error) {
+		return clt.GetTrustedCluster(ctx, name)
+	}
+
 	extractedRes, err := ExtractResourceAndValidate(content)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,8 +286,7 @@ func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, 
 		return nil, trace.BadParameter("resource kind %q is invalid", extractedRes.Kind)
 	}
 
-	_, err = clt.GetTrustedCluster(ctx, extractedRes.Metadata.Name)
-	if err := CheckResourceUpsertableByError(err, httpMethod, extractedRes.Metadata.Name); err != nil {
+	if err := CheckResourceUpsert(ctx, httpMethod, params, extractedRes.Metadata.Name, get); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -255,23 +303,65 @@ func upsertTrustedCluster(ctx context.Context, clt resourcesAPIGetter, content, 
 	return ui.NewResourceItem(tc)
 }
 
-// CheckResourceUpsertableByError checks if the resource is upsertable by the state of error with
-// the request http method used.
-func CheckResourceUpsertableByError(err error, httpMethod, resourceName string) error {
-	if err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+// getResource tries to retrieve a resource (by name),
+// returning a NotFound error if the resource does not exist.
+type getResource func(context.Context, string) (types.Resource, error)
+
+// CheckResourceUpsert checks if the resource can be created or updated, depending on the http method.
+func CheckResourceUpsert(ctx context.Context, httpMethod string, params httprouter.Params, payloadResourceName string, get getResource) error {
+	switch httpMethod {
+	case http.MethodPost:
+		return trace.Wrap(checkResourceCreate(ctx, payloadResourceName, get))
+	case http.MethodPut:
+		resourceName := params.ByName("name")
+		if resourceName == "" {
+			return trace.BadParameter("missing resource name")
+		}
+		return trace.Wrap(checkResourceUpdate(ctx, payloadResourceName, resourceName, get))
+	default:
+		return trace.NotImplemented("http method %q not expected. this is a bug!", httpMethod)
+	}
+}
+
+// checkResourceCreate checks if the resource can be created, returning nil if it can.
+func checkResourceCreate(ctx context.Context, payloadResourceName string, get getResource) error {
+	// Try to retrieve the resource by name.
+	_, err := get(ctx, payloadResourceName)
+
+	// If no error, then the resource already exists and cannot be created.
+	if err == nil {
+		return trace.AlreadyExists("resource with name %q already exists", payloadResourceName)
 	}
 
-	exists := err == nil
-	if exists && httpMethod == http.MethodPost {
-		return trace.AlreadyExists("resource name %q already exists", resourceName)
+	// If the error is not found, then the resource does not exist and can be created.
+	if trace.IsNotFound(err) {
+		return nil
 	}
 
-	if !exists && httpMethod == http.MethodPut {
-		return trace.NotFound("cannot find resource with name %q", resourceName)
+	return trace.Wrap(err)
+}
+
+// checkResourceUpdate checks if the resource can be updated, returning nil if it can.
+func checkResourceUpdate(ctx context.Context, payloadResourceName, resourceName string, get getResource) error {
+	// Error if the user is trying to rename the resource.
+	if payloadResourceName != resourceName {
+		return trace.BadParameter("resource renaming is not supported, please create a different resource and then delete this one")
 	}
 
-	return nil
+	// Try to retrieve the resource by name.
+	_, err := get(ctx, payloadResourceName)
+
+	// If no error, then the resource already exists and can be updated.
+	if err == nil {
+		return nil
+	}
+
+	// If the error is not found, then the resource does not exist and cannot be updated.
+	if trace.IsNotFound(err) {
+		return trace.NotFound("resource with name %q does not exist", payloadResourceName)
+	}
+
+	return trace.Wrap(err)
 }
 
 // ExtractResourceAndValidate extracts resource information from given string and validates basic fields.
@@ -295,32 +385,18 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
 
-	limit, err := queryLimit(values, "limit", defaults.MaxIterationLimit)
+	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Sort is expected in format `<fieldName>:<asc|desc>` where
-	// index 0 is fieldName and index 1 is direction.
-	// If a direction is not set, or is not recognized, it defaults to ASC.
-	var sortBy types.SortBy
-	sortParam := values.Get("sort")
-	if sortParam != "" {
-		vals := strings.Split(sortParam, ":")
-		if vals[0] != "" {
-			sortBy.Field = vals[0]
-			if len(vals) > 1 && vals[1] == "desc" {
-				sortBy.IsDesc = true
-			}
-		}
-	}
+	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	startKey := values.Get("startKey")
 	req := proto.ListResourcesRequest{
 		ResourceType:        resourceKind,
-		Limit:               int32(limit),
+		Limit:               limit,
 		StartKey:            startKey,
-		NeedTotalCount:      true,
 		SortBy:              sortBy,
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
@@ -328,6 +404,40 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	}
 
 	return clt.ListResources(r.Context(), req)
+}
+
+// listKubeResources gets a list of kubernetes resources depending on the type of resource.
+func listKubeResources(ctx context.Context, kubeClient kubeproto.KubeServiceClient, values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesResponse, error) {
+	req, err := newKubeListRequest(values, site, resourceKind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return kubeClient.ListKubernetesResources(ctx, req)
+}
+
+// newKubeListRequest parses the request parameters into a ListKubernetesResourcesRequest.
+func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesRequest, error) {
+	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sortBy := types.GetSortByFromString(values.Get("sort"))
+
+	startKey := values.Get("startKey")
+	req := &kubeproto.ListKubernetesResourcesRequest{
+		ResourceType:        resourceKind,
+		Limit:               limit,
+		StartKey:            startKey,
+		SortBy:              &sortBy,
+		PredicateExpression: values.Get("query"),
+		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
+		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
+		TeleportCluster:     site,
+		KubernetesCluster:   values.Get("kubeCluster"),
+		KubernetesNamespace: values.Get("kubeNamespace"),
+	}
+	return req, nil
 }
 
 type listResourcesGetResponse struct {
@@ -338,6 +448,12 @@ type listResourcesGetResponse struct {
 	// TotalCount is the total count of resources available
 	// after filter.
 	TotalCount int `json:"totalCount"`
+}
+
+type checkAccessToRegisteredResourceResponse struct {
+	// HasResource is a flag to indicate if user has any access
+	// to a registered resource or not.
+	HasResource bool `json:"hasResource"`
 }
 
 type resourcesAPIGetter interface {
@@ -363,6 +479,6 @@ type resourcesAPIGetter interface {
 	GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error)
 	// DeleteTrustedCluster removes a TrustedCluster from the backend by name.
 	DeleteTrustedCluster(ctx context.Context, name string) error
-	// ListResoures returns a paginated list of resources.
+	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }

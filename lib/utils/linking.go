@@ -74,8 +74,8 @@ type WebLinks struct {
 //
 // Link headers typically look like:
 //
-//   Link: <https://api.github.com/user/teams?page=2>; rel="next",
-//     <https://api.github.com/user/teams?page=34>; rel="last"
+//	Link: <https://api.github.com/user/teams?page=2>; rel="next",
+//	  <https://api.github.com/user/teams?page=34>; rel="last"
 func ParseWebLinks(response *http.Response) WebLinks {
 	wls := WebLinks{}
 

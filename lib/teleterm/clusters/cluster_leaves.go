@@ -19,11 +19,11 @@ package clusters
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
-
-	"github.com/gravitational/trace"
 )
 
 // LeafCluster describes a leaf (trusted) cluster
@@ -38,7 +38,7 @@ type LeafCluster struct {
 	Connected bool
 }
 
-//GetLeafClusters returns leaf clusters
+// GetLeafClusters returns leaf clusters
 func (c *Cluster) GetLeafClusters(ctx context.Context) ([]LeafCluster, error) {
 	var remoteClusters []types.RemoteCluster
 	err := addMetadataToRetryableError(ctx, func() error {

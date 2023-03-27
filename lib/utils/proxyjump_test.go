@@ -24,6 +24,8 @@ import (
 )
 
 func TestProxyJumpParsing(t *testing.T) {
+	t.Parallel()
+
 	type tc struct {
 		in  string
 		out []JumpHost

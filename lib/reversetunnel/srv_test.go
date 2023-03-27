@@ -18,21 +18,24 @@ package reversetunnel
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 )
 
 func TestServerKeyAuth(t *testing.T) {
@@ -56,7 +59,8 @@ func TestServerKeyAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	s := &server{
-		log: utils.NewLoggerForTests(),
+		log:    utils.NewLoggerForTests(),
+		Config: Config{Clock: clockwork.NewRealClock()},
 		localAccessPoint: mockAccessPoint{
 			ca: ca,
 		},
@@ -152,7 +156,7 @@ type mockAccessPoint struct {
 	ca types.CertAuthority
 }
 
-func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (ap mockAccessPoint) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return ap.ca, nil
 }
 
@@ -168,19 +172,32 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 			assertion: require.Error,
 		},
 		{
-			name:      "remote running 9.0.0",
+			name:      "remote running 13.0.0",
 			assertion: require.NoError,
-			version:   "9.0.0",
+			version:   "13.0.0",
 		},
 		{
-			name:      "remote running 8.0.0",
-			assertion: require.NoError,
-			version:   "8.0.0",
-		},
-		{
-			name:           "remote running 7.0.0",
+			name:           "remote running 12.0.0",
 			assertion:      require.NoError,
-			version:        "7.0.0",
+			version:        "12.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 11.0.0",
+			assertion:      require.NoError,
+			version:        "11.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 10.0.0",
+			assertion:      require.NoError,
+			version:        "10.0.0",
+			oldRemoteProxy: true,
+		},
+		{
+			name:           "remote running 9.0.0",
+			assertion:      require.NoError,
+			version:        "9.0.0",
 			oldRemoteProxy: true,
 		},
 		{
@@ -220,5 +237,33 @@ func TestCreateRemoteAccessPoint(t *testing.T) {
 			_, err := createRemoteAccessPoint(srv, clt, tt.version, "test")
 			tt.assertion(t, err)
 		})
+	}
+}
+
+func Test_ParseDialReq(t *testing.T) {
+	testCases := []sshutils.DialReq{
+		{
+			Address:       "TargetAddress",
+			ServerID:      "ServerID123",
+			ConnType:      types.NodeTunnel,
+			ClientSrcAddr: "192.168.1.13:444",
+			ClientDstAddr: "192.168.1.14:444",
+		},
+		{
+			Address:       "TargetAddress",
+			ServerID:      "ServerID123",
+			ConnType:      types.NodeTunnel,
+			ClientSrcAddr: "[::1]:444",
+			ClientDstAddr: "[::1]:555",
+		},
+	}
+
+	for _, test := range testCases {
+		payload, err := json.Marshal(test)
+		require.NoError(t, err)
+		require.NotEmpty(t, payload)
+
+		parsed := parseDialReq(payload)
+		require.Equal(t, &test, parsed)
 	}
 }

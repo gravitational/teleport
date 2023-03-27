@@ -26,13 +26,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // proxySettings is a helper type that allows to fetch the current proxy configuration.
 type proxySettings struct {
 	// cfg is the Teleport service configuration.
-	cfg *Config
+	cfg *servicecfg.Config
 	// proxySSHAddr is the address of the proxy ssh service. It can be assigned during runtime when a user set the
 	// proxy listener address to a random port (e.g. `127.0.0.1:0`).
 	proxySSHAddr utils.NetAddr
@@ -48,7 +49,7 @@ func (p *proxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxyS
 	}
 
 	switch p.cfg.Version {
-	case defaults.TeleportConfigVersionV2:
+	case defaults.TeleportConfigVersionV2, defaults.TeleportConfigVersionV3:
 		return p.buildProxySettingsV2(resp.GetProxyListenerMode()), nil
 	default:
 		return p.buildProxySettings(resp.GetProxyListenerMode()), nil

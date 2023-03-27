@@ -19,13 +19,13 @@ package local
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 )
 
 // GetAppSession gets an application web session.
@@ -34,15 +34,7 @@ func (s *IdentityService) GetAppSession(ctx context.Context, req types.GetAppSes
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(appsPrefix, sessionsPrefix, req.SessionID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := services.UnmarshalWebSession(item.Value)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return session, nil
+	return s.getSession(ctx, appsPrefix, sessionsPrefix, req.SessionID)
 }
 
 // GetSnowflakeSession gets an application web session.
@@ -51,7 +43,20 @@ func (s *IdentityService) GetSnowflakeSession(ctx context.Context, req types.Get
 		return nil, trace.Wrap(err)
 	}
 
-	item, err := s.Get(ctx, backend.Key(snowflakePrefix, sessionsPrefix, req.SessionID))
+	return s.getSession(ctx, snowflakePrefix, sessionsPrefix, req.SessionID)
+}
+
+// GetSAMLIdPSession gets a SAML IdP session.
+func (s *IdentityService) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessionRequest) (types.WebSession, error) {
+	if err := req.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return s.getSession(ctx, samlIdPPrefix, sessionsPrefix, req.SessionID)
+}
+
+func (s *IdentityService) getSession(ctx context.Context, keyParts ...string) (types.WebSession, error) {
+	item, err := s.Get(ctx, backend.Key(keyParts...))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -81,6 +86,15 @@ func (s *IdentityService) GetAppSessions(ctx context.Context) ([]types.WebSessio
 	return out, nil
 }
 
+// maxPageSize is the maximum number of app sessions allowed in a page
+// returned by ListAppSessions
+const maxPageSize = 200
+
+// ListAppSessions gets a paginated list of application web sessions.
+func (s *IdentityService) ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	return s.listSessions(ctx, pageSize, pageToken, user, appsPrefix, sessionsPrefix)
+}
+
 // GetSnowflakeSessions gets all Snowflake web sessions.
 func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
 	startKey := backend.Key(snowflakePrefix, sessionsPrefix)
@@ -100,32 +114,98 @@ func (s *IdentityService) GetSnowflakeSessions(ctx context.Context) ([]types.Web
 	return out, nil
 }
 
-// UpsertAppSession creates an application web session.
-func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.WebSession) error {
-	value, err := services.MarshalWebSession(session)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	item := backend.Item{
-		Key:     backend.Key(appsPrefix, sessionsPrefix, session.GetName()),
-		Value:   value,
-		Expires: session.GetExpiryTime(),
+// ListSAMLIdPSessions gets a paginated list of SAML IdP sessions.
+func (s *IdentityService) ListSAMLIdPSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error) {
+	return s.listSessions(ctx, pageSize, pageToken, user, samlIdPPrefix, sessionsPrefix)
+}
+
+// listSessions gets a paginated list of sessions.
+func (s *IdentityService) listSessions(ctx context.Context, pageSize int, pageToken, user string, keyPrefix ...string) ([]types.WebSession, string, error) {
+	rangeStart := backend.Key(append(keyPrefix, pageToken)...)
+	rangeEnd := backend.RangeEnd(backend.Key(keyPrefix...))
+
+	// Adjust page size, so it can't be too large.
+	if pageSize <= 0 || pageSize > maxPageSize {
+		pageSize = maxPageSize
 	}
 
-	if _, err = s.Put(ctx, item); err != nil {
-		return trace.Wrap(err)
+	// Increment pageSize to allow for the extra item represented by nextKey.
+	// We skip this item in the results below.
+	limit := pageSize + 1
+	var out []types.WebSession
+
+	if user == "" {
+		// no filter provided get the range directly
+		result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		out = make([]types.WebSession, 0, len(result.Items))
+		for _, item := range result.Items {
+			session, err := services.UnmarshalWebSession(item.Value)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			out = append(out, session)
+		}
+	} else {
+		// iterate over the sessions to filter only those matching the provided user
+		if err := backend.IterateRange(ctx, s.Backend, rangeStart, rangeEnd, limit, func(items []backend.Item) (stop bool, err error) {
+			for _, item := range items {
+				if len(out) == limit {
+					break
+				}
+
+				session, err := services.UnmarshalWebSession(item.Value)
+				if err != nil {
+					return false, trace.Wrap(err)
+				}
+
+				if session.GetUser() == user {
+					out = append(out, session)
+				}
+			}
+
+			return len(out) == limit, nil
+		}); err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 	}
-	return nil
+
+	var nextKey string
+	if len(out) > pageSize {
+		nextKey = backend.GetPaginationKey(out[len(out)-1])
+		// Truncate the last item that was used to determine next row existence.
+		out = out[:pageSize]
+	}
+
+	return out, nextKey, nil
+}
+
+// UpsertAppSession creates an application web session.
+func (s *IdentityService) UpsertAppSession(ctx context.Context, session types.WebSession) error {
+	return s.upsertSession(ctx, session, appsPrefix, sessionsPrefix)
 }
 
 // UpsertSnowflakeSession creates a Snowflake web session.
 func (s *IdentityService) UpsertSnowflakeSession(ctx context.Context, session types.WebSession) error {
+	return s.upsertSession(ctx, session, snowflakePrefix, sessionsPrefix)
+}
+
+// UpsertSAMLIdPSession creates a SAMLIdP web session.
+func (s *IdentityService) UpsertSAMLIdPSession(ctx context.Context, session types.WebSession) error {
+	return s.upsertSession(ctx, session, samlIdPPrefix, sessionsPrefix)
+}
+
+// upsertSession creates a web session.
+func (s *IdentityService) upsertSession(ctx context.Context, session types.WebSession, keyPrefix ...string) error {
 	value, err := services.MarshalWebSession(session)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	item := backend.Item{
-		Key:     backend.Key(snowflakePrefix, sessionsPrefix, session.GetName()),
+		Key:     backend.Key(append(keyPrefix, session.GetName())...),
 		Value:   value,
 		Expires: session.GetExpiryTime(),
 	}
@@ -152,35 +232,63 @@ func (s *IdentityService) DeleteSnowflakeSession(ctx context.Context, req types.
 	return nil
 }
 
-// GetUserAppSessions gets all user's application sessions.
-func (s *IdentityService) GetUserAppSessions(ctx context.Context, user string) ([]types.WebSession, error) {
-	sessions, err := s.GetAppSessions(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// DeleteSAMLIdPSession removes a SAML IdP session.
+func (s *IdentityService) DeleteSAMLIdPSession(ctx context.Context, req types.DeleteSAMLIdPSessionRequest) error {
+	if err := s.Delete(ctx, backend.Key(samlIdPPrefix, sessionsPrefix, req.SessionID)); err != nil {
+		return trace.Wrap(err)
 	}
-
-	var userSessions []types.WebSession
-	for _, session := range sessions {
-		if session.GetUser() == user {
-			userSessions = append(userSessions, session)
-		}
-	}
-
-	return userSessions, nil
+	return nil
 }
 
 // DeleteUserAppSessions removes all application web sessions for a particular user.
 func (s *IdentityService) DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error {
-	sessions, err := s.GetUserAppSessions(ctx, req.Username)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	var token string
 
-	for _, session := range sessions {
-		err := s.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: session.GetName()})
+	for {
+		sessions, nextToken, err := s.ListAppSessions(ctx, maxPageSize, token, req.Username)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
+		for _, session := range sessions {
+			err := s.DeleteAppSession(ctx, types.DeleteAppSessionRequest{SessionID: session.GetName()})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		token = nextToken
+	}
+
+	return nil
+}
+
+// DeleteUserSAMLIdPSessions removes all SAML IdP sessions for a particular user.
+func (s *IdentityService) DeleteUserSAMLIdPSessions(ctx context.Context, user string) error {
+	var token string
+
+	for {
+		sessions, nextToken, err := s.ListSAMLIdPSessions(ctx, maxPageSize, token, user)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, session := range sessions {
+			err := s.DeleteSAMLIdPSession(ctx, types.DeleteSAMLIdPSessionRequest{SessionID: session.GetName()})
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		token = nextToken
 	}
 
 	return nil
@@ -198,6 +306,15 @@ func (s *IdentityService) DeleteAllAppSessions(ctx context.Context) error {
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (s *IdentityService) DeleteAllSnowflakeSessions(ctx context.Context) error {
 	startKey := backend.Key(snowflakePrefix, sessionsPrefix)
+	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// DeleteAllSAMLIdPSessions removes all SAML IdP sessions.
+func (s *IdentityService) DeleteAllSAMLIdPSessions(ctx context.Context) error {
+	startKey := backend.Key(samlIdPPrefix, sessionsPrefix)
 	if err := s.DeleteRange(ctx, startKey, backend.RangeEnd(startKey)); err != nil {
 		return trace.Wrap(err)
 	}

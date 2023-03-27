@@ -26,15 +26,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/require"
 )
 
 // TestProtoStreamer tests edge cases of proto streamer implementation
@@ -72,7 +72,7 @@ func TestProtoStreamer(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	for i, tc := range testCases {
@@ -119,7 +119,7 @@ func TestProtoStreamer(t *testing.T) {
 }
 
 func TestWriterEmitter(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	events := GenerateTestSession(SessionParams{PrintEvents: 0})
@@ -138,6 +138,7 @@ func TestWriterEmitter(t *testing.T) {
 }
 
 func TestAsyncEmitter(t *testing.T) {
+	ctx := context.Background()
 	events := GenerateTestSession(SessionParams{PrintEvents: 20})
 
 	// Slow tests that async emitter does not block
@@ -148,7 +149,7 @@ func TestAsyncEmitter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		for _, event := range events {
 			err := emitter.EmitAuditEvent(ctx, event)
@@ -166,7 +167,7 @@ func TestAsyncEmitter(t *testing.T) {
 
 		require.NoError(t, err)
 		defer emitter.Close()
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		for _, event := range events {
 			err := emitter.EmitAuditEvent(ctx, event)
@@ -192,7 +193,7 @@ func TestAsyncEmitter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 
 		emitsDoneC := make(chan struct{}, len(events))
@@ -235,7 +236,7 @@ func TestExport(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ctx := context.TODO()
+	ctx := context.Background()
 	stream, err := streamer.CreateAuditStream(ctx, sid)
 	require.NoError(t, err)
 

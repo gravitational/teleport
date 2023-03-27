@@ -20,15 +20,14 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
+	_ "embed"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	_ "embed"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
@@ -70,7 +69,7 @@ type rawExecEvent struct {
 }
 
 type exec struct {
-	module *libbpfgo.Module
+	session
 
 	eventBuf *RingBuffer
 	lost     *Counter
@@ -79,7 +78,7 @@ type exec struct {
 // startExec will load, start, and pull events off the ring buffer
 // for the BPF program.
 func startExec(bufferSize int) (*exec, error) {
-	err := utils.RegisterPrometheusCollectors(lostCommandEvents)
+	err := metrics.RegisterPrometheusCollectors(lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -91,36 +90,36 @@ func startExec(bufferSize int) (*exec, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	e.module, err = libbpfgo.NewModuleFromBuffer(commandBPF, "command")
+	e.session.module, err = libbpfgo.NewModuleFromBuffer(commandBPF, "command")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Resizing the ring buffer must be done here, after the module
 	// was created but before it's loaded into the kernel.
-	if err = ResizeMap(e.module, commandEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
+	if err = ResizeMap(e.session.module, commandEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Load into the kernel
-	if err = e.module.BPFLoadObject(); err != nil {
+	if err = e.session.module.BPFLoadObject(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	syscalls := []string{"execve", "execveat"}
 
 	for _, syscall := range syscalls {
-		if err = AttachSyscallTracepoint(e.module, syscall); err != nil {
+		if err = AttachSyscallTracepoint(e.session.module, syscall); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	e.eventBuf, err = NewRingBuffer(e.module, commandEventsBuffer)
+	e.eventBuf, err = NewRingBuffer(e.session.module, commandEventsBuffer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	e.lost, err = NewCounter(e.module, "lost", lostCommandEvents)
+	e.lost, err = NewCounter(e.session.module, "lost", lostCommandEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -133,7 +132,7 @@ func startExec(bufferSize int) (*exec, error) {
 func (e *exec) close() {
 	e.lost.Close()
 	e.eventBuf.Close()
-	e.module.Close()
+	e.session.module.Close()
 }
 
 // events contains raw events off the perf buffer.

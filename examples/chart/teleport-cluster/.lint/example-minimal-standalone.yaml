@@ -1,0 +1,7 @@
+# This setup is not safe for production because the proxy will self-sign its certificate.
+# Use those values for testing only
+
+# The chart should deploy and work only with a clusterName.
+# This setup can also cause redirection issues if the proxy is contacted with a hostName instead of an IP address
+# as it is not aware of its external hostname and will attempt to perform a redirection.
+clusterName: helm-lint

@@ -21,19 +21,20 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
 )
 
 // TestHeartbeatKeepAlive tests keep alive cycle used for nodes and apps.
 func TestHeartbeatKeepAlive(t *testing.T) {
-	var tests = []struct {
+	t.Parallel()
+
+	tests := []struct {
 		name       string
 		mode       HeartbeatMode
 		makeServer func() types.Resource
@@ -60,15 +61,14 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			name: "keep alive app server",
 			mode: HeartbeatModeApp,
 			makeServer: func() types.Resource {
-				return &types.ServerV2{
+				return &types.AppServerV3{
 					Kind:    types.KindAppServer,
-					Version: types.V2,
+					Version: types.V3,
 					Metadata: types.Metadata{
 						Namespace: apidefaults.Namespace,
 						Name:      "1",
 					},
-					Spec: types.ServerSpecV2{
-						Addr:     "127.0.0.1:1234",
+					Spec: types.AppServerSpecV3{
 						Hostname: "2",
 					},
 				}
@@ -94,19 +94,22 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 			},
 		},
 		{
-			name: "keep alive kubernetes server",
-			mode: HeartbeatModeKube,
+			name: "keep alive database service",
+			mode: HeartbeatModeDatabaseService,
 			makeServer: func() types.Resource {
-				return &types.ServerV2{
-					Kind:    types.KindKubeService,
-					Version: types.V2,
-					Metadata: types.Metadata{
-						Namespace: apidefaults.Namespace,
-						Name:      "1",
+				return &types.DatabaseServiceV1{
+					ResourceHeader: types.ResourceHeader{
+						Kind:    types.KindDatabaseService,
+						Version: types.V1,
+						Metadata: types.Metadata{
+							Name:      "1",
+							Namespace: apidefaults.Namespace,
+						},
 					},
-					Spec: types.ServerSpecV2{
-						Addr:     "127.0.0.1:1234",
-						Hostname: "2",
+					Spec: types.DatabaseServiceSpecV1{
+						ResourceMatchers: []*types.DatabaseResourceMatcher{
+							{Labels: &types.Labels{"env": []string{"prod", "qa"}}},
+						},
 					},
 				}
 			},
@@ -114,7 +117,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.TODO())
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			clock := clockwork.NewFakeClock()
 			announcer := newFakeAnnouncer(ctx)
@@ -211,6 +214,7 @@ func TestHeartbeatKeepAlive(t *testing.T) {
 // TestHeartbeatAnnounce tests announce cycles used for proxies and auth servers
 func TestHeartbeatAnnounce(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		mode HeartbeatMode
 		kind string
@@ -220,7 +224,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode.String(), func(t *testing.T) {
-			ctx, cancel := context.WithCancel(context.TODO())
+			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 			clock := clockwork.NewFakeClock()
 
@@ -325,14 +329,6 @@ type fakeAnnouncer struct {
 	keepAlivesC chan<- types.KeepAlive
 }
 
-func (f *fakeAnnouncer) UpsertAppServer(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	f.upsertCalls[HeartbeatModeApp]++
-	if f.err != nil {
-		return nil, f.err
-	}
-	return &types.KeepAlive{}, nil
-}
-
 func (f *fakeAnnouncer) UpsertApplicationServer(ctx context.Context, s types.AppServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeApp]++
 	if f.err != nil {
@@ -367,12 +363,7 @@ func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertKubeService(ctx context.Context, s types.Server) error {
-	f.upsertCalls[HeartbeatModeKube]++
-	return f.err
-}
-
-func (f *fakeAnnouncer) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
+func (f *fakeAnnouncer) UpsertKubernetesServer(ctx context.Context, s types.KubeServer) (*types.KeepAlive, error) {
 	f.upsertCalls[HeartbeatModeKube]++
 	if f.err != nil {
 		return nil, f.err
@@ -388,14 +379,17 @@ func (f *fakeAnnouncer) UpsertWindowsDesktopService(ctx context.Context, s types
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) CreateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
+func (f *fakeAnnouncer) UpsertWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
 	f.upsertCalls[HeartbeatModeWindowsDesktop]++
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpdateWindowsDesktop(ctx context.Context, s types.WindowsDesktop) error {
-	f.upsertCalls[HeartbeatModeWindowsDesktop]++
-	return f.err
+func (f *fakeAnnouncer) UpsertDatabaseService(ctx context.Context, s types.DatabaseService) (*types.KeepAlive, error) {
+	f.upsertCalls[HeartbeatModeDatabaseService]++
+	if f.err != nil {
+		return nil, f.err
+	}
+	return &types.KeepAlive{}, nil
 }
 
 func (f *fakeAnnouncer) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
@@ -407,7 +401,7 @@ func (f *fakeAnnouncer) KeepAlives() chan<- types.KeepAlive {
 	return f.keepAlivesC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (f *fakeAnnouncer) Done() <-chan struct{} {
 	return f.ctx.Done()
 }

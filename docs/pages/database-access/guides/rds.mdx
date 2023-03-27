@@ -13,8 +13,6 @@ This guide will help you to:
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Database Access RDS Self-Hosted](../../../img/database-access/guides/rds_selfhosted.png)
 </ScopedBlock>
-
-
 <ScopedBlock scope={["cloud"]}>
 ![Teleport Database Access RDS Cloud](../../../img/database-access/guides/rds_cloud.png)
 </ScopedBlock>
@@ -31,24 +29,20 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with RDS and Aurora databases and permissions to create and attach
   IAM policies.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
-
 (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Install Teleport
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/7. Create a Teleport user
+## Step 1/6. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/7. Create a Database Service configuration
+## Step 2/6. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -69,7 +63,7 @@ $ teleport db configure create \
 ```
 
 </ScopedBlock>
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["cloud"]}>
 
 ```code
 $ teleport db configure create \
@@ -85,22 +79,23 @@ The command will generate a Database Service configuration with RDS/Aurora
 database auto-discovery enabled on the `us-west-1` region and place it at the
 `/etc/teleport.yaml` location.
 
-## Step 4/7. Create an IAM policy for Teleport
+## Step 3/6. Create an IAM policy for Teleport
 
 Teleport needs AWS IAM permissions to be able to:
 
 - Discover and register RDS instances and Aurora clusters.
 - Configure IAM authentication for them.
 
+Before you can generate IAM permissions, you must provide the Teleport Database
+Service access to AWS credentials.
+
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
+
 (!docs/pages/includes/database-access/aws-bootstrap.mdx!)
 
-## Step 5/7. Start the Database Service
+## Step 4/6. Start the Database Service
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
 
 The Database Service will discover all RDS instances and Aurora clusters according to the
 configuration and register them in the cluster. In addition to the primary
@@ -111,12 +106,7 @@ The Database Service will also attempt to enable IAM auth and configure IAM acce
 policies for the discovered databases. Keep in mind that AWS IAM changes may
 not propagate immediately and can take a few minutes to come into effect.
 
-<Admonition type="note" title="AWS credentials">
-  The Teleport Database Service uses the default
-  credential provider chain to find AWS credentials. See [Specifying Credentials](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials) for more information.
-</Admonition>
-
-## Step 6/7. Create a database IAM user
+## Step 5/6. Create a database IAM user
 
 Database users must allow IAM authentication in order to be used with Database
 Access for RDS. See below how to enable it for your database engine.
@@ -149,7 +139,7 @@ Access for RDS. See below how to enable it for your database engine.
 See [Creating a database account using IAM authentication](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html)
 for more information.
 
-## Step 7/7. Connect
+## Step 6/6. Connect
 
 Once the Database Service has started and joined the cluster, log in to see the
 registered databases:
@@ -187,29 +177,21 @@ $ tsh db ls
   Primary, reader, and custom endpoints of Aurora clusters have names of
   `<cluster-id>`, `<cluster-id>-reader`, and
   `<cluster-id>-custom-<endpoint-name>` respectively.
+
+  You can override the `<cluster-id>` part of the name with `teleport.dev/database_name` AWS tag.
 </Admonition>
 
-Log in to particular database using `tsh db login` command:
+To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db login postgres-rds
+$ tsh db connect postgres-rds
 ```
-
-<Admonition type="tip" title="Tip">
-  You can be logged in to multiple databases simultaneously.
-</Admonition>
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db login --db-user=postgres --db-name=postgres postgres-rds
-```
-
-Now connect to the database:
-
-```code
-$ tsh db connect postgres-rds
+$ tsh db connect --db-user=postgres --db-name=postgres postgres-rds
 ```
 
 <Admonition type="note" title="Note">
@@ -222,6 +204,12 @@ To log out of the database and remove credentials:
 ```code
 $ tsh db logout postgres-rds
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/database-access/aws-troubleshooting.mdx!)
+
+(!docs/pages/includes/database-access/aws-troubleshooting-max-policy-size.mdx!)
 
 ## Next steps
 

@@ -1,0 +1,259 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render ConsoleTabs 1`] = `
+.c7 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c10 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c9 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 12px;
+  height: 24px;
+  width: 24px;
+  margin-left: 8px;
+}
+
+.c9 .c6 {
+  color: inherit;
+}
+
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
+}
+
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
+  cursor: default;
+}
+
+.c9:hover:enabled,
+.c9:focus:enabled {
+  background: rgba(255,255,255,0.1);
+}
+
+.c4 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin: -16px;
+  height: 100%;
+  width: 100%;
+  background-color: #010B1C;
+  display: flex;
+}
+
+.c2 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  max-width: 200px;
+  height: 100%;
+  border: none;
+  border-right: 1px solid #010B1C;
+  background-color: #010B1C;
+  color: #FFFFFF;
+  font-weight: bold;
+  transition: none;
+}
+
+.c2:hover,
+.c2:focus {
+  color: #FFFFFF;
+  transition: color .3s;
+}
+
+.c8 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  max-width: 200px;
+  height: 100%;
+  border: none;
+  border-right: 1px solid #010B1C;
+}
+
+.c8:hover,
+.c8:focus {
+  color: #FFFFFF;
+  transition: color .3s;
+}
+
+.c3 {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  cursor: pointer;
+  text-decoration: none;
+  outline: none;
+  margin: 0;
+  text-decoration: none;
+  color: inherit;
+  line-height: 32px;
+  background-color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 0 16px;
+  text-overflow: ellipsis;
+  border: none;
+}
+
+.c5 {
+  background: transparent;
+  border-radius: 2px;
+  border: none;
+  cursor: pointer;
+  height: 16px;
+  width: 16px;
+  outline: none;
+  padding: 0;
+  margin: 0 8px 0 0;
+  transition: all 0.3s;
+}
+
+.c5:hover {
+  background: #f50057;
+}
+
+.c1 {
+  box-sizing: border-box;
+  height: 32px;
+  width: 100%;
+  color: rgba(255,255,255,0.56);
+  background: #01172C;
+  min-height: 32px;
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: no-wrap;
+  align-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+<div
+  class="c0"
+  height="100%"
+  style="position: absolute;"
+  width="100%"
+>
+  <nav
+    class="c1"
+    color="text.secondary"
+    height="32px"
+    width="100%"
+  >
+    <div
+      class="c2"
+      style="flex: 1; flex-basis: 0px; flex-grow: 1;"
+    >
+      <button
+        class="c3"
+      >
+        <div
+          class="c4"
+          title="tuguwog"
+        >
+          tuguwog
+        </div>
+      </button>
+      <button
+        class="c5"
+        title="Close"
+      >
+        <span
+          class="c6 c7 icon icon-close "
+          color="light"
+        />
+      </button>
+    </div>
+    <div
+      class="c8"
+      style="flex: 1; flex-basis: 0px; flex-grow: 1;"
+    >
+      <button
+        class="c3"
+      >
+        <div
+          class="c4"
+          title="emwonepu"
+        >
+          emwonepu
+        </div>
+      </button>
+      <button
+        class="c5"
+        title="Close"
+      >
+        <span
+          class="c6 c7 icon icon-close "
+          color="light"
+        />
+      </button>
+    </div>
+    <div
+      class="c8"
+      style="flex: 1; flex-basis: 0px; flex-grow: 1;"
+    >
+      <button
+        class="c3"
+      >
+        <div
+          class="c4"
+          title="foguzaziw"
+        >
+          foguzaziw
+        </div>
+      </button>
+      <button
+        class="c5"
+        title="Close"
+      >
+        <span
+          class="c6 c7 icon icon-close "
+          color="light"
+        />
+      </button>
+    </div>
+    <button
+      class="c9"
+      title="New Tab"
+    >
+      <span
+        class="c6 c10 icon icon-add "
+        color="light"
+        font-size="16px"
+      />
+    </button>
+  </nav>
+</div>
+`;

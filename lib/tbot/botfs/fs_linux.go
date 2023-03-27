@@ -28,10 +28,11 @@ import (
 	"sync"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/joshlf/go-acl"
 	"golang.org/x/sys/unix"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Openat2MinKernel is the kernel release that adds support for the openat2()

@@ -20,9 +20,8 @@ import (
 	"net/http"
 	"strings"
 
-	"golang.org/x/net/http2"
-
 	"github.com/gravitational/trace"
+	"golang.org/x/net/http2"
 )
 
 var PEMBytes = map[string][]byte{

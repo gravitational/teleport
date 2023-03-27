@@ -20,15 +20,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/utils"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils"
 )
 
-// User represents teleport embedded user or external user
+// User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
@@ -43,6 +45,24 @@ type User interface {
 	SetLocalAuth(auth *LocalAuthSecrets)
 	// GetRoles returns a list of roles assigned to user
 	GetRoles() []string
+	// GetLogins gets the list of server logins/principals for the user
+	GetLogins() []string
+	// GetDatabaseUsers gets the list of Database Users for the user
+	GetDatabaseUsers() []string
+	// GetDatabaseNames gets the list of Database Names for the user
+	GetDatabaseNames() []string
+	// GetKubeUsers gets the list of Kubernetes Users for the user
+	GetKubeUsers() []string
+	// GetKubeGroups gets the list of Kubernetes Groups for the user
+	GetKubeGroups() []string
+	// GetWindowsLogins gets the list of Windows Logins for the user
+	GetWindowsLogins() []string
+	// GetAWSRoleARNs gets the list of AWS role ARNs for the user
+	GetAWSRoleARNs() []string
+	// GetAzureIdentities gets a list of Azure identities for the user
+	GetAzureIdentities() []string
+	// GetGCPServiceAccounts gets a list of GCP service accounts for the user
+	GetGCPServiceAccounts() []string
 	// String returns user
 	String() string
 	// GetStatus return user login status
@@ -57,13 +77,31 @@ type User interface {
 	SetRoles(roles []string)
 	// AddRole adds role to the users' role list
 	AddRole(name string)
+	// SetLogins sets a list of server logins/principals for user
+	SetLogins(logins []string)
+	// SetDatabaseUsers sets a list of Database Users for user
+	SetDatabaseUsers(databaseUsers []string)
+	// SetDatabaseNames sets a list of Database Names for user
+	SetDatabaseNames(databaseNames []string)
+	// SetKubeUsers sets a list of Kubernetes Users for user
+	SetKubeUsers(kubeUsers []string)
+	// SetKubeGroups sets a list of Kubernetes Groups for user
+	SetKubeGroups(kubeGroups []string)
+	// SetWindowsLogins sets a list of Windows Logins for user
+	SetWindowsLogins(logins []string)
+	// SetAWSRoleARNs sets a list of AWS role ARNs for user
+	SetAWSRoleARNs(awsRoleARNs []string)
+	// SetAzureIdentities sets a list of Azure identities for the user
+	SetAzureIdentities(azureIdentities []string)
+	// SetGCPServiceAccounts sets a list of GCP service accounts for the user
+	SetGCPServiceAccounts(accounts []string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
-	// GetTraits sets the trait map for this user used to populate role variables.
+	// SetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
 }
 
@@ -119,6 +157,16 @@ func (u *UserV2) SetResourceID(id int64) {
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (u *UserV2) Origin() string {
+	return u.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (u *UserV2) SetOrigin(origin string) {
+	u.Metadata.SetOrigin(origin)
 }
 
 // SetMetadata sets object metadata
@@ -207,6 +255,58 @@ func (u *UserV2) SetRoles(roles []string) {
 	u.Spec.Roles = utils.Deduplicate(roles)
 }
 
+func (u *UserV2) setTrait(trait string, list []string) {
+	if u.Spec.Traits == nil {
+		u.Spec.Traits = make(map[string][]string)
+	}
+	u.Spec.Traits[trait] = utils.Deduplicate(list)
+}
+
+// SetLogins sets the Logins trait for the user
+func (u *UserV2) SetLogins(logins []string) {
+	u.setTrait(constants.TraitLogins, logins)
+}
+
+// SetDatabaseUsers sets the DatabaseUsers trait for the user
+func (u *UserV2) SetDatabaseUsers(databaseUsers []string) {
+	u.setTrait(constants.TraitDBUsers, databaseUsers)
+}
+
+// SetDatabaseNames sets the DatabaseNames trait for the user
+func (u *UserV2) SetDatabaseNames(databaseNames []string) {
+	u.setTrait(constants.TraitDBNames, databaseNames)
+}
+
+// SetKubeUsers sets the KubeUsers trait for the user
+func (u *UserV2) SetKubeUsers(kubeUsers []string) {
+	u.setTrait(constants.TraitKubeUsers, kubeUsers)
+}
+
+// SetKubeGroups sets the KubeGroups trait for the user
+func (u *UserV2) SetKubeGroups(kubeGroups []string) {
+	u.setTrait(constants.TraitKubeGroups, kubeGroups)
+}
+
+// SetWindowsLogins sets the WindowsLogins trait for the user
+func (u *UserV2) SetWindowsLogins(logins []string) {
+	u.setTrait(constants.TraitWindowsLogins, logins)
+}
+
+// SetAWSRoleARNs sets the AWSRoleARNs trait for the user
+func (u *UserV2) SetAWSRoleARNs(awsRoleARNs []string) {
+	u.setTrait(constants.TraitAWSRoleARNs, awsRoleARNs)
+}
+
+// SetAzureIdentities sets a list of Azure identities for the user
+func (u *UserV2) SetAzureIdentities(identities []string) {
+	u.setTrait(constants.TraitAzureIdentities, identities)
+}
+
+// SetGCPServiceAccounts sets a list of GCP service accounts for the user
+func (u *UserV2) SetGCPServiceAccounts(accounts []string) {
+	u.setTrait(constants.TraitGCPServiceAccounts, accounts)
+}
+
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -250,6 +350,58 @@ func (u *UserV2) AddRole(name string) {
 		}
 	}
 	u.Spec.Roles = append(u.Spec.Roles, name)
+}
+
+func (u UserV2) getTrait(trait string) []string {
+	if u.Spec.Traits == nil {
+		return []string{}
+	}
+	return u.Spec.Traits[trait]
+}
+
+// GetLogins gets the list of server logins/principals for the user
+func (u UserV2) GetLogins() []string {
+	return u.getTrait(constants.TraitLogins)
+}
+
+// GetDatabaseUsers gets the list of DB Users for the user
+func (u UserV2) GetDatabaseUsers() []string {
+	return u.getTrait(constants.TraitDBUsers)
+}
+
+// GetDatabaseNames gets the list of DB Names for the user
+func (u UserV2) GetDatabaseNames() []string {
+	return u.getTrait(constants.TraitDBNames)
+}
+
+// GetKubeUsers gets the list of Kubernetes Users for the user
+func (u UserV2) GetKubeUsers() []string {
+	return u.getTrait(constants.TraitKubeUsers)
+}
+
+// GetKubeGroups gets the list of Kubernetes Groups for the user
+func (u UserV2) GetKubeGroups() []string {
+	return u.getTrait(constants.TraitKubeGroups)
+}
+
+// GetWindowsLogins gets the list of Windows Logins for the user
+func (u UserV2) GetWindowsLogins() []string {
+	return u.getTrait(constants.TraitWindowsLogins)
+}
+
+// GetAWSRoleARNs gets the list of AWS role ARNs for the user
+func (u UserV2) GetAWSRoleARNs() []string {
+	return u.getTrait(constants.TraitAWSRoleARNs)
+}
+
+// GetAzureIdentities gets a list of Azure identities for the user
+func (u UserV2) GetAzureIdentities() []string {
+	return u.getTrait(constants.TraitAzureIdentities)
+}
+
+// GetGCPServiceAccounts gets a list of GCP service accounts for the user
+func (u UserV2) GetGCPServiceAccounts() []string {
+	return u.getTrait(constants.TraitGCPServiceAccounts)
 }
 
 func (u *UserV2) String() string {

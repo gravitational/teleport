@@ -76,6 +76,12 @@ $ # Replace ".example.com" below with the name of your cluster.
 $ tsh ls --format=json | jq -r '.[].spec.hostname + ".example.com"' > hosts
 ```
 
+<Details title="Not seeing Nodes?" opened={false}>
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</Details>
+
 ## Step 2/2. Run a playbook
 
 Finally, let's create a simple Ansible playbook, `playbook.yaml`.

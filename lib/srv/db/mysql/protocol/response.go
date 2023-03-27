@@ -16,7 +16,9 @@ limitations under the License.
 
 package protocol
 
-import "github.com/gravitational/trace"
+import (
+	"github.com/gravitational/trace"
+)
 
 // OK represents the OK packet.
 //
@@ -33,13 +35,15 @@ type OK struct {
 type Error struct {
 	packet
 
-	// message is the error message
-	message string
+	// Message is the error Message
+	Message string
+	// Code is the error Code.
+	Code uint16
 }
 
 // Error returns the error message.
 func (p *Error) Error() string {
-	return p.message
+	return p.Message
 }
 
 // parseOKPacket parses packet bytes and returns a Packet if successful.
@@ -67,8 +71,12 @@ func parseErrorPacket(packetBytes []byte) (Packet, error) {
 		return nil, trace.BadParameter("failed to parse ERR packet: %v", packetBytes)
 	}
 
+	// ignore unread bytes and "ok", we already checked len of bytes.
+	_, code, _ := readUint16(packetBytes[packetHeaderAndTypeSize:])
+
 	return &Error{
 		packet:  packet{bytes: packetBytes},
-		message: string(packetBytes[minLen:]),
+		Message: string(packetBytes[minLen:]),
+		Code:    code,
 	}, nil
 }

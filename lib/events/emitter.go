@@ -22,16 +22,18 @@ import (
 	"io"
 	"time"
 
-	"github.com/gravitational/teleport"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+// AsyncBufferSize is a default buffer size for async emitters
+const AsyncBufferSize = 1024
 
 // AsyncEmitterConfig provides parameters for emitter
 type AsyncEmitterConfig struct {
@@ -47,7 +49,7 @@ func (c *AsyncEmitterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter Inner")
 	}
 	if c.BufferSize == 0 {
-		c.BufferSize = defaults.AsyncBufferSize
+		c.BufferSize = AsyncBufferSize
 	}
 	return nil
 }

@@ -21,82 +21,10 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/trace"
 )
-
-// NewDebugFileSystem returns the HTTP file system implementation rooted
-// at the specified assetsPath.
-func NewDebugFileSystem(assetsPath string) (http.FileSystem, error) {
-	assetsToCheck := []string{"index.html", "/app"}
-	if assetsPath == "" {
-		exePath, err := executableFolder()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		_, err = os.Stat(path.Join(exePath, "../../e"))
-		isEnterprise := !os.IsNotExist(err)
-
-		if isEnterprise {
-			// enterprise web assets
-			assetsPath = path.Join(exePath, "../../webassets/e/teleport")
-		} else {
-			// community web assets
-			assetsPath = path.Join(exePath, "../webassets/teleport")
-		}
-	}
-
-	for _, af := range assetsToCheck {
-		_, err := os.Stat(filepath.Join(assetsPath, af))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	log.Infof("Using filesystem for serving web assets: %s.", assetsPath)
-	return http.Dir(assetsPath), nil
-}
-
-func executableFolder() (string, error) {
-	p, err := os.Executable()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return filepath.Dir(filepath.Clean(p)), nil
-}
-
-const (
-	webAssetsMissingError = "the teleport binary was built without web assets, try building with `make release`"
-	webAssetsReadError    = "failure reading web assets from the binary"
-)
-
-func readZipArchive(r io.ReaderAt, size int64) (ResourceMap, error) {
-	zreader, err := zip.NewReader(r, size)
-	if err != nil {
-		// this often happens when teleport is launched without the web assets
-		// zip file attached to the binary. for launching it in such mode
-		// set DEBUG environment variable to 1
-		if err == zip.ErrFormat {
-			return nil, trace.NotFound(webAssetsMissingError)
-		}
-		return nil, trace.NotFound("%s %v", webAssetsReadError, err)
-	}
-	entries := make(ResourceMap)
-	for _, file := range zreader.File {
-		if file.FileInfo().IsDir() {
-			continue
-		}
-		entries[file.Name] = file
-	}
-	// no entries found?
-	if len(entries) == 0 {
-		return nil, trace.Wrap(os.ErrInvalid)
-	}
-	return entries, nil
-}
 
 // resource struct implements http.File interface on top of zip.File object
 type resource struct {

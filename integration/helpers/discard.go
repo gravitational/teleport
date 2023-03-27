@@ -18,12 +18,13 @@ package helpers
 
 import (
 	"context"
-	"fmt"
+	"net"
+
+	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 )
 
 // DiscardServer is a SSH server that discards SSH exec requests and starts
@@ -32,13 +33,13 @@ type DiscardServer struct {
 	sshServer *sshutils.Server
 }
 
-func NewDiscardServer(host string, port int, hostSigner ssh.Signer) (*DiscardServer, error) {
+func NewDiscardServer(hostSigner ssh.Signer, listener net.Listener) (*DiscardServer, error) {
 	ds := &DiscardServer{}
 
 	// create underlying ssh server
 	sshServer, err := sshutils.NewServer(
 		"integration-discard-server",
-		utils.NetAddr{AddrNetwork: "tcp", Addr: fmt.Sprintf("%v:%v", host, port)},
+		utils.NetAddr{AddrNetwork: "tcp", Addr: listener.Addr().String()},
 		ds,
 		[]ssh.Signer{hostSigner},
 		sshutils.AuthMethods{
@@ -47,6 +48,10 @@ func NewDiscardServer(host string, port int, hostSigner ssh.Signer) (*DiscardSer
 		sshutils.SetInsecureSkipHostValidation(),
 	)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := sshServer.SetListener(listener); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	ds.sshServer = sshServer

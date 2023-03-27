@@ -28,11 +28,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // printShutdownStatus prints running services until shut down
@@ -52,7 +53,6 @@ func (process *TeleportProcess) printShutdownStatus(ctx context.Context) {
 // WaitForSignals waits for system signals and processes them.
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
-
 	sigC := make(chan os.Signal, 1024)
 	// Note: SIGKILL can't be trapped.
 	signal.Notify(sigC,
@@ -64,9 +64,12 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context) error {
 		syscall.SIGHUP,  // graceful restart procedure
 		syscall.SIGCHLD, // collect child status
 	)
+	defer signal.Stop(sigC)
 
 	serviceErrorsC := make(chan Event, 10)
-	process.WaitForEvent(ctx, ServiceExitedWithErrorEvent, serviceErrorsC)
+	eventCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	process.ListenForEvents(eventCtx, ServiceExitedWithErrorEvent, serviceErrorsC)
 
 	// Block until a signal is received or handler got an error.
 	// Notice how this handler is serialized - it will only receive
@@ -173,7 +176,7 @@ func (process *TeleportProcess) writeToSignalPipe(signalPipe *os.File, message s
 	case <-time.After(signalPipeTimeout):
 		return trace.BadParameter("Failed to write to parent process pipe.")
 	case <-messageSignalled.Done():
-		process.log.Infof("Signalled success to parent process.")
+		process.log.Infof("Signaled success to parent process.")
 	}
 	return nil
 }
@@ -185,7 +188,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 	defer process.Unlock()
 
 	var errors []error
-	openDescriptors := make([]FileDescriptor, 0, len(process.importedDescriptors))
+	openDescriptors := make([]servicecfg.FileDescriptor, 0, len(process.importedDescriptors))
 	for _, d := range process.importedDescriptors {
 		if strings.HasPrefix(d.Type, prefix) {
 			process.log.Infof("Closing imported but unused descriptor %v %v.", d.Type, d.Address)
@@ -200,7 +203,7 @@ func (process *TeleportProcess) closeImportedDescriptors(prefix string) error {
 
 // importOrCreateListener imports listener passed by the parent process (happens during live reload)
 // or creates a new listener if there was no listener registered
-func (process *TeleportProcess) importOrCreateListener(typ listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) importOrCreateListener(typ ListenerType, address string) (net.Listener, error) {
 	l, err := process.importListener(typ, address)
 	if err == nil {
 		process.log.Infof("Using file descriptor %v %v passed by the parent process.", typ, address)
@@ -230,7 +233,7 @@ func (process *TeleportProcess) importSignalPipe() (*os.File, error) {
 
 // importListener imports listener passed by the parent process, if no listener is found
 // returns NotFound, otherwise removes the file from the list
-func (process *TeleportProcess) importListener(typ listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) importListener(typ ListenerType, address string) (net.Listener, error) {
 	process.Lock()
 	defer process.Unlock()
 
@@ -252,7 +255,7 @@ func (process *TeleportProcess) importListener(typ listenerType, address string)
 }
 
 // createListener creates listener and adds to a list of tracked listeners
-func (process *TeleportProcess) createListener(typ listenerType, address string) (net.Listener, error) {
+func (process *TeleportProcess) createListener(typ ListenerType, address string) (net.Listener, error) {
 	listenersClosed := func() bool {
 		process.Lock()
 		defer process.Unlock()
@@ -260,7 +263,7 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 	}
 
 	if listenersClosed() {
-		process.log.Debug("Listening is blocked, not opening listener for type %v and address %v.", typ, address)
+		process.log.Debugf("Listening is blocked, not opening listener for type %v and address %v.", typ, address)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 
@@ -270,7 +273,7 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 		listener, ok := process.getListenerNeedsLock(typ, address)
 		process.Unlock()
 		if ok {
-			process.log.Debug("Using existing listener for type %v and address %v.", typ, address)
+			process.log.Debugf("Using existing listener for type %v and address %v.", typ, address)
 			return listener, nil
 		}
 		return nil, trace.Wrap(err)
@@ -282,12 +285,12 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 	// needs a dns lookup, so we can't do it while holding the lock)
 	if process.listenersClosed {
 		listener.Close()
-		process.log.Debug("Listening is blocked, closing newly-created listener for type %v and address %v.", typ, address)
+		process.log.Debugf("Listening is blocked, closing newly-created listener for type %v and address %v.", typ, address)
 		return nil, trace.BadParameter("listening is blocked")
 	}
 	if l, ok := process.getListenerNeedsLock(typ, address); ok {
 		listener.Close()
-		process.log.Debug("Using existing listener for type %v and address %v.", typ, address)
+		process.log.Debugf("Using existing listener for type %v and address %v.", typ, address)
 		return l, nil
 	}
 	r := registeredListener{typ: typ, address: address, listener: listener}
@@ -296,7 +299,7 @@ func (process *TeleportProcess) createListener(typ listenerType, address string)
 }
 
 // getListenerNeedsLock tries to get an existing listener that matches the type/addr.
-func (process *TeleportProcess) getListenerNeedsLock(typ listenerType, address string) (listener net.Listener, ok bool) {
+func (process *TeleportProcess) getListenerNeedsLock(typ ListenerType, address string) (listener net.Listener, ok bool) {
 	for _, l := range process.registeredListeners {
 		if l.typ == typ && l.address == address {
 			return l.listener, true
@@ -318,8 +321,8 @@ func (process *TeleportProcess) stopListeners() error {
 }
 
 // ExportFileDescriptors exports file descriptors to be passed to child process
-func (process *TeleportProcess) ExportFileDescriptors() ([]FileDescriptor, error) {
-	var out []FileDescriptor
+func (process *TeleportProcess) ExportFileDescriptors() ([]servicecfg.FileDescriptor, error) {
+	var out []servicecfg.FileDescriptor
 	process.Lock()
 	defer process.Unlock()
 	for _, r := range process.registeredListeners {
@@ -327,13 +330,17 @@ func (process *TeleportProcess) ExportFileDescriptors() ([]FileDescriptor, error
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		out = append(out, FileDescriptor{File: file, Type: string(r.typ), Address: r.address})
+		out = append(out, servicecfg.FileDescriptor{
+			File:    file,
+			Type:    string(r.typ),
+			Address: r.address,
+		})
 	}
 	return out, nil
 }
 
 // importFileDescriptors imports file descriptors from environment if there are any
-func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
+func importFileDescriptors(log logrus.FieldLogger) ([]servicecfg.FileDescriptor, error) {
 	// These files may be passed in by the parent process
 	filesString := os.Getenv(teleportFilesEnvVar)
 	os.Unsetenv(teleportFilesEnvVar)
@@ -357,32 +364,33 @@ func importFileDescriptors(log logrus.FieldLogger) ([]FileDescriptor, error) {
 // within teleport process, can be passed to child process
 type registeredListener struct {
 	// Type is a listener type, e.g. auth:ssh
-	typ listenerType
+	typ ListenerType
 	// Address is an address listener is serving on, e.g. 127.0.0.1:3025
 	address string
 	// Listener is a file listener object
 	listener net.Listener
 }
 
-// FileDescriptor is a file descriptor associated
-// with a listener
-type FileDescriptor struct {
-	// Type is a listener type, e.g. auth:ssh
-	Type string
-	// Address is an address of the listener, e.g. 127.0.0.1:3025
-	Address string
-	// File is a file descriptor associated with the listener
-	File *os.File
+const teleportFilesEnvVar = "TELEPORT_OS_FILES"
+
+func execPath() (string, error) {
+	name, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return "", err
+	}
+	if _, err = os.Stat(name); nil != err {
+		return "", err
+	}
+	return name, err
 }
 
-func (fd *FileDescriptor) ToListener() (net.Listener, error) {
-	listener, err := net.FileListener(fd.File)
-	if err != nil {
-		return nil, err
-	}
-	fd.File.Close()
-	return listener, nil
-}
+const (
+	signalPipeName = "teleport-signal-pipe"
+	// signalPipeTimeout is a time parent process is expecting
+	// the child process to initialize and write back,
+	// or child process is blocked on write to the pipe
+	signalPipeTimeout = 2 * time.Minute
+)
 
 type fileDescriptor struct {
 	Address  string `json:"addr"`
@@ -392,7 +400,7 @@ type fileDescriptor struct {
 }
 
 // filesToString serializes file descriptors as well as accompanying information (like socket host and port)
-func filesToString(files []FileDescriptor) (string, error) {
+func filesToString(files []servicecfg.FileDescriptor) (string, error) {
 	out := make([]fileDescriptor, len(files))
 	for i, f := range files {
 		out[i] = fileDescriptor{
@@ -412,28 +420,15 @@ func filesToString(files []FileDescriptor) (string, error) {
 	return string(bytes), nil
 }
 
-const teleportFilesEnvVar = "TELEPORT_OS_FILES"
-
-func execPath() (string, error) {
-	name, err := exec.LookPath(os.Args[0])
-	if err != nil {
-		return "", err
-	}
-	if _, err = os.Stat(name); nil != err {
-		return "", err
-	}
-	return name, err
-}
-
 // filesFromString de-serializes the file descriptors and turns them in the os.Files
-func filesFromString(in string) ([]FileDescriptor, error) {
+func filesFromString(in string) ([]servicecfg.FileDescriptor, error) {
 	var out []fileDescriptor
 	if err := json.Unmarshal([]byte(in), &out); err != nil {
 		return nil, err
 	}
-	files := make([]FileDescriptor, len(out))
+	files := make([]servicecfg.FileDescriptor, len(out))
 	for i, o := range out {
-		files[i] = FileDescriptor{
+		files[i] = servicecfg.FileDescriptor{
 			File:    os.NewFile(uintptr(o.FileFD), o.FileName),
 			Address: o.Address,
 			Type:    o.Type,
@@ -441,14 +436,6 @@ func filesFromString(in string) ([]FileDescriptor, error) {
 	}
 	return files, nil
 }
-
-const (
-	signalPipeName = "teleport-signal-pipe"
-	// signalPipeTimeout is a time parent process is expecting
-	// the child process to initialize and write back,
-	// or child process is blocked on write to the pipe
-	signalPipeTimeout = 2 * time.Minute
-)
 
 func (process *TeleportProcess) forkChild() error {
 	readPipe, writePipe, err := os.Pipe()
@@ -477,7 +464,7 @@ func (process *TeleportProcess) forkChild() error {
 		return trace.Wrap(err)
 	}
 
-	listenerFiles = append(listenerFiles, FileDescriptor{
+	listenerFiles = append(listenerFiles, servicecfg.FileDescriptor{
 		File:    writePipe,
 		Type:    signalPipeName,
 		Address: "127.0.0.1:0",
@@ -516,7 +503,7 @@ func (process *TeleportProcess) forkChild() error {
 		data := make([]byte, 1024)
 		len, err := readPipe.Read(data)
 		if err != nil {
-			log.Debugf("Failed to read from pipe")
+			log.Debug("Failed to read from pipe")
 			return
 		}
 		log.Infof("Received message from pid %v: %v", p.Pid, string(data[:len]))

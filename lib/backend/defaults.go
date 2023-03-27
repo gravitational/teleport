@@ -32,5 +32,5 @@ const (
 	DefaultEventsTTL = 10 * time.Minute
 	// DefaultRangeLimit is used to specify some very large limit when limit is not specified
 	// explicitly to prevent OOM due to infinite loops or other issues along those lines.
-	DefaultRangeLimit = 200_000
+	DefaultRangeLimit = 2_000_000
 )

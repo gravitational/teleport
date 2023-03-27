@@ -18,18 +18,17 @@ package utils
 
 import (
 	"strings"
+	"testing"
 
 	"github.com/coreos/go-semver/semver"
-	"gopkg.in/check.v1"
+	"github.com/stretchr/testify/require"
 )
-
-type KernelSuite struct{}
-
-var _ = check.Suite(&KernelSuite{})
 
 // TestKernelVersion checks that version strings for various distributions
 // can be parsed correctly.
-func (s *KernelSuite) TestKernelVersion(c *check.C) {
+func TestKernelVersion(t *testing.T) {
+	t.Parallel()
+
 	var tests = []struct {
 		inRelease  string
 		inMin      string
@@ -71,20 +70,39 @@ func (s *KernelSuite) TestKernelVersion(c *check.C) {
 			inMax:      "5.1.0",
 			outRelease: "5.0.0",
 		},
+		// Windows WSL2
+		{
+			inRelease:  "5.15.68.1-microsoft-standard-WSL2",
+			inMin:      "5.14.0",
+			inMax:      "5.16.0",
+			outRelease: "5.15.68",
+		},
 	}
 
 	for _, tt := range tests {
-		// Check the version is parsed correctly.
-		version, err := kernelVersion(strings.NewReader(tt.inRelease))
-		c.Assert(err, check.IsNil)
-		c.Assert(version.String(), check.Equals, tt.outRelease)
+		t.Run(tt.inRelease, func(t *testing.T) {
+			// Check the version is parsed correctly.
+			version, err := kernelVersion(strings.NewReader(tt.inRelease))
+			require.NoError(t, err)
+			require.Equal(t, version.String(), tt.outRelease)
 
-		// Check that version comparisons work.
-		min, err := semver.NewVersion(tt.inMin)
-		c.Assert(err, check.IsNil)
-		max, err := semver.NewVersion(tt.inMax)
-		c.Assert(err, check.IsNil)
-		c.Assert(version.LessThan(*max), check.Equals, true)
-		c.Assert(version.LessThan(*min), check.Equals, false)
+			// Check that version comparisons work.
+			min, err := semver.NewVersion(tt.inMin)
+			require.NoError(t, err)
+			max, err := semver.NewVersion(tt.inMax)
+			require.NoError(t, err)
+			require.Equal(t, version.LessThan(*max), true)
+			require.Equal(t, version.LessThan(*min), false)
+		})
 	}
+
+	t.Run("invalid kernel version", func(t *testing.T) {
+		v, err := kernelVersion(strings.NewReader("10.23"))
+		require.Nil(t, v)
+		require.EqualError(
+			t,
+			err,
+			`unable to extract kernel semver from string "10.23"`,
+		)
+	})
 }

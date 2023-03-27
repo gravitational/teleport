@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,11 +27,12 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/jonboulle/clockwork"
-
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestIsSessionUsingTemporaryCredentials(t *testing.T) {
@@ -164,7 +165,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 					},
 					Expires: test.expiresAt,
 				},
@@ -220,7 +221,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			expectedToken: "generated-token",
 		},
 		{
-			name:               "validate URL parameters termporary session",
+			name:               "validate URL parameters temporary session",
 			sessionCredentials: credentials.NewStaticCredentials("id", "secret", "sessiontoken"),
 			federationServerHandler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				values := r.URL.Query()
@@ -268,7 +269,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
 					},
 					Expires: time.Now().Add(24 * time.Hour),
 				},
@@ -284,6 +285,36 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, test.expectedToken, actualToken)
 			}
+		})
+	}
+}
+
+func TestCloudGetFederationURL(t *testing.T) {
+	tests := []struct {
+		name                  string
+		inputTargetURL        string
+		expectedFederationURL string
+	}{
+		{
+			name:                  "AWS GovCloud (US)",
+			inputTargetURL:        constants.AWSUSGovConsoleURL,
+			expectedFederationURL: "https://signin.amazonaws-us-gov.com/federation",
+		},
+		{
+			name:                  "AWS China",
+			inputTargetURL:        constants.AWSCNConsoleURL,
+			expectedFederationURL: "https://signin.amazonaws.cn/federation",
+		},
+		{
+			name:                  "AWS Standard",
+			inputTargetURL:        constants.AWSConsoleURL,
+			expectedFederationURL: "https://signin.aws.amazon.com/federation",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expectedFederationURL, getFederationURL(test.inputTargetURL))
 		})
 	}
 }

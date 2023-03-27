@@ -2,8 +2,10 @@
 # Locking service makes sure that there is only one auth server performing certain action,
 # for example renewing or getting letsencrypt certificates
 
-set -x
 set -e
+if [[ "${DEBUG:-false}" == "true" ]]; then
+    set -x
+fi
 
 # Source variables from user-data
 . /etc/teleport.d/conf

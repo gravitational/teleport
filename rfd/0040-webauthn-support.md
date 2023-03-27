@@ -9,6 +9,8 @@ state: implemented
 
 Provide WebAuthn support for Teleport, both server- and client-side.
 
+WebAuthn is available since Teleport 8.
+
 ## Why
 
 (Quoting issue [#6478](https://github.com/gravitational/teleport/issues/6478).)
@@ -40,35 +42,35 @@ to the server with the signed challenge. Assuming all is well this completes the
 registration process.
 
 ```
-                          Registration flow                     
-                                                                
+                          Registration flow
+
      ┌──────┐                       ┌──────┐            ┌──────┐
      │Device│                       │Client│            │Server│
      └──┬───┘                       └──┬───┘            └──┬───┘
-        │                              │ BeginRegistration │    
-        │                              │ ──────────────────>    
-        │                              │                   │    
-        │                              │ CredentialCreation│    
-        │                              │ <──────────────────    
-        │                              │                   │    
-        │ navigator.credential.create()│                   │    
-        │ <─────────────────────────────                   │    
-        │                              │                   │    
-        │          Credential          │                   │    
-        │ ─────────────────────────────>                   │    
-        │                              │                   │    
-        │                              │ FinishRegistration│    
-        │                              │ ──────────────────>    
-        │                              │                   │    
-        │                              │  success/failure  │    
-        │                              │ <──────────────────    
+        │                              │ BeginRegistration │
+        │                              │ ──────────────────>
+        │                              │                   │
+        │                              │ CredentialCreation│
+        │                              │ <──────────────────
+        │                              │                   │
+        │ navigator.credential.create()│                   │
+        │ <─────────────────────────────                   │
+        │                              │                   │
+        │          Credential          │                   │
+        │ ─────────────────────────────>                   │
+        │                              │                   │
+        │                              │ FinishRegistration│
+        │                              │ ──────────────────>
+        │                              │                   │
+        │                              │  success/failure  │
+        │                              │ <──────────────────
      ┌──┴───┐                       ┌──┴───┐            ┌──┴───┐
      │Device│                       │Client│            │Server│
      └──────┘                       └──────┘            └──────┘
 ```
 
 Authentication (also referred simply as Login) follows a similar "challenge ->
-sign -> verify" protocol. In simple terms, the client requests a 
+sign -> verify" protocol. In simple terms, the client requests a
 [CredentialAssertion](https://pkg.go.dev/github.com/duo-labs/webauthn/protocol#CredentialAssertion)
 from the server, signs it by calling
 [navigartor.credentials.get()](https://developer.mozilla.org/en-US/docs/Web/API/CredentialsContainer/get),
@@ -407,58 +409,58 @@ that the viability of it has been established.
 This is the current flow of the login API:
 
 ```
-                                                      U2F login                                                  
-                                                                                                                 
-          ┌─┐                                                                                                    
-          ║"│                                                                                                    
-          └┬┘                                                                                                    
-          ┌┼┐                                                                                                    
+                                                      U2F login
+
+          ┌─┐
+          ║"│
+          └┬┘
+          ┌┼┐
            │                ┌───┐                             ┌─────┐                                      ┌────┐
           ┌┴┐               │tsh│                             │proxy│                                      │auth│
       codingllama           └─┬─┘                             └──┬──┘                                      └─┬──┘
-           │   $ tsh login    │                                  │                                           │   
-           │─────────────────>│                                  │                                           │   
-           │                  │                                  │                                           │   
-           │                  │  POST /webapi/u2f/signrequest    │                                           │   
-           │                  │─────────────────────────────────>│                                           │   
-           │                  │                                  │                                           │   
-           │                  │                                  │    POST /v2/u2f/users/codingllama/sign    │   
-           │                  │                                  │───────────────────────────────────────────>   
-           │                  │                                  │                                           │   
-           │                  │                                  │     lib.auth.MFAAuthenticateChallenge     │   
-           │                  │                                  │<───────────────────────────────────────────   
-           │                  │                                  │                                           │   
-           │                  │lib.auth.MFAAuthenticateChallenge │                                           │   
-           │                  │<─────────────────────────────────│                                           │   
-           │                  │                                  │                                           │   
-           │tap security key  │                                  │                                           │   
-           │<─────────────────│                                  │                                           │   
-           │                  │                                  │                                           │   
-           ────┐              │                                  │                                           │   
-               │ *taps*       │                                  │                                           │   
-           <───┘              │                                  │                                           │   
-           │                  │                                  │                                           │   
-           │                  │     POST /webapi/u2f/certs       │                                           │   
-           │                  │─────────────────────────────────>│                                           │   
-           │                  │                                  │                                           │   
-           │                  │                                  │POST /v2/users/codingllama/ssh/authenticate│   
-           │                  │                                  │───────────────────────────────────────────>   
-           │                  │                                  │                                           │   
-           │                  │                                  │         lib.auth.SSHLoginResponse         │   
-           │                  │                                  │<───────────────────────────────────────────   
-           │                  │                                  │                                           │   
-           │                  │    lib.auth.SSHLoginResponse     │                                           │   
-           │                  │<─────────────────────────────────│                                           │   
-           │                  │                                  │                                           │   
-           │      done        │                                  │                                           │   
-           │<─────────────────│                                  │                                           │   
+           │   $ tsh login    │                                  │                                           │
+           │─────────────────>│                                  │                                           │
+           │                  │                                  │                                           │
+           │                  │  POST /webapi/u2f/signrequest    │                                           │
+           │                  │─────────────────────────────────>│                                           │
+           │                  │                                  │                                           │
+           │                  │                                  │    POST /v2/u2f/users/codingllama/sign    │
+           │                  │                                  │───────────────────────────────────────────>
+           │                  │                                  │                                           │
+           │                  │                                  │     lib.auth.MFAAuthenticateChallenge     │
+           │                  │                                  │<───────────────────────────────────────────
+           │                  │                                  │                                           │
+           │                  │lib.auth.MFAAuthenticateChallenge │                                           │
+           │                  │<─────────────────────────────────│                                           │
+           │                  │                                  │                                           │
+           │tap security key  │                                  │                                           │
+           │<─────────────────│                                  │                                           │
+           │                  │                                  │                                           │
+           ────┐              │                                  │                                           │
+               │ *taps*       │                                  │                                           │
+           <───┘              │                                  │                                           │
+           │                  │                                  │                                           │
+           │                  │     POST /webapi/u2f/certs       │                                           │
+           │                  │─────────────────────────────────>│                                           │
+           │                  │                                  │                                           │
+           │                  │                                  │POST /v2/users/codingllama/ssh/authenticate│
+           │                  │                                  │───────────────────────────────────────────>
+           │                  │                                  │                                           │
+           │                  │                                  │         lib.auth.SSHLoginResponse         │
+           │                  │                                  │<───────────────────────────────────────────
+           │                  │                                  │                                           │
+           │                  │    lib.auth.SSHLoginResponse     │                                           │
+           │                  │<─────────────────────────────────│                                           │
+           │                  │                                  │                                           │
+           │      done        │                                  │                                           │
+           │<─────────────────│                                  │                                           │
       codingllama           ┌─┴─┐                             ┌──┴──┐                                      ┌─┴──┐
           ┌─┐               │tsh│                             │proxy│                                      │auth│
           ║"│               └───┘                             └─────┘                                      └────┘
-          └┬┘                                                                                                    
-          ┌┼┐                                                                                                    
-           │                                                                                                     
-          ┌┴┐                                                                                                    
+          └┬┘
+          ┌┼┐
+           │
+          ┌┴┐
 ```
 
 The proposed changes are twofold:

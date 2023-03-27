@@ -3,8 +3,6 @@ title: Role-Based Access Control for Desktop Access
 description: Role-based access control (RBAC) for Teleport Desktop Access
 ---
 
-# Desktop Access Role-Based Access Control
-
 Teleport's RBAC allows administrators to set up granular access policies for
 Windows desktops connected to Teleport.
 
@@ -24,7 +22,7 @@ spec:
     # Desktop sessions will never be recorded if auth_service.session_recording
     # is set to 'off' in teleport.yaml or if the cluster's session_recording_config
     # resource has set 'mode: off'.
-    record_sessions:
+    record_session:
       desktop: true
 
     # Specify whether clipboard sharing should be allowed with the
@@ -45,7 +43,7 @@ spec:
   Teleport's RBAC system is not a replacement for proper Active Directory
   administration. Teleport-issued Windows certificates are valid for a small
   amount of time, but they do apply to the entire domain. Proper care should be
-  taken to ensure that each Teleport user's roles reflect only the necesary
+  taken to ensure that each Teleport user's roles reflect only the necessary
   Windows logins, and that these Windows users are properly secured.
 </Admonition>
 
@@ -137,6 +135,28 @@ one role that explicitly disables clipboard sharing:
 desktop_clipboard: false
 ```
 
+## Directory Sharing
+
+A Teleport user can share a directory on their local workstation with a remote
+desktop using Directory Sharing.
+
+A Teleport role enables Directory Sharing by default. If one of a user's
+Teleport roles disables Directory Sharing, then Directory Sharing will be
+disabled for that user.
+
+To disable Directory Sharing for a Teleport user, define a role similar to the
+following in a file called `role.yaml`:
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: "no-sharing"
+spec:
+  options:
+    desktop_directory_sharing: false
+```
+
 ## Session Recording
 
 In order for a Teleport user's desktop sessions to be recorded, the following must
@@ -152,7 +172,7 @@ By default, desktop session recording is considered enabled in Teleport roles
 unless it is explicitly disabled:
 
 ```yaml
-record_sessions:
+record_session:
   desktop: false
 ```
 

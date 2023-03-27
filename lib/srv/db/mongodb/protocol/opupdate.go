@@ -20,24 +20,23 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/wiremessage"
-
-	"github.com/gravitational/trace"
 )
 
 // MessageOpUpdate represents parsed OP_UPDATE wire message.
 //
 // https://docs.mongodb.com/manual/reference/mongodb-wire-protocol/#op_update
 //
-// struct OP_UPDATE {
-//     MsgHeader header;             // standard message header
-//     int32     ZERO;               // 0 - reserved for future use
-//     cstring   fullCollectionName; // "dbname.collectionname"
-//     int32     flags;              // bit vector. see below
-//     document  selector;           // the query to select the document
-//     document  update;             // specification of the update to perform
-// }
+//	struct OP_UPDATE {
+//	    MsgHeader header;             // standard message header
+//	    int32     ZERO;               // 0 - reserved for future use
+//	    cstring   fullCollectionName; // "dbname.collectionname"
+//	    int32     flags;              // bit vector. see below
+//	    document  selector;           // the query to select the document
+//	    document  update;             // specification of the update to perform
+//	}
 //
 // OP_UPDATE is deprecated starting MongoDB 5.0 in favor of OP_MSG.
 type MessageOpUpdate struct {

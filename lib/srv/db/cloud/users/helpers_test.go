@@ -20,10 +20,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestLookupMap(t *testing.T) {
@@ -50,7 +51,7 @@ func TestLookupMap(t *testing.T) {
 			for _, user := range []User{user1, user2, user3} {
 				userGet, found := lookup.getDatabaseUser(db, user.GetDatabaseUsername())
 
-				if utils.SliceContainsStr(db.GetManagedUsers(), user.GetDatabaseUsername()) {
+				if slices.Contains(db.GetManagedUsers(), user.GetDatabaseUsername()) {
 					require.True(t, found)
 					require.Equal(t, user, userGet)
 				} else {
@@ -114,9 +115,9 @@ func TestSecretKeyFromAWSARN(t *testing.T) {
 	_, err := secretKeyFromAWSARN("invalid:arn")
 	require.True(t, trace.IsBadParameter(err))
 
-	key, err := secretKeyFromAWSARN("arn:aws-cn:elasticache:cn-north-1:1234567890:user:alice")
+	key, err := secretKeyFromAWSARN("arn:aws-cn:elasticache:cn-north-1:123456789012:user:alice")
 	require.NoError(t, err)
-	require.Equal(t, "elasticache/cn-north-1/1234567890/user/alice", key)
+	require.Equal(t, "elasticache/cn-north-1/123456789012/user/alice", key)
 }
 
 type mockUser struct {

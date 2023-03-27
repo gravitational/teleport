@@ -20,15 +20,15 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 )
 
 // EventsService implements service to watch for events
@@ -72,6 +72,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newAuthPreferenceParser()
 		case types.KindSessionRecordingConfig:
 			parser = newSessionRecordingConfigParser()
+		case types.KindUIConfig:
+			parser = newUIConfigParser()
 		case types.KindClusterName:
 			parser = newClusterNameParser()
 		case types.KindNamespace:
@@ -105,6 +107,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 		case types.KindWebSession:
 			switch kind.SubKind {
+			case types.KindSAMLIdPSession:
+				parser = newSAMLIdPSessionParser()
 			case types.KindSnowflakeSession:
 				parser = newSnowflakeSessionParser()
 			case types.KindAppSession:
@@ -118,10 +122,12 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWebTokenParser()
 		case types.KindRemoteCluster:
 			parser = newRemoteClusterParser()
-		case types.KindKubeService:
-			parser = newKubeServiceParser()
+		case types.KindKubeServer:
+			parser = newKubeServerParser()
 		case types.KindDatabaseServer:
 			parser = newDatabaseServerParser()
+		case types.KindDatabaseService:
+			parser = newDatabaseServiceParser()
 		case types.KindDatabase:
 			parser = newDatabaseParser()
 		case types.KindApp:
@@ -134,6 +140,20 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newWindowsDesktopServicesParser()
 		case types.KindWindowsDesktop:
 			parser = newWindowsDesktopsParser()
+		case types.KindInstaller:
+			parser = newInstallerParser()
+		case types.KindKubernetesCluster:
+			parser = newKubeClusterParser()
+		case types.KindPlugin:
+			parser = newPluginParser(kind.LoadSecrets)
+		case types.KindSAMLIdPServiceProvider:
+			parser = newSAMLIDPServiceProviderParser()
+		case types.KindUserGroup:
+			parser = newUserGroupParser()
+		case types.KindOktaImportRule:
+			parser = newOktaImportRuleParser()
+		case types.KindOktaAssignment:
+			parser = newOktaAssignmentParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -229,7 +249,7 @@ func (w *watcher) Events() <-chan types.Event {
 	return w.eventsC
 }
 
-// Done returns the channel signalling the closure
+// Done returns the channel signaling the closure
 func (w *watcher) Done() <-chan struct{} {
 	return w.backendWatcher.Done()
 }
@@ -480,6 +500,40 @@ func (p *authPreferenceParser) parse(event backend.Event) (types.Resource, error
 	}
 }
 
+func newUIConfigParser() *uiConfigParser {
+	return &uiConfigParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, uiPrefix)),
+	}
+}
+
+type uiConfigParser struct {
+	baseParser
+}
+
+func (p *uiConfigParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindUIConfig, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		h.SetName(types.MetaNameUIConfig)
+		return h, nil
+	case types.OpPut:
+		ap, err := services.UnmarshalUIConfig(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return ap, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
 func newSessionRecordingConfigParser() *sessionRecordingConfigParser {
 	return &sessionRecordingConfigParser{
 		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, sessionRecordingPrefix)),
@@ -600,7 +654,7 @@ type roleParser struct {
 func (p *roleParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return resourceHeader(event, types.KindRole, types.V3, 1)
+		return resourceHeader(event, types.KindRole, types.V6, 1)
 	case types.OpPut:
 		resource, err := services.UnmarshalRole(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
@@ -863,6 +917,17 @@ func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
 	return parseServer(event, types.KindAppServer)
 }
 
+func newSAMLIdPSessionParser() *webSessionParser {
+	return &webSessionParser{
+		baseParser: newBaseParser(backend.Key(samlIdPPrefix, sessionsPrefix)),
+		hdr: types.ResourceHeader{
+			Kind:    types.KindWebSession,
+			SubKind: types.KindSAMLIdPSession,
+			Version: types.V2,
+		},
+	}
+}
+
 func newSnowflakeSessionParser() *webSessionParser {
 	return &webSessionParser{
 		baseParser: newBaseParser(backend.Key(snowflakePrefix, sessionsPrefix)),
@@ -947,18 +1012,41 @@ func (p *webTokenParser) parse(event backend.Event) (types.Resource, error) {
 	}
 }
 
-func newKubeServiceParser() *kubeServiceParser {
-	return &kubeServiceParser{
-		baseParser: newBaseParser(backend.Key(kubeServicesPrefix)),
+func newKubeServerParser() *kubeServerParser {
+	return &kubeServerParser{
+		baseParser: newBaseParser(backend.Key(kubeServersPrefix)),
 	}
 }
 
-type kubeServiceParser struct {
+type kubeServerParser struct {
 	baseParser
 }
 
-func (p *kubeServiceParser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindKubeService)
+func (p *kubeServerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		hostID, name, err := baseTwoKeys(event.Item.Key)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return &types.KubernetesServerV3{
+			Kind:    types.KindKubeServer,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name:        name,
+				Namespace:   apidefaults.Namespace,
+				Description: hostID, // Pass host ID via description field for the cache.
+			},
+		}, nil
+	case types.OpPut:
+		return services.UnmarshalKubeServer(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }
 
 func newDatabaseServerParser() *databaseServerParser {
@@ -990,6 +1078,55 @@ func (p *databaseServerParser) parse(event backend.Event) (types.Resource, error
 	case types.OpPut:
 		return services.UnmarshalDatabaseServer(
 			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newDatabaseServiceParser() *databaseServiceParser {
+	return &databaseServiceParser{
+		baseParser: newBaseParser(backend.Key(databaseServicePrefix)),
+	}
+}
+
+type databaseServiceParser struct {
+	baseParser
+}
+
+func (p *databaseServiceParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindDatabaseService, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalDatabaseService(
+			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newKubeClusterParser() *kubeClusterParser {
+	return &kubeClusterParser{
+		baseParser: newBaseParser(backend.Key(kubernetesPrefix)),
+	}
+}
+
+type kubeClusterParser struct {
+	baseParser
+}
+
+func (p *kubeClusterParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindKubernetesCluster, types.V3, 0)
+	case types.OpPut:
+		return services.UnmarshalKubeCluster(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)
@@ -1164,7 +1301,7 @@ func (p *networkRestrictionsParser) parse(event backend.Event) (types.Resource, 
 
 func newWindowsDesktopServicesParser() *windowsDesktopServicesParser {
 	return &windowsDesktopServicesParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopServicesPrefix, "")),
 	}
 }
 
@@ -1189,7 +1326,7 @@ func (p *windowsDesktopServicesParser) parse(event backend.Event) (types.Resourc
 
 func newWindowsDesktopsParser() *windowsDesktopsParser {
 	return &windowsDesktopsParser{
-		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix)),
+		baseParser: newBaseParser(backend.Key(windowsDesktopsPrefix, "")),
 	}
 }
 
@@ -1216,6 +1353,168 @@ func (p *windowsDesktopsParser) parse(event backend.Event) (types.Resource, erro
 	case types.OpPut:
 		return services.UnmarshalWindowsDesktop(
 			event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+type installerParser struct {
+	baseParser
+}
+
+func newInstallerParser() *installerParser {
+	return &installerParser{
+		baseParser: newBaseParser(backend.Key(clusterConfigPrefix, scriptsPrefix, installerPrefix)),
+	}
+}
+
+func (p *installerParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindInstaller, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return h, nil
+	case types.OpPut:
+		inst, err := services.UnmarshalInstaller(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return inst, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+type pluginParser struct {
+	baseParser
+	loadSecrets bool
+}
+
+func newPluginParser(loadSecrets bool) *pluginParser {
+	return &pluginParser{
+		baseParser:  newBaseParser(backend.Key(pluginsPrefix)),
+		loadSecrets: loadSecrets,
+	}
+}
+
+func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		h, err := resourceHeader(event, types.KindPlugin, types.V1, 0)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return h, nil
+	case types.OpPut:
+		plugin, err := services.UnmarshalPlugin(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return plugin, nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newSAMLIDPServiceProviderParser() *samlIDPServiceProviderParser {
+	return &samlIDPServiceProviderParser{
+		baseParser: newBaseParser(backend.Key(samlIDPServiceProviderPrefix)),
+	}
+}
+
+type samlIDPServiceProviderParser struct {
+	baseParser
+}
+
+func (p *samlIDPServiceProviderParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindSAMLIdPServiceProvider, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalSAMLIdPServiceProvider(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newUserGroupParser() *userGroupParser {
+	return &userGroupParser{
+		baseParser: newBaseParser(backend.Key(userGroupPrefix)),
+	}
+}
+
+type userGroupParser struct {
+	baseParser
+}
+
+func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindUserGroup, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalUserGroup(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newOktaImportRuleParser() *oktaImportRuleParser {
+	return &oktaImportRuleParser{
+		baseParser: newBaseParser(backend.Key(oktaImportRulePrefix)),
+	}
+}
+
+type oktaImportRuleParser struct {
+	baseParser
+}
+
+func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindOktaImportRule, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalOktaImportRule(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newOktaAssignmentParser() *oktaAssignmentParser {
+	return &oktaAssignmentParser{
+		baseParser: newBaseParser(backend.Key(oktaAssignmentPrefix)),
+	}
+}
+
+type oktaAssignmentParser struct {
+	baseParser
+}
+
+func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindOktaAssignment, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalOktaAssignment(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

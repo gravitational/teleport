@@ -21,14 +21,14 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // DynamicAccessService manages dynamic RBAC
@@ -65,7 +65,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		return nil, trace.Wrap(err)
 	}
 	retryPeriod := retryPeriodMs * time.Millisecond
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
 	})
@@ -95,7 +95,7 @@ func (s *DynamicAccessService) SetAccessRequestState(ctx context.Context, params
 		req.SetResolveAnnotations(params.Annotations)
 		if len(params.Roles) > 0 {
 			for _, role := range params.Roles {
-				if !apiutils.SliceContainsStr(req.GetRoles(), role) {
+				if !slices.Contains(req.GetRoles(), role) {
 					return nil, trace.BadParameter("role %q not in original request, overrides must be a subset of original role list", role)
 				}
 			}
@@ -134,7 +134,7 @@ func (s *DynamicAccessService) ApplyAccessReview(ctx context.Context, params typ
 		return nil, trace.Wrap(err)
 	}
 	retryPeriod := retryPeriodMs * time.Millisecond
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
 	})
@@ -352,7 +352,7 @@ func (s *DynamicAccessService) UpdatePluginData(ctx context.Context, params type
 
 func (s *DynamicAccessService) updateAccessRequestPluginData(ctx context.Context, params types.PluginDataUpdateParams) error {
 	retryPeriod := retryPeriodMs * time.Millisecond
-	retry, err := utils.NewLinear(utils.LinearConfig{
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: retryPeriod / 7,
 		Max:  retryPeriod,
 	})

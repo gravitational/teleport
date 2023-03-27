@@ -17,17 +17,14 @@ limitations under the License.
 package main
 
 import (
-	"math/rand"
 	"os"
-	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
 func init() {
-	utils.RegisterPrometheusCollectors(utils.BuildCollector())
-	rand.Seed(time.Now().UnixNano())
+	metrics.RegisterPrometheusCollectors(metrics.BuildCollector())
 }
 
 func main() {

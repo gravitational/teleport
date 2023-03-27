@@ -54,10 +54,11 @@ import (
 	"syscall"
 	"unsafe"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func init() {
@@ -286,7 +287,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *Config) (*PAM, error) {
+func Open(config *servicecfg.PAMConfig) (*PAM, error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}
@@ -402,9 +403,9 @@ func (p *PAM) Close() error {
 // variables and it is the responsibility of the caller to free that memory.
 // From http://man7.org/linux/man-pages/man3/pam_getenvlist.3.html:
 //
-//   It should be noted that this memory will never be free()'d by libpam.
-//   Once obtained by a call to pam_getenvlist, it is the responsibility
-//   of the calling application to free() this memory.
+//	It should be noted that this memory will never be free()'d by libpam.
+//	Once obtained by a call to pam_getenvlist, it is the responsibility
+//	of the calling application to free() this memory.
 func (p *PAM) Environment() []string {
 	// Get list of additional environment variables requested from PAM.
 	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)

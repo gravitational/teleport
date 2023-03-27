@@ -21,10 +21,10 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
-
 	"github.com/julienschmidt/httprouter"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // withRouterAuth authenticates requests then hands the request to a
@@ -64,6 +64,13 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 // redirectToLauncher redirects to the proxy web's app launcher if the public
 // address of the proxy is set.
 func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
+	// The application launcher can only generate browser sessions (based on
+	// Cookies). Given this, we should only redirect to it when this format is
+	// already in use.
+	if !HasSession(r) {
+		return trace.BadParameter("redirecting to launcher when using client certificate is not valid")
+	}
+
 	if h.c.WebPublicAddr == "" {
 		// The error below tends to be swallowed by the Web UI, so log a warning for
 		// admins as well.
@@ -90,6 +97,9 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 	if p.awsRole != "" {
 		urlQuery.Add("awsrole", p.awsRole)
 	}
+	if p.path != "" {
+		urlQuery.Add("path", p.path)
+	}
 
 	u := url.URL{
 		Scheme:   "https",
@@ -106,6 +116,7 @@ type launcherURLParams struct {
 	publicAddr  string
 	stateToken  string
 	awsRole     string
+	path        string
 }
 
 // makeRouterHandler creates a httprouter.Handle.

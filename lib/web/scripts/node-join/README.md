@@ -54,10 +54,10 @@ Required arguments:
 | Flag | Description | Example value | Required |
 | - | - | - | - |
 | `-v` | Teleport version | `4.3.5` | yes |
-| `-h` | Hostname for the Teleport auth/proxy server | `teleport.example.com` | yes |
+| `-h` | Hostname for the Teleport Proxy Service | `teleport.example.com` | yes |
 | `-j` | A valid node join token | `ool7ahpo4thohmeuS1gieY7laiwae7oo` | yes |
 | `-c` | The CA pin hash of the cluster being joined | `sha256:6abdd3a143a230fd31c9706d668bba3ee25a6e0eec54fcd69680c1ec0530fe9c` | yes |
-| `-p` | Port connect to on the Teleport auth/proxy server | `3080` | no |
+| `-p` | Port connect to on the Teleport Proxy Service | `3080` | no |
 
 If any of these arguments is not provided via CLI flags, they will be requested interactively at runtime.
 

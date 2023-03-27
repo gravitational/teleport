@@ -20,11 +20,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 const assertionTTL = time.Minute * 10
@@ -33,11 +33,12 @@ const assertionTTL = time.Minute * 10
 // that don't fit into, or merit the change of, one of the primary service interfaces.
 type UnstableService struct {
 	backend.Backend
+	*AssertionReplayService
 }
 
 // NewUnstableService returns new unstable service instance.
-func NewUnstableService(backend backend.Backend) UnstableService {
-	return UnstableService{Backend: backend}
+func NewUnstableService(backend backend.Backend, assertion *AssertionReplayService) UnstableService {
+	return UnstableService{backend, assertion}
 }
 
 func (s UnstableService) AssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {

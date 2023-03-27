@@ -27,17 +27,16 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AppsCommand implements "tctl apps" group of commands.
 type AppsCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format (text, json, or yaml)
 	format string
@@ -54,7 +53,7 @@ type AppsCommand struct {
 }
 
 // Initialize allows AppsCommand to plug itself into the CLI parser
-func (c *AppsCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *AppsCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	apps := app.Command("apps", "Operate on applications registered with the cluster.")
@@ -93,15 +92,6 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
-	// Underlying ListResources for app servers not available, use fallback.
-	// Using filter flags with older auth will silently do nothing.
-	//
-	// DELETE IN 11.0.0
-	case trace.IsNotImplemented(err):
-		servers, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 	case err != nil:
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
@@ -128,7 +118,7 @@ func (c *AppsCommand) ListApps(ctx context.Context, clt auth.ClientI) error {
 	}
 }
 
-var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}.
+var appMessageTemplate = template.Must(template.New("app").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
 Fill out and run this command on a node to make the application available:

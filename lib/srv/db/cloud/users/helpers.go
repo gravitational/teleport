@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -152,10 +152,11 @@ func genRandomPassword(length int) (string, error) {
 }
 
 // newSecretStore create a new secrets store helper for provided database.
-func newSecretStore(database types.Database, clients common.CloudClients) (secrets.Secrets, error) {
+func newSecretStore(database types.Database, clients cloud.Clients) (secrets.Secrets, error) {
 	secretStoreConfig := database.GetSecretStore()
 
-	client, err := clients.GetAWSSecretsManagerClient(database.GetAWS().Region)
+	meta := database.GetAWS()
+	client, err := clients.GetAWSSecretsManagerClient(meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

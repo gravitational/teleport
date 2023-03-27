@@ -27,13 +27,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 )
 
 // Header returns information about playback
@@ -117,7 +117,7 @@ func Export(ctx context.Context, rs io.ReadSeeker, w io.Writer, exportFormat str
 		}
 	case format.Tar:
 		return trace.BadParameter(
-			"to review the events in format of teleport before version 4.4, extract the tarball and look inside")
+			"to review events in format of Teleport before version 4.4, extract the tarball and look inside")
 	default:
 		return trace.BadParameter("unsupported format %v", format)
 	}

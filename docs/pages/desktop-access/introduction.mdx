@@ -4,8 +4,6 @@ description: Teleport Desktop Access introduction and resources.
 videoBanner: n2h0GisWdss
 ---
 
-# Desktop Access
-
 Teleport manages graphical desktop access to remote hosts. With Teleport
 Desktop Access, you get:
 
@@ -21,34 +19,24 @@ Desktop Access, you get:
 >
   Only Windows hosts accessible over RDP are supported. Specifically:
 
-  - Windows Server 2012 R2 / Windows 10 or newer
-  - Hosts connected to an Active Directory domain
+| Teleport Version              | Windows Desktop                                           | Active Directory |
+|-------------------------------|-----------------------------------------------------------|------------------|
+| Open source Teleport          | Windows Server 2012 R2 / Windows 10 or newer              | Required         |
+| Cloud and Enterprise Teleport | Windows Server 2012 R2 / Windows 10 or newer              | Optional         |
+
 </Admonition>
 
 ## Getting started
 
-<TileSet>
-  <Tile icon="desktop" title="Getting started" href="./getting-started.mdx">
-    Connect an Active Directory domain.
-  </Tile>
-</TileSet>
+- [Local users](./getting-started.mdx): Use Teleport Cloud or Enterprise to connect to Windows systems with local users.
+- [Active Directory](./active-directory.mdx): Use Teleport to connect to Windows systems with Active Directory users.
 
 ## Resources
 
-<TileSet>
-  <Tile icon="wrench" title="Configuration" href="./reference/configuration.mdx">
-    Configure Windows Desktop Service
-  </Tile>
-  <Tile icon="lock" title="RBAC" href="./rbac.mdx">
-    Role-based Access Control for Teleport Desktop Access
-  </Tile>
-  <Tile icon="window" title="CLI" href="./reference/cli.mdx">
-    CLI Reference
-  </Tile>
-  <Tile icon="list" title="Audit" href="./reference/audit.mdx">
-    Audit Events
-  </Tile>
-</TileSet>
+- [Configuration](./reference/configuration.mdx): Configure Windows Desktop Service
+- [RBAC](./rbac.mdx): Role-based Access Control for Teleport Desktop Access
+- [CLI](./reference/cli.mdx): CLI Reference
+- [Audit](./reference/audit.mdx): Audit Events
 
 ## Troubleshooting
 

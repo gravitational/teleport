@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-//MarshalPluginData marshals the PluginData resource to JSON.
+// MarshalPluginData marshals the PluginData resource to JSON.
 func MarshalPluginData(pluginData types.PluginData, opts ...MarshalOption) ([]byte, error) {
 	if err := pluginData.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)

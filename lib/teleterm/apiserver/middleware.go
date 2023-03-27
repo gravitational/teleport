@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
-
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 )

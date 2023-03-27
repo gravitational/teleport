@@ -21,36 +21,36 @@ package reversetunnel
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func Test_remoteSite_getLocalWatchedCerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		clusterVersion string
-		want           []services.CertAuthorityTarget
+		want           types.CertAuthorityFilter
 		errorAssertion require.ErrorAssertionFunc
 	}{
 		{
 			name:           "pre Database CA, only Host and User CA",
 			clusterVersion: "9.0.0",
-			want: []services.CertAuthorityTarget{
-				{Type: types.HostCA, ClusterName: "test"},
-				{Type: types.UserCA, ClusterName: "test"},
+			want: types.CertAuthorityFilter{
+				types.HostCA: "test",
+				types.UserCA: "test",
 			},
 			errorAssertion: require.NoError,
 		},
 		{
 			name:           "all certs should be returned",
 			clusterVersion: "10.0.0",
-			want: []services.CertAuthorityTarget{
-				{Type: types.HostCA, ClusterName: "test"},
-				{Type: types.UserCA, ClusterName: "test"},
-				{Type: types.DatabaseCA, ClusterName: "test"},
+			want: types.CertAuthorityFilter{
+				types.DatabaseCA: "test",
+				types.HostCA:     "test",
+				types.UserCA:     "test",
 			},
 			errorAssertion: require.NoError,
 		},
@@ -69,7 +69,7 @@ func Test_remoteSite_getLocalWatchedCerts(t *testing.T) {
 						ClusterName: "test",
 					},
 				},
-				Entry: log.NewEntry(utils.NewLoggerForTests()),
+				logger: log.NewEntry(utils.NewLoggerForTests()),
 			}
 			got, err := s.getLocalWatchedCerts(tt.clusterVersion)
 			tt.errorAssertion(t, err)

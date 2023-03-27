@@ -1,0 +1,5 @@
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster-name
+joinParams:
+  tokenName: xxxxxxx-secret-token-xxxxxxx
+  method: token

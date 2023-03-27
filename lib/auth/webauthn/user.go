@@ -17,9 +17,9 @@ limitations under the License.
 package webauthn
 
 import (
-	"github.com/gravitational/teleport/api/types"
+	wan "github.com/go-webauthn/webauthn/webauthn"
 
-	wan "github.com/duo-labs/webauthn/webauthn"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // webUser implements a WebAuthn protocol user.

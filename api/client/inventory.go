@@ -21,9 +21,12 @@ import (
 	"io"
 	"sync"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
+
+	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // DownstreamInventoryControlStream is the client/agent side of a bidirectional stream established
@@ -56,6 +59,8 @@ type UpstreamInventoryControlStream interface {
 	Send(ctx context.Context, msg proto.DownstreamInventoryMessage) error
 	// Recv access the incoming/upstream message channel.
 	Recv() <-chan proto.UpstreamInventoryMessage
+	// PeerAddr gets the underlying TCP peer address (may be empty in some cases).
+	PeerAddr() string
 	// Close closes the underlying stream without error.
 	Close() error
 	// CloseWithError closes the underlying stream with an error that can later
@@ -68,23 +73,47 @@ type UpstreamInventoryControlStream interface {
 	Error() error
 }
 
+type ICSPipeOption func(*pipeOptions)
+
+type pipeOptions struct {
+	peerAddrFn func() string
+}
+
+func ICSPipePeerAddr(peerAddr string) ICSPipeOption {
+	return ICSPipePeerAddrFn(func() string {
+		return peerAddr
+	})
+}
+
+func ICSPipePeerAddrFn(fn func() string) ICSPipeOption {
+	return func(opts *pipeOptions) {
+		opts.peerAddrFn = fn
+	}
+}
+
 // InventoryControlStreamPipe creates the two halves of an inventory control stream over an in-memory
 // pipe.
-func InventoryControlStreamPipe() (UpstreamInventoryControlStream, DownstreamInventoryControlStream) {
+func InventoryControlStreamPipe(opts ...ICSPipeOption) (UpstreamInventoryControlStream, DownstreamInventoryControlStream) {
+	var options pipeOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 	pipe := &pipeControlStream{
-		downC: make(chan proto.DownstreamInventoryMessage),
-		upC:   make(chan proto.UpstreamInventoryMessage),
-		doneC: make(chan struct{}),
+		downC:      make(chan proto.DownstreamInventoryMessage),
+		upC:        make(chan proto.UpstreamInventoryMessage),
+		doneC:      make(chan struct{}),
+		peerAddrFn: options.peerAddrFn,
 	}
 	return upstreamPipeControlStream{pipe}, downstreamPipeControlStream{pipe}
 }
 
 type pipeControlStream struct {
-	downC chan proto.DownstreamInventoryMessage
-	upC   chan proto.UpstreamInventoryMessage
-	mu    sync.Mutex
-	err   error
-	doneC chan struct{}
+	downC      chan proto.DownstreamInventoryMessage
+	upC        chan proto.UpstreamInventoryMessage
+	peerAddrFn func() string
+	mu         sync.Mutex
+	err        error
+	doneC      chan struct{}
 }
 
 func (p *pipeControlStream) Close() error {
@@ -138,6 +167,13 @@ func (u upstreamPipeControlStream) Recv() <-chan proto.UpstreamInventoryMessage 
 	return u.upC
 }
 
+func (u upstreamPipeControlStream) PeerAddr() string {
+	if u.peerAddrFn != nil {
+		return u.peerAddrFn()
+	}
+	return ""
+}
+
 type downstreamPipeControlStream struct {
 	*pipeControlStream
 }
@@ -185,6 +221,29 @@ func (c *Client) PingInventory(ctx context.Context, req proto.InventoryPingReque
 	}
 
 	return *rsp, nil
+}
+
+func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) stream.Stream[types.Instance] {
+	// set up cancelable context so that Stream.Done can close the stream if the caller
+	// halts early.
+	ctx, cancel := context.WithCancel(ctx)
+
+	instances, err := c.grpc.GetInstances(ctx, &filter, c.callOpts...)
+	if err != nil {
+		cancel()
+		return stream.Fail[types.Instance](trail.FromGRPC(err))
+	}
+	return stream.Func[types.Instance](func() (types.Instance, error) {
+		instance, err := instances.Recv()
+		if err != nil {
+			if trace.IsEOF(err) {
+				// io.EOF signals that stream has completed successfully
+				return nil, io.EOF
+			}
+			return nil, trail.FromGRPC(err)
+		}
+		return instance, nil
+	}, cancel)
 }
 
 func newDownstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamClient, cancel context.CancelFunc) DownstreamInventoryControlStream {
@@ -274,6 +333,10 @@ func (i *downstreamICS) runSendLoop(stream proto.AuthService_InventoryControlStr
 				oneOf.Msg = &proto.UpstreamInventoryOneOf_Pong{
 					Pong: &msg,
 				}
+			case proto.UpstreamInventoryAgentMetadata:
+				oneOf.Msg = &proto.UpstreamInventoryOneOf_AgentMetadata{
+					AgentMetadata: &msg,
+				}
 			default:
 				sendMsg.errC <- trace.BadParameter("cannot send unexpected upstream msg type: %T", msg)
 				continue
@@ -353,11 +416,12 @@ func (i *downstreamICS) Error() error {
 
 // NewUpstreamInventoryControlStream wraps the server-side control stream handle. For use as part of the internals
 // of the auth server's GRPC API implementation.
-func NewUpstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamServer) UpstreamInventoryControlStream {
+func NewUpstreamInventoryControlStream(stream proto.AuthService_InventoryControlStreamServer, peerAddr string) UpstreamInventoryControlStream {
 	ics := &upstreamICS{
-		sendC: make(chan downstreamSend),
-		recvC: make(chan proto.UpstreamInventoryMessage),
-		doneC: make(chan struct{}),
+		sendC:    make(chan downstreamSend),
+		recvC:    make(chan proto.UpstreamInventoryMessage),
+		doneC:    make(chan struct{}),
+		peerAddr: peerAddr,
 	}
 
 	go ics.runRecvLoop(stream)
@@ -375,11 +439,12 @@ type downstreamSend struct {
 // upstreamICS is a helper which manages a proto.AuthService_InventoryControlStreamServer
 // stream and wraps its API to use friendlier types and support select/cancellation.
 type upstreamICS struct {
-	sendC chan downstreamSend
-	recvC chan proto.UpstreamInventoryMessage
-	mu    sync.Mutex
-	doneC chan struct{}
-	err   error
+	sendC    chan downstreamSend
+	recvC    chan proto.UpstreamInventoryMessage
+	peerAddr string
+	mu       sync.Mutex
+	doneC    chan struct{}
+	err      error
 }
 
 // runRecvLoop waits for incoming messages, converts them to the friendlier UpstreamInventoryMessage
@@ -405,6 +470,8 @@ func (i *upstreamICS) runRecvLoop(stream proto.AuthService_InventoryControlStrea
 			msg = *oneOf.GetHeartbeat()
 		case oneOf.GetPong() != nil:
 			msg = *oneOf.GetPong()
+		case oneOf.GetAgentMetadata() != nil:
+			msg = *oneOf.GetAgentMetadata()
 		default:
 			// TODO: log unknown message variants once we have a better story around
 			// logging in api/* packages.
@@ -480,6 +547,10 @@ func (i *upstreamICS) Send(ctx context.Context, msg proto.DownstreamInventoryMes
 
 func (i *upstreamICS) Recv() <-chan proto.UpstreamInventoryMessage {
 	return i.recvC
+}
+
+func (i *upstreamICS) PeerAddr() string {
+	return i.peerAddr
 }
 
 func (i *upstreamICS) Done() <-chan struct{} {

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: etcd
-  namespace: loadtest
+  namespace: ${NAMESPACE}
   labels:
     app: etcd
 spec:
@@ -18,6 +18,10 @@ spec:
         app: etcd
     spec:
       volumes:
+        - name: config
+          configMap:
+            name: etcd-config
+            defaultMode: 0777
         - name: server-certs
           secret:
             secretName: etcd-server-certs
@@ -33,36 +37,30 @@ spec:
             - containerPort: 2380
               name: peer
           volumeMounts:
+            - mountPath: /scripts
+              name: config
+              readOnly: true
             - name: server-certs
               mountPath: /etc/etcd/certs/
               readOnly: true
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           command:
             - /bin/sh
             - -c
             - |
-              PEERS="etcd-0=https://etcd-0.etcd:2380,etcd-1=https://etcd-1.etcd:2380,etcd-2=https://etcd-2.etcd:2380"
-              exec etcd \
-                --name ${HOSTNAME} \
-                --advertise-client-urls https://${HOSTNAME}.etcd:2379 \
-                --listen-client-urls https://0.0.0.0:2379 \
-                --initial-advertise-peer-urls https://${HOSTNAME}.etcd:2380 \
-                --listen-peer-urls https://0.0.0.0:2380 \
-                --initial-cluster ${PEERS} \
-                --trusted-ca-file=/etc/etcd/certs/ca-cert.pem \
-                --cert-file=/etc/etcd/certs/server-cert.pem \
-                --key-file=/etc/etcd/certs/server-key.pem \
-                --peer-cert-file=/etc/etcd/certs/server-cert.pem \
-                --peer-key-file=/etc/etcd/certs/server-key.pem \
-                --peer-trusted-ca-file=/etc/etcd/certs/ca-cert.pem \
-                --client-cert-auth \
-                --peer-client-cert-auth \
-                --auto-compaction-retention=1
+              cp /scripts/etcd.sh /tmp
+              chmod +x /tmp/etcd.sh
+              /tmp/etcd.sh
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: etcd
-  namespace: loadtest
+  namespace: ${NAMESPACE}
   labels:
     app: etcd
 spec:

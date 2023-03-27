@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/defaults"
 )
 
 // WebSessionsGetter provides access to web sessions
@@ -88,6 +88,14 @@ type WebSession interface {
 	WithoutSecrets() WebSession
 	// String returns string representation of the session.
 	String() string
+	// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
+	SetConsumedAccessRequestID(string)
+	// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
+	GetConsumedAccessRequestID() string
+	// SetSAMLSession sets the SAML session data. Is considered secret.
+	SetSAMLSession(*SAMLSessionData)
+	// GetSAMLSession gets the SAML session data. Is considered secret.
+	GetSAMLSession() *SAMLSessionData
 }
 
 // NewWebSession returns new instance of the web session based on the V2 spec
@@ -169,7 +177,28 @@ func (ws *WebSessionV2) GetIdleTimeout() time.Duration {
 // WithoutSecrets returns copy of the object but without secrets
 func (ws *WebSessionV2) WithoutSecrets() WebSession {
 	ws.Spec.Priv = nil
+	ws.Spec.SAMLSession = nil
 	return ws
+}
+
+// SetConsumedAccessRequestID sets the ID of the access request from which additional roles to assume were obtained.
+func (ws *WebSessionV2) SetConsumedAccessRequestID(requestID string) {
+	ws.Spec.ConsumedAccessRequestID = requestID
+}
+
+// GetConsumedAccessRequestID returns the ID of the access request from which additional roles to assume were obtained.
+func (ws *WebSessionV2) GetConsumedAccessRequestID() string {
+	return ws.Spec.ConsumedAccessRequestID
+}
+
+// SetSAMLSession sets the SAML session data. Is considered secret.
+func (ws *WebSessionV2) SetSAMLSession(samlSession *SAMLSessionData) {
+	ws.Spec.SAMLSession = samlSession
+}
+
+// GetSAMLSession gets the SAML session data. Is considered secret.
+func (ws *WebSessionV2) GetSAMLSession() *SAMLSessionData {
+	return ws.Spec.SAMLSession
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -296,6 +325,21 @@ func (r *GetSnowflakeSessionRequest) Check() error {
 	return nil
 }
 
+// GetSAMLIdPSessionRequest contains the parameters to request a SAML IdP
+// session.
+type GetSAMLIdPSessionRequest struct {
+	// SessionID is the session ID of the SAML IdP session.
+	SessionID string
+}
+
+// Check validates the request.
+func (r *GetSAMLIdPSessionRequest) Check() error {
+	if r.SessionID == "" {
+		return trace.BadParameter("session ID missing")
+	}
+	return nil
+}
+
 // CreateAppSessionRequest contains the parameters needed to request
 // creating an application web session.
 type CreateAppSessionRequest struct {
@@ -307,6 +351,10 @@ type CreateAppSessionRequest struct {
 	ClusterName string `json:"cluster_name"`
 	// AWSRoleARN is AWS role this the user wants to assume.
 	AWSRoleARN string `json:"aws_role_arn"`
+	// AzureIdentity is Azure identity this the user wants to assume.
+	AzureIdentity string `json:"azure_identity"`
+	// GCPServiceAccount is GCP service account this the user wants to assume.
+	GCPServiceAccount string `json:"gcp_service_account"`
 }
 
 // Check validates the request.
@@ -335,6 +383,29 @@ type CreateSnowflakeSessionRequest struct {
 	TokenTTL time.Duration
 }
 
+// CreateSAMLIdPSessionRequest contains the parameters needed to request
+// creating a SAML IdP session.
+type CreateSAMLIdPSessionRequest struct {
+	// SessionID is the identifier for the session.
+	SessionID string
+	// Username is the identity of the user requesting the session.
+	Username string `json:"username"`
+	// SAMLSession is the session data associated with the SAML IdP session.
+	SAMLSession *SAMLSessionData `json:"saml_session"`
+}
+
+// Check validates the request.
+func (r CreateSAMLIdPSessionRequest) Check() error {
+	if r.Username == "" {
+		return trace.BadParameter("username missing")
+	}
+	if r.SAMLSession == nil {
+		return trace.BadParameter("saml session missing")
+	}
+
+	return nil
+}
+
 // DeleteAppSessionRequest are the parameters used to request removal of
 // an application web session.
 type DeleteAppSessionRequest struct {
@@ -344,6 +415,12 @@ type DeleteAppSessionRequest struct {
 // DeleteSnowflakeSessionRequest are the parameters used to request removal of
 // a Snowflake web session.
 type DeleteSnowflakeSessionRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+// DeleteSAMLIdPSessionRequest are the parameters used to request removal of
+// a SAML IdP session.
+type DeleteSAMLIdPSessionRequest struct {
 	SessionID string `json:"session_id"`
 }
 

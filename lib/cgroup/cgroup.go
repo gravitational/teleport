@@ -34,15 +34,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
-
-	"github.com/gravitational/trace"
-
-	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -145,7 +143,7 @@ func (s *Service) Remove(sessionID string) error {
 	return nil
 }
 
-// Place  place a process in the cgroup for that session.
+// Place places a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
 	// Open cgroup.procs file for the cgroup.
 	filepath := filepath.Join(s.teleportRoot, sessionID, cgroupProcs)
@@ -161,7 +159,7 @@ func (s *Service) Place(sessionID string, pid int) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(f.Sync())
 }
 
 // readPids returns a slice of PIDs from a file. Used to get list of all PIDs
@@ -202,7 +200,7 @@ func writePids(path string, pids []string) error {
 		}
 	}
 
-	return nil
+	return trace.Wrap(f.Sync())
 }
 
 // cleanupHierarchy removes any cgroups for any exisiting sessions.
@@ -216,12 +214,17 @@ func (s *Service) cleanupHierarchy() error {
 			return nil
 		}
 
-		// Extract the session ID. Skip over cgroup.procs files not for sessions.
-		parts := strings.Split(path, string(filepath.Separator))
-		if len(parts) != 5 {
+		// Trim the path at which the cgroup hierarchy is mounted. This will
+		// remove the UUID used in the mount path for this cgroup hierarchy.
+		cleanpath := strings.TrimPrefix(path, filepath.Clean(s.teleportRoot))
+
+		// Extract the session ID from the remaining parts of the path that
+		// should look like ["" UUID cgroup.procs].
+		parts := strings.Split(cleanpath, string(os.PathSeparator))
+		if len(parts) != 3 {
 			return nil
 		}
-		sessionID, err := uuid.Parse(parts[3])
+		sessionID, err := uuid.Parse(parts[1])
 		if err != nil {
 			return nil
 		}

@@ -16,15 +16,13 @@ limitations under the License.
 
 package main
 
-import (
-	"fmt"
-	"strings"
-)
-
 const (
 	// loginUsageFooter is printed at the bottom of `tsh help login` output
 	loginUsageFooter = `NOTES:
   The proxy address format is host:https_port,ssh_proxy_port
+
+  Passwordless only works in local auth
+  --auth=passwordless flag can be omitted if your cluster configuration set the connector_name: passwordless option.
 
 EXAMPLES:
   Use ports 8080 and 8023 for https and SSH proxy:
@@ -37,10 +35,15 @@ EXAMPLES:
   $ tsh --proxy=host.example.com login two
 
   Select cluster "two" using existing credentials and proxy:
-  $ tsh login two`
-)
+  $ tsh login two
 
-// formatFlagDescription creates the description for the --format flag.
-func formatFlagDescription(formats ...string) string {
-	return fmt.Sprintf("Format output (%s)", strings.Join(formats, ", "))
-}
+  For passwordless authentication use:
+  $ tsh login --auth=passwordless`
+
+	// missingPrincipalsFooter is printed at the bottom of `tsh ls` when no results are returned.
+	missingPrincipalsFooter = `
+  Not seeing nodes? Your user may be missing Linux principals. If trying teleport for the first time, follow this guide:
+
+https://goteleport.com/docs/getting-started/linux-server/#step-46-create-a-teleport-user-and-set-up-two-factor-authentication
+  `
+)

@@ -26,11 +26,12 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
-	"github.com/gravitational/trace"
 )
 
 // RootUID is the UID of the root user
@@ -251,7 +252,7 @@ func ensurePermissions(params *ensurePermissionsParams, key string, isDir bool) 
 
 		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		err = botfs.VerifyACL(path, params.aclOptions)
-		//nolint:staticcheck
+		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err != nil && (currentUser.Uid == RootUID || currentUser.Uid == params.ownerUser.Uid) {
 			if verboseLogging {
 				log.Warnf("ACL for %q is not correct and will be corrected: %v", path, err)

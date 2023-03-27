@@ -24,11 +24,11 @@ import (
 	"net"
 	"sync"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // ListenerMuxWrapper wraps the net.Listener and multiplex incoming connection from serviceListener and connection
@@ -41,6 +41,7 @@ type ListenerMuxWrapper struct {
 	connC        chan net.Conn
 	errC         chan error
 	close        chan struct{}
+	once         sync.Once
 }
 
 // NewMuxListenerWrapper creates a new instance of ListenerMuxWrapper
@@ -124,11 +125,9 @@ func (l *ListenerMuxWrapper) Close() error {
 		}
 	}
 	// Close channel only once.
-	select {
-	case <-l.close:
-	default:
+	l.once.Do(func() {
 		close(l.close)
-	}
+	})
 	return trace.NewAggregate(errs...)
 }
 

@@ -17,17 +17,23 @@ limitations under the License.
 package common
 
 import (
+	"context"
 	"crypto/x509"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -35,6 +41,8 @@ import (
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -62,18 +70,19 @@ func TestDatabaseServerResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
 	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
 
 	var out []*types.DatabaseServerV3
@@ -111,6 +120,8 @@ func TestDatabaseServerResource(t *testing.T) {
 
 // TestDatabaseResource tests tctl commands that manage database resources.
 func TestDatabaseResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -124,21 +135,21 @@ func TestDatabaseResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	dbA, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbA",
+		Name:   "db-a",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -147,7 +158,7 @@ func TestDatabaseResource(t *testing.T) {
 	require.NoError(t, err)
 
 	dbB, err := types.NewDatabaseV3(types.Metadata{
-		Name:   "dbB",
+		Name:   "db-b",
 		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
@@ -178,7 +189,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Fetch specific database.
-	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/dbB", types.KindDatabase), "--format=json"})
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
@@ -186,7 +197,7 @@ func TestDatabaseResource(t *testing.T) {
 	))
 
 	// Remove a database.
-	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/dbA", types.KindDatabase)})
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", fmt.Sprintf("%v/db-a", types.KindDatabase)})
 	require.NoError(t, err)
 
 	// Fetch all databases again, should have 1.
@@ -198,8 +209,92 @@ func TestDatabaseResource(t *testing.T) {
 	))
 }
 
+// TestDatabaseServiceResource tests tctl db_services get commands.
+func TestDatabaseServiceResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
+	ctx := context.Background()
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	var out []*types.DatabaseServiceV1
+
+	// Add a lot of DatabaseServices to test pagination
+	dbS, err := types.NewDatabaseServiceV1(
+		types.Metadata{Name: uuid.NewString()},
+		types.DatabaseServiceSpecV1{
+			ResourceMatchers: []*types.DatabaseResourceMatcher{
+				{Labels: &types.Labels{"env": []string{"prod"}}},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	randomDBServiceName := ""
+	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
+	for i := 0; i < totalDBServices; i++ {
+		dbS.SetName(uuid.NewString())
+		if i == apidefaults.DefaultChunkSize { // A "random" database service name
+			randomDBServiceName = dbS.GetName()
+		}
+		_, err = auth.GetAuthServer().UpsertDatabaseService(ctx, dbS)
+		require.NoError(t, err)
+	}
+
+	t.Run("test pagination of database services ", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseService, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, totalDBServices)
+	})
+
+	service := fmt.Sprintf("%v/%v", types.KindDatabaseService, randomDBServiceName)
+
+	t.Run("get specific database service", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=json"})
+		require.NoError(t, err)
+		mustDecodeJSON(t, buff, &out)
+		require.Len(t, out, 1)
+		require.Equal(t, randomDBServiceName, out[0].GetName())
+	})
+
+	t.Run("get unknown database service", func(t *testing.T) {
+		unknownService := fmt.Sprintf("%v/%v", types.KindDatabaseService, "unknown")
+		_, err := runResourceCommand(t, fileConfig, []string{"get", unknownService, "--format=json"})
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+	})
+
+	t.Run("get specific database service with human output", func(t *testing.T) {
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", service, "--format=text"})
+		require.NoError(t, err)
+		outputString := buff.String()
+		require.Contains(t, outputString, "env=[prod]")
+		require.Contains(t, outputString, randomDBServiceName)
+	})
+}
+
 // TestAppResource tests tctl commands that manage application resources.
 func TestAppResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -213,18 +308,18 @@ func TestAppResource(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	appA, err := types.NewAppV3(types.Metadata{
 		Name:   "appA",
@@ -285,8 +380,78 @@ func TestAppResource(t *testing.T) {
 	))
 }
 
+func TestCreateLock(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	timeNow := time.Now().UTC()
+	fakeClock := clockwork.NewFakeClockAt(timeNow)
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(fakeClock))
+
+	_, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "I am a message",
+	})
+	require.NoError(t, err)
+
+	var locks []*types.LockV2
+
+	// Ensure there are no locks to start
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Empty(t, locks)
+
+	// Create the locks
+	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
+	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", lockYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the locks
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Len(t, locks, 1)
+
+	expected, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "Come see me",
+	})
+	require.NoError(t, err)
+	expected.SetCreatedBy(string(types.RoleAdmin))
+
+	expected.SetCreatedAt(timeNow)
+
+	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
+		cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
+}
+
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -300,18 +465,18 @@ func TestCreateDatabaseInInsecureMode(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: mustGetFreeLocalListenerAddr(t),
-			TunAddr: mustGetFreeLocalListenerAddr(t),
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: mustGetFreeLocalListenerAddr(t),
+				ListenAddress: dynAddr.authAddr,
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	// Create the databases yaml file.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
@@ -330,7 +495,7 @@ const (
 	dbYAML = `kind: db
 version: v3
 metadata:
-  name: dbA
+  name: db-a
 spec:
   protocol: "postgres"
   uri: "localhost:5432"
@@ -338,7 +503,7 @@ spec:
 kind: db
 version: v3
 metadata:
-  name: dbB
+  name: db-b
 spec:
   protocol: "mysql"
   uri: "localhost:3306"`
@@ -356,4 +521,249 @@ metadata:
   name: appB
 spec:
   uri: "localhost2"`
+
+	lockYAML = `kind: lock
+version: v2
+metadata:
+  name: "test-lock"
+spec:
+  target:
+    user: "bad@actor"
+  message: "Come see me"`
 )
+
+func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	tests := []struct {
+		desc               string
+		input              string
+		expectError        require.ErrorAssertionFunc
+		expectSecondFactor require.ValueAssertionFunc
+	}{
+		{desc: "handle off with quotes", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: "off"
+  type: local
+version: v2`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle off without quotes", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: off
+  type: local
+version: v2`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle on without quotes", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: on
+  webauthn:
+    rp_id: localhost
+  type: local
+version: v2`,
+			expectError:        require.NoError,
+			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
+		{desc: "unsupported numeric type as second_factor", input: `
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factor: 4.3
+  type: local
+version: v2`,
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			capYAMLPath := filepath.Join(t.TempDir(), "cap.yaml")
+			require.NoError(t, os.WriteFile(capYAMLPath, []byte(tt.input), 0644))
+
+			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", capYAMLPath})
+			tt.expectError(t, err)
+
+			if tt.expectSecondFactor != nil {
+				buf, err := runResourceCommand(t, fileConfig, []string{"get", "cap", "--format=json"})
+				require.NoError(t, err)
+				var authPreferences []types.AuthPreferenceV2
+				mustDecodeJSON(t, buf, &authPreferences)
+				require.NotZero(t, len(authPreferences))
+				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
+			}
+		})
+	}
+}
+
+func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	tests := []struct {
+		desc           string
+		input          string
+		name           string
+		expectError    require.ErrorAssertionFunc
+		expectEntityID require.ValueAssertionFunc
+	}{
+		{
+			desc: "handle no supplied entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+`,
+			name:           "test1",
+			expectError:    require.NoError,
+			expectEntityID: requireEqual("IAMShowcase"),
+		},
+		{
+			desc: "handle overwrite entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+  entity_id: never-seen-entity-id
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+		{
+			desc: "handle invalid entity descriptor",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			spYAMLPath := filepath.Join(t.TempDir(), "sp.yaml")
+			require.NoError(t, os.WriteFile(spYAMLPath, []byte(tt.input), 0644))
+
+			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", spYAMLPath})
+			tt.expectError(t, err)
+
+			if tt.expectEntityID != nil {
+				buf, err := runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
+				require.NoError(t, err)
+				sps := []*types.SAMLIdPServiceProviderV1{}
+				mustDecodeJSON(t, buf, &sps)
+				tt.expectEntityID(t, sps[0].GetEntityID())
+			}
+		})
+	}
+}
+
+func TestUpsertVerb(t *testing.T) {
+	tests := []struct {
+		name     string
+		exists   bool
+		force    bool
+		expected string
+	}{
+		{
+			name:     "exists && force",
+			exists:   true,
+			force:    true,
+			expected: "created",
+		},
+		{
+			name:     "!exists && force",
+			exists:   false,
+			force:    true,
+			expected: "created",
+		},
+		{
+			name:     "exists && !force",
+			exists:   true,
+			force:    false,
+			expected: "updated",
+		},
+		{
+			name:     "!exists && !force",
+			exists:   false,
+			force:    false,
+			expected: "created",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := UpsertVerb(test.exists, test.force)
+			require.Equal(t, test.expected, actual)
+		})
+	}
+}
+
+// requireEqual creates an assertion function with a bound `expected` value
+// for use with table-driven tests
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
+		require.Equal(t, expected, actual, msgAndArgs...)
+	}
+}

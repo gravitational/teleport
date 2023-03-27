@@ -27,7 +27,7 @@ limitations under the License.
 //
 // Usage:
 //
-// Golden is ideal for testing the results of marshalling, or units that output
+// Golden is ideal for testing the results of marshaling, or units that output
 // large amounts of data to stdout or a file:
 //
 // 	func TestMarshalFooStruct(t *testing.T) {

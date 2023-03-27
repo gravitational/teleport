@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,34 +19,36 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 func TestTeleportProcess_shouldInitDatabases(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name   string
-		config DatabasesConfig
+		config servicecfg.DatabasesConfig
 		want   bool
 	}{
 		{
 			name: "disabled",
-			config: DatabasesConfig{
+			config: servicecfg.DatabasesConfig{
 				Enabled: false,
 			},
 			want: false,
 		},
 		{
 			name: "enabled but no config",
-			config: DatabasesConfig{
+			config: servicecfg.DatabasesConfig{
 				Enabled: true,
 			},
 			want: false,
 		},
 		{
 			name: "enabled with config",
-			config: DatabasesConfig{
+			config: servicecfg.DatabasesConfig{
 				Enabled: true,
-				Databases: []Database{
+				Databases: []servicecfg.Database{
 					{
 						Name: "foo",
 					},
@@ -59,7 +61,7 @@ func TestTeleportProcess_shouldInitDatabases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := &TeleportProcess{
-				Config: &Config{
+				Config: &servicecfg.Config{
 					Databases: tt.config,
 				},
 			}

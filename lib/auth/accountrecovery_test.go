@@ -25,6 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -34,17 +39,13 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
-	"github.com/pquerna/otp/totp"
-	"github.com/stretchr/testify/require"
 )
 
 // TestGenerateAndUpsertRecoveryCodes tests the following:
-//  - generation of recovery codes are of correct format
-//  - recovery codes are upserted
-//  - recovery codes can be verified and marked used
-//  - reusing a used or non-existing token returns error
+//   - generation of recovery codes are of correct format
+//   - recovery codes are upserted
+//   - recovery codes can be verified and marked used
+//   - reusing a used or non-existing token returns error
 func TestGenerateAndUpsertRecoveryCodes(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -136,7 +137,7 @@ func TestStartAccountRecovery(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -204,7 +205,7 @@ func TestStartAccountRecovery_WithLock(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -257,7 +258,7 @@ func TestStartAccountRecovery_UserErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -319,7 +320,7 @@ func TestVerifyAccountRecovery_WithAuthnErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -452,7 +453,7 @@ func TestVerifyAccountRecovery_WithLock(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -521,7 +522,7 @@ func TestVerifyAccountRecovery_WithErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -620,7 +621,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -711,7 +712,7 @@ func TestCompleteAccountRecovery(t *testing.T) {
 			require.Equal(t, event.(*apievents.MFADeviceAdd).UserMetadata.User, u.username)
 
 			// Test new device has been added.
-			mfas, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, false)
+			mfas, err := srv.Auth().Services.GetMFADevices(ctx, u.username, false)
 			require.NoError(t, err)
 
 			found := false
@@ -734,7 +735,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -807,7 +808,7 @@ func TestCompleteAccountRecovery_WithErrors(t *testing.T) {
 				require.NoError(t, err)
 
 				// Retrieve list of devices to get the name of an existing device.
-				devs, err := srv.Auth().Identity.GetMFADevices(ctx, u.username, false)
+				devs, err := srv.Auth().Services.GetMFADevices(ctx, u.username, false)
 				require.NoError(t, err)
 				require.NotEmpty(t, devs)
 
@@ -906,7 +907,7 @@ func TestAccountRecoveryFlow(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -1085,7 +1086,7 @@ func TestGetAccountRecoveryToken(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				_, err = srv.Auth().Identity.CreateUserToken(ctx, wrongTokenType)
+				_, err = srv.Auth().CreateUserToken(ctx, wrongTokenType)
 				require.NoError(t, err)
 
 				return &proto.GetAccountRecoveryTokenRequest{
@@ -1152,7 +1153,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -1245,7 +1246,7 @@ func TestCreateAccountRecoveryCodes(t *testing.T) {
 				require.NotEmpty(t, res.GetCreated())
 
 				// Check token is deleted after success.
-				_, err = srv.Auth().Identity.GetUserToken(ctx, req.TokenID)
+				_, err = srv.Auth().GetUserToken(ctx, req.TokenID)
 				switch {
 				case c.forRecovery:
 					require.True(t, trace.IsNotFound(err))
@@ -1263,7 +1264,7 @@ func TestGetAccountRecoveryCodes(t *testing.T) {
 
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{
-			Cloud: true,
+			RecoveryCodes: true,
 		},
 	})
 
@@ -1337,7 +1338,7 @@ func createUserWithSecondFactors(srv *TestTLSServer) (*userAuthCreds, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

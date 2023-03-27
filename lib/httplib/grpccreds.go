@@ -22,9 +22,8 @@ import (
 	"net"
 	"syscall"
 
-	"google.golang.org/grpc/credentials"
-
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc/credentials"
 )
 
 // TLSCreds is the credentials required for authenticating a connection using TLS.
@@ -71,7 +70,8 @@ func (c *TLSCreds) OverrideServerName(serverNameOverride string) error {
 	return nil
 }
 
-type sysConn = syscall.Conn
+type sysConn = syscall.Conn //nolint:unused // sysConn is a type alias of syscall.Conn.
+// It's necessary because the name `Conn` collides with `net.Conn`.
 
 // syscallConn keeps reference of rawConn to support syscall.Conn for channelz.
 // SyscallConn() (the method in interface syscall.Conn) is explicitly

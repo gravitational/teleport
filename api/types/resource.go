@@ -21,10 +21,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // Resource represents common properties for all resources.
@@ -56,6 +57,11 @@ type Resource interface {
 	CheckAndSetDefaults() error
 }
 
+// ResourceDetails includes details about the resource
+type ResourceDetails struct {
+	Hostname string
+}
+
 // ResourceWithSecrets includes additional properties which must
 // be provided by resources which *may* contain secrets.
 type ResourceWithSecrets interface {
@@ -80,6 +86,8 @@ type ResourceWithOrigin interface {
 type ResourceWithLabels interface {
 	// ResourceWithOrigin is the base resource interface.
 	ResourceWithOrigin
+	// GetLabel retrieves the label with the provided key.
+	GetLabel(key string) (value string, ok bool)
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
 	// GetStaticLabels returns the resource's static labels.
@@ -146,6 +154,19 @@ func (r ResourcesWithLabels) AsServers() ([]Server, error) {
 	return servers, nil
 }
 
+// AsDatabases converts each resource into type Database.
+func (r ResourcesWithLabels) AsDatabases() ([]Database, error) {
+	dbs := make([]Database, 0, len(r))
+	for _, resource := range r {
+		db, ok := resource.(Database)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Database, got: %T", resource)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
+}
+
 // AsDatabaseServers converts each resource into type DatabaseServer.
 func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 	dbs := make([]DatabaseServer, 0, len(r))
@@ -157,6 +178,19 @@ func (r ResourcesWithLabels) AsDatabaseServers() ([]DatabaseServer, error) {
 		dbs = append(dbs, db)
 	}
 	return dbs, nil
+}
+
+// AsDatabaseServices converts each resource into type DatabaseService.
+func (r ResourcesWithLabels) AsDatabaseServices() ([]DatabaseService, error) {
+	services := make([]DatabaseService, len(r))
+	for i, resource := range r {
+		dbService, ok := resource.(DatabaseService)
+		if !ok {
+			return nil, trace.BadParameter("expected types.DatabaseService, got: %T", resource)
+		}
+		services[i] = dbService
+	}
+	return services, nil
 }
 
 // AsWindowsDesktops converts each resource into type WindowsDesktop.
@@ -172,6 +206,19 @@ func (r ResourcesWithLabels) AsWindowsDesktops() ([]WindowsDesktop, error) {
 	return desktops, nil
 }
 
+// AsWindowsDesktopServices converts each resource into type WindowsDesktop.
+func (r ResourcesWithLabels) AsWindowsDesktopServices() ([]WindowsDesktopService, error) {
+	desktopServices := make([]WindowsDesktopService, 0, len(r))
+	for _, resource := range r {
+		desktopService, ok := resource.(WindowsDesktopService)
+		if !ok {
+			return nil, trace.BadParameter("expected types.WindowsDesktopService, got: %T", resource)
+		}
+		desktopServices = append(desktopServices, desktopService)
+	}
+	return desktopServices, nil
+}
+
 // AsKubeClusters converts each resource into type KubeCluster.
 func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
 	clusters := make([]KubeCluster, 0, len(r))
@@ -183,6 +230,19 @@ func (r ResourcesWithLabels) AsKubeClusters() ([]KubeCluster, error) {
 		clusters = append(clusters, cluster)
 	}
 	return clusters, nil
+}
+
+// AsKubeServers converts each resource into type KubeServer.
+func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
+	servers := make([]KubeServer, 0, len(r))
+	for _, resource := range r {
+		server, ok := resource.(KubeServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.KubeServer, got: %T", resource)
+		}
+		servers = append(servers, server)
+	}
+	return servers, nil
 }
 
 // GetVersion returns resource version
@@ -238,6 +298,38 @@ func (h *ResourceHeader) GetSubKind() string {
 // SetSubKind sets resource subkind
 func (h *ResourceHeader) SetSubKind(s string) {
 	h.SubKind = s
+}
+
+// Origin returns the origin value of the resource.
+func (h *ResourceHeader) Origin() string {
+	return h.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (h *ResourceHeader) SetOrigin(origin string) {
+	h.Metadata.SetOrigin(origin)
+}
+
+// GetStaticLabels returns the static labels for the resource.
+func (h *ResourceHeader) GetStaticLabels() map[string]string {
+	return h.Metadata.Labels
+}
+
+// SetStaticLabels sets the static labels for the resource.
+func (h *ResourceHeader) SetStaticLabels(sl map[string]string) {
+	h.Metadata.Labels = sl
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (h *ResourceHeader) GetLabel(key string) (value string, ok bool) {
+	v, ok := h.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetAllLabels returns all labels from the resource..
+func (h *ResourceHeader) GetAllLabels() map[string]string {
+	return h.Metadata.Labels
 }
 
 func (h *ResourceHeader) CheckAndSetDefaults() error {
@@ -326,7 +418,7 @@ func (m *Metadata) CheckAndSetDefaults() error {
 
 	// Check the origin value.
 	if m.Origin() != "" {
-		if !utils.SliceContainsStr(OriginValues, m.Origin()) {
+		if !slices.Contains(OriginValues, m.Origin()) {
 			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
 		}
 	}

@@ -19,13 +19,14 @@ package sqlserver
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"sync"
 	"testing"
 
-	mssql "github.com/denisenkom/go-mssqldb"
 	"github.com/google/go-cmp/cmp"
+	mssql "github.com/microsoft/go-mssqldb"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -124,6 +125,9 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 						Code: libevents.DatabaseSessionQueryCode,
 					},
 					DatabaseQuery: "\nselect 'foo' as 'bar'\n        ",
+					Status: events.Status{
+						Success: true,
+					},
 				}),
 			},
 		},
@@ -155,7 +159,7 @@ func TestHandleConnectionAuditEvents(t *testing.T) {
 				EngineConfig: common.EngineConfig{
 					Audit:   audit,
 					Log:     logrus.New(),
-					Auth:    &mockAuth{},
+					Auth:    &mockDBAuth{},
 					Context: context.Background(),
 				},
 				Connector: &mockConnector{
@@ -207,27 +211,49 @@ func (m *mockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEven
 	return nil
 }
 
-type mockAuth struct {
+type mockDBAuth struct {
 	common.Auth
+	// GetAzureIdentityResourceID mocks.
+	azureIdentityResourceID    string
+	azureIdentityResourceIDErr error
 }
 
-func (m *mockAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
+func (m *mockDBAuth) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
 	return types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:         constants.Local,
 		SecondFactor: constants.SecondFactorWebauthn,
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
-		RequireSessionMFA: true,
+		RequireMFAType: types.RequireMFAType_SESSION,
 	})
+}
+
+func (m *mockDBAuth) GetTLSConfig(_ context.Context, _ *common.Session) (*tls.Config, error) {
+	return &tls.Config{}, nil
+}
+
+func (m *mockDBAuth) GetAzureIdentityResourceID(_ context.Context, _ string) (string, error) {
+	return m.azureIdentityResourceID, m.azureIdentityResourceIDErr
 }
 
 type mockChecker struct {
 	services.AccessChecker
 }
 
-func (m *mockChecker) CheckAccess(r services.AccessCheckable, mfa services.AccessMFAParams, matchers ...services.RoleMatcher) error {
+func (m *mockChecker) CheckAccess(r services.AccessCheckable, state services.AccessState, matchers ...services.RoleMatcher) error {
 	return nil
+}
+
+func (m *mockChecker) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	if authPref.GetRequireMFAType().IsSessionMFARequired() {
+		return services.AccessState{
+			MFARequired: services.MFARequiredAlways,
+		}
+	}
+	return services.AccessState{
+		MFARequired: services.MFARequiredNever,
+	}
 }
 
 type mockConnector struct {

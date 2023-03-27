@@ -10,6 +10,20 @@ usage() {
   log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-n]"
 }
 
+# make_non_relocatable_plist changes the default component plist of the $root
+# package to non-relocatable.
+# This makes install paths consistent, which also facilitates pathing in
+# pre/postscripts.
+# Creates component_plist.
+# See `man pkgbuild` for reference.
+make_non_relocatable_plist() {
+  local root="$1"
+  local component_plist="$2"
+
+  pkgbuild --analyze --root "$root" "$component_plist"
+  plutil -replace BundleIsRelocatable -bool NO "$component_plist"
+}
+
 main() {
   local buildassets=''
   buildassets="$(dirname "$0")"
@@ -109,13 +123,9 @@ password created by APPLE_USERNAME"
   # We only care about the 'tsh' file for the script.
   tar xzf "$tarname" -C "$tmp"
 
-  # Copy and edit scripts, then write the correct VERSION variable.
-  cp -r "$buildassets/macos/scripts" "$tmp/"
-  sed -i '' "s/VERSION=''/VERSION='-v$TELEPORT_VERSION'/g" "$tmp/scripts"/*
-
   # Prepare app shell.
   local skel="$buildassets/macos/$TSH_SKELETON"
-  local target="$tmp/root/tsh-v$TELEPORT_VERSION.app"
+  local target="$tmp/root/tsh.app"
   cp -r "$skel/tsh.app" "$target"
   mkdir -p "$target/Contents/MacOS/"
   cp "$tmp"/teleport*/tsh "$target/Contents/MacOS/"
@@ -130,14 +140,21 @@ password created by APPLE_USERNAME"
     "$target"
 
   # Prepare and sign the installer package.
-  target="$tmp/tsh-v$TELEPORT_VERSION.pkg" # switches from app to pkg
+  # Note that the installer does __NOT__ have a `v` in the version number.
+  target="$tmp/tsh-$TELEPORT_VERSION.pkg" # switches from app to pkg
+  local pkg_root="$tmp/root"
+  local pkg_component_plist="$tmp/tsh-component.plist"
+  local pkg_scripts="$buildassets/macos/scripts"
+  make_non_relocatable_plist "$pkg_root" "$pkg_component_plist"
   pkgbuild \
-    --root "$tmp/root/" \
+    --root "$pkg_root" \
+    --component-plist "$pkg_component_plist" \
     --identifier "$TSH_BUNDLEID" \
     --version "v$TELEPORT_VERSION" \
     --install-location /Applications \
-    --scripts "$tmp/scripts" \
+    --scripts "$pkg_scripts" \
     "$target.unsigned"
+
   $DRY_RUN_PREFIX productsign \
     --sign "$DEVELOPER_ID_INSTALLER" \
     --timestamp \
@@ -155,7 +172,7 @@ password created by APPLE_USERNAME"
   mv "$target" .
   local bn=''
   bn="$(basename "$target")"
-  sha256sum "$bn" > "$bn.sha256"
+  shasum -a 256 "$bn" > "$bn.sha256"
 }
 
 main "$@"

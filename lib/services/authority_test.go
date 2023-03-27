@@ -17,6 +17,7 @@ limitations under the License.
 package services_test
 
 import (
+	"bytes"
 	"crypto/x509/pkix"
 	"testing"
 	"time"
@@ -24,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	. "github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -70,19 +70,6 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// CA for cluster3 with old schema
-	key, cert, err = tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster3"}, nil, time.Minute)
-	require.NoError(t, err)
-	ca3, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.HostCA,
-		ClusterName: "cluster3",
-		TLSKeyPairs: []types.TLSKeyPair{{
-			Cert: cert,
-			Key:  key,
-		}},
-	})
-	require.NoError(t, err)
-
 	t.Run("ca1 with 1 cert", func(t *testing.T) {
 		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1})
 		require.NotNil(t, pool)
@@ -95,18 +82,12 @@ func TestCertPoolFromCertAuthorities(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, 2, count)
 	})
-	t.Run("ca3 with 1 cert", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca3})
-		require.NotNil(t, pool)
-		require.NoError(t, err)
-		require.Equal(t, 1, count)
-	})
 
-	t.Run("ca1 + ca2 + ca3 with 4 certs total", func(t *testing.T) {
-		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2, ca3})
+	t.Run("ca1 + ca2 with 3 certs total", func(t *testing.T) {
+		pool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca1, ca2})
 		require.NotNil(t, pool)
 		require.NoError(t, err)
-		require.Equal(t, 4, count)
+		require.Equal(t, 3, count)
 	})
 }
 
@@ -171,7 +152,7 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	ta := testauthority.New()
 	t.Cleanup(ta.Close)
 
-	_, pub, err := native.GenerateKeyPair()
+	_, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 	_, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "clustername"}, nil, time.Hour)
 	require.NoError(t, err)
@@ -188,9 +169,6 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	// needed for CertAuthoritiesEquivalent, as this will get called by
-	// UnmarshalCertAuthority
-	require.NoError(t, SyncCertAuthorityKeys(caLocal))
 
 	_, offset := caLocal.GetRotation().LastRotated.Zone()
 	require.NotZero(t, offset)
@@ -208,4 +186,140 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	require.NotPanics(t, func() { caUTC.Clone() })
 
 	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
+}
+
+func TestCheckSAMLIDPCA(t *testing.T) {
+	// Create testing CA.
+	key, cert, err := tlsca.GenerateSelfSignedCA(pkix.Name{CommonName: "cluster1"}, nil, time.Minute)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		keyset           types.CAKeySet
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name:             "no active keys",
+			keyset:           types.CAKeySet{},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "multiple active keys",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}, {
+					Cert: cert,
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "empty key",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  []byte{},
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "unparseable key",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  bytes.Repeat([]byte{49}, 1222),
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "unparseable cert",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: bytes.Repeat([]byte{49}, 1222),
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "valid CA",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert: cert,
+					Key:  key,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "don't validate non-raw private keys",
+			keyset: types.CAKeySet{
+				TLS: []*types.TLSKeyPair{{
+					Cert:    cert,
+					Key:     bytes.Repeat([]byte{49}, 1222),
+					KeyType: types.PrivateKeyType_PKCS11,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.SAMLIDPCA,
+				ClusterName: "cluster1",
+				ActiveKeys:  test.keyset,
+			})
+			require.NoError(t, err)
+			test.errAssertionFunc(t, ValidateCertAuthority(ca))
+		})
+	}
+}
+
+func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
+	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster1",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: bytes.Repeat([]byte{49}, 1600),
+				Key:  bytes.Repeat([]byte{49}, 1200),
+			}},
+		},
+	})
+	require.NoError(b, err)
+
+	// ca2 is a clone of ca1.
+	ca2 := ca1.Clone()
+
+	// ca3 has different cert bytes from ca1.
+	ca3, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.HostCA,
+		ClusterName: "cluster1",
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{{
+				Cert: bytes.Repeat([]byte{49}, 1666),
+				Key:  bytes.Repeat([]byte{49}, 1222),
+			}},
+		},
+	})
+	require.NoError(b, err)
+
+	b.Run("true", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			require.True(b, CertAuthoritiesEquivalent(ca1, ca2))
+		}
+	})
+
+	b.Run("false", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			require.False(b, CertAuthoritiesEquivalent(ca1, ca3))
+		}
+	})
 }

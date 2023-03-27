@@ -17,21 +17,13 @@ limitations under the License.
 package utils
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
+	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
 	"net"
 	"os"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/trace"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // TLSConfig returns default TLS configuration strong defaults.
@@ -74,78 +66,6 @@ func CreateTLSConfiguration(certFile, keyFile string, cipherSuites []uint16) (*t
 	return config, nil
 }
 
-// TLSCredentials keeps the typical 3 components of a proper HTTPS configuration
-type TLSCredentials struct {
-	// PublicKey in PEM format
-	PublicKey []byte
-	// PrivateKey in PEM format
-	PrivateKey []byte
-	Cert       []byte
-}
-
-// macMaxTLSCertValidityPeriod is the maximum validity period
-// for a TLS certificate enforced by macOS.
-// As of Go 1.18, certificates are validated via the system
-// verifier and not in Go.
-const macMaxTLSCertValidityPeriod = 825 * 24 * time.Hour
-
-// GenerateSelfSignedCert generates a self-signed certificate that
-// is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(hostNames []string) (*TLSCredentials, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	notBefore := time.Now()
-	notAfter := notBefore.Add(macMaxTLSCertValidityPeriod)
-
-	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
-	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	entity := pkix.Name{
-		CommonName:   "localhost",
-		Country:      []string{"US"},
-		Organization: []string{"localhost"},
-	}
-
-	template := x509.Certificate{
-		SerialNumber:          serialNumber,
-		Issuer:                entity,
-		Subject:               entity,
-		NotBefore:             notBefore,
-		NotAfter:              notAfter,
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
-		BasicConstraintsValid: true,
-		IsCA:                  true,
-	}
-
-	// collect IP addresses localhost resolves to and add them to the cert. template:
-	template.DNSNames = append(hostNames, "localhost.local")
-	ips, _ := net.LookupIP("localhost")
-	if ips != nil {
-		template.IPAddresses = append(ips, net.ParseIP("::1"))
-	}
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(priv.Public())
-	if err != nil {
-		log.Error(err)
-		return nil, trace.Wrap(err)
-	}
-
-	return &TLSCredentials{
-		PublicKey:  pem.EncodeToMemory(&pem.Block{Type: "RSA PUBLIC KEY", Bytes: publicKeyBytes}),
-		PrivateKey: pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)}),
-		Cert:       pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes}),
-	}, nil
-}
-
 // CipherSuiteMapping transforms Teleport formatted cipher suites strings
 // into uint16 IDs.
 func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
@@ -161,6 +81,26 @@ func CipherSuiteMapping(cipherSuites []string) ([]uint16, error) {
 	}
 
 	return out, nil
+}
+
+// TLSConn is a `net.Conn` that implements some of the functions defined by the
+// `tls.Conn` struct. This interface can be used where it could receive a
+// `tls.Conn` wrapped in another connection. For example, in the ALPN Proxy,
+// some TLS Connections can be wrapped with ping protocol.
+type TLSConn interface {
+	net.Conn
+
+	// ConnectionState returns basic TLS details about the connection.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.ConnectionState
+	ConnectionState() tls.ConnectionState
+	// Handshake runs the client or server handshake protocol if it has not yet
+	// been run.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.Handshake
+	Handshake() error
+	// HandshakeContext runs the client or server handshake protocol if it has
+	// not yet been run.
+	// More info at: https://pkg.go.dev/crypto/tls#Conn.HandshakeContext
+	HandshakeContext(context.Context) error
 }
 
 // cipherSuiteMapping is the mapping between Teleport formatted cipher

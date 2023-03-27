@@ -23,11 +23,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/client/terminal"
-	"github.com/gravitational/teleport/lib/events"
-
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/client/terminal"
+	"github.com/gravitational/teleport/lib/events"
 )
 
 type tshPlayerState int

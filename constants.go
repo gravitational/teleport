@@ -125,6 +125,9 @@ const (
 	// ComponentDatabase is the database proxy service.
 	ComponentDatabase = "db:service"
 
+	// ComponentDiscovery is the Discovery service.
+	ComponentDiscovery = "discovery:service"
+
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
@@ -148,6 +151,9 @@ const (
 
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
+
+	// ComponentSubsystemSFTP is the SFTP subsystem.
+	ComponentSubsystemSFTP = "subsystem:sftp"
 
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
@@ -249,14 +255,11 @@ const (
 	// ComponentInstance is an abstract component common to all services.
 	ComponentInstance = "instance"
 
-	// DebugEnvVar tells tests to use verbose debug output
-	DebugEnvVar = "DEBUG"
+	// ComponentVersionControl is the component common to all version control operations.
+	ComponentVersionControl = "version-control"
 
-	// DebugAssetsPath allows users to set the path of the webassets if debug
-	// mode is enabled.
-	// For example,
-	// `DEBUG=1 DEBUG_ASSETS_PATH=/path/to/webassets/ teleport start`.
-	DebugAssetsPath = "DEBUG_ASSETS_PATH"
+	// ComponentUsageReporting is the component responsible for reporting usage metrics.
+	ComponentUsageReporting = "usage-reporting"
 
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
@@ -280,13 +283,13 @@ const (
 	// to all backends during initialization
 	DataDirParameterName = "data_dir"
 
-	// SSH request type to keep the connection alive. A client and a server keep
-	// pining each other with it:
+	// KeepAliveReqType is a SSH request type to keep the connection alive. A client and
+	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
-	// RecordingProxyReqType is the name of a global request which returns if
-	// the proxy is recording sessions or not.
-	RecordingProxyReqType = "recording-proxy@teleport.com"
+	// ClusterDetailsReqType is the name of a global request which returns cluster details like
+	// if the proxy is recording sessions or not and if FIPS is enabled.
+	ClusterDetailsReqType = "cluster-details@goteleport.com"
 
 	// JSON means JSON serialization format
 	JSON = "json"
@@ -320,14 +323,6 @@ const (
 	// Off means mode is off
 	Off = "off"
 
-	// SchemeS3 is S3 file scheme, means upload or download to S3 like object
-	// storage
-	SchemeS3 = "s3"
-
-	// SchemeGCS is GCS file scheme, means upload or download to GCS like object
-	// storage
-	SchemeGCS = "gs"
-
 	// GCSTestURI turns on GCS tests
 	GCSTestURI = "TEST_GCS_URI"
 
@@ -352,11 +347,17 @@ const (
 	// SSEKMSKey is an optional switch to use an KMS CMK key for S3 SSE.
 	SSEKMSKey = "sse_kms_key"
 
-	// SchemeFile is a local disk file storage
+	// SchemeFile configures local disk-based file storage for audit events
 	SchemeFile = "file"
 
 	// SchemeStdout outputs audit log entries to stdout
 	SchemeStdout = "stdout"
+
+	// SchemeS3 is used for S3-like object storage
+	SchemeS3 = "s3"
+
+	// SchemeGCS is used for Google Cloud Storage
+	SchemeGCS = "gs"
 
 	// LogsDir is a log subdirectory for events and logs
 	LogsDir = "log"
@@ -375,16 +376,6 @@ const (
 
 	// MinimumEtcdVersion is the minimum version of etcd supported by Teleport
 	MinimumEtcdVersion = "3.3.0"
-)
-
-// OTPType is the type of the One-time Password Algorithm.
-type OTPType string
-
-const (
-	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
-	TOTP = OTPType("totp")
-	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
-	HOTP = OTPType("hotp")
 )
 
 const (
@@ -434,9 +425,15 @@ const (
 	// CertExtensionMFAVerified is used to mark certificates issued after an MFA
 	// check.
 	CertExtensionMFAVerified = "mfa-verified"
-	// CertExtensionClientIP is used to embed the IP of the client that created
+	// CertExtensionPreviousIdentityExpires is the extension that stores an RFC3339
+	// timestamp representing the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
+	// CertExtensionLoginIP is used to embed the IP of the client that created
 	// the certificate.
-	CertExtensionClientIP = "client-ip"
+	CertExtensionLoginIP = "login-ip"
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
@@ -452,6 +449,19 @@ const (
 	// CertExtensionAllowedResources lists the resources which this certificate
 	// should be allowed to access
 	CertExtensionAllowedResources = "teleport-allowed-resources"
+	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
+	// The Node/Agent will append connection traces to this diagnostic instance.
+	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
+	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
+	// private key policy.
+	CertExtensionPrivateKeyPolicy = "private-key-policy"
+	// CertExtensionDeviceID is the trusted device identifier.
+	CertExtensionDeviceID = "teleport-device-id"
+	// CertExtensionDeviceAssetTag is the device inventory identifier.
+	CertExtensionDeviceAssetTag = "teleport-device-asset-tag"
+	// CertExtensionDeviceCredentialID is the identifier for the credential used
+	// by the device to authenticate itself.
+	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -517,34 +527,6 @@ const (
 	// TraitExternalPrefix is the role variable prefix that indicates the data comes from an external identity provider.
 	TraitExternalPrefix = "external"
 
-	// TraitLogins is the name of the role variable used to store
-	// allowed logins.
-	TraitLogins = "logins"
-
-	// TraitWindowsLogins is the name of the role variable used
-	// to store allowed Windows logins.
-	TraitWindowsLogins = "windows_logins"
-
-	// TraitKubeGroups is the name the role variable used to store
-	// allowed kubernetes groups
-	TraitKubeGroups = "kubernetes_groups"
-
-	// TraitKubeUsers is the name the role variable used to store
-	// allowed kubernetes users
-	TraitKubeUsers = "kubernetes_users"
-
-	// TraitDBNames is the name of the role variable used to store
-	// allowed database names.
-	TraitDBNames = "db_names"
-
-	// TraitDBUsers is the name of the role variable used to store
-	// allowed database users.
-	TraitDBUsers = "db_users"
-
-	// TraitAWSRoleARNs is the name of the role variable used to store
-	// allowed AWS role ARNs.
-	TraitAWSRoleARNs = "aws_role_arns"
-
 	// TraitTeams is the name of the role variable use to store team
 	// membership information
 	TraitTeams = "github_teams"
@@ -580,6 +562,14 @@ const (
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
 
+	// TraitInternalAzureIdentities is the variable used to store allowed
+	// Azure identities for local accounts.
+	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
+
+	// TraitInternalGCPServiceAccounts is the variable used to store allowed
+	// GCP service accounts for local accounts.
+	TraitInternalGCPServiceAccounts = "{{internal.gcp_service_accounts}}"
+
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
@@ -605,6 +595,8 @@ const (
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
 )
+
+var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
@@ -747,6 +739,15 @@ const (
 	// specific UID to prevent the matching user from being deleted before
 	// spawning the intended child process.
 	ParkSubCommand = "park"
+
+	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
+	// handle SFTP connections.
+	SFTPSubCommand = "sftp"
+
+	// WaitSubCommand is the sub-command Teleport uses to wait
+	// until a domain name stops resolving. Its main use is to ensure no
+	// auth instances are still running the previous major version.
+	WaitSubCommand = "wait"
 )
 
 const (
@@ -755,6 +756,12 @@ const (
 
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
+)
+
+const (
+	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
+	// uses to get the home directory of a remote user.
+	GetHomeDirSubsystem = "gethomedir"
 )
 
 // A principal name for use in SSH certificates.
@@ -792,3 +799,15 @@ const UserSingleUseCertTTL = time.Minute
 // StandardHTTPSPort is the default port used for the https URI scheme,
 // cf. RFC 7230 § 2.7.2.
 const StandardHTTPSPort = 443
+
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
+)

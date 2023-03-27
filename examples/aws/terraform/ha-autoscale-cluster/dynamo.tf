@@ -7,7 +7,14 @@ resource "aws_dynamodb_table" "teleport" {
   write_capacity = 20
   hash_key       = "HashKey"
   range_key      = "FullPath"
+
+  // For demo purposes, CMK isn't necessary
+  // tfsec:ignore:aws-dynamodb-table-customer-key
   server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
     enabled = true
   }
 
@@ -49,7 +56,13 @@ resource "aws_dynamodb_table" "teleport_events" {
   hash_key       = "SessionID"
   range_key      = "EventIndex"
 
+  // For demo purposes, CMK isn't necessary
+  // tfsec:ignore:aws-dynamodb-table-customer-key
   server_side_encryption {
+    enabled = true
+  }
+
+  point_in_time_recovery {
     enabled = true
   }
 
@@ -138,6 +151,8 @@ EOF
 
 }
 
+// Not able to use a specific resource constraint
+// tfsec:ignore:aws-iam-no-policy-wildcards
 resource "aws_iam_role_policy" "autoscaler_cloudwatch" {
   name = "${var.cluster_name}-autoscaler-cloudwatch"
   role = aws_iam_role.autoscaler.id
@@ -210,4 +225,3 @@ resource "aws_appautoscaling_policy" "write_policy" {
     target_value = var.autoscale_write_target
   }
 }
-

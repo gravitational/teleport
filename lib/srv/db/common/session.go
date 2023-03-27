@@ -19,11 +19,13 @@ package common
 import (
 	"fmt"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
+	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Session combines parameters for a database connection session.
@@ -50,10 +52,22 @@ type Session struct {
 	Log logrus.FieldLogger
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
+	// AuthContext is the identity context of the user.
+	AuthContext *authz.Context
 }
 
 // String returns string representation of the session parameters.
 func (c *Session) String() string {
 	return fmt.Sprintf("db[%v] identity[%v] dbUser[%v] dbName[%v]",
 		c.Database.GetName(), c.Identity.Username, c.DatabaseUser, c.DatabaseName)
+}
+
+// GetAccessState returns the AccessState based on the underlying
+// [services.AccessChecker] and [tlsca.Identity].
+func (c *Session) GetAccessState(authPref types.AuthPreference) services.AccessState {
+	state := c.Checker.GetAccessState(authPref)
+	state.MFAVerified = c.Identity.MFAVerified != ""
+	state.EnableDeviceVerification = true
+	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&c.Identity.DeviceExtensions)
+	return state
 }

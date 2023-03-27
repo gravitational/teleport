@@ -12,22 +12,14 @@ other users to be present in a Server or Kubernetes Access session. Depending on
 the requirements, these users can observe the session in real time, participate
 in the session, and terminate the session at will.
 
+In addition, Teleport administrators can [define rules](#join_sessions) that allow users to join each other's
+sessions from `tsh` and the Web UI.
+
 <ScopedBlock scope="oss">
 
   Moderated Sessions requires Teleport Enterprise or Teleport Cloud.
 
-  View this guide as a user of another Teleport edition:
-
-  <TileSet>
-  <Tile href="./moderated-sessions.mdx/?scope=cloud" title="Teleport Cloud" icon="cloud">
-  </Tile>
-  <Tile href="./moderated-sessions.mdx/?scope=enterprise" title="Teleport Enterprise" icon="building">
-  </Tile>
-  </TileSet>
-
 </ScopedBlock>
-
-<ScopedBlock scope={["cloud", "enterprise"]}>
 
 ### Use cases
 
@@ -67,6 +59,12 @@ The following are required options for `require_session_join`:
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 |`count`|Integer|The number of users that need to match the filter expression to satisfy the policy|
 
+The following fields are optional for `require_session_join`:
+
+|Option|Type|Description|
+|---|---|---|
+|`on_leave`|[On leave](#on-leave)|The action to take when the policy is no longer satisfied|
+
 #### Example
 
 The policy below specifies that the `prod-access` role must have a minimum of
@@ -84,7 +82,7 @@ spec:
   allow:
     require_session_join:
       - name: Auditor oversight
-        filter: 'contains(user.roles, "auditor")'
+        filter: 'contains(user.spec.roles, "auditor")'
         kinds: ['k8s', 'ssh']
         modes: ['moderator']
         count: 2
@@ -103,9 +101,9 @@ The following are required options for `join_sessions`:
 |Option|Type|Description|
 |---|---|---|
 |`name`|String|The name of the allow policy|
-|`roles`|[]String|A list of names for Teleport roles that this policy applies to. Users with this role are eligible to join a Moderated Session under this policy.|
+|`roles`|[]String|A list of names of Teleport roles whose sessions this policy applies to. Active sessions created by users with these roles can be joined under this policy.|
 |`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
-|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
+|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the session under this policy|
 
 #### Example
 
@@ -139,7 +137,7 @@ Here is an example of a filter expression that evaluates to true if the user is
 Adam or if the user has the trait `cs-observe`:
 
 ```
-equals(user.name, "adam") || contains(user.roles, "cs-observe")
+equals(user.name, "adam") || contains(user.spec.roles, "cs-observe")
 ```
 
 A filter expression is a string statement used to define logic based on a set of
@@ -166,19 +164,17 @@ options are `ssh` and `k8s`.
 
 A participant joining a session will always have one of three modes:
 
-- `peer`: Can join and collaborate in a session. They can view output and send
-  input.
-- `moderator`: Can join and watch a session. They can view output and
-  forcefully terminate the session at will.
-- `observer`: Can join and watch a session. They cannot control the session in
-  any way.
+- `observer`: Allows read-only access to the session. You can view output but cannot control the session in any way nor send any input.
+- `moderator`: Allows you to watch the session. You can view output and forcefully terminate or pause the session at any time, but can't send input.
+- `peer`: Allows you to collaborate in the session. You can view output and send input.
+
 
 When joining a session with `tsh join` or `tsh kube join`, a user can specify a
 mode with the `--mode <mode>` flag , where the mode is one of `peer`,
 `moderator` or `observer`. By default, the mode is `peer` for SSH and
 `moderator` for Kubernetes sessions.
 
-A participant may leave a session with the shortcut `c` while in observer or
+A participant may leave a session with the shortcut `^c` (Control + c) while in observer or
 moderator mode. When in moderator mode, a participant may also forcefully
 terminate the session at any point in time with the shortcut `t`.
 
@@ -189,14 +185,31 @@ filter expression in order to satisfy the policy. The `count` field of a require
 policy is a positive integer value that specifies the minimum amount of users
 this policy requires.
 
+### On leave
+
+The `on_leave` string option in require policies is used to define what happens when a moderator leaves a session, causing a policy to no longer be satisfied.
+
+There are two possible actions to take in this scenario:
+1. Terminate the session and disconnect all participants, corresponding to the `"terminate"` value.
+2. Pause the session and stop any input/output streaming until the policy is satisfied again, corresponding to the `"pause"` value.
+
+By default, Teleport treats an empty string in this field as the same as `terminate`.
+That is, the session is terminated instantly and all participants are disconnected.
+
+If all require policies attached to the session owner are set to `"pause"`, the session will instead pause
+but the session will remain open. This discards all input from session participants and buffers the most recent output until the session can resume.
+
 ## Backwards compatibility with Server Access
 
+Moderated Session RBAC controls were added to the role specification in version 5
+(`version: v5` in the YAML definition).
 Previously, Server Access did not include controls over which users can join a
-session. To work around this, RBAC rules are ignored for users that only have
-V4 roles (`version: v4` in the role specification). New roles are created as
-V5. V4 roles are upgraded when they are modified in the UI. If a user has any
-attached V5 roles (`version: v5` in the role specification), the new RBAC access
-checks will be enforced.
+session.
+To avoid breaking functionality for users with only roles on v4 or older, RBAC
+access checks will only be enforced if the user has at least one v5 role.
+
+New roles will be created as v5 by default, and older roles can by updated with
+`tctl` or from the Web UI by modifying the `version` field.
 
 ## MFA-based presence
 
@@ -207,7 +220,7 @@ wishing to join have a configured U2F or WebAuthn MFA token.
 
 Every 30 seconds, Teleport will issue a prompt to the user in the terminal,
 asking them to press their MFA token in the next 15 seconds. This will happen
-continously during the session and exists so that moderators are always present
+continuously during the session and exists so that moderators are always present
 and watching a given session.
 
 If no MFA input is received within 60 seconds, the user is kicked from the
@@ -227,4 +240,3 @@ example be used to enable notifications over some external communication system.
 
 - [Moderated Sessions](https://github.com/gravitational/teleport/blob/master/rfd/0043-kubeaccess-multiparty.md)
 
-</ScopedBlock>

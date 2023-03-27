@@ -3,12 +3,13 @@ CERT_MANAGER_VERSION ?= v1.7.1
 SOAK_TEST_DURATION ?= 30m
 BACKEND ?= etcd
 USE_CERT_MANAGER ?= yes
-TELEPORT_IMAGE ?= quay.io/gravitational/teleport-ent:9.0.0
+TELEPORT_IMAGE ?= public.ecr.aws/gravitational/teleport-ent:12.0.0
 NAMESPACE ?= loadtest
+NODE ?=
 
 # performs initialization needed for cluster
 # 1) generates etcd certs
-# 2) creates loadtest namespace
+# 2) creates namespace
 # 3) installs cert-manager
 # 4) creates and applies secrets
 .PHONY: setup
@@ -21,16 +22,16 @@ setup:
 
 	@echo "applying image: ${TELEPORT_IMAGE}"
 ifeq ($(BACKEND), etcd)
-	make -C ../etcd/certs all
+	$(MAKE) -C ../etcd/certs all
 endif
 	kubectl create namespace $(NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
-	make -C ./secrets all
+	$(MAKE) -C ./secrets all
 ifeq ($(USE_CERT_MANAGER), yes)
 	kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml
 endif
-	make generate-secrets
+	$(MAKE) generate-secrets
 
-# create kubernetes secrets 
+# create kubernetes secrets
 .PHONY: generate-secrets
 generate-secrets:
 ifeq ($(BACKEND), etcd)
@@ -60,8 +61,8 @@ endif
 # deletes the loadtest and cert-manager namespaces
 .PHONY: clean
 clean:
-	make -C secrets clean
-	make -C ../etcd/certs clean
+	$(MAKE) -C secrets clean
+	$(MAKE) -C ../etcd/certs clean
 	kubectl delete namespace $(NAMESPACE) --ignore-not-found
 	kubectl delete -f https://github.com/jetstack/cert-manager/releases/download/$(CERT_MANAGER_VERSION)/cert-manager.yaml --ignore-not-found
 
@@ -94,6 +95,7 @@ generate-certificates:
 else
 .PHONY: generate-certificates
 generate-certificates:
+	kubectl apply -f tls.yaml
 endif
 
 # installs teleport auth, proxy, one IoT node and one non-IoT node
@@ -107,7 +109,7 @@ delete-teleport: delete-tc delete-nodes delete-proxy delete-auth
 # installs prometheus exporter
 .PHONY: install-monitor
 install-monitor:
-	@make expand-yaml FILENAME=prometheus NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=prometheus NAMESPACE=$(NAMESPACE)
 	kubectl apply -f prometheus-gen.yaml
 
 # deletes prometheus exporter
@@ -118,12 +120,19 @@ delete-monitor:
 # installs an etcd cluster
 .PHONY: install-etcd
 install-etcd:
-	kubectl apply -f etcd.yaml
+	kubectl create configmap etcd-config -n $(NAMESPACE) \
+		--from-file=etcd.sh=./etcd.sh \
+		--dry-run=client -o yaml | kubectl apply -f -
+
+
+	$(MAKE) -s expand-yaml FILENAME=etcd NAMESPACE=$(NAMESPACE)
+	kubectl apply -f etcd-gen.yaml
 
 # deletes etcd deployment, services, and configmaps
 .PHONY: delete-etcd
 delete-etcd:
-	kubectl delete -f etcd.yaml --ignore-not-found
+	kubectl delete -f etcd-gen.yaml --ignore-not-found
+	kubectl delete configmap etcd-config -n $(NAMESPACE) --ignore-not-found
 
 
 # install auth and applies required teleport resources for loadtests
@@ -142,7 +151,7 @@ install-auth: setup-auth
 ifeq ($(BACKEND), etcd)
 .PHONY: setup-auth
 setup-auth:
-	@make expand-yaml FILENAME=../teleport/teleport-auth-etcd
+	$(MAKE) -s expand-yaml FILENAME=../teleport/teleport-auth-etcd
 
 	kubectl create configmap auth-config -n $(NAMESPACE) \
 		--from-file=teleport.yaml=../teleport/teleport-auth-etcd-gen.yaml \
@@ -151,12 +160,12 @@ setup-auth:
 		--from-file=user.yaml=../teleport/soaktest-user.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	@make expand-yaml FILENAME=auth-etcd TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=auth-etcd TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 	kubectl apply -f auth-etcd-gen.yaml
 else ifeq ($(BACKEND), firestore)
 .PHONY: setup-auth
 setup-auth:
-	@make expand-yaml FILENAME=../teleport/teleport-auth-firestore
+	$(MAKE) -s expand-yaml FILENAME=../teleport/teleport-auth-firestore
 
 	kubectl create configmap auth-config -n $(NAMESPACE) \
 		--from-file=teleport.yaml=../teleport/teleport-auth-firestore-gen.yaml \
@@ -165,12 +174,12 @@ setup-auth:
 		--from-file=user.yaml=../teleport/soaktest-user.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	@make expand-yaml FILENAME=auth-firestore TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=auth-firestore TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 	kubectl apply -f auth-firestore-gen.yaml
 else ifeq ($(BACKEND), dynamo)
 .PHONY: setup-auth
 setup-auth:
-	@make expand-yaml DYNAMO_TABLE=${DYNAMO_TABLE} DYNAMO_REGION=${DYNAMO_REGION} FILENAME=../teleport/teleport-auth-dynamo
+	$(MAKE) -s expand-yaml DYNAMO_TABLE=${DYNAMO_TABLE} DYNAMO_REGION=${DYNAMO_REGION} FILENAME=../teleport/teleport-auth-dynamo
 
 	kubectl create configmap auth-config -n $(NAMESPACE) \
 		--from-file=teleport.yaml=../teleport/teleport-auth-dynamo-gen.yaml \
@@ -179,7 +188,7 @@ setup-auth:
 		--from-file=user.yaml=../teleport/soaktest-user.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	@make expand-yaml FILENAME=auth-dynamo TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=auth-dynamo TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 	kubectl apply -f auth-dynamo-gen.yaml
 else
 .PHONY: setup-auth
@@ -199,13 +208,13 @@ delete-auth:
 # install proxy
 .PHONY: install-proxy
 install-proxy:
-	@make expand-yaml FILENAME=../teleport/teleport-proxy
+	$(MAKE) -s expand-yaml FILENAME=../teleport/teleport-proxy
 	kubectl create configmap proxy-config -n $(NAMESPACE) \
 		--from-file=teleport.yaml=../teleport/teleport-proxy-gen.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
 
-	@make expand-yaml FILENAME=proxy TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=proxy TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 	kubectl apply -f proxy-gen.yaml
 
 # deletes proxy deployment, services and configmaps
@@ -237,35 +246,35 @@ install-nodes: install-iot-node install-node
 # install an IoT mode node
 .PHONY: install-iot-node
 install-iot-node:
-	@make expand-yaml FILENAME=../teleport/teleport-iot-node
+	$(MAKE) -s expand-yaml FILENAME=../teleport/teleport-iot-node
 	kubectl create configmap iot-node-config -n $(NAMESPACE) \
 		--from-file=teleport.yaml=../teleport/teleport-iot-node-gen.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	@make expand-yaml FILENAME=iot-node TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=iot-node TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 	kubectl apply -f iot-node-gen.yaml
 
 # install a non-IoT mode node
 .PHONY: install-node
 install-node:
-	@make expand-yaml FILENAME=../teleport/teleport-node
+	$(MAKE) -s expand-yaml FILENAME=../teleport/teleport-node
 	kubectl create configmap node-config -n $(NAMESPACE) \
 		--from-file=teleport.yaml=../teleport/teleport-node-gen.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	@make expand-yaml FILENAME=node TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=node TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 	kubectl apply -f node-gen.yaml
 
 # installs a trusted cluster
 .PHONY: install-tc
 install-tc:
-	@make expand-yaml FILENAME=../teleport/tc
+	$(MAKE) -s expand-yaml FILENAME=../teleport/tc
 	kubectl create configmap tc-config -n $(NAMESPACE) \
 		--from-file=teleport.yaml=../teleport/teleport-tc.yaml \
 		--from-file=cluster.yaml=../teleport/tc-gen.yaml \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	@make expand-yaml FILENAME=tc TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=tc TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE) NAMESPACE=$(NAMESPACE)
 	kubectl apply -f tc-gen.yaml
 
 # deletes all rc resources from teleport and deletes trusted cluster deployments and configmaps
@@ -281,7 +290,7 @@ delete-tc:
 .PHONY: setup-tc
 setup-tc:
 	kubectl get pod -n $(NAMESPACE) -l app="tc" -o custom-columns=name:metadata.name --no-headers \
-    	| xargs -P 20 -n 1 -I {} kubectl -n $(NAMESPACE) exec {} -- tctl --config /etc/teleport/teleport.yaml create -f /etc/teleport/cluster.yaml
+	| xargs -P 20 -n 1 -I {} kubectl -n $(NAMESPACE) exec {} -- tctl --config /etc/teleport/teleport.yaml create -f /etc/teleport/cluster.yaml
 
 # scales trusted clusters to 500
 .PHONY: scale-tc-500
@@ -349,21 +358,21 @@ install-soaktest:
 		--from-literal=PROXY_HOST=$$(cat ./secrets/secrets.env | grep PROXY_HOST | cut -d '=' -f2- ) \
 		--dry-run=client -o yaml | kubectl apply -f -
 
-	@make expand-yaml FILENAME=soaktest TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
+	$(MAKE) -s expand-yaml FILENAME=soaktest TELEPORT_IMAGE=$(TELEPORT_IMAGE) NAMESPACE=$(NAMESPACE)
 	kubectl create -f soaktest-gen.yaml
 
 # deploys a job to run the soak tests
 .PHONY: run-soak-tests
 run-soak-tests:
-	kubectl -n $(NAMESPACE) exec $$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}") -c teleport -it \
+	kubectl -n $(NAMESPACE) exec $$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}") -it \
 		-- tctl auth sign --overwrite --user=soaktest-runner --out=/data/soaktest-auth --ttl=8760h --config /etc/teleport/teleport.yaml
 
-	kubectl cp -c teleport loadtest/$$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}"):/data/soaktest-auth ./secrets/soaktest-auth
+	kubectl cp $(NAMESPACE)/$$(kubectl get pod -n $(NAMESPACE) -l teleport-role="auth" -o jsonpath="{.items[0].metadata.name}"):/data/soaktest-auth ./secrets/soaktest-auth
 
 	kubectl wait --for=condition=available --timeout=600s deploy/node -n $(NAMESPACE)
 	kubectl wait --for=condition=available --timeout=600s deploy/iot-node -n $(NAMESPACE)
 
-	@make install-soaktest
+	$(MAKE) -s install-soaktest
 
 	@sleep 1
 
@@ -373,89 +382,115 @@ run-soak-tests:
 # runs the node scaling tests
 .PHONY: run-scaling-test
 run-scaling-test:
-	@make delete-nodes
-	@make install-node
-	@make scale-10k-non-iot
+	$(MAKE) -s delete-nodes
+	$(MAKE) -s install-node
+	$(MAKE) -s scale-10k-non-iot
 	@kubectl wait --for=condition=available deploy/node -n $(NAMESPACE) --timeout=60m
 	@sleep 30
-	@make scale-1-non-iot
+	$(MAKE) -s scale-1-non-iot
 	@sleep 15
-	@make scale-10k-non-iot
+	$(MAKE) -s scale-10k-non-iot
 	@kubectl wait --for=condition=available deploy/node -n $(NAMESPACE) --timeout=60m
 	@sleep 15
-	@make scale-1-non-iot
+	$(MAKE) -s scale-1-non-iot
 
 	@sleep 15
 
-	@make delete-nodes
-	@make install-iot-node
-	@make scale-10k-iot
+	$(MAKE) -s delete-nodes
+	$(MAKE) -s install-iot-node
+	$(MAKE) -s scale-10k-iot
 	@kubectl wait --for=condition=available deploy/iot-node -n $(NAMESPACE) --timeout=60m
 	@sleep 30
-	@make scale-1-iot
+	$(MAKE) -s scale-1-iot
 	@sleep 15
-	@make scale-10k-iot
+	$(MAKE) -s scale-10k-iot
 	@kubectl wait --for=condition=available  deploy/iot-node -n $(NAMESPACE) --timeout=60m
 	@sleep 15
-	@make scale-1
+	$(MAKE) -s scale-1
 
-	@make delete-nodes
-	@make install-nodes
+	$(MAKE) -s delete-nodes
+	$(MAKE) -s install-nodes
 
 # runs the trusted-cluster scaling tests
 .PHONY: run-tc-scaling-test
 run-tc-scaling-test:
-	@make install-tc
-	@make scale-tc-500
+	$(MAKE) -s install-tc
+	$(MAKE) -s scale-tc-500
 	kubectl wait --for=condition=available deploy/tc -n $(NAMESPACE) --timeout=60m
 	@sleep 120
-	@make setup-tc
+	$(MAKE) -s setup-tc
 
-	@sleep 1200
+	@sleep 300
 
-	@make delete-tc
+	$(MAKE) -s delete-tc
 
 	@sleep 180
 
-	@make install-tc
-	@make scale-tc-500
+	$(MAKE) -s install-tc
+	$(MAKE) -s scale-tc-500
 	kubectl wait --for=condition=available deploy/tc -n $(NAMESPACE) --timeout=60m
 	@sleep 120
-	@make setup-tc
-	
-	@sleep 1200
-	
-	@make delete-tc
+	$(MAKE) -s setup-tc
+
+	@sleep 300
+
+	$(MAKE) -s delete-tc
 
 # collect goroutine and heap go profiles from the auth deployment
 .PHONY: collect-profiles
-collect-profiles:
-	kubectl port-forward service/auth 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
+collect-profiles: collect-auth collect-proxy collect-node
 
-	@echo "waiting for auth to be available..."
+# forwards the pods diagnostics address
+.PHONY: forward-pod-diagnostics
+forward-pod-diagnostics:
+	kubectl port-forward $(POD) 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
 
+# retrieves profiles from all pods matching the selector
+.PHONY: collect-pods
+collect-pods:
+	@for POD in $$(kubectl get pod -n $(NAMESPACE) -l $(SELECTOR) -o custom-columns=name:metadata.name --no-headers) ; do \
+$(MAKE) collect-pod POD=$$POD ; \
+    done
+
+# retrieves profiles from all proxy pods
+.PHONY: collect-proxy
+collect-proxy:
+	$(MAKE) -s collect-pods SELECTOR=teleport-role="proxy"
+
+# retrieves profiles from all auth pods
+.PHONY: collect-auth
+collect-auth:
+	$(MAKE) -s collect-pods SELECTOR=teleport-role="auth"
+
+# retrieves profiles from a node
+.PHONY: collect-node
+collect-node:
+	$(MAKE) -s collect-pod POD=$(NODE)
+
+# retrieves profiles from a particular pod
+ifeq ($(POD),)
+.PHONY: collect-pod
+collect-pod:
+	@echo "No pod provided; $(MAKE) collect-pod POD=<pod-name>"
+	exit 1
+else
+.PHONY: collect-pod
+collect-pod:
+	$(MAKE) -s forward-pod-diagnostics POD=$(POD)
+	@echo "waiting for $(POD) to be available..."
 	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
-
-	@make fetch-profiles LOCATION=auth-$(shell date +%s)
-
+	@if [ $$? -ne 0 ]; then echo "unable to reach $$POD"; exit 1; fi
+	$(MAKE) -s fetch-profiles LOCATION=$(POD)-$(shell date +%s)
 	kill -s kill $$(pgrep -f 3434:3434)
-
-	kubectl port-forward service/proxy 3434:3434 -n $(NAMESPACE) > /dev/null 2>&1 &
-
-	@echo "waiting for proxy to be available..."
-
-	@timeout 30 sh -c 'until nc -z localhost 3434; do sleep 0.5; done'
-
-	@make fetch-profiles LOCATION=proxy-$(shell date +%s)
-
-	kill -s kill $$(pgrep -f 3434:3434)
+endif
 
 # downloads the remote profiles
 .PHONY: fetch-profiles
 fetch-profiles:
-	mkdir -p $(shell pwd)/profiles/$(LOCATION)/
-	curl -o $(shell pwd)/profiles/$(LOCATION)/goroutine.profile http://127.0.0.1:3434/debug/pprof/goroutine
-	curl -o $(shell pwd)/profiles/$(LOCATION)/heap.profile http://127.0.0.1:3434/debug/pprof/heap
+	mkdir -p $(PWD)/profiles/$(LOCATION)/
+	curl -o $(PWD)/profiles/$(LOCATION)/goroutine.profile http://127.0.0.1:3434/debug/pprof/goroutine
+	curl -o $(PWD)/profiles/$(LOCATION)/heap.profile http://127.0.0.1:3434/debug/pprof/heap
+	curl -o $(PWD)/profiles/$(LOCATION)/trace.profile http://127.0.0.1:3434/debug/pprof/trace?seconds=10
 
 # expands any placeholders in the provided yaml file with the value in the matching environment variable. the
 # output file will be named the same with a -gen suffix, i.e input = test then output will be test-gen.yaml

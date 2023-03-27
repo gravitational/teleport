@@ -17,20 +17,24 @@ limitations under the License.
 package alpnproxy
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
-
-	"github.com/stretchr/testify/require"
 )
 
 // TestProxySSHHandler tests the ALPN routing. Connection with ALPN 'teleport-proxy-ssh' value should
@@ -178,6 +182,27 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		mustReadFromConnection(t, tlsConn, databaseHandleResponse)
 		mustCloseConnection(t, conn)
 	})
+
+	t.Run("tls database connection wrapped with ALPN ping value", func(t *testing.T) {
+		baseConn, err := tls.Dial("tcp", suite.GetServerAddress(), &tls.Config{
+			NextProtos: []string{string(common.ProtocolWithPing(common.ProtocolMongoDB))},
+			RootCAs:    suite.GetCertPool(),
+			ServerName: "localhost",
+		})
+		require.NoError(t, err)
+
+		conn := NewPingConn(baseConn)
+		tlsConn := tls.Client(conn, &tls.Config{
+			Certificates: []tls.Certificate{
+				clientCert,
+			},
+			RootCAs:    suite.GetCertPool(),
+			ServerName: "localhost",
+		})
+
+		mustReadFromConnection(t, tlsConn, databaseHandleResponse)
+		mustCloseConnection(t, conn)
+	})
 }
 
 // TestProxyRouteToDatabase tests db connection with protocol registered without any handler.
@@ -314,6 +339,80 @@ func TestProxyHTTPConnection(t *testing.T) {
 	mustSuccessfullyCallHTTPSServer(t, suite.GetServerAddress(), client)
 }
 
+// TestProxyMakeConnectionHandler creates a ConnectionHandler from the ALPN
+// proxy server, and verifies ALPN protocol is properly handled through the
+// ConnectionHandler.
+func TestProxyMakeConnectionHandler(t *testing.T) {
+	t.Parallel()
+
+	suite := NewSuite(t)
+
+	// Create a HTTP server and register the listener to ALPN server.
+	lw := NewMuxListenerWrapper(nil, suite.serverListener)
+	mustStartHTTPServer(t, lw)
+
+	suite.router = NewRouter()
+	suite.router.Add(HandlerDecs{
+		MatchFunc: MatchByProtocol(common.ProtocolHTTP),
+		Handler:   lw.HandleConnection,
+	})
+
+	svr := suite.CreateProxyServer(t)
+	customCA := mustGenSelfSignedCert(t)
+
+	// Create a ConnectionHandler from the proxy server.
+	alpnConnHandler := svr.MakeConnectionHandler(&tls.Config{
+		NextProtos: []string{string(common.ProtocolHTTP)},
+		Certificates: []tls.Certificate{
+			mustGenCertSignedWithCA(t, customCA),
+		},
+	})
+
+	// Prepare net.Conn to be used for the created alpnConnHandler.
+	serverConn, clientConn := net.Pipe()
+	defer clientConn.Close()
+	defer serverConn.Close()
+
+	// Let alpnConnHandler serve the connection in a separate go routine.
+	handlerCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	go func() {
+		defer cancel()
+		alpnConnHandler(handlerCtx, serverConn)
+	}()
+
+	// Send client request.
+	req, err := http.NewRequest("GET", "https://localhost/test", nil)
+	require.NoError(t, err)
+
+	// Use the customCA to validate default TLS config override.
+	pool := x509.NewCertPool()
+	pool.AddCert(customCA.Cert)
+
+	clientTLSConn := tls.Client(clientConn, &tls.Config{
+		NextProtos: []string{string(common.ProtocolHTTP)},
+		RootCAs:    pool,
+		ServerName: "localhost",
+	})
+	defer clientTLSConn.Close()
+
+	require.NoError(t, clientTLSConn.Handshake())
+	require.Equal(t, string(common.ProtocolHTTP), clientTLSConn.ConnectionState().NegotiatedProtocol)
+	require.NoError(t, req.Write(clientTLSConn))
+
+	resp, err := http.ReadResponse(bufio.NewReader(clientTLSConn), req)
+	require.NoError(t, err)
+
+	// Always drain/close the body.
+	io.Copy(io.Discard, resp.Body)
+	_ = resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Wait until handler is done. And verify context is canceled, NOT deadline exceeded.
+	<-handlerCtx.Done()
+	require.ErrorIs(t, handlerCtx.Err(), context.Canceled)
+}
+
 // TestProxyALPNProtocolsRouting tests the routing based on client TLS NextProtos values.
 func TestProxyALPNProtocolsRouting(t *testing.T) {
 	t.Parallel()
@@ -372,10 +471,28 @@ func TestProxyALPNProtocolsRouting(t *testing.T) {
 			ServerName:          "localhost",
 			wantProtocolHandler: string(common.ProtocolHTTP),
 		},
+		// DELETE IN 14.0 After deprecation of KubeSNIPrefix routing prefix.
 		{
 			name:             "kube ServerName prefix should route to kube handler",
 			ClientNextProtos: nil,
 			ServerName:       fmt.Sprintf("%s%s", constants.KubeSNIPrefix, "localhost"),
+			handlers: []HandlerDecs{
+				makeHandler(common.ProtocolHTTP),
+			},
+			kubeHandler: HandlerDecs{
+				Handler: func(ctx context.Context, conn net.Conn) error {
+					defer conn.Close()
+					_, err := fmt.Fprint(conn, "kube")
+					require.NoError(t, err)
+					return nil
+				},
+			},
+			wantProtocolHandler: "kube",
+		},
+		{
+			name:             "kube KubeTeleportProxyALPNPrefix prefix should route to kube handler",
+			ClientNextProtos: nil,
+			ServerName:       fmt.Sprintf("%s%s", constants.KubeTeleportProxyALPNPrefix, "localhost"),
 			handlers: []HandlerDecs{
 				makeHandler(common.ProtocolHTTP),
 			},
@@ -502,6 +619,77 @@ func TestMatchMySQLConn(t *testing.T) {
 
 			err := fn(ctx, nil, connectionInfo)
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestProxyPingConnections(t *testing.T) {
+	dataWritten := "message ping connection"
+
+	suite := NewSuite(t)
+	clientCert := mustGenCertSignedWithCA(t, suite.ca,
+		withIdentity(tlsca.Identity{
+			Username: "test-user",
+			Groups:   []string{"test-group"},
+			RouteToDatabase: tlsca.RouteToDatabase{
+				ServiceName: "mongo-test-database",
+			},
+		}),
+	)
+	handlerFunc := func(_ context.Context, conn net.Conn) error {
+		defer conn.Close()
+		_, err := fmt.Fprint(conn, dataWritten)
+		require.NoError(t, err)
+		return nil
+	}
+
+	// MatchByProtocol should match the corresponding Ping protocols.
+	suite.router.Add(HandlerDecs{
+		MatchFunc: MatchByProtocol(common.ProtocolsWithPingSupport...),
+		Handler:   handlerFunc,
+	})
+	suite.router.AddDBTLSHandler(handlerFunc)
+	suite.Start(t)
+
+	for _, protocol := range common.ProtocolsWithPingSupport {
+		protocol := protocol
+		t.Run(string(protocol), func(t *testing.T) {
+			t.Parallel()
+
+			localProxyListener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+
+			localProxyConfig := LocalProxyConfig{
+				RemoteProxyAddr:    suite.GetServerAddress(),
+				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol)},
+				Listener:           localProxyListener,
+				SNI:                "localhost",
+				ParentContext:      context.Background(),
+				InsecureSkipVerify: true,
+				verifyUpstreamConnection: func(state tls.ConnectionState) error {
+					if state.NegotiatedProtocol != string(common.ProtocolWithPing(protocol)) {
+						return fmt.Errorf("expected negotiated protocol %q but got %q", common.ProtocolWithPing(protocol), state.NegotiatedProtocol)
+					}
+					return nil
+				},
+			}
+			mustStartLocalProxy(t, localProxyConfig)
+
+			conn, err := net.Dial("tcp", localProxyListener.Addr().String())
+			require.NoError(t, err)
+
+			if common.IsDBTLSProtocol(protocol) {
+				conn = tls.Client(conn, &tls.Config{
+					Certificates: []tls.Certificate{
+						clientCert,
+					},
+					RootCAs:    suite.GetCertPool(),
+					ServerName: "localhost",
+				})
+			}
+
+			mustReadFromConnection(t, conn, dataWritten)
+			mustCloseConnection(t, conn)
 		})
 	}
 }

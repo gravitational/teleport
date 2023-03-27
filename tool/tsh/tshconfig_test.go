@@ -27,6 +27,8 @@ import (
 )
 
 func TestLoadConfigNonExistingFile(t *testing.T) {
+	t.Parallel()
+
 	fullFilePath := "/tmp/doesntexist." + uuid.NewString()
 	gotConfig, gotErr := loadConfig(fullFilePath)
 	require.NoError(t, gotErr)
@@ -34,6 +36,8 @@ func TestLoadConfigNonExistingFile(t *testing.T) {
 }
 
 func TestLoadConfigEmptyFile(t *testing.T) {
+	t.Parallel()
+
 	file, err := os.CreateTemp("", "test-telelport")
 	require.NoError(t, err)
 	defer os.Remove(file.Name())
@@ -47,6 +51,8 @@ func TestLoadConfigEmptyFile(t *testing.T) {
 }
 
 func TestLoadAllConfigs(t *testing.T) {
+	t.Parallel()
+
 	writeConf := func(fn string, config TshConfig) {
 		dir, _ := path.Split(fn)
 		err := os.MkdirAll(dir, 0777)
@@ -96,6 +102,7 @@ func TestLoadAllConfigs(t *testing.T) {
 				Headers: map[string]string{"bar": "123"},
 			},
 		},
+		Aliases: map[string]string{},
 	}, config)
 
 }
@@ -108,6 +115,7 @@ func TestTshConfigMerge(t *testing.T) {
 				"bar": "baz",
 			},
 		}},
+		Aliases: map[string]string{},
 	}
 
 	tests := []struct {
@@ -120,7 +128,7 @@ func TestTshConfigMerge(t *testing.T) {
 			name:    "empty + empty = empty",
 			config1: nil,
 			config2: nil,
-			want:    TshConfig{},
+			want:    TshConfig{Aliases: map[string]string{}},
 		},
 		{
 			name:    "empty + x = x",
@@ -149,7 +157,8 @@ func TestTshConfigMerge(t *testing.T) {
 					Headers: map[string]string{
 						"baz": "456",
 					},
-				}}},
+				}},
+			},
 			want: TshConfig{
 				ExtraHeaders: []ExtraProxyHeaders{
 					{
@@ -164,7 +173,9 @@ func TestTshConfigMerge(t *testing.T) {
 							"bar": "123",
 						},
 					},
-				}},
+				},
+				Aliases: map[string]string{},
+			},
 		},
 		{
 			name: "headers combine same proxy",
@@ -196,7 +207,37 @@ func TestTshConfigMerge(t *testing.T) {
 							"bar": "123",
 						},
 					},
-				}},
+				},
+				Aliases: map[string]string{},
+			},
+		},
+		{
+			name: "aliases combine",
+			config1: &TshConfig{
+				ExtraHeaders:   nil,
+				ProxyTemplates: nil,
+				Aliases: map[string]string{
+					"foo": "foo1",
+					"bar": "bar1",
+				},
+			},
+			config2: &TshConfig{
+				ExtraHeaders:   nil,
+				ProxyTemplates: nil,
+				Aliases: map[string]string{
+					"baz": "baz2",
+					"bar": "bar2",
+				},
+			},
+			want: TshConfig{
+				ExtraHeaders:   nil,
+				ProxyTemplates: nil,
+				Aliases: map[string]string{
+					"foo": "foo1",
+					"baz": "baz2",
+					"bar": "bar2",
+				},
+			},
 		},
 	}
 

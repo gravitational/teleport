@@ -72,7 +72,7 @@ func MakeTable(headers []string, rows ...[]string) Table {
 // width.
 func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncatedColumn string) Table {
 	width, _, err := term.GetSize(int(os.Stdin.Fd()))
-	if err != nil {
+	if err != nil || width == 0 {
 		width = 80
 	}
 	truncatedColMinSize := 16
@@ -107,7 +107,7 @@ func MakeTableWithTruncatedColumn(columnOrder []string, rows [][]string, truncat
 
 	for _, column := range columns {
 		if column.Title == truncatedColumn {
-			column.MaxCellLength = width - totalLen - len("... ")
+			column.MaxCellLength = max(width-totalLen-len("... "), 0)
 		}
 		t.AddColumn(column)
 	}

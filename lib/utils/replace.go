@@ -19,12 +19,15 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // ContainsExpansion returns true if value contains
 // expansion syntax, e.g. $1 or ${10}
 func ContainsExpansion(val string) bool {
-	return reExpansion.FindAllStringIndex(val, -1) != nil
+	return reExpansion.FindStringIndex(val) != nil
 }
 
 // GlobToRegexp replaces glob-style standalone wildcard values
@@ -35,19 +38,23 @@ func GlobToRegexp(in string) string {
 }
 
 // ReplaceRegexp replaces value in string, accepts regular expression and simplified
-// wildcard syntax, it has several important differeneces with standard lib
+// wildcard syntax, it has several important differences with standard lib
 // regexp replacer:
 // * Wildcard globs '*' are treated as regular expression .* expression
 // * Expression is treated as regular expression if it starts with ^ and ends with $
 // * Full match is expected, partial replacements ignored
 // * If there is no match, returns a NotFound error
 func ReplaceRegexp(expression string, replaceWith string, input string) (string, error) {
-	return ReplaceRegexpWithConfig(expression, replaceWith, input, RegexpConfig{})
+	expr, err := RegexpWithConfig(expression, RegexpConfig{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return ReplaceRegexpWith(expr, replaceWith, input)
 }
 
-// ReplaceRegexpWithConfig behaves exactly like ReplaceRegexp but its behavior
-// can be customized
-func ReplaceRegexpWithConfig(expression string, replaceWith string, input string, config RegexpConfig) (string, error) {
+// RegexpWithConfig compiles a regular expression given some configuration.
+// There are several important differences with standard lib (see ReplaceRegexp).
+func RegexpWithConfig(expression string, config RegexpConfig) (*regexp.Regexp, error) {
 	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
 		// replace glob-style wildcards with regexp wildcards
 		// for plain strings, and quote all characters that could
@@ -59,11 +66,16 @@ func ReplaceRegexpWithConfig(expression string, replaceWith string, input string
 	}
 	expr, err := regexp.Compile(expression)
 	if err != nil {
-		return "", trace.BadParameter(err.Error())
+		return nil, trace.BadParameter(err.Error())
 	}
+	return expr, nil
+}
+
+// ReplaceRegexp replaces string in a given regexp.
+func ReplaceRegexpWith(expr *regexp.Regexp, replaceWith string, input string) (string, error) {
 	// if there is no match, return NotFound error
-	index := expr.FindAllStringIndex(input, -1)
-	if len(index) == 0 {
+	index := expr.FindStringIndex(input)
+	if index == nil {
 		return "", trace.NotFound("no match found")
 	}
 	return expr.ReplaceAllString(input, replaceWith), nil
@@ -75,32 +87,89 @@ type RegexpConfig struct {
 	IgnoreCase bool
 }
 
-// SliceMatchesRegex checks if input matches any of the expressions. The
-// match is always evaluated as a regex either an exact match or regexp.
-func SliceMatchesRegex(input string, expressions []string) (bool, error) {
-	for _, expression := range expressions {
-		if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
-			// replace glob-style wildcards with regexp wildcards
-			// for plain strings, and quote all characters that could
-			// be interpreted in regular expression
-			expression = "^" + GlobToRegexp(expression) + "$"
+// KubeResourceMatchesRegex checks whether the input matches any of the given
+// expressions.
+// This function returns as soon as it finds the first match or when matchString
+// returns an error.
+// This function supports regex expressions in the Name and Namespace fields,
+// but not for the Kind field.
+// The wildcard (*) expansion is also supported.
+func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
+	for _, resource := range resources {
+		// TODO(tigrato): evaluate if we should support wildcards as well
+		// for future compatibility.
+		if input.Kind != resource.Kind {
+			continue
 		}
-
-		expr, err := regexp.Compile(expression)
-		if err != nil {
-			return false, trace.BadParameter(err.Error())
+		switch ok, err := matchString(input.Name, resource.Name); {
+		case err != nil:
+			return false, trace.Wrap(err)
+		case !ok:
+			continue
 		}
-
-		// Since the expression is always surrounded by ^ and $ this is an exact
-		// match for either a a plain string (for example ^hello$) or for a regexp
-		// (for example ^hel*o$).
-		if expr.MatchString(input) {
-			return true, nil
+		if ok, err := matchString(input.Namespace, resource.Namespace); err != nil || ok {
+			return ok, trace.Wrap(err)
 		}
 	}
 
 	return false, nil
 }
 
-var replaceWildcard = regexp.MustCompile(`(\\\*)`)
-var reExpansion = regexp.MustCompile(`\$[^\$]+`)
+// SliceMatchesRegex checks if input matches any of the expressions. The
+// match is always evaluated as a regex either an exact match or regexp.
+func SliceMatchesRegex(input string, expressions []string) (bool, error) {
+	for _, expression := range expressions {
+		result, err := matchString(input, expression)
+		if err != nil || result {
+			return result, trace.Wrap(err)
+		}
+	}
+
+	return false, nil
+}
+
+// mustCache initializes a new [lru.Cache] with the provided size.
+// A panic will be triggered if the creation of the cache fails.
+func mustCache[K comparable, V any](size int) *lru.Cache[K, V] {
+	cache, err := lru.New[K, V](size)
+	if err != nil {
+		panic(err)
+	}
+
+	return cache
+}
+
+// exprCache interns compiled regular expressions created in matchString
+// to improve performance.
+var exprCache = mustCache[string, *regexp.Regexp](1000)
+
+func matchString(input, expression string) (bool, error) {
+	if expr, ok := exprCache.Get(expression); ok {
+		return expr.MatchString(input), nil
+	}
+
+	original := expression
+	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
+		// replace glob-style wildcards with regexp wildcards
+		// for plain strings, and quote all characters that could
+		// be interpreted in regular expression
+		expression = "^" + GlobToRegexp(expression) + "$"
+	}
+
+	expr, err := regexp.Compile(expression)
+	if err != nil {
+		return false, trace.BadParameter(err.Error())
+	}
+
+	exprCache.Add(original, expr)
+
+	// Since the expression is always surrounded by ^ and $ this is an exact
+	// match for either a plain string (for example ^hello$) or for a regexp
+	// (for example ^hel*o$).
+	return expr.MatchString(input), nil
+}
+
+var (
+	replaceWildcard = regexp.MustCompile(`(\\\*)`)
+	reExpansion     = regexp.MustCompile(`\$[^\$]+`)
+)

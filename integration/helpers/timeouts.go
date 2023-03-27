@@ -30,9 +30,9 @@ func SetTestTimeouts(t time.Duration) {
 	// TODO(tcsc): Remove this altogether and replace with per-test timeout
 	//             config (as per #8913)
 
-	apidefaults.SetTestTimeouts(t, t)
+	// Space out the timeouts a little, as we don't want to trigger all tasks at the exact same time.
+	apidefaults.SetTestTimeouts(time.Duration(float64(t)*1.0), time.Duration(float64(t)*1.1))
 
-	defaults.ResyncInterval = t
-	defaults.SessionRefreshPeriod = t
-	defaults.HeartbeatCheckPeriod = t
+	defaults.ResyncInterval = time.Duration(float64(t) * 1.2)
+	defaults.HeartbeatCheckPeriod = time.Duration(float64(t) * 1.4)
 }

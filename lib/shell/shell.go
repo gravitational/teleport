@@ -18,7 +18,6 @@ package shell
 
 import (
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 )
 

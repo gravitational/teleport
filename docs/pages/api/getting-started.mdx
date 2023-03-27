@@ -6,7 +6,7 @@ description: Get started working with the Teleport API programmatically using Go
 # Getting Started
 
 In this getting started guide we will use the Teleport API Go client to connect
-to a Teleport Node configured as an Auth Server.
+to a Teleport Auth Service.
 
 Here are the steps we'll walkthrough:
 
@@ -17,7 +17,7 @@ Here are the steps we'll walkthrough:
 ## Prerequisites
 
 - Install [Go](https://golang.org/doc/install) (=teleport.golang=)+ and Go development environment.
-- Set up Teleport through one of our [getting started guides](../getting-started.mdx). You can also begin a [free trial](https://goteleport.com/signup/) of Teleport Cloud.
+- Set up Teleport through one of our [getting started guides](../try-out-teleport/introduction.mdx). You can also begin a [free trial](https://goteleport.com/signup/) of Teleport Cloud.
 
 ## Step 1/3. Create a user
 
@@ -56,6 +56,19 @@ $ mkdir client-demo && cd client-demo
 $ go mod init client-demo
 $ go get github.com/gravitational/teleport/api/client
 ```
+
+<Admonition type="tip" title="API Version">
+To ensure compatibility, you should use a version of Teleport's API library that matches
+the major version of Teleport running in your cluster.
+
+To find the pseudoversion appropriate for a go.mod file for a specific git tag,
+run the following command from the `teleport` repository:
+
+```code
+$ go list -f '{{.Version}}' -m "github.com/gravitational/teleport/api@$(git rev-parse v12.1.0)"
+v0.0.0-20230307032901-49a6de744a3a
+```
+</Admonition>
 
 Create a file called `main.go`, modifying the `Addrs` strings as needed:
 
@@ -115,4 +128,4 @@ $ go run main.go
 - Read about Teleport [API architecture](./architecture.mdx) for an in-depth overview of the API and API clients.
 - Read [API authorization](./architecture.mdx#authorization) to learn more about defining custom roles for your API client.
 - Review the `client` [pkg.go reference documentation](https://pkg.go.dev/github.com/gravitational/teleport/api/client) for more information about working with the Teleport API programmatically.
-- Familiarize yourself with the [admin manual](../setup/admin.mdx) to make the best use of the API.
+- Familiarize yourself with the [admin manual](../management/admin.mdx) to make the best use of the API.

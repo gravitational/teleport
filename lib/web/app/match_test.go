@@ -17,24 +17,25 @@ limitations under the License.
 package app
 
 import (
+	"context"
 	"errors"
 	"net"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMatchAll(t *testing.T) {
-	falseMatcher := func(_ types.AppServer) bool { return false }
-	trueMatcher := func(_ types.AppServer) bool { return true }
+	falseMatcher := func(_ context.Context, _ types.AppServer) bool { return false }
+	trueMatcher := func(_ context.Context, _ types.AppServer) bool { return true }
 
-	require.True(t, MatchAll(trueMatcher, trueMatcher, trueMatcher)(nil))
-	require.False(t, MatchAll(trueMatcher, trueMatcher, falseMatcher)(nil))
-	require.False(t, MatchAll(falseMatcher, falseMatcher, falseMatcher)(nil))
+	require.True(t, MatchAll(trueMatcher, trueMatcher, trueMatcher)(nil, nil))
+	require.False(t, MatchAll(trueMatcher, trueMatcher, falseMatcher)(nil, nil))
+	require.False(t, MatchAll(falseMatcher, falseMatcher, falseMatcher)(nil, nil))
 }
 
 func TestMatchHealthy(t *testing.T) {
@@ -53,12 +54,11 @@ func TestMatchHealthy(t *testing.T) {
 
 	for name, test := range testCases {
 		t.Run(name, func(t *testing.T) {
-			identity := &tlsca.Identity{RouteToApp: tlsca.RouteToApp{ClusterName: ""}}
 			match := MatchHealthy(&mockProxyClient{
 				remoteSite: &mockRemoteSite{
 					dialErr: test.dialErr,
 				},
-			}, identity)
+			}, "")
 
 			app, err := types.NewAppV3(
 				types.Metadata{
@@ -73,7 +73,7 @@ func TestMatchHealthy(t *testing.T) {
 
 			appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
 			require.NoError(t, err)
-			require.Equal(t, test.match, match(appServer))
+			require.Equal(t, test.match, match(context.Background(), appServer))
 		})
 	}
 }

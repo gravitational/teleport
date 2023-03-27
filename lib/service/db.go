@@ -17,31 +17,31 @@ limitations under the License.
 package service
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/db"
-	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 func (process *TeleportProcess) shouldInitDatabases() bool {
 	databasesCfg := len(process.Config.Databases.Databases) > 0
 	resourceMatchersCfg := len(process.Config.Databases.ResourceMatchers) > 0
 	awsMatchersCfg := len(process.Config.Databases.AWSMatchers) > 0
-	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg
+	azureMatchersCfg := len(process.Config.Databases.AzureMatchers) > 0
+	anyCfg := databasesCfg || resourceMatchersCfg || awsMatchersCfg || azureMatchersCfg
 
 	return process.Config.Databases.Enabled && anyCfg
 }
 
 func (process *TeleportProcess) initDatabases() {
-	process.registerWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
+	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -49,22 +49,11 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	log := process.log.WithField(trace.Component, teleport.Component(
 		teleport.ComponentDatabase, process.id))
 
-	eventsCh := make(chan Event)
-	process.WaitForEvent(process.ExitContext(), DatabasesIdentityEvent, eventsCh)
-
-	var event Event
-	select {
-	case event = <-eventsCh:
-		log.Debugf("Received event %q.", event.Name)
-	case <-process.ExitContext().Done():
-		log.Debug("Process is exiting.")
-		return nil
+	conn, err := process.WaitForConnector(DatabasesIdentityEvent, log)
+	if conn == nil {
+		return trace.Wrap(err)
 	}
 
-	conn, ok := (event.Payload).(*Connector)
-	if !ok {
-		return trace.BadParameter("unsupported event payload type %q", event.Payload)
-	}
 	accessPoint, err := process.newLocalCacheForDatabase(conn.Client, []string{teleport.ComponentDatabase})
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,82 +66,23 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {
 		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
-	}
 
-	// Start uploader that will scan a path on disk and upload completed
-	// sessions to the auth server.
-	uploaderCfg := filesessions.UploaderConfig{
-		Streamer: accessPoint,
-		AuditLog: conn.Client,
-	}
-	completerCfg := events.UploadCompleterConfig{
-		SessionTracker: conn.Client,
-	}
-	err = process.initUploaderService(uploaderCfg, completerCfg)
-	if err != nil {
-		return trace.Wrap(err)
+		// run the resolver. this will check configuration for errors.
+		_, _, err := tunnelAddrResolver(process.ExitContext())
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	// Create database resources from databases defined in the static configuration.
 	var databases types.Databases
 	for _, db := range process.Config.Databases.Databases {
-		db, err := types.NewDatabaseV3(
-			types.Metadata{
-				Name:        db.Name,
-				Description: db.Description,
-				Labels:      db.StaticLabels,
-			},
-			types.DatabaseSpecV3{
-				Protocol: db.Protocol,
-				URI:      db.URI,
-				CACert:   string(db.TLS.CACert),
-				TLS: types.DatabaseTLS{
-					CACert:     string(db.TLS.CACert),
-					ServerName: db.TLS.ServerName,
-					Mode:       db.TLS.Mode.ToProto(),
-				},
-				MySQL: types.MySQLOptions{
-					ServerVersion: db.MySQL.ServerVersion,
-				},
-				AWS: types.AWS{
-					Region: db.AWS.Region,
-					Redshift: types.Redshift{
-						ClusterID: db.AWS.Redshift.ClusterID,
-					},
-					RDS: types.RDS{
-						InstanceID: db.AWS.RDS.InstanceID,
-						ClusterID:  db.AWS.RDS.ClusterID,
-					},
-					ElastiCache: types.ElastiCache{
-						ReplicationGroupID: db.AWS.ElastiCache.ReplicationGroupID,
-					},
-					MemoryDB: types.MemoryDB{
-						ClusterName: db.AWS.MemoryDB.ClusterName,
-					},
-					SecretStore: types.SecretStore{
-						KeyPrefix: db.AWS.SecretStore.KeyPrefix,
-						KMSKeyID:  db.AWS.SecretStore.KMSKeyID,
-					},
-				},
-				GCP: types.GCPCloudSQL{
-					ProjectID:  db.GCP.ProjectID,
-					InstanceID: db.GCP.InstanceID,
-				},
-				DynamicLabels: types.LabelsToV2(db.DynamicLabels),
-				AD: types.AD{
-					KeytabFile: db.AD.KeytabFile,
-					Krb5File:   db.AD.Krb5File,
-					Domain:     db.AD.Domain,
-					SPN:        db.AD.SPN,
-				},
-			})
+		db, err := db.ToDatabase()
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		databases = append(databases, db)
 	}
-
-	clusterName := conn.ServerIdentity.Cert.Extensions[utils.CertExtensionAuthority]
 
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -165,7 +95,12 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	authorizer, err := auth.NewAuthorizer(clusterName, accessPoint, lockWatcher)
+	clusterName := conn.ServerIdentity.ClusterName
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -174,7 +109,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		return trace.Wrap(err)
 	}
 
-	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -200,6 +135,18 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
+	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		Clock:       process.Config.Clock,
+		ServerID:    process.Config.HostUUID,
+		Emitter:     asyncEmitter,
+		Logger:      process.log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Create and start the database service.
 	dbService, err := db.New(process.ExitContext(), db.Config{
 		Clock:       process.Clock,
@@ -220,8 +167,9 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		CloudLabels:          process.cloudLabels,
 		ResourceMatchers:     process.Config.Databases.ResourceMatchers,
 		AWSMatchers:          process.Config.Databases.AWSMatchers,
+		AzureMatchers:        process.Config.Databases.AzureMatchers,
 		OnHeartbeat:          process.onHeartbeat(teleport.ComponentDatabase),
-		LockWatcher:          lockWatcher,
+		ConnectionMonitor:    connMonitor,
 		ConnectedProxyGetter: proxyGetter,
 	})
 	if err != nil {
@@ -265,12 +213,17 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	// Execute this when the process running database proxy service exits.
 	process.OnExit("db.stop", func(payload interface{}) {
-		log.Info("Shutting down.")
 		if dbService != nil {
-			warnOnErr(dbService.Close(), process.log)
+			if payload == nil {
+				log.Info("Shutting down immediately.")
+				warnOnErr(dbService.Close(), log)
+			} else {
+				log.Info("Shutting down gracefully.")
+				warnOnErr(dbService.Shutdown(payloadContext(payload, log)), log)
+			}
 		}
 		if asyncEmitter != nil {
-			warnOnErr(asyncEmitter.Close(), process.log)
+			warnOnErr(asyncEmitter.Close(), log)
 		}
 		if agentPool != nil {
 			agentPool.Stop()

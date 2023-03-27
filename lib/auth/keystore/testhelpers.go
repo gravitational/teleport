@@ -90,9 +90,11 @@ func SetupSoftHSMTest(t *testing.T) Config {
 	}
 
 	cachedConfig = &Config{
-		Path:       path,
-		TokenLabel: tokenLabel,
-		Pin:        "password",
+		PKCS11: PKCS11Config{
+			Path:       path,
+			TokenLabel: tokenLabel,
+			Pin:        "password",
+		},
 	}
 	return *cachedConfig
 }

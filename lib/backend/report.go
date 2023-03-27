@@ -21,19 +21,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 const reporterDefaultCacheSize = 1000
@@ -81,12 +81,12 @@ type Reporter struct {
 	//
 	// This will keep an upper limit on our memory usage while still always
 	// reporting the most active keys.
-	topRequestsCache *lru.Cache
+	topRequestsCache *lru.Cache[topRequestsCacheKey, struct{}]
 }
 
 // NewReporter returns a new Reporter.
 func NewReporter(cfg ReporterConfig) (*Reporter, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -95,12 +95,7 @@ func NewReporter(cfg ReporterConfig) (*Reporter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	cache, err := lru.NewWithEvict(cfg.TopRequestsCount, func(key interface{}, value interface{}) {
-		labels, ok := key.(topRequestsCacheKey)
-		if !ok {
-			log.Errorf("BUG: invalid cache key type: %T", key)
-			return
-		}
+	cache, err := lru.NewWithEvict(cfg.TopRequestsCount, func(labels topRequestsCacheKey, value struct{}) {
 		// Evict the key from requests metric.
 		requests.DeleteLabelValues(labels.component, labels.key, labels.isRange)
 	})
@@ -397,7 +392,7 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 	}
 
 	// If the key matches "/sensitiveprefix/keyname", mask the key.
-	if len(parts) == 3 && len(parts[0]) == 0 && apiutils.SliceContainsStr(sensitivePrefixes, parts[1]) {
+	if len(parts) == 3 && len(parts[0]) == 0 && slices.Contains(sensitivePrefixes, parts[1]) {
 		parts[2] = string(MaskKeyName(parts[2]))
 	}
 
@@ -408,8 +403,10 @@ func buildKeyLabel(key string, sensitivePrefixes []string) string {
 // sensitive values.
 var sensitiveBackendPrefixes = []string{
 	"tokens",
-	"resetpasswordtokens",
-	"adduseru2fchallenges",
+	"usertoken",
+	// Global passwordless challenges, keyed by challenge, as per
+	// https://github.com/gravitational/teleport/blob/01775b73f138ff124ff0351209d629bb01836869/lib/services/local/users.go#L1510.
+	"sessionData",
 	"access_requests",
 }
 

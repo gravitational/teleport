@@ -3,7 +3,7 @@ gitref.go
 .data
 debug
 default.etcd
-darwin
+/darwin
 
 # web asset directory
 /lib/web/build
@@ -20,6 +20,7 @@ darwin
 # Compiled binaries, Object files, Static and Dynamic libs (Shared Objects)
 out
 build
+!/web/packages/build
 *.o
 *.a
 *.so
@@ -79,3 +80,17 @@ ssh.config
 # Go workspace files
 go.work
 go.work.sum
+
+# Buf side-effects
+/github.com
+node_modules
+
+.air.toml
+webassets/
+
+# jest --coverage
+coverage
+
+# vite
+.swc
+web/certs/

@@ -20,14 +20,15 @@ limitations under the License.
 package bpf
 
 import (
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
+	_ "embed"
+	"runtime"
 
 	"github.com/aquasecurity/libbpfgo"
+	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	_ "embed"
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 )
 
 var (
@@ -65,8 +66,13 @@ type rawOpenEvent struct {
 	Flags int32
 }
 
+type cgroupRegister interface {
+	startSession(cgroupID uint64) error
+	endSession(cgroupID uint64) error
+}
+
 type open struct {
-	module *libbpfgo.Module
+	session
 
 	eventBuf *RingBuffer
 	lost     *Counter
@@ -75,7 +81,7 @@ type open struct {
 // startOpen will compile, load, start, and pull events off the perf buffer
 // for the BPF program.
 func startOpen(bufferSize int) (*open, error) {
-	err := utils.RegisterPrometheusCollectors(lostDiskEvents)
+	err := metrics.RegisterPrometheusCollectors(lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -87,36 +93,41 @@ func startOpen(bufferSize int) (*open, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	o.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
+	o.session.module, err = libbpfgo.NewModuleFromBuffer(diskBPF, "disk")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Resizing the ring buffer must be done here, after the module
 	// was created but before it's loaded into the kernel.
-	if err = ResizeMap(o.module, diskEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
+	if err = ResizeMap(o.session.module, diskEventsBuffer, uint32(bufferSize*pageSize)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Load into the kernel
-	if err = o.module.BPFLoadObject(); err != nil {
+	if err = o.session.module.BPFLoadObject(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	syscalls := []string{"open", "openat", "openat2"}
+	syscalls := []string{"openat", "openat2"}
+
+	if runtime.GOARCH != "arm64" {
+		// open is not implemented on arm64.
+		syscalls = append(syscalls, "open")
+	}
 
 	for _, syscall := range syscalls {
-		if err = AttachSyscallTracepoint(o.module, syscall); err != nil {
+		if err = AttachSyscallTracepoint(o.session.module, syscall); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	o.eventBuf, err = NewRingBuffer(o.module, diskEventsBuffer)
+	o.eventBuf, err = NewRingBuffer(o.session.module, diskEventsBuffer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	o.lost, err = NewCounter(o.module, "lost", lostDiskEvents)
+	o.lost, err = NewCounter(o.session.module, "lost", lostDiskEvents)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -129,7 +140,7 @@ func startOpen(bufferSize int) (*open, error) {
 func (o *open) close() {
 	o.lost.Close()
 	o.eventBuf.Close()
-	o.module.Close()
+	o.session.module.Close()
 }
 
 // events contains raw events off the perf buffer.

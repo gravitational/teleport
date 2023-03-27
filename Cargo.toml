@@ -1,8 +1,7 @@
 [workspace]
 
 members = [
-    "lib/srv/desktop/rdp/rdpclient",
-    "lib/datalog/roletester"
+    "lib/srv/desktop/rdp/rdpclient"
 ]
 
 [profile.dev]

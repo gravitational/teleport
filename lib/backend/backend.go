@@ -21,14 +21,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
+
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Forever means that object TTL will not expire unless deleted
@@ -105,6 +107,35 @@ func IterateRange(ctx context.Context, bk Backend, startKey []byte, endKey []byt
 	}
 }
 
+// StreamRange constructs a Stream for the given key range. This helper just
+// uses standard pagination under the hood, lazily loading pages as needed. Streams
+// are currently only used for periodic operations, but if they become more widely
+// used in the future, it may become worthwhile to optimize the streaming of backend
+// items further. Two potential improvements of note:
+//
+// 1. update this helper to concurrently load the next page in the background while
+// items from the current page are being yielded.
+//
+// 2. allow individual backends to expose custom streaming methods s.t. the most performant
+// impl for a given backend may be used.
+func StreamRange(ctx context.Context, bk Backend, startKey, endKey []byte, pageSize int) stream.Stream[Item] {
+	return stream.PageFunc[Item](func() ([]Item, error) {
+		if startKey == nil {
+			return nil, io.EOF
+		}
+		rslt, err := bk.GetRange(ctx, startKey, endKey, pageSize)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(rslt.Items) < pageSize {
+			startKey = nil
+		} else {
+			startKey = nextKey(rslt.Items[pageSize-1].Key)
+		}
+		return rslt.Items, nil
+	})
+}
+
 // Batch implements some batch methods
 // that are not mandatory for all interfaces,
 // only the ones used in bulk operations.
@@ -118,11 +149,10 @@ type Batch interface {
 //
 // Here is an example of renewing object TTL:
 //
-// lease, err := backend.Create()
-// lease.Expires = time.Now().Add(time.Second)
-// Item TTL is extended
-// err = backend.KeepAlive(lease)
-//
+// item.Expires = time.Now().Add(10 * time.Second)
+// lease, err := backend.Create(ctx, item)
+// expires := time.Now().Add(20 * time.Second)
+// err = backend.KeepAlive(ctx, lease, expires)
 type Lease struct {
 	// Key is an object representing lease
 	Key []byte
@@ -161,7 +191,7 @@ type Watcher interface {
 	// Events returns channel with events
 	Events() <-chan Event
 
-	// Done returns the channel signalling the closure
+	// Done returns the channel signaling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases
@@ -233,36 +263,6 @@ func (p Params) GetString(key string) string {
 	return s
 }
 
-// Cleanse fixes an issue with yamlv2 decoding nested sections to
-// map[interface{}]interface{} rather than map[string]interface{}.
-// ObjectToStruct will fail on the former. yamlv3 corrects this behaviour.
-// All non-string keys are dropped.
-func (p Params) Cleanse() {
-	for key, value := range p {
-		if mapValue, ok := value.(map[interface{}]interface{}); ok {
-			p[key] = convertParams(mapValue)
-		}
-	}
-}
-
-// convertParams converts from a map[interface{}]interface{} to
-// map[string]interface{} recursively. All non-string keys are dropped.
-// This function is called by Params.Cleanse.
-func convertParams(from map[interface{}]interface{}) (to map[string]interface{}) {
-	to = make(map[string]interface{}, len(from))
-	for key, value := range from {
-		strKey, ok := key.(string)
-		if !ok {
-			continue
-		}
-		if mapValue, ok := value.(map[interface{}]interface{}); ok {
-			value = convertParams(mapValue)
-		}
-		to[strKey] = value
-	}
-	return to
-}
-
 // NoLimit specifies no limits
 const NoLimit = 0
 
@@ -299,6 +299,8 @@ func NextPaginationKey(r types.Resource) string {
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	case types.AppServer:
 		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
+	case types.KubeServer:
+		return string(nextKey(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName())))
 	default:
 		return string(nextKey([]byte(r.GetName())))
 	}
@@ -310,6 +312,8 @@ func GetPaginationKey(r types.Resource) string {
 	case types.DatabaseServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.AppServer:
+		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
+	case types.KubeServer:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))
 	case types.WindowsDesktop:
 		return string(internalKey(resourceWithType.GetHostID(), resourceWithType.GetName()))

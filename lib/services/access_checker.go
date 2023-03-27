@@ -17,16 +17,20 @@ limitations under the License.
 package services
 
 import (
+	"strings"
 	"time"
 
-	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -42,7 +46,7 @@ type AccessChecker interface {
 	Roles() []types.Role
 
 	// CheckAccess checks access to the specified resource.
-	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
+	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -60,6 +64,17 @@ type AccessChecker interface {
 
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
+
+	// CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
+	CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error)
+
+	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
+	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
+
+	// CheckAccessToSAMLIdP checks access to the SAML IdP.
+	//
+	//nolint:revive // Because we want this to be IdP.
+	CheckAccessToSAMLIdP(types.AuthPreference) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -105,6 +120,11 @@ type AccessChecker interface {
 	// PermitX11Forwarding returns true if this RoleSet allows X11 Forwarding.
 	PermitX11Forwarding() bool
 
+	// CanCopyFiles returns true if the role set has enabled remote file
+	// operations via SCP or SFTP. Remote file operations are disabled if
+	// one or more of the roles in the set has disabled it.
+	CanCopyFiles() bool
+
 	// CertificateFormat returns the most permissive certificate format in a
 	// RoleSet.
 	CertificateFormat() string
@@ -138,10 +158,11 @@ type AccessChecker interface {
 	// CertificateExtensions returns the list of extensions for each role in the RoleSet
 	CertificateExtensions() []*types.CertExtension
 
-	// GetSearchAsRoles returns the list of roles which the checker should be able to
-	// "assume" while searching for resources, and should be able to request with a
-	// search-based access request.
-	GetSearchAsRoles() []string
+	// GetAllowedSearchAsRoles returns all of the allowed SearchAsRoles.
+	GetAllowedSearchAsRoles() []string
+
+	// GetAllowedPreviewAsRoles returns all of the allowed PreviewAsRoles.
+	GetAllowedPreviewAsRoles() []string
 
 	// MaxConnections returns the maximum number of concurrent ssh connections
 	// allowed.  If MaxConnections is zero then no maximum was defined and the
@@ -173,6 +194,18 @@ type AccessChecker interface {
 
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
+
+	// GetAccessState returns the AccessState for the user given their roles, the
+	// cluster auth preference, and whether MFA and the user's device were
+	// verified.
+	GetAccessState(authPref types.AuthPreference) AccessState
+	// PrivateKeyPolicy returns the enforced private key policy for this role set,
+	// or the provided defaultPolicy - whichever is stricter.
+	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
+
+	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
+	// for a user.
+	GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource)
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -189,8 +222,6 @@ type AccessInfo struct {
 	// access restrictions should be applied. Used for search-based access
 	// requests.
 	AllowedResourceIDs []types.ResourceID
-	// RoleSet holds the fetched and parsed roles from Roles.
-	RoleSet RoleSet
 }
 
 // accessChecker implements the AccessChecker interface.
@@ -205,21 +236,35 @@ type accessChecker struct {
 	RoleSet
 }
 
-// NewAccessChecker returns a new AccessChecker which may be used to check
+// NewAccessChecker returns a new AccessChecker which can be used to check
 // access to resources.
 // Args:
-// - `info *AccessInfo` should at a minimum hold a valid RoleSet for the
-//   identity for which resource access should be checked. It must also hold the
-//   AllowedResourceIDs for the identity if there is any possibility that it has
-//   been granted a search-based access request.
-// - `localCluster string` should be the name of the local cluster in which
-//   access will be checked. You cannot check for access to resources in remote
-//   clusters.
-func NewAccessChecker(info *AccessInfo, localCluster string) AccessChecker {
+//   - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
+//     for the identity.
+//   - `localCluster string` should be the name of the local cluster in which
+//     access will be checked. You cannot check for access to resources in remote
+//     clusters.
+//   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
+//     full RoleSet
+func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &accessChecker{
 		info:         info,
 		localCluster: localCluster,
-		RoleSet:      info.RoleSet,
+		RoleSet:      roleSet,
+	}, nil
+}
+
+// NewAccessCheckerWithRoleSet is similar to NewAccessChecker, but accepts the
+// full RoleSet rather than a RoleGetter.
+func NewAccessCheckerWithRoleSet(info *AccessInfo, localCluster string, roleSet RoleSet) AccessChecker {
+	return &accessChecker{
+		info:         info,
+		localCluster: localCluster,
+		RoleSet:      roleSet,
 	}
 }
 
@@ -237,7 +282,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
 		if resourceID.ClusterName == a.localCluster &&
-			resourceID.Kind == r.GetKind() &&
+			// If the allowed resource has `Kind=types.KindKubePod`, we allow the user to
+			// access the Kubernetes cluster that it belongs to.
+			// At this point, we do not verify that the accessed resource matches the
+			// allowed resources, but that verification happens in the caller function.
+			(resourceID.Kind == r.GetKind() || (resourceID.Kind == types.KindKubePod && r.GetKind() == types.KindKubernetesCluster)) &&
 			resourceID.Name == r.GetName() {
 			// Allowed to access this resource by resource ID, move on to role checks.
 			if isDebugEnabled {
@@ -262,11 +311,77 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
-func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
+func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.RoleSet.checkAccess(r, mfa, matchers...))
+	return trace.Wrap(a.RoleSet.checkAccess(r, state, matchers...))
+}
+
+// GetKubeResources returns the allowed and denied Kubernetes Resources configured
+// for a user.
+func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
+	if len(a.info.AllowedResourceIDs) == 0 {
+		return a.RoleSet.GetKubeResources(cluster)
+	}
+
+	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster)
+	// Allways append the denied resources from the roles. This is because
+	// the denied resources from the roles take precedence over the allowed
+	// resources from the certificate.
+	denied = rolesDenied
+	for _, r := range a.info.AllowedResourceIDs {
+		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
+			continue
+		}
+		switch {
+		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
+			splitted := strings.SplitN(r.SubResourceName, "/", 3)
+			// This condition should never happen since SubResourceName is validated
+			// but it's better to validate it.
+			if len(splitted) != 2 {
+				continue
+			}
+
+			r := types.KubernetesResource{
+				Kind:      r.Kind,
+				Namespace: splitted[0],
+				Name:      splitted[1],
+			}
+
+			if matchKubernetesResource(r, rolesAllowed, rolesDenied) == nil {
+				allowed = append(allowed, r)
+			}
+		case r.Kind == types.KindKubernetesCluster:
+			// When a user has access to a Kubernetes cluster through Resource Access request,
+			// he has access to all resources in that cluster that he has access to through his roles.
+			// In that case, we append the allowed and denied resources from the roles.
+			return rolesAllowed, rolesDenied
+		}
+	}
+	return
+}
+
+// matchKubernetesResource checks if the Kubernetes Resource does not match any
+// entry from the deny list and matches at least one entry from the allowed list.
+func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
+	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
+	// to each entry and validates if the Name and Namespace fields matches the
+	// regex allowed by each entry.
+	result, err := utils.KubeResourceMatchesRegex(resource, denied)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if result {
+		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+	}
+
+	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
+	if err != nil {
+		return trace.Wrap(err)
+	} else if !result {
+		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+	}
+	return nil
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for
@@ -276,32 +391,16 @@ func (a *accessChecker) GetAllowedResourceIDs() []types.ResourceID {
 	return a.info.AllowedResourceIDs
 }
 
-// GetSearchAsRoles returns the list of roles which the AccessChecker should be
-// able to "assume" while searching for resources, and should be able to request
-// with a search-based access request.
-func (a *accessChecker) GetSearchAsRoles() []string {
-	if len(a.info.AllowedResourceIDs) > 0 {
-		// cannot search with extended roles while already logged in the
-		// search-based access request.
-		return nil
-	}
-	return a.RoleSet.GetSearchAsRoles()
-}
-
 // AccessInfoFromLocalCertificate returns a new AccessInfo populated from the
 // given ssh certificate. Should only be used for cluster local users as roles
 // will not be mapped.
-func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*AccessInfo, error) {
+func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) {
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	roles, err := ExtractRolesFromCert(cert)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	roleSet, err := FetchRoles(roles, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -315,14 +414,13 @@ func AccessInfoFromLocalCertificate(cert *ssh.Certificate, access RoleGetter) (*
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
 }
 
 // AccessInfoFromRemoteCertificate returns a new AccessInfo populated from the
 // given remote cluster user's ssh certificate. Remote roles will be mapped to
 // local roles based on the given roleMap.
-func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, roleMap types.RoleMap) (*AccessInfo, error) {
+func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Old-style SSH certificates don't have traits in metadata.
 	traits, err := ExtractTraitsFromCert(cert)
 	if err != nil && !trace.IsNotFound(err) {
@@ -336,7 +434,7 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 	//
 	// Keep backwards-compatible behavior and set it in addition to the
 	// traits extracted from the certificate.
-	traits[teleport.TraitLogins] = cert.ValidPrincipals
+	traits[constants.TraitLogins] = cert.ValidPrincipals
 
 	unmappedRoles, err := ExtractRolesFromCert(cert)
 	if err != nil {
@@ -353,11 +451,6 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 	log.Debugf("Mapped remote roles %v to local roles %v and traits %v.",
 		unmappedRoles, roles, traits)
 
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	allowedResourceIDs, err := ExtractAllowedResourcesFromCert(cert)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -367,19 +460,13 @@ func AccessInfoFromRemoteCertificate(cert *ssh.Certificate, access RoleGetter, r
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
-}
-
-type RoleAndUserGetter interface {
-	RoleGetter
-	UserGetter
 }
 
 // AccessInfoFromLocalIdentity returns a new AccessInfo populated from the given
 // tlsca.Identity. Should only be used for cluster local users as roles will not
 // be mapped.
-func AccessInfoFromLocalIdentity(identity tlsca.Identity, access RoleAndUserGetter) (*AccessInfo, error) {
+func AccessInfoFromLocalIdentity(identity tlsca.Identity, access UserGetter) (*AccessInfo, error) {
 	roles := identity.Groups
 	traits := identity.Traits
 	allowedResourceIDs := identity.AllowedResourceIDs
@@ -394,7 +481,7 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access RoleAndUserGett
 			return nil, trace.Wrap(err)
 		}
 
-		log.Warnf("Failed to find roles or traits in x509 identity for %v. Fetching	"+
+		log.Warnf("Failed to find roles in x509 identity for %v. Fetching "+
 			"from backend. If the identity provider allows username changes, this can "+
 			"potentially allow an attacker to change the role of the existing user.",
 			identity.Username)
@@ -402,32 +489,26 @@ func AccessInfoFromLocalIdentity(identity tlsca.Identity, access RoleAndUserGett
 		traits = u.GetTraits()
 	}
 
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return &AccessInfo{
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
 }
 
 // AccessInfoFromRemoteIdentity returns a new AccessInfo populated from the
 // given remote cluster user's tlsca.Identity. Remote roles will be mapped to
 // local roles based on the given roleMap.
-func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, roleMap types.RoleMap) (*AccessInfo, error) {
+func AccessInfoFromRemoteIdentity(identity tlsca.Identity, roleMap types.RoleMap) (*AccessInfo, error) {
 	// Set internal traits for the remote user. This allows Teleport to work by
 	// passing exact logins, Kubernetes users/groups and database users/names
 	// to the remote cluster.
 	traits := map[string][]string{
-		teleport.TraitLogins:     identity.Principals,
-		teleport.TraitKubeGroups: identity.KubernetesGroups,
-		teleport.TraitKubeUsers:  identity.KubernetesUsers,
-		teleport.TraitDBNames:    identity.DatabaseNames,
-		teleport.TraitDBUsers:    identity.DatabaseUsers,
+		constants.TraitLogins:     identity.Principals,
+		constants.TraitKubeGroups: identity.KubernetesGroups,
+		constants.TraitKubeUsers:  identity.KubernetesUsers,
+		constants.TraitDBNames:    identity.DatabaseNames,
+		constants.TraitDBUsers:    identity.DatabaseUsers,
 	}
 	// Prior to Teleport 6.2 no user traits were passed to remote clusters
 	// except for the internal ones specified above.
@@ -455,18 +536,12 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 	log.Debugf("Mapped roles %v of remote user %q to local roles %v and traits %v.",
 		unmappedRoles, identity.Username, roles, traits)
 
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	allowedResourceIDs := identity.AllowedResourceIDs
 
 	return &AccessInfo{
 		Roles:              roles,
 		Traits:             traits,
 		AllowedResourceIDs: allowedResourceIDs,
-		RoleSet:            roleSet,
 	}, nil
 }
 
@@ -474,16 +549,11 @@ func AccessInfoFromRemoteIdentity(identity tlsca.Identity, access RoleGetter, ro
 // traits held be the given user. This should only be used in cases where the
 // user does not have any active access requests (initial web login, initial
 // tbot certs, tests).
-func AccessInfoFromUser(user types.User, access RoleGetter) (*AccessInfo, error) {
+func AccessInfoFromUser(user types.User) *AccessInfo {
 	roles := user.GetRoles()
 	traits := user.GetTraits()
-	roleSet, err := FetchRoles(roles, access, traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	return &AccessInfo{
-		Roles:   roles,
-		Traits:  traits,
-		RoleSet: roleSet,
-	}, nil
+		Roles:  roles,
+		Traits: traits,
+	}
 }

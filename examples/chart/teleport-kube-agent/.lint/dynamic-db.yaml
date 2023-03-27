@@ -1,0 +1,6 @@
+authToken: auth-token
+proxyAddr: proxy.example.com:3080
+roles: db
+databaseResources:
+  - labels:
+      "*": "*"

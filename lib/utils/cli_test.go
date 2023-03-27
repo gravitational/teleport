@@ -24,12 +24,13 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestUserMessageFromError(t *testing.T) {
+	t.Parallel()
+
 	t.Skip("Enable after https://drone.gravitational.io/gravitational/teleport/3517 is merged.")
 	tests := []struct {
 		comment   string
@@ -62,6 +63,8 @@ func TestUserMessageFromError(t *testing.T) {
 // Regressions test - Consolef used to panic when component name was longer
 // than 8 bytes.
 func TestConsolefLongComponent(t *testing.T) {
+	t.Parallel()
+
 	require.NotPanics(t, func() {
 		component := strings.Repeat("na ", 10) + "batman!"
 		Consolef(io.Discard, logrus.New(), component, "test message")
@@ -70,6 +73,8 @@ func TestConsolefLongComponent(t *testing.T) {
 
 // TestEscapeControl tests escape control
 func TestEscapeControl(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		in  string
 		out string
@@ -93,8 +98,10 @@ func TestEscapeControl(t *testing.T) {
 	}
 }
 
-// TestAllowNewlines tests escape control that allows newlines
-func TestAllowNewlines(t *testing.T) {
+// TestAllowWhitespace tests escape control that allows (some) whitespace characters.
+func TestAllowWhitespace(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		in  string
 		out string
@@ -108,20 +115,52 @@ func TestAllowNewlines(t *testing.T) {
 			out: "hello,\nworld!",
 		},
 		{
+			in:  "\thello, world!",
+			out: "\thello, world!",
+		},
+		{
+			in:  "\t\thello, world!",
+			out: "\t\thello, world!",
+		},
+		{
+			in:  "hello, world!\n",
+			out: "hello, world!\n",
+		},
+		{
+			in:  "hello, world!\n\n",
+			out: "hello, world!\n\n",
+		},
+		{
+			in:  string([]byte{0x68, 0x00, 0x68}),
+			out: "\"h\\x00h\"",
+		},
+		{
+			in:  string([]byte{0x68, 0x08, 0x68}),
+			out: "\"h\\bh\"",
+		},
+		{
+			in:  string([]int32{0x00000008, 0x00000009, 0x00000068}),
+			out: "\"\\b\"\th",
+		},
+		{
+			in:  string([]int32{0x00000090}),
+			out: "\"\\u0090\"",
+		},
+		{
 			in:  "hello,\r\tworld!",
-			out: `"hello,\r\tworld!"`,
+			out: `"hello,\r"` + "\tworld!",
 		},
 		{
 			in:  "hello,\n\r\tworld!",
-			out: "hello,\n" + `"\r\tworld!"`,
+			out: "hello,\n" + `"\r"` + "\tworld!",
 		},
 		{
 			in:  "hello,\t\n\r\tworld!",
-			out: `"hello,\t"` + "\n" + `"\r\tworld!"`,
+			out: "hello,\t\n" + `"\r"` + "\tworld!",
 		},
 	}
 
 	for i, tt := range tests {
-		require.Equal(t, tt.out, AllowNewlines(tt.in), fmt.Sprintf("test case %v", i))
+		require.Equal(t, tt.out, AllowWhitespace(tt.in), fmt.Sprintf("test case %v", i))
 	}
 }

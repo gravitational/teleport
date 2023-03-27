@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 var log = logrus.WithFields(logrus.Fields{
@@ -152,10 +153,21 @@ type Identity struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
-	// ClientIP is an observed IP of the client that this Identity represents.
-	ClientIP string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
+	// LoginIP is an observed IP of the client that this Identity represents.
+	LoginIP string
+	// PinnedIP is an IP the certificate is pinned to.
+	PinnedIP string
 	// AWSRoleARNs is a list of allowed AWS role ARNs user can assume.
 	AWSRoleARNs []string
+	// AzureIdentities is a list of allowed Azure identities user can assume.
+	AzureIdentities []string
+	// GCPServiceAccounts is a list of allowed GCP service accounts that the user can assume.
+	GCPServiceAccounts []string
 	// ActiveRequests is a list of UUIDs of active requests for this Identity.
 	ActiveRequests []string
 	// DisallowReissue is a flag that, if set, instructs the auth server to
@@ -170,6 +182,14 @@ type Identity struct {
 	// AllowedResourceIDs lists the resources the identity should be allowed to
 	// access.
 	AllowedResourceIDs []types.ResourceID
+	// PrivateKeyPolicy is the private key policy supported by this identity.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
+
+	// ConnectionDiagnosticID is used to add connection diagnostic messages when Testing a Connection.
+	ConnectionDiagnosticID string
+
+	// DeviceExtensions holds device-aware extensions for the identity.
+	DeviceExtensions DeviceExtensions
 }
 
 // RouteToApp holds routing information for applications.
@@ -194,6 +214,12 @@ type RouteToApp struct {
 
 	// AWSRoleARN is the AWS role to assume when accessing AWS console.
 	AWSRoleARN string
+
+	// AzureIdentity is the Azure identity to assume when accessing Azure API.
+	AzureIdentity string
+
+	// GCPServiceAccount is the GCP service account to assume when accessing GCP API.
+	GCPServiceAccount string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -215,9 +241,20 @@ type RouteToDatabase struct {
 }
 
 // String returns string representation of the database routing struct.
-func (d RouteToDatabase) String() string {
+func (r RouteToDatabase) String() string {
 	return fmt.Sprintf("Database(Service=%v, Protocol=%v, Username=%v, Database=%v)",
-		d.ServiceName, d.Protocol, d.Username, d.Database)
+		r.ServiceName, r.Protocol, r.Username, r.Database)
+}
+
+// DeviceExtensions holds device-aware extensions for the identity.
+type DeviceExtensions struct {
+	// DeviceID is the trusted device identifier.
+	DeviceID string
+	// AssetTag is the device inventory identifier.
+	AssetTag string
+	// CredentialID is the identifier for the credential used by the device to
+	// authenticate itself.
+	CredentialID string
 }
 
 // GetRouteToApp returns application routing data. If missing, returns an error.
@@ -237,11 +274,13 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	var routeToApp *events.RouteToApp
 	if id.RouteToApp != (RouteToApp{}) {
 		routeToApp = &events.RouteToApp{
-			Name:        id.RouteToApp.Name,
-			SessionID:   id.RouteToApp.SessionID,
-			PublicAddr:  id.RouteToApp.PublicAddr,
-			ClusterName: id.RouteToApp.ClusterName,
-			AWSRoleARN:  id.RouteToApp.AWSRoleARN,
+			Name:              id.RouteToApp.Name,
+			SessionID:         id.RouteToApp.SessionID,
+			PublicAddr:        id.RouteToApp.PublicAddr,
+			ClusterName:       id.RouteToApp.ClusterName,
+			AWSRoleARN:        id.RouteToApp.AWSRoleARN,
+			AzureIdentity:     id.RouteToApp.AzureIdentity,
+			GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
 		}
 	}
 	var routeToDatabase *events.RouteToDatabase
@@ -255,28 +294,31 @@ func (id *Identity) GetEventIdentity() events.Identity {
 	}
 
 	return events.Identity{
-		User:               id.Username,
-		Impersonator:       id.Impersonator,
-		Roles:              id.Groups,
-		Usage:              id.Usage,
-		Logins:             id.Principals,
-		KubernetesGroups:   id.KubernetesGroups,
-		KubernetesUsers:    id.KubernetesUsers,
-		Expires:            id.Expires,
-		RouteToCluster:     id.RouteToCluster,
-		KubernetesCluster:  id.KubernetesCluster,
-		Traits:             id.Traits,
-		RouteToApp:         routeToApp,
-		TeleportCluster:    id.TeleportCluster,
-		RouteToDatabase:    routeToDatabase,
-		DatabaseNames:      id.DatabaseNames,
-		DatabaseUsers:      id.DatabaseUsers,
-		MFADeviceUUID:      id.MFAVerified,
-		ClientIP:           id.ClientIP,
-		AWSRoleARNs:        id.AWSRoleARNs,
-		AccessRequests:     id.ActiveRequests,
-		DisallowReissue:    id.DisallowReissue,
-		AllowedResourceIDs: types.EventResourceIDs(id.AllowedResourceIDs),
+		User:                    id.Username,
+		Impersonator:            id.Impersonator,
+		Roles:                   id.Groups,
+		Usage:                   id.Usage,
+		Logins:                  id.Principals,
+		KubernetesGroups:        id.KubernetesGroups,
+		KubernetesUsers:         id.KubernetesUsers,
+		Expires:                 id.Expires,
+		RouteToCluster:          id.RouteToCluster,
+		KubernetesCluster:       id.KubernetesCluster,
+		Traits:                  id.Traits,
+		RouteToApp:              routeToApp,
+		TeleportCluster:         id.TeleportCluster,
+		RouteToDatabase:         routeToDatabase,
+		DatabaseNames:           id.DatabaseNames,
+		DatabaseUsers:           id.DatabaseUsers,
+		MFADeviceUUID:           id.MFAVerified,
+		PreviousIdentityExpires: id.PreviousIdentityExpires,
+		ClientIP:                id.LoginIP,
+		AWSRoleARNs:             id.AWSRoleARNs,
+		AzureIdentities:         id.AzureIdentities,
+		GCPServiceAccounts:      id.GCPServiceAccounts,
+		AccessRequests:          id.ActiveRequests,
+		DisallowReissue:         id.DisallowReissue,
+		AllowedResourceIDs:      events.ResourceIDs(id.AllowedResourceIDs),
 	}
 }
 
@@ -297,7 +339,6 @@ func (id *Identity) CheckAndSetDefaults() error {
 // https://serverfault.com/questions/551477/is-there-reserved-oid-space-for-internal-enterprise-cas
 //
 // http://oid-info.com/get/1.3.9999
-//
 var (
 	// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
 	// license payload into certificates
@@ -331,9 +372,9 @@ var (
 	// the MFAVerified flag into certificates.
 	MFAVerifiedASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 8}
 
-	// ClientIPASN1ExtensionOID is an extension ID used when encoding/decoding
-	// the client IP into certificates.
-	ClientIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 9}
+	// LoginIPASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the client's login IP into certificates.
+	LoginIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 9}
 
 	// AppNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// application name into a certificate.
@@ -354,6 +395,26 @@ var (
 	// GenerationASN1ExtensionOID is an extension OID used to count the number
 	// of times this certificate has been renewed.
 	GenerationASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 14}
+
+	// PrivateKeyPolicyASN1ExtensionOID is an extension ID used to determine the
+	// private key policy supported by the certificate.
+	PrivateKeyPolicyASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 15}
+
+	// AppAzureIdentityASN1ExtensionOID is an extension ID used when encoding/decoding
+	// Azure identity into a certificate.
+	AppAzureIdentityASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 16}
+
+	// AzureIdentityASN1ExtensionOID is an extension ID used when encoding/decoding
+	// allowed Azure identity into a certificate.
+	AzureIdentityASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 17}
+
+	// AppGCPServiceAccountASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the chosen GCP service account into a certificate.
+	AppGCPServiceAccountASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 18}
+
+	// GCPServiceAccountsASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the list of allowed GCP service accounts into a certificate.
+	GCPServiceAccountsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 1, 19}
 
 	// DatabaseServiceNameASN1ExtensionOID is an extension ID used when encoding/decoding
 	// database service name into certificates.
@@ -401,6 +462,40 @@ var (
 	// system role, and use `pkix.Name.Organization` to encode this value. This extension
 	// is specifically used for "multi-role" certs.
 	SystemRolesASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 11}
+
+	// PreviousIdentityExpiresASN1ExtensionOID is the RFC3339 timestamp representing the hard
+	// deadline of the session on a certificates issued after an MFA check.
+	// See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpiresASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 12}
+
+	// ConnectionDiagnosticIDASN1ExtensionOID is an extension OID used to indicate the Connection Diagnostic ID.
+	// When using the Test Connection feature, there's propagation of the ConnectionDiagnosticID.
+	// Each service (ex DB Agent) uses that to add checkpoints describing if it was a success or a failure.
+	ConnectionDiagnosticIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 13}
+
+	// LicenseOID is an extension OID signaling the license type of Teleport build.
+	// It should take values "oss" or "ent" (the values returned by modules.GetModules().BuildType())
+	LicenseOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 14}
+
+	// PinnedIPASN1ExtensionOID is an extension ID used when encoding/decoding
+	// the IP the certificate is pinned to.
+	PinnedIPASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 15}
+)
+
+// Device Trust OIDs.
+// Namespace 1.3.9999.3.x.
+var (
+	// DeviceIDExtensionOID is a string extension that identifies the trusted
+	// device.
+	DeviceIDExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 1}
+
+	// DeviceAssetTagExtensionOID is a string extension containing the device
+	// inventory identifier.
+	DeviceAssetTagExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 2}
+
+	// DeviceCredentialIDExtensionOID is a string extension that identifies the
+	// credential used to authenticate the device.
+	DeviceCredentialIDExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 3, 3}
 )
 
 // Subject converts identity to X.509 subject name
@@ -500,6 +595,34 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.AWSRoleARNs[i],
 			})
 	}
+	if id.RouteToApp.AzureIdentity != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppAzureIdentityASN1ExtensionOID,
+				Value: id.RouteToApp.AzureIdentity,
+			})
+	}
+	for i := range id.AzureIdentities {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AzureIdentityASN1ExtensionOID,
+				Value: id.AzureIdentities[i],
+			})
+	}
+	if id.RouteToApp.GCPServiceAccount != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  AppGCPServiceAccountASN1ExtensionOID,
+				Value: id.RouteToApp.GCPServiceAccount,
+			})
+	}
+	for i := range id.GCPServiceAccounts {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GCPServiceAccountsASN1ExtensionOID,
+				Value: id.GCPServiceAccounts[i],
+			})
+	}
 	if id.Renewable {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -521,11 +644,25 @@ func (id *Identity) Subject() (pkix.Name, error) {
 				Value: id.MFAVerified,
 			})
 	}
-	if id.ClientIP != "" {
+	if !id.PreviousIdentityExpires.IsZero() {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
-				Type:  ClientIPASN1ExtensionOID,
-				Value: id.ClientIP,
+				Type:  PreviousIdentityExpiresASN1ExtensionOID,
+				Value: id.PreviousIdentityExpires.Format(time.RFC3339),
+			})
+	}
+	if id.LoginIP != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  LoginIPASN1ExtensionOID,
+				Value: id.LoginIP,
+			})
+	}
+	if id.PinnedIP != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  PinnedIPASN1ExtensionOID,
+				Value: id.PinnedIP,
 			})
 	}
 
@@ -623,6 +760,44 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		)
 	}
 
+	if id.PrivateKeyPolicy != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  PrivateKeyPolicyASN1ExtensionOID,
+				Value: id.PrivateKeyPolicy,
+			},
+		)
+	}
+
+	if id.ConnectionDiagnosticID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  ConnectionDiagnosticIDASN1ExtensionOID,
+				Value: id.ConnectionDiagnosticID,
+			},
+		)
+	}
+
+	// Device extensions.
+	if devID := id.DeviceExtensions.DeviceID; devID != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  DeviceIDExtensionOID,
+			Value: devID,
+		})
+	}
+	if devTag := id.DeviceExtensions.AssetTag; devTag != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  DeviceAssetTagExtensionOID,
+			Value: devTag,
+		})
+	}
+	if devCred := id.DeviceExtensions.CredentialID; devCred != "" {
+		subject.ExtraNames = append(subject.ExtraNames, pkix.AttributeTypeAndValue{
+			Type:  DeviceCredentialIDExtensionOID,
+			Value: devCred,
+		})
+	}
+
 	return subject, nil
 }
 
@@ -697,6 +872,26 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.AWSRoleARNs = append(id.AWSRoleARNs, val)
 			}
+		case attr.Type.Equal(AppAzureIdentityASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.AzureIdentity = val
+			}
+		case attr.Type.Equal(AzureIdentityASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.AzureIdentities = append(id.AzureIdentities, val)
+			}
+		case attr.Type.Equal(AppGCPServiceAccountASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToApp.GCPServiceAccount = val
+			}
+		case attr.Type.Equal(GCPServiceAccountsASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.GCPServiceAccounts = append(id.GCPServiceAccounts, val)
+			}
 		case attr.Type.Equal(RenewableCertificateASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
@@ -712,10 +907,19 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			if ok {
 				id.MFAVerified = val
 			}
-		case attr.Type.Equal(ClientIPASN1ExtensionOID):
+		case attr.Type.Equal(PreviousIdentityExpiresASN1ExtensionOID):
 			val, ok := attr.Value.(string)
 			if ok {
-				id.ClientIP = val
+				asTime, err := time.Parse(time.RFC3339, val)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				id.PreviousIdentityExpires = asTime
+			}
+		case attr.Type.Equal(LoginIPASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.LoginIP = val
 			}
 		case attr.Type.Equal(DatabaseServiceNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)
@@ -782,15 +986,33 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 				id.AllowedResourceIDs = allowedResourceIDs
 			}
+		case attr.Type.Equal(PrivateKeyPolicyASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.PrivateKeyPolicy = keys.PrivateKeyPolicy(val)
+			}
+		case attr.Type.Equal(ConnectionDiagnosticIDASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.ConnectionDiagnosticID = val
+			}
+		case attr.Type.Equal(DeviceIDExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DeviceExtensions.DeviceID = val
+			}
+		case attr.Type.Equal(DeviceAssetTagExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DeviceExtensions.AssetTag = val
+			}
+		case attr.Type.Equal(DeviceCredentialIDExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.DeviceExtensions.CredentialID = val
+			}
+		case attr.Type.Equal(PinnedIPASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.PinnedIP = val
+			}
 		}
-	}
-
-	// DELETE IN 11.0.0: This logic is using Province field
-	// from subject in case if Kubernetes groups were not populated
-	// from ASN1 extension, after 5.0 Province field will be ignored,
-	// and after 10.0.0 Province field is never populated
-	if len(id.KubernetesGroups) == 0 {
-		id.KubernetesGroups = subject.Province
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {
@@ -800,10 +1022,23 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 }
 
 func (id Identity) GetUserMetadata() events.UserMetadata {
+	var device *events.DeviceMetadata
+	if id.DeviceExtensions != (DeviceExtensions{}) {
+		device = &events.DeviceMetadata{
+			DeviceId:     id.DeviceExtensions.DeviceID,
+			AssetTag:     id.DeviceExtensions.AssetTag,
+			CredentialId: id.DeviceExtensions.CredentialID,
+		}
+	}
+
 	return events.UserMetadata{
-		User:           id.Username,
-		Impersonator:   id.Impersonator,
-		AccessRequests: id.ActiveRequests,
+		User:              id.Username,
+		Impersonator:      id.Impersonator,
+		AWSRoleARN:        id.RouteToApp.AWSRoleARN,
+		AzureIdentity:     id.RouteToApp.AzureIdentity,
+		GCPServiceAccount: id.RouteToApp.GCPServiceAccount,
+		AccessRequests:    id.ActiveRequests,
+		TrustedDevice:     device,
 	}
 }
 
@@ -864,13 +1099,10 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 	}
 
 	log.WithFields(logrus.Fields{
-		"not_after":   req.NotAfter,
-		"dns_names":   req.DNSNames,
-		"common_name": req.Subject.CommonName,
-		"org":         req.Subject.Organization,
-		"org_unit":    req.Subject.OrganizationalUnit,
-		"locality":    req.Subject.Locality,
-	}).Infof("Generating TLS certificate %v.", req)
+		"not_after": req.NotAfter,
+		"dns_names": req.DNSNames,
+		"key_usage": req.KeyUsage,
+	}).Infof("Generating TLS certificate %v", req.Subject.String())
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

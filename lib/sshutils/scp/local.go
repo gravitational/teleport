@@ -22,8 +22,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // localFileSystem provides API for accessing the files on
@@ -101,7 +102,7 @@ func makeFileInfo(filePath string) (FileInfo, error) {
 	return &localFileInfo{
 		filePath:   filePath,
 		fileInfo:   f,
-		accessTime: atime(f),
+		accessTime: GetAtime(f),
 	}, nil
 }
 

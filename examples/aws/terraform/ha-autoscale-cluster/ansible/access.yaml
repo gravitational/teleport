@@ -4,7 +4,7 @@
 # ansible-playbook -v -i ec2.py --private-key=/key.pem access.yaml
 - hosts: "auth[0]"
   name: Install resources
-  become: yes
+  become: true
   remote_user: admin
   become_method: sudo
   tasks:
@@ -21,4 +21,3 @@
         dest: /tmp/resources.yaml
     - name: Setup resources
       shell: "sudo -u teleport tctl create -f /tmp/resources.yaml"
-

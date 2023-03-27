@@ -21,19 +21,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // TestOrdering verifies that the queue yields items in the order of
 // insertion, rather than the order of completion.
 func TestOrdering(t *testing.T) {
 	const testItems = 1024
 
-	q := New(func(v interface{}) interface{} {
+	q := New(func(v int) int {
 		// introduce a short random delay to ensure that work
 		// completes out of order.
 		time.Sleep(time.Duration(rand.Int63n(int64(time.Millisecond * 12))))
@@ -47,9 +44,7 @@ func TestOrdering(t *testing.T) {
 		// verify that queue outputs items in expected order
 		for i := 0; i < testItems; i++ {
 			itm := <-q.Pop()
-			val, ok := itm.(int)
-			require.True(t, ok)
-			require.Equal(t, i, val)
+			assert.Equal(t, i, itm)
 		}
 	}()
 
@@ -135,9 +130,9 @@ func runBackpressureScenario(t *testing.T, tt bpt) {
 	done := make(chan struct{})
 	defer close(done)
 
-	workfn := func(v interface{}) interface{} {
+	workfn := func(v int) int {
 		// simulate a blocking worker if necessary
-		if tt.deadlock || (tt.headOfLine && v.(int) == 0) {
+		if tt.deadlock || (tt.headOfLine && v == 0) {
 			<-done
 		}
 		return v
@@ -168,16 +163,16 @@ func runBackpressureScenario(t *testing.T, tt bpt) {
 }
 
 /*
-goos: linux
+goos: darwin
 goarch: amd64
 pkg: github.com/gravitational/teleport/lib/utils/concurrentqueue
-cpu: Intel(R) Core(TM) i9-10885H CPU @ 2.40GHz
-BenchmarkQueue-16    	     193	   6192192 ns/op
+cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
+BenchmarkQueue-16    	     156	   7342841 ns/op
 */
 func BenchmarkQueue(b *testing.B) {
 	const workers = 16
 	const iters = 4096
-	workfn := func(v interface{}) interface{} {
+	workfn := func(v int) int {
 		// XXX: should we be doing something to
 		// add noise here?
 		return v

@@ -22,6 +22,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -33,22 +36,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 	"github.com/gravitational/teleport/lib/web/ui"
-
-	"github.com/gravitational/trace"
-	"github.com/julienschmidt/httprouter"
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	appClusterName := p.ByName("site")
-
-	identity, err := ctx.GetIdentity()
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Get a list of application servers and their proxied apps.
-	clt, err := ctx.GetUserClient(site)
+	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -72,7 +70,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		Items: ui.MakeApps(ui.MakeAppsConfig{
 			LocalClusterName:  h.auth.clusterName,
 			LocalProxyDNSName: h.proxyDNSName(),
-			AppClusterName:    appClusterName,
+			AppClusterName:    site.GetName(),
 			Identity:          identity,
 			Apps:              apps,
 		}),
@@ -92,7 +90,9 @@ type CreateAppSessionRequest resolveAppParams
 
 type CreateAppSessionResponse struct {
 	// CookieValue is the application session cookie value.
-	CookieValue string `json:"value"`
+	CookieValue string `json:"cookie_value"`
+	// SubjectCookieValue is the application session subject cookie token.
+	SubjectCookieValue string `json:"subject_cookie_value"`
 	// FQDN is application FQDN.
 	FQDN string `json:"fqdn"`
 }
@@ -136,7 +136,7 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 //
 // POST /v1/webapi/sessions/app
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
-	var req CreateAppSessionRequest
+	var req resolveAppParams
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -155,12 +155,22 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 
 	// Use the information the caller provided to attempt to resolve to an
 	// application running within either the root or leaf cluster.
-	result, err := h.resolveApp(r.Context(), authClient, proxy, resolveAppParams(req))
+	result, err := h.resolveApp(r.Context(), authClient, proxy, req)
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to resolve FQDN: %v", req.FQDNHint)
 	}
 
 	h.log.Debugf("Creating application web session for %v in %v.", result.App.GetPublicAddr(), result.ClusterName)
+
+	// Ensuring proxy can handle the connection is only done when the request is
+	// coming from the WebUI.
+	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
+		h.log.Debugf("Ensuring proxy can handle requests requests for application %q.", result.App.GetName())
+		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
+		if err != nil {
+			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
+		}
+	}
 
 	// Create an application web session.
 	//
@@ -234,8 +244,9 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	}
 
 	return &CreateAppSessionResponse{
-		CookieValue: ws.GetName(),
-		FQDN:        result.FQDN,
+		CookieValue:        ws.GetName(),
+		SubjectCookieValue: ws.GetBearerToken(),
+		FQDN:               result.FQDN,
 	}, nil
 }
 

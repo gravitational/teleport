@@ -17,20 +17,23 @@ limitations under the License.
 package events
 
 import (
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-
-	"github.com/gravitational/trace"
 )
 
 // ValidateServerMetadata checks that event server ID of the event
 // if present, matches the passed server ID and namespace has proper syntax
-func ValidateServerMetadata(event apievents.AuditEvent, serverID string) error {
+func ValidateServerMetadata(event apievents.AuditEvent, serverID string, isProxy bool) error {
 	getter, ok := event.(ServerMetadataGetter)
 	if !ok {
 		return nil
 	}
-	if getter.GetServerID() != serverID {
+	switch {
+	case getter.GetForwardedBy() == "" && getter.GetServerID() == serverID:
+	case isProxy && getter.GetForwardedBy() == serverID:
+	default:
 		return trace.BadParameter("server %q can't emit event with server ID %q", serverID, getter.GetServerID())
 	}
 	if ns := getter.GetServerNamespace(); ns != "" && !types.IsValidNamespace(ns) {

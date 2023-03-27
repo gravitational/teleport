@@ -39,7 +39,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type Suite struct {
@@ -106,9 +108,10 @@ func (s *Suite) GetCertPool() *x509.CertPool {
 	return pool
 }
 
-func (s *Suite) Start(t *testing.T) {
+func (s *Suite) CreateProxyServer(t *testing.T) *Proxy {
 	serverCert := mustGenCertSignedWithCA(t, s.ca)
 	tlsConfig := &tls.Config{
+		NextProtos: common.ProtocolsToString(common.SupportedProtocols),
 		ClientAuth: tls.VerifyClientCertIfGiven,
 		ClientCAs:  s.GetCertPool(),
 		Certificates: []tls.Certificate{
@@ -130,6 +133,11 @@ func (s *Suite) Start(t *testing.T) {
 	require.NoError(t, err)
 	// Reset GetConfigForClient to simplify test setup.
 	svr.cfg.IdentityTLSConfig.GetConfigForClient = nil
+	return svr
+}
+
+func (s *Suite) Start(t *testing.T) {
+	svr := s.CreateProxyServer(t)
 
 	go func() {
 		err := svr.Serve(context.Background())
@@ -155,6 +163,7 @@ func mustGenSelfSignedCert(t *testing.T) *tlsca.CertAuthority {
 
 type signOptions struct {
 	identity tlsca.Identity
+	clock    clockwork.Clock
 }
 
 func withIdentity(identity tlsca.Identity) signOptionsFunc {
@@ -163,11 +172,18 @@ func withIdentity(identity tlsca.Identity) signOptionsFunc {
 	}
 }
 
+func withClock(clock clockwork.Clock) signOptionsFunc {
+	return func(o *signOptions) {
+		o.clock = clock
+	}
+}
+
 type signOptionsFunc func(o *signOptions)
 
 func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...signOptionsFunc) tls.Certificate {
 	options := signOptions{
 		identity: tlsca.Identity{Username: "test-user"},
+		clock:    clockwork.NewRealClock(),
 	}
 
 	for _, opt := range opts {
@@ -180,12 +196,11 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
-	clock := clockwork.NewRealClock()
 	tlsCert, err := ca.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     clock,
+		Clock:     options.clock,
 		PublicKey: privateKey.Public(),
 		Subject:   subj,
-		NotAfter:  clock.Now().UTC().Add(time.Minute),
+		NotAfter:  options.clock.Now().UTC().Add(time.Minute),
 		DNSNames:  []string{"localhost", "*.localhost"},
 	})
 	require.NoError(t, err)
@@ -194,12 +209,17 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
 	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
+	leaf, err := utils.TLSCertLeaf(cert)
+	require.NoError(t, err)
+	cert.Leaf = leaf
 	return cert
 }
 
 func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(time.Second*5)))
 	buff, err := io.ReadAll(conn)
 	require.NoError(t, err)
+	require.NoError(t, conn.SetReadDeadline(time.Time{}))
 	require.Equal(t, string(buff), want)
 }
 

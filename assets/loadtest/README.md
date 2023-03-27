@@ -76,7 +76,7 @@ $ make deploy-etcd-cluster
 ### Firestore Backend
 
 To use the firestore backend you must have a GCP service account key with `Cloud Datastore User`, `Cloud Datastore Index Admin`
-`Storage Object Creator`, `Storage Object Viewer`. Set `GCP_CREDS_LOCATION` to the location that you saved the service account key.
+`Storage Object Admin` permissions. Set `GCP_CREDS_LOCATION` to the location that you saved the service account key.
 
 ```bash
 $ export GCP_CREDS_LOCATION=/path/to/service/account/key

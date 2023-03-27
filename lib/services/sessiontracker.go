@@ -19,11 +19,11 @@ package services
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/trace"
 )
 
 // SessionTrackerService is a realtime session service that has information about
@@ -31,6 +31,9 @@ import (
 type SessionTrackerService interface {
 	// GetActiveSessionTrackers returns a list of active session trackers.
 	GetActiveSessionTrackers(ctx context.Context) ([]types.SessionTracker, error)
+
+	// GetActiveSessionTrackersWithFilter returns a list of active sessions filtered by a filter.
+	GetActiveSessionTrackersWithFilter(ctx context.Context, filter *types.SessionTrackerFilter) ([]types.SessionTracker, error)
 
 	// GetSessionTracker returns the current state of a session tracker for an active session.
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)

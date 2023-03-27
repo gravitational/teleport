@@ -28,17 +28,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/lib/utils"
-
 	"github.com/gravitational/trace"
-
-	"github.com/ThalesIgnite/crypto11"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/square/go-jose.v2"
 	"gopkg.in/square/go-jose.v2/cryptosigner"
 	"gopkg.in/square/go-jose.v2/jwt"
-	josejwt "gopkg.in/square/go-jose.v2/jwt"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config defines the clock and PEM encoded bytes of a public and private
@@ -106,6 +104,9 @@ type SignParams struct {
 	// Roles are the roles assigned to the user within Teleport.
 	Roles []string
 
+	// Traits are the traits assigned to the user within Teleport.
+	Traits wrappers.Traits
+
 	// Expiry is time to live for the token.
 	Expires time.Time
 
@@ -131,8 +132,13 @@ func (p *SignParams) Check() error {
 	return nil
 }
 
-// Sign will return a signed JWT with the passed in claims embedded within.
+// sign will return a signed JWT with the passed in claims embedded within.
 func (k *Key) sign(claims Claims) (string, error) {
+	return k.signAny(claims)
+}
+
+// signAny will return a signed JWT with the passed in claims embedded within; unlike sign it allows more flexibility in the claim data.
+func (k *Key) signAny(claims any) (string, error) {
 	if k.config.PrivateKey == nil {
 		return "", trace.BadParameter("can not sign token with non-signing key")
 	}
@@ -140,10 +146,10 @@ func (k *Key) sign(claims Claims) (string, error) {
 	// Create a signer with configured private key and algorithm.
 	var signer interface{}
 	switch k.config.PrivateKey.(type) {
-	case crypto11.Signer:
-		signer = cryptosigner.Opaque(k.config.PrivateKey)
-	default:
+	case *rsa.PrivateKey:
 		signer = k.config.PrivateKey
+	default:
+		signer = cryptosigner.Opaque(k.config.PrivateKey)
 	}
 	signingKey := jose.SigningKey{
 		Algorithm: k.config.Algorithm,
@@ -154,7 +160,7 @@ func (k *Key) sign(claims Claims) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	token, err := josejwt.Signed(sig).Claims(claims).CompactSerialize()
+	token, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -168,16 +174,17 @@ func (k *Key) Sign(p SignParams) (string, error) {
 
 	// Sign the claims and create a JWT token.
 	claims := Claims{
-		Claims: josejwt.Claims{
+		Claims: jwt.Claims{
 			Subject:   p.Username,
 			Issuer:    k.config.ClusterName,
-			Audience:  josejwt.Audience{p.URI},
-			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
-			IssuedAt:  josejwt.NewNumericDate(k.config.Clock.Now()),
-			Expiry:    josejwt.NewNumericDate(p.Expires),
+			Audience:  jwt.Audience{p.URI},
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
+			Expiry:    jwt.NewNumericDate(p.Expires),
 		},
 		Username: p.Username,
 		Roles:    p.Roles,
+		Traits:   p.Traits,
 	}
 
 	return k.sign(claims)
@@ -186,12 +193,49 @@ func (k *Key) Sign(p SignParams) (string, error) {
 func (k *Key) SignSnowflake(p SignParams, issuer string) (string, error) {
 	// Sign the claims and create a JWT token.
 	claims := Claims{
-		Claims: josejwt.Claims{
+		Claims: jwt.Claims{
 			Subject:   p.Username,
 			Issuer:    issuer,
-			NotBefore: josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
-			Expiry:    josejwt.NewNumericDate(p.Expires),
-			IssuedAt:  josejwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(p.Expires),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		},
+	}
+
+	return k.sign(claims)
+}
+
+// AzureTokenClaims represent a minimal set of claims that will be encoded as JWT in Azure access token and passed back to az CLI.
+type AzureTokenClaims struct {
+	// TenantID represents TenantID; this is read by az CLI.
+	TenantID string `json:"tid"`
+	// Resource records the resource requested by az CLI. This will be used in backend to request real token with appropriate scope.
+	Resource string `json:"resource"`
+}
+
+// SignAzureToken signs AzureTokenClaims
+func (k *Key) SignAzureToken(claims AzureTokenClaims) (string, error) {
+	return k.signAny(claims)
+}
+
+type PROXYSignParams struct {
+	ClusterName        string
+	SourceAddress      string
+	DestinationAddress string
+}
+
+const expirationPROXY = time.Second * 60
+
+// SignPROXYJwt will create short lived signed JWT that is used in signed PROXY header
+func (k *Key) SignPROXYJWT(p PROXYSignParams) (string, error) {
+	claims := Claims{
+		Claims: jwt.Claims{
+			Subject:   p.SourceAddress,
+			Audience:  []string{p.DestinationAddress},
+			Issuer:    p.ClusterName,
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(k.config.Clock.Now().Add(expirationPROXY)),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now()),
 		},
 	}
 
@@ -247,12 +291,30 @@ func (p *SnowflakeVerifyParams) Check() error {
 	return nil
 }
 
-func (k *Key) verify(rawToken string, expectedClaims josejwt.Expected) (*Claims, error) {
+type PROXYVerifyParams struct {
+	ClusterName        string
+	SourceAddress      string
+	DestinationAddress string
+	RawToken           string
+}
+
+func (p *PROXYVerifyParams) Check() error {
+	if p.ClusterName == "" {
+		return trace.BadParameter("cluster name missing")
+	}
+	if p.SourceAddress == "" {
+		return trace.BadParameter("source address missing")
+	}
+
+	return nil
+}
+
+func (k *Key) verify(rawToken string, expectedClaims jwt.Expected) (*Claims, error) {
 	if k.config.PublicKey == nil {
 		return nil, trace.BadParameter("can not verify token without public key")
 	}
 	// Parse the token.
-	tok, err := josejwt.ParseSigned(rawToken)
+	tok, err := jwt.ParseSigned(rawToken)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -277,10 +339,26 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	expectedClaims := josejwt.Expected{
+	expectedClaims := jwt.Expected{
 		Issuer:   k.config.ClusterName,
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
+		Time:     k.config.Clock.Now(),
+	}
+
+	return k.verify(p.RawToken, expectedClaims)
+}
+
+// VerifyPROXY will validate the passed JWT for signed PROXY header
+func (k *Key) VerifyPROXY(p PROXYVerifyParams) (*Claims, error) {
+	if err := p.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	expectedClaims := jwt.Expected{
+		Issuer:   p.ClusterName,
+		Subject:  p.SourceAddress,
+		Audience: []string{p.DestinationAddress},
 		Time:     k.config.Clock.Now(),
 	}
 
@@ -307,7 +385,7 @@ func (k *Key) VerifySnowflake(p SnowflakeVerifyParams) (*Claims, error) {
 	issuer := fmt.Sprintf("%s.%s.SHA256:%s", accName, loginName, keyFpStr)
 
 	// Validate the claims on the JWT token.
-	expectedClaims := josejwt.Expected{
+	expectedClaims := jwt.Expected{
 		Issuer:  issuer,
 		Subject: fmt.Sprintf("%s.%s", accName, loginName),
 		Time:    k.config.Clock.Now(),
@@ -315,16 +393,38 @@ func (k *Key) VerifySnowflake(p SnowflakeVerifyParams) (*Claims, error) {
 	return k.verify(p.RawToken, expectedClaims)
 }
 
+func (k *Key) VerifyAzureToken(rawToken string) (*AzureTokenClaims, error) {
+	if k.config.PublicKey == nil {
+		return nil, trace.BadParameter("can not verify token without public key")
+	}
+	// Parse the token.
+	tok, err := jwt.ParseSigned(rawToken)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Validate the signature on the JWT token.
+	var out AzureTokenClaims
+	if err := tok.Claims(k.config.PublicKey, &out); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &out, nil
+}
+
 // Claims represents public and private claims for a JWT token.
 type Claims struct {
 	// Claims represents public claim values (as specified in RFC 7519).
-	josejwt.Claims
+	jwt.Claims
 
 	// Username returns the Teleport identity of the user.
 	Username string `json:"username"`
 
 	// Roles returns the list of roles assigned to the user within Teleport.
 	Roles []string `json:"roles"`
+
+	// Traits returns the traits assigned to the user within Teleport.
+	Traits wrappers.Traits `json:"traits"`
 }
 
 // GenerateKeyPair generates and return a PEM encoded private and public

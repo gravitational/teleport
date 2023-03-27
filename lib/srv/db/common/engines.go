@@ -20,11 +20,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/gravitational/teleport/lib/auth"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/cloud"
 )
 
 var (
@@ -63,6 +64,18 @@ func GetEngine(name string, conf EngineConfig) (Engine, error) {
 	return engineFn(conf), nil
 }
 
+// CheckEngines checks if provided engine names are registered.
+func CheckEngines(names ...string) error {
+	enginesMu.RLock()
+	defer enginesMu.RUnlock()
+	for _, name := range names {
+		if engines[name] == nil {
+			return trace.NotFound("database engine %q is not registered", name)
+		}
+	}
+	return nil
+}
+
 // EngineConfig is the common configuration every database engine uses.
 type EngineConfig struct {
 	// Auth handles database access authentication.
@@ -72,7 +85,7 @@ type EngineConfig struct {
 	// AuthClient is the cluster auth server client.
 	AuthClient *auth.Client
 	// CloudClients provides access to cloud API clients.
-	CloudClients CloudClients
+	CloudClients cloud.Clients
 	// Context is the database server close context.
 	Context context.Context
 	// Clock is the clock interface.
@@ -81,6 +94,8 @@ type EngineConfig struct {
 	Log logrus.FieldLogger
 	// Users handles database users.
 	Users Users
+	// DataDir is the Teleport data directory
+	DataDir string
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

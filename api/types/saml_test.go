@@ -39,3 +39,26 @@ func TestSAMLSecretsStrip(t *testing.T) {
 	require.Equal(t, withoutSecrets.GetSigningKeyPair().PrivateKey, "")
 	require.Equal(t, withoutSecrets.GetEncryptionKeyPair().PrivateKey, "")
 }
+
+// TestSAMLAcsUriHasConnector tests that the ACS URI has the connector ID as the last part if IdP-initiated login is enabled.
+func TestSAMLACSURIHasConnectorName(t *testing.T) {
+	connector, err := NewSAMLConnector("myBusinessConnector", SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://teleport.local/webapi/v1/saml/acs",
+		SSO:                      "test",
+		EntityDescriptor:         "test",
+		AllowIDPInitiated:        true,
+	})
+
+	require.Nil(t, connector)
+	require.Error(t, err)
+
+	connector, err = NewSAMLConnector("myBusinessConnector", SAMLConnectorSpecV2{
+		AssertionConsumerService: "https://teleport.local/webapi/v1/saml/acs/myBusinessConnector",
+		SSO:                      "test",
+		EntityDescriptor:         "test",
+		AllowIDPInitiated:        true,
+	})
+
+	require.NotNil(t, connector)
+	require.NoError(t, err)
+}

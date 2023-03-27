@@ -22,9 +22,10 @@ import (
 	"io"
 	"time"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/trace"
 )
 
 func runPresenceTask(ctx context.Context, term io.Writer, auth auth.ClientI, tc *TeleportClient, sessionID string) error {
@@ -86,8 +87,8 @@ func solveMFA(ctx context.Context, term io.Writer, tc *TeleportClient, challenge
 	// We don't support TOTP for live presence.
 	challenge.TOTP = nil
 
-	response, err := tc.PromptMFAChallenge(ctx, challenge, &PromptMFAChallengeOpts{
-		Quiet: true,
+	response, err := tc.PromptMFAChallenge(ctx, "" /* proxyAddr */, challenge, func(opts *PromptMFAChallengeOpts) {
+		opts.Quiet = true
 	})
 	if err != nil {
 		fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)

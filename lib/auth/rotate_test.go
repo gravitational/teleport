@@ -26,10 +26,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_findDuplicatedCertificates(t *testing.T) {
@@ -60,6 +61,7 @@ func Test_findDuplicatedCertificates(t *testing.T) {
 
 	addCA(t, types.UserCA)
 	addCA(t, types.HostCA)
+	addCA(t, types.OpenSSHCA)
 	// create duplicated cert
 	allCerts[types.DatabaseCA] = allCerts[types.HostCA].Clone()
 
@@ -85,13 +87,13 @@ func Test_findDuplicatedCertificates(t *testing.T) {
 		},
 		{
 			name:    "duplicates and no duplicates",
-			caTypes: []types.CertAuthType{types.UserCA, types.HostCA},
-			want:    []types.CertAuthType{types.UserCA, types.HostCA, types.DatabaseCA},
+			caTypes: []types.CertAuthType{types.UserCA, types.HostCA, types.OpenSSHCA},
+			want:    []types.CertAuthType{types.UserCA, types.HostCA, types.DatabaseCA, types.OpenSSHCA},
 		},
 		{
 			name:    "rotate all",
-			caTypes: []types.CertAuthType{types.UserCA, types.HostCA, types.DatabaseCA},
-			want:    []types.CertAuthType{types.UserCA, types.HostCA, types.DatabaseCA},
+			caTypes: []types.CertAuthType{types.UserCA, types.HostCA, types.DatabaseCA, types.OpenSSHCA},
+			want:    []types.CertAuthType{types.UserCA, types.HostCA, types.DatabaseCA, types.OpenSSHCA},
 		},
 	}
 
@@ -103,7 +105,7 @@ func Test_findDuplicatedCertificates(t *testing.T) {
 
 			got := findDuplicatedCertificates(tt.caTypes, allCerts)
 			// matches elements, ignores order
-			require.ElementsMatchf(t, tt.want, got, "findDuplicatedCertificates() = %v, want %v", tt.want, got)
+			require.ElementsMatchf(t, tt.want, got, "findDuplicatedCertificates() = %v, want %v", got, tt.want)
 		})
 	}
 }

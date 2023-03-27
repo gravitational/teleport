@@ -21,8 +21,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 /*
@@ -95,7 +96,6 @@ func BenchmarkStore(b *testing.B) {
 // TestStoreAccess verifies the two most important properties of the store:
 // 1. Handles are loadable by ID.
 // 2. When multiple handles have the same ID, loads are distributed across them.
-//
 func TestStoreAccess(t *testing.T) {
 	store := NewStore()
 

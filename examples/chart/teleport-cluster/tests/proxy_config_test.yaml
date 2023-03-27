@@ -1,0 +1,139 @@
+suite: ConfigMap
+templates:
+  - proxy/config.yaml
+tests:
+  - it: matches snapshot for log-basic.yaml
+    values:
+      - ../.lint/log-basic.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for log-extra.yaml
+    values:
+      - ../.lint/log-extra.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for public-addresses.yaml
+    values:
+      - ../.lint/public-addresses.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: wears annotations (annotations.yaml)
+    values:
+      - ../.lint/annotations.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config
+          value: test-annotation
+      - equal:
+          path: metadata.annotations.kubernetes\.io/config-different
+          value: 2
+
+  - it: matches snapshot for proxy-listener-mode-multiplex.yaml
+    values:
+      - ../.lint/proxy-listener-mode-multiplex.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for proxy-listener-mode-separate.yaml
+    values:
+      - ../.lint/proxy-listener-mode-separate.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for separate-mongo-listener.yaml
+    values:
+      - ../.lint/separate-mongo-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for separate-postgres-listener.yaml
+    values:
+      - ../.lint/separate-postgres-listener.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for aws-ha-acme.yaml
+    values:
+      - ../.lint/aws-ha-acme.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for existing-tls-secret.yaml
+    values:
+      - ../.lint/existing-tls-secret.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for acme-on.yaml
+    values:
+      - ../.lint/acme-on.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: matches snapshot for acme-uri-staging.yaml
+    values:
+      - ../.lint/acme-uri-staging.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml

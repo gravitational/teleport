@@ -34,7 +34,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: alice
 spec:
@@ -45,9 +45,13 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ---
 kind: role
-version: v5
+version: v6
 metadata:
   name: bob
 spec:
@@ -58,6 +62,10 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 You can create roles and invite Alice and Bob as local users:
@@ -76,7 +84,7 @@ Let's create a role template called `devs.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: devs
 spec:
@@ -87,6 +95,10 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 Any role becomes a template once it starts using template variables.
@@ -131,7 +143,7 @@ spec:
 Update both users' entries with the `tctl create -f` command:
 
 ```code
-$ tctl create -f traits.yaml 
+$ tctl create -f traits.yaml
 # user "alice" has been updated
 ```
 
@@ -196,7 +208,7 @@ Let's create a role template called `sso-users` that expects external attribute
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: sso-users
 spec:
@@ -206,6 +218,10 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 A GitHub connector called `github.yaml` maps every member of team `cyber` in
@@ -299,7 +315,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: interpolation
 spec:
@@ -325,6 +341,10 @@ spec:
 
     kubernetes_labels:
       '*': '*'
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 After interpolation with Alice's SSO user attributes, the role template will
@@ -332,7 +352,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: interpolation
 spec:
@@ -361,20 +381,25 @@ spec:
 
     kubernetes_labels:
       '*': '*'
+
+    kubernetes_resources:
+      - kind: pod
+        namespace: "*"
+        name: "*"
 ```
 
 Available interpolation functions include:
 
 Function | Description
 --- | ---
-`email.local(variable)` | Extracts the local part of an email field, like `Alice <alice@example.com>` or `bob@example.com`.
-`regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out.
+`email.local(variable)` | Extracts the local part of an email address. `email.local(alice@example.com)` evaluates to `alice`.
+`regexp.replace(variable, expression, replacement)` | Finds all matches of `expression` and replaces them with `replacement`. This supports expansion, e.g. `regexp.replace(external.email, "^(.*)@example.com$", "$1")`. Values which do not match the expression will be filtered out. `$N` is used to refer to the Nth captured group, starting at `$1`.
 
 ## Templating in Access Requests
 
-Access and Reviewer Request specifications do not use the same interpolation 
-system as logins, labels etc. Instead, you can use the `claims_to_roles` clause 
-in the `request` and `review` rules to specify one or more patterns to match. 
+Access and Reviewer Request specifications do not use the same interpolation
+system as logins, labels etc. Instead, you can use the `claims_to_roles` clause
+in the `request` and `review` rules to specify one or more patterns to match.
 
 For example, given the following rule template:
 
@@ -386,12 +411,12 @@ metadata:
 spec:
   allow:
     request:
-      # `roles` is a static list of roles a user with the `product-admin` role may 
+      # `roles` is a static list of roles a user with the `product-admin` role may
       # request temporary access to
-      roles: [access]  
+      roles: [access]
 
       claims_to_roles:
-        - claim: 'projects'         
+        - claim: 'projects'
           value: '^product-(.*)$' # matches all group names with a leading 'product-'
           roles: ['$1-admin']     # generates a role name from the value capture
 ```
@@ -410,7 +435,7 @@ spec:
     projects: ['internal-tooling', 'product-alpha', 'product-beta']
 ```
 
-In this case, Alice would be allowed to request access to the RBAC roles `access` (from the static 
+In this case, Alice would be allowed to request access to the RBAC roles `access` (from the static
 role list) and `alpha-admin` and `beta-admin` (from the `claims_to_roles` mapping).
 
 The same syntax applies for Review Requests.

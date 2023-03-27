@@ -23,7 +23,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravitational/trace"
-
 	"github.com/jonboulle/clockwork"
 )
 

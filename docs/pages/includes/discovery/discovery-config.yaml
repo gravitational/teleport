@@ -1,0 +1,51 @@
+discovery_service:
+    enabled: "yes"
+    aws:
+       # AWS resource types. Valid options are:
+       # ec2 - discovers and registers AWS EC2 instances
+       # eks - discovers and registers AWS EKS clusters
+     - types: ["ec2"]
+       # AWS regions to search for resources from
+       regions: ["us-east-1","us-west-1"]
+       # AWS resource tags to match when registering resources
+       # Optional section: Defaults to "*":"*"
+       tags:
+         "*": "*"
+       # Optional section: install is used to provide parameters to the AWS SSM document. 
+       # If the install section isn't provided, the below defaults are used.
+       # Only applicable for EC2 discovery.
+       install:
+         join_params:
+           # token_name is the name of the Teleport invite token to use.
+           # Optional, defaults to: "aws-discovery-iam-token".
+           token_name:  "aws-discovery-iam-token"
+         # script_name is the name of the Teleport install script to use.
+         # Optional, defaults to: "default-installer".
+         script_name: "default-installer"
+       # Optional section: ssm is used to configure which AWS SSM document to use
+       # If the ssm section isnt provided the below defaults are used.
+       ssm:
+         # document_name is the name of the SSM document that should be
+         # executed when installing teleport on matching nodes
+         # Optional, defaults to: "TeleportDiscoveryInstaller".
+         document_name: "TeleportDiscoveryInstaller"
+    # Matchers for discovering Azure-hosted resources.
+    azure:
+      # Azure resource types. Valid options are:
+      # 'aks' - discovers and registers Azure AKS Kubernetes Clusters.
+    - types: ["aks"]
+      # Azure regions to search for resources from. Valid options are:
+      # '*' - discovers resources in all regions (default).
+      # Any valid Azure region name. List all valid regions using the Azure "az" cli: `az account list-locations -o table`
+      regions: ["eastus", "westus"]
+      # Azure subscription IDs to search resources from. Valid options are:
+      # '*' - discovers resources in all subscriptions (default).
+      # Any subscription_id: `az account subscription list -o table`
+      subscriptions: ["11111111-2222-3333-4444-555555555555"]
+      # Azure resource groups to search resources from. Valid options are:
+      # '*' - discovers resources in all resource groups within configured subscription(s) (default).
+      # Any resource_groups: `az group list -o table`
+      resource_groups: ["group1", "group2"]
+      # Azure resource tag filters used to match resources.
+      tags:
+        "*": "*"

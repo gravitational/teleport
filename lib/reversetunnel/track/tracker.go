@@ -22,11 +22,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/lib/utils/workpool"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/utils/workpool"
 )
 
 type Lease = workpool.Lease
+
+const (
+	// DefaultProxyExpiry is the default amount of time a tracker will attempt
+	// to successfully connect to a proxy before giving up
+	DefaultProxyExpiry = 3 * time.Minute
+)
 
 // Config configures basic Tracker parameters.
 type Config struct {
@@ -43,7 +50,7 @@ type Config struct {
 // CheckAndSetDefaults set default values for Config.
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ProxyExpiry < 1 {
-		c.ProxyExpiry = 3 * time.Minute
+		c.ProxyExpiry = DefaultProxyExpiry
 	}
 	if c.TickRate < 1 {
 		c.TickRate = 30 * time.Second

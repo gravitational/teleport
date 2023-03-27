@@ -22,11 +22,12 @@ import (
 	"strings"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/trace"
+	"github.com/vulcand/predicate"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/vulcand/predicate"
 )
 
 var MinSupportedModeratedSessionsVersion = semver.New(utils.VersionBeforeAlpha("9.0.0"))
@@ -43,14 +44,16 @@ type SessionAccessEvaluator struct {
 	kind        types.SessionKind
 	policySets  []*types.SessionTrackerPolicySet
 	isModerated bool
+	owner       string
 }
 
 // NewSessionAccessEvaluator creates a new session access evaluator for a given session kind
 // and a set of roles attached to the host user.
-func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind) SessionAccessEvaluator {
+func NewSessionAccessEvaluator(policySets []*types.SessionTrackerPolicySet, kind types.SessionKind, owner string) SessionAccessEvaluator {
 	e := SessionAccessEvaluator{
 		kind:       kind,
 		policySets: policySets,
+		owner:      owner,
 	}
 
 	for _, policySet := range policySets {
@@ -95,7 +98,15 @@ type SessionAccessContext struct {
 func (ctx *SessionAccessContext) GetIdentifier(fields []string) (interface{}, error) {
 	if fields[0] == "user" {
 		if len(fields) == 2 || len(fields) == 3 {
-			switch fields[1] {
+			checkedFieldIdx := 1
+			// Unify the format. Moderated session originally skipped the spec field (user.roles was used instead of
+			// user.spec.roles) which was not aligned with how our roles filtering works.
+			// Here we try support both cases. We don't want to modify the original fields slice,
+			// as that would change the reported error message (see return below).
+			if len(fields) == 3 && fields[1] == "spec" {
+				checkedFieldIdx = 2
+			}
+			switch fields[checkedFieldIdx] {
 			case "name":
 				return ctx.Username, nil
 			case "roles":
@@ -171,13 +182,15 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 	return false
 }
 
-func HasV5Role(roles []types.Role) bool {
+// RoleSupportsModeratedSessions checks if the role version is higher or equal to
+// V5 - V5 is the version where ModeratedSession support was introduced.
+func RoleSupportsModeratedSessions(roles []types.Role) bool {
 	for _, role := range roles {
-		if role.GetVersion() == types.V5 {
+		switch role.GetVersion() {
+		case types.V5, types.V6:
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -185,8 +198,13 @@ func HasV5Role(roles []types.Role) bool {
 // If the list is empty, the user doesn't have access to join the session at all.
 func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
-	if !HasV5Role(user.Roles) {
+	if !RoleSupportsModeratedSessions(user.Roles) {
 		return preAccessControlsModes(e.kind)
+	}
+
+	// Session owners can always join their own sessions.
+	if user.Username == e.owner {
+		return []types.SessionParticipantMode{types.SessionPeerMode, types.SessionModeratorMode, types.SessionObserverMode}
 	}
 
 	var modes []types.SessionParticipantMode
@@ -217,12 +235,12 @@ func SliceContainsMode(s []types.SessionParticipantMode, e types.SessionParticip
 	return false
 }
 
-// PolicyOptions is a set of settings for the session determined by the matched require policy.
+// PolicyOptions is a set of settings for the session determined by the matched required policy.
 type PolicyOptions struct {
-	TerminateOnLeave bool
+	OnLeaveAction types.OnSessionLeaveAction
 }
 
-// Generate a pretty-printed string of precise requirements for session start suitable for user display.
+// PrettyRequirementsList generates a pretty-printed string of precise requirements for session start suitable for user display.
 func (e *SessionAccessEvaluator) PrettyRequirementsList() string {
 	s := new(strings.Builder)
 	s.WriteString("require all:")
@@ -257,7 +275,7 @@ func (e *SessionAccessEvaluator) extractApplicablePolicies(set *types.SessionTra
 
 // FulfilledFor checks if a given session may run with a list of participants.
 func (e *SessionAccessEvaluator) FulfilledFor(participants []SessionAccessContext) (bool, PolicyOptions, error) {
-	options := PolicyOptions{TerminateOnLeave: true}
+	var options PolicyOptions
 
 	// Check every policy set to check if it's fulfilled.
 	// We need every policy set to match to allow the session.
@@ -266,6 +284,17 @@ policySetLoop:
 		policies := e.extractApplicablePolicies(policySet)
 		if len(policies) == 0 {
 			continue
+		}
+
+		if options.OnLeaveAction != types.OnSessionLeaveTerminate {
+			terminateOnLeave := types.OnSessionLeavePause
+			for _, p := range policies {
+				if p.OnLeave != string(types.OnSessionLeavePause) {
+					terminateOnLeave = types.OnSessionLeaveTerminate
+					break
+				}
+			}
+			options = PolicyOptions{OnLeaveAction: terminateOnLeave}
 		}
 
 		// Check every require policy to see if it's fulfilled.
@@ -291,10 +320,10 @@ policySetLoop:
 					// Evaluate the filter in the require policy against the participant and allow policy.
 					matchesPredicate, err := e.matchesPredicate(&participant, requirePolicy, allowPolicy)
 					if err != nil {
-						return false, PolicyOptions{}, trace.Wrap(err)
+						return false, options, trace.Wrap(err)
 					}
 
-					// If the the filter matches the participant and the allow policy matches the session
+					// If the filter matches the participant and the allow policy matches the session
 					// we conclude that the participant matches against the require policy.
 					if matchesPredicate && e.matchesJoin(allowPolicy) {
 						left--
@@ -304,13 +333,6 @@ policySetLoop:
 
 				// If we've matched enough participants against the require policy, we can allow the session.
 				if left <= 0 {
-					switch requirePolicy.OnLeave {
-					case types.OnSessionLeaveTerminate:
-					case types.OnSessionLeavePause:
-						options.TerminateOnLeave = false
-					default:
-					}
-
 					// We matched at least one require policy within the set. Continue ahead.
 					continue policySetLoop
 				}

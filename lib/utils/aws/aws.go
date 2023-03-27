@@ -19,16 +19,23 @@ package aws
 import (
 	"bytes"
 	"context"
-	"io"
+	"fmt"
 	"net/http"
 	"net/textproto"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
+	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -50,6 +57,15 @@ const (
 	credentialAuthHeaderElem   = "Credential"
 	signedHeaderAuthHeaderElem = "SignedHeaders"
 	signatureAuthHeaderElem    = "Signature"
+
+	// AmzTargetHeader is a header containing the API target.
+	// Format: target_version.operation
+	// Example: DynamoDB_20120810.Scan
+	AmzTargetHeader = "X-Amz-Target"
+	// AmzJSON1_0 is an AWS Content-Type header that indicates the media type is JSON.
+	AmzJSON1_0 = "application/x-amz-json-1.0"
+	// AmzJSON1_1 is an AWS Content-Type header that indicates the media type is JSON.
+	AmzJSON1_1 = "application/x-amz-json-1.1"
 )
 
 // SigV4 contains parsed content of the AWS Authorization header.
@@ -122,35 +138,6 @@ func IsSignedByAWSSigV4(r *http.Request) bool {
 	return strings.HasPrefix(r.Header.Get(AuthorizationHeader), AmazonSigV4AuthorizationPrefix)
 }
 
-// GetAndReplaceReqBody returns the request and replace the drained body reader with io.NopCloser
-// allowing for further body processing by http transport.
-func GetAndReplaceReqBody(req *http.Request) ([]byte, error) {
-	if req.Body == nil || req.Body == http.NoBody {
-		return []byte{}, nil
-	}
-	// req.Body is closed during drainBody call.
-	payload, err := drainBody(req.Body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Replace the drained body with io.NopCloser reader allowing for further request processing by HTTP transport.
-	req.Body = io.NopCloser(bytes.NewReader(payload))
-	return payload, nil
-}
-
-// drainBody drains the body, close the reader and returns the read bytes.
-func drainBody(b io.ReadCloser) ([]byte, error) {
-	payload, err := io.ReadAll(b)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = b.Close(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return payload, nil
-}
-
 // VerifyAWSSignature verifies the request signature ensuring that the request originates from tsh aws command execution
 // AWS CLI signs the request with random generated credentials that are passed to LocalProxy by
 // the AWSCredentials LocalProxyConfig configuration.
@@ -170,9 +157,19 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.AccessDenied("AccessKeyID does not match")
 	}
 
+	// Skip signature verification if the incoming request includes the
+	// "User-Agent" header when making the signature. AWS Go SDK explicitly
+	// skips the "User-Agent" header so it will always produce a different
+	// signature. Only AccessKeyID is verified above in this case.
+	for _, signedHeader := range sigV4.SignedHeaders {
+		if strings.EqualFold(signedHeader, "User-Agent") {
+			return nil
+		}
+	}
+
 	// Read the request body and replace the body ready with a new reader that will allow reading the body again
 	// by HTTP Transport.
-	payload, err := GetAndReplaceReqBody(req)
+	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -189,7 +186,7 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 		return trace.BadParameter(err.Error())
 	}
 
-	signer := v4.NewSigner(credentials)
+	signer := NewSigner(credentials, sigV4.Service)
 	_, err = signer.Sign(reqCopy, bytes.NewReader(payload), sigV4.Service, sigV4.Region, t)
 	if err != nil {
 		return trace.Wrap(err)
@@ -208,27 +205,52 @@ func VerifyAWSSignature(req *http.Request, credentials *credentials.Credentials)
 	return nil
 }
 
-// filterHeaders removes request headers that are not in the headers list.
-func filterHeaders(r *http.Request, headers []string) {
-	out := make(http.Header)
-	for _, v := range headers {
-		ck := textproto.CanonicalMIMEHeaderKey(v)
-		val, ok := r.Header[ck]
-		if ok {
-			out[ck] = val
+// NewSigner creates a new V4 signer.
+func NewSigner(credentials *credentials.Credentials, signingServiceName string) *v4.Signer {
+	options := func(s *v4.Signer) {
+		// s3 and s3control requests are signed with URL unescaped (found by
+		// searching "DisableURIPathEscaping" in "aws-sdk-go/service"). Both
+		// services use "s3" as signing name. See description of
+		// "DisableURIPathEscaping" for more details.
+		if signingServiceName == "s3" {
+			s.DisableURIPathEscaping = true
 		}
 	}
+	return v4.NewSigner(credentials, options)
+}
+
+// filterHeaders removes request headers that are not in the headers list and returns the removed header keys.
+func filterHeaders(r *http.Request, headers []string) []string {
+	keep := make(map[string]struct{})
+	for _, key := range headers {
+		keep[textproto.CanonicalMIMEHeaderKey(key)] = struct{}{}
+	}
+
+	var removed []string
+	out := make(http.Header)
+	for key, vals := range r.Header {
+		if _, ok := keep[textproto.CanonicalMIMEHeaderKey(key)]; ok {
+			out[key] = vals
+			continue
+		}
+		removed = append(removed, key)
+	}
 	r.Header = out
+	return removed
 }
 
 // FilterAWSRoles returns role ARNs from the provided list that belong to the
 // specified AWS account ID.
 //
-// If AWS account ID is empty, all roles are returned.
-func FilterAWSRoles(arns []string, accountID string) (result []Role) {
+// If AWS account ID is empty, all valid AWS IAM roles are returned.
+func FilterAWSRoles(arns []string, accountID string) (result Roles) {
 	for _, roleARN := range arns {
-		parsed, err := arn.Parse(roleARN)
-		if err != nil || (accountID != "" && parsed.AccountID != accountID) {
+		parsed, err := ParseRoleARN(roleARN)
+		if err != nil {
+			logrus.Warnf("skipping invalid AWS role ARN: %v", err)
+			continue
+		}
+		if accountID != "" && parsed.AccountID != accountID {
 			continue
 		}
 
@@ -239,12 +261,9 @@ func FilterAWSRoles(arns []string, accountID string) (result []Role) {
 		// arn:aws:iam::1234567890:role/EC2FullAccess      (display: EC2FullAccess)
 		// arn:aws:iam::1234567890:role/path/to/customrole (display: customrole)
 		parts := strings.Split(parsed.Resource, "/")
-		numParts := len(parts)
-		if numParts < 2 || parts[0] != "role" {
-			continue
-		}
 		result = append(result, Role{
-			Display: parts[numParts-1],
+			Name:    strings.Join(parts[1:], "/"),
+			Display: parts[len(parts)-1],
 			ARN:     roleARN,
 		})
 	}
@@ -253,8 +272,166 @@ func FilterAWSRoles(arns []string, accountID string) (result []Role) {
 
 // Role describes an AWS IAM role for AWS console access.
 type Role struct {
+	// Name is the full role name with the entire path.
+	Name string `json:"name"`
 	// Display is the role display name.
 	Display string `json:"display"`
 	// ARN is the full role ARN.
 	ARN string `json:"arn"`
+}
+
+// Roles is a slice of roles.
+type Roles []Role
+
+// Sort sorts the roles by their display names.
+func (roles Roles) Sort() {
+	sort.SliceStable(roles, func(x, y int) bool {
+		return strings.ToLower(roles[x].Display) < strings.ToLower(roles[y].Display)
+	})
+}
+
+// FindRoleByARN finds the role with the provided ARN.
+func (roles Roles) FindRoleByARN(arn string) (Role, bool) {
+	for _, role := range roles {
+		if role.ARN == arn {
+			return role, true
+		}
+	}
+	return Role{}, false
+}
+
+// FindRolesByName finds all roles matching the provided name.
+func (roles Roles) FindRolesByName(name string) (result Roles) {
+	for _, role := range roles {
+		// Match either full name or the display name.
+		if role.Display == name || role.Name == name {
+			result = append(result, role)
+		}
+	}
+	return
+}
+
+// UnmarshalRequestBody reads and unmarshals a JSON request body into a protobuf Struct wrapper.
+// If the request is not a recognized AWS JSON media type, or the body cannot be read, or the body
+// is not valid JSON, then this function returns a nil value and an error.
+// The protobuf Struct wrapper is useful for serializing JSON into a protobuf, because otherwise when the
+// protobuf is marshaled it will re-marshall a JSON string field with escape characters or base64 encode
+// a []byte field.
+// Examples showing differences:
+// - JSON string in proto: `{"Table": "some-table"}` --marshal to JSON--> `"{\"Table\": \"some-table\"}"`
+// - bytes in proto: []byte --marshal to JSON--> `eyJUYWJsZSI6ICJzb21lLXRhYmxlIn0K` (base64 encoded)
+// - *Struct in proto: *Struct --marshal to JSON--> `{"Table": "some-table"}` (unescaped JSON)
+func UnmarshalRequestBody(req *http.Request) (*apievents.Struct, error) {
+	contentType := req.Header.Get("Content-Type")
+	if !isJSON(contentType) {
+		return nil, trace.BadParameter("invalid JSON request Content-Type: %q", contentType)
+	}
+	jsonBody, err := utils.GetAndReplaceRequestBody(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s := &apievents.Struct{}
+	if err := s.UnmarshalJSON(jsonBody); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s, nil
+}
+
+// isJSON returns true if the Content-Type is recognized as standard JSON or any non-standard
+// Amazon Content-Type header that indicates JSON media type.
+func isJSON(contentType string) bool {
+	switch contentType {
+	case "application/json", AmzJSON1_0, AmzJSON1_1:
+		return true
+	default:
+		return false
+	}
+}
+
+// BuildRoleARN constructs a string AWS ARN from a username, region, and account ID.
+// If username is an AWS ARN, this function checks that the ARN is an AWS IAM Role ARN
+// in the correct partition and account.
+func BuildRoleARN(username, region, accountID string) (string, error) {
+	partition := apiawsutils.GetPartitionFromRegion(region)
+	if arn.IsARN(username) {
+		// sanity check the given username role ARN.
+		parsed, err := ParseRoleARN(username)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		// don't check for empty accountID - callers do not always pass an account ID,
+		// and it's only absolutely required if we need to build the role ARN below.
+		if err := CheckARNPartitionAndAccount(parsed, partition, accountID); err != nil {
+			return "", trace.Wrap(err)
+		}
+		return username, nil
+	}
+	resource := username
+	if !strings.HasPrefix(resource, "role/") {
+		resource = fmt.Sprintf("role/%s", username)
+	}
+	roleARN := &arn.ARN{
+		Partition: partition,
+		Service:   iam.ServiceName,
+		AccountID: accountID,
+		Resource:  resource,
+	}
+	if err := checkRoleARN(roleARN); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return roleARN.String(), nil
+}
+
+// ValidateRoleARNAndExtractRoleName validates the role ARN and extracts the
+// short role name from it.
+func ValidateRoleARNAndExtractRoleName(roleARN, wantPartition, wantAccountID string) (string, error) {
+	role, err := ParseRoleARN(roleARN)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	if err := CheckARNPartitionAndAccount(role, wantPartition, wantAccountID); err != nil {
+		return "", trace.Wrap(err)
+	}
+	return strings.TrimPrefix(role.Resource, "role/"), nil
+}
+
+// ParseRoleARN parses an AWS ARN and checks that the ARN is
+// for an IAM Role resource.
+func ParseRoleARN(roleARN string) (*arn.ARN, error) {
+	role, err := arn.Parse(roleARN)
+	if err != nil {
+		return nil, trace.BadParameter("invalid AWS ARN: %v", err)
+	}
+	if err := checkRoleARN(&role); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &role, nil
+}
+
+// checkRoleARN returns whether a parsed ARN is for an IAM Role resource.
+// Example role ARN: arn:aws:iam::123456789012:role/some-role-name
+func checkRoleARN(parsed *arn.ARN) error {
+	parts := strings.Split(parsed.Resource, "/")
+	if parts[0] != "role" || parsed.Service != iam.ServiceName {
+		return trace.BadParameter("%q is not an AWS IAM role ARN", parsed)
+	}
+	if len(parts) < 2 {
+		return trace.BadParameter("%q is missing AWS IAM role name", parsed)
+	}
+	if err := apiawsutils.IsValidAccountID(parsed.AccountID); err != nil {
+		return trace.BadParameter("%q invalid account ID: %v", parsed, err)
+	}
+	return nil
+}
+
+// CheckARNPartitionAndAccount checks an AWS ARN against an expected AWS partition and account ID.
+// An empty expected AWS partition or account ID is not checked.
+func CheckARNPartitionAndAccount(ARN *arn.ARN, wantPartition, wantAccountID string) error {
+	if ARN.Partition != wantPartition && wantPartition != "" {
+		return trace.BadParameter("expected AWS partition %q but got %q", wantPartition, ARN.Partition)
+	}
+	if ARN.AccountID != wantAccountID && wantAccountID != "" {
+		return trace.BadParameter("expected AWS account ID %q but got %q", wantAccountID, ARN.AccountID)
+	}
+	return nil
 }

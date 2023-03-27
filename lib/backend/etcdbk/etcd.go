@@ -20,21 +20,15 @@ package etcdbk
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"errors"
 	"os"
 	"sort"
 	"strings"
 	"time"
-
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/types"
-	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
-	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -49,13 +43,21 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
 )
 
 var (
 	writeRequests = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "etcd_backend_write_requests",
-			Help: "Number of wrtie requests to the database",
+			Help: "Number of write requests to the database",
 		},
 	)
 	readRequests = prometheus.NewCounter(
@@ -134,15 +136,17 @@ var (
 type EtcdBackend struct {
 	nodes []string
 	*log.Entry
-	cfg       *Config
-	client    *clientv3.Client
-	cancelC   chan bool
-	stopC     chan bool
-	clock     clockwork.Clock
-	buf       *backend.CircularBuffer
-	ctx       context.Context
-	cancel    context.CancelFunc
-	watchDone chan struct{}
+	cfg         *Config
+	client      *clientv3.Client
+	cancelC     chan bool
+	stopC       chan bool
+	clock       clockwork.Clock
+	buf         *backend.CircularBuffer
+	leaseBucket time.Duration
+	leaseCache  *utils.FnCache
+	ctx         context.Context
+	cancel      context.CancelFunc
+	watchDone   chan struct{}
 }
 
 // Config represents JSON config for etcd backend
@@ -183,11 +187,45 @@ func GetName() string {
 }
 
 // keep this here to test interface conformance
-var _ backend.Backend = &EtcdBackend{}
+var _ backend.Backend = (*EtcdBackend)(nil)
+
+// Option is an etcd backend functional option (used in tests).
+type Option func(*options)
+
+type options struct {
+	leaseBucket time.Duration
+	clock       clockwork.Clock
+}
+
+// LeaseBucket overrides the default lease bucketing size
+func LeaseBucket(d time.Duration) Option {
+	return func(opts *options) {
+		opts.leaseBucket = d
+	}
+}
+
+// Clock overrides the default clockwork.Clock
+func Clock(clock clockwork.Clock) Option {
+	return func(opts *options) {
+		opts.clock = clock
+	}
+}
 
 // New returns new instance of Etcd-powered backend
-func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
-	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
+func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBackend, error) {
+	var options options
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	if options.leaseBucket == 0 {
+		options.leaseBucket = time.Second * 10
+	}
+	if options.clock == nil {
+		options.clock = clockwork.NewRealClock()
+	}
+
+	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -209,17 +247,31 @@ func New(ctx context.Context, params backend.Params) (*EtcdBackend, error) {
 		backend.BufferCapacity(cfg.BufferSize),
 	)
 	closeCtx, cancel := context.WithCancel(ctx)
+
+	leaseCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL:             utils.SeventhJitter(time.Minute * 2),
+		Context:         closeCtx,
+		Clock:           options.clock,
+		ReloadOnErr:     true,
+		CleanupInterval: utils.SeventhJitter(time.Minute * 2),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	b := &EtcdBackend{
-		Entry:     log.WithFields(log.Fields{trace.Component: GetName()}),
-		cfg:       cfg,
-		nodes:     cfg.Nodes,
-		cancelC:   make(chan bool, 1),
-		stopC:     make(chan bool, 1),
-		clock:     clockwork.NewRealClock(),
-		cancel:    cancel,
-		ctx:       closeCtx,
-		watchDone: make(chan struct{}),
-		buf:       buf,
+		Entry:       log.WithFields(log.Fields{trace.Component: GetName()}),
+		cfg:         cfg,
+		nodes:       cfg.Nodes,
+		cancelC:     make(chan bool, 1),
+		stopC:       make(chan bool, 1),
+		clock:       options.clock,
+		cancel:      cancel,
+		ctx:         closeCtx,
+		watchDone:   make(chan struct{}),
+		buf:         buf,
+		leaseBucket: utils.SeventhJitter(options.leaseBucket),
+		leaseCache:  leaseCache,
 	}
 
 	// Check that the etcd nodes are at least the minimum version supported
@@ -274,7 +326,7 @@ func (cfg *Config) Validate() error {
 		cfg.BufferSize = backend.DefaultBufferCapacity
 	}
 	if cfg.DialTimeout == 0 {
-		cfg.DialTimeout = apidefaults.DefaultDialTimeout
+		cfg.DialTimeout = apidefaults.DefaultIOTimeout
 	}
 	if cfg.PasswordFile != "" {
 		out, err := os.ReadFile(cfg.PasswordFile)
@@ -335,11 +387,13 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		}
 
 		certPool := x509.NewCertPool()
-		parsedCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+		parsedCerts, err := tlsca.ParseCertificatePEMs(caCertPEM)
 		if err != nil {
 			return trace.Wrap(err, "failed to parse CA certificate %q", b.cfg.TLSCAFile)
 		}
-		certPool.AddCert(parsedCert)
+		for _, cert := range parsedCerts {
+			certPool.AddCert(cert)
+		}
 
 		tlsConfig.RootCAs = certPool
 		tlsConfig.ClientCAs = certPool
@@ -355,6 +409,9 @@ func (b *EtcdBackend) reconnect(ctx context.Context) error {
 		MaxCallSendMsgSize: b.cfg.MaxClientMsgSizeBytes,
 	})
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return trace.WrapWithMessage(err, "timed out dialing etcd endpoints: %s", b.nodes)
+		}
 		return trace.Wrap(err)
 	}
 	b.client = clt
@@ -402,8 +459,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	defer cancel()
 
 	// wrap fromEvent in a closure compatible with the concurrent queue
-	workfn := func(v interface{}) interface{} {
-		original := v.(clientv3.Event)
+	workfn := func(original clientv3.Event) eventResult {
 		var event backend.Event
 		e, err := b.fromEvent(ctx, original)
 		if e != nil {
@@ -450,8 +506,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 	EmitEvents:
 		for {
 			select {
-			case p := <-q.Pop():
-				r := p.(eventResult)
+			case r := <-q.Pop():
 				if r.err != nil {
 					b.WithError(r.err).Errorf("Failed to unmarshal event: %v.", r.original)
 					continue EmitEvents
@@ -475,7 +530,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 			for i := range e.Events {
 				eventCount.Inc()
 
-				var event clientv3.Event = *e.Events[i]
+				event := *e.Events[i]
 				// attempt non-blocking push.  We allocate a large input buffer for the queue, so this
 				// aught to succeed reliably.
 				select {
@@ -492,7 +547,7 @@ func (b *EtcdBackend) watchEvents(ctx context.Context) error {
 					lastBacklogWarning = now
 				}
 
-				// fallblack to blocking push
+				// fallback to blocking push
 				select {
 				case q.Push() <- event:
 				case <-ctx.Done():
@@ -518,7 +573,7 @@ func (b *EtcdBackend) GetRange(ctx context.Context, startKey, endKey []byte, lim
 	if len(endKey) == 0 {
 		return nil, trace.BadParameter("missing parameter endKey")
 	}
-	opts := []clientv3.OpOption{clientv3.WithSerializable(), clientv3.WithRange(b.prependPrefix(endKey))}
+	opts := []clientv3.OpOption{clientv3.WithRange(b.prependPrefix(endKey))}
 	if limit > 0 {
 		opts = append(opts, clientv3.WithLimit(int64(limit)))
 	}
@@ -605,7 +660,7 @@ func (b *EtcdBackend) CompareAndSwap(ctx context.Context, expected backend.Item,
 	if len(replaceWith.Key) == 0 {
 		return nil, trace.BadParameter("missing parameter Key")
 	}
-	if !bytes.Equal(expected.Key, replaceWith.Key) {
+	if subtle.ConstantTimeCompare(expected.Key, replaceWith.Key) != 1 {
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var opts []clientv3.OpOption
@@ -667,14 +722,8 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 	if lease.ID == 0 {
 		return trace.BadParameter("lease is not specified")
 	}
-	re, err := b.client.Get(ctx, b.prependPrefix(lease.Key), clientv3.WithSerializable(), clientv3.WithKeysOnly())
-	if err != nil {
-		return convertErr(err)
-	}
-	if len(re.Kvs) == 0 {
-		return trace.NotFound("item %q is not found", string(lease.Key))
-	}
-	// instead of keep-alive on the old lease, setup a new lease
+
+	// instead of keep-alive on the old lease, set up a new lease
 	// because we would like the event to be generated
 	// which does not happen in case of lease keep-alive
 	var opts []clientv3.OpOption
@@ -683,14 +732,18 @@ func (b *EtcdBackend) KeepAlive(ctx context.Context, lease backend.Lease, expire
 		return trace.Wrap(err)
 	}
 	opts = append(opts, clientv3.WithIgnoreValue())
-	kv := re.Kvs[0]
-	_, err = b.client.Put(ctx, string(kv.Key), "", opts...)
-	return convertErr(err)
+	_, err := b.client.Put(ctx, b.prependPrefix(lease.Key), "", opts...)
+	err = convertErr(err)
+	if trace.IsNotFound(err) {
+		return trace.NotFound("item %q is not found", string(lease.Key))
+	}
+
+	return err
 }
 
 // Get returns a single item or not found error
 func (b *EtcdBackend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	re, err := b.client.Get(ctx, b.prependPrefix(key), clientv3.WithSerializable())
+	re, err := b.client.Get(ctx, b.prependPrefix(key))
 	if err != nil {
 		return nil, convertErr(err)
 	}
@@ -740,21 +793,53 @@ func (b *EtcdBackend) DeleteRange(ctx context.Context, startKey, endKey []byte) 
 	return nil
 }
 
+type leaseKey struct {
+	bucket time.Time
+}
+
+var _ map[leaseKey]struct{} // compile-time hashability check
+
 func (b *EtcdBackend) setupLease(ctx context.Context, item backend.Item, lease *backend.Lease, opts *[]clientv3.OpOption) error {
-	ttl := b.ttl(item.Expires)
-	elease, err := b.client.Grant(ctx, seconds(ttl))
+	// in order to reduce excess redundant lease generation, we bucket expiry times
+	// to the nearest multiple of 10s and then grant one lease per bucket. Too many
+	// leases can cause problems for etcd at scale.
+	// TODO(fspmarshall): make bucket size configurable.
+	bucket := roundUp(item.Expires, b.leaseBucket)
+	leaseID, err := utils.FnCacheGet(ctx, b.leaseCache, leaseKey{bucket: bucket}, func(ctx context.Context) (clientv3.LeaseID, error) {
+		ttl := b.ttl(bucket)
+		elease, err := b.client.Grant(ctx, seconds(ttl))
+		if err != nil {
+			return 0, convertErr(err)
+		}
+		return elease.ID, nil
+	})
 	if err != nil {
-		return convertErr(err)
+		return trace.Wrap(err)
 	}
-	*opts = []clientv3.OpOption{clientv3.WithLease(elease.ID)}
-	lease.ID = int64(elease.ID)
+	*opts = []clientv3.OpOption{clientv3.WithLease(leaseID)}
+	lease.ID = int64(leaseID)
 	lease.Key = item.Key
 	return nil
+}
+
+// roundUp rounds up time t to the nearest multiple of duration d.
+func roundUp(t time.Time, d time.Duration) time.Time {
+	r := t.Round(d)
+	if t.After(r) {
+		r = r.Add(d)
+	}
+	return r
 }
 
 func (b *EtcdBackend) ttl(expires time.Time) time.Duration {
 	return backend.TTL(b.clock, expires)
 }
+
+type ttlKey struct {
+	leaseID int64
+}
+
+var _ map[ttlKey]struct{} // compile-time hashability check
 
 func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend.Event, error) {
 	event := &backend.Event{
@@ -767,13 +852,23 @@ func (b *EtcdBackend) fromEvent(ctx context.Context, e clientv3.Event) (*backend
 	if event.Type == types.OpDelete {
 		return event, nil
 	}
-	// get the new expiration date if it was updated
+
+	// Get the new expiration date if it was updated. Multiple resources share the
+	// same lease since the leases are bucketed to the nearest multiple of 10s. To
+	// reduce the number of requests per shared ttl we cache the results per lease id.
 	if e.Kv.Lease != 0 {
-		re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+		ttl, err := utils.FnCacheGet(ctx, b.leaseCache, ttlKey{leaseID: e.Kv.Lease}, func(ctx context.Context) (int64, error) {
+			re, err := b.client.TimeToLive(ctx, clientv3.LeaseID(e.Kv.Lease))
+			if err != nil {
+				return 0, convertErr(err)
+			}
+			return re.TTL, nil
+		})
 		if err != nil {
-			return nil, convertErr(err)
+			return nil, trace.Wrap(err)
 		}
-		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(re.TTL))
+
+		event.Item.Expires = b.clock.Now().UTC().Add(time.Second * time.Duration(ttl))
 	}
 	value, err := unmarshal(e.Kv.Value)
 	if err != nil {
@@ -802,34 +897,40 @@ func unmarshal(value []byte) ([]byte, error) {
 }
 
 func convertErr(err error) error {
-	if err == nil {
+	switch {
+	case err == nil:
 		return nil
-	}
-	if err == context.Canceled {
-		return trace.ConnectionProblem(err, "operation has been cancelled")
-	} else if err == context.DeadlineExceeded {
+	case errors.Is(err, context.Canceled):
+		return trace.ConnectionProblem(err, "operation has been canceled")
+	case errors.Is(err, context.DeadlineExceeded):
 		return trace.ConnectionProblem(err, "operation has timed out")
-	} else if err == rpctypes.ErrEmptyKey {
+	case errors.Is(err, rpctypes.ErrEmptyKey):
 		return trace.BadParameter(err.Error())
-	} else if ev, ok := status.FromError(err); ok {
-		switch ev.Code() {
-		// server-side context might have timed-out first (due to clock skew)
-		// while original client-side context is not timed-out yet
-		case codes.DeadlineExceeded:
-			return trace.ConnectionProblem(err, "operation has timed out")
-		case codes.NotFound:
-			return trace.NotFound(err.Error())
-		case codes.AlreadyExists:
-			return trace.AlreadyExists(err.Error())
-		case codes.FailedPrecondition:
-			return trace.CompareFailed(err.Error())
-		case codes.ResourceExhausted:
-			return trace.LimitExceeded(err.Error())
-		default:
-			return trace.BadParameter(err.Error())
-		}
+	case errors.Is(err, rpctypes.ErrKeyNotFound):
+		return trace.NotFound(err.Error())
 	}
-	return trace.ConnectionProblem(err, err.Error())
+
+	ev, ok := status.FromError(err)
+	if !ok {
+		return trace.ConnectionProblem(err, err.Error())
+	}
+
+	switch ev.Code() {
+	// server-side context might have timed-out first (due to clock skew)
+	// while original client-side context is not timed-out yet
+	case codes.DeadlineExceeded:
+		return trace.ConnectionProblem(err, "operation has timed out")
+	case codes.NotFound:
+		return trace.NotFound(err.Error())
+	case codes.AlreadyExists:
+		return trace.AlreadyExists(err.Error())
+	case codes.FailedPrecondition:
+		return trace.CompareFailed(err.Error())
+	case codes.ResourceExhausted:
+		return trace.LimitExceeded(err.Error())
+	default:
+		return trace.BadParameter(err.Error())
+	}
 }
 
 func fromType(eventType mvccpb.Event_EventType) types.OpType {

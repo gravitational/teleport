@@ -85,16 +85,18 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	return nil
 }
 
-//nolint:staticcheck // staticcheck does not like our nop implementations.
 // VerifyACL verifies whether the ACL of the given file allows writes from the
 // bot user.
+//
+//nolint:staticcheck // staticcheck does not like our nop implementations.
 func VerifyACL(path string, opts *ACLOptions) error {
 	return trace.NotImplemented("ACLs not supported on this platform")
 }
 
-//nolint:staticcheck // staticcheck does not like our nop implementations.
 // ConfigureACL configures ACLs of the given file to allow writes from the bot
 // user.
+//
+//nolint:staticcheck // staticcheck does not like our nop implementations.
 func ConfigureACL(path string, owner *user.User, opts *ACLOptions) error {
 	return trace.NotImplemented("ACLs not supported on this platform")
 }

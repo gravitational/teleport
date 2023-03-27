@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
@@ -33,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -44,7 +45,18 @@ import (
 // CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
 // This differs from normal equality only in that resource IDs are ignored.
 func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs, cmpopts.IgnoreFields(types.Metadata{}, "ID"))
+	return cmp.Equal(lhs, rhs,
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+		// Optimize types.CAKeySet comparison.
+		cmp.Comparer(func(a, b types.CAKeySet) bool {
+			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
+			// plus using proto.Equal is more efficient than cmp.Equal.
+			aClone := a.Clone()
+			bClone := b.Clone()
+			return proto.Equal(&aClone, &bClone)
+		}),
+	)
 }
 
 // ValidateCertAuthority validates the CertAuthority
@@ -57,8 +69,12 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkUserOrHostCA(ca)
 	case types.DatabaseCA:
 		err = checkDatabaseCA(ca)
+	case types.OpenSSHCA:
+		err = checkOpenSSHCA(ca)
 	case types.JWTSigner:
 		err = checkJWTKeys(ca)
+	case types.SAMLIDPCA:
+		err = checkSAMLIDPCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -70,10 +86,10 @@ func checkUserOrHostCA(cai types.CertAuthority) error {
 	if !ok {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
-	if len(ca.Spec.ActiveKeys.SSH) == 0 && len(ca.Spec.CheckingKeys) == 0 {
+	if len(ca.Spec.ActiveKeys.SSH) == 0 {
 		return trace.BadParameter("certificate authority missing SSH key pairs")
 	}
-	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
 		return trace.BadParameter("certificate authority missing TLS key pairs")
 	}
 	if _, err := sshutils.GetCheckers(ca); err != nil {
@@ -98,7 +114,7 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
 
-	if len(ca.Spec.ActiveKeys.TLS) == 0 && len(ca.Spec.TLSKeyPairs) == 0 {
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
 		return trace.BadParameter("DB certificate authority missing TLS key pairs")
 	}
 
@@ -113,14 +129,38 @@ func checkDatabaseCA(cai types.CertAuthority) error {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-		}
-		_, err := tlsca.ParseCertificatePEM(pair.Cert)
-		if err != nil {
-			return trace.Wrap(err)
+		} else {
+			_, err := tlsca.ParseCertificatePEM(pair.Cert)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 
 	return nil
+}
+
+// checkOpenSSHCA checks if provided certificate authority contains a valid SSH key pair.
+func checkOpenSSHCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+	if len(ca.Spec.ActiveKeys.SSH) == 0 {
+		return trace.BadParameter("certificate authority missing SSH key pairs")
+	}
+	if _, err := sshutils.GetCheckers(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := sshutils.ValidateSigners(ca); err != nil {
+		return trace.Wrap(err)
+	}
+	// This is to force users to migrate
+	if len(ca.GetRoles()) != 0 && len(ca.GetRoleMap()) != 0 {
+		return trace.BadParameter("should set either 'roles' or 'role_map', not both")
+	}
+	_, err := parseRoleMap(ca.GetRoleMap())
+	return trace.Wrap(err)
 }
 
 func checkJWTKeys(cai types.CertAuthority) error {
@@ -129,7 +169,7 @@ func checkJWTKeys(cai types.CertAuthority) error {
 		return trace.BadParameter("unknown CA type %T", cai)
 	}
 	// Check that some JWT keys have been set on the CA.
-	if len(ca.Spec.ActiveKeys.JWT) == 0 && len(ca.Spec.JWTKeyPairs) == 0 {
+	if len(ca.Spec.ActiveKeys.JWT) == 0 {
 		return trace.BadParameter("missing JWT CA")
 	}
 
@@ -160,6 +200,37 @@ func checkJWTKeys(cai types.CertAuthority) error {
 		}
 	}
 
+	return nil
+}
+
+// checkSAMLIDPCA checks if provided certificate authority contains a valid TLS key pair.
+// This function is used to verify the SAML IDP CA.
+func checkSAMLIDPCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	if len(ca.Spec.ActiveKeys.TLS) == 0 {
+		return trace.BadParameter("missing SAML IdP CA")
+	}
+
+	for _, pair := range ca.GetTrustedTLSKeyPairs() {
+		if len(pair.Key) != 0 && pair.KeyType == types.PrivateKeyType_RAW {
+			var err error
+			if len(pair.Cert) > 0 {
+				_, err = tls.X509KeyPair(pair.Cert, pair.Key)
+			} else {
+				_, err = utils.ParsePrivateKey(pair.Key)
+			}
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if _, err := tlsca.ParseCertificatePEM(pair.Cert); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -234,20 +305,6 @@ func (c HostCertParams) Check() error {
 	return nil
 }
 
-// ChangePasswordReq defines a request to change user password
-type ChangePasswordReq struct {
-	// User is user ID
-	User string
-	// OldPassword is user current password
-	OldPassword []byte `json:"old_password"`
-	// NewPassword is user new password
-	NewPassword []byte `json:"new_password"`
-	// SecondFactorToken is user 2nd factor token
-	SecondFactorToken string `json:"second_factor_token"`
-	// WebauthnResponse is Webauthn sign response
-	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response"`
-}
-
 // UserCertParams defines OpenSSH user certificate parameters
 type UserCertParams struct {
 	// CASigner is the signer that will sign the public key of the user with the CA private key
@@ -268,6 +325,8 @@ type UserCertParams struct {
 	PermitAgentForwarding bool
 	// PermitPortForwarding permits port forwarding.
 	PermitPortForwarding bool
+	// PermitFileCopying permits the use of SCP/SFTP.
+	PermitFileCopying bool
 	// Roles is a list of roles assigned to this user
 	Roles []string
 	// CertificateFormat is the format of the SSH certificate.
@@ -284,10 +343,15 @@ type UserCertParams struct {
 	// MFAVerified is the UUID of an MFA device when this Identity was
 	// confirmed immediately after an MFA check.
 	MFAVerified string
-	// ClientIP is an IP of the client to embed in the certificate.
-	ClientIP string
-	// SourceIP is an IP that certificate should be pinned to.
-	SourceIP string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires time.Time
+	// LoginIP is an observed IP of the client on the moment of certificate creation.
+	LoginIP string
+	// PinnedIP is an IP from which client must communicate with Teleport.
+	PinnedIP string
 	// DisallowReissue flags that any attempt to request new certificates while
 	// authenticated with this cert should be denied.
 	DisallowReissue bool
@@ -299,6 +363,17 @@ type UserCertParams struct {
 	Generation uint64
 	// AllowedResourceIDs lists the resources the user should be able to access.
 	AllowedResourceIDs string
+	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
+	ConnectionDiagnosticID string
+	// PrivateKeyPolicy is the private key policy supported by this certificate.
+	PrivateKeyPolicy keys.PrivateKeyPolicy
+	// DeviceID is the trusted device identifier.
+	DeviceID string
+	// DeviceAssetTag is the device inventory identifier.
+	DeviceAssetTag string
+	// DeviceCredentialID is the identifier for the credential used by the device
+	// to authenticate itself.
+	DeviceCredentialID string
 }
 
 // CheckAndSetDefaults checks the user certificate parameters
@@ -436,96 +511,8 @@ func MarshalCertAuthority(certAuthority types.CertAuthority, opts ...MarshalOpti
 			copy.SetResourceID(0)
 			certAuthority = &copy
 		}
-		if err := SyncCertAuthorityKeys(certAuthority); err != nil {
-			return nil, trace.Wrap(err, "failed to sync CertAuthority key formats for %v: %v", certAuthority, err)
-		}
 		return utils.FastMarshal(certAuthority)
 	default:
 		return nil, trace.BadParameter("unrecognized certificate authority version %T", certAuthority)
 	}
-}
-
-// CertAuthorityNeedsMigration returns true if the given CertAuthority needs to be migrated
-func CertAuthorityNeedsMigration(cai types.CertAuthority) (bool, error) {
-	ca, ok := cai.(*types.CertAuthorityV2)
-	if !ok {
-		return false, trace.BadParameter("unknown type %T", cai)
-	}
-	haveOldCAKeys := len(ca.Spec.CheckingKeys) > 0 || len(ca.Spec.TLSKeyPairs) > 0 || len(ca.Spec.JWTKeyPairs) > 0
-	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
-	return haveOldCAKeys && !haveNewCAKeys, nil
-}
-
-// SyncCertAuthorityKeys backfills the old or new key formats, if one of them
-// is empty. If both formats are present, SyncCertAuthorityKeys does nothing.
-func SyncCertAuthorityKeys(cai types.CertAuthority) error {
-	ca, ok := cai.(*types.CertAuthorityV2)
-	if !ok {
-		return trace.BadParameter("unknown type %T", cai)
-	}
-	haveOldCAKeys := len(ca.Spec.CheckingKeys) > 0 || len(ca.Spec.TLSKeyPairs) > 0 || len(ca.Spec.JWTKeyPairs) > 0
-	haveNewCAKeys := len(ca.Spec.ActiveKeys.SSH) > 0 || len(ca.Spec.ActiveKeys.TLS) > 0 || len(ca.Spec.ActiveKeys.JWT) > 0
-	switch {
-	case haveOldCAKeys && !haveNewCAKeys:
-		return trace.Wrap(fillNewCertAuthorityKeys(ca))
-	case !haveOldCAKeys && haveNewCAKeys:
-		return trace.Wrap(fillOldCertAuthorityKeys(ca))
-	}
-	return nil
-}
-
-func fillNewCertAuthorityKeys(ca *types.CertAuthorityV2) error {
-	// Reset any old state.
-	ca.Spec.ActiveKeys = types.CAKeySet{}
-	ca.Spec.AdditionalTrustedKeys = types.CAKeySet{}
-
-	// Convert all the keypair fields to new format.
-
-	// SigningKeys key may be missing in the CA from a remote cluster.
-	if len(ca.Spec.SigningKeys) > 0 && len(ca.Spec.SigningKeys) != len(ca.Spec.CheckingKeys) {
-		return trace.BadParameter("mis-matched SSH private (%d) and public (%d) key counts", len(ca.Spec.SigningKeys), len(ca.Spec.CheckingKeys))
-	}
-	for i := range ca.Spec.CheckingKeys {
-		kp := &types.SSHKeyPair{
-			PrivateKeyType: types.PrivateKeyType_RAW,
-			PublicKey:      apiutils.CopyByteSlice(ca.Spec.CheckingKeys[i]),
-		}
-		if len(ca.Spec.SigningKeys) > 0 {
-			kp.PrivateKey = apiutils.CopyByteSlice(ca.Spec.SigningKeys[i])
-		}
-		ca.Spec.ActiveKeys.SSH = append(ca.Spec.ActiveKeys.SSH, kp)
-	}
-	for _, kp := range ca.Spec.TLSKeyPairs {
-		ca.Spec.ActiveKeys.TLS = append(ca.Spec.ActiveKeys.TLS, kp.Clone())
-	}
-	for _, kp := range ca.Spec.JWTKeyPairs {
-		ca.Spec.ActiveKeys.JWT = append(ca.Spec.ActiveKeys.JWT, kp.Clone())
-	}
-	return nil
-}
-
-func fillOldCertAuthorityKeys(ca *types.CertAuthorityV2) error {
-	// Reset any old state.
-	ca.Spec.SigningKeys = nil
-	ca.Spec.CheckingKeys = nil
-	ca.Spec.TLSKeyPairs = nil
-	ca.Spec.JWTKeyPairs = nil
-
-	// Convert all the keypair fields to new format.
-	for _, ks := range []types.CAKeySet{ca.Spec.ActiveKeys, ca.Spec.AdditionalTrustedKeys} {
-		for _, kp := range ks.SSH {
-			ca.Spec.CheckingKeys = append(ca.Spec.CheckingKeys, apiutils.CopyByteSlice(kp.PublicKey))
-			// PrivateKey may be empty.
-			if len(kp.PrivateKey) > 0 {
-				ca.Spec.SigningKeys = append(ca.Spec.SigningKeys, apiutils.CopyByteSlice(kp.PrivateKey))
-			}
-		}
-		for _, kp := range ks.TLS {
-			ca.Spec.TLSKeyPairs = append(ca.Spec.TLSKeyPairs, *kp.Clone())
-		}
-		for _, kp := range ks.JWT {
-			ca.Spec.JWTKeyPairs = append(ca.Spec.JWTKeyPairs, *kp.Clone())
-		}
-	}
-	return nil
 }

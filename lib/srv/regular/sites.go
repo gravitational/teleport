@@ -20,12 +20,11 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv"
-
-	"github.com/gravitational/trace"
 )
 
 // proxySubsys is an SSH subsystem for easy proxyneling through proxy server

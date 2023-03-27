@@ -15,11 +15,12 @@
 package apiserver
 
 import (
-	"github.com/gravitational/teleport/lib/teleterm/daemon"
-
 	"github.com/gravitational/trace"
-
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config is the APIServer configuration
@@ -29,7 +30,11 @@ type Config struct {
 	// Daemon is the terminal daemon service
 	Daemon *daemon.Service
 	// Log is a component logger
-	Log logrus.FieldLogger
+	Log             logrus.FieldLogger
+	TshdServerCreds grpc.ServerOption
+	// ListeningC propagates the address on which the gRPC server listens. Mostly useful in tests, as
+	// the Electron app gets the server port from stdout.
+	ListeningC chan<- utils.NetAddr
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -38,8 +43,16 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing HostAddr")
 	}
 
+	if c.HostAddr == "" {
+		return trace.BadParameter("missing certs dir")
+	}
+
 	if c.Daemon == nil {
 		return trace.BadParameter("missing daemon service")
+	}
+
+	if c.TshdServerCreds == nil {
+		return trace.BadParameter("missing TshdServerCreds")
 	}
 
 	if c.Log == nil {

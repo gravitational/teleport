@@ -22,10 +22,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/client/db/profile"
-
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
+
+	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
 // ServiceFile represents Postgres connection service file.
@@ -67,18 +67,18 @@ func LoadFromPath(path string) (*ServiceFile, error) {
 // The profile goes into a separate section with the name equal to the
 // name of the database that user is logged into and looks like this:
 //
-//   [postgres]
-//   host=proxy.example.com
-//   port=3080
-//   sslmode=verify-full
-//   sslrootcert=/home/user/.tsh/keys/proxy.example.com/certs.pem
-//   sslcert=/home/user/.tsh/keys/proxy.example.com/alice-db/root/aurora-x509.pem
-//   sslkey=/home/user/.tsh/keys/proxy.example.com/user
+//	[postgres]
+//	host=proxy.example.com
+//	port=3080
+//	sslmode=verify-full
+//	sslrootcert=/home/user/.tsh/keys/proxy.example.com/certs.pem
+//	sslcert=/home/user/.tsh/keys/proxy.example.com/alice-db/root/aurora-x509.pem
+//	sslkey=/home/user/.tsh/keys/proxy.example.com/user
 //
 // With the profile like this, a user can refer to it using "service" psql
 // parameter:
 //
-//   $ psql "service=postgres <other parameters>"
+//	$ psql "service=postgres <other parameters>"
 func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 	section := s.iniFile.Section(profile.Name)
 	if section != nil {
@@ -104,7 +104,8 @@ func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 	section.NewKey("sslrootcert", profile.CACertPath)
 	section.NewKey("sslcert", profile.CertPath)
 	section.NewKey("sslkey", profile.KeyPath)
-	ini.PrettyFormat = false // Pretty format breaks psql.
+	section.NewKey("gssencmode", "disable") // we dont support GSS encryption.
+	ini.PrettyFormat = false                // Pretty format breaks psql.
 	return s.iniFile.SaveTo(s.path)
 }
 
@@ -163,6 +164,13 @@ func (s *ServiceFile) Env(serviceName string) (map[string]string, error) {
 			return nil, trace.Wrap(err)
 		}
 		env["PGDATABASE"] = database.Value()
+	}
+	if section.HasKey("gssencmode") {
+		gssEncMode, err := section.GetKey("gssencmode")
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		env["PGGSSENCMODE"] = gssEncMode.Value()
 	}
 	return env, nil
 }

@@ -21,14 +21,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -52,9 +52,19 @@ func CompareServers(a, b types.Resource) int {
 			return compareApplicationServers(appA, appB)
 		}
 	}
+	if kubeA, ok := a.(types.KubeServer); ok {
+		if kubeB, ok := b.(types.KubeServer); ok {
+			return compareKubernetesServers(kubeA, kubeB)
+		}
+	}
 	if dbA, ok := a.(types.DatabaseServer); ok {
 		if dbB, ok := b.(types.DatabaseServer); ok {
 			return compareDatabaseServers(dbA, dbB)
+		}
+	}
+	if dbServiceA, ok := a.(types.DatabaseService); ok {
+		if dbServiceB, ok := b.(types.DatabaseService); ok {
+			return compareDatabaseServices(dbServiceA, dbServiceB)
 		}
 	}
 	if winA, ok := a.(types.WindowsDesktopService); ok {
@@ -103,9 +113,7 @@ func compareServers(a, b types.Server) int {
 	if !cmp.Equal(a.GetApps(), b.GetApps()) {
 		return Different
 	}
-	if !cmp.Equal(a.GetKubernetesClusters(), b.GetKubernetesClusters()) {
-		return Different
-	}
+
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
 		return Different
 	}
@@ -134,6 +142,55 @@ func compareApplicationServers(a, b types.AppServer) int {
 		return Different
 	}
 	if !cmp.Equal(a.GetApp(), b.GetApp()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
+		return Different
+	}
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareDatabaseServices(a, b types.DatabaseService) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if !cmp.Equal(a.GetResourceMatchers(), b.GetResourceMatchers()) {
+		return Different
+	}
+	if !a.Expiry().Equal(b.Expiry()) {
+		return OnlyTimestampsDifferent
+	}
+	return Equal
+}
+
+func compareKubernetesServers(a, b types.KubeServer) int {
+	if a.GetKind() != b.GetKind() {
+		return Different
+	}
+	if a.GetName() != b.GetName() {
+		return Different
+	}
+	if a.GetNamespace() != b.GetNamespace() {
+		return Different
+	}
+	if a.GetTeleportVersion() != b.GetTeleportVersion() {
+		return Different
+	}
+	r := a.GetRotation()
+	if !r.Matches(b.GetRotation()) {
+		return Different
+	}
+	if !cmp.Equal(a.GetCluster(), b.GetCluster()) {
 		return Different
 	}
 	if !cmp.Equal(a.GetProxyIDs(), b.GetProxyIDs()) {
@@ -285,38 +342,28 @@ func UnmarshalServer(bytes []byte, kind string, opts ...MarshalOption) (types.Se
 		return nil, trace.BadParameter("missing server data")
 	}
 
-	var h types.ResourceHeader
-	if err = utils.FastUnmarshal(bytes, &h); err != nil {
+	var s types.ServerV2
+	if err := utils.FastUnmarshal(bytes, &s); err != nil {
+		return nil, trace.BadParameter(err.Error())
+	}
+	s.Kind = kind
+	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	switch h.Version {
-	case types.V2:
-		var s types.ServerV2
-
-		if err := utils.FastUnmarshal(bytes, &s); err != nil {
-			return nil, trace.BadParameter(err.Error())
-		}
-		s.Kind = kind
-		if err := s.CheckAndSetDefaults(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if cfg.ID != 0 {
-			s.SetResourceID(cfg.ID)
-		}
-		if !cfg.Expires.IsZero() {
-			s.SetExpiry(cfg.Expires)
-		}
-		if s.Metadata.Expires != nil {
-			apiutils.UTC(s.Metadata.Expires)
-		}
-		// Force the timestamps to UTC for consistency.
-		// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
-		apiutils.UTC(&s.Spec.Rotation.Started)
-		apiutils.UTC(&s.Spec.Rotation.LastRotated)
-		return &s, nil
+	if cfg.ID != 0 {
+		s.SetResourceID(cfg.ID)
 	}
-	return nil, trace.BadParameter("server resource version %q is not supported", h.Version)
+	if !cfg.Expires.IsZero() {
+		s.SetExpiry(cfg.Expires)
+	}
+	if s.Metadata.Expires != nil {
+		apiutils.UTC(s.Metadata.Expires)
+	}
+	// Force the timestamps to UTC for consistency.
+	// See https://github.com/gogo/protobuf/issues/519 for details on issues this causes for proto.Clone
+	apiutils.UTC(&s.Spec.Rotation.Started)
+	apiutils.UTC(&s.Spec.Rotation.LastRotated)
+	return &s, nil
 }
 
 // MarshalServer marshals the Server resource to JSON.

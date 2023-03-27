@@ -24,16 +24,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/services"
-
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // ActivityTracker is a connection activity tracker,
@@ -54,6 +56,120 @@ type TrackingConn interface {
 	RemoteAddr() net.Addr
 	// Close closes the connection
 	Close() error
+}
+
+// ConnectionMonitorConfig contains dependencies required by
+// the ConnectionMonitor.
+type ConnectionMonitorConfig struct {
+	// AccessPoint is used to retrieve cluster configuration.
+	AccessPoint AccessPoint
+	// LockWatcher ensures lock information is up to date.
+	LockWatcher *services.LockWatcher
+	// Clock is a clock, realtime or fixed in tests.
+	Clock clockwork.Clock
+	// ServerID is the host UUID of the server receiving connections.
+	ServerID string
+	// Emitter allows events to be emitted.
+	Emitter apievents.Emitter
+	// Logger is a logging entry.
+	Logger log.FieldLogger
+	// MonitorCloseChannel will be signaled when the monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
+}
+
+// CheckAndSetDefaults checks values and sets defaults
+func (c *ConnectionMonitorConfig) CheckAndSetDefaults() error {
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing parameter AccessPoint")
+	}
+	if c.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
+	}
+	if c.Logger == nil {
+		return trace.BadParameter("missing parameter Logger")
+	}
+	if c.Emitter == nil {
+		return trace.BadParameter("missing parameter Emitter")
+	}
+	if c.ServerID == "" {
+		return trace.BadParameter("missing parameter ServerID")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// ConnectionMonitor monitors the activity of connections and disconnects
+// them if the certificate expires, if a new lock is placed
+// that applies to the connection, or after periods of inactivity
+type ConnectionMonitor struct {
+	cfg ConnectionMonitorConfig
+}
+
+// NewConnectionMonitor returns a ConnectionMonitor that can be used to monitor
+// connection activity and terminate connections based on various cluster conditions.
+func NewConnectionMonitor(cfg ConnectionMonitorConfig) (*ConnectionMonitor, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ConnectionMonitor{cfg: cfg}, nil
+}
+
+// MonitorConn ensures that the provided [net.Conn] is allowed per cluster configuration
+// and security controls. If at any point during the lifetime of the connection the
+// cluster controls dictate that the connection is not permitted it will be closed and the
+// returned [context.Context] will be canceled.
+func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
+	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+	netConfig, err := c.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+
+	identity := authzCtx.Identity.GetIdentity()
+	checker := authzCtx.Checker
+
+	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+
+	monitorCtx, cancel := context.WithCancel(ctx)
+	tconn, err := NewTrackingReadConn(TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   c.cfg.Clock,
+		Context: monitorCtx,
+		Cancel:  cancel,
+	})
+	if err != nil {
+		return ctx, trace.Wrap(err)
+	}
+
+	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
+	if err := StartMonitor(MonitorConfig{
+		LockWatcher:           c.cfg.LockWatcher,
+		LockTargets:           authzCtx.LockTargets(),
+		LockingMode:           authzCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		DisconnectExpiredCert: GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity),
+		ClientIdleTimeout:     idleTimeout,
+		Conn:                  tconn,
+		Tracker:               tconn,
+		Context:               ctx,
+		Clock:                 c.cfg.Clock,
+		ServerID:              c.cfg.ServerID,
+		TeleportUser:          identity.Username,
+		Emitter:               c.cfg.Emitter,
+		Entry:                 c.cfg.Logger,
+		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
+		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
+	}); err != nil {
+		return ctx, trace.Wrap(err)
+	}
+
+	return monitorCtx, nil
 }
 
 // MonitorConfig is a wiretap configuration
@@ -93,6 +209,9 @@ type MonitorConfig struct {
 	// MessageWriter wraps a channel to send text messages to the client. Use
 	// for disconnection messages, etc.
 	MessageWriter io.StringWriter
+	// MonitorCloseChannel will be signaled when the monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
 }
 
 // CheckAndSetDefaults checks values and sets defaults
@@ -141,7 +260,16 @@ func StartMonitor(cfg MonitorConfig) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go w.start(lockWatch)
+	go func() {
+		w.start(lockWatch)
+		if w.MonitorCloseChannel != nil {
+			// Non blocking send to the close channel.
+			select {
+			case w.MonitorCloseChannel <- struct{}{}:
+			default:
+			}
+		}
+	}()
 	return nil
 }
 
@@ -387,7 +515,11 @@ type TrackingReadConn struct {
 func (t *TrackingReadConn) Read(b []byte) (int, error) {
 	n, err := t.Conn.Read(b)
 	t.UpdateClientActivity()
-	return n, trace.Wrap(err)
+
+	// This has to use the original error type or else utilities using the connection
+	// (like io.Copy, which is used by the oxy forwarder) may incorrectly categorize
+	// the error produced by this and terminate the connection unnecessarily.
+	return n, err
 }
 
 func (t *TrackingReadConn) Close() error {
@@ -407,4 +539,61 @@ func (t *TrackingReadConn) UpdateClientActivity() {
 	t.mtx.Lock()
 	defer t.mtx.Unlock()
 	t.lastActive = t.cfg.Clock.Now().UTC()
+}
+
+// GetDisconnectExpiredCertFromIdentity calculates the proper value for DisconnectExpiredCert
+// based on whether a connection is set to disconnect on cert expiry, and whether
+// the cert is a short lived (<1m) one issued for an MFA verified session. If the session
+// doesn't need to be disconnected on cert expiry it will return the default value for time.Time.
+func GetDisconnectExpiredCertFromIdentity(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity *tlsca.Identity,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		return time.Time{}
+	}
+
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.Expires
+}
+
+// See GetDisconnectExpiredCertFromIdentity
+func getDisconnectExpiredCertFromIdentityContext(
+	checker services.AccessChecker,
+	authPref types.AuthPreference,
+	identity *IdentityContext,
+) time.Time {
+	// In the case where both disconnect_expired_cert and require_session_mfa are enabled,
+	// the PreviousIdentityExpires value of the certificate will be used, which is the
+	// expiry of the certificate used to issue the short lived MFA verified certificate.
+	//
+	// See https://github.com/gravitational/teleport/issues/18544
+
+	// If the session doesn't need to be disconnected on cert expiry just return the default value.
+	if !checker.AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		return time.Time{}
+	}
+
+	if !identity.PreviousIdentityExpires.IsZero() {
+		// If this is a short-lived mfa verified cert, return the certificate extension
+		// that holds its' issuing cert's expiry value.
+		return identity.PreviousIdentityExpires
+	}
+
+	// Otherwise just return the current cert's expiration
+	return identity.CertValidBefore
 }

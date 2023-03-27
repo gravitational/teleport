@@ -19,9 +19,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestReporterTopRequestsLimit(t *testing.T) {
@@ -81,5 +82,23 @@ func TestBuildKeyLabel(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		require.Equal(t, tc.masked, buildKeyLabel(tc.input, sensitivePrefixes))
+	}
+}
+
+func TestBuildLabelKey_SensitiveBackendPrefixes(t *testing.T) {
+	testCases := []struct {
+		input  string
+		masked string
+	}{
+		{"/tokens/1234-5678", "/tokens/******678"},
+		{"/usertoken/1234-5678", "/usertoken/******678"},
+		{"/access_requests/1234-5678", "/access_requests/******678"},
+
+		{"/webauthn/sessionData/login/1234-5678", "/webauthn/sessionData"},
+		{"/webauthn/sessionData/1234-5678", "/webauthn/sessionData"},
+		{"/sessionData/1234-5678", "/sessionData/******678"},
+	}
+	for _, tc := range testCases {
+		require.Equal(t, tc.masked, buildKeyLabel(tc.input, sensitiveBackendPrefixes))
 	}
 }

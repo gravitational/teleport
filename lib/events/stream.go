@@ -25,18 +25,19 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
-
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
-	"go.uber.org/atomic"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -45,6 +46,10 @@ const (
 
 	// Int64Size is a constant for 64 bit integer byte size
 	Int64Size = 8
+
+	// ConcurrentUploadsPerStream limits the amount of concurrent uploads
+	// per stream
+	ConcurrentUploadsPerStream = 1
 
 	// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size
 	MaxProtoMessageSizeBytes = 64 * 1024
@@ -98,7 +103,7 @@ func (cfg *ProtoStreamerConfig) CheckAndSetDefaults() error {
 		cfg.MinUploadBytes = MinUploadPartSizeBytes
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	return nil
 }
@@ -209,10 +214,10 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter MinUploadBytes")
 	}
 	if cfg.InactivityFlushPeriod == 0 {
-		cfg.InactivityFlushPeriod = defaults.InactivityFlushPeriod
+		cfg.InactivityFlushPeriod = InactivityFlushPeriod
 	}
 	if cfg.ConcurrentUploads == 0 {
-		cfg.ConcurrentUploads = defaults.ConcurrentUploadsPerStream
+		cfg.ConcurrentUploads = ConcurrentUploadsPerStream
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
@@ -224,7 +229,6 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 //
 // The individual session stream is represented by continuous globally
 // ordered sequence of events serialized to binary protobuf format.
-//
 //
 // The stream is split into ordered slices of gzipped audit events.
 //
@@ -247,7 +251,6 @@ func (cfg *ProtoStreamConfig) CheckAndSetDefaults() error {
 //
 // This design allows the streamer to upload slices using S3-compatible APIs
 // in parallel without buffering to disk.
-//
 func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -264,7 +267,6 @@ func NewProtoStream(cfg ProtoStreamConfig) (*ProtoStream, error) {
 
 		completeCtx:      completeCtx,
 		complete:         complete,
-		completeType:     atomic.NewUint32(completeTypeComplete),
 		completeMtx:      &sync.RWMutex{},
 		uploadLoopDoneCh: make(chan struct{}),
 
@@ -338,7 +340,7 @@ type ProtoStream struct {
 	// completeCtx is used to signal completion of the operation
 	completeCtx    context.Context
 	complete       context.CancelFunc
-	completeType   *atomic.Uint32
+	completeType   atomic.Uint32
 	completeResult error
 	completeMtx    *sync.RWMutex
 
@@ -384,14 +386,19 @@ func (s *ProtoStream) Done() <-chan struct{} {
 
 // EmitAuditEvent emits a single audit event to the stream
 func (s *ProtoStream) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	messageSize := event.Size()
+	if messageSize > MaxProtoMessageSizeBytes {
+		switch v := event.(type) {
+		case messageSizeTrimmer:
+			event = v.TrimToMaxSize(MaxProtoMessageSizeBytes)
+		default:
+			return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
+		}
+	}
+
 	oneof, err := apievents.ToOneOf(event)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-
-	messageSize := oneof.Size()
-	if messageSize > MaxProtoMessageSizeBytes {
-		return trace.BadParameter("record size %v exceeds max message size of %v bytes", messageSize, MaxProtoMessageSizeBytes)
 	}
 
 	start := time.Now()
@@ -424,7 +431,7 @@ func (s *ProtoStream) Complete(ctx context.Context) error {
 		s.cancel()
 		return s.getCompleteResult()
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
 }
 
@@ -443,7 +450,7 @@ func (s *ProtoStream) Close(ctx context.Context) error {
 	case <-s.uploadLoopDoneCh:
 		return ctx.Err()
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "context has cancelled before complete could succeed")
+		return trace.ConnectionProblem(ctx.Err(), "context has canceled before complete could succeed")
 	}
 }
 
@@ -657,7 +664,10 @@ func (w *sliceWriter) completeStream() {
 		case upload := <-w.completedUploadsC:
 			part, err := upload.getPart()
 			if err != nil {
-				log.WithError(err).Warningf("Failed to upload part.")
+				log.WithError(err).
+					WithField("upload", w.proto.cfg.Upload.ID).
+					WithField("session", w.proto.cfg.Upload.SessionID).
+					Warning("Failed to upload part")
 				continue
 			}
 			w.updateCompletedParts(*part, upload.lastEventIndex)
@@ -673,7 +683,10 @@ func (w *sliceWriter) completeStream() {
 		err := w.proto.cfg.Uploader.CompleteUpload(w.proto.cancelCtx, w.proto.cfg.Upload, w.completedParts)
 		w.proto.setCompleteResult(err)
 		if err != nil {
-			log.WithError(err).Warningf("Failed to complete upload.")
+			log.WithError(err).
+				WithField("upload", w.proto.cfg.Upload.ID).
+				WithField("session", w.proto.cfg.Upload.SessionID).
+				Warning("Failed to complete upload")
 		}
 	}
 }
@@ -712,7 +725,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			<-w.semUploads
 		}()
 
-		var retry utils.Retry
+		var retry retryutils.Retry
 		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			reader, err := slice.reader()
 			if err != nil {
@@ -732,9 +745,9 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			// retry is created on the first upload error
 			if retry == nil {
 				var rerr error
-				retry, rerr = utils.NewLinear(utils.LinearConfig{
-					Step: defaults.NetworkRetryDuration,
-					Max:  defaults.NetworkBackoffDuration,
+				retry, rerr = retryutils.NewLinear(retryutils.LinearConfig{
+					Step: NetworkRetryDuration,
+					Max:  NetworkBackoffDuration,
 				})
 				if rerr != nil {
 					activeUpload.setError(rerr)
@@ -987,7 +1000,7 @@ func (r *ProtoReader) Read(ctx context.Context) (apievents.AuditEvent, error) {
 				if ctx.Err() != nil {
 					return nil, trace.Wrap(ctx.Err())
 				}
-				return nil, trace.LimitExceeded("context has been cancelled")
+				return nil, trace.LimitExceeded("context has been canceled")
 			default:
 			}
 		}
