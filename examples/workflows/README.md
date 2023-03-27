@@ -1,6 +1,6 @@
 ## Example workflows plugin
 
-This example plugin demonstrates how to create a workflows plugin to automatically approve/deny new access requests based on a simple Allow List.
+This example plugin demonstrates how to create a workflows plugin to automatically approve/deny new access requests based on permissions given to Teleport user and role for this plugin. Any request for a role listed under the `review_request` will be automatically approved.
 
 ## Demo
 
