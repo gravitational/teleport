@@ -16,7 +16,7 @@ limitations under the License.
 
 // Example Allow List based access plugin.
 //
-// This plugin atomatically approves access requests based on the approver's role.
+// This plugin automatically approves access requests based on the approver's role.
 // Once the role has a defined review_requests, those roles will be auto-approved.
 
 package main
