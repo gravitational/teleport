@@ -32,7 +32,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.15
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.18
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.1
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.90.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.91.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.7
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.1.0
