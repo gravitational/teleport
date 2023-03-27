@@ -171,7 +171,7 @@ func (r *AccessRequestV3) GetCreationTime() time.Time {
 
 // SetCreationTime sets CreationTime
 func (r *AccessRequestV3) SetCreationTime(t time.Time) {
-	r.Spec.Created = t
+	r.Spec.Created = t.UTC()
 }
 
 // GetAccessExpiry gets AccessExpiry
@@ -181,7 +181,7 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 
 // SetAccessExpiry sets AccessExpiry
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
-	r.Spec.Expires = expiry
+	r.Spec.Expires = expiry.UTC()
 }
 
 // GetRequestReason gets RequestReason
@@ -366,7 +366,7 @@ func (r *AccessRequestV3) Expiry() time.Time {
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry)
+	r.Metadata.SetExpiry(expiry.UTC())
 }
 
 // GetMetadata gets Metadata
