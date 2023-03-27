@@ -6851,7 +6851,7 @@ steps:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
   - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="${{ENT_FILTER}}*.deb*"
+  - FILTER="$${ENT_FILTER}*.deb*"
   - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -7057,7 +7057,7 @@ steps:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
   - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="${{ENT_FILTER}}*.rpm*"
+  - FILTER="$${ENT_FILTER}*.rpm*"
   - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -19039,6 +19039,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c91c3ca90f5be806baf14720a538b3ae500f47ce2acc2b022d34bbf96c3fa6da
+hmac: 4107c52101a8fbd297c24a1408d6bb96999140c0a3d67cc7fba23abaa447ea38
 
 ...
