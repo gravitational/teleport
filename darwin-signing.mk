@@ -74,3 +74,33 @@ missing_key_error = $(error Could not find key named "$(1)" in keychain)
 
 # Dont export missing_key_error or get_key_id as it evaluates them
 unexport missing_key_error get_key_id
+
+# SHOULD_NOTARIZE evalutes to "true" if we should sign and notarize binaries,
+# and the empty string if not. We only notarize if APPLE_USERNAME and
+# APPLE_PASSWORD are set in the environment.
+SHOULD_NOTARIZE = $(if $(and $(APPLE_USERNAME),$(APPLE_PASSWORD)),true)
+
+# NOTARIZE_BINARIES runs the notarize-apple-binaries tool. It is expected that
+# the current working directory is the root of the OSS Teleport repo, so to call
+# from the enterprise repo, invoke it as:
+#     cd .. && $(NOTARIZE_BINARIES)
+# It will not run the command if $APPLE_USERNAME or $APPLE_PASSWORD are empty.
+# It uses the make $(if ...) construct instead of doing it in the shell so as
+# to not evaluate its arguments (DEVELOPER_ID_APPLICATION) if we are not
+# goint to use them, preventing a missing key error defined above.
+NOTARIZE_BINARIES = $(if $(SHOULD_NOTARIZE),$(notarize_binaries_cmd),$(not_notarizing_cmd))
+
+define notarize_binaries_cmd
+	cd build.assets/tooling && \
+	go run ./cmd/notarize-apple-binaries \
+		--developer-id=$(DEVELOPER_ID_APPLICATION) \
+		--bundle-id=$(TELEPORT_BUNDLEID) \
+		--log-level=debug \
+		$(ABSOLUTE_BINARY_PATHS)
+endef
+
+not_notarizing_cmd = @echo Not notarizing binaries. APPLE_USERNAME or APPLE_PASSWORD not set.
+
+# Dont export not_notarizing_cmd since it contains DEVELOPER_ID_APPLICATION
+# and we do not want that evaluated.
+unexport notarize_binaries_cmd
