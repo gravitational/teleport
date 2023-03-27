@@ -25,13 +25,6 @@ configured in group policy.
 [Read more about exporting the Teleport CA](../../desktop-access/active-directory-manual.mdx#export-the-teleport-ca)
 </Admonition>
 
-<Admonition type="warning" title="Certificate Authority Types">
-Prior to Teleport 12, `--type` would default to rotating all certificate authorities.
-It is best to rotate CAs one at a time for increased stability. Future versions of
-Teleport will require this, but you can opt in to the previous behavior by adding
-an explicit `--type=all` flag.
-</Admonition>
-
 ### Rotation phases
 
 The rotation consists of several phases:
@@ -85,10 +78,7 @@ the phase transitions look like this:
 </Admonition>
 
 To specify which certificate authority to rotate, you must provide a value via
-the `--type` flag. If no value is provided, `tctl` will display an error and exit. To replicate the functionality of versions prior to 12, where
-all certificate authorities were rotated by default, you can pass in
-`--type=all`. Keep in mind that this functionality is deprecated and will be removed
-in a future version.
+the `--type` flag. If no value is provided, `tctl` will display an error and exit.
 
 ## Manual rotation
 
