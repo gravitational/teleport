@@ -104,7 +104,7 @@ define notarize_binaries_cmd
 		$(ABSOLUTE_BINARY_PATHS)
 endef
 
-not_notarizing_cmd = @echo Not notarizing binaries. APPLE_USERNAME or APPLE_PASSWORD not set.
+not_notarizing_cmd = echo Not notarizing binaries. APPLE_USERNAME or APPLE_PASSWORD not set.
 
 # Dont export not_notarizing_cmd since it contains DEVELOPER_ID_APPLICATION
 # and we do not want that evaluated.
