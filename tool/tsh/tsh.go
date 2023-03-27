@@ -1700,11 +1700,6 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
-	pingResp, err := tc.Ping(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Regular login without -i flag.
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
@@ -1769,11 +1764,6 @@ func onLogin(cf *CLIConf) error {
 	// Print status to show information of the logged in user.
 	if err := onStatus(cf); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Display any license compliance warnings
-	for _, warning := range pingResp.LicenseWarnings {
-		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
