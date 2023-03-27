@@ -454,6 +454,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.Onboarding.SetToken(cf.Token)
 	}
 
+	if cf.FIPS {
+		config.FIPS = cf.FIPS
+	}
+
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "validating merged bot config")
 	}
