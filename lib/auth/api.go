@@ -721,6 +721,91 @@ type DiscoveryAccessPoint interface {
 	DeleteDatabase(ctx context.Context, name string) error
 }
 
+// ReadOktaAccessPoint is a read only API interface to be
+// used by an Okta component.
+//
+// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta]
+// except for access requests, which are expected to only be used by events.
+type ReadOktaAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// ListUserGroups returns a paginated list of all user group resources.
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// ListOktaImportRules returns a paginated list of all Okta import rule resources.
+	ListOktaImportRules(context.Context, int, string) ([]types.OktaImportRule, string, error)
+
+	// GetOktaImportRule returns the specified Okta import rule resources.
+	GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error)
+
+	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
+
+	// GetOktaAssignmen treturns the specified Okta assignment resources.
+	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+
+	// GetApps returns all application resources.
+	GetApps(context.Context) ([]types.Application, error)
+
+	// GetApp returns the specified application resource.
+	GetApp(ctx context.Context, name string) (types.Application, error)
+}
+
+// OktaAccessPoint is a read caching interface used by an Okta component.
+type OktaAccessPoint interface {
+	// ReadOktaAccessPoint provides methods to read data
+	ReadOktaAccessPoint
+
+	// accessPoint provides common access point functionality
+	accessPoint
+
+	// CreateUserGroup creates a new user group resource.
+	CreateUserGroup(context.Context, types.UserGroup) error
+
+	// UpdateUserGroup updates an existing user group resource.
+	UpdateUserGroup(context.Context, types.UserGroup) error
+
+	// DeleteUserGroup removes the specified user group resource.
+	DeleteUserGroup(ctx context.Context, name string) error
+
+	// CreateOktaImportRule creates a new Okta import rule resource.
+	CreateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
+
+	// UpdateOktaImportRule updates an existing Okta import rule resource.
+	UpdateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
+
+	// DeleteOktaImportRule removes the specified Okta import rule resource.
+	DeleteOktaImportRule(ctx context.Context, name string) error
+
+	// CreateOktaAssignment creates a new Okta assignment resource.
+	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+
+	// UpdateOktaAssignment updates an existing Okta assignment resource.
+	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+
+	// DeleteOktaAssignment removes the specified Okta assignment resource.
+	DeleteOktaAssignment(ctx context.Context, name string) error
+
+	// CreateApp creates a new application resource.
+	CreateApp(context.Context, types.Application) error
+
+	// UpdateApp updates an existing application resource.
+	UpdateApp(context.Context, types.Application) error
+
+	// DeleteApp removes the specified application resource.
+	DeleteApp(ctx context.Context, name string) error
+}
+
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
@@ -1109,6 +1194,87 @@ func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) erro
 func (w *DiscoveryWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadDiscoveryAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type OktaWrapper struct {
+	ReadOktaAccessPoint
+	accessPoint
+	NoCache OktaAccessPoint
+}
+
+func NewOktaWrapper(base OktaAccessPoint, cache ReadOktaAccessPoint) OktaAccessPoint {
+	return &OktaWrapper{
+		NoCache:             base,
+		accessPoint:         base,
+		ReadOktaAccessPoint: cache,
+	}
+}
+
+// CreateUserGroup creates a new user group resource.
+func (w *OktaWrapper) CreateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
+	return w.NoCache.CreateUserGroup(ctx, userGroup)
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (w *OktaWrapper) UpdateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
+	return w.NoCache.UpdateUserGroup(ctx, userGroup)
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (w *OktaWrapper) DeleteUserGroup(ctx context.Context, name string) error {
+	return w.NoCache.DeleteUserGroup(ctx, name)
+}
+
+// CreateOktaImportRule creates a new Okta import rule resource.
+func (w *OktaWrapper) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return w.NoCache.CreateOktaImportRule(ctx, importRule)
+}
+
+// UpdateOktaImportRule updates an existing Okta import rule resource.
+func (w *OktaWrapper) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return w.NoCache.UpdateOktaImportRule(ctx, importRule)
+}
+
+// DeleteOktaImportRule removes the specified Okta import rule resource.
+func (w *OktaWrapper) DeleteOktaImportRule(ctx context.Context, name string) error {
+	return w.NoCache.DeleteOktaImportRule(ctx, name)
+}
+
+// CreateOktaAssignment creates a new Okta assignment resource.
+func (w *OktaWrapper) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.CreateOktaAssignment(ctx, assignment)
+}
+
+// UpdateOktaAssignment updates an existing Okta assignment resource.
+func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
+}
+
+// DeleteOktaAssignment removes the specified Okta assignment resource.
+func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) error {
+	return w.NoCache.DeleteOktaAssignment(ctx, name)
+}
+
+// CreateApp creates a new application resource.
+func (w *OktaWrapper) CreateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.CreateApp(ctx, app)
+}
+
+// UpdateApp updates an existing application resource.
+func (w *OktaWrapper) UpdateApp(ctx context.Context, app types.Application) error {
+	return w.NoCache.UpdateApp(ctx, app)
+}
+
+// DeleteApp removes the specified application resource.
+func (w *OktaWrapper) DeleteApp(ctx context.Context, name string) error {
+	return w.NoCache.DeleteApp(ctx, name)
+}
+
+// Close closes all associated resources
+func (w *OktaWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadOktaAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

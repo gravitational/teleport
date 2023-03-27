@@ -59,6 +59,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	oktaAppURL = "https://okta.com/app"
+)
+
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
 	native.PrecomputeTestKeys(m)
@@ -82,6 +86,11 @@ type Suite struct {
 	testhttp              *httptest.Server
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
+	oktaCertificate       tls.Certificate
+
+	appFoo  *types.AppV3
+	appAWS  *types.AppV3
+	appOkta *types.AppV3
 
 	user       types.User
 	role       types.Role
@@ -125,6 +134,13 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+}
+
+type fakeConnMonitor struct {
+}
+
+func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
+	return ctx, nil
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -245,7 +261,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	appFoo, err := types.NewAppV3(types.Metadata{
+	s.appFoo, err = types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
@@ -255,12 +271,25 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		DynamicLabels:      types.LabelsToV2(dynamicLabels),
 	})
 	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
+	s.appAWS, err = types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
 		URI:        constants.AWSConsoleURL,
 		PublicAddr: "aws.example.com",
+	})
+	require.NoError(t, err)
+	oktaLabels := map[string]string{}
+	for k, v := range staticLabels {
+		oktaLabels[k] = v
+	}
+	oktaLabels[types.OriginLabel] = types.OriginOkta
+	s.appOkta, err = types.NewAppV3(types.Metadata{
+		Name:   "okta",
+		Labels: oktaLabels,
+	}, types.AppSpecV3{
+		URI:        oktaAppURL,
+		PublicAddr: "okta.example.com",
 	})
 	require.NoError(t, err)
 
@@ -284,6 +313,9 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	// Generate certificate for AWS console application.
 	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
+	// Generate certificate for the Okta application.
+	s.oktaCertificate = s.generateCertificate(t, s.user, "okta.example.com", "")
+
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentApp,
@@ -302,7 +334,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{appFoo, appAWS}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy(), s.appOkta.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -310,24 +342,24 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	discard := events.NewDiscardEmitter()
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:            s.clock,
-		DataDir:          s.dataDir,
-		AccessPoint:      s.authClient,
-		AuthClient:       s.authClient,
-		TLSConfig:        tlsConfig,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		HostID:           s.hostUUID,
-		Hostname:         "test",
-		Authorizer:       authorizer,
-		GetRotation:      testRotationGetter,
-		Apps:             apps,
-		OnHeartbeat:      func(err error) {},
-		Cloud:            &testCloud{},
-		ResourceMatchers: config.ResourceMatchers,
-		OnReconcile:      config.OnReconcile,
-		LockWatcher:      lockWatcher,
-		Emitter:          discard,
-		CloudLabels:      config.CloudImporter,
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		AccessPoint:       s.authClient,
+		AuthClient:        s.authClient,
+		TLSConfig:         tlsConfig,
+		CipherSuites:      utils.DefaultCipherSuites(),
+		HostID:            s.hostUUID,
+		Hostname:          "test",
+		Authorizer:        authorizer,
+		GetRotation:       testRotationGetter,
+		Apps:              apps,
+		OnHeartbeat:       func(err error) {},
+		Cloud:             &testCloud{},
+		ResourceMatchers:  config.ResourceMatchers,
+		OnReconcile:       config.OnReconcile,
+		Emitter:           discard,
+		CloudLabels:       config.CloudImporter,
+		ConnectionMonitor: fakeConnMonitor{},
 	})
 	require.NoError(t, err)
 
@@ -378,37 +410,27 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo, err := types.NewAppV3(types.Metadata{
-		Name:   "foo",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:                s.testhttp.URL,
-		PublicAddr:         "foo.example.com",
-		InsecureSkipVerify: true,
-		DynamicLabels: map[string]types.CommandLabelV2{
-			dynamicLabelName: {
-				Period:  dynamicLabelPeriod,
-				Command: dynamicLabelCommand,
-				Result:  "4",
-			},
+	appFoo := s.appFoo.Copy()
+	appAWS := s.appAWS.Copy()
+	appOkta := s.appOkta.Copy()
+
+	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
+		dynamicLabelName: &types.CommandLabelV2{
+			Period:  dynamicLabelPeriod,
+			Command: dynamicLabelCommand,
+			Result:  "4",
 		},
 	})
-	require.NoError(t, err)
+
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
-	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
-		Name:   "awsconsole",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "aws.example.com",
-	})
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
+	serverOkta, err := types.NewAppServerV3FromApp(appOkta, "test", s.hostUUID)
+	require.NoError(t, err)
 
 	sort.Sort(types.AppServers(servers))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo}, servers,
+	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverFoo, serverOkta}, servers,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Expires")))
 
 	// Check the expiry time is correct.
@@ -840,6 +862,17 @@ func TestAWSConsoleRedirect(t *testing.T) {
 		location, err := resp.Location()
 		require.NoError(t, err)
 		require.Equal(t, location.String(), "https://signin.aws.amazon.com")
+	})
+}
+
+// TestOktaAppRedirect verifies Okta app access.
+func TestOktaAppRedirect(t *testing.T) {
+	s := SetUpSuite(t)
+	s.checkHTTPResponse(t, s.oktaCertificate, func(resp *http.Response) {
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		location, err := resp.Location()
+		require.NoError(t, err)
+		require.Equal(t, location.String(), oktaAppURL)
 	})
 }
 

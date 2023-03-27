@@ -2821,7 +2821,7 @@ func (g *GRPCServer) GetGithubConnector(ctx context.Context, req *types.Resource
 	}
 	githubConnectorV3, ok := gc.(*types.GithubConnectorV3)
 	if !ok {
-		return nil, trace.Errorf("encountered unexpected Github connector type: %T", gc)
+		return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", gc)
 	}
 	return githubConnectorV3, nil
 }
@@ -2840,7 +2840,7 @@ func (g *GRPCServer) GetGithubConnectors(ctx context.Context, req *types.Resourc
 	for i, gc := range gcs {
 		var ok bool
 		if githubConnectorsV3[i], ok = gc.(*types.GithubConnectorV3); !ok {
-			return nil, trace.Errorf("encountered unexpected Github connector type: %T", gc)
+			return nil, trace.Errorf("encountered unexpected GitHub connector type: %T", gc)
 		}
 	}
 	return &types.GithubConnectorV3List{
@@ -3575,7 +3575,9 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	app.SetOrigin(types.OriginDynamic)
+	if app.Origin() != types.OriginOkta {
+		app.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3588,7 +3590,9 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	app.SetOrigin(types.OriginDynamic)
+	if app.Origin() != types.OriginOkta {
+		app.SetOrigin(types.OriginDynamic)
+	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}

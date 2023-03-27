@@ -429,6 +429,8 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
+include darwin-signing.mk
+
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
@@ -436,12 +438,7 @@ release-darwin-unsigned: clean full build-archive
 .PHONY: release-darwin
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	# Only run if Apple username/pass for notarization are provided
-	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
-		cd ./build.assets/tooling/ && \
-		go run ./cmd/notarize-apple-binaries/*.go \
-			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
-	fi
+	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
@@ -593,7 +590,7 @@ test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDE
 # Runs base unit tests
 .PHONY: test-go-unit
 test-go-unit: FLAGS ?= -race -shuffle on
-test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator )
+test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
@@ -685,6 +682,26 @@ test-kube-agent-updater:
 		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
 		| ${RENDER_TESTS}
 
+.PHONY: test-access-integrations
+test-access-integrations:
+	make -C integrations test-access
+
+.PHONY: test-integrations-lib
+test-integrations-lib:
+	make -C integrations test-lib
+
+#
+# Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
+#
+.PHONY: test-teleport-usage
+test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-teleport-usage: FLAGS ?= -race -shuffle on
+test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
+test-teleport-usage:
+	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/teleport-usage.json \
+		| ${RENDER_TESTS}
+
 #
 # Runs cargo test on our Rust modules.
 # (a no-op if cargo and rustc are not installed)
@@ -720,7 +737,7 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
+integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
@@ -746,7 +763,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
+lint: lint-sh lint-helm lint-api lint-kube-agent-updater lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
@@ -799,6 +816,11 @@ lint-backport:
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
 	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
+
+.PHONY: lint-kube-agent-updater
+lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
+lint-kube-agent-updater:
+	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
 
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
@@ -1091,6 +1113,7 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
@@ -1102,6 +1125,7 @@ pkg:
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/

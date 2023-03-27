@@ -351,7 +351,13 @@ func (r *UsageReporter[T]) AddEventsToQueue(events ...*T) {
 	}
 
 	usageEventsSubmitted.Add(float64(len(events)))
-	r.submitEvents(submitted)
+	// this should not be a separate goroutine, but under high load it's
+	// possible to get noticeable contention (up to the hundreds of
+	// milliseconds) when sending to the events channel, so for the user-facing
+	// method we just spawn a short-lived goroutine for this
+	//
+	// TODO(espadolini): fix the usagereporter logic so that this is not needed
+	go r.submitEvents(submitted)
 }
 
 // resubmitEvents resubmits events that have already been processed (in case of

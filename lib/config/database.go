@@ -333,13 +333,16 @@ db_service:
     tls:
       ca_cert_file: "{{ .DatabaseCACertFile }}"
     {{- end }}
-    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
+    {{- if or .DatabaseAWSRegion .DatabaseAWSAccountID .DatabaseAWSAssumeRoleARN .DatabaseAWSExternalID .DatabaseAWSRedshiftClusterID .DatabaseAWSRDSInstanceID .DatabaseAWSRDSClusterID .DatabaseAWSElastiCacheGroupID .DatabaseAWSMemoryDBClusterName }}
     aws:
       {{- if .DatabaseAWSRegion }}
       region: "{{ .DatabaseAWSRegion }}"
       {{- end }}
       {{- if .DatabaseAWSAccountID }}
       account_id: "{{ .DatabaseAWSAccountID }}"
+      {{- end }}
+      {{- if .DatabaseAWSAssumeRoleARN }}
+      assume_role_arn: "{{ .DatabaseAWSAssumeRoleARN }}"
       {{- end }}
       {{- if .DatabaseAWSExternalID }}
       external_id: "{{ .DatabaseAWSExternalID }}"
@@ -580,6 +583,8 @@ type DatabaseSampleFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces or DynamoDB.
 	DatabaseAWSAccountID string
+	// DatabaseAWSAssumeRoleARN is an optional AWS IAM role ARN to assume when accessing the database.
+	DatabaseAWSAssumeRoleARN string
 	// DatabaseAWSExternalID is an optional AWS database external ID, used when assuming roles.
 	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
