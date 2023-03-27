@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"math/rand"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -39,45 +40,33 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
-	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/identityfile"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
+	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func fastEventually(t *testing.T, condition func() bool) {
 	require.Eventually(t, condition, time.Second, 100*time.Millisecond)
 }
 
-func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) auth.ClientI {
+func clientForTeleport(t *testing.T, teleportServer *helpers.TeleInstance, userName string) *client.Client {
 	identityFilePath := helpers.MustCreateUserIdentityFile(t, teleportServer, userName, time.Hour)
-	id, err := identityfile.ReadFile(identityFilePath)
-	require.NoError(t, err)
-	addr, err := utils.ParseAddr(teleportServer.Auth)
-	require.NoError(t, err)
-	tlsConfig, err := id.TLSConfig()
-	require.NoError(t, err)
-	sshConfig, err := id.SSHClientConfig()
-	require.NoError(t, err)
-	authClientConfig := &authclient.Config{
-		TLS:                  tlsConfig,
-		SSH:                  sshConfig,
-		AuthServers:          []utils.NetAddr{*addr},
-		Log:                  logrus.StandardLogger(),
-		CircuitBreakerConfig: breaker.Config{},
-	}
+	creds := client.LoadIdentityFile(identityFilePath)
+	return clientWithCreds(t, teleportServer.Auth, creds)
+}
 
-	c, err := authclient.Connect(context.Background(), authClientConfig)
+func clientWithCreds(t *testing.T, authAddr string, creds client.Credentials) *client.Client {
+	c, err := client.New(context.Background(), client.Config{
+		Addrs:       []string{authAddr},
+		Credentials: []client.Credentials{creds},
+	})
 	require.NoError(t, err)
-
 	return c
 }
 
@@ -113,6 +102,7 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 				types.NewRule("role", unrestricted),
 				types.NewRule("user", unrestricted),
 				types.NewRule("auth_connector", unrestricted),
+				types.NewRule("login_rule", unrestricted),
 			},
 		},
 	})
@@ -135,7 +125,7 @@ func (s *testSetup) startKubernetesOperator(t *testing.T) {
 	}
 
 	// We have to create a new Manager on each start because the Manager does not support to be restarted
-	clientAccessor := func(ctx context.Context) (auth.ClientI, error) {
+	clientAccessor := func(ctx context.Context) (*client.Client, error) {
 		return s.tClient, nil
 	}
 
@@ -162,6 +152,9 @@ func (s *testSetup) startKubernetesOperator(t *testing.T) {
 	require.NoError(t, err)
 
 	err = NewSAMLConnectorReconciler(s.k8sClient, clientAccessor).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	err = NewLoginRuleReconciler(s.k8sClient, clientAccessor).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -206,7 +199,7 @@ func validRandomResourceName(prefix string) string {
 }
 
 type testSetup struct {
-	tClient        auth.ClientI
+	tClient        *client.Client
 	k8sClient      kclient.Client
 	k8sRestConfig  *rest.Config
 	namespace      *core.Namespace
@@ -215,19 +208,34 @@ type testSetup struct {
 	operatorName   string
 }
 
-// setupTestEnv creates a Kubernetes server, a teleport server and starts the operator
-func setupTestEnv(t *testing.T) *testSetup {
-	// Create a Teleport server and its client
+// setupTeleportClient creates and runs a Teleport server, returning a connected
+// client and the username of the client identity.
+func setupTeleportClient(t *testing.T) (tClient *client.Client, operatorName string) {
+	if addr := os.Getenv("OPERATOR_TEST_TELEPORT_ADDR"); addr != "" {
+		creds := client.LoadProfile("", "")
+		tClient = clientWithCreds(t, addr, creds)
+		return tClient, ""
+	}
+
 	teleportServer, operatorName := defaultTeleportServiceConfig(t)
 	require.NoError(t, teleportServer.Start())
-	tClient := clientForTeleport(t, teleportServer, operatorName)
+	tClient = clientForTeleport(t, teleportServer, operatorName)
+	t.Cleanup(func() {
+		err := teleportServer.StopAll()
+		require.NoError(t, err)
+	})
 
 	t.Cleanup(func() {
 		err := tClient.Close()
 		require.NoError(t, err)
-		err = teleportServer.StopAll()
-		require.NoError(t, err)
 	})
+
+	return tClient, operatorName
+}
+
+// setupTestEnv creates a Kubernetes server, a teleport server and starts the operator
+func setupTestEnv(t *testing.T) *testSetup {
+	tClient, operatorName := setupTeleportClient(t)
 
 	// Create a Kubernetes server, its client and the namespace we are testing in
 	testEnv := &envtest.Environment{
@@ -238,6 +246,9 @@ func setupTestEnv(t *testing.T) *testSetup {
 	cfg, err := testEnv.Start()
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
+
+	err = resourcesv1.AddToScheme(scheme.Scheme)
+	require.NoError(t, err)
 
 	err = resourcesv5.AddToScheme(scheme.Scheme)
 	require.NoError(t, err)
@@ -278,7 +289,7 @@ func setupTestEnv(t *testing.T) *testSetup {
 	return setup
 }
 
-func teleportCreateDummyRole(ctx context.Context, roleName string, tClient auth.ClientI) error {
+func teleportCreateDummyRole(ctx context.Context, roleName string, tClient *client.Client) error {
 	// The role is created in Teleport
 	tRole, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{

@@ -65,6 +65,10 @@ help: ## Display this help.
 crdgen: ## Generate CRDs
 	make -C crdgen
 
+PROTOS = \
+	teleport/loginrule/v1/loginrule.proto \
+	teleport/legacy/types/types.proto
+
 .PHONY: manifests
 manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 # Generate CRDs for apis/resources (custom generation through protoc plugin).
@@ -72,17 +76,15 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
-	$(eval CUSTOM_IMPORTS_TMP_DIR := $(shell mktemp -d))
-	mkdir -p $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/proto/teleport/legacy/types/wrappers
-	cp ../../api/proto/teleport/legacy/types/wrappers/wrappers.proto $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/proto/teleport/legacy/types/wrappers
-	protoc \
-		-I=../../api/proto \
-		-I=$(PROTOBUF_MOD_PATH) \
-		-I=$(CUSTOM_IMPORTS_TMP_DIR) \
-		--plugin=./crdgen/protoc-gen-crd \
-		--crd_out=:./config/crd/bases \
-		../../api/proto/teleport/legacy/types/types.proto
-	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
+
+	for proto in $(PROTOS); do \
+		protoc \
+			-I=../../api/proto \
+			-I=$(PROTOBUF_MOD_PATH) \
+			--plugin=./crdgen/protoc-gen-crd \
+			--crd_out=:./config/crd/bases \
+			"$${proto}"; \
+	done
 
 # Some comments have `{{xyz}}` which triggers the golang templating engine when installing the chart.
 # We don't want that, so we escape them.
