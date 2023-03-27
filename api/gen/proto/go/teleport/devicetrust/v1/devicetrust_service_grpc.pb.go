@@ -35,6 +35,8 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	DeviceTrustService_CreateDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/CreateDevice"
+	DeviceTrustService_UpdateDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/UpdateDevice"
+	DeviceTrustService_UpsertDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/UpsertDevice"
 	DeviceTrustService_DeleteDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/DeleteDevice"
 	DeviceTrustService_FindDevices_FullMethodName             = "/teleport.devicetrust.v1.DeviceTrustService/FindDevices"
 	DeviceTrustService_GetDevice_FullMethodName               = "/teleport.devicetrust.v1.DeviceTrustService/GetDevice"
@@ -55,6 +57,16 @@ type DeviceTrustServiceClient interface {
 	// It is possible to create both a Device and a DeviceEnrollToken in a
 	// single invocation, see CreateDeviceRequest.create_enroll_token.
 	CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*Device, error)
+	// UpdateDevice is a masked device update.
+	//
+	// Only certain fields may be updated, see Device for details.
+	UpdateDevice(ctx context.Context, in *UpdateDeviceRequest, opts ...grpc.CallOption) (*Device, error)
+	// UpsertDevice creates or updates a device.
+	//
+	// UpsertDevice attempts a write of all mutable fields on updates, therefore
+	// reading a fresh copy of the device is recommended. Update semantics still
+	// apply.
+	UpsertDevice(ctx context.Context, in *UpsertDeviceRequest, opts ...grpc.CallOption) (*Device, error)
 	// DeleteDevice hard-deletes a device, removing it and all collected data
 	// history from the system.
 	//
@@ -114,6 +126,24 @@ func NewDeviceTrustServiceClient(cc grpc.ClientConnInterface) DeviceTrustService
 func (c *deviceTrustServiceClient) CreateDevice(ctx context.Context, in *CreateDeviceRequest, opts ...grpc.CallOption) (*Device, error) {
 	out := new(Device)
 	err := c.cc.Invoke(ctx, DeviceTrustService_CreateDevice_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *deviceTrustServiceClient) UpdateDevice(ctx context.Context, in *UpdateDeviceRequest, opts ...grpc.CallOption) (*Device, error) {
+	out := new(Device)
+	err := c.cc.Invoke(ctx, DeviceTrustService_UpdateDevice_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *deviceTrustServiceClient) UpsertDevice(ctx context.Context, in *UpsertDeviceRequest, opts ...grpc.CallOption) (*Device, error) {
+	out := new(Device)
+	err := c.cc.Invoke(ctx, DeviceTrustService_UpsertDevice_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +276,16 @@ type DeviceTrustServiceServer interface {
 	// It is possible to create both a Device and a DeviceEnrollToken in a
 	// single invocation, see CreateDeviceRequest.create_enroll_token.
 	CreateDevice(context.Context, *CreateDeviceRequest) (*Device, error)
+	// UpdateDevice is a masked device update.
+	//
+	// Only certain fields may be updated, see Device for details.
+	UpdateDevice(context.Context, *UpdateDeviceRequest) (*Device, error)
+	// UpsertDevice creates or updates a device.
+	//
+	// UpsertDevice attempts a write of all mutable fields on updates, therefore
+	// reading a fresh copy of the device is recommended. Update semantics still
+	// apply.
+	UpsertDevice(context.Context, *UpsertDeviceRequest) (*Device, error)
 	// DeleteDevice hard-deletes a device, removing it and all collected data
 	// history from the system.
 	//
@@ -302,6 +342,12 @@ type UnimplementedDeviceTrustServiceServer struct {
 func (UnimplementedDeviceTrustServiceServer) CreateDevice(context.Context, *CreateDeviceRequest) (*Device, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateDevice not implemented")
 }
+func (UnimplementedDeviceTrustServiceServer) UpdateDevice(context.Context, *UpdateDeviceRequest) (*Device, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateDevice not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) UpsertDevice(context.Context, *UpsertDeviceRequest) (*Device, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertDevice not implemented")
+}
 func (UnimplementedDeviceTrustServiceServer) DeleteDevice(context.Context, *DeleteDeviceRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteDevice not implemented")
 }
@@ -353,6 +399,42 @@ func _DeviceTrustService_CreateDevice_Handler(srv interface{}, ctx context.Conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(DeviceTrustServiceServer).CreateDevice(ctx, req.(*CreateDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DeviceTrustService_UpdateDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).UpdateDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_UpdateDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).UpdateDevice(ctx, req.(*UpdateDeviceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DeviceTrustService_UpsertDevice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertDeviceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DeviceTrustServiceServer).UpsertDevice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DeviceTrustService_UpsertDevice_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DeviceTrustServiceServer).UpsertDevice(ctx, req.(*UpsertDeviceRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -527,6 +609,14 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateDevice",
 			Handler:    _DeviceTrustService_CreateDevice_Handler,
+		},
+		{
+			MethodName: "UpdateDevice",
+			Handler:    _DeviceTrustService_UpdateDevice_Handler,
+		},
+		{
+			MethodName: "UpsertDevice",
+			Handler:    _DeviceTrustService_UpsertDevice_Handler,
 		},
 		{
 			MethodName: "DeleteDevice",

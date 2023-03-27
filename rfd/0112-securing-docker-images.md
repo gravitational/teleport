@@ -91,7 +91,7 @@ tooling](https://security.googleblog.com/2021/09/distroless-builds-are-now-slsa-
 Using an _ongoing_ automated scanner means that we do not just check for 
 vulnerabilities at image creation time, instead we proactively & _continually_ scan
 for any vulnerabilities  that may be discovered until the image is either replaced 
-with a newer verion of the image, or the support lifetime for the verion of Teleport 
+with a newer version of the image, or the support lifetime for the version of Teleport 
 on that image expires (i.e. falls out of our 3-version support window)
 
 ## Implementation Details
@@ -110,7 +110,7 @@ giving us a smaller set of runtime dependencies than you might imagine:
    2. C Runtime libraries (e.g. `GLIBC` >= 2.17, `libgcc`, etc)
    3. `dumb-init` is required for correct signal and child processes handling
       inside a container.
-   4. `libpam` (and its transitve dependencies) for PAM support 
+   4. `libpam` (and its transitive dependencies) for PAM support 
    5. CA certificates
 
 Requirement (1) (i.e. Teleport itself) is provided by our CI process. 
@@ -120,7 +120,7 @@ provided base image [`gcr.io/distroless/cc-debian11`](https://github.com/GoogleC
 which is configured for "mostly statically compiled" languages that require libc.
 
 Requirements (3) and (4) can be sourced either from the upstream Debian repository, or
-downloaded directly from their project's souce reposiotory. Sourcing `dumb-init`, 
+downloaded directly from their project's source repository. Sourcing `dumb-init`, 
 `libpam` and so on from the Ubuntu or Debian package repositories implies some minimal 
 curation and provenance checking by the debian packaging tools, so we will prefer that to
 sourcing them elsewhere.
@@ -240,7 +240,7 @@ extra keys for us to manage.
 
 After some experimentation it seems that the OIDC Keyless Signing doesn't work
 with our GitHub Organisation. For this reason, at least for the first iteration
-of image sigining, we will be using the keyed option. This also resolves any 
+of image signing, we will be using the keyed option. This also resolves any 
 question of how much using OIDC-based signing ties us to GitHub for identity.
 
 More information on image signing:
@@ -253,7 +253,7 @@ allowing us to ensure that any images we promote have not been tampered with
 between creation and promotion. Unfortunately, the image signature leaks the 
 registry and repository names used for the temporary image storage between build
 and promotion. For this reason, once candidate image's internal signature has 
-been verified, thie _internal_ signature will not be copied to the release 
+been verified, the _internal_ signature will not be copied to the release 
 repository; it will be re-signed with a separate production key.
 
 ### Build-time scanning
@@ -283,7 +283,7 @@ graph TD
     third_party_debs[/Third party Debian packages<br/>from Debian package repository/]
     df[/Dockerfile from<br/>Teleport git repository/]
     base[/Distroless base image/]
-    candidate_image[/Candidate Telport image</br>with SBOM/]
+    candidate_image[/Candidate Teleport image</br>with SBOM/]
     smoke_test[Smoke test to see if<br/>Teleport starts in container image]
     smoke_test_pass?{Smoke test<br/>passes?}
     push_internal[Push Candidate Image<br/>to private ECR]

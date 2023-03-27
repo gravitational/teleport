@@ -212,7 +212,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.userGroups = local.NewUserGroupService(p.backend)
+	p.userGroups, err = local.NewUserGroupService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	oktaSvc, err := local.NewOktaService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
