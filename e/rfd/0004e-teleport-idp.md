@@ -1,6 +1,6 @@
 ---
 authors: Michael Wilson (mike@goteleport.com)
-state: draft
+state: implemented (12.1)
 ---
 
 # RFD 4E - Teleport as a SAML IdP
