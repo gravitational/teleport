@@ -1682,7 +1682,7 @@ func TestNodes(t *testing.T) {
 	// update keep alive on the node and make sure
 	// it propagates
 	lease.Expires = time.Now().UTC().Add(time.Hour)
-	err = p.presenceS.KeepAliveNode(ctx, *lease)
+	err = p.presenceS.KeepAliveServer(ctx, *lease)
 	require.NoError(t, err)
 
 	select {

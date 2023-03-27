@@ -434,15 +434,6 @@ func (c *Client) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	return &certs, nil
 }
 
-// DELETE IN: 5.1.0
-//
-// This logic has been moved to KeepAliveServer.
-//
-// KeepAliveNode updates node keep alive information.
-func (c *Client) KeepAliveNode(ctx context.Context, keepAlive types.KeepAlive) error {
-	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
-}
-
 // KeepAliveServer not implemented: can only be called locally.
 func (c *Client) KeepAliveServer(ctx context.Context, keepAlive types.KeepAlive) error {
 	return trace.BadParameter("not implemented, use StreamKeepAlives instead")

@@ -1044,30 +1044,6 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	return a.authServer.UpsertNode(ctx, s)
 }
 
-// DELETE IN: 5.1.0
-//
-// This logic has moved to KeepAliveServer.
-func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAlive) error {
-	if !a.hasBuiltinRole(types.RoleNode) {
-		return trace.AccessDenied("[10] access denied")
-	}
-	clusterName, err := a.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
-	if err != nil {
-		return trace.AccessDenied("[10] access denied")
-	}
-	if serverName != handle.Name {
-		return trace.AccessDenied("[10] access denied")
-	}
-	if err := a.action(apidefaults.Namespace, types.KindNode, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.KeepAliveNode(ctx, handle)
-}
-
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
 	clusterName, err := a.GetDomainName(ctx)
