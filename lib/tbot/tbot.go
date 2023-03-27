@@ -269,10 +269,10 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 
 	if b.cfg.FIPS {
 		if !modules.GetModules().IsBoringBinary() {
-			// TODO BEFORE MERGE: Turn this into a hard-fail
-			b.log.Error("FIPS mode enabled but binary was not compiled with boringcrypto :(")
+			b.log.Error("FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
+			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
 		}
-		b.log.Info("Bot is running in FIPS mode.")
+		b.log.Info("Bot is running in FIPS compliant mode.")
 	}
 
 	// First, try to make sure all destinations are usable.
@@ -395,23 +395,6 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 
 	b.setClient(authClient)
 	b.setIdent(ident)
-
-	pong, err := b.AuthPing(ctx)
-	if err != nil {
-		return unlock, trace.Wrap(err)
-	}
-	b.log.
-		WithField("server_version", pong.ServerVersion).
-		Info("Initialisation complete. Connected to Teleport cluster.")
-
-	// If tbot is running in FIPS mode, check the server is also compiled with
-	// boringcrypto before proceeding. This is a relatively loose sanity check,
-	// a malicious auth server could easily return a faked value for this.
-	if b.cfg.FIPS && !pong.IsBoring {
-		return nil, trace.BadParameter(
-			"tbot running in fips mode but auth server did not indicate it was compiled with boringcrypto",
-		)
-	}
 
 	return unlock, nil
 }
