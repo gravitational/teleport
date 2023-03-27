@@ -22,14 +22,24 @@ on:
         required: true
         type: string
  
+      dest-image-registry:
+        description: "The destination image registry"
+        required: true
+        type: string
+
+      dest-image-registry-region:
+        description: "AWS region containinig the destination repository"
+        type: string
+        default: us-west-2
+
       dest-image-repo:
         description: "The destination image repository (omitting tag)"
         required: true
         type: string
 
-      dest-image-tag:
+      dest-image-tags:
         description: |
-          Tag for the testination image
+          Space separated list of tags for the destination image
         required: false
         type: string
 
@@ -68,9 +78,9 @@ on:
         required: true
         type: string
 
-      signing-key-arn:
+      signing-key-url:
         description:
-          ARN of AWS KMS key to use when signing the resulting image
+          URL of AWS KMS key to use when signing the resulting image
         type: string
         required: true
 
@@ -81,6 +91,14 @@ on:
           per https://github.com/marketplace/actions/docker-setup-buildx#inputs
         type: string
         required: false
+
+      scan-image:
+        description: 
+          Should the resulting image be run through the `trivy` scanner as part
+          of the build? Only turn this off if you know that the image will be 
+          automatically scanned in some other way.
+        type: boolean
+        default: true
 
     secrets:
       deploy-access-app-id:
@@ -94,6 +112,9 @@ on:
           The private key used to authenticate against the deployment access
           GitGub app.
         required: true
+
+run-name: "Rebuilding ${{ inputs.dest-image-repo }}"
+
 jobs:
   build-docker-image:
     name: Build Multiarch OCI image
@@ -209,7 +230,17 @@ jobs:
           BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
           echo BASE_IMAGE_HASH=$BASE_IMAGE_HASH >> $GITHUB_ENV
 
-      - name: Assume tag build AWS role
+      - name: Expand image tags
+        id: expand
+        run: |
+          EOF=END_OF_TAGS
+          echo "tags<<$EOF" >> $GITHUB_OUTPUT
+          for t in ${{ inputs.dest-image-tags }}; do
+            echo "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}:$t" >> $GITHUB_OUTPUT
+          done
+          echo $EOF >> $GITHUB_OUTPUT
+
+      - name: Assume Build AWS role
         uses: aws-actions/configure-aws-credentials@v1
         with:
           aws-region:  us-west-2
@@ -217,10 +248,13 @@ jobs:
           role-session-name: "gha-docker-image-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
-      - name: Login to ECR
+      - name: Login to Destination ECR Registry
         uses: docker/login-action@v2
         with:
-          registry: ${{ inputs.dest-image-repo }}
+          registry: ${{ inputs.dest-image-registry }}
+          ecr: true
+        env:
+          AWS_REGION: ${{ inputs.dest-image-registry-region }} 
 
       - name: Build Docker image
         uses: docker/build-push-action@v3
@@ -230,7 +264,7 @@ jobs:
           context: ./build
           platforms: linux/arm64,linux/amd64
           push: true
-          tags: ${{ inputs.dest-image-repo }}:${{ inputs.dest-image-tag }}
+          tags: ${{ steps.expand.outputs.tags }}
           sbom: true
           build-args: |
             BASE_IMAGE=${{ inputs.base-image }}@${{ env.BASE_IMAGE_HASH }}            
@@ -239,10 +273,11 @@ jobs:
 
       - name: Sign image
         run: |        
-          cosign sign --key awskms:///${{ inputs.signing-key-arn }} --recursive "${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
+          cosign sign --key ${{ inputs.signing-key-url }} --recursive "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
 
   trivy-scan:
     name: Scan Multiarch Image with Trivy
+    if: inputs.scan-image
     runs-on: ubuntu-latest
     needs: build-docker-image
     environment: staging
@@ -258,12 +293,14 @@ jobs:
       - name: Login to ECR
         uses: docker/login-action@v2
         with:
-          registry: ${{ inputs.dest-image-repo }}
+          registry: ${{ inputs.dest-image-registry }}
+        env:
+          AWS_REGION: ${{ inputs.dest-image-registry-region }} 
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
+          image-ref: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ needs.build-docker-image.outputs.image-digest }}"
           ignore-unfixed: true
           format: "sarif"
           output: "trivy-results.sarif"          

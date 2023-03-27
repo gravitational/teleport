@@ -47,13 +47,13 @@ on:
         type: string
         default: arn:aws:iam::146628656107:role/teleport-oci-tag-build-gha
 
-      signing-key-arn:
+      signing-key-url:
         description: |
-          ARN of the KMS key used to sign the resulting images. Must be
+          URL of the KMS key used to sign the resulting images. Must be
           readable from the role specified by `build-role-arn`.
         required: true
         type: string
-        default: arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
+        default: awskms:///arn:aws:kms:us-west-2:146628656107:alias/teleport-oci-pending-build-signing
 
       dest-repo-prefix:
         description: |
@@ -129,10 +129,11 @@ jobs:
       dronestorage-access-role-arn: ${{ inputs.dronestorage-access-role-arn }}
       source-tag: ${{ inputs.source-tag }}
       teleport-version: ${{ needs.configure.outputs.teleport_version }}
-      dest-image-repo: ${{ inputs.dest-repo-prefix }}/teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
-      dest-image-tag: ${{ needs.configure.outputs.teleport_version }}
+      dest-image-registry: ${{ inputs.dest-repo-prefix }}
+      dest-image-repo: teleport${{ matrix.repo-enterprise-infix }}-distroless${{ matrix.repo-debug-suffix }}
+      dest-image-tags: ${{ needs.configure.outputs.teleport_version }}
       build-role-arn: ${{ inputs.build-role-arn }}
-      signing-key-arn: ${{ inputs.signing-key-arn }}
+      signing-key-url: ${{ inputs.signing-key-url }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
     secrets:

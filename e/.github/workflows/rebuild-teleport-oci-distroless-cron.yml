@@ -1,16 +1,78 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
+# Rebuilds all of the latest-release distroless images on a
+# schedule in order to pick up any security fises (etc) in 
+# the base image.
 
-name: Rebuild Docker image
+name: Rebuild Distroless OCI Images
 on:
-  workflow_dispatch:
+  schedule:
+    # Run daily at 7.23 am UTC. 7am UTC is 0:00 PDT, and the 23- 
+    # minute offset is not important; just a random offset to
+    # stagger jobs.
+    - cron: '23 7 * * *'
+
+env:
+  # A space-delimited list of the major teleport versions for which 
+  # we want to rebuild the images. Make sure this value is kept up
+  # to data as new releasese are created. See: 
+  #   https://github.com/gravitational/teleport/blob/master/docs/preflight.md
+  TELEPORT_MAJOR_VERSIONS: "v12 v13"
+
+permissions:
+  contents: read
+  actions: write
+
 jobs:
-  dummy:
+  trigger-builds:
+    name: Rebuild Latest OCI releases
     runs-on: ubuntu-latest
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: Checkout teleport @ `master`
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport
+          ref: master
+          fetch-depth: 1
+          path: teleport
+
+      - name: Install Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '>=1.18.0'
+
+      - name: Select Teleport releases
+        id: select
+        working-directory: teleport/build.assets/tooling
+        run: |
+          versions=""
+          for major_version in ${{ env.TELEPORT_MAJOR_VERSIONS }}; do
+            v=$(go run ./cmd/query-latest $major_version || true)
+            versions+="$v "
+          done
+          echo tags=$versions >> $GITHUB_OUTPUT
+
+      # GHA wants to know all the exact revision of every single action and
+      # workflow being pulled into a workflow run *before* it starts running.
+      #
+      # We, on the other hand, don't know the versions of
+      # `rebuild-teleport-oci-distroless.yml` we want to invoke until the 
+      # previous step complete. This means that we can't use a matrix or any
+      # of the calling mechanisms built into GHA, or aggregate the child
+      # workflow status under this workflow: we have to treat each versioned
+      # invocation of `rebuild-teleport-oci-distroless.yml` as a separate,
+      # top-level workflow run.
+      - name: Trigger builds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for teleport_release_tag in ${{ steps.select.outputs.tags }}; do
+            echo "Triggering rebuild of images for $teleport_release_tag"
+            
+            # note the `|| true` here. There will be occasions where there
+            # are no versions ready for rebuilding, or old revisions may be
+            # missing the workflow to invoke. We don't want to stop *all*
+            # the rebuilds because one failed.
+            gh workflow run rebuild-teleport-oci-distroless.yml \
+              --repo $GITHUB_REPOSITORY \
+              --ref $teleport_release_tag \
+              --raw-field teleport-release-tag=$teleport_release_tag || true
+          done
