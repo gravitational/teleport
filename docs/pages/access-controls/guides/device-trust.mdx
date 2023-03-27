@@ -220,6 +220,7 @@ preview. Only `tsh` and Teleport Connect are able to fulfill device mode
 
 To enable device mode `required` update your configuration as follows:
 
+<ScopedBlock scope={["enterprise"]}>
 <Tabs>
 <TabItem label="Static Config">
 Edit the Auth Server's `teleport.yaml` file:
@@ -236,7 +237,7 @@ auth_service:
 ```
 
 </TabItem>
-<TabItem label="Dynamic resources">
+<TabItem label="Dynamic Resources" >
 Create a `cap.yaml` file or get the existing configuration using
 `tctl get cluster_auth_preference`:
 
@@ -269,6 +270,39 @@ $ tctl edit cluster_auth_preference
 
 </TabItem>
 </Tabs>
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+Create a `cap.yaml` file or get the existing configuration using
+`tctl get cluster_auth_preference`:
+
+```diff
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factor: "on"
+  webauthn:
+    rp_id: example.com
+  device_trust:
++   mode: "required" # add this line
+```
+
+Update the configuration:
+
+```code
+$ tctl create -f cap.yaml
+cluster auth preference has been updated
+```
+
+You can also edit this configuration directly:
+
+```code
+$ tctl edit cluster_auth_preference
+```
+</ScopedBlock>
 
 SSH, Database and Kubernetes access without a trusted device is now forbidden.
 For example, SSH access without a trusted device fails with the following error:
