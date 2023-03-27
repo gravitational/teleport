@@ -137,13 +137,15 @@ chart.
 
 The Teleport package in Homebrew is not maintained by Teleport and we can't
 guarantee its reliability or security. We recommend the use of our [official
-Teleport packages](https://goteleport.com/download).
+Teleport packages](https://goteleport.com/download). Binaries provided by Homebrew
+are not signed by Teleport that will prevent certain functionality such as 
+using Touch ID or Device Trust with `tsh`.
 
 <ScopedBlock scope={["enterprise", "cloud"]}>
 
 The Homebrew version of Teleport lacks the ability to maintain SAML/OIDC authentication
 connectors through the `tctl` binary. We recommend installing the official Teleport Enterprise edition of `tctl`.
-
+ 
 </ScopedBlock>
 
 </Notice>
