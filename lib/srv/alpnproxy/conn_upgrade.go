@@ -83,14 +83,8 @@ func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 }
 
 func isRemoteNoALPNError(err error) bool {
-	if err = errors.Unwrap(err); err == nil {
-		return false
-	}
-	netOpError, ok := err.(*net.OpError)
-	if !ok {
-		return false
-	}
-	return netOpError.Op == "remote error" && strings.Contains(netOpError.Err.Error(), "tls: no application protocol")
+	var opErr *net.OpError
+	return errors.As(err, &opErr) && opErr.Op == "remote error" && strings.Contains(opErr.Err.Error(), "tls: no application protocol")
 }
 
 // OverwriteALPNConnUpgradeRequirementByEnv overwrites ALPN connection upgrade
