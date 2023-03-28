@@ -116,3 +116,19 @@ func GetAnyHeader(header http.Header, keys ...string) string {
 	}
 	return ""
 }
+
+// CloneRequest makes a clone of the request. Request body is returned as well.
+func CloneRequest(req *http.Request) (*http.Request, []byte, error) {
+	body, err := GetAndReplaceRequestBody(req)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clone, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), io.NopCloser(bytes.NewReader(body)))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	clone.Header = req.Header.Clone()
+
+	return clone, body, nil
+}

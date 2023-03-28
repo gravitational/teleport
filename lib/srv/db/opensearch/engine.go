@@ -25,7 +25,6 @@ import (
 	"strconv"
 
 	"github.com/aws/aws-sdk-go/service/opensearchservice"
-	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -56,8 +55,8 @@ type Engine struct {
 	clientConn net.Conn
 	// sessionCtx is current session context.
 	sessionCtx *common.Session
-
-	// for tests
+	// GetSigningCredsFn allows to set the function responsible for obtaining STS credentials.
+	// Used in tests to set static AWS credentials and skip API call.
 	GetSigningCredsFn libaws.GetSigningCredentialsFunc
 }
 
@@ -84,24 +83,36 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	return nil
 }
 
+// ErrorDetails contains error details.
+type ErrorDetails struct {
+	Reason string `json:"reason"`
+	Type   string `json:"type"`
+}
+
+// ErrorResponse will be returned to the client in case of error.
+type ErrorResponse struct {
+	Error  ErrorDetails `json:"error"`
+	Status int          `json:"status"`
+}
+
 // SendError sends an error to OpenSearch client.
 func (e *Engine) SendError(err error) {
 	if e.clientConn == nil || err == nil || utils.IsOKNetworkError(err) {
 		return
 	}
 
-	// TODO: ideally we would to switch over to strongly typed opensearch errors, but there is no equivalent of elastic.ErrorCause in opensearch libraries.
-	reason := err.Error()
-	cause := elastic.ErrorCause{
-		Reason: &reason,
-		Type:   "internal_server_error_exception",
+	cause := ErrorResponse{
+		Error: ErrorDetails{
+			Reason: err.Error(),
+			Type:   "internal_server_error_exception",
+		},
+		Status: http.StatusInternalServerError,
 	}
 
-	// Assume internal server error HTTP 500 and override if possible.
-	statusCode := http.StatusInternalServerError
+	// Different error for access denied case.
 	if trace.IsAccessDenied(err) {
-		statusCode = http.StatusUnauthorized
-		cause.Type = "access_denied_exception"
+		cause.Status = http.StatusUnauthorized
+		cause.Error.Type = "access_denied_exception"
 	}
 
 	jsonBody, err := json.Marshal(cause)
@@ -113,7 +124,7 @@ func (e *Engine) SendError(err error) {
 	response := &http.Response{
 		ProtoMajor: 1,
 		ProtoMinor: 1,
-		StatusCode: statusCode,
+		StatusCode: cause.Status,
 		Body:       io.NopCloser(bytes.NewBuffer(jsonBody)),
 		Header: map[string][]string{
 			"Content-Type":   {"application/json"},
@@ -153,7 +164,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, req *http.Request) error {
-	reqCopy, err := copyRequest(ctx, req)
+	reqCopy, _, err := utils.CloneRequest(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -204,23 +215,6 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 	return trace.Wrap(e.sendResponse(resp))
 }
 
-// copyRequest creates a shallow copy of the given request.
-func copyRequest(ctx context.Context, req *http.Request) (*http.Request, error) {
-	body, err := utils.GetAndReplaceRequestBody(req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), io.NopCloser(bytes.NewReader(body)))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reqCopy.Header = req.Header.Clone()
-
-	return reqCopy, nil
-}
-
 // emitAuditEvent writes the request and response to audit stream.
 func (e *Engine) emitAuditEvent(req *http.Request) {
 	// Try to read the body and JSON unmarshal it.
@@ -249,6 +243,16 @@ func (e *Engine) emitAuditEvent(req *http.Request) {
 
 // sendResponse sends the response back to the OpenSearch client.
 func (e *Engine) sendResponse(resp *http.Response) error {
+	// calculate content length if missing.
+	if resp.ContentLength == -1 {
+		respBody, err := utils.GetAndReplaceResponseBody(resp)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		resp.Body = io.NopCloser(bytes.NewReader(respBody))
+		resp.ContentLength = int64(len(respBody))
+	}
+
 	if err := resp.Write(e.clientConn); err != nil {
 		return trace.Wrap(err)
 	}

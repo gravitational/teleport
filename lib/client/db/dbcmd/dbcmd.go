@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -423,8 +424,8 @@ func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
 	return err == nil
 }
 
-// isopenSearchCLIBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
-func (c *CLICommandBuilder) isopenSearchCLIBinAvailable() bool {
+// isOpenSearchCLIBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isOpenSearchCLIBinAvailable() bool {
 	_, err := c.options.exe.LookPath(openSearchCLIBin)
 	return err == nil
 }
@@ -631,7 +632,8 @@ func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
 	}
 
 	// write it
-	tempCfg, err := opensearch.WriteTempConfig(c.profile.Dir, cfg)
+	baseDir := path.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
+	tempCfg, err := opensearch.WriteTempConfig(baseDir, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -739,7 +741,7 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 
 func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternative {
 	var commands []CommandAlternative
-	if c.isopenSearchCLIBinAvailable() {
+	if c.isOpenSearchCLIBinAvailable() {
 		if len(c.options.extraArgs) == 0 {
 			c.options.extraArgs = []string{"curl", "get", "--path", "/"}
 		}

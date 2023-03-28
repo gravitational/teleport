@@ -800,7 +800,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
-	dbConnect.Arg("extra", "Database service name to connect to.").StringsVar(&cf.DatabaseExtraArgs)
+	dbConnect.Arg("extra", "Extra arguments for the database client. Flags can be passed after --, e.g. `-- --flag1 --flag2`.").StringsVar(&cf.DatabaseExtraArgs)
 	dbConnect.Flag("db-user", "Optional database user to log in as.").StringVar(&cf.DatabaseUser)
 	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 

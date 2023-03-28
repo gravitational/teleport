@@ -24,14 +24,17 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ProfileName is the name of the opensearch-cli that will be created for Teleport usage
 const ProfileName = "teleport"
 
+// Certificate is an optional certificate config.
 type Certificate struct {
-	CACert string `json:"cafilepath"`
-	Cert   string `json:"clientcertificatefilepath"`
-	Key    string `json:"clientkeyfilepath"`
+	CACert string `json:"cafilepath,omitempty"`
+	Cert   string `json:"clientcertificatefilepath,omitempty"`
+	Key    string `json:"clientkeyfilepath,omitempty"`
 }
 
+// Profile represents single profile in opensearch-cli configuration
 type Profile struct {
 	Name        string       `json:"name"`
 	Endpoint    string       `json:"endpoint"`
@@ -40,10 +43,12 @@ type Profile struct {
 	Timeout     int          `json:"timeout,omitempty"`
 }
 
+// Config represents configuration for opensearch-cli
 type Config struct {
 	Profiles []Profile `json:"profiles"`
 }
 
+// ConfigNoTLS returns insecure config with single profile.
 func ConfigNoTLS(host string, port int) Config {
 	return Config{Profiles: []Profile{
 		{
@@ -55,6 +60,7 @@ func ConfigNoTLS(host string, port int) Config {
 	}}
 }
 
+// ConfigTLS returns secure config with single profile.
 func ConfigTLS(host string, port int, caCert, cert, key string) Config {
 	return Config{Profiles: []Profile{
 		{
@@ -71,6 +77,7 @@ func ConfigTLS(host string, port int, caCert, cert, key string) Config {
 	}}
 }
 
+// WriteTempConfig writes the config to disk, relative to the base dir.
 func WriteTempConfig(baseDir string, cfg Config) (string, error) {
 	// serialize config
 	bytes, err := yaml.Marshal(cfg)
