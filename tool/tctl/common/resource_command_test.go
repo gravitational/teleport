@@ -202,8 +202,7 @@ func TestDatabaseResource(t *testing.T) {
 
 	// Create the databases.
 	dbYAMLPath := filepath.Join(t.TempDir(), "db.yaml")
-	dbYAMLData := fmt.Sprintf(dbYAML)
-	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAMLData), 0644))
+	require.NoError(t, os.WriteFile(dbYAMLPath, []byte(dbYAML), 0644))
 	_, err = runResourceCommand(t, fileConfig, []string{"create", dbYAMLPath})
 	require.NoError(t, err)
 
