@@ -376,9 +376,11 @@ func ForOkta(cfg Config) Config {
 		// the cache.
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindApp},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
+		{Kind: types.KindProxy},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
