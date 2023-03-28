@@ -1845,7 +1845,7 @@ func (c *oktaAssignmentCollector) initializationChan() <-chan struct{} {
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
 	var oktaAssignments []types.OktaAssignment
-	nextToken := ""
+	var nextToken string
 	for {
 		var oktaAssignmentsPage []types.OktaAssignment
 		var err error
