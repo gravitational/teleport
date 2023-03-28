@@ -16,7 +16,9 @@ package ssh
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
@@ -73,6 +75,65 @@ func (s *Session) Setenv(ctx context.Context, name, value string) error {
 
 	s.wrapper.addContext(ctx, request)
 	return s.Session.Setenv(name, value)
+}
+
+// SetEnvs sets environment variables that will be applied to any
+// command executed by Shell or Run. If the server does not handle
+// [EnvsRequest] requests then the client falls back to sending individual
+// "env" requests until all provided environment variables have been set
+// or an error was received.
+func (s *Session) SetEnvs(ctx context.Context, envs map[string]string) error {
+	if len(envs) == 0 {
+		return nil
+	}
+
+	// If the server isn't Teleport fallback to individual "env" requests
+	if !strings.HasPrefix(string(s.wrapper.ServerVersion()), "SSH-2.0-Teleport") {
+		return s.setEnvFallback(ctx, envs)
+	}
+
+	config := tracing.NewConfig(s.wrapper.opts)
+	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
+		ctx,
+		"ssh.SetEnvs",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String("ssh.Session"),
+			semconv.RPCMethodKey.String("SendRequest"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
+	raw, err := json.Marshal(envs)
+	if err != nil {
+		return err
+	}
+
+	s.wrapper.addContext(ctx, EnvsRequest)
+	ok, err := s.Session.SendRequest(EnvsRequest, true, ssh.Marshal(EnvsReq{Envs: raw}))
+	if err != nil {
+		return err
+	}
+
+	// The server does not handle EnvsRequest requests so fall back
+	// to sending individual requests.
+	if !ok {
+		return s.setEnvFallback(ctx, envs)
+	}
+
+	return nil
+}
+
+// setEnvFallback sends an "env" request for each item in envs.
+func (s *Session) setEnvFallback(ctx context.Context, envs map[string]string) error {
+	for k, v := range envs {
+		if err := s.Setenv(ctx, k, v); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // RequestPty requests the association of a pty with the session on the remote host.
