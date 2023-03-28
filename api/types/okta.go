@@ -297,7 +297,7 @@ type OktaAssignments []OktaAssignment
 
 // ToMap returns these Okta assignments as a map keyed by Okta assignment name.
 func (o OktaAssignments) ToMap() map[string]OktaAssignment {
-	m := make(map[string]OktaAssignment)
+	m := make(map[string]OktaAssignment, len(o))
 	for _, oktaAssignment := range o {
 		m[oktaAssignment.GetName()] = oktaAssignment
 	}
@@ -305,7 +305,8 @@ func (o OktaAssignments) ToMap() map[string]OktaAssignment {
 }
 
 // AsResources returns these Okta assignments as resources with labels.
-func (o OktaAssignments) AsResources() (resources ResourcesWithLabels) {
+func (o OktaAssignments) AsResources() ResourcesWithLabels {
+	resources := make(ResourcesWithLabels, 0, len(o))
 	for _, oktaAssignment := range o {
 		resources = append(resources, oktaAssignment)
 	}
