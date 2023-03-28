@@ -81,12 +81,12 @@ func (l localFS) Open(ctx context.Context, path string) (fs.File, error) {
 	return &fileWrapper{file: f}, nil
 }
 
-func (l localFS) Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error) {
+func (l localFS) Create(ctx context.Context, path string) (io.WriteCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -94,12 +94,12 @@ func (l localFS) Create(ctx context.Context, path string, mode os.FileMode) (io.
 	return f, nil
 }
 
-func (l localFS) Mkdir(ctx context.Context, path string, mode os.FileMode) error {
+func (l localFS) Mkdir(ctx context.Context, path string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	err := os.MkdirAll(path, mode)
+	err := os.MkdirAll(path, 0o755)
 	if err != nil && !os.IsExist(err) {
 		return trace.ConvertSystemError(err)
 	}
