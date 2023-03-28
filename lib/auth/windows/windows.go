@@ -181,10 +181,10 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredent
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
+func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, caCerts [][]byte, err error) {
 	certReq, err := getCertRequest(req)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	genResp, err := req.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: certReq.csrPEM,
@@ -201,19 +201,19 @@ func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRe
 		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
 	certDER = certBlock.Bytes
 	keyDER = certReq.keyDER
-	return certDER, keyDER, nil
+	return certDER, keyDER, genResp.CACerts, nil
 }
 
 // CertKeyPEM returns certificate and private key bytes encoded in PEM format for use with `kinit`
-func CertKeyPEM(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, err error) {
-	certDER, keyDER, err := generateDatabaseCredentials(ctx, req)
+func CertKeyPEM(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
+	certDER, keyDER, caCerts, err := generateDatabaseCredentials(ctx, req)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
