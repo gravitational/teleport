@@ -32,7 +32,7 @@ get_conf() {
 
 
 # upgrade_endpoint is the base host+path used to load the /version and /critical endpoints
-upgrade_endpoint="$(get_conf endpoint update.gravitational.io/v1/cloud-stable)"
+upgrade_endpoint="$(get_conf endpoint update.gravitational.io/v1/stable/cloud)"
 
 # package_name specializes the teleport package name (e.g. teleport|teleport-ent|etc)
 package_name="$(get_conf package teleport)"
@@ -48,6 +48,9 @@ debug_mode="$(get_conf debug no)"
 # the upcoming upgrade windows. a missing or stale schedule file indicates that the teleport
 # agent may be unhealthy.
 upgrade_schedule="$(get_conf schedule none)"
+
+# installer kind is an enum representing the kind of installer to use (apt|yum|nop).
+installer_kind="$(get_conf installer nop)"
 
 
 # log_info prints standard-verbosity messages to stderr.
@@ -221,8 +224,31 @@ is_critical() {
     return 1
 }
 
+# do_upgrade invokes the appropriate installer_kind with package_name=target_version.
 do_upgrade() {
-    echo "fake-upgrade: $1=$2"
+    case "$installer_kind" in
+        nop)
+            log_info "attempting nop install $package_name=$target_version..."
+            echo "nop install $package_name=$target_version"
+            return 0
+            ;;
+        apt)
+            log_info "attempting apt install $package_name=$target_version..."
+            # TODO
+            log_warn "not implemented!"
+            return 1
+            ;;
+        yum)
+            log_info "attempting yum install $package_name=$target_version..."
+            # TODO
+            log_warn "not implemented!"
+            return 1
+            ;;
+        *)
+            log_warn "unsupported installer kind: $installer_kind (expected one apt, yum, or nop)"
+            return 1
+            ;;
+    esac
 }
 
 log_debug "init: endpoint=$upgrade_endpoint, insecure=$insecure_mode, package=$package_name"
@@ -267,7 +293,7 @@ else
     exit 0
 fi
 
-if ! do_upgrade "$package_name" "$target_version"; then
+if ! do_upgrade; then
     log_warn "upgrade attempt failed for $package_name=$target_version."
     exit 1
 fi
