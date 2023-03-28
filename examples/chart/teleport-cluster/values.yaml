@@ -157,14 +157,13 @@ separatePostgresListener: false
 separateMongoListener: false
 
 # Do not set any of these values unless you explicitly need to. Teleport always uses the cluster name by default.
-# Public cluster addresses, including port. Defaults to `clusterName` on 443 port.
 #
 # WARNING:
 #   If you set `publicAddr` for users to access the cluster under a domain different
-  #   to clusterName you must manually set the webauthn Relying
-  #   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
-  #   If you don't, RP ID will default to `clusterName` and users will fail
-  #   to register second factors.
+#   to clusterName, you must manually set the webauthn Relying
+#   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
+#   If you don't, RP ID will default to `clusterName` and users will fail
+#   to register second factors.
 #
 #   You can do this by setting the value
 #   `auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
@@ -174,23 +173,26 @@ separateMongoListener: false
 #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
 #
 #   Changing the RP ID will invalidate all already registered webauthn second factors.
+#
+# Public cluster addresses, including port (e.g. teleport.example.com:443)
+# Defaults to `clusterName` on port 443.
 publicAddr: []
-# Public cluster kube addresses, including port. Defaults to `publicAddr` on 3026 port.
+# Public cluster kube addresses, including port. Defaults to `publicAddr` on port 3026.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 kubePublicAddr: []
-# Public cluster mongo listener addresses, including port. Defaults to `publicAddr` on 27017 port.
+# Public cluster mongo listener addresses, including port. Defaults to `publicAddr` on port 27017.
 # Only used when `proxyListenerMode` is not 'multiplex' and `separateMongoListener` is true.
 mongoPublicAddr: []
-# Public cluster MySQL addresses, including port. Defaults to `publicAddr` on 3036 port.
+# Public cluster MySQL addresses, including port. Defaults to `publicAddr` on port 3036.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 mysqlPublicAddr: []
-# Public cluster postgres listener addresses, including port. Defaults to `publicAddr` on 5432 port.
+# Public cluster postgres listener addresses, including port. Defaults to `publicAddr` on port 5432.
 # Only used when `proxyListenerMode` is not 'multiplex' and `separatePostgresListener` is true.
 postgresPublicAddr: []
-# Public cluster SSH addresses, including port. Defaults to `publicAddr` on 3023 port.
+# Public cluster SSH addresses, including port. Defaults to `publicAddr` on port 3023.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 sshPublicAddr: []
-# Public cluster tunnel SSH addresses, including port. Defaults to `publicAddr` on 3024 port.
+# Public cluster tunnel SSH addresses, including port. Defaults to `publicAddr` on port 3024.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 tunnelPublicAddr: []
 
