@@ -58,20 +58,9 @@ Policy](./active-directory-manual.mdx#create-another-gpo-and-import-the-teleport
 Teleport CA was rotated since the last import, you will have to fetch the
 new CA using the following command:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ```code
-$ curl 'https://teleport.example.com/webapi/auth/export?type=windows' > user-ca.cer
+$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=windows' > user-ca.cer
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ curl 'https://mytenant.teleport.sh/webapi/auth/export?type=windows' > user-ca.cer
-```
-
-</ScopedBlock>
 
 If that doesn't help, log into the target host directly, open PowerShell and
 run `gpupdate.exe /force`. This forces a Group Policy sync and should pick up
