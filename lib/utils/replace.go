@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 // ContainsExpansion returns true if value contains
@@ -88,28 +89,57 @@ type RegexpConfig struct {
 // match is always evaluated as a regex either an exact match or regexp.
 func SliceMatchesRegex(input string, expressions []string) (bool, error) {
 	for _, expression := range expressions {
-		if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
-			// replace glob-style wildcards with regexp wildcards
-			// for plain strings, and quote all characters that could
-			// be interpreted in regular expression
-			expression = "^" + GlobToRegexp(expression) + "$"
-		}
-
-		expr, err := regexp.Compile(expression)
-		if err != nil {
-			return false, trace.BadParameter(err.Error())
-		}
-
-		// Since the expression is always surrounded by ^ and $ this is an exact
-		// match for either a a plain string (for example ^hello$) or for a regexp
-		// (for example ^hel*o$).
-		if expr.MatchString(input) {
-			return true, nil
+		result, err := matchString(input, expression)
+		if err != nil || result {
+			return result, trace.Wrap(err)
 		}
 	}
 
 	return false, nil
 }
 
-var replaceWildcard = regexp.MustCompile(`(\\\*)`)
-var reExpansion = regexp.MustCompile(`\$[^\$]+`)
+// mustCache initializes a new [lru.Cache] with the provided size.
+// A panic will be triggered if the creation of the cache fails.
+func mustCache[K comparable, V any](size int) *lru.Cache[K, V] {
+	cache, err := lru.New[K, V](size)
+	if err != nil {
+		panic(err)
+	}
+
+	return cache
+}
+
+// exprCache interns compiled regular expressions created in matchString
+// to improve performance.
+var exprCache = mustCache[string, *regexp.Regexp](1000)
+
+func matchString(input, expression string) (bool, error) {
+	if expr, ok := exprCache.Get(expression); ok {
+		return expr.MatchString(input), nil
+	}
+
+	original := expression
+	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
+		// replace glob-style wildcards with regexp wildcards
+		// for plain strings, and quote all characters that could
+		// be interpreted in regular expression
+		expression = "^" + GlobToRegexp(expression) + "$"
+	}
+
+	expr, err := regexp.Compile(expression)
+	if err != nil {
+		return false, trace.BadParameter(err.Error())
+	}
+
+	exprCache.Add(original, expr)
+
+	// Since the expression is always surrounded by ^ and $ this is an exact
+	// match for either a plain string (for example ^hello$) or for a regexp
+	// (for example ^hel*o$).
+	return expr.MatchString(input), nil
+}
+
+var (
+	replaceWildcard = regexp.MustCompile(`(\\\*)`)
+	reExpansion     = regexp.MustCompile(`\$[^\$]+`)
+)
