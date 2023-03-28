@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package teleport.integration.v1;
 
+import "google/protobuf/empty.proto";
 import "teleport/legacy/types/types.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1";
@@ -26,19 +27,19 @@ service IntegrationService {
   rpc ListIntegrations(ListIntegrationsRequest) returns (ListIntegrationsResponse);
 
   // GetIntegration returns the specified Integration resource.
-  rpc GetIntegration(GetIntegrationRequest) returns (GetIntegrationResponse);
+  rpc GetIntegration(GetIntegrationRequest) returns (types.IntegrationV1);
 
   // CreateIntegration creates a new Integration resource.
-  rpc CreateIntegration(CreateIntegrationRequest) returns (CreateIntegrationResponse);
+  rpc CreateIntegration(CreateIntegrationRequest) returns (types.IntegrationV1);
 
   // UpdateIntegration updates an existing Integration resource.
-  rpc UpdateIntegration(UpdateIntegrationRequest) returns (UpdateIntegrationResponse);
+  rpc UpdateIntegration(UpdateIntegrationRequest) returns (types.IntegrationV1);
 
   // DeleteIntegration removes the specified Integration resource.
-  rpc DeleteIntegration(DeleteIntegrationRequest) returns (DeleteIntegrationResponse);
+  rpc DeleteIntegration(DeleteIntegrationRequest) returns (google.protobuf.Empty);
 
   // DeleteAllIntegrations removes all Integrations.
-  rpc DeleteAllIntegrations(DeleteAllIntegrationsRequest) returns (DeleteAllIntegrationsResponse);
+  rpc DeleteAllIntegrations(DeleteAllIntegrationsRequest) returns (google.protobuf.Empty);
 }
 
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
@@ -65,20 +66,11 @@ message GetIntegrationRequest {
   string name = 1;
 }
 
-// GetIntegrationResponse is a response for reading a single Integration.
-message GetIntegrationResponse {
-  // Integration is the returned integration.
-  types.IntegrationV1 integration = 1;
-}
-
 // CreateIntegrationRequest is the request to create the provided integration.
 message CreateIntegrationRequest {
   // Integration is the integration to be created.
   types.IntegrationV1 integration = 1;
 }
-
-// CreateIntegrationResponse is the response for creating an Integration.
-message CreateIntegrationResponse {}
 
 // UpdateIntegrationRequest is the request to update the provided integration.
 message UpdateIntegrationRequest {
@@ -86,20 +78,11 @@ message UpdateIntegrationRequest {
   types.IntegrationV1 integration = 1;
 }
 
-// UpdateIntegrationResponse is the response for updating an Integration.
-message UpdateIntegrationResponse {}
-
 // DeleteIntegrationRequest is a request for deleting a specific Integration resource.
 message DeleteIntegrationRequest {
   // Name is the name of the Integration to be deleted.
   string name = 1;
 }
 
-// DeleteIntegrationResponse is the response for deleting an integrations.
-message DeleteIntegrationResponse {}
-
 // DeleteAllIntegrationsRequest is the request for deleting all integrations.
 message DeleteAllIntegrationsRequest {}
-
-// DeleteAllIntegrationsResponse is the response for deleting all integrations.
-message DeleteAllIntegrationsResponse {}

@@ -22,9 +22,11 @@ package v1
 
 import (
 	context "context"
+	types "github.com/gravitational/teleport/api/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -48,15 +50,15 @@ type IntegrationServiceClient interface {
 	// ListIntegrations returns a paginated list of Integration resources.
 	ListIntegrations(ctx context.Context, in *ListIntegrationsRequest, opts ...grpc.CallOption) (*ListIntegrationsResponse, error)
 	// GetIntegration returns the specified Integration resource.
-	GetIntegration(ctx context.Context, in *GetIntegrationRequest, opts ...grpc.CallOption) (*GetIntegrationResponse, error)
+	GetIntegration(ctx context.Context, in *GetIntegrationRequest, opts ...grpc.CallOption) (*types.IntegrationV1, error)
 	// CreateIntegration creates a new Integration resource.
-	CreateIntegration(ctx context.Context, in *CreateIntegrationRequest, opts ...grpc.CallOption) (*CreateIntegrationResponse, error)
+	CreateIntegration(ctx context.Context, in *CreateIntegrationRequest, opts ...grpc.CallOption) (*types.IntegrationV1, error)
 	// UpdateIntegration updates an existing Integration resource.
-	UpdateIntegration(ctx context.Context, in *UpdateIntegrationRequest, opts ...grpc.CallOption) (*UpdateIntegrationResponse, error)
+	UpdateIntegration(ctx context.Context, in *UpdateIntegrationRequest, opts ...grpc.CallOption) (*types.IntegrationV1, error)
 	// DeleteIntegration removes the specified Integration resource.
-	DeleteIntegration(ctx context.Context, in *DeleteIntegrationRequest, opts ...grpc.CallOption) (*DeleteIntegrationResponse, error)
+	DeleteIntegration(ctx context.Context, in *DeleteIntegrationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllIntegrations removes all Integrations.
-	DeleteAllIntegrations(ctx context.Context, in *DeleteAllIntegrationsRequest, opts ...grpc.CallOption) (*DeleteAllIntegrationsResponse, error)
+	DeleteAllIntegrations(ctx context.Context, in *DeleteAllIntegrationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type integrationServiceClient struct {
@@ -76,8 +78,8 @@ func (c *integrationServiceClient) ListIntegrations(ctx context.Context, in *Lis
 	return out, nil
 }
 
-func (c *integrationServiceClient) GetIntegration(ctx context.Context, in *GetIntegrationRequest, opts ...grpc.CallOption) (*GetIntegrationResponse, error) {
-	out := new(GetIntegrationResponse)
+func (c *integrationServiceClient) GetIntegration(ctx context.Context, in *GetIntegrationRequest, opts ...grpc.CallOption) (*types.IntegrationV1, error) {
+	out := new(types.IntegrationV1)
 	err := c.cc.Invoke(ctx, IntegrationService_GetIntegration_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -85,8 +87,8 @@ func (c *integrationServiceClient) GetIntegration(ctx context.Context, in *GetIn
 	return out, nil
 }
 
-func (c *integrationServiceClient) CreateIntegration(ctx context.Context, in *CreateIntegrationRequest, opts ...grpc.CallOption) (*CreateIntegrationResponse, error) {
-	out := new(CreateIntegrationResponse)
+func (c *integrationServiceClient) CreateIntegration(ctx context.Context, in *CreateIntegrationRequest, opts ...grpc.CallOption) (*types.IntegrationV1, error) {
+	out := new(types.IntegrationV1)
 	err := c.cc.Invoke(ctx, IntegrationService_CreateIntegration_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -94,8 +96,8 @@ func (c *integrationServiceClient) CreateIntegration(ctx context.Context, in *Cr
 	return out, nil
 }
 
-func (c *integrationServiceClient) UpdateIntegration(ctx context.Context, in *UpdateIntegrationRequest, opts ...grpc.CallOption) (*UpdateIntegrationResponse, error) {
-	out := new(UpdateIntegrationResponse)
+func (c *integrationServiceClient) UpdateIntegration(ctx context.Context, in *UpdateIntegrationRequest, opts ...grpc.CallOption) (*types.IntegrationV1, error) {
+	out := new(types.IntegrationV1)
 	err := c.cc.Invoke(ctx, IntegrationService_UpdateIntegration_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -103,8 +105,8 @@ func (c *integrationServiceClient) UpdateIntegration(ctx context.Context, in *Up
 	return out, nil
 }
 
-func (c *integrationServiceClient) DeleteIntegration(ctx context.Context, in *DeleteIntegrationRequest, opts ...grpc.CallOption) (*DeleteIntegrationResponse, error) {
-	out := new(DeleteIntegrationResponse)
+func (c *integrationServiceClient) DeleteIntegration(ctx context.Context, in *DeleteIntegrationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, IntegrationService_DeleteIntegration_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -112,8 +114,8 @@ func (c *integrationServiceClient) DeleteIntegration(ctx context.Context, in *De
 	return out, nil
 }
 
-func (c *integrationServiceClient) DeleteAllIntegrations(ctx context.Context, in *DeleteAllIntegrationsRequest, opts ...grpc.CallOption) (*DeleteAllIntegrationsResponse, error) {
-	out := new(DeleteAllIntegrationsResponse)
+func (c *integrationServiceClient) DeleteAllIntegrations(ctx context.Context, in *DeleteAllIntegrationsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, IntegrationService_DeleteAllIntegrations_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -128,15 +130,15 @@ type IntegrationServiceServer interface {
 	// ListIntegrations returns a paginated list of Integration resources.
 	ListIntegrations(context.Context, *ListIntegrationsRequest) (*ListIntegrationsResponse, error)
 	// GetIntegration returns the specified Integration resource.
-	GetIntegration(context.Context, *GetIntegrationRequest) (*GetIntegrationResponse, error)
+	GetIntegration(context.Context, *GetIntegrationRequest) (*types.IntegrationV1, error)
 	// CreateIntegration creates a new Integration resource.
-	CreateIntegration(context.Context, *CreateIntegrationRequest) (*CreateIntegrationResponse, error)
+	CreateIntegration(context.Context, *CreateIntegrationRequest) (*types.IntegrationV1, error)
 	// UpdateIntegration updates an existing Integration resource.
-	UpdateIntegration(context.Context, *UpdateIntegrationRequest) (*UpdateIntegrationResponse, error)
+	UpdateIntegration(context.Context, *UpdateIntegrationRequest) (*types.IntegrationV1, error)
 	// DeleteIntegration removes the specified Integration resource.
-	DeleteIntegration(context.Context, *DeleteIntegrationRequest) (*DeleteIntegrationResponse, error)
+	DeleteIntegration(context.Context, *DeleteIntegrationRequest) (*emptypb.Empty, error)
 	// DeleteAllIntegrations removes all Integrations.
-	DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*DeleteAllIntegrationsResponse, error)
+	DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedIntegrationServiceServer()
 }
 
@@ -147,19 +149,19 @@ type UnimplementedIntegrationServiceServer struct {
 func (UnimplementedIntegrationServiceServer) ListIntegrations(context.Context, *ListIntegrationsRequest) (*ListIntegrationsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListIntegrations not implemented")
 }
-func (UnimplementedIntegrationServiceServer) GetIntegration(context.Context, *GetIntegrationRequest) (*GetIntegrationResponse, error) {
+func (UnimplementedIntegrationServiceServer) GetIntegration(context.Context, *GetIntegrationRequest) (*types.IntegrationV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetIntegration not implemented")
 }
-func (UnimplementedIntegrationServiceServer) CreateIntegration(context.Context, *CreateIntegrationRequest) (*CreateIntegrationResponse, error) {
+func (UnimplementedIntegrationServiceServer) CreateIntegration(context.Context, *CreateIntegrationRequest) (*types.IntegrationV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateIntegration not implemented")
 }
-func (UnimplementedIntegrationServiceServer) UpdateIntegration(context.Context, *UpdateIntegrationRequest) (*UpdateIntegrationResponse, error) {
+func (UnimplementedIntegrationServiceServer) UpdateIntegration(context.Context, *UpdateIntegrationRequest) (*types.IntegrationV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateIntegration not implemented")
 }
-func (UnimplementedIntegrationServiceServer) DeleteIntegration(context.Context, *DeleteIntegrationRequest) (*DeleteIntegrationResponse, error) {
+func (UnimplementedIntegrationServiceServer) DeleteIntegration(context.Context, *DeleteIntegrationRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteIntegration not implemented")
 }
-func (UnimplementedIntegrationServiceServer) DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*DeleteAllIntegrationsResponse, error) {
+func (UnimplementedIntegrationServiceServer) DeleteAllIntegrations(context.Context, *DeleteAllIntegrationsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllIntegrations not implemented")
 }
 func (UnimplementedIntegrationServiceServer) mustEmbedUnimplementedIntegrationServiceServer() {}
