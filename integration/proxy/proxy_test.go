@@ -389,8 +389,8 @@ func TestALPNSNIProxyKube(t *testing.T) {
 			Host:  "https://" + teleportCluster,
 			Proxy: http.ProxyURL(mustParseURL(t, "http://"+fp.GetAddr())),
 			TLSClientConfig: rest.TLSClientConfig{
-				CAData:     localCACert, // Client uses same cert as local proxy server.
-				CertData:   localCACert,
+				CAData:     localCACert,
+				CertData:   localCACert, // Client uses same cert as local proxy server.
 				KeyData:    localCAKey,
 				ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
 			},

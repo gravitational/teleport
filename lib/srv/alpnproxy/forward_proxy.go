@@ -357,7 +357,9 @@ func startForwardProxy(ctx context.Context, clientConn, serverConn net.Conn, hos
 	log.Debugf("Started forwarding request for %q.", host)
 	defer log.Debugf("Stopped forwarding request for %q.", host)
 
-	utils.ProxyConn(ctx, clientConn, serverConn)
+	if err := utils.ProxyConn(ctx, clientConn, serverConn); err != nil {
+		log.WithError(err).Errorf("Failed to proxy between %q and %q.", clientConn.LocalAddr(), serverConn.LocalAddr())
+	}
 }
 
 // hijackClientConnection hijacks client connection.

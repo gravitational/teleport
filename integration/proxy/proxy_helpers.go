@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -462,6 +463,8 @@ func startKubeAPIMock(t *testing.T) *httptest.Server {
 }
 
 func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
+	t.Helper()
+
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	err := clientcmd.WriteToFile(config, configPath)
 	require.NoError(t, err)
@@ -469,6 +472,8 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 }
 
 func mustCreateListener(t *testing.T) net.Listener {
+	t.Helper()
+
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
@@ -479,6 +484,8 @@ func mustCreateListener(t *testing.T) net.Listener {
 }
 
 func mustCreateKubeLocalProxyListener(t *testing.T, teleportCluster string, caCert, caKey []byte) net.Listener {
+	t.Helper()
+
 	ca, err := tls.X509KeyPair(caCert, caKey)
 	require.NoError(t, err)
 
@@ -490,6 +497,8 @@ func mustCreateKubeLocalProxyListener(t *testing.T, teleportCluster string, caCe
 }
 
 func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+	t.Helper()
+
 	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocols:          []alpncommon.Protocol{protocol},
@@ -498,6 +507,8 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 }
 
 func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
+	t.Helper()
+
 	if config.Listener == nil {
 		config.Listener = mustCreateListener(t)
 	}
@@ -518,12 +529,14 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 		} else {
 			err = lp.StartHTTPAccessProxy(context.Background())
 		}
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}()
 	return lp
 }
 
 func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardProxy {
+	t.Helper()
+
 	fp, err := alpnproxy.NewKubeForwardProxy(context.Background(), "", lpAddr)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -531,12 +544,14 @@ func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardPr
 	})
 
 	go func() {
-		require.NoError(t, fp.Start())
+		assert.NoError(t, fp.Start())
 	}()
 	return fp
 }
 
 func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeCluster string, userCert, userKey []byte) alpnproxy.LocalProxyHTTPMiddleware {
+	t.Helper()
+
 	cert, err := tls.X509KeyPair(userCert, userKey)
 	require.NoError(t, err)
 	certs := make(alpnproxy.KubeClientCerts)
@@ -558,6 +573,8 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 }
 
 func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
+	t.Helper()
+
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
 	}, []string{"localhost"}, defaults.CATTL)
@@ -613,6 +630,8 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 }
 
 func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
+	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -637,7 +656,9 @@ func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server
 }
 
 func mustParseURL(t *testing.T, rawURL string) *url.URL {
-	url, err := url.Parse(rawURL)
+	t.Helper()
+
+	u, err := url.Parse(rawURL)
 	require.NoError(t, err)
-	return url
+	return u
 }

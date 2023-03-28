@@ -413,10 +413,10 @@ func (k *Key) KubeX509Cert(kubeClusterName string) (*x509.Certificate, error) {
 	return tlsca.ParseCertificatePEM(tlsCert)
 }
 
-// KubeX509Cert returns the tls.Certificate for authentication against a named
+// KubeTLSCert returns the tls.Certificate for authentication against a named
 // kubernetes cluster.
 func (k *Key) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
-	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
+	certPem, ok := k.KubeTLSCerts[kubeClusterName]
 	if !ok {
 		return tls.Certificate{}, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
@@ -424,11 +424,11 @@ func (k *Key) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	cert, err := keys.X509KeyPair(tlsCert, keyPem)
+	tlsCert, err := keys.X509KeyPair(certPem, keyPem)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
-	return cert, nil
+	return tlsCert, nil
 }
 
 // DBTLSCertificates returns all parsed x509 database access certificates.

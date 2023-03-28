@@ -19,6 +19,8 @@ package alpnproxy
 import (
 	"crypto/tls"
 	"net/http"
+
+	"github.com/gravitational/trace"
 )
 
 // LocalProxyHTTPMiddleware provides callback functions for LocalProxy in HTTP proxy mode.
@@ -50,5 +52,5 @@ func (m *DefaultLocalProxyHTTPMiddleware) HandleResponse(resp *http.Response) er
 	return nil
 }
 func (m *DefaultLocalProxyHTTPMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certificate, error) {
-	return nil, nil
+	return nil, trace.NotImplemented("not implemented")
 }

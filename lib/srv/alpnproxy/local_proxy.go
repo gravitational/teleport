@@ -314,23 +314,30 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			req.Header.Set("X-Forwarded-Host", req.Host)
 		}
 
-		overwriteClientCerts, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
+		proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
 		if err != nil {
-			l.cfg.Log.Warnf("Failed to get client certs: %v", err)
+			l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
 			trace.WriteError(rw, trace.Wrap(err))
 			return
 		}
 
-		if overwriteClientCerts != nil {
-			l.makeHTTPReverseProxy(overwriteClientCerts).ServeHTTP(rw, req)
-		} else {
-			defaultProxy.ServeHTTP(rw, req)
-		}
+		proxy.ServeHTTP(rw, req)
 	}))
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request, defaultProxy *httputil.ReverseProxy) (*httputil.ReverseProxy, error) {
+	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return defaultProxy, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	return l.makeHTTPReverseProxy(certs), nil
 }
 
 // getCerts returns the local proxy's configured TLS certificates.

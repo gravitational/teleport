@@ -381,8 +381,24 @@ func makeDatabaseClientPEM(proto string, cert []byte, pk *Key) ([]byte, error) {
 // or an error if anything goes wrong.
 type PromptMFAChallengeHandler func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
-// IssueUserCertsWithMFA generates a single-use certificate for the user and returns whether MFA was requuired.
-func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFAChallenge PromptMFAChallengeHandler) (*Key, bool, error) {
+// issueUserCertsOpts contains extra options for issuing user certs.
+type issueUserCertsOpts struct {
+	mfaRequired *bool
+}
+
+// IssueUserCertsOpt is an option func for issuing user certs.
+type IssueUserCertsOpt func(*issueUserCertsOpts)
+
+// WithMFARequired is an IssueUserCertsOpt that sets the MFA required check
+// result in provided bool ptr.
+func WithMFARequired(mfaRequired *bool) IssueUserCertsOpt {
+	return func(opt *issueUserCertsOpts) {
+		opt.mfaRequired = mfaRequired
+	}
+}
+
+// IssueUserCertsWithMFA generates a single-use certificate for the user.
+func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params ReissueParams, promptMFAChallenge PromptMFAChallengeHandler, applyOpts ...IssueUserCertsOpt) (*Key, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/IssueUserCertsWithMFA",
@@ -393,6 +409,11 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	)
 	defer span.End()
 
+	issueOpts := issueUserCertsOpts{}
+	for _, applyOpt := range applyOpts {
+		applyOpt(&issueOpts)
+	}
+
 	if params.RouteToCluster == "" {
 		params.RouteToCluster = proxy.siteName
 	}
@@ -401,7 +422,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		var err error
 		key, err = proxy.localAgent().GetKey(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
-			return nil, false, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -417,7 +438,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		} else {
 			authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
 			if err != nil {
-				return nil, false, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			clt = authClt
 			defer clt.Close()
@@ -427,9 +448,22 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	if requiredCheck == nil {
 		check, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
 		if err != nil {
-			return nil, false, trace.Wrap(err)
+			if trace.IsNotImplemented(err) {
+				// Probably talking to an older server, use the old non-MFA endpoint.
+				log.WithError(err).Debug("Auth server does not implement IsMFARequired.")
+				// SSH certs can be used without reissuing.
+				if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
+					return key, nil
+				}
+				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+			}
+			return nil, trace.Wrap(err)
 		}
 		requiredCheck = check
+	}
+
+	if issueOpts.mfaRequired != nil {
+		*issueOpts.mfaRequired = requiredCheck.Required
 	}
 
 	if !requiredCheck.Required {
@@ -437,19 +471,18 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// MFA is not required.
 		// SSH certs can be used without embedding the node name.
 		if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
-			return key, requiredCheck.Required, nil
+			return key, nil
 		}
 		// All other targets need their name embedded in the cert for routing,
 		// fall back to non-MFA reissue.
-		certs, err := proxy.reissueUserCerts(ctx, CertCacheKeep, params)
-		return certs, requiredCheck.Required, trace.Wrap(err)
+		return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
 	// the existing client if possible.
 	rootClusterName, err := key.RootClusterName()
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	if params.RouteToCluster != rootClusterName {
 		clt.Close()
@@ -461,13 +494,13 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
 			proxy.teleportClient.JumpHosts = jumpHost
 			if err != nil {
-				return nil, requiredCheck.Required, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			defer rootClusterProxy.Close()
 		}
 		clt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName)
 		if err != nil {
-			return nil, requiredCheck.Required, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		defer clt.Close()
 	}
@@ -475,7 +508,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
 	stream, err := clt.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		if trace.IsNotImplemented(err) {
+			// Probably talking to an older server, use the old non-MFA endpoint.
+			log.WithError(err).Debug("Auth server does not implement GenerateUserSingleUseCerts.")
+			// SSH certs can be used without reissuing.
+			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
+				return key, nil
+			}
+			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+		}
+		return nil, trace.Wrap(err)
 	}
 	defer func() {
 		// CloseSend closes the client side of the stream
@@ -487,39 +529,39 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 
 	initReq, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_Init{
 		Init: initReq,
 	}})
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()
 	if mfaChal == nil {
-		return nil, requiredCheck.Required, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
+		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
 	}
 	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal)
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, requiredCheck.Required, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	certResp := resp.GetCert()
 	if certResp == nil {
-		return nil, requiredCheck.Required, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
+		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected SingleUseUserCert", resp.Response)
 	}
 	switch crt := certResp.Cert.(type) {
 	case *proto.SingleUseUserCert_SSH:
@@ -531,20 +573,20 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		case proto.UserCertsRequest_Database:
 			dbCert, err := makeDatabaseClientPEM(params.RouteToDatabase.Protocol, crt.TLS, key)
 			if err != nil {
-				return nil, requiredCheck.Required, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
 			key.DBTLSCerts[params.RouteToDatabase.ServiceName] = dbCert
 		case proto.UserCertsRequest_WindowsDesktop:
 			key.WindowsDesktopCerts[params.RouteToWindowsDesktop.WindowsDesktop] = crt.TLS
 		default:
-			return nil, requiredCheck.Required, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
+			return nil, trace.BadParameter("server returned a TLS certificate but cert request usage was %s", initReq.Usage)
 		}
 	default:
-		return nil, requiredCheck.Required, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
+		return nil, trace.BadParameter("server sent a %T SingleUseUserCert in response", certResp.Cert)
 	}
 	key.ClusterName = params.RouteToCluster
 	log.Debug("Issued single-use user certificate after an MFA check.")
-	return key, requiredCheck.Required, nil
+	return key, nil
 }
 
 func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key) (*proto.UserCertsRequest, error) {
@@ -2013,7 +2055,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 		return nil, trace.Wrap(err)
 	}
 
-	key, _, err := proxy.IssueUserCertsWithMFA(
+	key, err := proxy.IssueUserCertsWithMFA(
 		ctx,
 		ReissueParams{
 			NodeName:       nodeName(nodeAddr.Addr),

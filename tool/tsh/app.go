@@ -568,6 +568,10 @@ func generateSelfSignedCA(caPath, keyPath string, validUntil time.Time, dnsNames
 		return trace.Wrap(err)
 	}
 
+	if _, err := utils.EnsureLocalPath(caPath, "", ""); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// WriteFile truncates existing file before writing.
 	if err = os.WriteFile(caPath, certPem, 0600); err != nil {
 		return trace.ConvertSystemError(err)

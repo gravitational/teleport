@@ -249,7 +249,7 @@ func AppLocalCAPath(baseDir, proxy, username, cluster, appname string) string {
 // KubeLocalCAPath returns the path to a self-signed localhost CA for the given
 // proxy, cluster, and app.
 //
-// <baseDir>/keys/<proxy>/<username>-app/<cluster>/<appname>-localca.pem
+// <baseDir>/keys/<proxy>/<username>-kube/<cluster>/localca.pem
 func KubeLocalCAPath(baseDir, proxy, username, cluster string) string {
 	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), fileLocalCA)
 }

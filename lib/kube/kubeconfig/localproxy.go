@@ -42,8 +42,6 @@ type LocalProxyCluster struct {
 	ImpersonateGroups []string
 	// Namespace allows to define the default namespace value.
 	Namespace string
-	// KubeClusters is a list of kubernetes clusters to generate contexts for.
-	KubeClusters []string
 }
 
 // String implements Stringer interface.
