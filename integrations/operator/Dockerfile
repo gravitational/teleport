@@ -25,15 +25,12 @@ COPY integrations/operator/sidecar/ integrations/operator/sidecar/
 COPY integrations/operator/main.go integrations/operator/main.go
 COPY integrations/operator/namespace.go integrations/operator/namespace.go
 
-# Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
-#  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
-# TARGETOS and TARGETARCH are provided by Docker/buildx, but must be explicitly listed here
-ARG COMPILER_NAME TARGETOS TARGETARCH
+ARG TARGETOS
+ARG TARGETARCH
 
-# Build the program
-# CGO is required for github.com/gravitational/teleport/lib/system
-RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
-    CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
+# Build the program. We rely on golang's cross-compilation capabilities for multiarch building.
+RUN echo "Targeting $TARGETOS/$TARGETARCH" && \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -a -o /go/bin/teleport-operator github.com/gravitational/teleport/integrations/operator
 
 # Create the image with the build operator on the $TARGETPLATFORM
