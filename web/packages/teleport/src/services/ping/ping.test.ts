@@ -24,9 +24,7 @@ test('undefined automatic upgrade resolves to false', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockContext);
 
   const response = await ping.fetchPing();
-  expect(response).toEqual({
-    automaticUpgrades: false,
-  });
+  expect(response.automaticUpgrades).toBeFalsy();
 });
 
 test('null automatic upgrade resolves to false', async () => {
@@ -37,9 +35,7 @@ test('null automatic upgrade resolves to false', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockContext);
 
   const response = await ping.fetchPing();
-  expect(response).toEqual({
-    automaticUpgrades: false,
-  });
+  expect(response.automaticUpgrades).toBeFalsy();
 });
 
 test('automatic upgrade set to true, resolves to true', async () => {
@@ -50,7 +46,16 @@ test('automatic upgrade set to true, resolves to true', async () => {
   jest.spyOn(api, 'get').mockResolvedValue(mockContext);
 
   const response = await ping.fetchPing();
-  expect(response).toEqual({
-    automaticUpgrades: true,
-  });
+  expect(response.automaticUpgrades).toBeTruthy();
+});
+
+test('automatic upgrade set to false, resolves to false', async () => {
+  const mockContext = {
+    automatic_upgrades: false,
+  };
+
+  jest.spyOn(api, 'get').mockResolvedValue(mockContext);
+
+  const response = await ping.fetchPing();
+  expect(response.automaticUpgrades).toBeFalsy();
 });

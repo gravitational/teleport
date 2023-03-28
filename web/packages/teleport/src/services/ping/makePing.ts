@@ -18,7 +18,7 @@ import { PingResponse } from './types';
 
 export function makePing(json: any): PingResponse {
   json = json || {};
-  const { automatic_upgrades = {} } = json;
+  const { automatic_upgrades } = json;
 
   return {
     automaticUpgrades: automatic_upgrades,
