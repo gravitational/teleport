@@ -1,0 +1,58 @@
+// Package operatortest is meant for testing the Teleport Kubernetes Operator
+// against an enterprise cluster, for any resource types which require an
+// enterprise cluster to function and cannot be tested in the OSS repo.
+package operatortest
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/client"
+	eauth "github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/plugin"
+)
+
+// startAuthServer starts an enterprise auth server which will be cleaned up at
+// the end of the test. It returns an admin client for the auth server.
+func startAuthServer(t *testing.T) *client.Client {
+	authServer, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, authServer.Close())
+	})
+
+	authPlugin, err := eauth.NewPlugin(eauth.Config{
+		License: eauth.ValidLicense{},
+	})
+	require.NoError(t, err)
+
+	registry := plugin.NewRegistry()
+	registry.Add(authPlugin)
+
+	server, err := auth.NewTestTLSServer(auth.TestTLSServerConfig{
+		APIConfig: &auth.APIConfig{
+			PluginRegistry: registry,
+			AuthServer:     authServer.AuthServer,
+			Authorizer:     authServer.Authorizer,
+			AuditLog:       authServer.AuditLog,
+			Emitter:        authServer.AuditLog,
+		},
+		AuthServer:    authServer,
+		AcceptedUsage: authServer.AcceptedUsage,
+	})
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		require.NoError(t, server.Close())
+	})
+
+	authClient, err := server.NewClient(auth.TestAdmin())
+	require.NoError(t, err)
+
+	return authClient.APIClient
+}
