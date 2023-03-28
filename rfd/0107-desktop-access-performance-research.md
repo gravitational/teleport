@@ -120,6 +120,9 @@ This solution won't change anything from the security point of view.
 The [MS-RDPEGFX] extension introduces a new way of drawing graphic data compared which is very similar to graphics APIs like OpenGL. Instead of just rendering bitmaps on the screen it defines surfaces, graphic contexts and graphics output buffer. Each surface is mapped to the part of the graphics output buffer which is a part visible for the end-user. Then graphic data is encoded using one of several codecs and transfered to specific surface. The protocol defines start and end frame messages which controll rendering process. There is also support for bitmap caches. It is embedded in a dynamic virtual channel transport, as specified in [MS-RDPEDYC](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpedyc/3bd53020-9b64-4c9a-97fc-90a79e7e1e06).
 
 Here is an overview of commands defined in the protocol:
+
+</br>
+
 ![blit commands](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegfx/ms-rdpegfx_files/image001.png)
 
 - `WireToSurface` transfers encoded bitmap data to destination surface
