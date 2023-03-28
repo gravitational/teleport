@@ -851,8 +851,8 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 	return c.WebProxyHostPort()
 }
 
-// DoesDatabseUseWebProxyHostPort returns true if database is using web port.
-func (c *Config) DoesDatabseUseWebProxyHostPort(db tlsca.RouteToDatabase) bool {
+// DoesDatabaseUseWebProxyHostPort returns true if database is using web port.
+func (c *Config) DoesDatabaseUseWebProxyHostPort(db tlsca.RouteToDatabase) bool {
 	dbHost, dbPort := c.DatabaseProxyHostPort(db)
 	webHost, webPort := c.WebProxyHostPort()
 	return dbHost == webHost && dbPort == webPort
