@@ -58,10 +58,17 @@ export default function AgentButtonAdd(props: Props) {
   );
 }
 
+export type AddButtonResourceKind =
+  | 'server'
+  | 'application'
+  | 'desktop'
+  | 'kubernetes'
+  | 'database';
+
 export type Props = {
   isLeafCluster: boolean;
   canCreate: boolean;
   onClick?: () => void;
-  agent: string;
+  agent: AddButtonResourceKind;
   beginsWithVowel: boolean;
 };

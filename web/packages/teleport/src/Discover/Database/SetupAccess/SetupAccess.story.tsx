@@ -19,7 +19,7 @@ import { MemoryRouter } from 'react-router';
 
 import { initSelectedOptionsHelper } from 'teleport/Discover/Shared/SetupAccess';
 
-import { DatabaseEngine, DatabaseLocation } from '../resources';
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
 import { SetupAccess } from './SetupAccess';
 
@@ -39,10 +39,7 @@ export const WithTraitsAwsPostgres = () => (
   <MemoryRouter>
     <SetupAccess
       {...props}
-      resourceState={{
-        engine: DatabaseEngine.PostgreSQL,
-        location: DatabaseLocation.AWS,
-      }}
+      resourceSpec={getDbMeta(DatabaseEngine.PostgreSQL, DatabaseLocation.AWS)}
     />
   </MemoryRouter>
 );
@@ -51,10 +48,7 @@ export const WithTraitsAwsMySql = () => (
   <MemoryRouter>
     <SetupAccess
       {...props}
-      resourceState={{
-        engine: DatabaseEngine.MySQL,
-        location: DatabaseLocation.AWS,
-      }}
+      resourceSpec={getDbMeta(DatabaseEngine.MySQL, DatabaseLocation.AWS)}
     />
   </MemoryRouter>
 );
@@ -67,13 +61,13 @@ export const WithTraitsPostgres = () => (
 
 export const WithTraitsMongo = () => (
   <MemoryRouter>
-    <SetupAccess {...props} resourceState={{ engine: DatabaseEngine.Mongo }} />
+    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.Mongo)} />
   </MemoryRouter>
 );
 
 export const WithTraitsMySql = () => (
   <MemoryRouter>
-    <SetupAccess {...props} resourceState={{ engine: DatabaseEngine.MySQL }} />
+    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MySQL)} />
   </MemoryRouter>
 );
 
@@ -104,10 +98,10 @@ const props: State = {
     initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits }),
   dynamicTraits: {} as any,
   staticTraits: {} as any,
-  resourceState: {
-    engine: DatabaseEngine.PostgreSQL,
-    location: DatabaseLocation.SelfHosted,
-  },
+  resourceSpec: getDbMeta(
+    DatabaseEngine.PostgreSQL,
+    DatabaseLocation.SelfHosted
+  ),
 };
 
 const staticTraits = {
@@ -129,3 +123,13 @@ const dynamicTraits = {
   windowsLogins: [],
   awsRoleArns: [],
 };
+
+function getDbMeta(dbEngine: DatabaseEngine, dbLocation?: DatabaseLocation) {
+  return {
+    // Only these fields are relevant.
+    meta: {
+      dbEngine,
+      dbLocation,
+    },
+  } as any;
+}

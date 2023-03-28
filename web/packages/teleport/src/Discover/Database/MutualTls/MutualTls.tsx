@@ -27,7 +27,7 @@ import { Tabs } from 'teleport/components/Tabs';
 
 import { HeaderSubtitle, ActionButtons, Mark, Header } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useMutualTls, State } from './useMutualTls';
 
