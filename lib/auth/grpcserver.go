@@ -4906,36 +4906,6 @@ func (g *GRPCServer) GetBackend() backend.Backend {
 	return g.AuthServer.bk
 }
 
-// ListIntegrations returns a paginated list of Integration resources.
-func (g *GRPCServer) ListIntegrations(ctx context.Context, req *proto.ListIntegrationsRequest) (*proto.ListIntegrationsResponse, error) {
-	return nil, trace.NotImplemented("integration service is not implemented")
-}
-
-// GetIntegration returns the specified Integration resources.
-func (g *GRPCServer) GetIntegration(ctx context.Context, req *proto.GetIntegrationRequest) (*types.IntegrationV1, error) {
-	return nil, trace.NotImplemented("integration service is not implemented")
-}
-
-// CreateIntegration creates a new Integration resource.
-func (g *GRPCServer) CreateIntegration(ctx context.Context, ig *types.IntegrationV1) (*emptypb.Empty, error) {
-	return nil, trace.NotImplemented("integration service is not implemented")
-}
-
-// UpdateIntegration updates an existing Integration resource.
-func (g *GRPCServer) UpdateIntegration(ctx context.Context, ig *types.IntegrationV1) (*emptypb.Empty, error) {
-	return nil, trace.NotImplemented("integration service is not implemented")
-}
-
-// DeleteIntegration removes the specified Integration resource.
-func (g *GRPCServer) DeleteIntegration(ctx context.Context, req *proto.DeleteIntegrationRequest) (*emptypb.Empty, error) {
-	return nil, trace.NotImplemented("integration service is not implemented")
-}
-
-// DeleteAllIntegrations removes all Integration resources.
-func (g *GRPCServer) DeleteAllIntegrations(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
-	return nil, trace.NotImplemented("integration service is not implemented")
-}
-
 // GRPCServerConfig specifies GRPC server configuration
 type GRPCServerConfig struct {
 	// APIConfig is GRPC server API configuration

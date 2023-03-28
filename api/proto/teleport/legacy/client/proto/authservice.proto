@@ -1561,36 +1561,6 @@ message DeleteUserGroupRequest {
   string Name = 1 [(gogoproto.jsontag) = "name"];
 }
 
-// ListIntegrationsRequest is a request for a paginated list of Integrations.
-message ListIntegrationsRequest {
-  // Limit is the maximum amount of resources to retrieve.
-  int32 Limit = 1 [(gogoproto.jsontag) = "limit,omitempty"];
-  // NextKey is the key for the next page of Integrations.
-  string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
-}
-
-// ListIntegrationsResponse a paginated list of Integrations.
-message ListIntegrationsResponse {
-  // Integrations is a list of Integrations.
-  repeated types.IntegrationV1 Integrations = 1 [(gogoproto.jsontag) = "integrations"];
-  // NextKey is the key for the next page of Integrations.
-  string NextKey = 2 [(gogoproto.jsontag) = "next_key,omitempty"];
-  // TotalCount is the total number of resources available after filter, if any.
-  int32 TotalCount = 3 [(gogoproto.jsontag) = "total_count,omitempty"];
-}
-
-// GetIntegrationRequest is a request for a specific Integration resource.
-message GetIntegrationRequest {
-  // Name is the name of the Integration to be requested.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-}
-
-// DeleteIntegrationRequest is a request for deleting a specific Integration resource.
-message DeleteIntegrationRequest {
-  // Name is the name of the Integration to be deleted.
-  string Name = 1 [(gogoproto.jsontag) = "name"];
-}
-
 // CertAuthorityRequest is a request that identifies a Teleport CA.
 message CertAuthorityRequest {
   // Type is either user or host certificate authority.
@@ -2925,22 +2895,4 @@ service AuthService {
 
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
-
-  // ListIntegrations returns a paginated list of Integration resources.
-  rpc ListIntegrations(ListIntegrationsRequest) returns (ListIntegrationsResponse);
-
-  // GetIntegration returns the specified Integration resource.
-  rpc GetIntegration(GetIntegrationRequest) returns (types.IntegrationV1);
-
-  // CreateIntegration creates a new Integration resource.
-  rpc CreateIntegration(types.IntegrationV1) returns (google.protobuf.Empty);
-
-  // UpdateIntegration updates an existing Integration resource.
-  rpc UpdateIntegration(types.IntegrationV1) returns (google.protobuf.Empty);
-
-  // DeleteIntegration removes the specified Integration resource.
-  rpc DeleteIntegration(DeleteIntegrationRequest) returns (google.protobuf.Empty);
-
-  // DeleteAllIntegrations removes all Integrations.
-  rpc DeleteAllIntegrations(google.protobuf.Empty) returns (google.protobuf.Empty);
 }
