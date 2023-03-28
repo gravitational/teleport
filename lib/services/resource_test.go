@@ -145,6 +145,19 @@ func TestParseShortcut(t *testing.T) {
 		"usergroup":   {expectedOutput: types.KindUserGroup},
 		"usergroups":  {expectedOutput: types.KindUserGroup},
 
+		"device":  {expectedOutput: types.KindDevice},
+		"devices": {expectedOutput: types.KindDevice},
+
+		"okta_import_rule":  {expectedOutput: types.KindOktaImportRule},
+		"okta_import_rules": {expectedOutput: types.KindOktaImportRule},
+		"oktaimportrule":    {expectedOutput: types.KindOktaImportRule},
+		"oktaimportrules":   {expectedOutput: types.KindOktaImportRule},
+
+		"okta_assignment":  {expectedOutput: types.KindOktaAssignment},
+		"okta_assignments": {expectedOutput: types.KindOktaAssignment},
+		"oktaassignment":   {expectedOutput: types.KindOktaAssignment},
+		"oktaassignments":  {expectedOutput: types.KindOktaAssignment},
+
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 
 		"unknown_type": {expectedErr: true},

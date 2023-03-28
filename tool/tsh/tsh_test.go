@@ -961,7 +961,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			Logins:     []string{user.Username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
-		Options: types.RoleOptions{RequireSessionMFA: true},
+		Options: types.RoleOptions{RequireMFAType: types.RequireMFAType_SESSION},
 	})
 	require.NoError(t, err)
 
@@ -1159,7 +1159,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
 			setup:      registerPasswordlessDeviceWithWebauthnSolver,
@@ -1179,7 +1179,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
 			setup:      registerPasswordlessDeviceWithWebauthnSolver,
@@ -1199,7 +1199,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
 			setup:           registerPasswordlessDeviceWithWebauthnSolver,
