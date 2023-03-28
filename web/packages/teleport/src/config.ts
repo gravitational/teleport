@@ -199,6 +199,8 @@ const cfg = {
 
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
+
+    webapiPingPath: '/webapi/ping',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {

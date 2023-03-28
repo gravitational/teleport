@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 )
 
 // Features provides supported and unsupported features
@@ -61,6 +62,8 @@ type Features struct {
 	Desktop bool
 	// RecoveryCodes enables account recovery codes
 	RecoveryCodes bool
+	// AutomaticUpgrades enables automatic upgrades of agents/services.
+	AutomaticUpgrades bool
 }
 
 // ToProto converts Features into proto.Features
@@ -77,6 +80,7 @@ func (f Features) ToProto() *proto.Features {
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
 		RecoveryCodes:           f.RecoveryCodes,
+		AutomaticUpgrades:       f.AutomaticUpgrades,
 	}
 }
 
@@ -143,7 +147,10 @@ func ValidateResource(res types.Resource) error {
 	return nil
 }
 
-type defaultModules struct{}
+type defaultModules struct {
+	automaticUpgrades bool
+	loadDynamicValues sync.Once
+}
 
 // BuildType returns build type (OSS or Enterprise)
 func (p *defaultModules) BuildType() string {
@@ -157,11 +164,16 @@ func (p *defaultModules) PrintVersion() {
 
 // Features returns supported features
 func (p *defaultModules) Features() Features {
+	p.loadDynamicValues.Do(func() {
+		p.automaticUpgrades = automaticupgrades.IsEnabled()
+	})
+
 	return Features{
-		Kubernetes: true,
-		DB:         true,
-		App:        true,
-		Desktop:    true,
+		Kubernetes:        true,
+		DB:                true,
+		App:               true,
+		Desktop:           true,
+		AutomaticUpgrades: p.automaticUpgrades,
 	}
 }
 
