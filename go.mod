@@ -98,7 +98,7 @@ require (
 	github.com/moby/term v0.0.0-20221128092401-c43b287e0e0f
 	github.com/okta/okta-sdk-golang/v2 v2.17.0
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
-	github.com/pelletier/go-toml v1.2.0
+	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/sftp v1.13.5 // replaced
 	github.com/pquerna/otp v1.4.0
 	github.com/prometheus/client_golang v1.14.0
@@ -127,10 +127,10 @@ require (
 	go.opentelemetry.io/otel/trace v1.13.0
 	go.opentelemetry.io/proto/otlp v0.19.0
 	golang.org/x/crypto v0.6.0 // replaced
-	golang.org/x/exp v0.0.0-20221126150942-6ab00d035af9
+	golang.org/x/exp v0.0.0-20230105202349-8879d0199aa3
 	golang.org/x/mod v0.8.0
 	golang.org/x/net v0.8.0
-	golang.org/x/oauth2 v0.4.0
+	golang.org/x/oauth2 v0.5.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.6.0
 	golang.org/x/term v0.6.0
