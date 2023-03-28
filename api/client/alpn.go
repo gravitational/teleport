@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package alpnproxy
+package client
 
 import (
 	"context"
@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/client"
 )
 
 // ALPNDialerConfig is the config for ALPNDialer.
@@ -48,22 +46,41 @@ type ALPNDialer struct {
 }
 
 // NewALPNDialer creates a new ALPNDialer.
-func NewALPNDialer(cfg ALPNDialerConfig) client.ContextDialer {
+func NewALPNDialer(cfg ALPNDialerConfig) ContextDialer {
 	return &ALPNDialer{
 		cfg: cfg,
 	}
 }
 
-// DialContext implements ContextDialer.
-func (d ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *ALPNDialer) getTLSConfig(addr string) (*tls.Config, error) {
 	if d.cfg.TLSConfig == nil {
 		return nil, trace.BadParameter("missing TLS config")
 	}
+	if d.cfg.TLSConfig.ServerName != "" {
+		return d.cfg.TLSConfig, nil
+	}
 
-	dialer := client.NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout, client.WithTLSConfig(d.cfg.TLSConfig))
+	tlsConfig := d.cfg.TLSConfig.Clone()
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConfig.ServerName = host
+	return tlsConfig, nil
+}
+
+// DialContext implements ContextDialer.
+func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	tlsConfig, err := d.getTLSConfig(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// TODO support system proxy.
+	dialer := NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout)
 	if d.cfg.ALPNConnUpgradeRequired {
 		dialer = newALPNConnUpgradeDialer(dialer, &tls.Config{
-			InsecureSkipVerify: d.cfg.TLSConfig.InsecureSkipVerify,
+			InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
 		})
 	}
 
@@ -72,7 +89,7 @@ func (d ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConn := tls.Client(conn, d.cfg.TLSConfig)
+	tlsConn := tls.Client(conn, tlsConfig)
 	if err := tlsConn.HandshakeContext(ctx); err != nil {
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package alpnproxy
+package client
 
 import (
 	"bufio"
@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
@@ -129,12 +128,12 @@ func isALPNConnUpgradeRequiredByEnv(addr, envValue string) bool {
 // alpnConnUpgradeDialer makes an "HTTP" upgrade call to the Proxy Service then
 // tunnels the connection with this connection upgrade.
 type alpnConnUpgradeDialer struct {
-	dialer    client.ContextDialer
+	dialer    ContextDialer
 	tlsConfig *tls.Config
 }
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
-func newALPNConnUpgradeDialer(dialer client.ContextDialer, tlsConfig *tls.Config) client.ContextDialer {
+func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config) ContextDialer {
 	return &alpnConnUpgradeDialer{
 		dialer:    dialer,
 		tlsConfig: tlsConfig,

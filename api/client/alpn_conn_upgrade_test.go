@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package alpnproxy
+package client
 
 import (
 	"context"
@@ -30,7 +30,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/fixtures"
 )
@@ -135,7 +134,7 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		pool.AddCert(server.Certificate())
 
 		tlsConfig := &tls.Config{RootCAs: pool}
-		preDialer := client.NewDialer(ctx, 0, 5*time.Second, client.WithTLSConfig(tlsConfig))
+		preDialer := NewDialer(ctx, 0, 5*time.Second)
 		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 		require.NoError(t, err)
@@ -155,7 +154,7 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		require.NoError(t, err)
 
 		tlsConfig := &tls.Config{InsecureSkipVerify: true}
-		preDialer := client.NewDialer(ctx, 0, 5*time.Second, client.WithTLSConfig(tlsConfig))
+		preDialer := NewDialer(ctx, 0, 5*time.Second)
 		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		_, err = dialer.DialContext(ctx, "tcp", addr.Host)
 		require.Error(t, err)

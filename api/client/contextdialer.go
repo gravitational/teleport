@@ -136,9 +136,14 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 
 // newTLSRoutingTunnelDialer makes a reverse tunnel TLS Routing dialer to connect to an Auth server
 // through the SSH reverse tunnel on the proxy.
-func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
+func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
-		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
+		insecure := params.cfg.InsecureAddressDiscovery
+		resp, err := webclient.Find(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: params.addr,
+			Insecure:  insecure,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -152,30 +157,20 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 			return nil, trace.Wrap(err)
 		}
 
-		dialer := &net.Dialer{
-			Timeout:   dialTimeout,
-			KeepAlive: keepAlivePeriod,
-		}
-		conn, err = dialer.DialContext(ctx, network, tunnelAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		host, _, err := webclient.ParseHostPort(tunnelAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		tlsConn := tls.Client(conn, &tls.Config{
-			NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
-			InsecureSkipVerify: insecure,
-			ServerName:         host,
+		tlsConn, err := DialALPN(ctx, tunnelAddr, ALPNDialerConfig{
+			ALPNConnUpgradeRequired: params.cfg.IsALPNConnUpgradeRequired(tunnelAddr, insecure),
+			DialTimeout:             params.cfg.DialTimeout,
+			KeepAlivePeriod:         params.cfg.KeepAlivePeriod,
+			TLSConfig: &tls.Config{
+				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+				InsecureSkipVerify: insecure,
+			},
 		})
-		if err := tlsConn.Handshake(); err != nil {
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(ctx, tlsConn, ssh, dialTimeout, tunnelAddr)
+		sconn, err := sshConnect(ctx, tlsConn, ssh, params.cfg.DialTimeout, tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

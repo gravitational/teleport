@@ -329,6 +329,12 @@ type (
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
+	if params.cfg.IsALPNConnUpgradeRequired(params.addr, params.cfg.InsecureAddressDiscovery) {
+		dialer = newALPNConnUpgradeDialer(dialer, &tls.Config{
+			InsecureSkipVerify: params.cfg.InsecureAddressDiscovery,
+		})
+	}
+
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -367,7 +373,7 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
+	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
@@ -526,6 +532,9 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
+	// IsALPNConnUpgradeRequired is a callback function to check whether
+	// connection upgrade is required for TLS routing.
+	IsALPNConnUpgradeRequired func(addr string, insecure bool) bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -558,6 +567,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	}))
 	if !c.DialInBackground {
 		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
+	}
+	if c.IsALPNConnUpgradeRequired == nil {
+		c.IsALPNConnUpgradeRequired = IsALPNConnUpgradeRequired
 	}
 
 	return nil

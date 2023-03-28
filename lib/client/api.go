@@ -47,7 +47,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/alpnproxy"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -622,7 +621,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
-	if required, ok := alpnproxy.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
+	if required, ok := client.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
 		c.TLSRoutingConnUpgradeRequired = required
 	}
 	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
@@ -2898,7 +2897,17 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	}
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
+
+	alpnConfig := client.ALPNDialerConfig{
+		TLSConfig:               tlsConfig,
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		DialTimeout:             sshConfig.Timeout,
+	}
+	if proxyAddr != tc.WebProxyAddr {
+		alpnConfig.ALPNConnUpgradeRequired = client.IsALPNConnUpgradeRequired(proxyAddr, tlsConfig.InsecureSkipVerify)
+	}
+
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(client.NewALPNDialer(alpnConfig)))
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
@@ -3079,7 +3088,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = alpnproxy.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -4449,11 +4458,21 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
+		IsALPNConnUpgradeRequired: tc.isALPNConnUpgradeRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return kubeproto.NewKubeServiceClient(clt.GetConnection()), nil
+}
+
+func (tc *TeleportClient) isALPNConnUpgradeRequired(addr string, insecure bool) bool {
+	// Use cached value.
+	if addr == tc.WebProxyAddr {
+		return tc.TLSRoutingConnUpgradeRequired
+	}
+	// Do a test for other addresses.
+	return client.IsALPNConnUpgradeRequired(addr, insecure)
 }
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.

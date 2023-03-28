@@ -24,7 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client/alpnproxy"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
@@ -42,7 +42,7 @@ type GetClusterCACertPoolFunc func(ctx context.Context) (*x509.CertPool, error)
 // already been set.
 func WithALPNConnUpgradeTest(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
-		config.ALPNConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(config.RemoteProxyAddr, config.InsecureSkipVerify)
+		config.ALPNConnUpgradeRequired = client.IsALPNConnUpgradeRequired(config.RemoteProxyAddr, config.InsecureSkipVerify)
 		return trace.Wrap(WithClusterCAsIfConnUpgrade(ctx, getClusterCertPool)(config))
 	}
 }
