@@ -1058,6 +1058,24 @@ func MatchDatabaseUser(selectors []string, user string) (bool, string) {
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
 func MatchLabels(selector types.Labels, target map[string]string) (bool, string, error) {
+	return MatchLabelGetter(selector, mapLabelGetter(target))
+}
+
+// LabelGetter allows retrieving a particular label by name.
+type LabelGetter interface {
+	GetLabel(key string) (value string, ok bool)
+}
+
+type mapLabelGetter map[string]string
+
+func (m mapLabelGetter) GetLabel(key string) (value string, ok bool) {
+	v, ok := m[key]
+	return v, ok
+}
+
+// MatchLabelGetter matches selector against labelGetter. Empty selector matches
+// nothing, wildcard matches everything.
+func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
 		return false, "no match, empty selector", nil
@@ -1071,19 +1089,20 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 
 	// Perform full match.
 	for key, selectorValues := range selector {
-		targetVal, hasKey := target[key]
-
+		targetVal, hasKey := labelGetter.GetLabel(key)
 		if !hasKey {
 			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
 
-		if !apiutils.SliceContainsStr(selectorValues, types.Wildcard) {
-			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
-			if err != nil {
-				return false, "", trace.Wrap(err)
-			} else if !result {
-				return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
-			}
+		if apiutils.SliceContainsStr(selectorValues, types.Wildcard) {
+			continue
+		}
+
+		result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
+		if err != nil {
+			return false, "", trace.Wrap(err)
+		} else if !result {
+			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
 		}
 	}
 
@@ -1955,16 +1974,16 @@ type AccessCheckable interface {
 	GetKind() string
 	GetName() string
 	GetMetadata() types.Metadata
-	GetAllLabels() map[string]string
+	GetLabel(key string) (value string, ok bool)
 }
 
 // rbacDebugLogger creates a debug logger for Teleport's RBAC component.
 // It also returns a flag indicating whether debug logging is enabled,
 // allowing the RBAC system to generate more verbose errors in debug mode.
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
-	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
+	isDebugEnabled := log.IsLevelEnabled(log.TraceLevel)
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	return isDebugEnabled, log.Debugf
+	return isDebugEnabled, log.Tracef
 }
 
 // checkAccess checks if this role set has access to a particular resource,
@@ -1981,7 +2000,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 	}
 
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
-	allLabels := r.GetAllLabels()
 
 	// Additional message depending on kind of resource
 	// so there's more context on why the user might not have access.
@@ -2016,7 +2034,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			continue
 		}
 
-		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Deny), allLabels)
+		matchLabels, labelsMessage, err := MatchLabelGetter(getRoleLabels(role, types.Deny), r)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2054,7 +2072,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, mfa AccessMFAParams, matchers 
 			continue
 		}
 
-		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Allow), allLabels)
+		matchLabels, labelsMessage, err := MatchLabelGetter(getRoleLabels(role, types.Allow), r)
 		if err != nil {
 			return trace.Wrap(err)
 		}
