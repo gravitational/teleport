@@ -33,7 +33,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
@@ -622,98 +621,4 @@ func TestGetResources(t *testing.T) {
 			require.Empty(t, cmp.Diff(expectedResources, resources))
 		})
 	}
-}
-
-type mockRoleServer struct {
-	*mockServer
-	roles map[string]*types.RoleV6
-}
-
-func newMockRoleServer() *mockRoleServer {
-	m := &mockRoleServer{
-		&mockServer{
-			grpc:                           grpc.NewServer(),
-			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
-		},
-		make(map[string]*types.RoleV6),
-	}
-	proto.RegisterAuthServiceServer(m.grpc, m)
-	return m
-}
-
-func startMockRoleServer(t *testing.T) string {
-	l, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, l.Close()) })
-	go newMockRoleServer().grpc.Serve(l)
-	return l.Addr().String()
-}
-
-func (m *mockRoleServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV6, error) {
-	conn, ok := m.roles[req.Name]
-	if !ok {
-		return nil, trace.NotFound("not found")
-	}
-	return conn, nil
-}
-
-func (m *mockRoleServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*proto.GetRolesResponse, error) {
-	var connectors []*types.RoleV6
-	for _, conn := range m.roles {
-		connectors = append(connectors, conn)
-	}
-	return &proto.GetRolesResponse{
-		Roles: connectors,
-	}, nil
-}
-
-func (m *mockRoleServer) UpsertRole(ctx context.Context, role *types.RoleV6) (*emptypb.Empty, error) {
-	m.roles[role.Metadata.Name] = role
-	return &emptypb.Empty{}, nil
-}
-
-func (m *mockRoleServer) GetCurrentUserRoles(_ *emptypb.Empty, stream proto.AuthService_GetCurrentUserRolesServer) error {
-	for _, role := range m.roles {
-		if err := stream.Send(role); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-type mockAuthPreferenceServer struct {
-	*mockServer
-	pref *types.AuthPreferenceV2
-}
-
-func newMockAuthPreferenceServer() *mockAuthPreferenceServer {
-	m := &mockAuthPreferenceServer{
-		mockServer: &mockServer{
-			grpc:                           grpc.NewServer(),
-			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
-		},
-	}
-	proto.RegisterAuthServiceServer(m.grpc, m)
-	return m
-}
-
-func startMockAuthPreferenceServer(t *testing.T) string {
-	l, err := net.Listen("tcp", "")
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, l.Close()) })
-	go newMockAuthPreferenceServer().grpc.Serve(l)
-	return l.Addr().String()
-}
-
-func (m *mockAuthPreferenceServer) GetAuthPreference(ctx context.Context, _ *emptypb.Empty) (*types.AuthPreferenceV2, error) {
-	if m.pref == nil {
-		return nil, trace.NotFound("not found")
-	}
-	return m.pref, nil
-}
-
-func (m *mockAuthPreferenceServer) SetAuthPreference(ctx context.Context, pref *types.AuthPreferenceV2) (*emptypb.Empty, error) {
-	m.pref = pref
-	return &emptypb.Empty{}, nil
 }
