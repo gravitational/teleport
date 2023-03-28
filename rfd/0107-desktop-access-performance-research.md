@@ -333,6 +333,65 @@ From a user experience perspective implementing this solution will improve rende
 
 This solution won't change anything from the security point of view.
 
+
+### 5) Use WebP instead of PNG
+
+#### What is WebP?
+WebP is a lossy or lossless image file format developed by Google based on the VP8 video codec. It supports 24-bit RGB color with an 8-bit alpha channel. It's intended as a replacement for JPEG, PNG, and GIF file formats. WebP is natively supported in [almost every web browser](https://caniuse.com/webp).
+
+#### How does lossless mode compare to the PNG image format?
+According to [this study](https://developers.google.com/speed/webp/docs/webp_lossless_alpha_study) that was made of over 12000 randomly chosen PNG images with translucency or not, crawled from the Internet the WebP offers:
+- on average 23% denser compression rate
+- faster encoding and decoding speeds than PNG
+
+On top of that it can provide even better compression rates for images that use fewer colors, e.g solid rectangles that are not that uncommon in RDP protocol.
+
+As an example here is a comparation to the solid, one-color 64x64 PNG that uses 155 bytes of space using default compression parameters for WebP:
+```
+❯ cwebp -lossless solid-64x64.png
+No output file specified (no -o flag). Encoding will
+be performed, but its results discarded.
+
+File:      solid-64x64.png
+Dimension: 64 x 64
+Output:    42 bytes (0.08 bpp)
+Lossless-ARGB compressed size: 42 bytes
+  * Header size: 15 bytes, image data size: 1
+  * Lossless features used: PALETTE
+  * Precision Bits: histogram=5 transform=5 cache=0
+  * Palette size:   1
+```
+which results in WebP image that uses 42 bytes of space. It's 27% size of the original PNG.
+
+#### Technical considerations
+At the moment the Desktop Access service is using PNG image format for sending data to the user's web browser and this is the current architecture:
+
+```mermaid
+sequenceDiagram
+    Windows Server->>Teleport Windows Desktop Service: compressed or uncompressed bitmaps via RDP
+    Teleport Windows Desktop Service->>Teleport Proxy: TDP PNGMessage
+    Teleport Proxy->>User's Web Browser: TDP PNGMessage
+```
+Change of image file format from PNG to WebP would lower bandwith usage as messages sent to the user's web browser would be smaller. This change would also reduce storage usage for session recordings since session recording also using the same PNGs.
+
+This change wouldn't require many changes in how we draw images in the browser. This part of a code is responsible for creating images that are drawn to the canvas:
+```
+const image = new Image();
+imgage.src = `data:image/png;base64,{IMAGE_DATA}`;
+```
+When using WebP the only change would be to media type, from `image/png` to `image/webp` and it would work the same. The new message type is also required `WEBPFrame`:
+```
+| message type (29) | data_length uint32 | left uint32 | top uint32 | right uint32 | bottom uint32 | data []byte |
+```
+
+##### UX changes
+
+From a user experience perspective implementing this solution will improve bandwith usage and latency while using the Desktop Access module. 
+
+##### Security
+
+This solution won't change anything from the security point of view.
+
 ## Alternatives considered
 
 ### [MS-RDPEUDP] Remote Desktop Protocol: UDP Transport Extension
