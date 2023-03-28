@@ -8,9 +8,6 @@ VERSION ?= 0.0.1
 # Image URL to use all building/pushing image targets
 IMG ?= teleport-operator:latest
 
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.25
-
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -19,6 +16,9 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
 include ../../build.assets/images.mk
+
+# include setup-envtest binary
+include ./envtest.mk
 
 # Configure which compiler and buildbox to use
 OS ?= $(shell go env GOOS)
@@ -104,8 +104,10 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet envtest crdgen-test ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+test: manifests generate fmt vet $(ENVTEST) crdgen-test ## Run tests.
+test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
+test:
+	go test ./... -coverprofile cover.out
 
 .PHONY: crdgen-test
 crdgen-test: ## Run crdgen tests.
@@ -139,7 +141,6 @@ $(LOCALBIN):
 
 ## Tool Binaries
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
@@ -149,8 +150,3 @@ CONTROLLER_TOOLS_VERSION ?= v0.9.0
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
-
-.PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
