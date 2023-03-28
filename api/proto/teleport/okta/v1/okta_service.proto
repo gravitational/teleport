@@ -45,8 +45,7 @@ service OktaService {
   // UpdateOktaAssignment updates an existing Okta assignment resource.
   rpc UpdateOktaAssignment(UpdateOktaAssignmentRequest) returns (types.OktaAssignmentV1);
   // UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-  // status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-  // will be updated if possible.
+  // status is a valid transition. Invalid transitions will be skipped.
   rpc UpdateOktaAssignmentActionStatuses(UpdateOktaAssignmentActionStatusesRequest) returns (types.OktaAssignmentV1);
   // DeleteOktaAssignment removes the specified Okta assignment resource.
   rpc DeleteOktaAssignment(DeleteOktaAssignmentRequest) returns (google.protobuf.Empty);

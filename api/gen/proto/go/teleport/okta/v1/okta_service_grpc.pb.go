@@ -75,8 +75,7 @@ type OktaServiceClient interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(ctx context.Context, in *UpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error)
 	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-	// will be updated if possible.
+	// status is a valid transition. Invalid transitions will be skipped.
 	UpdateOktaAssignmentActionStatuses(ctx context.Context, in *UpdateOktaAssignmentActionStatusesRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error)
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, in *DeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
@@ -234,8 +233,7 @@ type OktaServiceServer interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, *UpdateOktaAssignmentRequest) (*types.OktaAssignmentV1, error)
 	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-	// will be updated if possible.
+	// status is a valid transition. Invalid transitions will be skipped.
 	UpdateOktaAssignmentActionStatuses(context.Context, *UpdateOktaAssignmentActionStatusesRequest) (*types.OktaAssignmentV1, error)
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error)
