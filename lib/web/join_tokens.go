@@ -53,7 +53,7 @@ const (
 	teleportOSSPackageName = "teleport"
 	teleportEntPackageName = "teleport-ent"
 
-	cloudStableChannelRepo = "cloud/stable"
+	stableCloudChannelRepo = "stable/cloud"
 )
 
 // nodeJoinToken contains node token fields for the UI.
@@ -77,7 +77,7 @@ type scriptSettings struct {
 	appURI                 string
 	joinMethod             string
 	databaseInstallMode    bool
-	cloudStableChannelRepo bool
+	stableCloudChannelRepo bool
 }
 
 func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *SessionContext) (interface{}, error) {
@@ -202,13 +202,13 @@ func (h *Handler) createTokenHandle(w http.ResponseWriter, r *http.Request, para
 func (h *Handler) getNodeJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 
-	useCloudStableChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
+	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
 
 	settings := scriptSettings{
 		token:                  params.ByName("token"),
 		appInstallMode:         false,
 		joinMethod:             r.URL.Query().Get("method"),
-		cloudStableChannelRepo: useCloudStableChannelRepo,
+		stableCloudChannelRepo: useStableCloudChannelRepo,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -245,14 +245,14 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 		return nil, nil
 	}
 
-	useCloudStableChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
+	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
 
 	settings := scriptSettings{
 		token:                  params.ByName("token"),
 		appInstallMode:         true,
 		appName:                name,
 		appURI:                 uri,
-		cloudStableChannelRepo: useCloudStableChannelRepo,
+		stableCloudChannelRepo: useStableCloudChannelRepo,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -274,12 +274,12 @@ func (h *Handler) getAppJoinScriptHandle(w http.ResponseWriter, r *http.Request,
 func (h *Handler) getDatabaseJoinScriptHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params) (interface{}, error) {
 	scripts.SetScriptHeaders(w.Header())
 
-	useCloudStableChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
+	useStableCloudChannelRepo := h.ClusterFeatures.AutomaticUpgrades && h.ClusterFeatures.Cloud
 
 	settings := scriptSettings{
 		token:                  params.ByName("token"),
 		databaseInstallMode:    true,
-		cloudStableChannelRepo: useCloudStableChannelRepo,
+		stableCloudChannelRepo: useStableCloudChannelRepo,
 	}
 
 	script, err := getJoinScript(r.Context(), settings, h.GetProxyClient())
@@ -387,8 +387,8 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
 	repoChannel := ""
-	if settings.cloudStableChannelRepo {
-		repoChannel = cloudStableChannelRepo
+	if settings.stableCloudChannelRepo {
+		repoChannel = stableCloudChannelRepo
 	}
 
 	// This section relies on Go's default zero values to make sure that the settings

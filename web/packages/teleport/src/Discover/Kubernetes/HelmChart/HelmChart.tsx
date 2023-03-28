@@ -317,7 +317,7 @@ const generateCmd = (data: {
   if (data.isCloud && data.automaticUpgradesEnabled) {
     extraYAMLConfig += 'updater:\n';
     extraYAMLConfig += '    enabled: true\n';
-    extraYAMLConfig += '    releaseChannel: "cloud/stable"\n';
+    extraYAMLConfig += '    releaseChannel: "stable/cloud"\n';
     extraYAMLConfig += 'highAvailability:\n';
     extraYAMLConfig += '    replicaCount: 2\n';
     extraYAMLConfig += '    podDisruptionBudget:\n';

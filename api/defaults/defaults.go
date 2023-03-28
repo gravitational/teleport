@@ -145,9 +145,4 @@ const (
 const (
 	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
 	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
-
-	// AutomaticUpgradesEnvar defines the env var to lookup when deciding whether to enable AutomaticUpgrades feature.
-	// To enable AutomaticUpgrades, set its value to a truthy value:
-	//  "yes", "yeah", "y", "true", "1", "on"
-	AutomaticUpgradesEnvar = "TELEPORT_AUTOMATIC_UPGRADES"
 )

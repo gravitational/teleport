@@ -23,7 +23,6 @@ import (
 	"crypto"
 	"crypto/sha256"
 	"fmt"
-	"os"
 	"reflect"
 	"runtime"
 	"sync"
@@ -34,10 +33,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 )
 
 // Features provides supported and unsupported features
@@ -154,7 +152,10 @@ func ValidateResource(res types.Resource) error {
 	return nil
 }
 
-type defaultModules struct{}
+type defaultModules struct {
+	automaticUpgrades bool
+	loadDynamicValues sync.Once
+}
 
 // BuildType returns build type (OSS or Enterprise)
 func (p *defaultModules) BuildType() string {
@@ -168,14 +169,16 @@ func (p *defaultModules) PrintVersion() {
 
 // Features returns supported features
 func (p *defaultModules) Features() Features {
-	automaticUpgrades, _ := utils.ParseBool(os.Getenv(defaults.AutomaticUpgradesEnvar))
+	p.loadDynamicValues.Do(func() {
+		p.automaticUpgrades = automaticupgrades.IsEnabled()
+	})
 
 	return Features{
 		Kubernetes:        true,
 		DB:                true,
 		App:               true,
 		Desktop:           true,
-		AutomaticUpgrades: automaticUpgrades,
+		AutomaticUpgrades: p.automaticUpgrades,
 	}
 }
 

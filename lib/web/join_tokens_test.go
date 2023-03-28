@@ -925,10 +925,10 @@ func TestJoinScript(t *testing.T) {
 
 	t.Run("using repo", func(t *testing.T) {
 		t.Run("cloud and automatic upgrades", func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, cloudStableChannelRepo: true}, m)
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: true}, m)
 			require.NoError(t, err)
-			// Uses the cloud/stable channel.
-			require.Contains(t, script, "REPO_CHANNEL='cloud/stable'")
+			// Uses the stable/cloud channel.
+			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
 		})
 		t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
 			// Using the Enterprise Version, the package name must be teleport-ent
@@ -938,7 +938,7 @@ func TestJoinScript(t *testing.T) {
 					AutomaticUpgrades: false,
 				},
 			})
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, cloudStableChannelRepo: false}, m)
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: false}, m)
 			require.NoError(t, err)
 			// Setting an empty string, means it will use `stable/v<majorVersion>` later on.
 			require.Contains(t, script, "REPO_CHANNEL=''")

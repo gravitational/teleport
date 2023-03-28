@@ -2304,7 +2304,9 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
 		// Enable Automatic Upgrades
-		t.Setenv("TELEPORT_AUTOMATIC_UPGRADES", "yes")
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			AutomaticUpgrades: true,
+		}})
 
 		// Set up
 		s := newWebSuite(t)
@@ -2320,7 +2322,9 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 	})
 	t.Run("Automatic Upgrades are disabled", func(t *testing.T) {
 		// Disable Automatic Upgrades
-		t.Setenv("TELEPORT_AUTOMATIC_UPGRADES", "no")
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			AutomaticUpgrades: false,
+		}})
 
 		// Set up
 		s := newWebSuite(t)
@@ -2359,8 +2363,8 @@ func TestInstallerRepoChannel(t *testing.T) {
 
 			responseString := string(re.Bytes())
 
-			// The repo's channel to use is cloud/stable
-			require.Contains(t, responseString, "cloud/stable")
+			// The repo's channel to use is stable/cloud
+			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
@@ -2369,8 +2373,8 @@ func TestInstallerRepoChannel(t *testing.T) {
 
 			responseString := string(re.Bytes())
 
-			// The repo's channel to use is cloud/stable
-			require.Contains(t, responseString, "cloud/stable")
+			// The repo's channel to use is stable/cloud
+			require.Contains(t, responseString, "stable/cloud")
 			require.NotContains(t, responseString, "stable/v")
 		})
 	})
@@ -2397,7 +2401,7 @@ func TestInstallerRepoChannel(t *testing.T) {
 
 			// The repo's channel to use is stable/v<majorVersion>
 			require.Contains(t, responseString, "stable/v")
-			require.NotContains(t, responseString, "cloud/stable")
+			require.NotContains(t, responseString, "stable/cloud")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -2407,7 +2411,7 @@ func TestInstallerRepoChannel(t *testing.T) {
 
 			// The repo's channel to use is stable/v<majorVersion>
 			require.Contains(t, responseString, "stable/v")
-			require.NotContains(t, responseString, "cloud/stable")
+			require.NotContains(t, responseString, "stable/cloud")
 		})
 	})
 }
