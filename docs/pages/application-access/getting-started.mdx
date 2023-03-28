@@ -77,19 +77,32 @@ Install Teleport on the host where you will run the Teleport Application Service
 
 Now start Teleport and point it to the application endpoint:
 
-```code
-$ sudo teleport app start \
-  --name=grafana \
-  --token=/tmp/token \
-  --uri=http://localhost:3000 \
-  --auth-server=https://teleport.example.com:3080
+This can be done by adding the application service to your teleport config, typically located at `/etc/teleport.yaml`.
+
+Add these lines to your config:
+
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "grafana"
+    uri: "https://grafana.example.com:3000"
+    rewrite:
+      headers:
+      - "Host: grafana.teleport.example.com"
+      - "Origin: https://grafana.teleport.example.com/"
 ```
 
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
+Replace `https://grafana.example.com:3000` with the URL of your Grafana
+instance, in this case `"http://localhost:3000"`.
 
-Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
+Also update  `teleport.example.com` with the public domain of your teleport cluster. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`. Rewriting the headers is necessary for Grafana to recognize the Teleport reverse proxy.
 
-The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
+Make sure to update the `app/name` and `app/uri` fields accordingly if you're using your own web application.
+
+Then start your Teleport cluster by running `sudo systemctl teleport start`.
+
+To check and see that the Teleport service has started successfully you can tail the logs with `journalctl -fu teleport`.
 
 ### Create a user
 
