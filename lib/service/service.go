@@ -82,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
@@ -1358,6 +1359,20 @@ func initAuthExternalAuditLog(ctx context.Context, auditConfig types.ClusterAudi
 			}
 
 			logger, err := dynamoevents.New(ctx, cfg)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			loggers = append(loggers, logger)
+		case teleport.ComponentAthena:
+			hasNonFileLog = true
+			cfg := athena.Config{
+				Region: auditConfig.Region(),
+			}
+			err = cfg.SetFromURL(uri)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			logger, err := athena.New(ctx, cfg)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
