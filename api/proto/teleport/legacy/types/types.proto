@@ -5239,6 +5239,12 @@ message OktaAssignmentActionV1 {
     CLEANED_UP = 4;
     // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
     CLEANUP_FAILED = 5;
+    // PROCESSSING indicates that the assignment is being applied.
+    PROCESSING = 6;
+    // CLEANUP_PENDING indicates the action needs to be cleaned up.
+    CLEANUP_PENDING = 7;
+    // CLEANUP_PROCESSING indicates the action is being cleaned up.
+    CLEANUP_PROCESSING = 8;
   }
 
   // Status is the status of the action.
