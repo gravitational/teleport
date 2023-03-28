@@ -1695,6 +1695,7 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
+		Context:                     process.ExitContext(),
 		EnableExternalProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:                    listener,
 		ID:                          teleport.Component(process.id),
@@ -3109,6 +3110,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 		}
 
 		mux, err := multiplexer.New(multiplexer.Config{
+			Context:                     process.ExitContext(),
 			Listener:                    l,
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
@@ -3203,6 +3205,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
+			Context:                     process.ExitContext(),
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
@@ -3233,6 +3236,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 		listeners.mux, err = multiplexer.New(multiplexer.Config{
+			Context:                     process.ExitContext(),
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
@@ -3286,6 +3290,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			if !cfg.Proxy.DisableDatabaseProxy && !cfg.Proxy.DisableTLS {
 				process.log.Debug("Setup Proxy: Multiplexing web and database proxy on the same port.")
 				listeners.mux, err = multiplexer.New(multiplexer.Config{
+					Context:                     process.ExitContext(),
 					EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 					Listener:                    listener,
 					ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
@@ -3329,6 +3334,7 @@ func (process *TeleportProcess) initMinimalReverseTunnelListener(cfg *servicecfg
 		return trace.Wrap(err)
 	}
 	listeners.reverseTunnelMux, err = multiplexer.New(multiplexer.Config{
+		Context:                     process.ExitContext(),
 		EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 		Listener:                    listener,
 		ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
@@ -3513,6 +3519,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
+				Context:                       process.ExitContext(),
 				Component:                     teleport.Component(teleport.ComponentProxy, process.id),
 				ID:                            process.Config.HostUUID,
 				ClusterName:                   clusterName,
