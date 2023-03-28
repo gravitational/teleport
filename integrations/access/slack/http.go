@@ -33,5 +33,5 @@ func makeSlackClient(apiURL string) *resty.Client {
 		}).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
-		SetHostURL(apiURL)
+		SetBaseURL(apiURL)
 }
