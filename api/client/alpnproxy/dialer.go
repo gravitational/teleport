@@ -24,14 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client"
 )
-
-// ContextDialer represents network dialer interface that uses context
-type ContextDialer interface {
-	// DialContext is a function that dials the specified address
-	DialContext(ctx context.Context, network, addr string) (net.Conn, error)
-}
 
 // ALPNDialerConfig is the config for ALPNDialer.
 type ALPNDialerConfig struct {
@@ -54,7 +48,7 @@ type ALPNDialer struct {
 }
 
 // NewALPNDialer creates a new ALPNDialer.
-func NewALPNDialer(cfg ALPNDialerConfig) ContextDialer {
+func NewALPNDialer(cfg ALPNDialerConfig) client.ContextDialer {
 	return &ALPNDialer{
 		cfg: cfg,
 	}
@@ -66,7 +60,7 @@ func (d ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.
 		return nil, trace.BadParameter("missing TLS config")
 	}
 
-	dialer := apiclient.NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout, apiclient.WithTLSConfig(d.cfg.TLSConfig))
+	dialer := client.NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout, client.WithTLSConfig(d.cfg.TLSConfig))
 	if d.cfg.ALPNConnUpgradeRequired {
 		dialer = newALPNConnUpgradeDialer(dialer, &tls.Config{
 			InsecureSkipVerify: d.cfg.TLSConfig.InsecureSkipVerify,
