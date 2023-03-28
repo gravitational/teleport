@@ -1613,6 +1613,8 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "u2f,omitempty"
   ];
 
+  reserved 5; // RequireSessionMFA replaced by RequireMFAType
+
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
   BoolValue DisconnectExpiredCert = 6 [
@@ -2294,6 +2296,8 @@ message RoleOptions {
 
   // RequestPrompt is an optional message which tells users what they aught to
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
+
+  reserved 13; // RequireSessionMFA replaced by RequireMFAType
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
