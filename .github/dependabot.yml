@@ -55,7 +55,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # TODO(ibeckermayer): Update RDP client to work with new bitflags.
       - dependency-name: bitflags
     open-pull-requests-limit: 10
     reviewers:
@@ -70,7 +69,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # TODO(ibeckermayer): Update RDP client to work with new bitflags.
       - dependency-name: bitflags
     open-pull-requests-limit: 10
     reviewers:
