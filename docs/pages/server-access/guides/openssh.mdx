@@ -41,8 +41,7 @@ Start by exporting the Teleport CA public key.
 On the host where you are running `sshd`, run the following commands:
 
 ```code
-$ curl 'https://teleport.example.com/webapi/auth/export?type=user' | sed "s/cert-authority\ //"
-$ export KEY="<pasted output>"
+$ export KEY=$(curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed "s/cert-authority\ //")
 ```
 
 Make the public key accessible to `sshd`:

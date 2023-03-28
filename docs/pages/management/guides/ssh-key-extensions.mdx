@@ -15,20 +15,9 @@ Teleport supports exporting user SSH certificates with configurable key extensio
 
 In order to export the Teleport CA, execute the following command:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
 ```code
-$ curl 'https://teleport.example.com/webapi/auth/export?type=user'  | sed 's/^cert-authority //g'
+$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed 's/^cert-authority //g'
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ curl 'https://mytenant.teleport.sh/webapi/auth/export?type=user'  | sed 's/^cert-authority //g'
-```
-
-</ScopedBlock>
 
 Next, follow the instructions in the guide below to import your Teleport CA into GitHub:
 
