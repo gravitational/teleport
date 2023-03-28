@@ -99,12 +99,12 @@ func (r *remoteFS) Open(ctx context.Context, p string) (fs.File, error) {
 	return f, nil
 }
 
-func (r *remoteFS) Create(ctx context.Context, p string, mode os.FileMode) (io.WriteCloser, error) {
+func (r *remoteFS) Create(ctx context.Context, p string) (io.WriteCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	f, err := r.c.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
+	f, err := r.c.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,12 +112,12 @@ func (r *remoteFS) Create(ctx context.Context, p string, mode os.FileMode) (io.W
 	return f, nil
 }
 
-func (r *remoteFS) Mkdir(ctx context.Context, p string, mode os.FileMode) error {
+func (r *remoteFS) Mkdir(ctx context.Context, p string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	err := r.c.MkdirAll(p, mode)
+	err := r.c.MkdirAll(p)
 	if err != nil {
 		return trace.Wrap(err)
 	}

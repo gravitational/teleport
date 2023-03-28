@@ -84,9 +84,9 @@ type FileSystem interface {
 	// Open opens a file
 	Open(ctx context.Context, path string) (fs.File, error)
 	// Create creates a new file
-	Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error)
+	Create(ctx context.Context, path string) (io.WriteCloser, error)
 	// Mkdir creates a directory
-	Mkdir(ctx context.Context, path string, mode os.FileMode) error
+	Mkdir(ctx context.Context, path string) error
 	// Chmod sets file permissions
 	Chmod(ctx context.Context, path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
@@ -331,8 +331,11 @@ func (c *Config) transfer(ctx context.Context) error {
 		// if there are multiple source paths and the destination path
 		// doesn't exist, create it as a directory
 		if len(c.srcPaths) > 1 {
-			if err := c.dstFS.Mkdir(ctx, c.dstPath, teleport.SharedDirMode); err != nil {
+			if err := c.dstFS.Mkdir(ctx, c.dstPath); err != nil {
 				return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
+			}
+			if err := c.dstFS.Chmod(ctx, c.dstPath, 0o755); err != nil {
+				return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
 			dstIsDir = true
 		}
@@ -376,9 +379,12 @@ func (c *Config) transfer(ctx context.Context) error {
 
 // transferDir transfers a directory
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	err := c.dstFS.Mkdir(ctx, dstPath, srcFileInfo.Mode())
+	err := c.dstFS.Mkdir(ctx, dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
+	}
+	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+		return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 
 	infos, err := c.srcFS.ReadDir(ctx, srcPath)
@@ -421,11 +427,15 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Mode())
+	dstFile, err := c.dstFS.Create(ctx, dstPath)
 	if err != nil {
 		return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 	defer dstFile.Close()
+
+	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+		return trace.Errorf("error setting permissions of %s file %q: %w", c.dstFS.Type(), dstPath, err)
+	}
 
 	var progressBar io.ReadWriter
 	if c.ProgressStream != nil {
