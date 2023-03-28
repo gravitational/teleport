@@ -1370,8 +1370,25 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+const (
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	kubeService = "kube_service"
+)
+
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	if req.ResourceType == kubeService {
+		return &types.ListResourcesResponse{}, nil
+	}
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
