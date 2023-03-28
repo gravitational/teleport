@@ -2379,14 +2379,14 @@ func TestAppsCRUD(t *testing.T) {
 	// Create a couple apps.
 	app1, err := types.NewAppV3(types.Metadata{
 		Name:   "app1",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		Labels: map[string]string{types.OriginLabel: types.OriginOkta},
 	}, types.AppSpecV3{
 		URI: "localhost1",
 	})
 	require.NoError(t, err)
 	app2, err := types.NewAppV3(types.Metadata{
 		Name:   "app2",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		Labels: map[string]string{},
 	}, types.AppSpecV3{
 		URI: "localhost2",
 	})
@@ -2404,6 +2404,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all apps.
+	app2.SetOrigin(types.OriginDynamic)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,

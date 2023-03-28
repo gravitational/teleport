@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-type resourceTestingPrimitives[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]] interface {
+type resourceTestingPrimitives[T TeleportResource, K TeleportKubernetesResource[T]] interface {
 	init(setup *testSetup)
 	setupTeleportFixtures(context.Context) error
 	// Interacting with the Teleport Resource
@@ -46,7 +46,7 @@ type resourceTestingPrimitives[T types.ResourceWithOrigin, K TeleportKubernetesR
 	compareTeleportAndKubernetesResource(T, K) (bool, string)
 }
 
-func testResourceCreation[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]](t *testing.T, test resourceTestingPrimitives[T, K]) {
+func testResourceCreation[T TeleportResource, K TeleportKubernetesResource[T]](t *testing.T, test resourceTestingPrimitives[T, K]) {
 	ctx := context.Background()
 	setup := setupTestEnv(t)
 	test.init(setup)
@@ -87,7 +87,7 @@ func testResourceCreation[T types.ResourceWithOrigin, K TeleportKubernetesResour
 	})
 }
 
-func testResourceDeletionDrift[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]](t *testing.T, test resourceTestingPrimitives[T, K]) {
+func testResourceDeletionDrift[T TeleportResource, K TeleportKubernetesResource[T]](t *testing.T, test resourceTestingPrimitives[T, K]) {
 	ctx := context.Background()
 	setup := setupTestEnv(t)
 	test.init(setup)
@@ -138,7 +138,7 @@ func testResourceDeletionDrift[T types.ResourceWithOrigin, K TeleportKubernetesR
 	})
 }
 
-func testResourceUpdate[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]](t *testing.T, test resourceTestingPrimitives[T, K]) {
+func testResourceUpdate[T TeleportResource, K TeleportKubernetesResource[T]](t *testing.T, test resourceTestingPrimitives[T, K]) {
 	ctx := context.Background()
 	setup := setupTestEnv(t)
 	test.init(setup)
@@ -193,6 +193,10 @@ func testResourceUpdate[T types.ResourceWithOrigin, K TeleportKubernetesResource
 		}
 		return equal
 	})
+
+	// Delete the resource to avoid leftover state.
+	err = test.deleteTeleportResource(ctx, resourceName)
+	require.NoError(t, err)
 }
 
 type FakeResourceWithOrigin types.GithubConnector

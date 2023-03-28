@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/docker/distribution/reference"
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,11 +27,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
-
-	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/version"
 )
 
-// DeploymentVersionUpdater Reconciles a deployment by changing its image
+// DeploymentVersionUpdater Reconciles a podSpec by changing its image
 type DeploymentVersionUpdater struct {
 	VersionUpdater
 	kclient.Client
@@ -44,8 +41,11 @@ type DeploymentVersionUpdater struct {
 // if the Deployment should be updated. If it's the case, it changes the
 // Teleport image version and updates the Deployment in Kubernetes.
 func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := ctrllog.FromContext(ctx).WithValues("namespacedname", req.NamespacedName)
-	ctx = ctrllog.IntoContext(ctx, log)
+	log := ctrllog.FromContext(ctx).WithValues("namespacedname", req.NamespacedName, "kind", "Deployment")
+	// We set the logger and a max timout for the whole reconciliation loop
+	// This protects us from an external call stalling the reconciliation loop.
+	ctx, cancel := context.WithTimeout(ctrllog.IntoContext(ctx, log), reconciliationTimeout)
+	defer cancel()
 
 	// Get the object we are reconciling
 	var obj appsv1.Deployment
@@ -57,7 +57,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 	}
 
 	// Get the current and past version
-	currentVersion, err := getDeploymentVersion(&obj)
+	currentVersion, err := getWorkloadVersion(obj.Spec.Template.Spec)
 	if err != nil {
 		switch trace.Unwrap(err).(type) {
 		case *trace.BadParameterError:
@@ -90,7 +90,7 @@ func (r *DeploymentVersionUpdater) Reconcile(ctx context.Context, req ctrl.Reque
 		return requeueLater, trace.Wrap(err)
 	}
 
-	log.Info("Updating deployment with image", "image", image.String())
+	log.Info("Updating podSpec with image", "image", image.String())
 	err = setContainerImageFromPodSpec(&obj.Spec.Template.Spec, teleportContainerName, image.String())
 	if err != nil {
 		return requeueLater, trace.Wrap(err)
@@ -109,28 +109,4 @@ func (r *DeploymentVersionUpdater) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&appsv1.Deployment{}).
 		Complete(r)
-}
-
-func getDeploymentVersion(deployment *appsv1.Deployment) (string, error) {
-	var current string
-	image, err := getContainerImageFromPodSpec(deployment.Spec.Template.Spec, teleportContainerName)
-	if err != nil {
-		return current, trace.Wrap(err)
-	}
-
-	// TODO: put this in a function and reuse for statefulset
-	imageRef, err := reference.ParseNamed(image)
-	if err != nil {
-		return current, trace.Wrap(err)
-	}
-	taggedImageRef, ok := imageRef.(reference.Tagged)
-	if !ok {
-		return "", trace.BadParameter("imageRef %s is not tagged", imageRef)
-	}
-	current = taggedImageRef.Tag()
-	current, err = version.EnsureSemver(current)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return current, nil
 }

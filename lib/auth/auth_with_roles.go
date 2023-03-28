@@ -1460,6 +1460,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
 
+	// Increase the limit to one more than was requested so
+	// that an additional page load is not needed to determine
+	// the next key.
+	req.Limit++
+
 	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2174,12 +2179,6 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	}
 }
 
-// pingCacheKey is used to with Server.ttlCache to cache frequently-loaded
-// values in the Ping method.
-type pingCacheKey struct {
-	kind string
-}
-
 // Ping gets basic info about the auth server.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	// The Ping method does not require special permissions since it only returns
@@ -2190,27 +2189,12 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 
-	// license check result is loaded from real backend, and is not modified once loaded, so we
-	// can save a lot of IO by doing short-lived ttl caching.
-	heartbeat, err := utils.FnCacheGet(ctx, a.authServer.ttlCache, pingCacheKey{"license-check-result"}, a.authServer.GetLicenseCheckResult)
-	if err != nil {
-		log.Warnf("Failed to load license check result for Ping: %v", err)
-	}
-	var warnings []string
-	if heartbeat != nil {
-		for _, notification := range heartbeat.Spec.Notifications {
-			if notification.Type == LicenseExpiredNotification {
-				warnings = append(warnings, notification.Text)
-			}
-		}
-	}
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
 		ServerFeatures:  modules.GetModules().Features().ToProto(),
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LicenseWarnings: warnings,
 		LoadAllCAs:      a.authServer.loadAllCAs,
 	}, nil
 }

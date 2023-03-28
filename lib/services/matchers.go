@@ -69,12 +69,38 @@ type InstallerParams struct {
 	PublicProxyAddr string
 }
 
+// AssumeRole provides a role ARN and ExternalID to assume an AWS role
+// when interacting with AWS resources.
+type AssumeRole struct {
+	// RoleARN is the fully specified AWS IAM role ARN.
+	RoleARN string
+	// ExternalID is the external ID used to assume a role in another account.
+	ExternalID string
+}
+
+// IsEmpty is a helper function that returns whether the assume role info
+// is empty.
+func (a *AssumeRole) IsEmpty() bool {
+	return a.RoleARN == "" && a.ExternalID == ""
+}
+
+// AssumeRoleFromAWSMetadata is a conversion helper function that extracts
+// AWS IAM role ARN and external ID from AWS metadata.
+func AssumeRoleFromAWSMetadata(meta *types.AWS) AssumeRole {
+	return AssumeRole{
+		RoleARN:    meta.AssumeRoleARN,
+		ExternalID: meta.ExternalID,
+	}
+}
+
 // AWSMatcher matches AWS databases.
 type AWSMatcher struct {
 	// Types are AWS database types to match, "rds" or "redshift".
 	Types []string
 	// Regions are AWS regions to query for databases.
 	Regions []string
+	// AssumeRole is the AWS role to assume when discovering AWS databases.
+	AssumeRole AssumeRole
 	// Tags are AWS tags to match.
 	Tags types.Labels
 	// Params are passed to AWS when executing the SSM document

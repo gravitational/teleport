@@ -244,9 +244,9 @@ Then run the following commands to create the custom role and managed identity:
 $ DEPLOY_OUTPUT=$(az deployment group create \
 --resource-group <your-resource-group> \
 --template-file teleport-create-identity.json)
-$ PRINCIPAL_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properites.outputs.principalID.value')
+$ PRINCIPAL_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.principalID.value')
 $ CLIENT_ID=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.principalID.value')
-$ ROLE_NAME=$(echo $DEPLOY_OUTPUT | jq -r '.properites.outputs.roleName.value')
+$ ROLE_NAME=$(echo $DEPLOY_OUTPUT | jq -r '.properties.outputs.roleName.value')
 ```
 
 <Details title='Getting a "command not found" error?'>
