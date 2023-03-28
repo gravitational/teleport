@@ -34,6 +34,10 @@ import (
 )
 
 const (
+	// EnvsRequest sets multiple environment variables that will be applied to any
+	// command executed by Shell or Run.
+	EnvsRequest = "envs@goteleport.com"
+
 	// TracingRequest is sent by clients to server to pass along tracing context.
 	TracingRequest = "tracing@goteleport.com"
 
@@ -43,6 +47,14 @@ const (
 	// instrumentationName is the name of this instrumentation package.
 	instrumentationName = "otelssh"
 )
+
+// EnvsReq contains json marshaled key:value pairs sent as the
+// payload for an EnvsRequest.
+type EnvsReq struct {
+	// Envs is a json marshaled map[string]string containing
+	// environment variables.
+	Envs []byte
+}
 
 // ContextFromRequest extracts any tracing data provided via an Envelope
 // in the ssh.Request payload. If the payload contains an Envelope, then
