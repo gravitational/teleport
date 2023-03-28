@@ -428,17 +428,25 @@ func (PluginStatusCode) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_9198ee693835762e, []int{11}
 }
 
-// Type is the type of keep alive, used by servers. At the moment only
-// "node", "app" and "database" are supported.
+// The type of a KeepAlive. When adding a new type, please double-check
+// lib/usagereporter/teleport to see if we need any change in the resource
+// heartbeat event.
 type KeepAlive_KeepAliveType int32
 
 const (
-	KeepAlive_UNKNOWN          KeepAlive_KeepAliveType = 0
-	KeepAlive_NODE             KeepAlive_KeepAliveType = 1
-	KeepAlive_APP              KeepAlive_KeepAliveType = 2
-	KeepAlive_DATABASE         KeepAlive_KeepAliveType = 3
-	KeepAlive_WINDOWS_DESKTOP  KeepAlive_KeepAliveType = 4
-	KeepAlive_KUBERNETES       KeepAlive_KeepAliveType = 5
+	KeepAlive_UNKNOWN KeepAlive_KeepAliveType = 0
+	// "node", KindNode. For the sake of correct usage reporting, it shouldn't
+	// be used for OpenSSH nodes.
+	KeepAlive_NODE KeepAlive_KeepAliveType = 1
+	// "app_server", KindAppServer
+	KeepAlive_APP KeepAlive_KeepAliveType = 2
+	// "db_server", KindDatabaseServer
+	KeepAlive_DATABASE KeepAlive_KeepAliveType = 3
+	// "windows_desktop_service", KindWindowsDesktopService
+	KeepAlive_WINDOWS_DESKTOP KeepAlive_KeepAliveType = 4
+	// "kube_server", KindKubeServer
+	KeepAlive_KUBERNETES KeepAlive_KeepAliveType = 5
+	// "db_service", KindDatabaseService
 	KeepAlive_DATABASE_SERVICE KeepAlive_KeepAliveType = 6
 )
 
@@ -719,8 +727,9 @@ type KeepAlive struct {
 	// LeaseID is ID of the lease.
 	LeaseID int64 `protobuf:"varint,3,opt,name=LeaseID,proto3" json:"lease_id"`
 	// Expires is set to update expiry time of the resource.
-	Expires time.Time               `protobuf:"bytes,4,opt,name=Expires,proto3,stdtime" json:"expires"`
-	Type    KeepAlive_KeepAliveType `protobuf:"varint,9,opt,name=Type,proto3,enum=types.KeepAlive_KeepAliveType" json:"type"`
+	Expires time.Time `protobuf:"bytes,4,opt,name=Expires,proto3,stdtime" json:"expires"`
+	// Type is the type (or kind) of the resource that's being kept alive.
+	Type KeepAlive_KeepAliveType `protobuf:"varint,9,opt,name=Type,proto3,enum=types.KeepAlive_KeepAliveType" json:"type"`
 	// HostID is an optional UUID of the host the resource belongs to.
 	HostID               string   `protobuf:"bytes,10,opt,name=HostID,proto3" json:"host_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
