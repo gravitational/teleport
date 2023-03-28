@@ -35,7 +35,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
-	reporting "github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -2249,42 +2248,6 @@ func TestGetLicense(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
 }
 
-type mockEnforcer struct {
-	services.Enforcer
-	notifications []reporting.Notification
-}
-
-func (m mockEnforcer) GetLicenseCheckResult(ctx context.Context) (*reporting.Heartbeat, error) {
-	return &reporting.Heartbeat{
-		Spec: reporting.HeartbeatSpec{
-			Notifications: m.notifications,
-		},
-	}, nil
-}
-
-func TestEnforcerGetLicenseCheckResult(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s := newAuthSuite(t)
-
-	expected := []reporting.Notification{
-		{
-			Type:     "test",
-			Severity: "warning",
-			Text:     "test warning",
-			HTML:     "test warning",
-		},
-	}
-
-	s.a.SetEnforcer(&mockEnforcer{
-		notifications: expected,
-	})
-
-	heartbeat, err := s.a.GetLicenseCheckResult(ctx)
-	require.NoError(t, err)
-	require.Equal(t, expected, heartbeat.Spec.Notifications)
-}
-
 func TestInstallerCRUD(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -2329,5 +2292,4 @@ func TestInstallerCRUD(t *testing.T) {
 	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
-
 }

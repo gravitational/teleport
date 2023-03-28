@@ -116,6 +116,13 @@ func (s *WindowsDesktopServiceV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *WindowsDesktopServiceV3) GetLabel(key string) (val string, ok bool) {
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns the resources labels.
 func (s *WindowsDesktopServiceV3) GetAllLabels() map[string]string {
 	return s.Metadata.Labels
@@ -202,6 +209,13 @@ func (d *WindowsDesktopV3) GetAddr() string {
 // GetHostID returns the HostID for the associated desktop service.
 func (d *WindowsDesktopV3) GetHostID() string {
 	return d.Spec.HostID
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (d *WindowsDesktopV3) GetLabel(key string) (val string, ok bool) {
+	v, ok := d.Metadata.Labels[key]
+	return v, ok
 }
 
 // GetAllLabels returns combined static and dynamic labels.

@@ -3573,7 +3573,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 	return nil, trace.NewAggregate(errs...)
 }
 
-func newTestTLSServer(t *testing.T) *TestTLSServer {
+func newTestTLSServer(t testing.TB) *TestTLSServer {
 	as, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:   t.TempDir(),
 		Clock: clockwork.NewFakeClock(),
