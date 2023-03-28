@@ -1710,7 +1710,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -1718,9 +1718,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		UsageApp:        app,
 		UsageKubernetes: kubernetes,
 		UsageDesktop:    desktop,
-	}); err != nil {
-		log.Debugf("Unable to submit certificate issued usage event: %v", err)
-	}
+	})
 }
 
 // generateUserCert generates user certificates
@@ -3656,6 +3654,144 @@ func (a *Server) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return k, nil
 }
 
+// KeepAliveServer implements [services.Presence] by delegating to
+// [Server.Services] and potentially emitting a [usagereporter] event.
+func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
+	if err := a.Services.KeepAliveServer(ctx, h); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ResourceHeartbeatEvent only cares about a few KeepAlive types
+	kind := usagereporter.ResourceKindFromKeepAliveType(h.Type)
+	if kind == 0 {
+		return nil
+	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   h.Name,
+		Kind:   kind,
+		Static: h.Expires.IsZero(),
+	})
+
+	return nil
+}
+
+// UpsertNode implements [services.Presence] by delegating to [Server.Services]
+// and potentially emitting a [usagereporter] event.
+func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertNode(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindNode,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// UpsertKubernetesServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	k, err := a.Services.UpsertKubernetesServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		// the name of types.KubeServer might include a -proxy_service suffix
+		Name:   server.GetCluster().GetName(),
+		Kind:   usagereporter.ResourceKindKubeServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return k, nil
+}
+
+// UpsertApplicationServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertApplicationServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// UpsertDatabaseServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindDBServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.CreateWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
+// UpdateWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.UpdateWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
+// UpsertWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.UpsertWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
@@ -4059,9 +4195,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	if err := a.AnonymizeAndSubmit(event); err != nil {
-		return trace.Wrap(err)
-	}
+	a.AnonymizeAndSubmit(event)
 
 	return nil
 }
