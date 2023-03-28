@@ -42,9 +42,6 @@ linters-settings:
       - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
       - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
       - go.uber.org/atomic: 'use "sync/atomic" instead'
-
-  misspell:
-    locale: US
   gci:
     sections:
       - standard # Standard section: captures all standard packages.
@@ -52,6 +49,13 @@ linters-settings:
       - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
     skip-generated: true # Skip generated files.
     custom-order: true # Required for "sections" to take effect.
+  misspell:
+    locale: US
+  revive:
+    rules:
+    - name: unused-parameter
+      disabled: true
+
 output:
   uniq-by-line: false
 
