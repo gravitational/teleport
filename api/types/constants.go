@@ -348,6 +348,9 @@ const (
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
 
+	// KindWatchStatus is a kind for watch status resource.
+	KindWatchStatus = "watch_status"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -369,7 +372,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.

@@ -3382,6 +3382,98 @@ func TestEventsPermissions(t *testing.T) {
 	}
 }
 
+// TestEventsPermissionsPartialSuccess verifies that in partial success mode NewWatcher can still succeed
+// if caller lacks permission to watch only some of the requested resource kinds.
+func TestEventsPermissionsPartialSuccess(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                   string
+		watch                  types.Watch
+		identity               TestIdentity
+		expectedConfirmedKinds []types.WatchKind
+	}{
+		{
+			name: "no permission for any of the requested kinds",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+				},
+				AllowPartialSuccess: true,
+			},
+			identity:               TestBuiltin(types.RoleDiscovery),
+			expectedConfirmedKinds: nil,
+		},
+		{
+			name: "has permission only for some of the requested kinds",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+					{Kind: types.KindNode},
+				},
+				AllowPartialSuccess: true,
+			},
+			identity: TestBuiltin(types.RoleDiscovery),
+			expectedConfirmedKinds: []types.WatchKind{
+				{Kind: types.KindNode},
+			},
+		},
+		{
+			name: "has permission only for some kinds but partial success is not enabled",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+					{Kind: types.KindNode},
+				},
+			},
+			identity:               TestBuiltin(types.RoleDiscovery),
+			expectedConfirmedKinds: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			tt := setupAuthContext(ctx, t)
+
+			client, err := tt.server.NewClient(tc.identity)
+			require.NoError(t, err)
+			defer client.Close()
+
+			w, err := client.NewWatcher(ctx, tc.watch)
+			require.NoError(t, err)
+			defer w.Close()
+
+			select {
+			case event := <-w.Events():
+				if len(tc.expectedConfirmedKinds) > 0 {
+					require.Equal(t, event.Type, types.OpInit)
+					watchStatus, ok := event.Resource.(types.WatchStatus)
+					require.True(t, ok)
+					require.Equal(t, tc.expectedConfirmedKinds, watchStatus.GetKinds())
+				} else {
+					t.Fatalf("unexpected event from watcher that is supposed to fail")
+				}
+			case <-w.Done():
+				if len(tc.expectedConfirmedKinds) > 0 {
+					t.Fatalf("Watcher exited with error %v", w.Error())
+				} else {
+					require.Error(t, w.Error())
+				}
+				require.Error(t, w.Error())
+			case <-time.After(2 * time.Second):
+				t.Fatalf("Timeout waiting for watcher")
+			}
+		})
+	}
+}
+
 // TestEvents tests events suite
 func TestEvents(t *testing.T) {
 	t.Parallel()
