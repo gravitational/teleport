@@ -232,8 +232,8 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 	}, nil
 }
 
-// Start starts the local proxy in background goroutines and returns an error
-// channel for start failures.
+// Start starts the local proxy in background goroutines and waits until
+// context is done.
 func (k *kubeLocalProxy) Start(ctx context.Context) error {
 	errChan := make(chan error, 2)
 	go func() {
@@ -320,7 +320,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	defer proxy.Close()
 
 	// TODO for best performance, load one kube cert at a time.
-	keys, err := localKubeKeys(tc, clusters.TeleportClusters())
+	keys, err := loadKubeKeys(tc, clusters.TeleportClusters())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -352,7 +352,7 @@ func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters 
 	return certs, nil
 }
 
-func localKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.Key, error) {
+func loadKubeKeys(tc *client.TeleportClient, teleportClusters []string) (map[string]*client.Key, error) {
 	keys := map[string]*client.Key{}
 	for _, teleportCluster := range teleportClusters {
 		key, err := tc.LocalAgent().GetKey(teleportCluster, client.WithKubeCerts{})
