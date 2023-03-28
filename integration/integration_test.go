@@ -2689,26 +2689,25 @@ func waitForClusters(tun reversetunnel.Server, expected int) func() bool {
 
 func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
 	ctx := context.Background()
-	username := suite.Me.Username
+	username := suite.me.Username
 
 	clusterMain := "cluster-main"
 	clusterAux := "cluster-aux"
-	mainCfg := helpers.InstanceConfig{
+	mainCfg := InstanceConfig{
 		ClusterName: clusterMain,
-		HostID:      helpers.HostID,
+		HostID:      HostID,
 		NodeName:    Host,
-		Priv:        suite.Priv,
-		Pub:         suite.Pub,
-		Log:         suite.Log,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		Log:         suite.log,
 	}
-	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
 
-	main := helpers.NewInstance(t, mainCfg)
+	main := NewInstance(mainCfg)
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -2724,7 +2723,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{"superuser"},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -2736,7 +2735,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -2748,7 +2747,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
-	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+	makeConfig := func(instance *TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -2771,7 +2770,7 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -2811,14 +2810,14 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 	require.NoError(t, err)
 
 	// try and upsert a trusted cluster while disabled
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 
 	// try to enable disabled cluster
 	trustedCluster.SetEnabled(true)
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
-	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+	TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
+	CheckTrustedClustersCanConnect(ctx, t, TrustedClusterSetup{
 		Aux:         aux,
 		Main:        main,
 		Username:    username,
@@ -2833,25 +2832,25 @@ func trustedDisabledCluster(t *testing.T, suite *integrationTestSuite, test trus
 
 func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, test trustedClusterTest) {
 	ctx := context.Background()
-	username := suite.Me.Username
+	username := suite.me.Username
 
 	clusterMain := "cluster-main"
 	clusterAux := "cluster-aux"
-	mainCfg := helpers.InstanceConfig{
+	mainCfg := InstanceConfig{
 		ClusterName: clusterMain,
-		HostID:      helpers.HostID,
+		HostID:      HostID,
 		NodeName:    Host,
-		Priv:        suite.Priv,
-		Pub:         suite.Pub,
-		Log:         suite.Log,
+		Priv:        suite.priv,
+		Pub:         suite.pub,
+		Log:         suite.log,
 	}
-	mainCfg.Listeners = standardPortsOrMuxSetup(t, test.multiplex, &mainCfg.Fds)
-	main := helpers.NewInstance(t, mainCfg)
+
+	main := NewInstance(mainCfg)
 	aux := suite.newNamedTeleportInstance(t, clusterAux)
 
 	// main cluster has a local user and belongs to role "main-devs" and "main-admins"
 	mainDevs := "main-devs"
-	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV6{
+	devsRole, err := types.NewRole(mainDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -2867,7 +2866,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 	require.NoError(t, err)
 
 	mainAdmins := "main-admins"
-	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV6{
+	adminsRole, err := types.NewRole(mainAdmins, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{"superuser"},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -2879,7 +2878,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 
 	// Ops users can only access remote clusters with label 'access': 'ops'
 	mainOps := "main-ops"
-	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV6{
+	mainOpsRole, err := types.NewRole(mainOps, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:        []string{username},
 			ClusterLabels: types.Labels{"access": []string{"ops"}},
@@ -2891,7 +2890,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 
 	// for role mapping test we turn on Web API on the main cluster
 	// as it's used
-	makeConfig := func(instance *helpers.TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
+	makeConfig := func(instance *TeleInstance, enableSSH bool) (*testing.T, *service.Config) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
@@ -2913,7 +2912,7 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 	// using trusted clusters, so remote user will be allowed to assume
 	// role specified by mapping remote role "devs" to local role "local-devs"
 	auxDevs := "aux-devs"
-	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV6{
+	auxRole, err := types.NewRole(auxDevs, types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			Logins:     []string{username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -2949,18 +2948,18 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 	err = trustedCluster.CheckAndSetDefaults()
 	require.NoError(t, err)
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
-	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+	TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
 	// change role mapping to ensure updating works
 	trustedCluster.SetRoleMap(types.RoleMap{
 		{Remote: mainDevs, Local: []string{auxDevs}},
 	})
 
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
-	helpers.WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
+	TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	WaitForTunnelConnections(t, main.Process.GetAuthServer(), clusterAux, 1)
 
-	helpers.CheckTrustedClustersCanConnect(ctx, t, helpers.TrustedClusterSetup{
+	CheckTrustedClustersCanConnect(ctx, t, TrustedClusterSetup{
 		Aux:         aux,
 		Main:        main,
 		Username:    username,
@@ -2970,12 +2969,12 @@ func trustedClustersRoleMapChanges(t *testing.T, suite *integrationTestSuite, te
 
 	// disable the enabled trusted cluster and ensure it no longer works
 	trustedCluster.SetEnabled(false)
-	helpers.TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
+	TryCreateTrustedCluster(t, aux.Process.GetAuthServer(), trustedCluster)
 
 	// Wait for both cluster to no longer see each other via reverse tunnels.
-	require.Eventually(t, helpers.WaitForClusters(main.Tunnel, 0), 10*time.Second, 1*time.Second,
+	require.Eventually(t, WaitForClusters(main.Tunnel, 0), 10*time.Second, 1*time.Second,
 		"Two clusters still see eachother after being disabled.")
-	require.Eventually(t, helpers.WaitForClusters(aux.Tunnel, 0), 10*time.Second, 1*time.Second,
+	require.Eventually(t, WaitForClusters(aux.Tunnel, 0), 10*time.Second, 1*time.Second,
 		"Two clusters still see eachother after being disabled.")
 
 	// stop clusters and remaining nodes

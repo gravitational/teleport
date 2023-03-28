@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package helpers
+package integration
 
 import (
 	"bytes"
@@ -26,9 +26,9 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // WaitForTunnelConnections waits for remote tunnels connections
@@ -104,7 +104,7 @@ func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 		iterWaitTime = time.Second
 	)
 
-	err := retryutils.RetryStaticFor(deadline, iterWaitTime, func() error {
+	err := utils.RetryStaticFor(deadline, iterWaitTime, func() error {
 		remoteSite, err := t.Tunnel.GetSite(clusterName)
 		if err != nil {
 			return trace.Wrap(err)
@@ -161,8 +161,11 @@ func CheckTrustedClustersCanConnect(ctx context.Context, t *testing.T, tcSetup T
 	clusterAux := tcSetup.ClusterAux
 	useJumpHost := tcSetup.UseJumpHost
 
-	// ensure cluster that was enabled from disabled still works
-	sshPort, _, _ := aux.StartNodeAndProxy(t, "aux-node")
+	// ensure cluster that was enabled from disabled still works	nodePorts := ports.PopIntSlice(3)
+	nodePorts := ports.PopIntSlice(3)
+	sshPort, proxyWebPort, proxySSHPort := nodePorts[0], nodePorts[1], nodePorts[2]
+	err := aux.StartNodeAndProxy("aux-node", sshPort, proxyWebPort, proxySSHPort)
+	require.NoError(t, err)
 
 	// Wait for both cluster to see each other via reverse tunnels.
 	require.Eventually(t, WaitForClusters(main.Tunnel, 1), 10*time.Second, 1*time.Second,
