@@ -42,8 +42,8 @@ import { AgentStepProps } from '../../types';
 
 import {
   ActionButtons,
-  Header,
   HeaderSubtitle,
+  HeaderWithBackBtn,
   Mark,
   ResourceKind,
   TextIcon,
@@ -57,11 +57,11 @@ export default function Container(props: AgentStepProps) {
   return (
     <CatchError
       onRetry={() => clearCachedJoinTokenResult(ResourceKind.Server)}
-      fallbackFn={props => (
-        <Template nextStep={() => null}>
+      fallbackFn={fbProps => (
+        <Template prevStep={props.prevStep} nextStep={() => null}>
           <TextIcon mt={2} mb={3}>
             <Icons.Warning ml={1} color="danger" />
-            Encountered Error: {props.error.message}
+            Encountered Error: {fbProps.error.message}
           </TextIcon>
         </Template>
       )}
@@ -69,7 +69,7 @@ export default function Container(props: AgentStepProps) {
       <Suspense
         fallback={
           <Box height="144px">
-            <Template nextStep={() => null}>
+            <Template prevStep={props.prevStep} nextStep={() => null}>
               <Box textAlign="center" height="108px">
                 <Indicator delay="none" />
               </Box>
@@ -156,7 +156,9 @@ export function DownloadScript(props: AgentStepProps) {
 
   return (
     <>
-      <Header>Configure Resource</Header>
+      <HeaderWithBackBtn onPrev={props.prevStep}>
+        Configure Resource
+      </HeaderWithBackBtn>
       <HeaderSubtitle>
         Install and configure the Teleport SSH Service.
         <br />
@@ -175,14 +177,18 @@ export function DownloadScript(props: AgentStepProps) {
 
 const Template = ({
   nextStep,
+  prevStep,
   children,
 }: {
   nextStep(): void;
+  prevStep(): void;
   children: React.ReactNode;
 }) => {
   return (
     <>
-      <Header>Configure Resource</Header>
+      <HeaderWithBackBtn onPrev={prevStep}>
+        Configure Resource
+      </HeaderWithBackBtn>
       <HeaderSubtitle>
         Install and configure the Teleport SSH Service.
         <br />

@@ -206,6 +206,9 @@ func (field Field) JSONName() string {
 	if res := gogoproto.GetJsonTag(field.desc); res != nil {
 		return strings.Split(*res, ",")[0]
 	}
+	if field.desc.JsonName != nil {
+		return *field.desc.JsonName
+	}
 	return ""
 }
 

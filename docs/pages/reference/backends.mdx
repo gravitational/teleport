@@ -42,53 +42,54 @@ run in a highly available fashion.
 
 ## Auth Server State
 
-To run multiple instances of Teleport Auth Server, you must switch to a High Availability secrets back-end first.
+To run multiple instances of the Teleport Auth Service, you must switch to one of
+the high-availability secrets backend listed below first.
 
-To do this, use a load balancer to create a single auth API access point (AP) and specify this AP in the `auth_server` field of the Teleport configuration file for all Nodes in a cluster. This load balancer should do TCP-level forwarding.
+Once you have a high-availability secrets backend and multiple instances of
+the Auth Service running, you'll need to create a load balancer to evenly
+distribute traffic to all Auth Service instances and have a single point of
+entry for all components that need to communicate with the Auth Service. Use the
+address of the load balancer in the [`auth_server`](./config.mdx) field when
+configuring other components of Teleport.
 
-**IMPORTANT:** with multiple instances of the auth servers running, special
-attention needs to be paid to keeping their configuration identical. Settings
-like `cluster_name` , `tokens` , `storage` , etc must be the same.
+Configure your load balancer to use Layer 4 (TCP) load balancing, round-robin
+load balancing, and a 300 second idle timeout.
 
-## Proxy State
+<Admonition type="tip" title="NOTE">
+With multiple instances of the Auth Service running, special attention needs to
+be paid to keeping their configuration identical. Settings like `cluster_name`,
+`tokens`, `storage`, etc. must be the same.
+</Admonition>
+
+## Proxy Server State
 
 The Teleport Proxy is stateless which makes running multiple instances trivial.
-If using the [default configuration](./networking.mdx), configure your load balancer to
-forward ports `3023` and `3080` to the servers that run the Teleport proxy. If
-you have configured your proxy to use non-default ports, you will need to
-configure your load balancer to forward the ports you specified for
-`listen_addr` and `web_listen_addr` in `teleport.yaml`. The load balancer for
-`web_listen_addr` can terminate TLS with your own certificate that is valid for
-your users, while the remaining ports should do TCP level forwarding, since
-Teleport will handle its own SSL on top of that with its own certificates.
 
-<Admonition
-  type="tip"
-  title="NOTE"
->
-  If you terminate TLS with your own certificate at a load
-  balancer you'll need to run Teleport with `--insecure-no-tls`
+If using the [default configuration](./networking.mdx), configure your load
+balancer to forward port `3080` to the servers that run the Teleport Proxy
+Service. If you have configured your Proxy Service to not use TLS Routing
+and/or are using non-default ports, you will need to configure your load
+balancer to forward the ports you specified for `listen_addr`,
+`tunnel_listen_addr`, and `web_listen_addr` in `teleport.yaml`.
+
+Configure your load balancer to use Layer 4 (TCP) load balancing, round-robin
+load balancing, and a 300 second idle timeout.
+
+<Admonition type="tip" title="NOTE">
+If you terminate TLS with your own certificate for `web_listen_addr` at your
+load balancer you'll need to run Teleport with `--insecure-no-tls`
 </Admonition>
 
 If your load balancer supports HTTP health checks, configure it to hit the
-`/readyz` [diagnostics endpoint](../management/diagnostics/monitoring.mdx) on machines running Teleport. This endpoint
-must be enabled by using the `--diag-addr` flag to teleport start: `teleport start --diag-addr=127.0.0.1:3000`
-The [http://127.0.0.1:3000/readyz](http://127.0.0.1:3000/readyz) endpoint will reply `{"status":"ok"}` if the Teleport service
-is running without problems.
+`/readyz` [diagnostics endpoint](../management/diagnostics/monitoring.mdx) on
+machines running Teleport. This endpoint must be enabled by using the
+`--diag-addr` flag to teleport start: `teleport start
+--diag-addr=127.0.0.1:3000` The
+[http://127.0.0.1:3000/readyz](http://127.0.0.1:3000/readyz) endpoint will
+reply `{"status":"ok"}` if the Teleport service is running without problems.
 
-<Admonition
-  type="tip"
-  title="NOTE"
->
-  As the new auth servers get added to the cluster and the old
-  servers get decommissioned, nodes and proxies will refresh the list of
-  available auth servers and store it in their local cache
-  `/var/lib/teleport/authservers.json` - the values from the cache file will take
-  precedence over the configuration file.
-</Admonition>
-
-We'll cover how to use `etcd`, DynamoDB, and Firestore storage back-ends to make Teleport
-highly available below.
+We'll cover how to use `etcd`, DynamoDB, and Firestore storage back-ends to
+make Teleport highly available below.
 
 ## Etcd
 

@@ -59,13 +59,19 @@ Apply your changes:
 $ tctl create -f github.yaml
 ```
 
+<Admonition type="warning">
+Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
+`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+so take precautions when creating this file and remove it after updating the resource.
+</Admonition>
+
 </TabItem>
 <TabItem label="SAML">
 
 Retrieve your `saml`  configuration resource:
 
 ```code
-$ tctl get saml/mysaml --with-secrets > saml.yaml
+$ tctl get --with-secrets saml/mysaml > saml.yaml
 ```
 
 Edit `saml.yaml`, adding `{{ role }}` to the
@@ -90,6 +96,12 @@ Apply your changes:
 ```code
 $ tctl create -f saml.yaml
 ```
+
+<Admonition type="warning">
+Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
+`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+so take precautions when creating this file and remove it after updating the resource.
+</Admonition>
 
 </TabItem>
 <TabItem label="OIDC">
@@ -122,6 +134,12 @@ Apply your changes:
 ```code
 $ tctl create -f saml.yaml
 ```
+
+<Admonition type="warning">
+Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
+`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+so take precautions when creating this file and remove it after updating the resource.
+</Admonition>
 
 </TabItem>
 </Tabs>

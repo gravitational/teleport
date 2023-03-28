@@ -20,7 +20,11 @@ import { Text, Box } from 'design';
 
 import cfg from 'teleport/config';
 
-import { ActionButtons, Header, Step } from 'teleport/Discover/Shared';
+import {
+  ActionButtons,
+  Step,
+  HeaderWithBackBtn,
+} from 'teleport/Discover/Shared';
 import { State } from 'teleport/Discover/useDiscover';
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
 
@@ -43,7 +47,9 @@ const installActiveDirectorySteps: Step[] = [
 export function InstallActiveDirectory(props: State) {
   return (
     <Box>
-      <Header>Install Active Directory</Header>
+      <HeaderWithBackBtn onPrev={props.prevStep}>
+        Install Active Directory
+      </HeaderWithBackBtn>
 
       <Text mb={4}>
         If you haven't already, install Active Directory and AD Certificate

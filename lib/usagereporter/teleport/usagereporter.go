@@ -71,7 +71,7 @@ const (
 type UsageReporter interface {
 	// AnonymizeAndSubmit submits a usage event. The payload will be
 	// anonymized by the reporter implementation.
-	AnonymizeAndSubmit(event ...Anonymizable) error
+	AnonymizeAndSubmit(event ...Anonymizable)
 }
 
 // TeleportUsageReporter submits Teleport usage events
@@ -89,14 +89,13 @@ type TeleportUsageReporter struct {
 
 var _ UsageReporter = (*TeleportUsageReporter)(nil)
 
-func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) error {
+func (t *TeleportUsageReporter) AnonymizeAndSubmit(events ...Anonymizable) {
 	for _, e := range events {
 		req := e.Anonymize(t.anonymizer)
 		req.Timestamp = timestamppb.New(t.clock.Now())
 		req.ClusterName = t.anonymizer.AnonymizeString(t.clusterName.GetClusterName())
 		t.usageReporter.AddEventsToQueue(&req)
 	}
-	return nil
 }
 
 func (t *TeleportUsageReporter) Run(ctx context.Context) {
@@ -202,7 +201,6 @@ type DiscardUsageReporter struct{}
 
 var _ UsageReporter = DiscardUsageReporter{}
 
-func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) error {
+func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) {
 	// do nothing
-	return nil
 }

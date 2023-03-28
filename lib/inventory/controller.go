@@ -501,7 +501,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 		svcs = append(svcs, strings.ToLower(svc.String()))
 	}
 
-	if err := c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{
+	c.usageReporter.AnonymizeAndSubmit(&usagereporter.AgentMetadataEvent{
 		Version:               handle.Hello().Version,
 		HostId:                handle.Hello().ServerID,
 		Services:              svcs,
@@ -513,9 +513,7 @@ func (c *Controller) handleAgentMetadata(handle *upstreamHandle, m proto.Upstrea
 		ContainerRuntime:      m.ContainerRuntime,
 		ContainerOrchestrator: m.ContainerOrchestrator,
 		CloudEnvironment:      m.CloudEnvironment,
-	}); err != nil {
-		log.Debugf("Unable to submit agent metadata: %v", err)
-	}
+	})
 }
 
 func (c *Controller) keepAliveServer(handle *upstreamHandle, now time.Time) error {

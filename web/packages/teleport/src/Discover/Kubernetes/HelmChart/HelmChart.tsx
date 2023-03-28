@@ -41,12 +41,12 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
-  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
+  HeaderWithBackBtn,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
@@ -64,13 +64,13 @@ export default function Container(props: AgentStepProps) {
     // join token api fetch error and loading states.
     <CatchError
       onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
-      fallbackFn={props => (
+      fallbackFn={fallbackProps => (
         <Box>
-          <Heading />
+          <Heading prevStep={props.prevStep} />
           <StepOne />
           <StepTwo
             onEdit={() => setShowHelmChart(false)}
-            error={props.error}
+            error={fallbackProps.error}
             namespace={namespace}
             setNamespace={setNamespace}
             clusterName={clusterName}
@@ -83,7 +83,7 @@ export default function Container(props: AgentStepProps) {
       <Suspense
         fallback={
           <Box>
-            <Heading />
+            <Heading prevStep={props.prevStep} />
             <StepOne />
             <StepTwo
               onEdit={() => setShowHelmChart(false)}
@@ -98,7 +98,7 @@ export default function Container(props: AgentStepProps) {
       >
         {!showHelmChart && (
           <Box>
-            <Heading />
+            <Heading prevStep={props.prevStep} />
             <StepOne />
             <StepTwo
               onEdit={() => setShowHelmChart(false)}
@@ -141,7 +141,7 @@ export function HelmChart(
 
   return (
     <Box>
-      <Heading />
+      <Heading prevStep={props.prevStep} />
       <StepOne />
       <StepTwo
         disabled={true}
@@ -163,10 +163,12 @@ export function HelmChart(
   );
 }
 
-const Heading = () => {
+const Heading = ({ prevStep }: { prevStep(): void }) => {
   return (
     <>
-      <Header>Configure Resource</Header>
+      <HeaderWithBackBtn onPrev={prevStep}>
+        Configure Resource
+      </HeaderWithBackBtn>
       <HeaderSubtitle>
         Install Teleport Service in your cluster via Helm to easily connect your
         Kubernetes cluster with Teleport.

@@ -412,6 +412,13 @@ func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (r *AccessRequestV3) GetLabel(key string) (value string, ok bool) {
+	v, ok := r.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetStaticLabels returns the access request static labels.
 func (r *AccessRequestV3) GetStaticLabels() map[string]string {
 	return r.Metadata.Labels

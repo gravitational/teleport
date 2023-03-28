@@ -18,12 +18,15 @@ package sidecar
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -40,9 +43,9 @@ const (
 	DefaultRenewalInterval = 30 * time.Minute
 )
 
-// ClientAccessor returns a working teleport auth client when invoked.
+// ClientAccessor returns a working teleport api client when invoked.
 // Client users should always call this function on a regular basis to ensure certs are always valid.
-type ClientAccessor func(ctx context.Context) (auth.ClientI, error)
+type ClientAccessor func(ctx context.Context) (*client.Client, error)
 
 // Bot is a wrapper around an embedded tbot.
 // It implements sigs.k8s.io/controller-runtime/manager.Runnable and
@@ -98,7 +101,7 @@ func (b *Bot) initializeConfig() {
 
 }
 
-func (b *Bot) GetClient(ctx context.Context) (auth.ClientI, error) {
+func (b *Bot) GetClient(ctx context.Context) (*client.Client, error) {
 	if !b.running {
 		return nil, trace.Errorf("bot not started yet")
 	}
@@ -132,30 +135,27 @@ func (b *Bot) GetClient(ctx context.Context) (auth.ClientI, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := id.TLSConfig(utils.DefaultCipherSuites())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshConfig, err := id.SSHClientConfig()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClientConfig := &authclient.Config{
-		TLS:         tlsConfig,
-		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         log.StandardLogger(),
-	}
-
-	c, err := authclient.Connect(ctx, authClientConfig)
+	c, err := client.New(ctx, client.Config{
+		Addrs:       []string{b.cfg.AuthServer},
+		Credentials: []client.Credentials{clientCredentials{id}},
+	})
 	return c, trace.Wrap(err)
+}
+
+type clientCredentials struct {
+	id *identity.Identity
+}
+
+func (c clientCredentials) Dialer(client.Config) (client.ContextDialer, error) {
+	return nil, trace.NotImplemented("no dialer")
+}
+
+func (c clientCredentials) TLSConfig() (*tls.Config, error) {
+	return c.id.TLSConfig(utils.DefaultCipherSuites())
+}
+
+func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return c.id.SSHClientConfig()
 }
 
 func (b *Bot) NeedLeaderElection() bool {
