@@ -161,11 +161,20 @@ const (
 	// OktaAssignmentActionStatusPending is represents a pending status for an Okta action.
 	OktaAssignmentActionStatusPending = "pending"
 
+	// OktaAssignmentActionStatusProcessing is represents an Okta action which is currently being acted on.
+	OktaAssignmentActionStatusProcessing = "processing"
+
 	// OktaAssignmentActionStatusSuccessful is represents a successfully applied Okta action.
 	OktaAssignmentActionStatusSuccessful = "successful"
 
 	// OktaAssignmentActionStatusFailed is represents an Okta action which failed to apply. It will be retried.
 	OktaAssignmentActionStatusFailed = "failed"
+
+	// OktaAssignmentActionStatusCleanupPending is represents an Okta action which needs to be cleaned up.
+	OktaAssignmentActionStatusCleanupPending = "cleanup_pending"
+
+	// OktaAssignmentActionStatusCleanupProcessing is represents an Okta action which is currently being cleaned up.
+	OktaAssignmentActionStatusCleanupProcessing = "cleanup_processing"
 
 	// OktaAssignmentActionStatusCleanedUp is represents an Okta action which was cleaned up successfully.
 	OktaAssignmentActionStatusCleanedUp = "cleaned_up"
