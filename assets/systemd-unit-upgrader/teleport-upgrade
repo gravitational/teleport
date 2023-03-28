@@ -234,9 +234,13 @@ do_upgrade() {
             ;;
         apt)
             log_info "attempting apt install $package_name=$target_version..."
-            # TODO
-            log_warn "not implemented!"
-            return 1
+            apt update \
+                -o Dir::Etc::sourcelist="sources.list.d/teleport.list" \
+                -o Dir::Etc::sourceparts="-" \
+                -o APT::Get::List-Cleanup="0"
+            apt install -y "$package_name=$target_version"
+            systemctl try-restart teleport.service
+            return 0
             ;;
         yum)
             log_info "attempting yum install $package_name=$target_version..."
