@@ -460,6 +460,9 @@ type CLIConf struct {
 	// authentication function.
 	// Defaults to [dtauthn.NewCeremony().Run].
 	DTAuthnRunCeremony client.DTAuthnRunCeremonyFunc
+
+	// LeafClusterName is the optional name of a leaf cluster to connect to instead
+	LeafClusterName string
 }
 
 // Stdout returns the stdout writer.
@@ -1008,6 +1011,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	puttyConfig := app.Command("puttyconfig", "Add PuTTY saved session configuration for specified hostname to Windows registry")
 	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
 	puttyConfig.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	puttyConfig.Flag("leaf", "Add a configuration for connecting to a leaf cluster").StringVar(&cf.LeafClusterName)
 	// only expose `tsh config putty` subcommand on windows
 	if runtime.GOOS != constants.WindowsOS {
 		puttyConfig.Hidden()

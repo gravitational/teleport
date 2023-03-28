@@ -32,9 +32,11 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // the key should not include HKEY_CURRENT_USER
@@ -54,6 +56,9 @@ const puttyDefaultProxyPort = 0 // no need to set the proxy port as it's abstrac
 const puttyDwordPresent = `00000001`
 const puttyDwordProxyMethod = `00000005`    // run a local command
 const puttyDwordProxyLogToTerm = `00000002` // only until session starts
+const puttyPermitRSASHA1 = `00000000`
+const puttyPermitRSASHA256 = `00000001`
+const puttyPermitRSASHA512 = `00000001`
 
 // despite the strings/ints in struct, these are stored in the registry as DWORDs
 type puttyRegistrySessionDwords struct {
@@ -77,8 +82,11 @@ type puttyRegistrySessionStrings struct {
 }
 
 // addPuTTYSession adds a PuTTY session for the given host/port to the Windows registry
-func addPuTTYSession(proxyHostname string, hostname string, port int, login string, ppkFilePath string, certificateFilePath string, commandToRun string) (bool, error) {
-	puttySessionName := fmt.Sprintf(`%v%%20(%v)`, hostname, proxyHostname)
+func addPuTTYSession(proxyHostname string, hostname string, port int, login string, ppkFilePath string, certificateFilePath string, commandToRun string, leafClusterName string) (bool, error) {
+	puttySessionName := fmt.Sprintf(`%v%%20(proxy:%v)`, hostname, proxyHostname)
+	if leafClusterName != "" {
+		puttySessionName = fmt.Sprintf(`%v%%20(leaf:%v,proxy:%v)`, hostname, leafClusterName, proxyHostname)
+	}
 	registryKey := fmt.Sprintf(`%v\%v`, puttyRegistrySessionsKey, puttySessionName)
 	sessionDwords := puttyRegistrySessionDwords{}
 	sessionStrings := puttyRegistrySessionStrings{}
@@ -162,7 +170,7 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 }
 
 // addHostCAPublicKey adds a host CA to the registry with a set of space-separated hostnames
-func addHostCAPublicKey(keyName string, publicKey string, hostnames ...string) (bool, error) {
+func addHostCAPublicKey(keyName string, publicKey string, hostname string) (bool, error) {
 	registryKeyName := fmt.Sprintf(`%v\%v`, puttyRegistrySSHHostCAsKey, keyName)
 
 	// get the subkey with the host CA key name
@@ -187,24 +195,25 @@ func addHostCAPublicKey(keyName string, publicKey string, hostnames ...string) (
 	defer registryKey.Close()
 
 	// iterate over the list of hostnames provided
-	// if an FQDN is provided, see whether it can be covered by a wildcard hostname
-	// that already exists in the list and skip adding it.
-	for _, host := range hostnames {
-		if strings.Contains(host, ".") && !strings.HasPrefix(host, "*.") {
-			fullHostname := strings.Split(host, ".")
-			wildcardDomain := fmt.Sprintf("*.%s", strings.Join(fullHostname[1:], "."))
-			if !slices.Contains(hostList, wildcardDomain) {
-				log.Debugf("Adding wildcard %s to hostList", wildcardDomain)
-				hostList = append(hostList, wildcardDomain)
-			} else {
-				log.Debugf("Not adding %s because it's already covered by %s", host, wildcardDomain)
-				continue
-			}
+	// if an FQDN is provided and there are already entries in the list, see whether it can be covered
+	// by a wildcard hostname that already exists in the list and skip adding it.
+	if len(hostList) > 0 && strings.Contains(hostname, ".") {
+		fullHostname := strings.Split(hostname, ".")
+		wildcardDomain := fmt.Sprintf("*.%s", strings.Join(fullHostname[1:], "."))
+		if !slices.Contains(hostList, wildcardDomain) {
+			log.Debugf("Adding wildcard %q to hostList", wildcardDomain)
+			hostList = append(hostList, wildcardDomain)
+			log.Debugf("Removing hostname %q from hostList as it's now covered by a wildcard", hostname)
+			hostList = utils.RemoveFromSlice(hostList, hostname)
 		} else {
-			if !slices.Contains(hostList, host) {
-				log.Debugf("Adding %s to hostList", host)
-				hostList = append(hostList, host)
-			}
+			log.Debugf("Not adding %q because it's already covered by %q", hostname, wildcardDomain)
+		}
+	} else {
+		if !slices.Contains(hostList, hostname) {
+			log.Debugf("Adding %q to hostList", hostname)
+			hostList = append(hostList, hostname)
+		} else {
+			log.Debugf("%q is already present in hostList", hostname)
 		}
 	}
 	sort.Strings(hostList)
@@ -214,6 +223,17 @@ func addHostCAPublicKey(keyName string, publicKey string, hostnames ...string) (
 		return false, trace.Wrap(err)
 	}
 	if ok, err := registryWriteString(registryKey, "PublicKey", publicKey); !ok {
+		return false, trace.Wrap(err)
+	}
+
+	// write dwords for signature acceptance
+	if ok, err := registryWriteDword(registryKey, "PermitRSASHA1", puttyPermitRSASHA1); !ok {
+		return false, trace.Wrap(err)
+	}
+	if ok, err := registryWriteDword(registryKey, "PermitRSASHA256", puttyPermitRSASHA256); !ok {
+		return false, trace.Wrap(err)
+	}
+	if ok, err := registryWriteDword(registryKey, "PermitRSASHA512", puttyPermitRSASHA512); !ok {
 		return false, trace.Wrap(err)
 	}
 
@@ -253,33 +273,65 @@ func onPuttyConfig(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// get the public key of the Teleport host CA so we can add it to PuTTY's list of trusted keys
-	var hostCAKnownHostsLine string
+	// get root cluster name and set keypaths
+	rootClusterName, err := proxyClient.RootClusterName(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
+	ppkFilePath := keypaths.PPKFilePath(keysDir, proxyHost, tc.Config.Username)
+	certificateFilePath := keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName)
+
+	// process leaf clusters if --leaf flag is passed
+	if cf.LeafClusterName != "" {
+		leafClusters, err := proxyClient.GetLeafClusters(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// check whether we know about the leaf cluster named, error if not
+		leafClustersNames := make([]string, 0, len(leafClusters))
+		for _, leafCluster := range leafClusters {
+			leafClustersNames = append(leafClustersNames, leafCluster.GetName())
+		}
+		if !slices.Contains(leafClustersNames, cf.LeafClusterName) {
+			return trace.BadParameter("Cannot find registered leaf cluster %q. Use the leaf cluster name as it appears in the output of `tsh clusters`.", cf.LeafClusterName)
+		}
+		certificateFilePath = keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, cf.LeafClusterName)
+	}
+
+	// get all CAs for the cluster (including trusted clusters)
+	var cas []types.CertAuthority
 	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		hostCAKnownHostsLine, err = client.ExportAuthorities(cf.Context, clt, client.ExportAuthoritiesRequest{AuthType: "host"})
+		cas, err = clt.GetCertAuthorities(cf.Context, types.HostCA, false /* exportSecrets */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
 	})
-	_, _, hostCAPublicKeyBytes, _, _, err := ssh.ParseKnownHosts([]byte(hostCAKnownHostsLine))
-	if err != nil {
-		return trace.Wrap(err)
+	// iterate over CAs
+	hostCAPublicKeys := make(map[string][]string)
+	for _, ca := range cas {
+		var publicKeys []string
+		// if this is either the root or requested leaf cluster, process it
+		if ca.GetName() == rootClusterName || ca.GetName() == cf.LeafClusterName {
+			for i, key := range ca.GetTrustedSSHKeyPairs() {
+				log.Debugf("%v CA [%v]: %v", ca.GetName(), i, key)
+				kh, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
+					Hostname:      ca.GetClusterName(),
+					AuthorizedKey: key.PublicKey,
+				})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				_, _, hostCABytes, _, _, err := ssh.ParseKnownHosts([]byte(kh))
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				publicKeys = append(publicKeys, strings.TrimPrefix(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCABytes))), constants.SSHRSAType+" "))
+				hostCAPublicKeys[ca.GetName()] = publicKeys
+			}
+		}
 	}
-	hostCAPublicKey := strings.TrimSuffix(string(ssh.MarshalAuthorizedKey(hostCAPublicKeyBytes)), "\n")
-
-	// get root cluster name
-	rootClusterName, rootErr := proxyClient.RootClusterName(cf.Context)
-	// TODO(gus): figure out what to do (if anything) about leaf clusters
-	//leafClusters, leafErr := proxyClient.GetLeafClusters(cf.Context)
-	_, leafErr := proxyClient.GetLeafClusters(cf.Context)
-	if err := trace.NewAggregate(rootErr, leafErr); err != nil {
-		return trace.Wrap(err)
-	}
-
-	keysDir := profile.FullProfilePath(tc.Config.KeysDir)
-	ppkFilePath := keypaths.PPKFilePath(keysDir, proxyHost, tc.Config.Username)
-	certificateFilePath := keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName)
 
 	hostname := tc.Config.Host
 	port := tc.Config.HostPort
@@ -290,23 +342,42 @@ func onPuttyConfig(cf *CLIConf) error {
 		userHostString = fmt.Sprintf("%v@%v", login, userHostString)
 	}
 
-	// format local command string (to run 'tsh proxy ssh')
-	localCommandString := formatLocalCommandString(cf.executablePath, rootClusterName)
+	// add all host CA public keys for cluster
+	for cluster, hostCAs := range hostCAPublicKeys {
+		keyName := fmt.Sprintf(`TeleportHostCA-%v`, cluster)
+		for i, publicKey := range hostCAs {
+			// append indices to entries if we have multiple public keys for a CA
+			if len(hostCAs) > 1 {
+				keyName = fmt.Sprintf(`%v-%d`, keyName, i)
+			}
 
-	keyName := fmt.Sprintf(`teleportHostCA-%v`, proxyHost)
-	if ok, err := addHostCAPublicKey(keyName, hostCAPublicKey, hostname); !ok {
-		log.Infof("Failed to add host CA key: %T", err)
-		return trace.Wrap(err)
-	} else {
-		log.Debugf("Added/updated host CA key for %v", hostname)
+			if ok, err := addHostCAPublicKey(keyName, publicKey, hostname); !ok {
+				log.Errorf("Failed to add host CA key for %v: %T", cluster, err)
+				return trace.Wrap(err)
+			} else {
+				log.Debugf("Added/updated host CA key %d for %v", i, cluster)
+			}
+		}
 	}
 
+	proxyCommandClusterName := rootClusterName
+	if cf.LeafClusterName != "" {
+		proxyCommandClusterName = cf.LeafClusterName
+	}
+
+	// format local command string (to run 'tsh proxy ssh')
+	localCommandString := formatLocalCommandString(cf.executablePath, proxyCommandClusterName)
+
 	// add session to registry
-	if ok, err := addPuTTYSession(proxyHost, tc.Config.Host, port, login, ppkFilePath, certificateFilePath, localCommandString); !ok {
-		log.Infof("Failed to add PuTTY session for %v: %T\n", userHostString, err)
+	if ok, err := addPuTTYSession(proxyHost, tc.Config.Host, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); !ok {
+		log.Errorf("Failed to add PuTTY session for %v: %T\n", userHostString, err)
 		return trace.Wrap(err)
 	} else {
-		fmt.Printf("Added PuTTY session for %v [via %v]\n", userHostString, proxyHost)
+		if cf.LeafClusterName != "" {
+			fmt.Printf("Added PuTTY session for %v [leaf:%v,proxy:%v]\n", userHostString, cf.LeafClusterName, proxyHost)
+		} else {
+			fmt.Printf("Added PuTTY session for %v [proxy:%v]\n", userHostString, proxyHost)
+		}
 	}
 
 	return nil

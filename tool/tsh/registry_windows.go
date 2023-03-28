@@ -19,6 +19,8 @@ limitations under the License.
 package main
 
 import (
+	"errors"
+	"os"
 	"strconv"
 
 	"github.com/gravitational/trace"
@@ -29,13 +31,16 @@ import (
 func getRegistryKey(name string) (registry.Key, error) {
 	// now check for and create the individual session key
 	reg, err := registry.OpenKey(registry.CURRENT_USER, name, registry.QUERY_VALUE|registry.CREATE_SUB_KEY|registry.SET_VALUE)
-	if err != nil {
+	if errors.Is(err, os.ErrNotExist) {
 		log.Debugf("Registry key %v doesn't exist, trying to create it", name)
 		reg, _, err = registry.CreateKey(registry.CURRENT_USER, name, registry.QUERY_VALUE|registry.CREATE_SUB_KEY|registry.SET_VALUE)
 		if err != nil {
 			log.Debugf("Can't create registry key %v: %v", name, err)
 			return reg, err
 		}
+	} else {
+		log.Errorf("registry.OpenKey returned error: %v", err)
+		return reg, err
 	}
 	return reg, nil
 }
