@@ -1613,12 +1613,6 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "u2f,omitempty"
   ];
 
-  // RequireSessionMFA causes all sessions in this cluster to require MFA
-  // checks.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "-"];
-
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
   BoolValue DisconnectExpiredCert = 6 [
@@ -2300,12 +2294,6 @@ message RoleOptions {
 
   // RequestPrompt is an optional message which tells users what they aught to
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
-
-  // RequireSessionMFA specifies whether a user is required to do an MFA
-  // check for every session.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "-"];
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.

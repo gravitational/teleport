@@ -682,69 +682,6 @@ func (m *mockRoleServer) GetCurrentUserRoles(_ *emptypb.Empty, stream proto.Auth
 	return nil
 }
 
-// Test that client will perform properly with an old server
-// DELETE IN 13.0.0
-func TestSetRoleRequireSessionMFABackwardsCompatibility(t *testing.T) {
-	ctx := context.Background()
-	addr := startMockRoleServer(t)
-
-	// Create client
-	clt, err := New(ctx, Config{
-		Addrs: []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
-	require.NoError(t, err)
-
-	role := &types.RoleV6{
-		Metadata: types.Metadata{
-			Name: "one",
-		},
-	}
-
-	t.Run("UpsertRole", func(t *testing.T) {
-		// UpsertRole should set "RequireSessionMFA" on the provided role if "RequireMFAType" is set
-		role.Spec.Options.RequireMFAType = types.RequireMFAType_SESSION
-		role.Spec.Options.RequireSessionMFA = false
-		err = clt.UpsertRole(ctx, role)
-		require.NoError(t, err)
-		require.True(t, role.GetOptions().RequireSessionMFA)
-	})
-
-	t.Run("GetRole", func(t *testing.T) {
-		// GetRole should set "RequireMFAType" on the received role if empty
-		role.Spec.Options.RequireMFAType = 0
-		role.Spec.Options.RequireSessionMFA = true
-		roleResp, err := clt.GetRole(ctx, role.GetName())
-		require.NoError(t, err)
-		require.Equal(t, types.RequireMFAType_SESSION, roleResp.GetOptions().RequireMFAType)
-	})
-
-	t.Run("GetRoles", func(t *testing.T) {
-		// GetRoles should set "RequireMFAType" on the received roles if empty
-		role.Spec.Options.RequireMFAType = 0
-		role.Spec.Options.RequireSessionMFA = true
-		rolesResp, err := clt.GetRoles(ctx)
-		require.NoError(t, err)
-		require.Len(t, rolesResp, 1)
-		require.Equal(t, types.RequireMFAType_SESSION, rolesResp[0].GetOptions().RequireMFAType)
-	})
-
-	t.Run("GetCurrentUserRoles", func(t *testing.T) {
-		// GetCurrentUserRoles should set "RequireMFAType" on the received roles if empty
-		role.Spec.Options.RequireMFAType = 0
-		role.Spec.Options.RequireSessionMFA = true
-		rolesResp, err := clt.GetCurrentUserRoles(ctx)
-		require.NoError(t, err)
-		require.Len(t, rolesResp, 1)
-		require.Equal(t, types.RequireMFAType_SESSION, rolesResp[0].GetOptions().RequireMFAType)
-	})
-}
-
 type mockAuthPreferenceServer struct {
 	*mockServer
 	pref *types.AuthPreferenceV2
@@ -779,47 +716,4 @@ func (m *mockAuthPreferenceServer) GetAuthPreference(ctx context.Context, _ *emp
 func (m *mockAuthPreferenceServer) SetAuthPreference(ctx context.Context, pref *types.AuthPreferenceV2) (*emptypb.Empty, error) {
 	m.pref = pref
 	return &emptypb.Empty{}, nil
-}
-
-// Test that client will perform properly with an old server
-// DELETE IN 13.0.0
-func TestSetAuthPreferenceRequireSessionMFABackwardsCompatibility(t *testing.T) {
-	ctx := context.Background()
-	addr := startMockAuthPreferenceServer(t)
-
-	// Create client
-	clt, err := New(ctx, Config{
-		Addrs: []string{addr},
-		Credentials: []Credentials{
-			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
-		},
-		DialOpts: []grpc.DialOption{
-			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
-		},
-	})
-	require.NoError(t, err)
-
-	pref := &types.AuthPreferenceV2{
-		Metadata: types.Metadata{
-			Name: "one",
-		},
-	}
-
-	t.Run("SetAuthPreference", func(t *testing.T) {
-		// SetAuthPreference should set "RequireSessionMFA" on the provided auth pref if "RequireMFAType" is set
-		pref.Spec.RequireMFAType = types.RequireMFAType_SESSION
-		pref.Spec.RequireSessionMFA = false
-		err = clt.SetAuthPreference(ctx, pref)
-		require.NoError(t, err)
-		require.True(t, pref.Spec.RequireSessionMFA)
-	})
-
-	t.Run("GetAuthPreference", func(t *testing.T) {
-		// GetAuthPreference should set "RequireMFAType" on the received auth pref if empty
-		pref.Spec.RequireMFAType = 0
-		pref.Spec.RequireSessionMFA = true
-		prefResp, err := clt.GetAuthPreference(ctx)
-		require.NoError(t, err)
-		require.Equal(t, types.RequireMFAType_SESSION, prefResp.GetRequireMFAType())
-	})
 }
