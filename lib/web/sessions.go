@@ -599,6 +599,9 @@ type sessionCache struct {
 	// sessions maps user/sessionID to an active web session value between renewals.
 	// This is the client-facing session handle
 	sessions map[string]*SessionContext
+	// sessionGroup ensures only a single SessionContext will exist for a
+	// user+session.
+	sessionGroup singleflight.Group
 
 	// session cache maintains a list of resources per-user as long
 	// as the user session is active even though individual session values
@@ -778,17 +781,32 @@ func (s *sessionCache) ValidateTrustedCluster(ctx context.Context, validateReque
 	return s.proxyClient.ValidateTrustedCluster(ctx, validateRequest)
 }
 
-// validateSession validates the session given with user and session ID.
-// Returns a new or existing session context.
-func (s *sessionCache) validateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
-	sessionCtx, err := s.getContext(user, sessionID)
-	if err == nil {
-		return sessionCtx, nil
-	}
-	if !trace.IsNotFound(err) {
+// getOrCreateSession gets the SessionContext for the user and session ID. If one does
+// not exist, then a new one is created.
+func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID string) (*SessionContext, error) {
+	key := sessionKey(user, sessionID)
+
+	// Use sessionGroup to prevent multiple requests from racing to create a SessionContext.
+	i, err, _ := s.sessionGroup.Do(key, func() (any, error) {
+		sessionCtx, ok := s.getContext(key)
+		if ok {
+			return sessionCtx, nil
+		}
+
+		return s.newSessionContext(ctx, user, sessionID)
+	})
+
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContext(ctx, user, sessionID)
+
+	sctx, ok := i.(*SessionContext)
+	if !ok {
+		return nil, trace.BadParameter("expected SessionContext, got %T", i)
+	}
+
+	return sctx, nil
+
 }
 
 func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionContext) error {
@@ -815,15 +833,11 @@ func (s *sessionCache) invalidateSession(ctx context.Context, sctx *SessionConte
 	return nil
 }
 
-func (s *sessionCache) getContext(user, sessionID string) (*SessionContext, error) {
+func (s *sessionCache) getContext(key string) (*SessionContext, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	ctx, ok := s.sessions[user+sessionID]
-	if ok {
-		return ctx, nil
-	}
-	return nil, trace.NotFound("no context for user %v and session %v",
-		user, sessionID)
+	ctx, ok := s.sessions[key]
+	return ctx, ok
 }
 
 func (s *sessionCache) insertContext(user string, sctx *SessionContext) (exists bool) {
@@ -905,11 +919,11 @@ func (s *sessionCache) newSessionContext(ctx context.Context, user, sessionID st
 		// This will fail if the session has expired and was removed
 		return nil, trace.Wrap(err)
 	}
-	return s.newSessionContextFromSession(session)
+	return s.newSessionContextFromSession(ctx, session)
 }
 
-func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*SessionContext, error) {
-	tlsConfig, err := s.tlsConfig(session.GetTLSCert(), session.GetPriv())
+func (s *sessionCache) newSessionContextFromSession(ctx context.Context, session types.WebSession) (*SessionContext, error) {
+	tlsConfig, err := s.tlsConfig(ctx, session.GetTLSCert(), session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -948,8 +962,7 @@ func (s *sessionCache) newSessionContextFromSession(session types.WebSession) (*
 	return sctx, nil
 }
 
-func (s *sessionCache) tlsConfig(cert, privKey []byte) (*tls.Config, error) {
-	ctx := context.TODO()
+func (s *sessionCache) tlsConfig(ctx context.Context, cert, privKey []byte) (*tls.Config, error) {
 	ca, err := s.proxyClient.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: s.clusterName,
