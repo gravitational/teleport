@@ -18,6 +18,7 @@ package forward
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -1046,7 +1047,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, scx)
-		case sshutils.EnvRequest:
+		case sshutils.EnvRequest, tracessh.EnvsRequest:
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
@@ -1082,6 +1083,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ctx, ch, req, scx)
+	case tracessh.EnvsRequest:
+		return s.handleEnvs(ctx, ch, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
@@ -1269,6 +1272,27 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
+	}
+
+	return nil
+}
+
+// handleEnvs accepts environment variables sent by the client and forwards them
+// to the remote session.
+func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+	var raw tracessh.EnvsReq
+	if err := ssh.Unmarshal(req.Payload, &raw); err != nil {
+		scx.Error(err)
+		return trace.Wrap(err, "failed to parse envs request")
+	}
+
+	var envs map[string]string
+	if err := json.Unmarshal(raw.Envs, &envs); err != nil {
+		return trace.Wrap(err, "failed to unmarshal envs")
+	}
+
+	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
+		s.log.Debugf("Unable to set environment variables: %v", err)
 	}
 
 	return nil
