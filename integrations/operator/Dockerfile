@@ -1,4 +1,5 @@
 ARG BUILDBOX
+ARG BASE_IMAGE=gcr.io/distroless/static-debian11
 # BUILDPLATFORM is provided by Docker/buildx
 FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
 
@@ -35,7 +36,7 @@ RUN echo "Targeting $TARGETOS/$TARGETARCH" && \
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
-FROM --platform=$TARGETPLATFORM gcr.io/distroless/cc
+FROM --platform=$TARGETPLATFORM $BASE_IMAGE
 WORKDIR /
 COPY --from=builder /go/bin/teleport-operator .
 
