@@ -169,9 +169,9 @@ spec:
       # Optional: Session recording mode for SSH sessions. 
       # If not set, the value set on default will be used.
       ssh: best_effort|strict
-    # Enterprise-only: when enabled, the source IP that was used to log in is embedded in the SSH
-    # certificate, preventing a compromised certificate from being used on other
-    # devices. The default is false.
+    # Enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
+    # certificates, preventing a compromised certificate from being used on another
+    # network. The default is false.
     # Note: Source IP pinning is currently in Preview mode.
     pin_source_ip: true
     # Specify a list of names and associated values to be included in user SSH keys.
