@@ -185,9 +185,9 @@ type dialerOptions struct {
 type DialerOptionFunc func(options *dialerOptions)
 
 // WithALPNDialer creates a dialer that allows to Teleport running in single-port mode.
-func WithALPNDialer(alpnDialer client.ContextDialer) DialerOptionFunc {
+func WithALPNDialer(alpnDialerConfig client.ALPNDialerConfig) DialerOptionFunc {
 	return func(options *dialerOptions) {
-		options.alpnDialer = alpnDialer
+		options.alpnDialer = client.NewALPNDialer(alpnDialerConfig)
 	}
 }
 

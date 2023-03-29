@@ -31,6 +31,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -323,7 +324,7 @@ func (p *AgentPool) updateRuntimeConfig(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	p.runtimeConfig.update(netConfig)
+	p.runtimeConfig.update(ctx, netConfig, p.Resolver)
 	p.log.Debugf("Runtime config: tunnel_strategy: %v connection_count: %v", p.runtimeConfig.tunnelStrategyType, p.runtimeConfig.connectionCount)
 
 	return nil
@@ -478,20 +479,13 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		p.log.WithError(err).Debugf("Failed to update remote config.")
 	}
 
-	options := []proxy.DialerOptionFunc{proxy.WithInsecureSkipTLSVerify(lib.IsInsecureDevMode())}
+	options := []proxy.DialerOptionFunc{}
 	if p.runtimeConfig.useALPNRouting() {
-		tlsConfig := &tls.Config{
-			NextProtos: []string{string(alpncommon.ProtocolReverseTunnel)},
+		alpnDialerConfig, err := p.makeALPNDialerConfig()
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		if p.runtimeConfig.useReverseTunnelV2() {
-			tlsConfig.NextProtos = []string{
-				string(alpncommon.ProtocolReverseTunnelV2),
-				string(alpncommon.ProtocolReverseTunnel),
-			}
-		}
-
-		options = append(options, proxy.WithALPNDialer(tlsConfig))
+		options = append(options, proxy.WithALPNDialer(alpnDialerConfig))
 	}
 
 	dialer := &agentDialer{
@@ -505,7 +499,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 
 	agent, err := newAgent(agentConfig{
 		addr:               *addr,
-		keepAlive:          p.runtimeConfig.keepAliveInterval,
+		keepAlive:          p.runtimeConfig.getKeepAliveInterval(),
 		sshDialer:          dialer,
 		transporter:        p,
 		versionGetter:      p,
@@ -522,6 +516,35 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 
 	agent.stateCallback = p.getStateCallback(agent)
 	return agent, nil
+}
+
+func (p *AgentPool) makeALPNDialerConfig() (client.ALPNDialerConfig, error) {
+	tlsConfig := &tls.Config{
+		NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+		InsecureSkipVerify: lib.IsInsecureDevMode(),
+	}
+
+	if p.runtimeConfig.useReverseTunnelV2() {
+		tlsConfig.NextProtos = []string{
+			string(alpncommon.ProtocolReverseTunnelV2),
+			string(alpncommon.ProtocolReverseTunnel),
+		}
+	}
+
+	config := client.ALPNDialerConfig{
+		TLSConfig:               tlsConfig,
+		ALPNConnUpgradeRequired: p.runtimeConfig.useALPNConnUpgrade(),
+		KeepAlivePeriod:         p.runtimeConfig.getKeepAliveInterval(),
+	}
+
+	if config.ALPNConnUpgradeRequired {
+		rootCAs, _, err := auth.ClientCertPool(p.AccessPoint, p.Cluster, types.HostCA)
+		if err != nil {
+			return client.ALPNDialerConfig{}, trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = rootCAs
+	}
+	return config, nil
 }
 
 // Wait blocks until the pool context is stopped.
@@ -587,6 +610,9 @@ type agentPoolRuntimeConfig struct {
 	// isRemoteCluster forces the agent pool to connect to all proxies
 	// regardless of the configured tunnel strategy.
 	isRemoteCluster bool
+	// tlsRoutingConnUpgradeRequired indicates that ALPN connection upgrades
+	// are required for making TLS routing requests.
+	tlsRoutingConnUpgradeRequired bool
 
 	// remoteTLSRoutingEnabled caches a remote clusters tls routing setting. This helps prevent
 	// proxy endpoint stagnation where an even numbers of proxies are hidden behind a round robin
@@ -653,6 +679,18 @@ func (c *agentPoolRuntimeConfig) useALPNRouting() bool {
 	return c.proxyListenerMode == types.ProxyListenerMode_Multiplex
 }
 
+func (c *agentPoolRuntimeConfig) useALPNConnUpgrade() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.tlsRoutingConnUpgradeRequired
+}
+
+func (c *agentPoolRuntimeConfig) getKeepAliveInterval() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.keepAliveInterval
+}
+
 func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.NetAddr) error {
 	c.updateRemoteMu.Lock()
 	defer c.updateRemoteMu.Unlock()
@@ -705,13 +743,17 @@ func (c *agentPoolRuntimeConfig) updateRemote(ctx context.Context, addr *utils.N
 	c.lastRemotePing = &now
 
 	c.remoteTLSRoutingEnabled = tlsRoutingEnabled
+	if c.remoteTLSRoutingEnabled {
+		c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode())
+	}
 	return nil
 }
 
-func (c *agentPoolRuntimeConfig) update(netConfig types.ClusterNetworkingConfig) {
+func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.ClusterNetworkingConfig, resolver Resolver) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	oldProxyListenerMode := c.proxyListenerMode
 	c.keepAliveInterval = netConfig.GetKeepAliveInterval()
 	c.proxyListenerMode = netConfig.GetProxyListenerMode()
 
@@ -729,6 +771,15 @@ func (c *agentPoolRuntimeConfig) update(netConfig types.ClusterNetworkingConfig)
 	}
 	if c.connectionCount <= 0 {
 		c.connectionCount = defaultAgentConnectionCount
+	}
+
+	if c.proxyListenerMode == types.ProxyListenerMode_Multiplex && oldProxyListenerMode != c.proxyListenerMode {
+		addr, _, err := resolver(ctx)
+		if err == nil {
+			c.tlsRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(addr.Addr, lib.IsInsecureDevMode())
+		} else {
+			logrus.WithError(err).Warnf("Faield to resolve addr.")
+		}
 	}
 }
 
