@@ -392,12 +392,14 @@ func TestSetEnvs(t *testing.T) {
 		require.NoError(t, session.SetEnvs(ctx, expected))
 
 		envs := map[string]string{}
+		envsTimeout := time.NewTimer(3*time.Second)
+		defer envsTimeout.Stop()
 		for i := 0; i < len(expected); i++ {
 			select {
 			case env := <-envReqC:
 				envs[env.Name] = env.Value
-			case <-time.After(3 * time.Second):
-				t.Fatalf("time out waiting for env request %d to be processed", i)
+			case <-envsTimeout.C:
+				t.Fatalf("Time out waiting for env request %d to be processed", i)
 			}
 		}
 
