@@ -761,6 +761,9 @@ type ReadOktaAccessPoint interface {
 
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+
+	// ListResources returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
