@@ -571,7 +571,7 @@ func onProxyCommandApp(cf *CLIConf) error {
 		makeBasicLocalProxyConfig(cf, tc, listener),
 		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
 		alpnproxy.WithClientCerts(appCerts),
-		alpnproxy.WithALPNConnUpgradeTest(cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
 	)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
@@ -771,10 +771,11 @@ func getTLSCertExpireTime(cert tls.Certificate) (time.Time, error) {
 
 func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
 	return alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
-		Listener:           listener,
+		RemoteProxyAddr:         tc.WebProxyAddr,
+		InsecureSkipVerify:      cf.InsecureSkipVerify,
+		ParentContext:           cf.Context,
+		Listener:                listener,
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 	}
 }
 
