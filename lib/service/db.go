@@ -65,7 +65,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 
 	tunnelAddrResolver := conn.TunnelProxyResolver()
 	if tunnelAddrResolver == nil {
-		tunnelAddrResolver = process.singleProcessModeResolver(resp.GetProxyListenerMode())
+		tunnelAddrResolver = process.SingleProcessModeResolver(resp.GetProxyListenerMode())
 
 		// run the resolver. this will check configuration for errors.
 		_, _, err := tunnelAddrResolver(process.ExitContext())
@@ -160,7 +160,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 		Authorizer:           authorizer,
 		TLSConfig:            tlsConfig,
 		Limiter:              connLimiter,
-		GetRotation:          process.getRotation,
+		GetRotation:          process.GetRotation,
 		Hostname:             process.Config.Hostname,
 		HostID:               process.Config.HostUUID,
 		Databases:            databases,
