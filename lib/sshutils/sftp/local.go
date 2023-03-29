@@ -21,6 +21,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -32,6 +33,19 @@ type localFS struct{}
 
 func (l localFS) Type() string {
 	return "local"
+}
+
+func (l *localFS) Glob(ctx context.Context, pattern string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return matches, nil
 }
 
 func (l localFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {

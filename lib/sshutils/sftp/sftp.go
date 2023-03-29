@@ -25,7 +25,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path" // SFTP requires Linux-style path separators
+	"os/user"
+	"path" // SFTP requires UNIX-style path separators
 	"runtime"
 	"strings"
 	"time"
@@ -74,6 +75,8 @@ type Config struct {
 type FileSystem interface {
 	// Type returns whether the filesystem is "local" or "remote"
 	Type() string
+	// Glob returns matching files of a glob pattern
+	Glob(ctx context.Context, pattern string) ([]string, error)
 	// Stat returns info about a file
 	Stat(ctx context.Context, path string) (os.FileInfo, error)
 	// ReadDir returns information about files contained within a directory
@@ -195,7 +198,7 @@ func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 	}
 
 	if c.getHomeDir == nil {
-		c.getHomeDir = func() (_ string, err error) {
+		c.getHomeDir = func() (string, error) {
 			return getRemoteHomeDir(sshClient)
 		}
 	}
@@ -204,19 +207,32 @@ func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 }
 
 func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
+	srcHomeRetriever := getLocalHomeDir
 	if srcIsRemote {
-		for i, srcPath := range c.srcPaths {
-			c.srcPaths[i], err = expandPath(srcPath, c.getHomeDir)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		srcHomeRetriever = c.getHomeDir
+	}
+	for i, srcPath := range c.srcPaths {
+		c.srcPaths[i], err = expandPath(srcPath, srcHomeRetriever)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 	}
+
+	dstHomeRetriever := getLocalHomeDir
 	if dstIsRemote {
-		c.dstPath, err = expandPath(c.dstPath, c.getHomeDir)
+		dstHomeRetriever = c.getHomeDir
 	}
+	c.dstPath, err = expandPath(c.dstPath, dstHomeRetriever)
 
 	return trace.Wrap(err)
+}
+
+func getLocalHomeDir() (string, error) {
+	u, err := user.Current()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return u.HomeDir, nil
 }
 
 func expandPath(pathStr string, getHomeDir homeDirRetriever) (string, error) {
@@ -274,7 +290,39 @@ func getRemoteHomeDir(sshClient *ssh.Client) (string, error) {
 
 // transfer preforms file transfers
 func (c *Config) transfer(ctx context.Context) error {
+	// get info of source files and ensure appropriate options were passed
+	matchedPaths := make([]string, 0, len(c.srcPaths))
+	fileInfos := make([]os.FileInfo, 0, len(c.srcPaths))
+	for _, srcPath := range c.srcPaths {
+		matches, err := c.srcFS.Glob(ctx, srcPath)
+		if err != nil {
+			return trace.Errorf("error matching glob pattern %q: %w", srcPath, err)
+		}
+		// clean match paths to ensure they are separated by backslashes, as
+		// SFTP requires that
+		for i := range matches {
+			matches[i] = path.Clean(matches[i])
+		}
+		matchedPaths = append(matchedPaths, matches...)
+
+		for _, match := range matches {
+			fi, err := c.srcFS.Stat(ctx, match)
+			if err != nil {
+				return trace.Errorf("could not access %s path %q: %v", c.srcFS.Type(), match, err)
+			}
+			if fi.IsDir() && !c.opts.Recursive {
+				// Note: using any other error constructor (e.g. BadParameter)
+				// might lead to relogin attempt and a completely obscure
+				// error message
+				return trace.BadParameter("%q is a directory, but the recursive option was not passed", match)
+			}
+			fileInfos = append(fileInfos, fi)
+		}
+	}
+
+	// validate destination path and create it if necessary
 	var dstIsDir bool
+	c.dstPath = path.Clean(c.dstPath)
 	dstInfo, err := c.dstFS.Stat(ctx, c.dstPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -288,31 +336,22 @@ func (c *Config) transfer(ctx context.Context) error {
 			}
 			dstIsDir = true
 		}
-	} else if len(c.srcPaths) > 1 && !dstInfo.IsDir() {
+	} else if len(matchedPaths) > 1 && !dstInfo.IsDir() {
 		// if there are multiple source paths, ensure the destination path
 		// is a directory
-		return trace.BadParameter("%s file %q is not a directory, but multiple source files were specified",
-			c.dstFS.Type(),
-			c.dstPath,
-		)
+		if len(matchedPaths) != len(c.srcPaths) {
+			return trace.BadParameter("%s file %q is not a directory, but multiple source files were matched by a glob pattern",
+				c.dstFS.Type(),
+				c.dstPath,
+			)
+		} else {
+			return trace.BadParameter("%s file %q is not a directory, but multiple source files were specified",
+				c.dstFS.Type(),
+				c.dstPath,
+			)
+		}
 	} else if dstInfo.IsDir() {
 		dstIsDir = true
-	}
-
-	// get info of source files and ensure appropriate options were passed
-	fileInfos := make([]os.FileInfo, len(c.srcPaths))
-	for i := range c.srcPaths {
-		fi, err := c.srcFS.Stat(ctx, c.srcPaths[i])
-		if err != nil {
-			return trace.Errorf("could not access %s path %q: %v", c.srcFS.Type(), c.srcPaths[i], err)
-		}
-		if fi.IsDir() && !c.opts.Recursive {
-			// Note: using any other error constructor (e.g. BadParameter)
-			// might lead to relogin attempt and a completely obscure
-			// error message
-			return trace.BadParameter("%q is a directory, but the recursive option was not passed", c.srcPaths[i])
-		}
-		fileInfos[i] = fi
 	}
 
 	for i, fi := range fileInfos {
@@ -322,11 +361,11 @@ func (c *Config) transfer(ctx context.Context) error {
 		}
 
 		if fi.IsDir() {
-			if err := c.transferDir(ctx, dstPath, c.srcPaths[i], fi); err != nil {
+			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
-			if err := c.transferFile(ctx, dstPath, c.srcPaths[i], fi); err != nil {
+			if err := c.transferFile(ctx, dstPath, matchedPaths[i], fi); err != nil {
 				return trace.Wrap(err)
 			}
 		}

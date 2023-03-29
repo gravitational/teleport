@@ -37,6 +37,19 @@ func (r *remoteFS) Type() string {
 	return "remote"
 }
 
+func (r *remoteFS) Glob(ctx context.Context, pattern string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	matches, err := r.c.Glob(pattern)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return matches, nil
+}
+
 func (r *remoteFS) Stat(ctx context.Context, path string) (os.FileInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

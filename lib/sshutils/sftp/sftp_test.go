@@ -44,12 +44,13 @@ func TestUpload(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		srcPaths    []string
-		dstPath     string
-		opts        Options
-		files       []string
-		expectedErr string
+		name            string
+		srcPaths        []string
+		globbedSrcPaths []string
+		dstPath         string
+		opts            Options
+		files           []string
+		expectedErr     string
 	}{
 		{
 			name: "one file",
@@ -144,6 +145,132 @@ func TestUpload(t *testing.T) {
 			},
 		},
 		{
+			name: "globbed files dst doesn't exist",
+			srcPaths: []string{
+				"glob*",
+			},
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+			},
+			dstPath: "dst/",
+			files: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+			},
+		},
+		{
+			name: "globbed files dst does exist",
+			srcPaths: []string{
+				"glob*",
+			},
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+			},
+			dstPath: "dst/",
+			files: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"dst/",
+			},
+		},
+		{
+			name: "multiple glob patterns",
+			srcPaths: []string{
+				"glob*",
+				"*stuff",
+			},
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"mystuff",
+				"yourstuff",
+			},
+			dstPath: "dst/",
+			files: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"mystuff",
+				"yourstuff",
+				"dst/",
+			},
+		},
+		{
+			name: "multiple glob patterns with normal path",
+			srcPaths: []string{
+				"glob*",
+				"file",
+				"*stuff",
+			},
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"file",
+				"mystuff",
+				"yourstuff",
+			},
+			dstPath: "dst/",
+			files: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"file",
+				"mystuff",
+				"yourstuff",
+				"dst/",
+			},
+		},
+		{
+			name: "recursive glob pattern with normal path",
+			srcPaths: []string{
+				"glob*",
+				"file",
+				"*stuff",
+			},
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"globfile",
+				"file",
+			},
+			dstPath: "dst/",
+			opts: Options{
+				Recursive:     true,
+				PreserveAttrs: true,
+			},
+			files: []string{
+				"globS/",
+				"globS/file",
+				"globA/",
+				"globA/file",
+				"globT/",
+				"globT/file",
+				"globB/",
+				"globB/file",
+				"globfile",
+				"file",
+				"dst/",
+			},
+		},
+		{
 			name: "multiple src dst not dir",
 			srcPaths: []string{
 				"uno",
@@ -158,6 +285,20 @@ func TestUpload(t *testing.T) {
 				"dst_file",
 			},
 			expectedErr: `local file "%s/dst_file" is not a directory, but multiple source files were specified`,
+		},
+		{
+			name: "multiple matches from src dst not dir",
+			srcPaths: []string{
+				"glob*",
+			},
+			dstPath: "dst_file",
+			files: []string{
+				"glob1",
+				"glob2",
+				"glob3",
+				"dst_file",
+			},
+			expectedErr: `local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`,
 		},
 		{
 			name: "src dir with recursive not passed",
@@ -187,6 +328,9 @@ func TestUpload(t *testing.T) {
 			for i := range tt.srcPaths {
 				tt.srcPaths[i] = filepath.Join(tempDir, tt.srcPaths[i])
 			}
+			for i := range tt.globbedSrcPaths {
+				tt.globbedSrcPaths[i] = filepath.Join(tempDir, tt.globbedSrcPaths[i])
+			}
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
 			ctx := context.Background()
@@ -200,7 +344,11 @@ func TestUpload(t *testing.T) {
 			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
-				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, tt.srcPaths...)
+				srcPaths := tt.srcPaths
+				if len(tt.globbedSrcPaths) != 0 {
+					srcPaths = tt.globbedSrcPaths
+				}
+				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, srcPaths...)
 			} else {
 				require.EqualError(t, err, fmt.Sprintf(tt.expectedErr, tempDir))
 			}
@@ -212,12 +360,13 @@ func TestDownload(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		srcPath     string
-		dstPath     string
-		opts        Options
-		files       []string
-		expectedErr string
+		name            string
+		srcPath         string
+		globbedSrcPaths []string
+		dstPath         string
+		opts            Options
+		files           []string
+		expectedErr     string
 	}{
 		{
 			name:    "one file",
@@ -240,11 +389,87 @@ func TestDownload(t *testing.T) {
 			},
 			files: []string{
 				"src/",
+				"dst/",
+			},
+		},
+		{
+			name:    "nested dirs",
+			srcPath: "s",
+			dstPath: "dst/",
+			opts: Options{
+				PreserveAttrs: true,
+				Recursive:     true,
+			},
+			files: []string{
+				"s/",
 				"s/file",
 				"s/r/",
 				"s/r/file",
 				"s/r/c/",
 				"s/r/c/file",
+				"dst/",
+			},
+		},
+		{
+			name:    "globbed files dst doesn't exist",
+			srcPath: "glob*",
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+			},
+			dstPath: "dst/",
+			files: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+			},
+		},
+		{
+			name:    "globbed files dst does exist",
+			srcPath: "glob*",
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+			},
+			dstPath: "dst/",
+			files: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"dst/",
+			},
+		},
+		{
+			name:    "recursive glob pattern",
+			srcPath: "glob*",
+			globbedSrcPaths: []string{
+				"globS",
+				"globA",
+				"globT",
+				"globB",
+				"globfile",
+			},
+			dstPath: "dst/",
+			opts: Options{
+				Recursive:     true,
+				PreserveAttrs: true,
+			},
+			files: []string{
+				"globS/",
+				"globS/file",
+				"globA/",
+				"globA/file",
+				"globT/",
+				"globT/file",
+				"globB/",
+				"globB/file",
+				"globfile",
 				"dst/",
 			},
 		},
@@ -272,6 +497,9 @@ func TestDownload(t *testing.T) {
 				}
 			}
 			tt.srcPath = filepath.Join(tempDir, tt.srcPath)
+			for i := range tt.globbedSrcPaths {
+				tt.globbedSrcPaths[i] = filepath.Join(tempDir, tt.globbedSrcPaths[i])
+			}
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
 			ctx := context.Background()
@@ -285,7 +513,11 @@ func TestDownload(t *testing.T) {
 			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
-				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, tt.srcPath)
+				srcPaths := []string{tt.srcPath}
+				if len(tt.globbedSrcPaths) != 0 {
+					srcPaths = tt.globbedSrcPaths
+				}
+				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, srcPaths...)
 			} else {
 				require.EqualError(t, err, fmt.Sprintf(tt.expectedErr, tempDir))
 			}
