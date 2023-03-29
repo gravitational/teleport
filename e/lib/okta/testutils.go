@@ -36,11 +36,13 @@ type testAccessPoint struct {
 	events.Streamer
 	io.Closer
 	services.Apps
+	services.ClusterConfiguration
 	services.ConnectionsDiagnostic
 	services.DatabaseServices
 	services.Identity
 	services.Okta
 	services.Presence
+	services.Trust
 	services.UserGroups
 	services.WindowsDesktops
 	types.Events
@@ -61,7 +63,12 @@ func newTestAccessPoint(t *testing.T) *testAccessPoint {
 
 	streamer := events.NewDiscardEmitter()
 
+	// TODO(mdwn): Remove the app service once the Okta cache changes have been
+	// checked in.
 	apps := local.NewAppService(backend)
+	ca := local.NewCAService(backend)
+	clusterConfiguration, err := local.NewClusterConfigurationService(backend)
+	require.NoError(t, err)
 	connectionsDiagnostic := local.NewConnectionsDiagnosticService(backend)
 	databaseServices := local.NewDatabaseServicesService(backend)
 	identity := local.NewIdentityService(backend)
@@ -77,11 +84,13 @@ func newTestAccessPoint(t *testing.T) *testAccessPoint {
 		Streamer:              streamer,
 		Closer:                io.NopCloser(nil),
 		Apps:                  apps,
+		ClusterConfiguration:  clusterConfiguration,
 		ConnectionsDiagnostic: connectionsDiagnostic,
 		DatabaseServices:      databaseServices,
 		Identity:              identity,
 		Okta:                  okta,
 		Presence:              presence,
+		Trust:                 ca,
 		UserGroups:            userGroups,
 		WindowsDesktops:       windowsDesktops,
 		Events:                events,
