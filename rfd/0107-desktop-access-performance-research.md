@@ -432,6 +432,42 @@ However, we should track progress of the WebTransport specification and the evol
 - [WebTransport Explainer](https://github.com/w3c/webtransport/blob/main/explainer.md)
 - [MDN's WebTransport](https://developer.mozilla.org/en-US/docs/Web/API/WebTransport)
 
+### WebGL & WebGPU
+
+#### What is WebGL?
+
+WebGL is a JavaScript API for rendering 2D and 3D graphics in the web browser. It is a low-level drawing API that is based on the OpenGL for Embeded Systems (OpenGL ES) and that can be used on the <canvas> html tag. WebGL programs consist of code written in JS and shader code that is written in OpenGL ES Shading Language. It's code is executed on the GPU. WebGL is widely supported by modern browsers. Being a low-level API adds a lot of complexity for drawing operation compared to high-level operations that can be done on the using Canvas API. We no longer operate on the images, but on the buffers of raw data.
+
+#### What is WebGPU?
+WebGPU is a new Javascript API that exposes computer graphics capabilities for performing rendering and computation operations on a GPU. The specification is not yet fully finished and is still in draft mode. To try this API you need to enable it manually in the browser as it is not enabled by default in any of the browsers yet[Can I use it?](https://caniuse.com/webgpu). It is not a port or a wrapper to any existing graphic library. It introduces its own abstraction that is based on other graphic APIs like Vulkan, Metal, and Direct3D. Also, it uses its own shader language called WGSL. It's a powerful, but very low-level API in which we send commands directly to be executed on the GPU.
+
+#### How do we render graphic now?
+
+Current Teleport's implementation utilizes a Canvas API for rendering 2D graphics. This is the most available graphic API in web browsers. It focuses on 2D graphics. Its rendering speed in specific use cases e.g. 2D textures is comparable to the low-level WebGL as some of the Canvas API operations are also hardware accelerated, like `drawImage`. 
+In the Desktop Access module for each graphic message that we get over the wire, we render it like this pseudo code:
+```
+  const img = new Image();
+  img.src = {IMAGE_DATA};
+  canvas2dContext.drawImage(img, X, Y);
+```
+so we are already using performant API.
+<br/>
+Here are the results of the benchmarks made on Apple M1 MacBook Pro for rendering 64x64 png image on the canvas using `drawImage`:
+```
+drawImage + create img tag inside loop x 166,647 ops/sec ±0.65%
+drawImage x 2,046,070 ops/sec ±0.42%
+```
+
+As the results show it is capable of rendering a lot of images on the canvas per second. In the worst-case scenario, where we would need to update every part of the screen in each frame for 1920x1080 resolution @ 60FPS, we would need to execute the drawImage call 30600 times per second.
+```
+64x64px each tile
+1920px / 64px = 30
+1080px / 64px = 16.875
+30 x 17 = 510 tiles per frame
+510 * 60 frames per second = 30600 tiles per second
+```
+Since our requirements for rendering API are simple, where we only need to render 2D textured rectangles and don't need to use any advanced graphic operations, Canvas API is sufficient for our use case. While using WebGL API probably would result in a bit more performant solution it would require more complex implementation.
+
 ## Conclusions
 
 Processing bitmaps in the Rust library is a no-brainer per it being simple to build and offering a measureable 10x improvement. (In fact it is already impelemented at the time of this writing.)
