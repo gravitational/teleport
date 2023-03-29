@@ -5285,10 +5285,18 @@ message IntegrationV1 {
 }
 
 // IntegrationSpecV1 contains properties of all the supported integrations.
-// Depending on the Integration SubKind, some fields may not be present.
 message IntegrationSpecV1 {
-  // AWSRoleARN contains the Role ARN used to set up the `aws-oidc` SubKind Integration.
-  string AWSRoleARN = 1 [(gogoproto.jsontag) = "aws_role_arn"];
+  oneof SubKindSpec {
+    // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
+    AWSOIDCIntegrationSpec AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+  }
+}
+
+// AWSOIDCIntegrationSpec contains the spec properties for the AWS OIDC SubKind Integration.
+message AWSOIDCIntegrationSpec {
+  // RoleARN contains the Role ARN used to set up the Integration.
+  // This is the AWS Role that Teleport will use to issue tokens for API Calls.
+  string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
