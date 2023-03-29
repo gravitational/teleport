@@ -526,6 +526,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
+	OktaTunnel TunnelType = "okta"
 )
 
 type TunnelStrategyType string
