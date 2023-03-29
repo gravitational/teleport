@@ -91,20 +91,7 @@ import (
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
 	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
-	metaRedirectHTML       = `
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<title>Teleport Redirection Service</title>
-		<meta http-equiv="cache-control" content="no-cache"/>
-		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
-	</head>
-	<body></body>
-</html>
-`
 )
-
-var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
 // healthCheckAppServerFunc defines a function used to perform a health check
 // to AppServer that can handle application requests (based on cluster name and
@@ -3453,14 +3440,13 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 // See https://github.com/gravitational/teleport/issues/7467.
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		app.SetRedirectPageHeaders(w.Header(), "")
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
-		err := metaRedirectTemplate.Execute(w, redirectURL)
+		err := app.MetaRedirect(w, redirectURL)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to execute template.")
+			h.log.WithError(err).Warn("Failed to issue a redirect.")
 		}
 	}
 }
