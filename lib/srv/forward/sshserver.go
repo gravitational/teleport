@@ -1295,12 +1295,12 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	}
 
 	var envs map[string]string
-	if err := json.Unmarshal(raw.Envs, &envs); err != nil {
+	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
 		return trace.Wrap(err, "failed to unmarshal envs")
 	}
 
 	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
-		s.log.Debugf("Unable to set environment variables: %v", err)
+		s.log.WithError(err).Debug("Unable to set environment variables")
 	}
 
 	return nil
