@@ -1051,8 +1051,7 @@
         {
           "title": "Getting Started",
           "slug": "/desktop-access/getting-started/",
-          "forScopes": ["enterprise", "cloud"]
-	
+          "forScopes": ["enterprise", "cloud"]	
         },
         {
           "title": "Active Directory",
