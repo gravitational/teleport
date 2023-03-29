@@ -87,8 +87,9 @@ type Config struct {
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
-// is not enough to connect to SNS
+// is not enough to setup Athena based audit log.
 func (cfg *Config) CheckAndSetDefaults() error {
+	// AWS restrictions (https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html)
 	const glueNameMaxLen = 255
 	if cfg.Database == "" {
 		return trace.BadParameter("Database is not specified")
@@ -273,7 +274,7 @@ type Log struct {
 	session *awssession.Session
 }
 
-// New returns new instance of athena based audit logger.
+// New creates an instance of an Athena based audit log.
 func New(ctx context.Context, cfg Config) (*Log, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
