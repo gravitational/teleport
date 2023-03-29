@@ -18,11 +18,11 @@ set -o nounset
     if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
       curl -o /tmp/teleport-pubkey.asc https://deb.releases.teleport.dev/teleport-pubkey.asc
       cat /tmp/teleport-pubkey.asc | sudo apt-key add -
-      echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list
+      echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
       rm /tmp/teleport-pubkey.asc
     else
       curl https://deb.releases.teleport.dev/teleport-pubkey.asc | sudo tee /usr/share/keyrings/teleport-archive-keyring.asc
-      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/{{ .MajorVersion }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
+      echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
     sudo apt-get install -y {{ .TeleportPackage }}
@@ -31,7 +31,7 @@ set -o nounset
       VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
     fi
     sudo yum-config-manager --add-repo \
-      "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/{{ .MajorVersion }}/teleport.repo")"
+      "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
     sudo yum install -y {{ .TeleportPackage }}
   else
     echo "Unsupported distro: $ID"

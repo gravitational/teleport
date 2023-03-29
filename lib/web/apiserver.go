@@ -1112,12 +1112,12 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 	}
 
 	return webclient.PingResponse{
-		Auth:             authSettings,
-		Proxy:            *proxyConfig,
-		ServerVersion:    teleport.Version,
-		MinClientVersion: teleport.MinClientVersion,
-		ClusterName:      h.auth.clusterName,
-		LicenseWarnings:  pr.LicenseWarnings,
+		Auth:              authSettings,
+		Proxy:             *proxyConfig,
+		ServerVersion:     teleport.Version,
+		MinClientVersion:  teleport.MinClientVersion,
+		ClusterName:       h.auth.clusterName,
+		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 	}, nil
 }
 
@@ -1559,10 +1559,19 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		teleportPackage = fmt.Sprintf("%s-%s", teleport.ComponentTeleport, modules.BuildEnterprise)
 	}
 
+	// By default, it uses the stable/v<majorVersion> channel.
+	repoChannel := fmt.Sprintf("stable/%s", version)
+
+	// However, when Automatic Upgrades are on and cluster is part of cloud,
+	// it will use the stable/cloud channel.
+	if feats.Cloud && feats.AutomaticUpgrades {
+		repoChannel = stableCloudChannelRepo
+	}
+
 	tmpl := installers.Template{
 		PublicProxyAddr: h.PublicProxyAddr(),
-		MajorVersion:    version,
 		TeleportPackage: teleportPackage,
+		RepoChannel:     repoChannel,
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -1888,7 +1897,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newContext, err := h.auth.newSessionContextFromSession(newSession)
+	newContext, err := h.auth.newSessionContextFromSession(r.Context(), newSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3526,7 +3535,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.validateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
+	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		logger.WithError(err).Warn("Invalid session.")
 		ClearSession(w)

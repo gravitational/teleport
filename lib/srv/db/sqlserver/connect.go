@@ -50,7 +50,6 @@ type connector struct {
 	DataDir string
 
 	kinitCommandGenerator kinit.CommandGenerator
-	caFunc                func(ctx context.Context, clusterName string) ([]byte, error)
 }
 
 var errBadKerberosConfig = errors.New("configuration must have either keytab or kdc_host_name and ldap_cert")

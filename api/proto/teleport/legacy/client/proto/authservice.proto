@@ -542,14 +542,15 @@ message PingResponse {
   string ProxyPublicAddr = 4 [(gogoproto.jsontag) = "proxy_public_addr"];
   // IsBoring signals whether or not the server was compiled with BoringCrypto.
   bool IsBoring = 5 [(gogoproto.jsontag) = "is_boring"];
-  // LicenseWarnings is a list of license compliance warnings.
-  repeated string LicenseWarnings = 6 [(gogoproto.jsontag) = "license_warnings"];
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
   // LoadAllCAs signals whether or not tsh should load all CAs when trying
   // to ssh into a node.
   bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
+
+  reserved 6; // LicenseWarnings, jsontag "license_warnings"
+  reserved "LicenseWarnings";
 }
 
 // Features are auth server features.
@@ -581,6 +582,8 @@ message Features {
   bool RecoveryCodes = 14 [(gogoproto.jsontag) = "recovery_codes"];
   // Plugins enables hosted plugins
   bool Plugins = 15 [(gogoproto.jsontag) = "plugins"];
+  // AutomaticUpgrades enables Automatic Upgrades for the agents/services.
+  bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.

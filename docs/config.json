@@ -567,6 +567,10 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
+              "title": "Joining Nodes via Azure",
+              "slug": "/management/guides/joining-nodes-azure/"
+            },
+            {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
             }
