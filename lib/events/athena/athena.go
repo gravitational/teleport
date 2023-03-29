@@ -337,10 +337,10 @@ func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, sta
 	return c, e
 }
 
+var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")
+
 func isAlphanumericOrUnderscore(s string) bool {
-	pattern := "^[a-zA-Z0-9_]+$"
-	re := regexp.MustCompile(pattern)
-	return re.MatchString(s)
+	return isAlphanumericOrUnderscoreRe.MatchString(s)
 }
 
 func isValidUrlWithScheme(s string) (string, bool) {
