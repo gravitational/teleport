@@ -92,6 +92,9 @@ func (s *FirestoreeventsSuite) TearDownTest(c *check.C) {
 	if len(docSnaps) == 0 {
 		return
 	}
+
+	//allow using deprecated api
+	//nolint:staticcheck
 	batch := s.log.svc.Batch()
 	for _, docSnap := range docSnaps {
 		batch.Delete(docSnap.Ref)
