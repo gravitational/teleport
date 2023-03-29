@@ -48,9 +48,9 @@ environment, the principle of least privilege should be applied and you should
 create a role that grants the bot access to the precise resources that will be
 needed in your CI/CD workflow.
 
-Enter the following command from your workstation with `tsh` access, replacing
-the `username` value with a Linux user on the host that you want your GitHub
-Actions flow to be able to connect to:
+From your workstation enter the following command, replacing the`username`
+value with a Linux user on the host that you want your GitHub Actions flow to
+be able to connect to:
 
 ```code
 $ tctl bots add github-demo --roles=access --token=github-token --logins=username
