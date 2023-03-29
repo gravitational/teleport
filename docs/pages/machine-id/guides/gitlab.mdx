@@ -37,11 +37,11 @@ your Teleport cluster. For instructions on setting this up, see the
 include a user you want to grant access to. In this guide, we will call the SSH
 node `my-node` and the user `ci-user`. Replace these with values appropriate to
 your setup.
-- A GitLab project to connect to Teleport. This can either be on GitLab's cloud-hosted
-offering (gitlab.com) or on a self-hosted GitLab instance. **When using a
-self-hosted GitLab instance, your Teleport Auth Server must be able to connect
-to your GitLab instance and your GitLab instance must be configured with a valid
-TLS certificate.**
+- A GitLab project to connect to Teleport. This can either be on GitLab's
+cloud-hosted offering (gitlab.com) or on a self-hosted GitLab instance. **When
+using a self-hosted GitLab instance, your Teleport Auth Server must be able to
+connect to your GitLab instance and your GitLab instance must be configured with
+a valid TLS certificate.**
 
 ## Step 1/3. Create a join token
 
@@ -84,8 +84,12 @@ version: v2
 metadata:
   name: gitlab-demo
 spec:
+  # The Bot role indicates that this token grants access to a bot user, rather
+  # than allowing a node to join.
   roles: [Bot]
   join_method: gitlab
+  # The bot_name indicates which bot user this token grants access to. This
+  # should match the name of the bot that you create in step 2.
   bot_name: gitlab-demo
   gitlab:
     # domain should be the domain of your GitLab instance. If you are using
@@ -128,7 +132,8 @@ uses these to access a node in your cluster.
 
 Create a file called `.gitlab-ci.yml` in the root of your repository. Replace:
 - `teleport.example.com` with the name of your Teleport cluster
-- `teleport.example.com:443` with the public address and port of your Teleport Proxy
+- `teleport.example.com:443` with the public address and port of your Teleport
+  Proxy
 - `my-node` and `ci-user` with the user and host you wish to connect to
 
 ```yaml
