@@ -5955,6 +5955,9 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			test:    "multiple roles, one not matching",
 			sudoers: []string{"sudoers entry 1", "sudoers entry 2"},
 			roles: NewRoleSet(&types.RoleV6{
+				Metadata: types.Metadata{
+					Name: "a",
+				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
@@ -5965,6 +5968,9 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					},
 				},
 			}, &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: "b",
+				},
 				Spec: types.RoleSpecV6{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
@@ -6049,6 +6055,57 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"removed entry"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:    "multiple roles, order preserved by role name",
+			sudoers: []string{"sudoers entry 1", "sudoers entry 2", "sudoers entry 3", "sudoers entry 4"},
+			roles: NewRoleSet(&types.RoleV6{
+				Metadata: types.Metadata{
+					Name: "a",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"sudoers entry 1"},
+					},
+				},
+			}, &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: "c",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostSudoers: []string{"sudoers entry 4"},
+					},
+				},
+			}, &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: "b",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostSudoers: []string{"sudoers entry 2", "sudoers entry 3"},
 					},
 				},
 			}),
