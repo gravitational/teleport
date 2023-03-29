@@ -16,26 +16,31 @@
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
+import type { DiscoverEventResource } from 'teleport/services/userEvent';
+
 export enum DatabaseLocation {
-  AWS,
+  Aws,
   SelfHosted,
-  GCP,
+  Gcp,
   Azure,
-  Snowflake,
-  Mongo,
+  Microsoft,
 
   TODO,
 }
 
+// DatabaseEngine represents the db "protocol".
 export enum DatabaseEngine {
-  PostgreSQL,
-  MySQL,
-  Mongo,
-  SQLServer,
-  RedShift,
+  Postgres,
+  MySql,
+  MongoDb,
   Redis,
-
-  TODO,
+  CoackroachDb,
+  SqlServer,
+  Snowflake,
+  Cassandra,
+  ElasticSearch,
+  DynamoDb,
+  Redshift,
 }
 
 export interface ResourceSpec {
@@ -54,4 +59,8 @@ export interface ResourceSpec {
   // It is used as a flag, that when defined, means that
   // this resource is not "guided" (has no UI interactive flow).
   unguidedLink?: string;
+  // event is the expected backend enum event name that describes
+  // the type of this resource (eg. server v. kubernetes),
+  // used for usage reporting.
+  event: DiscoverEventResource;
 }
