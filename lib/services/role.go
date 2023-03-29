@@ -2703,9 +2703,19 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 // a role disallows host user creation
 func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
-	sudoers := make(map[string]struct{})
+	var sudoers []string
 	serverLabels := s.GetAllLabels()
-	for _, role := range set {
+
+	roleSet := make([]types.Role, len(set))
+	copy(roleSet, set)
+	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
+		if cmp := strings.Compare(a.GetName(), b.GetName()); cmp != -1 {
+			return false
+		}
+		return true
+	})
+
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2723,11 +2733,9 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
-		for _, sudoer := range role.GetHostSudoers(types.Allow) {
-			sudoers[sudoer] = struct{}{}
-		}
+		sudoers = append(sudoers, role.GetHostSudoers(types.Allow)...)
 	}
-	for _, role := range set {
+	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2743,13 +2751,14 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 				sudoers = nil
 				break
 			}
-			delete(sudoers, sudoer)
+			sudoerIndex := slices.Index(sudoers, sudoer)
+			sudoers = slices.Delete(sudoers, sudoerIndex, sudoerIndex+1)
 		}
 	}
 
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
-		Sudoers: utils.StringsSliceFromSet(sudoers),
+		Sudoers: sudoers,
 	}, nil
 }
 
