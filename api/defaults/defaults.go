@@ -153,5 +153,7 @@ const (
 	// true
 	// <some.cluster.com>=yes,<another.cluster.com>=no
 	// 0,<some.cluster.com>=1
+	//
+	// TODO(greedy52) DELETE IN 15.0
 	TLSRoutingConnUpgradeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE"
 )
