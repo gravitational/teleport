@@ -1821,7 +1821,7 @@ func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCon
 	}
 
 	var envs map[string]string
-	if err := json.Unmarshal(raw.Envs, &envs); err != nil {
+	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
 		return trace.Wrap(err, "failed to unmarshal envs")
 	}
 
