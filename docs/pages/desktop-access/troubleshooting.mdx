@@ -56,7 +56,7 @@ This means that the host does not trust the Teleport CA.
 First, make sure that you [import the Teleport CA into Group
 Policy](./active-directory-manual.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
 Teleport CA was rotated since the last import, you will have to fetch the
-new CA using the following command:
+new CA using the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
 $ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=windows' > user-ca.cer
