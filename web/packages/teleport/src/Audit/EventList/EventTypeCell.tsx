@@ -171,6 +171,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.DEVICE_ENROLL]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
+  [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,

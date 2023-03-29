@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -194,7 +193,7 @@ func onAppLogin(cf *CLIConf) error {
 }
 
 func localProxyRequiredForApp(tc *client.TeleportClient) bool {
-	return alpnproxy.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	return tc.TLSRoutingConnUpgradeRequired
 }
 
 // appLoginTpl is the message that gets printed to a user upon successful login

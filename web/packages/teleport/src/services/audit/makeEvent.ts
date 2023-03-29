@@ -1192,6 +1192,14 @@ export const formatters: Formatters = {
         ? `User [${user.user}] has spent a device enroll token`
         : `User [${user.user}] has failed to spend a device enroll token`,
   },
+  [eventCodes.DEVICE_UPDATE]: {
+    type: 'device',
+    desc: 'Device Update',
+    format: ({ user, status }) =>
+      status.success
+        ? `User [${user.user}] has updated a device`
+        : `User [${user.user}] has failed to update a device`,
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
