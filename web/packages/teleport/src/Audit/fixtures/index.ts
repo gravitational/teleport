@@ -2673,6 +2673,25 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
+    code: 'TV007I',
+    device: {
+      asset_tag: 'M2CQVQV64R',
+      device_id: '0e288b23-f99f-4635-b182-06e9308095a8',
+      os_type: 2,
+    },
+    ei: 0,
+    event: 'device',
+    status: {
+      success: true,
+    },
+    time: '2023-01-12T21:31:29.191Z',
+    uid: 'bbbc496f-820b-4f49-ae0d-1c1b29faee85',
+    user: {
+      user: 'lisa',
+    },
+  },
+  {
+    cluster_name: 'im-a-cluster-name',
     code: 'TLR00I',
     ei: 0,
     event: 'login_rule.create',

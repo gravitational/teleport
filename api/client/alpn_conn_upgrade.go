@@ -87,6 +87,8 @@ func isRemoteNoALPNError(err error) bool {
 
 // OverwriteALPNConnUpgradeRequirementByEnv overwrites ALPN connection upgrade
 // requirement by environment variable.
+//
+// TODO(greedy52) DELETE in 15.0
 func OverwriteALPNConnUpgradeRequirementByEnv(addr string) (bool, bool) {
 	envValue := os.Getenv(defaults.TLSRoutingConnUpgradeEnvVar)
 	if envValue == "" {
@@ -97,6 +99,19 @@ func OverwriteALPNConnUpgradeRequirementByEnv(addr string) (bool, bool) {
 	return result, true
 }
 
+// isALPNConnUpgradeRequiredByEnv checks if ALPN connection upgrade is required
+// based on provided env value.
+//
+// The env value should contain a list of conditions separated by either ';' or
+// ','. A condition is in format of either '<addr>=<bool>' or '<bool>'. The
+// former specifies the upgrade requirement for a specific address and the
+// later specifies the upgrade requirement for all other addresses. By default,
+// upgrade is not required if target is not specified in the env value.
+//
+// Sample values:
+// true
+// <some.cluster.com>=yes,<another.cluster.com>=no
+// 0,<some.cluster.com>=1
 func isALPNConnUpgradeRequiredByEnv(addr, envValue string) bool {
 	tokens := strings.FieldsFunc(envValue, func(r rune) bool {
 		return r == ';' || r == ','
