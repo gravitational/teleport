@@ -25,9 +25,9 @@ import (
 
 const (
 	// TODO(tobiaszheller): move to batcher.go in other PR.
-	// maxWaitTimeOnReceiveMessageFromSQSInSeconds defines how long single
+	// maxWaitTimeOnReceiveMessageFromSQS defines how long single
 	// receiveFromQueue will wait if there is no max events (10).
-	maxWaitTimeOnReceiveMessageFromSQSInSeconds = 5
+	maxWaitTimeOnReceiveMessageFromSQS = 5 * time.Second
 )
 
 // Config structure represents Athena configuration.
@@ -150,7 +150,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.BatchMaxInterval = 1 * time.Minute
 	}
 
-	if cfg.BatchMaxInterval < maxWaitTimeOnReceiveMessageFromSQSInSeconds*time.Second {
+	if cfg.BatchMaxInterval < maxWaitTimeOnReceiveMessageFromSQS {
 		// If BatchMaxInterval is shorter it will mean we will cancel all
 		// requests when there is less messages than 10 on queue.
 		// This can be fixed by shortening timeout on read, but realisticly
