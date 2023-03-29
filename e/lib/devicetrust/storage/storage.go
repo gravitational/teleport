@@ -19,6 +19,7 @@ import (
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -364,6 +365,69 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 		return true, trace.Wrap(err)
 	}
 	return false, nil
+}
+
+// UpdateDevice updates an existing device in storage.
+// Only fields considered mutable are updated, attempts to update readonly
+// fields result in errors.
+// Transient fields like EnrollToken and CollectedData are ignored during
+// updates.
+func (s *S) UpdateDevice(ctx context.Context, deviceID string, updateFn func(dst *devicepb.Device)) (*devicepb.Device, error) {
+	if updateFn == nil {
+		return nil, trace.BadParameter("updateFunc required")
+	}
+
+	stored, _, item, err := s.getDeviceByID(ctx, deviceID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Modify fields.
+	updated := proto.Clone(stored).(*devicepb.Device)
+	updateFn(updated)
+
+	// Ignore transient fields.
+	updated.EnrollToken = nil   // Safe to nil, saved to deviceTokenKey.
+	updated.CollectedData = nil // Safe to nil, saved to collectedDataKey.
+
+	// Has the device changed?
+	if proto.Equal(updated, stored) {
+		return updated, nil
+	}
+
+	// Validate changes.
+	if err := validateDeviceForUpdate(updated, stored); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Convert updated dev to storage.
+	now := s.nowUTC()
+	_, storedU, _ := deviceToStored(updated, now, true /* createAsResource */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// System-managed fields.
+	storedU.UpdateTime = now
+
+	// Erase credential if the device was forcefully "unenrolled".
+	if storedU.EnrollStatus == int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED) {
+		storedU.Credential = nil
+	}
+
+	// Marshal and update.
+	val, err := json.Marshal(storedU)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if _, err := s.backend.CompareAndSwap(ctx, *item, backend.Item{
+		Key:   item.Key,
+		Value: val,
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return storedToDevice(deviceID, storedU), nil
 }
 
 // DeleteDevice hard-deletes a device from storage.

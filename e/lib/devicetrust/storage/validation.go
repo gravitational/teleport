@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
@@ -146,6 +147,37 @@ func validateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 		if err := ValidateCollectedDataAgainstDevice(cd, d); err != nil {
 			return trace.Wrap(err, "device collected_data[%v]", i)
 		}
+	}
+
+	return nil
+}
+
+func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
+	switch {
+	case updated.ApiVersion != currentAPIVersion:
+		return trace.BadParameter("unsupported api_version: %q", updated.ApiVersion)
+	case updated.Id != stored.Id:
+		return trace.BadParameter("id is readonly and cannot be updated")
+	case updated.OsType != stored.OsType:
+		return trace.BadParameter("os_type is readonly and cannot be updated")
+	case updated.AssetTag != stored.AssetTag:
+		return trace.BadParameter("asset_tag is readonly and cannot be updated")
+	case !proto.Equal(updated.CreateTime, stored.CreateTime):
+		return trace.BadParameter("create_time is readonly and cannot be updated")
+	case !proto.Equal(updated.UpdateTime, stored.UpdateTime):
+		// UpdateTime is changed as part of the update, but we make an attempt to
+		// flag changes here first.
+		return trace.BadParameter("update_time is readonly and cannot be updated")
+	case !proto.Equal(updated.Credential, stored.Credential):
+		return trace.BadParameter("credential is readonly and cannot be updated")
+	}
+
+	// EnrollStatus can only transition to NOT_ENROLLED.
+	const notEnrolled = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+	if updated.EnrollStatus != stored.EnrollStatus && updated.EnrollStatus != notEnrolled {
+		return trace.BadParameter(
+			"enroll_status can only be manually transitioned to %q",
+			dtoss.FriendlyDeviceEnrollStatus(notEnrolled))
 	}
 
 	return nil

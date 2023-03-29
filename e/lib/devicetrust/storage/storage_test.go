@@ -810,6 +810,269 @@ func TestS_CreateDevice_errors(t *testing.T) {
 	}
 }
 
+func TestS_UpdateDevice(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	clock := env.Clock
+	ctx := context.Background()
+
+	enrolledDev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	assertNoop := func(t *testing.T, base, updated *devicepb.Device) {
+		if diff := cmp.Diff(base, updated, protocmp.Transform()); diff != "" {
+			t.Errorf("UpdateDevice returned a changed device, want no changes (-want +got)\n%s", diff)
+		}
+	}
+
+	tests := []struct {
+		name         string
+		baseDev      *devicepb.Device // baseDevice is created if its ID is empty
+		update       func(*devicepb.Device)
+		assertUpdate func(t *testing.T, base, updated *devicepb.Device)
+	}{
+		{
+			name: "noop",
+			baseDev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama1",
+			},
+			update: func(dev *devicepb.Device) {
+				// No changes.
+			},
+			assertUpdate: assertNoop,
+		},
+		{
+			name: "transient fields ignored",
+			baseDev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "llama2",
+			},
+			update: func(dev *devicepb.Device) {
+				now := timestamppb.Now()
+				dev.EnrollToken = &devicepb.DeviceEnrollToken{
+					Token: "insert enrollment token here",
+				}
+				dev.CollectedData = []*devicepb.DeviceCollectedData{
+					{
+						CollectTime:  now,
+						RecordTime:   now,
+						OsType:       dev.OsType,
+						SerialNumber: dev.AssetTag,
+					},
+				}
+			},
+			assertUpdate: assertNoop,
+		},
+		{
+			name:    "unenroll",
+			baseDev: enrolledDev,
+			update: func(dev *devicepb.Device) {
+				dev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+			},
+			assertUpdate: func(t *testing.T, base, updated *devicepb.Device) {
+				if proto.Equal(base.UpdateTime, updated.UpdateTime) {
+					t.Error("UpdateDevice: update time didn't change")
+				}
+
+				want := proto.Clone(base).(*devicepb.Device)
+				want.UpdateTime = updated.UpdateTime
+				want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+				want.Credential = nil // credential automatically cleared
+				if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
+					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Create baseDev, if necessary.
+			baseDev := test.baseDev
+			if baseDev.Id == "" {
+				var err error
+				baseDev, err = s.CreateDevice(ctx, baseDev, false /* createAsResource */)
+				if err != nil {
+					t.Fatalf("CreateDevice failed: %v", err)
+				}
+			}
+
+			// Allow update time to change.
+			clock.Advance(1 * time.Second)
+
+			updated, err := s.UpdateDevice(ctx, baseDev.Id, test.update)
+			if err != nil {
+				t.Fatalf("UpdateDevice failed: %v", err)
+			}
+			// Has the update time regressed?
+			if got, want := updated.UpdateTime.AsTime(), baseDev.UpdateTime.AsTime(); want.After(got) {
+				t.Errorf("UpdateDevice: got updated.UpdateTime = %v, want >= %v", got, want)
+			}
+			test.assertUpdate(t, baseDev, updated)
+
+			// Verify stored device.
+			stored, err := s.GetDeviceByID(ctx, updated.Id)
+			if err != nil {
+				t.Fatalf("GetDeviceByID failed: %v", err)
+			}
+			stored.CollectedData = nil // not returned by UpdateDevice
+			if diff := cmp.Diff(updated, stored, protocmp.Transform()); diff != "" {
+				t.Errorf("GetDeviceByID mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestS_UpdateDevice_errors(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	baseDev, err := s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	}, false /* createAsResource */)
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		deviceID  string
+		update    func(*devicepb.Device)
+		assertErr func(err error) bool // defaults to trace.IsBadParameter
+		wantErr   string
+	}{
+		{
+			name:    "deviceID is empty",
+			update:  func(d *devicepb.Device) {},
+			wantErr: "device ID required",
+		},
+		{
+			name:     "updateFunc is nil",
+			deviceID: baseDev.Id,
+			update:   nil,
+			wantErr:  "updateFunc required",
+		},
+		{
+			name:      "not found",
+			deviceID:  "unknown",
+			update:    func(_ *devicepb.Device) {},
+			assertErr: trace.IsNotFound,
+			wantErr:   "not found",
+		},
+
+		{
+			name:     "ApiVersion readonly",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.ApiVersion = "v9999"
+			},
+			wantErr: "api_version",
+		},
+		{
+			name:     "Id readonly",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.Id = "another Id"
+			},
+			wantErr: "id is readonly",
+		},
+		{
+			name:     "OsType readonly",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.OsType = devicepb.OSType_OS_TYPE_WINDOWS
+			},
+			wantErr: "os_type",
+		},
+		{
+			name:     "AssetTag readonly",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.AssetTag = "another tag"
+			},
+			wantErr: "asset_tag",
+		},
+		{
+			name:     "CreateTime readonly",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.CreateTime = &timestamppb.Timestamp{
+					Seconds: dev.CreateTime.Seconds - 2, // move to the past, so CreateTime <= UpdateTime
+					Nanos:   dev.CreateTime.Nanos,
+				}
+			},
+			wantErr: "create_time",
+		},
+		{
+			name:     "UpdateTime readonly",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.UpdateTime = &timestamppb.Timestamp{
+					Seconds: dev.UpdateTime.Seconds + 2, // move to the future, so CreateTime <= UpdateTime
+					Nanos:   dev.UpdateTime.Nanos,
+				}
+			},
+			wantErr: "update_time",
+		},
+		{
+			name:     "Credential readonly",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.Credential = &devicepb.DeviceCredential{
+					Id:           uuid.NewString(),
+					PublicKeyDer: []byte("insert public key here"),
+				}
+			},
+			wantErr: "credential",
+		},
+		{
+			name:     "EnrollStatus can't transition to UNSPECIFIED",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED
+			},
+			wantErr: "enroll_status",
+		},
+		{
+			name:     "EnrollStatus can't transition to ENROLLED",
+			deviceID: baseDev.Id,
+			update: func(dev *devicepb.Device) {
+				dev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
+			},
+			wantErr: "enroll_status",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := s.UpdateDevice(ctx, test.deviceID, test.update)
+			if err == nil {
+				t.Fatal("UpdateDevice returned err=nil, want non=nil")
+			}
+
+			assertErr := test.assertErr
+			if assertErr == nil {
+				assertErr = trace.IsBadParameter
+			}
+			if !assertErr(err) {
+				t.Errorf("UpdateDevice: assertErr failed, err=%v (%T)", err, err)
+			}
+
+			assert.ErrorContains(t, err, test.wantErr, "UpdateDevice error mismatch")
+		})
+	}
+}
+
 func TestS_DeleteDevice(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
