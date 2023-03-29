@@ -263,7 +263,13 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	return nil
 }
 
-// Log is a aws storage of events.
+// Log is an events storage backend.
+//
+// It's using SNS for emitting events.
+// SQS is used as subscriber for SNS topic.
+// Consumer uses SQS to read multiple events, create batch, convert it to
+// Parquet and send it to S3 for long term storage.
+// Athena is used for quering Parquet files on S3.
 type Log struct {
 	// Entry is a log entry
 	*log.Entry
