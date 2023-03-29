@@ -1,0 +1,147 @@
+name: Build MacOS (Darwin) AMD64
+
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-ref:
+        description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
+        required: true
+        type: string
+
+      ent-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of Enterprise teleport to build. If no
+          value is supplied this workflow will use whatever reference is specified in
+          the OSS teleport submodule record.
+        required: false
+        default: ""
+        type: string
+
+      release-version:
+        description: |
+          Override the build version from what is in the Makefile.
+          Use this override to specify a tag for build debugging purposes.
+        type: string
+        default: ""
+
+      release:
+        description: 'Release level to build. Currently supports `oss` and `enterprise`'
+        required: true
+        type: string
+
+      save-artifacts:
+        description: 'Should the build export the build artifacts'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build-release-artifacts:
+    environment: build
+    runs-on: macos-12-xl
+    permissions:
+      contents: read
+    env:
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+    steps:
+      - name: Checkout OSS Teleport
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport
+          ref: ${{ inputs.oss-teleport-ref }}
+
+      - name: Determine Enterprise Teleport reference
+        if: inputs.release == 'enterprise'
+        run: |
+          if [[ -z "${{ inputs.ent-teleport-ref }}" ]]; then
+            echo TELEPORT_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
+          else
+            echo TELEPORT_E_REF=${{ inputs.ent-teleport-ref }} >> $GITHUB_ENV
+          fi
+
+      - name: Checkout Enterprise Teleport
+        if: inputs.release == 'enterprise'
+        uses: actions/checkout@v3
+        with:
+          repository: gravitational/teleport.e
+          path: e
+          ref: ${{ env.TELEPORT_E_REF }}
+
+      - name: Determine Toolchain Versions and cache paths
+        run: |
+          echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
+          echo GOLANG_VERSION=$(make -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
+          echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
+
+      - name: Print versions
+        run: |
+          echo "make: $(make --version)"
+          echo "node: ${NODE_VERSION}"
+          echo "go: ${GOLANG_VERSION}"
+          echo "rust: ${RUST_VERSION}"
+
+      - name: Install Node Toolchain
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup yarn
+        run: |
+          corepack enable yarn
+
+      - name: Install Go Toolchain
+        uses: actions/setup-go@v3
+        with:
+          go-version: ${{ env.GOLANG_VERSION }}
+
+      - name: Configure Rust Toolchain
+        run: |
+          rustup override set ${{ env.RUST_VERSION }}
+
+      - name: Setup keychain
+        env:
+          APP_KEY: ${{ secrets.APPLE_APPLICATION_PRIVATE_KEY }}
+          APP_KEY_PASSWORD: ${{ secrets.APPLE_APPLICATION_PRIVATE_KEY_PASSWORD }}
+          INST_KEY: ${{ secrets.APPLE_INSTALLER_PRIVATE_KEY }}
+          INST_KEY_PASSWORD: ${{ secrets.APPLE_INSTALLER_PRIVATE_KEY_PASSWORD }}
+        run: |
+          ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
+
+      - name: Build FIDO2
+        run: |
+          build.assets/build-fido2-macos.sh build
+
+      - name: Build Teleport
+        env:
+          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          echo "Building for environment: ${ENVIRONMENT_NAME}"
+          make release OS=darwin ARCH=amd64 FIDO2=yes TOUCHID=yes PIV=yes ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          mkdir -p build/artifacts
+          cp teleport-*.tar.gz build/artifacts
+          if [ "${{ inputs.release }}" == 'enterprise' ]; then
+              cp e/teleport-*.tar.gz build/artifacts
+          fi
+          ls -lR build
+
+      - name: Checksum artifacts
+        if: inputs.save-artifacts
+        run: |
+          cd build/artifacts
+          for f in *; do
+            shasum -a 256 "$f" > "$f.sha256"
+            cat "$f.sha256"
+          done
+
+      - name: Upload artifacts
+        if: inputs.save-artifacts
+        uses: actions/upload-artifact/@v3
+        with:
+          name: release
+          path: build/artifacts
+          retention-days: 1

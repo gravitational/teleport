@@ -304,6 +304,8 @@ release-arm:
 release-arm64:
 	$(MAKE) release ARCH=arm64
 
+include ../darwin-signing.mk
+
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
@@ -311,12 +313,7 @@ release-darwin-unsigned: clean full build-archive
 .PHONY: release-darwin
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	# Only run if Apple username/pass for notarization are provided
-	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
-		cd ../build.assets/tooling/ && \
-		go run ./cmd/notarize-apple-binaries/*.go \
-			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
-	fi
+	cd .. && $(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 
 #
