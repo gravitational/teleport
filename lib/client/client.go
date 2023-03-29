@@ -1101,8 +1101,8 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 
 	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
 	clt, err := auth.NewClient(client.Config{
-		Context: ctx,
-		Addrs:   []string{proxyAddr},
+		Context:      ctx,
+		WebProxyAddr: proxyAddr,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},

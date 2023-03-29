@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -329,7 +330,8 @@ type (
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
-	if params.cfg.IsALPNConnUpgradeRequired(params.addr, params.cfg.InsecureAddressDiscovery) {
+
+	if authConnectShouldALPNConnUpgrade(ctx, params) {
 		dialer = newALPNConnUpgradeDialer(dialer, &tls.Config{
 			InsecureSkipVerify: params.cfg.InsecureAddressDiscovery,
 		})
@@ -340,6 +342,29 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
 	}
 	return clt, nil
+}
+
+func authConnectShouldALPNConnUpgrade(ctx context.Context, params connectParams) bool {
+	if !authConnectShouldUseTLSRouting(ctx, params) {
+		return false
+	}
+	return params.cfg.IsALPNConnUpgradeRequired(params.addr, params.cfg.InsecureAddressDiscovery)
+}
+
+func authConnectShouldUseTLSRouting(ctx context.Context, params connectParams) bool {
+	if params.cfg.WebProxyAddr != "" && params.cfg.WebProxyAddr == params.addr {
+		return true
+	}
+	resp, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: params.addr,
+		Insecure:  params.cfg.InsecureAddressDiscovery,
+	})
+	if err != nil {
+		// HTTP ping call failed. This is likely an auth address.
+		return false
+	}
+	return resp.Proxy.TLSRoutingEnabled
 }
 
 // tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
@@ -501,6 +526,8 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 type Config struct {
 	// Addrs is a list of teleport auth/proxy server addresses to dial.
 	Addrs []string
+	// WebProxyAddr is the Teleport Proxy web address.
+	WebProxyAddr string
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
 	Credentials []Credentials
@@ -570,6 +597,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.IsALPNConnUpgradeRequired == nil {
 		c.IsALPNConnUpgradeRequired = IsALPNConnUpgradeRequired
+	}
+
+	if c.WebProxyAddr != "" {
+		c.Addrs = utils.Deduplicate(append(c.Addrs, c.WebProxyAddr))
 	}
 
 	return nil

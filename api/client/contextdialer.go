@@ -157,6 +157,10 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 			return nil, trace.Wrap(err)
 		}
 
+		host, _, err := webclient.ParseHostPort(tunnelAddr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		tlsConn, err := DialALPN(ctx, tunnelAddr, ALPNDialerConfig{
 			ALPNConnUpgradeRequired: params.cfg.IsALPNConnUpgradeRequired(tunnelAddr, insecure),
 			DialTimeout:             params.cfg.DialTimeout,
@@ -164,6 +168,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 			TLSConfig: &tls.Config{
 				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
 				InsecureSkipVerify: insecure,
+				ServerName:         host,
 			},
 		})
 		if err != nil {

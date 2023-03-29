@@ -23,6 +23,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/client/webclient"
 )
 
 // ALPNDialerConfig is the config for ALPNDialer.
@@ -61,7 +63,7 @@ func (d *ALPNDialer) getTLSConfig(addr string) (*tls.Config, error) {
 	}
 
 	tlsConfig := d.cfg.TLSConfig.Clone()
-	host, _, err := net.SplitHostPort(addr)
+	host, _, err := webclient.ParseHostPort(addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
