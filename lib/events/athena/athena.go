@@ -69,8 +69,8 @@ type Config struct {
 
 	// Batcher settings.
 
-	// QueueUrl is URL of SQS, which is set as subscriber to SNS topic (required).
-	QueueUrl string
+	// QueueURL is URL of SQS, which is set as subscriber to SNS topic (required).
+	QueueURL string
 	// BatchMaxItems defines how many items can be stored in single Parquet
 	// batch (optional).
 	// It's soft limit.
@@ -130,11 +130,11 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("LargeEventsS3 must be valid url and start with s3")
 	}
 
-	if cfg.QueueUrl == "" {
-		return trace.BadParameter("QueueUrl is not specified")
+	if cfg.QueueURL == "" {
+		return trace.BadParameter("QueueURL is not specified")
 	}
-	if scheme, ok := isValidUrlWithScheme(cfg.QueueUrl); !ok || scheme != "https" {
-		return trace.BadParameter("QueueUrl must be valid url and start with https")
+	if scheme, ok := isValidUrlWithScheme(cfg.QueueURL); !ok || scheme != "https" {
+		return trace.BadParameter("QueueURL must be valid url and start with https")
 	}
 
 	if cfg.GetQueryResultsSleepTime == 0 {
@@ -240,7 +240,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 
 	queueURL := url.Query().Get("queueURL")
 	if queueURL != "" {
-		cfg.QueueUrl = queueURL
+		cfg.QueueURL = queueURL
 	}
 	batchMaxItems := url.Query().Get("batchMaxItems")
 	if batchMaxItems != "" {

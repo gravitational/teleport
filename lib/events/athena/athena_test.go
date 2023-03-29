@@ -55,7 +55,7 @@ func TestConfig_SetFromURL(t *testing.T) {
 			want: Config{
 				TableName:        "tbl",
 				Database:         "db",
-				QueueUrl:         "https://queueURL",
+				QueueURL:         "https://queueURL",
 				BatchMaxItems:    1000,
 				BatchMaxInterval: 10 * time.Second,
 			},
@@ -94,7 +94,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		TopicARN:      "arn:topic",
 		LargeEventsS3: "s3://large-payloads-bucket",
 		LocationS3:    "s3://events-bucket",
-		QueueUrl:      "https://queue-url",
+		QueueURL:      "https://queue-url",
 	}
 	tests := []struct {
 		name    string
@@ -113,7 +113,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				TopicARN:                 "arn:topic",
 				LargeEventsS3:            "s3://large-payloads-bucket",
 				LocationS3:               "s3://events-bucket",
-				QueueUrl:                 "https://queue-url",
+				QueueURL:                 "https://queue-url",
 				GetQueryResultsSleepTime: 100 * time.Millisecond,
 				BatchMaxItems:            20000,
 				BatchMaxInterval:         1 * time.Minute,
@@ -165,22 +165,22 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "LocationS3 must be valid url and start with s3",
 		},
 		{
-			name: "missing QueueUrl",
+			name: "missing QueueURL",
 			input: func() Config {
 				cfg := validConfig
-				cfg.QueueUrl = ""
+				cfg.QueueURL = ""
 				return cfg
 			},
-			wantErr: "QueueUrl is not specified",
+			wantErr: "QueueURL is not specified",
 		},
 		{
-			name: "invalid QueueUrl",
+			name: "invalid QueueURL",
 			input: func() Config {
 				cfg := validConfig
-				cfg.QueueUrl = "s3://abc"
+				cfg.QueueURL = "s3://abc"
 				return cfg
 			},
-			wantErr: "QueueUrl must be valid url and start with https",
+			wantErr: "QueueURL must be valid url and start with https",
 		},
 		{
 			name: "invalid LimiterBurst and LimiterRate combination",
