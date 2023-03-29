@@ -27,7 +27,7 @@ sets Deployment annotations when specified:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
-            image: quay.io/gravitational/teleport:10.3.13
+            image: quay.io/gravitational/teleport:10.3.15
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -95,7 +95,7 @@ sets Deployment labels when specified:
         containers:
         - args:
           - --diag-addr=0.0.0.0:3000
-          image: quay.io/gravitational/teleport:10.3.13
+          image: quay.io/gravitational/teleport:10.3.15
           imagePullPolicy: IfNotPresent
           livenessProbe:
             failureThreshold: 6
@@ -150,7 +150,7 @@ sets Pod annotations when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -205,7 +205,7 @@ sets Pod labels when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -260,7 +260,7 @@ should add emptyDir for data when existingDataVolume is not set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -316,7 +316,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --insecure
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -371,7 +371,7 @@ should correctly configure existingDataVolume when set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -424,7 +424,7 @@ should expose diag port:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -491,7 +491,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -558,7 +558,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -613,7 +613,7 @@ should have one replica when replicaCount is not set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -668,7 +668,7 @@ should mount extraVolumes and extraVolumeMounts:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -731,7 +731,7 @@ should mount tls.existingCASecretName and set environment when set in values:
       env:
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -797,7 +797,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: http://username:password@my.proxy.host:3128
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -858,7 +858,7 @@ should provision initContainer correctly when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -949,7 +949,7 @@ should set SecurityContext:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1024,7 +1024,7 @@ should set affinity when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1079,7 +1079,7 @@ should set default serviceAccountName when not set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1148,7 +1148,7 @@ should set environment when extraEnv set in values:
       env:
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1258,7 +1258,7 @@ should set imagePullPolicy when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -1313,7 +1313,7 @@ should set nodeSelector if set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1370,7 +1370,7 @@ should set not set priorityClassName when not set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1437,7 +1437,7 @@ should set preferred affinity when more than one replica is used:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1492,7 +1492,7 @@ should set priorityClassName when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1548,7 +1548,7 @@ should set probeTimeoutSeconds when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1613,7 +1613,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1668,7 +1668,7 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1730,7 +1730,7 @@ should set serviceAccountName when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1785,7 +1785,7 @@ should set tolerations when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: quay.io/gravitational/teleport:10.3.13
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
