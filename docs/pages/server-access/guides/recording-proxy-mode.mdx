@@ -120,7 +120,7 @@ auth_service:
 by the Teleport User CA. Start by exporting the Teleport CA public key.
 
 On your Teleport Node, export the Teleport Certificate Authority certificate
-into a file and update your SSH configuration to trust Teleport's CA:
+into a file and update your SSH configuration to trust Teleport's CA. Assign <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
 $ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed s/cert-authority\ // > teleport_user_ca.pub
