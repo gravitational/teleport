@@ -693,6 +693,6 @@ func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *trac
 	}
 
 	if err := session.SetEnvs(ctx, envs); err != nil {
-		t.log.Debugf("Unable to set environment variables: %v", err)
+		t.log.WithError(err).Debug("Unable to set environment variables")
 	}
 }
