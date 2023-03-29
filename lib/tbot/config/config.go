@@ -153,6 +153,12 @@ type CLIConf struct {
 	// require them.
 	RemainingArgs []string
 
+	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
+	// regulations. This means the bot should:
+	// - Refuse to run if not compiled with boringcrypto
+	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
+	// - Restrict TLS / SSH cipher suites and TLS version
+	// - RSA2048 should be used for private key generation
 	FIPS bool
 }
 
