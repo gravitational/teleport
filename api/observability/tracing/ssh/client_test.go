@@ -392,7 +392,7 @@ func TestSetEnvs(t *testing.T) {
 		require.NoError(t, session.SetEnvs(ctx, expected))
 
 		envs := map[string]string{}
-		envsTimeout := time.NewTimer(3*time.Second)
+		envsTimeout := time.NewTimer(3 * time.Second)
 		defer envsTimeout.Stop()
 		for i := 0; i < len(expected); i++ {
 			select {
