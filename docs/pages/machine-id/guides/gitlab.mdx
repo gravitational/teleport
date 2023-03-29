@@ -108,14 +108,14 @@ $ tctl create -f gitlab-token.yaml
 With the join token created, the next step is to create the Machine ID bot that
 the token will grant access to.
 
-In this example, the bot is given the default `access` role. In a production
+In this example, the bot is given the preset `access` role. In a production
 environment, the principle of least privilege should be applied and you should
 create a role that grants the bot access to the precise resources that will be
 needed in your CI/CD pipeline.
 
-Enter the following command from your workstation with `tsh` access, replacing
-the `ci-user` login with a Linux user on the host that you want your GitLab
-pipeline to be able to connect to:
+From your workstation enter the following command, replacing the`ci-user`
+value with a Linux user on the host that you want your GitHub Actions flow to
+be able to connect to:
 
 ```code
 $ tctl bots add gitlab-demo --roles=access --token=gitlab-demo --logins=ci-user
