@@ -1148,6 +1148,10 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 		return trace.Wrap(err)
 	}
 
+	if cf.Proxy == "" {
+		cf.Proxy = tc.WebProxyAddr
+	}
+
 	values, err := buildKubeConfigUpdate(cf, kubeStatus)
 	if err != nil {
 		return trace.Wrap(err)
