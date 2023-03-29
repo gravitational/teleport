@@ -762,6 +762,27 @@ steps:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Build Windows Authentication Package
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Install-MinGW -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - cd $TeleportSrc/e/windows_authentication_package
+  - make VERSION=$TeleportVersion  all
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe'
+  - rm -r windows-signing-cert.pfx
+  environment:
+    CSC_LINK:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -1039,6 +1060,27 @@ steps:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Build Windows Authentication Package
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Install-MinGW -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - cd $TeleportSrc/e/windows_authentication_package
+  - make VERSION=$TeleportVersion  all
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe'
+  - rm -r windows-signing-cert.pfx
+  environment:
+    CSC_LINK:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Assume AWS Role
   commands:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
@@ -1070,6 +1112,8 @@ steps:
   - Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release
   - Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect
     Setup*.exe" -Destination $OutputsDir
+  - Copy-Item -Path "$TeleportSrc/e/build/teleport-windows-auth-setup-*.exe" -Destination
+    $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
   - Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket
@@ -19039,6 +19083,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4107c52101a8fbd297c24a1408d6bb96999140c0a3d67cc7fba23abaa447ea38
+hmac: c497d19a9bb1f275224f34abab33e2260552f3d7d115e86063383e06bfb4a6d6
 
 ...

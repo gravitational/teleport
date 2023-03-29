@@ -51,6 +51,7 @@ func windowsTagPipeline() pipeline {
 		buildWindowsTshStep(p.Workspace.Path),
 		signTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
+		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		{
 			Name: "Assume AWS Role",
 			Environment: map[string]value{
@@ -87,6 +88,7 @@ func windowsTagPipeline() pipeline {
 				`New-Item -Path "$OutputsDir" -ItemType 'Directory' | Out-Null`,
 				`Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release`,
 				`Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect Setup*.exe" -Destination $OutputsDir`,
+				`Copy-Item -Path "$TeleportSrc/e/build/teleport-windows-auth-setup-*.exe" -Destination $OutputsDir`,
 				`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 				`Format-FileHashes -PathGlob "$OutputsDir/*.exe"`,
 				`Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket $Env:AWS_S3_BUCKET -DstRoot "/teleport/tag/$TeleportVersion"`,
@@ -114,6 +116,7 @@ func windowsPushPipeline() pipeline {
 		buildWindowsTshStep(p.Workspace.Path),
 		signTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
+		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		cleanUpWindowsWorkspaceStep(p.Workspace.Path),
 		{
 			Name: "Send Slack notification (exec)",
@@ -269,6 +272,30 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
 			`yarn package-term "-c.extraMetadata.version=$TeleportVersion"`,
+		},
+	}
+}
+
+func buildWindowsAuthenticationPackageStep(workspace string) step {
+	return step{
+		Name: "Build Windows Authentication Package",
+		Environment: map[string]value{
+			"WORKSPACE_DIR": {raw: workspace},
+			"CSC_LINK":      {fromSecret: "WINDOWS_SIGNING_CERT"},
+		},
+		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
+			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
+			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
+			`Install-MinGW -ToolchainDir "$Workspace` + toolchainDir + `"`,
+			`cd $TeleportSrc`,
+			`$TeleportVersion=$(make print-version).Trim()`,
+			`cd $TeleportSrc/e/windows_authentication_package`,
+			`make VERSION=$TeleportVersion  all`,
+			`([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content windows-signing-cert.pfx -Encoding Byte`,
+			`& 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe' sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe`,
+			`rm -r windows-signing-cert.pfx`,
 		},
 	}
 }

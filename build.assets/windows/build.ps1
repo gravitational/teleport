@@ -134,10 +134,29 @@ function Install-Node {
     }
 }
 
+function Install-MinGW {
+    <#
+    .SYNOPSIS
+        Downloads ands installs MinGW into the supplied toolchain dir
+        It also adds MinGW toolchain to the system search path
+    #>
+    [CmdletBinding()]
+    param(
+        [string] $ToolchainDir
+    )
+    begin {
+        $Zipfile = "mingw.zip"
+        Invoke-WebRequest -Uri https://github.com/brechtsanders/winlibs_mingw/releases/download/12.2.0-15.0.7-10.0.0-ucrt-r4/winlibs-x86_64-posix-seh-gcc-12.2.0-llvm-15.0.7-mingw-w64ucrt-10.0.0-r4.zip -OutFile $Zipfile
+        Expand-Archive -Path $Zipfile -DestinationPath $ToolchainDir
+        Enable-Node -ToolchainDir $ToolchainDir
+        $Env:Path = "$Env:Path;$ToolchainDir/mingw64"
+    }
+}
+
 function Enable-Node {
     <#
     .SYNOPSIS
-        Adds the Node toolchaion to the system search path 
+        Adds the Node toolchain to the system search path
     #>
     [CmdletBinding()]
     param(
