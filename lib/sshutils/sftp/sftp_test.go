@@ -333,7 +333,6 @@ func TestUpload(t *testing.T) {
 			}
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
-			ctx := context.Background()
 			cfg, err := CreateUploadConfig(tt.srcPaths, tt.dstPath, tt.opts)
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
@@ -341,6 +340,7 @@ func TestUpload(t *testing.T) {
 			err = cfg.initFS(nil, nil)
 			require.NoError(t, err)
 
+			ctx := context.Background()
 			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
@@ -502,7 +502,6 @@ func TestDownload(t *testing.T) {
 			}
 			tt.dstPath = filepath.Join(tempDir, tt.dstPath)
 
-			ctx := context.Background()
 			cfg, err := CreateDownloadConfig(tt.srcPath, tt.dstPath, tt.opts)
 			require.NoError(t, err)
 			// use all local filesystems to avoid SSH overhead
@@ -510,6 +509,7 @@ func TestDownload(t *testing.T) {
 			err = cfg.initFS(nil, nil)
 			require.NoError(t, err)
 
+			ctx := context.Background()
 			err = cfg.transfer(ctx)
 			if tt.expectedErr == "" {
 				require.NoError(t, err)
@@ -559,6 +559,28 @@ func TestHomeDirExpansion(t *testing.T) {
 			require.Equal(t, tt.expandedPath, expanded)
 		})
 	}
+}
+
+func TestCopyingSymlinkedFile(t *testing.T) {
+	tempDir := t.TempDir()
+	createFile(t, tempDir, "file")
+	linkPath := filepath.Join(tempDir, "link")
+	err := os.Symlink(filepath.Join(tempDir, "file"), linkPath)
+	require.NoError(t, err)
+
+	dstPath := filepath.Join(tempDir, "dst")
+	cfg, err := CreateDownloadConfig(linkPath, dstPath, Options{})
+	require.NoError(t, err)
+	// use all local filesystems to avoid SSH overhead
+	cfg.srcFS = &localFS{}
+	err = cfg.initFS(nil, nil)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	err = cfg.transfer(ctx)
+	require.NoError(t, err)
+
+	checkTransfer(t, false, dstPath, linkPath)
 }
 
 func createFile(t *testing.T, rootDir, path string) {

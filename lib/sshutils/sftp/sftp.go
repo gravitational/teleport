@@ -449,7 +449,14 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 		)
 	}
 	if n != srcFileInfo.Size() {
-		return trace.Errorf("short write: written %v, expected %v", n, srcFileInfo.Size())
+		return trace.Errorf("error copying %s file %q to %s file %q: short write: wrote %d bytes, expected to write %d bytes",
+			c.srcFS.Type(),
+			srcPath,
+			c.dstFS.Type(),
+			dstPath,
+			n,
+			srcFileInfo.Size(),
+		)
 	}
 
 	if c.opts.PreserveAttrs {
