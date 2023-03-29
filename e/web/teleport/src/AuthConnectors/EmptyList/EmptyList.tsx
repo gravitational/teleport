@@ -11,7 +11,7 @@ export default function EmptyList({ onCreate }: Props) {
   return (
     <Card
       color="text.primary"
-      bg="primary.light"
+      bg="levels.surface"
       p="5"
       textAlign="center"
       style={{ boxShadow: 'none' }}
@@ -41,7 +41,7 @@ function renderItem(kind: AuthProviderType, onClick: Props['onCreate']) {
       py="4"
       mx="2"
       mb="3"
-      bg="primary.light"
+      bg="levels.surface"
       as="button"
       onClick={onBtnClick}
     >
@@ -61,14 +61,14 @@ const ConnectorBox = styled(Box)(
   transition: all 0.3s;
   border-radius: 4px;
   width: 160px;
-  border: 2px solid ${props.theme.colors.primary.main};
+  border: 2px solid ${props.theme.colors.levels.surfaceSecondary};
   &:focus {
     opacity: .24;
     box-shadow: none;
   }
   &:hover {
-    border: 2px solid ${props.theme.colors.secondary.main};
-    background: ${props.theme.colors.primary.lighter};
+    border: 2px solid ${props.theme.colors.brand.main};
+    background: ${props.theme.colors.levels.elevated};
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.56);
   }
   color: inherit;

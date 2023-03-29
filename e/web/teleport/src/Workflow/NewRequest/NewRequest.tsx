@@ -292,7 +292,8 @@ export function NewRequest(props: State) {
               p={3}
               mt={5}
               css={`
-                background: ${({ theme }) => theme.colors.primary.main};
+                background: ${({ theme }) =>
+                  theme.colors.levels.surfaceSecondary};
               `}
             >
               <Text bold>Resources Added ({numTotalSelections})</Text>
@@ -469,7 +470,7 @@ const StyledSelectAllPanel = styled(StyledPanel)`
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  border-top: 2px solid ${props => props.theme.colors.primary.lighter};
+  border-top: 2px solid ${props => props.theme.colors.levels.elevated};
 
   &.entering {
     height: 24px;

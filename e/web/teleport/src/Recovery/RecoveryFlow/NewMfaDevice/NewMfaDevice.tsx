@@ -76,7 +76,7 @@ export function NewMfaDevice({
   }
 
   return (
-    <Card as="form" bg="primary.light" mx="auto" width="512px">
+    <Card as="form" bg="levels.surface" mx="auto" width="512px">
       <Validation>
         {({ validator }) => (
           <>
@@ -94,7 +94,7 @@ export function NewMfaDevice({
                 flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
-                bg="primary.main"
+                bg="levels.surfaceSecondary"
                 borderRadius={8}
                 height="256px"
                 p={3}

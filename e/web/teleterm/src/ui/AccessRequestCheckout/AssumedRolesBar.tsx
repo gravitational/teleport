@@ -21,7 +21,13 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
   const ref = useRef<HTMLButtonElement>(null);
   const assumedRolesText = assumedRoles.join(', ');
   return (
-    <Box px={3} py={2} bg="accent" borderTop={1} borderColor="primary.dark">
+    <Box
+      px={3}
+      py={2}
+      bg="accent"
+      borderTop={1}
+      borderColor="levels.sunkenSecondary"
+    >
       <Flex justifyContent="space-between" alignItems="center">
         <Flex alignItems="center">
           <Box
@@ -29,7 +35,7 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
             py={1}
             px={3}
             mr={2}
-            color="secondary.main"
+            color="brand.main"
             bg="light"
             style={{
               fontWeight: '500',

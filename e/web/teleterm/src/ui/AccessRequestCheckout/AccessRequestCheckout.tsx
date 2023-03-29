@@ -71,7 +71,12 @@ export function AccessRequestCheckout() {
   return (
     <>
       {data.length > 0 && !isCollapsed() && (
-        <Box p={3} bg="primary.darker" border={1} borderColor="primary.dark">
+        <Box
+          p={3}
+          bg="levels.sunken"
+          border={1}
+          borderColor="levels.sunkenSecondary"
+        >
           <Flex justifyContent="space-between" alignItems="center">
             <Text typography="h4" color="light" bold>
               {data.length} {pluralize(data.length, 'Resource')} Selected
@@ -125,7 +130,7 @@ export function AccessRequestCheckout() {
 }
 
 const CollapseButton = styled(Flex)`
-  background: ${props => props.theme.colors.primary.dark};
+  background: ${props => props.theme.colors.levels.sunkenSecondary};
   width: 26px;
   justify-content: center;
   align-items: center;
@@ -133,7 +138,7 @@ const CollapseButton = styled(Flex)`
   border-radius: 50%;
   &:hover {
     cursor: pointer;
-    background: ${props => props.theme.colors.secondary.main};
+    background: ${props => props.theme.colors.brand.main};
   }
   transition: background linear 0.1s;
 `;

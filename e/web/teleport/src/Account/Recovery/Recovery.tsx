@@ -52,7 +52,7 @@ export function Recovery({
       )}
       {attempt.status === 'success' && (
         <>
-          <Box width="900px" px={4} py={4} bg="primary.light" borderRadius={3}>
+          <Box width="900px" px={4} py={4} bg="levels.surface" borderRadius={3}>
             {isRecoveryEnabled ? (
               <>
                 <Text typography="h4" bold mb={3}>

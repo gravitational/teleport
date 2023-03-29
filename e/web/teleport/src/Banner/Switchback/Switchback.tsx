@@ -28,7 +28,7 @@ export function Switchback({
   const roles = assumedRoles.join(', ');
 
   return (
-    <Flex height="38px" bg="secondary.light" justifyContent="center">
+    <Flex height="38px" bg="brand.accent" justifyContent="center">
       {attempt.status === 'failed' && (
         <ErrorAlert err={attempt.statusText} onClose={onErrorConfirm} />
       )}
@@ -38,7 +38,7 @@ export function Switchback({
           py={0}
           px={2}
           mr={2}
-          color="secondary.main"
+          color="brand.main"
           bg="light"
           style={{
             fontWeight: '500',

@@ -418,7 +418,7 @@ exports[`loaded state 1`] = `
       >
         <div
           class="c6"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 

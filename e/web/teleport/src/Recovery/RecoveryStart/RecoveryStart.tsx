@@ -54,7 +54,7 @@ export function RecoveryStart({ submit, attempt, recoveryType }: State) {
       : 'Two-Factor Device Recovery';
 
   return (
-    <Card as="form" bg="primary.light" mx="auto" width="704px">
+    <Card as="form" bg="levels.surface" mx="auto" width="704px">
       <Validation>
         {({ validator }) => (
           <>

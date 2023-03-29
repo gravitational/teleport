@@ -160,12 +160,12 @@ function Reviewers({
     return (
       <Flex
         border={1}
-        borderColor="primary.light"
+        borderColor="levels.surface"
         borderRadius={1}
         px={3}
         py={2}
         mb={2}
-        bg="primary.main"
+        bg="levels.surfaceSecondary"
         alignItems="center"
         justifyContent="space-between"
         key={index}
@@ -186,7 +186,7 @@ function Reviewers({
     <>
       <Flex
         borderBottom={1}
-        borderColor="primary.main"
+        borderColor="levels.surfaceSecondary"
         mb={3}
         pb={3}
         width="260px"

@@ -644,7 +644,7 @@ exports[`render device removal dialog 1`] = `
            
           <span
             class="c7"
-            color="primary.contrastText"
+            color="text.contrast"
           >
             yubikey
           </span>

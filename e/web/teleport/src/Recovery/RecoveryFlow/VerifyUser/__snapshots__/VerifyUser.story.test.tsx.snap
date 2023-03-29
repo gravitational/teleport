@@ -300,7 +300,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -594,7 +594,7 @@ exports[`render failed state form for authenticating with password 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -613,7 +613,7 @@ exports[`render failed state form for authenticating with password 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           placeholder="Password"
           type="password"
@@ -939,7 +939,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1027,7 +1027,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
           <input
             autocomplete="one-time-code"
             class="c8"
-            color="text.onLight"
+            color="text.primaryInverse"
             inputmode="numeric"
             placeholder="123 456"
             type="text"
@@ -1348,7 +1348,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1708,7 +1708,7 @@ exports[`render form for authenticating with multi option 1`] = `
         <input
           autocomplete="off"
           class="c7"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1973,7 +1973,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
         <input
           autocomplete="off"
           class="c7"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1992,7 +1992,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
         <input
           autocomplete="off"
           class="c7"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           placeholder="Password"
           type="password"
@@ -2289,7 +2289,7 @@ exports[`render form for authenticating with totp 1`] = `
         <input
           autocomplete="off"
           class="c7"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -2377,7 +2377,7 @@ exports[`render form for authenticating with totp 1`] = `
           <input
             autocomplete="one-time-code"
             class="c7"
-            color="text.onLight"
+            color="text.primaryInverse"
             inputmode="numeric"
             placeholder="123 456"
             type="text"
@@ -2669,7 +2669,7 @@ exports[`render form for authenticating with webauthn 1`] = `
         <input
           autocomplete="off"
           class="c7"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"

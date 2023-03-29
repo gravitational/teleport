@@ -88,7 +88,7 @@ export function VerifyUser({
   }.`;
 
   return (
-    <Card as="form" bg="primary.light" mx="auto" width="512px">
+    <Card as="form" bg="levels.surface" mx="auto" width="512px">
       <Validation>
         {({ validator }) => (
           <>

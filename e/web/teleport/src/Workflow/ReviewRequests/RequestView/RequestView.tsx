@@ -91,7 +91,7 @@ export function RequestView({
         >
           {/* First half of this box contains status, roles, expiry, and delete btn */}
           <Flex
-            bg="primary.lighter"
+            bg="levels.elevated"
             p={3}
             borderTopLeftRadius={2}
             borderTopRightRadius={2}
@@ -153,7 +153,7 @@ export function RequestView({
           </Flex>
           {/* Second half of this box contains timestamp & comments*/}
           <Box
-            bg="primary.light"
+            bg="levels.surface"
             p={4}
             pt={0}
             borderBottomLeftRadius={2}
@@ -214,7 +214,7 @@ const Timeline = styled.div`
   width: 2px;
   top: 0;
   left: 55px;
-  border-left: 2px solid ${props => props.theme.colors.primary.lighter};
+  border-left: 2px solid ${props => props.theme.colors.levels.elevated};
 `;
 
 function RequestorTimestamp({
@@ -252,7 +252,7 @@ function Timestamp({
   state?: RequestState;
   createdDuration: string;
 }) {
-  let iconBgColor = 'primary.lighter';
+  let iconBgColor = 'levels.elevated';
   let $icon = <ChevronCircleDown fontSize={8} color="text.placeholder" />;
   let verb = `submitted`;
 
@@ -306,18 +306,18 @@ function Comment({
   return (
     <Box
       border="1px solid"
-      borderColor="primary.dark"
+      borderColor="levels.sunkenSecondary"
       mt={3}
       style={{ position: 'relative' }}
     >
-      <Flex bg="primary.dark" py={1} px={3} alignItems="baseline">
+      <Flex bg="levels.sunkenSecondary" py={1} px={3} alignItems="baseline">
         <Text typography="body2" bold mr={2}>
           {author}
         </Text>
         <Text typography="paragraph2">{createdDuration}</Text>
       </Flex>
       {comment && (
-        <Box p={3} bg="primary.lighter">
+        <Box p={3} bg="levels.elevated">
           {comment}
         </Box>
       )}
@@ -330,7 +330,7 @@ function Comment({
           css={`
             margin: 0 auto;
           `}
-          bg="primary.lighter"
+          bg="levels.elevated"
         >
           <StyledTable
             data={resources.map(resource => ({
@@ -380,12 +380,12 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
     return (
       <Flex
         border={1}
-        borderColor="primary.light"
+        borderColor="levels.surface"
         borderRadius={1}
         px={3}
         py={2}
         mb={2}
-        bg="primary.main"
+        bg="levels.surfaceSecondary"
         alignItems="center"
         justifyContent="space-between"
         key={index}
@@ -412,7 +412,12 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
   if ($reviewers.length === 0) {
     return (
       <>
-        <Flex borderBottom={1} borderColor="primary.main" mb={3} pb={3}>
+        <Flex
+          borderBottom={1}
+          borderColor="levels.surfaceSecondary"
+          mb={3}
+          pb={3}
+        >
           <Text typography="h6" mr={2}>
             No Reviewers Yet
           </Text>
@@ -424,7 +429,12 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
 
   return (
     <>
-      <Flex borderBottom={1} borderColor="primary.main" mb={3} pb={3}>
+      <Flex
+        borderBottom={1}
+        borderColor="levels.surfaceSecondary"
+        mb={3}
+        pb={3}
+      >
         <Text typography="h6" mr={2}>
           Reviewers
         </Text>

@@ -84,7 +84,8 @@ type Props = {
 
 const Header = styled(Flex)`
   flex-shrink: 0;
-  border-bottom: 1px solid ${props => props.theme.colors.primary.main};
+  border-bottom: 1px solid
+    ${props => props.theme.colors.levels.surfaceSecondary};
   height: 56px;
   margin-bottom: 24px;
 `;

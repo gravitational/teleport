@@ -408,7 +408,7 @@ exports[`render correct form to add TOTP device 1`] = `
           <input
             autocomplete="one-time-code"
             class="c15"
-            color="text.onLight"
+            color="text.primaryInverse"
             inputmode="numeric"
             placeholder="123 456"
             type="text"
@@ -429,7 +429,7 @@ exports[`render correct form to add TOTP device 1`] = `
         <input
           autocomplete="off"
           class="c15"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"
@@ -816,7 +816,7 @@ exports[`render correct form to add Webauthn device 1`] = `
         <input
           autocomplete="off"
           class="c13"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"
@@ -1203,7 +1203,7 @@ exports[`render correct form to add with multi option 1`] = `
         <input
           autocomplete="off"
           class="c13"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"
@@ -1619,7 +1619,7 @@ exports[`render failed state for form to add with multi option 1`] = `
         <input
           autocomplete="off"
           class="c14"
-          color="text.onLight"
+          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"

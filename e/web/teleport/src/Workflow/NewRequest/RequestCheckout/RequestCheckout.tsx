@@ -252,10 +252,13 @@ export function RequestCheckout({
                         disabled={createAttempt.status === 'processing'}
                         css={`
                           cursor: pointer;
-                          background-color: #2e3860;
+
+                          background-color: ${({ theme }) =>
+                            theme.colors.buttons.trashButton.default};
                           border-radius: 2px;
                           :hover {
-                            background-color: #414b70;
+                            background-color: ${({ theme }) =>
+                              theme.colors.buttons.trashButton.hover};
                           }
                         `}
                       />
@@ -293,7 +296,8 @@ export function RequestCheckout({
                     css={`
                       position: sticky;
                       bottom: 0;
-                      background: ${({ theme }) => theme.colors.primary.dark};
+                      background: ${({ theme }) =>
+                        theme.colors.levels.sunkenSecondary};
                     `}
                   >
                     <ButtonPrimary
@@ -346,7 +350,7 @@ function ResourceRequestRoles({
           justifyContent="space-between"
           width="100%"
           borderBottom={1}
-          borderColor="primary.main"
+          borderColor="levels.surfaceSecondary"
           onClick={() => setExpanded(!expanded)}
         >
           <Flex flexDirection="column" width="100%">
@@ -385,10 +389,10 @@ function ResourceRequestRoles({
                 css={`
                   width: 100%;
                   cursor: pointer;
-                  background: ${({ theme }) => theme.colors.primary.light};
+                  background: ${({ theme }) => theme.colors.levels.surface};
                   &:hover {
                     border-color: ${({ theme }) =>
-                      theme.colors.primary.lighter};
+                      theme.colors.levels.elevated};
                   }
                 `}
                 as="label"
@@ -417,7 +421,7 @@ function ResourceRequestRoles({
               borderRadius={3}
               css={`
                 width: 100%;
-                background: ${({ theme }) => theme.colors.primary.light};
+                background: ${({ theme }) => theme.colors.levels.surface};
               `}
             >
               <Warning mr={3} fontSize="16px" color="warning" />
@@ -460,13 +464,13 @@ function TextBox({
         p={2}
         color={'text.primary'}
         border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.dark' : 'primary.light'}
+        borderColor={hasError ? 'error.dark' : 'levels.surface'}
         style={{ outline: 'none' }}
         placeholder={placeholder}
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`
-          background: ${({ theme }) => theme.colors.primary.main};
+          background: ${({ theme }) => theme.colors.levels.surfaceSecondary};
           ::placeholder {
             color: ${({ theme }) => theme.colors.text.secondary};
           }
@@ -491,7 +495,7 @@ const SidePanel = styled(Box)`
   z-index: 11;
   top: 0px;
   right: 0px;
-  background: ${({ theme }) => theme.colors.primary.dark};
+  background: ${({ theme }) => theme.colors.levels.sunkenSecondary};
   min-height: 100%;
   width: 500px;
   padding: 20px;

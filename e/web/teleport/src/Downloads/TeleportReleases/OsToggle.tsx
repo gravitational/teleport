@@ -51,7 +51,7 @@ export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
             style={
               isSelected
                 ? {
-                    backgroundColor: theme.colors.secondary.main,
+                    backgroundColor: theme.colors.brand.main,
                     color: 'white',
                   }
                 : {}

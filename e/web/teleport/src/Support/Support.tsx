@@ -72,7 +72,7 @@ const EditLink = styled(Edit)`
   color: ${props => props.theme.colors.light};
   ${props => props.theme.typography.body2}
   &:hover, &:focus {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
     cursor: pointer;
   }
 `;

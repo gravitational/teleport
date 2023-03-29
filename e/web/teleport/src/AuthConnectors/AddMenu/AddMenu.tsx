@@ -54,7 +54,7 @@ class AddMenu extends React.Component<Props> {
           onClick={this.onOpen}
         >
           NEW AUTH CONNECTOR
-          <Icons.CarrotDown ml="2" fontSize="23" color="text.onDark" />
+          <Icons.CarrotDown ml="2" fontSize="23" color="text.primary" />
         </ButtonPrimary>
         <Menu
           anchorEl={this.anchorEl}
@@ -92,13 +92,13 @@ type Props = {
 
 const menuListCss = ({ theme }) => `
   width: 240px;
-  background-color: ${theme.colors.secondary.light}
+  background-color: ${theme.colors.brand.accent}
 
   ${MenuItem} {
-    background-color: ${theme.colors.secondary.main};
-    color: ${theme.colors.secondary.contrastText};
+    background-color: ${theme.colors.brand.main};
+    color: ${theme.colors.text.contrast};
     &:hover,&:focus {
-      background-color: ${theme.colors.secondary.light};
+      background-color: ${theme.colors.brand.accent};
     }
   }
 `;

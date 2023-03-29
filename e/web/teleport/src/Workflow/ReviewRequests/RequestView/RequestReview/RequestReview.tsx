@@ -37,16 +37,16 @@ export default function RequestReview({ attempt, submitReview, user }: Props) {
       {({ validator }) => (
         <Box
           border="1px solid"
-          borderColor="primary.dark"
+          borderColor="levels.sunkenSecondary"
           mt={7}
           style={{ position: 'relative' }}
         >
-          <Box bg="primary.dark" py={1} px={3} alignItems="center">
+          <Box bg="levels.sunkenSecondary" py={1} px={3} alignItems="center">
             <Text typography="h6" mr={3}>
               {user} - add a review
             </Text>
           </Box>
-          <Box p={3} bg="primary.lighter">
+          <Box p={3} bg="levels.elevated">
             {attempt.status === 'failed' && (
               <Alert kind="danger" children={attempt.statusText} />
             )}

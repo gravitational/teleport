@@ -35,7 +35,7 @@ export default function ConnectorListItem({
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
-      bg="primary.light"
+      bg="levels.surface"
       px="5"
       pt="2"
       pb="5"
