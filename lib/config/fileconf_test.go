@@ -922,6 +922,8 @@ func TestDiscoveryConfig(t *testing.T) {
 						"ssm": cfgMap{
 							"document_name": "hello_document",
 						},
+						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
+						"external_id":     "externalID123",
 					},
 				}
 			},
@@ -941,7 +943,9 @@ func TestDiscoveryConfig(t *testing.T) {
 							SSHDConfig: "/etc/ssh/sshd_config",
 							ScriptName: "installer-custom",
 						},
-						SSM: AWSSSM{DocumentName: "hello_document"},
+						SSM:           AWSSSM{DocumentName: "hello_document"},
+						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+						ExternalID:    "externalID123",
 					},
 				},
 			},
@@ -977,6 +981,64 @@ func TestDiscoveryConfig(t *testing.T) {
 								"token_name": "hello-iam-a-token",
 								"method":     "token",
 							},
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		},
+		{
+			desc:          "AWS section is filled with external_id but empty assume_role_arn",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"rds"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "",
+						"external_id":     "externalid123",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		},
+		{
+			desc:          "AWS section is filled with invalid assume_role_arn",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"rds"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "foobar",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{},
+		},
+		{
+			desc:          "AWS section is filled with assume_role_arn that is not an iam ARN",
+			expectError:   require.Error,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"rds"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "arn:aws:sts::123456789012:federated-user/Alice",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
 						},
 					},
 				}

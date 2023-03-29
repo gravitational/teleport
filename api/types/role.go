@@ -777,9 +777,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// DELETE IN 13.0.0
-	r.CheckSetRequireSessionMFA()
-
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
 		r.Spec.Options.CertificateFormat = constants.CertificateFormatStandard
@@ -979,16 +976,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
-}
-
-// RequireSessionMFA must be checked/set when communicating with an old server or client.
-// DELETE IN 13.0.0
-func (r *RoleV6) CheckSetRequireSessionMFA() {
-	if r.Spec.Options.RequireMFAType != RequireMFAType_OFF {
-		r.Spec.Options.RequireSessionMFA = r.Spec.Options.RequireMFAType.IsSessionMFARequired()
-	} else if r.Spec.Options.RequireSessionMFA {
-		r.Spec.Options.RequireMFAType = RequireMFAType_SESSION
-	}
 }
 
 // String returns the human readable representation of a role.

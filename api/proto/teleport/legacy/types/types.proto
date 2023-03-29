@@ -39,17 +39,29 @@ message KeepAlive {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "expires"
   ];
-  // Type is the type of keep alive, used by servers. At the moment only
-  // "node", "app" and "database" are supported.
+
+  // The type of a KeepAlive. When adding a new type, please double-check
+  // lib/usagereporter/teleport to see if we need any change in the resource
+  // heartbeat event.
   enum KeepAliveType {
     UNKNOWN = 0;
+
+    // "node", KindNode. For the sake of correct usage reporting, it shouldn't
+    // be used for OpenSSH nodes.
     NODE = 1;
+    // "app_server", KindAppServer
     APP = 2;
+    // "db_server", KindDatabaseServer
     DATABASE = 3;
+    // "windows_desktop_service", KindWindowsDesktopService
     WINDOWS_DESKTOP = 4;
+    // "kube_server", KindKubeServer
     KUBERNETES = 5;
+    // "db_service", KindDatabaseService
     DATABASE_SERVICE = 6;
   }
+
+  // Type is the type (or kind) of the resource that's being kept alive.
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
@@ -1601,11 +1613,7 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "u2f,omitempty"
   ];
 
-  // RequireSessionMFA causes all sessions in this cluster to require MFA
-  // checks.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "-"];
+  reserved 5; // RequireSessionMFA replaced by RequireMFAType
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -2289,11 +2297,7 @@ message RoleOptions {
   // RequestPrompt is an optional message which tells users what they aught to
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
-  // RequireSessionMFA specifies whether a user is required to do an MFA
-  // check for every session.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "-"];
+  reserved 13; // RequireSessionMFA replaced by RequireMFAType
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -3920,7 +3924,11 @@ message GithubConnectorSpecV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "teams_to_roles"
   ];
+  // EndpointURL is the URL of the GitHub instance this connector is for.
   string EndpointURL = 7 [(gogoproto.jsontag) = "endpoint_url"];
+  // APIEndpointURL is the URL of the API endpoint of the Github instance
+  // this connector is for.
+  string APIEndpointURL = 8 [(gogoproto.jsontag) = "api_endpoint_url"];
 }
 
 // GithubAuthRequest is the request to start Github OAuth2 flow.
@@ -4976,6 +4984,8 @@ message PluginSpecV1 {
   oneof settings {
     // Settings for the Slack access plugin
     PluginSlackAccessSettings slack_access_plugin = 1;
+    // Settings for the Opsgenie access plugin
+    PluginOpsgenieAccessSettings opsgenie = 2;
   }
 }
 
@@ -4983,6 +4993,19 @@ message PluginSlackAccessSettings {
   option (gogoproto.equal) = true;
 
   string fallback_channel = 1;
+}
+
+message PluginOpsgenieAccessSettings {
+  option (gogoproto.equal) = true;
+
+  // Addr is the address of Opsgenie API.
+  string addr = 1;
+  // Priority to create Opsgenie alerts with
+  string priority = 2;
+  // List of tags to be added to alerts created in Opsgenie
+  repeated string alert_tags = 3;
+  // Default on-call schedules to check if none are provided in the access request annotations
+  repeated string default_schedules = 4;
 }
 
 message PluginBootstrapCredentialsV1 {
@@ -5208,6 +5231,12 @@ message OktaAssignmentActionV1 {
     CLEANED_UP = 4;
     // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
     CLEANUP_FAILED = 5;
+    // PROCESSSING indicates that the assignment is being applied.
+    PROCESSING = 6;
+    // CLEANUP_PENDING indicates the action needs to be cleaned up.
+    CLEANUP_PENDING = 7;
+    // CLEANUP_PROCESSING indicates the action is being cleaned up.
+    CLEANUP_PROCESSING = 8;
   }
 
   // Status is the status of the action.
