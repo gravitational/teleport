@@ -100,6 +100,6 @@ const focusGrabber = (
 );
 
 const Separator = styled.div`
-  background: ${props => props.theme.colors.primary.lighter};
+  background: ${props => props.theme.colors.levels.elevated};
   height: 1px;
 `;
