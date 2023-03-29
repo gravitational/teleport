@@ -203,7 +203,7 @@ const cfg = {
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
 
-    webapiPingPath: '/webapi/ping',
+    webapiPingPath: '/v1/webapi/ping',
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
   },

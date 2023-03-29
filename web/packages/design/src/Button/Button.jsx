@@ -58,10 +58,10 @@ const themedStyles = props => {
   const { kind } = props;
 
   const style = {
-    color: colors.text.primary,
+    color: colors.buttons.text,
     '&:disabled': {
-      background: kind === 'text' ? 'none' : colors.action.disabledBackground,
-      color: colors.action.disabled,
+      background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
+      color: colors.buttons.textDisabled,
     },
   };
 
@@ -81,19 +81,19 @@ export const kinds = props => {
   switch (kind) {
     case 'secondary':
       return {
-        background: theme.colors.primary.light,
+        background: theme.colors.buttons.secondary.default,
         '&:hover, &:focus': {
-          background: theme.colors.primary.lighter,
+          background: theme.colors.buttons.secondary.hover,
         },
       };
     case 'border':
       return {
-        background: theme.colors.primary.lighter,
-        border: '1px solid ' + theme.colors.primary.main,
+        background: theme.colors.buttons.border.default,
+        border: '1px solid ' + theme.colors.buttons.border.border,
         opacity: '.87',
         '&:hover, &:focus': {
-          background: theme.colors.primary.lighter,
-          border: '1px solid ' + theme.colors.action.hover,
+          background: theme.colors.buttons.border.hover,
+          border: '1px solid ' + theme.colors.buttons.border.borderHover,
           opacity: 1,
         },
         '&:active': {
@@ -102,9 +102,9 @@ export const kinds = props => {
       };
     case 'warning':
       return {
-        background: theme.colors.error.dark,
+        background: theme.colors.buttons.warning.default,
         '&:hover, &:focus': {
-          background: theme.colors.error.main,
+          background: theme.colors.buttons.warning.hover,
         },
       };
     case 'text':
@@ -119,12 +119,12 @@ export const kinds = props => {
     case 'primary':
     default:
       return {
-        background: theme.colors.secondary.main,
+        background: theme.colors.buttons.primary.default,
         '&:hover, &:focus': {
-          background: theme.colors.secondary.light,
+          background: theme.colors.buttons.primary.hover,
         },
         '&:active': {
-          background: theme.colors.secondary.dark,
+          background: theme.colors.buttons.primary.active,
         },
       };
   }
