@@ -4735,7 +4735,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 		server  types.Server
 	}{
 		{
-			test:    "test exact match, one sudoer entry, one role",
+			test: "test exact match, one sudoer entry, one role",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 				Spec: types.RoleSpecV5{
@@ -4743,7 +4743,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4760,6 +4760,9 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			test:    "multiple roles, one not matching",
 			sudoers: []string{"sudoers entry 1", "sudoers entry 2"},
 			roles: NewRoleSet(&types.RoleV5{
+				Metadata: types.Metadata{
+					Name: "a",
+				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
@@ -4770,6 +4773,9 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					},
 				},
 			}, &types.RoleV5{
+				Metadata: types.Metadata{
+					Name: "b",
+				},
 				Spec: types.RoleSpecV5{
 					Options: types.RoleOptions{
 						CreateHostUser: types.NewBoolOption(true),
@@ -4807,7 +4813,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						NodeLabels: types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"%sudo	ALL=(ALL) ALL"},
 					},
 				},
@@ -4831,7 +4837,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 			},
 		},
 		{
-			test:    "line deny",
+			test: "line deny",
 			sudoers: []string{"%sudo	ALL=(ALL) ALL"},
 			roles: NewRoleSet(&types.RoleV5{
 				Spec: types.RoleSpecV5{
@@ -4853,6 +4859,57 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					Deny: types.RoleConditions{
 						NodeLabels:  types.Labels{"success": []string{"abc"}},
 						HostSudoers: []string{"removed entry"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
+		{
+			test:    "multiple roles, order preserved by role name",
+			sudoers: []string{"sudoers entry 1", "sudoers entry 2", "sudoers entry 3", "sudoers entry 4"},
+			roles: NewRoleSet(&types.RoleV5{
+				Metadata: types.Metadata{
+					Name: "a",
+				},
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"sudoers entry 1"},
+					},
+				},
+			}, &types.RoleV5{
+				Metadata: types.Metadata{
+					Name: "c",
+				},
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostSudoers: []string{"sudoers entry 4"},
+					},
+				},
+			}, &types.RoleV5{
+				Metadata: types.Metadata{
+					Name: "b",
+				},
+				Spec: types.RoleSpecV5{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostSudoers: []string{"sudoers entry 2", "sudoers entry 3"},
 					},
 				},
 			}),
