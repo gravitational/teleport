@@ -13,7 +13,7 @@ Teleport supports exporting user SSH certificates with configurable key extensio
 
 ## Step 1/3. Import the Teleport CA into GitHub
 
-In order to export the Teleport CA, execute the following command:
+In order to export the Teleport CA, execute the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
 $ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed 's/^cert-authority //g'
