@@ -185,9 +185,9 @@ func (s *AppServerV3) GetTunnelType() TunnelType {
 	switch {
 	case s.Origin() == OriginOkta:
 		return OktaTunnel
+	default:
+		return AppTunnel
 	}
-
-	return AppTunnel
 }
 
 // String returns the server string representation.
