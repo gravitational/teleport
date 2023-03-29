@@ -1112,7 +1112,7 @@ func getDBLocalProxyRequirement(tc *client.TeleportClient, route *tlsca.RouteToD
 
 	// When Proxy is behind a load balancer and the database requires the web
 	// port, a local proxy must be used so the TLS routing request can be
-	// upgradded, regardless whether Proxy is in single or separate port mode.
+	// upgraded, regardless whether Proxy is in single or separate port mode.
 	if tc.TLSRoutingConnUpgradeRequired && tc.DoesDatabaseUseWebProxyHostPort(*route) {
 		out.addLocalProxy("Teleport Proxy is behind a load balancer")
 	}
