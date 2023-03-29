@@ -37,6 +37,7 @@ import (
 const (
 	// EnvsRequest sets multiple environment variables that will be applied to any
 	// command executed by Shell or Run.
+	// See [EnvsReq] for the corresponding payload.
 	EnvsRequest = "envs@goteleport.com"
 
 	// TracingRequest is sent by clients to server to pass along tracing context.
@@ -50,11 +51,11 @@ const (
 )
 
 // EnvsReq contains json marshaled key:value pairs sent as the
-// payload for an EnvsRequest.
+// payload for an [EnvsRequest].
 type EnvsReq struct {
-	// Envs is a json marshaled map[string]string containing
+	// EnvsJSON is a json marshaled map[string]string containing
 	// environment variables.
-	Envs []byte
+	EnvsJSON []byte `json:"envs"`
 }
 
 // ContextFromRequest extracts any tracing data provided via an Envelope
