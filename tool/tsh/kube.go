@@ -574,14 +574,14 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// loading process since Teleport Store transverses the entire store to find the keys.
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
-	// Although client.LoadKeysToKubeFromStore function speeds up the process
-	// since it removes all transversals, it still has to read 4 different files:
-	// - $TSH_HOME/current_profile
+	// Although client.LoadKeysToKubeFromStore function speeds up the process since
+	// it removes all transversals, it still has to read 3 different files from the disk:
 	// - $TSH_HOME/$profile.yaml
 	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 	// - $TSH_HOME/keys/$PROXY/$USER
 	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
 		cf.HomePath,
+		cf.Proxy,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
@@ -1200,6 +1200,10 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if cf.Proxy == "" {
+		cf.Proxy = tc.WebProxyAddr
 	}
 
 	values, err := buildKubeConfigUpdate(cf, kubeStatus)
