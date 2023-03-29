@@ -1613,11 +1613,7 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "u2f,omitempty"
   ];
 
-  // RequireSessionMFA causes all sessions in this cluster to require MFA
-  // checks.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "-"];
+  reserved 5; // RequireSessionMFA replaced by RequireMFAType
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -2301,11 +2297,7 @@ message RoleOptions {
   // RequestPrompt is an optional message which tells users what they aught to
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
-  // RequireSessionMFA specifies whether a user is required to do an MFA
-  // check for every session.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "-"];
+  reserved 13; // RequireSessionMFA replaced by RequireMFAType
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -5239,6 +5231,12 @@ message OktaAssignmentActionV1 {
     CLEANED_UP = 4;
     // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
     CLEANUP_FAILED = 5;
+    // PROCESSSING indicates that the assignment is being applied.
+    PROCESSING = 6;
+    // CLEANUP_PENDING indicates the action needs to be cleaned up.
+    CLEANUP_PENDING = 7;
+    // CLEANUP_PROCESSING indicates the action is being cleaned up.
+    CLEANUP_PROCESSING = 8;
   }
 
   // Status is the status of the action.

@@ -287,6 +287,8 @@ type PingResponse struct {
 	ClusterName string `json:"cluster_name"`
 
 	// reserved: license_warnings ([]string)
+	// AutomaticUpgrades describes whether agents should automatically upgrade.
+	AutomaticUpgrades bool `json:"automatic_upgrades"`
 }
 
 // PingErrorResponse contains the error message if the requested connector
