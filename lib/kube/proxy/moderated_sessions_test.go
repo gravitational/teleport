@@ -43,7 +43,7 @@ import (
 
 func TestModeratedSessions(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{Kubernetes: true}})
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
