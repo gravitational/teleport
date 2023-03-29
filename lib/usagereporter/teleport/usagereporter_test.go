@@ -15,6 +15,7 @@
 package usagereporter
 
 import (
+	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -25,9 +26,23 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type mockUserMetadataClient struct {
+	username string
+	isSSO    bool
+}
+
+func (m mockUserMetadataClient) GetUsername(ctx context.Context) (string, error) {
+	return m.username, nil
+}
+func (m mockUserMetadataClient) GetUserIsSSO(ctx context.Context, username string) (bool, error) {
+	return m.isSSO, nil
+}
+
 func TestConvertUsageEvent(t *testing.T) {
 	anonymizer, err := utils.NewHMACAnonymizer("cluster-id")
 	require.NoError(t, err)
+
+	ctx := context.Background()
 
 	expectedAnonymizedUserString := anonymizer.AnonymizeString("myuser")
 
@@ -35,6 +50,7 @@ func TestConvertUsageEvent(t *testing.T) {
 		name             string
 		event            *usageeventsv1.UsageEventOneOf
 		identityUsername string
+		isSSOUser        bool
 		errCheck         require.ErrorAssertionFunc
 		expected         *prehogv1.SubmitEventRequest
 	}{
@@ -53,6 +69,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
 					Status: &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
@@ -74,6 +91,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
 					Resource: &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
 					Status:   &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
@@ -139,6 +157,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
 					Resource:       &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
 					Status:         &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
@@ -163,6 +182,7 @@ func TestConvertUsageEvent(t *testing.T) {
 					Metadata: &prehogv1.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
 					Resource:       &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
 					Status:         &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
@@ -184,13 +204,39 @@ func TestConvertUsageEvent(t *testing.T) {
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err), "exepcted trace.IsBadParameter error, got: %v", err)
 			},
+		}, {
+			name: "discover started event with sso user",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent{
+				UiDiscoverStartedEvent: &usageeventsv1.UIDiscoverStartedEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+			identityUsername: "myuser",
+			isSSOUser:        true,
+			errCheck:         require.NoError,
+			expected: &prehogv1.SubmitEventRequest{Event: &prehogv1.SubmitEventRequest_UiDiscoverStartedEvent{
+				UiDiscoverStartedEvent: &prehogv1.UIDiscoverStartedEvent{
+					Metadata: &prehogv1.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Sso:      true,
+					},
+					Status: &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
 			t.Parallel()
 
-			usageEvent, err := ConvertUsageEvent(tt.event, tt.identityUsername)
+			m := mockUserMetadataClient{
+				username: tt.identityUsername,
+				isSSO:    tt.isSSOUser,
+			}
+
+			usageEvent, err := ConvertUsageEvent(ctx, tt.event, m)
 			tt.errCheck(t, err)
 			if err != nil {
 				return
