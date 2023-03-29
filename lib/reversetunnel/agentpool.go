@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -688,6 +689,11 @@ func (c *agentPoolRuntimeConfig) useALPNConnUpgrade() bool {
 func (c *agentPoolRuntimeConfig) getKeepAliveInterval() time.Duration {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+
+	// When behind a load balancer, use a shorter ping.
+	if c.tlsRoutingConnUpgradeRequired {
+		return utils.MinTTL(libdefaults.ProxyPingInterval, c.keepAliveInterval)
+	}
 	return c.keepAliveInterval
 }
 

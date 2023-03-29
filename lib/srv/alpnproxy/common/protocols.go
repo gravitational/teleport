@@ -201,6 +201,7 @@ var DatabaseProtocols = []Protocol{
 var ProtocolsWithPingSupport = append(
 	DatabaseProtocols,
 	ProtocolTCP,
+	ProtocolReverseTunnel,
 )
 
 // WithPingProtocols adds Ping protocols to the list for each protocol that

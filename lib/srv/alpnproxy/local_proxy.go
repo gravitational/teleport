@@ -231,17 +231,11 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	tlsConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
+	upstreamConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer tlsConn.Close()
-
-	var upstreamConn net.Conn = tlsConn
-	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
-		l.cfg.Log.Debug("Using ping connection")
-		upstreamConn = NewPingConn(tlsConn)
-	}
+	defer upstreamConn.Close()
 
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
 }

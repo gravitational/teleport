@@ -20,11 +20,14 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
 // ALPNDialerConfig is the config for ALPNDialer.
@@ -96,19 +99,18 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
+
+	if strings.HasSuffix(tlsConn.ConnectionState().NegotiatedProtocol, "-ping") {
+		logrus.Debug("Using ping connection")
+		return pingconn.New(tlsConn), nil
+	}
 	return tlsConn, nil
 }
 
-// DialALPN a helper to dial using an ALPNDialer and returns a tls.Conn if
+// TODO remove
+// DialALPN a helper to dial using an ALPNDialer and returns a net.Conn if
 // successful.
-func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (*tls.Conn, error) {
+func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (net.Conn, error) {
 	conn, err := NewALPNDialer(cfg).DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsConn, ok := conn.(*tls.Conn)
-	if !ok {
-		return nil, trace.BadParameter("failed to convert to tls.Conn")
-	}
-	return tlsConn, nil
+	return conn, trace.Wrap(err)
 }

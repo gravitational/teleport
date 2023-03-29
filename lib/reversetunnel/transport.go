@@ -97,7 +97,10 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 
 	if mode == types.ProxyListenerMode_Multiplex {
 		tlsConfig := &tls.Config{
-			NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+			NextProtos: []string{
+				string(alpncommon.ProtocolWithPing(alpncommon.ProtocolReverseTunnel)),
+				string(alpncommon.ProtocolReverseTunnel),
+			},
 			InsecureSkipVerify: t.InsecureSkipTLSVerify,
 		}
 
