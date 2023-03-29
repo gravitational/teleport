@@ -406,7 +406,6 @@ func TestSetEnvs(t *testing.T) {
 		for k, v := range expected {
 			actual, ok := envs[k]
 			require.True(t, ok, "expected env %s to be set", k)
-
 			require.Equal(t, v, actual, "expected value %s for env %s, got %s", v, k, actual)
 		}
 	})
