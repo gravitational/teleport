@@ -17,6 +17,9 @@ limitations under the License.
 package usagereporter
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -407,10 +410,15 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 	}
 }
 
+type UserMetadataClient interface {
+	GetUsername(context.Context) (string, error)
+	GetUserIsSSO(context.Context, string) (bool, error)
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
-func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername string) (Anonymizable, error) {
+func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf, clt UserMetadataClient) (Anonymizable, error) {
 	// Note: events (especially pre-registration) that embed a username of their
 	// own should generally pass that through rather than using the identity
 	// username provided to the function. It may be the username of a Teleport
@@ -418,15 +426,27 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 	switch e := event.GetEvent().(type) {
 	case *usageeventsv1.UsageEventOneOf_UiBannerClick:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UIBannerClickEvent{
 			UserName: identityUsername,
 			Alert:    e.UiBannerClick.Alert,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiOnboardAddFirstResourceClick:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UIOnboardAddFirstResourceClickEvent{
 			UserName: identityUsername,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UIOnboardAddFirstResourceLaterClickEvent{
 			UserName: identityUsername,
 		}, nil
@@ -457,24 +477,49 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 			UserName: e.UiRecoveryCodesPrintClick.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleClick:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UICreateNewRoleClickEvent{
 			UserName: identityUsername,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UICreateNewRoleSaveClickEvent{
 			UserName: identityUsername,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleCancelClick:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UICreateNewRoleCancelClickEvent{
 			UserName: identityUsername,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleViewDocumentationClick:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return &UICreateNewRoleViewDocumentationClickEvent{
 			UserName: identityUsername,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		fmt.Println("USER IS", isSSOUser)
 		ret := &UIDiscoverStartedEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, identityUsername, isSSOUser),
 			Status:   discoverStatusToPrehog(e.UiDiscoverStartedEvent.Status),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
@@ -483,8 +528,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverResourceSelectionEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverResourceSelectionEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverResourceSelectionEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverResourceSelectionEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverResourceSelectionEvent.Status),
 		}
@@ -494,8 +547,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverDeployServiceEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
 		}
@@ -505,8 +566,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverDatabaseRegisterEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseRegisterEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseRegisterEvent.Status),
 		}
@@ -516,8 +585,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverDatabaseConfigureMTLSEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Status),
 		}
@@ -527,8 +604,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Status),
 		}
@@ -538,8 +623,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverDesktopActiveDirectoryConfigureEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Status),
 		}
@@ -549,8 +642,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverAutoDiscoveredResourcesEvent{
-			Metadata:       discoverMetadataToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Metadata, identityUsername),
+			Metadata:       discoverMetadataToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Metadata, identityUsername, isSSOUser),
 			Resource:       discoverResourceToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Resource),
 			Status:         discoverStatusToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Status),
 			ResourcesCount: e.UiDiscoverAutoDiscoveredResourcesEvent.ResourcesCount,
@@ -561,8 +662,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverDatabaseConfigureIAMPolicyEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Status),
 		}
@@ -572,8 +681,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverPrincipalsConfigureEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Status),
 		}
@@ -583,8 +700,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverTestConnectionEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverTestConnectionEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverTestConnectionEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverTestConnectionEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverTestConnectionEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverTestConnectionEvent.Status),
 		}
@@ -594,8 +719,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverCompletedEvent:
+		identityUsername, err := clt.GetUsername(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		ret := &UIDiscoverCompletedEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverCompletedEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverCompletedEvent.Metadata, identityUsername, isSSOUser),
 			Resource: discoverResourceToPrehog(e.UiDiscoverCompletedEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverCompletedEvent.Status),
 		}

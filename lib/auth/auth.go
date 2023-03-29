@@ -4183,14 +4183,43 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 	return nil
 }
 
-// SubmitUsageEvent submits an external usage event.
-func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+// convertUsageEventUserMetadata is used to provide User Metadata queries to the ConvertUsageEvent.
+//
+// Fetching them ahead of time may cause some unnecessary queries, so the converted is
+// responsible for calling those methods as needed.
+type convertUsageEventUserMetadata struct {
+	*Server
+}
+
+// GetUsername returns the username of a remote HTTP client making the call.
+// If ctx didn't pass through auth middleware or did not come from an HTTP
+// request, returns an error.
+func (a convertUsageEventUserMetadata) GetUsername(ctx context.Context) (string, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return "", trace.Wrap(err)
+	}
+	return username, nil
+}
+
+// GetUserIsSSO returns whether the user is an SSO user.
+func (a convertUsageEventUserMetadata) GetUserIsSSO(ctx context.Context, username string) (bool, error) {
+	user, err := a.GetUser(username, false /* withSecrets */)
+	if err != nil {
+		return false, trace.Wrap(err)
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
+	return user.GetCreatedBy().Connector != nil, nil
+}
+
+// SubmitUsageEvent submits an external usage event.
+func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
+
+	userMDGetter := convertUsageEventUserMetadata{
+		Server: a,
+	}
+
+	event, err := usagereporter.ConvertUsageEvent(ctx, req.GetEvent(), userMDGetter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -24,10 +24,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func discoverMetadataToPrehog(u *usageeventsv1.DiscoverMetadata, identityUsername string) *prehogv1.DiscoverMetadata {
+func discoverMetadataToPrehog(u *usageeventsv1.DiscoverMetadata, identityUsername string, isSSOUser bool) *prehogv1.DiscoverMetadata {
 	return &prehogv1.DiscoverMetadata{
 		Id:       u.Id,
 		UserName: identityUsername,
+		Sso:      isSSOUser,
 	}
 }
 
@@ -121,6 +122,7 @@ func (u *UIDiscoverStartedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 				Metadata: &prehogv1.DiscoverMetadata{
 					Id:       u.Metadata.Id,
 					UserName: a.AnonymizeString(u.Metadata.UserName),
+					Sso:      u.Metadata.Sso,
 				},
 				Status: u.Status,
 			},
