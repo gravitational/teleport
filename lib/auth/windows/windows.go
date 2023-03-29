@@ -21,8 +21,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -46,6 +48,20 @@ type certRequest struct {
 	keyDER      []byte
 }
 
+func createUsersExtension(createUser bool, groups []string) (pkix.Extension, error) {
+	value, err := json.Marshal(struct {
+		CreateUser bool
+		Groups     []string
+	}{createUser, groups})
+	if err != nil {
+		return pkix.Extension{}, trace.Wrap(err)
+	}
+	return pkix.Extension{
+		Id:    tlsca.CreateUserOID,
+		Value: value,
+	}, nil
+}
+
 func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// Important: rdpclient currently only supports 2048-bit RSA keys.
 	// If you switch the key type here, update handle_general_authentication in
@@ -64,6 +80,10 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	createUser, err := createUsersExtension(req.CreateUser, req.Groups)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	csr := &x509.CertificateRequest{
 		Subject: pkix.Name{CommonName: req.Username},
 		// We have to pass SAN and ExtKeyUsage as raw extensions because
@@ -75,6 +95,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 		ExtraExtensions: []pkix.Extension{
 			EnhancedKeyUsageExtension,
 			san,
+			createUser,
 		},
 	}
 
@@ -142,6 +163,10 @@ type GenerateCredentialsRequest struct {
 	LDAPConfig LDAPConfig
 	// AuthClient is the windows AuthInterface
 	AuthClient AuthInterface
+	// CreateUser specifies if Windows user should be created if missing
+	CreateUser bool
+	// Groups are groups that user should be member of
+	Groups []string
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given

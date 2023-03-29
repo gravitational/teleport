@@ -149,7 +149,7 @@ func TestGenerateCredentials(t *testing.T) {
 			activeDirectorySID: testSid,
 		},
 	} {
-		certb, keyb, err := w.generateCredentials(ctx, user, domain, windows.CertTTL, test.activeDirectorySID)
+		certb, keyb, err := w.generateCredentials(ctx, user, domain, windows.CertTTL, test.activeDirectorySID, false, nil)
 		require.NoError(t, err)
 		require.NotNil(t, certb)
 		require.NotNil(t, keyb)

@@ -188,7 +188,7 @@ type AccessChecker interface {
 
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
-	HostUsers(types.Server) (*HostUsersInfo, error)
+	HostUsers(types.ResourceWithLabels) (*HostUsersInfo, error)
 
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool

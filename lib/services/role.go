@@ -2640,7 +2640,7 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 
 // HostUsers returns host user information matching a server or nil if
 // a role disallows host user creation
-func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
+func (set RoleSet) HostUsers(s types.ResourceWithLabels) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
 	sudoers := make(map[string]struct{})
 	serverLabels := s.GetAllLabels()
