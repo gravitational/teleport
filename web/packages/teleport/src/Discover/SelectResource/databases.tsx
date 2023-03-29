@@ -16,6 +16,8 @@
 
 import { DbProtocol } from 'shared/services/databases';
 
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
 import { icons } from './icons';
@@ -33,230 +35,275 @@ function getDbAccessDocLink(guide: string) {
 
 export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.TODO },
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.DynamoDb },
     name: 'DynamoDB',
     keywords: awsKeywords + 'dynamodb',
     kind: ResourceKind.Database,
     Icon: icons.Dynamo,
     unguidedLink: getDbAccessDocLink('aws-dynamodb'),
+    event: DiscoverEventResource.DatabaseDynamoDb,
   },
   {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.TODO },
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redis },
     name: 'ElastiCache & MemoryDB',
     keywords: awsKeywords + 'elasticache memorydb redis',
     kind: ResourceKind.Database,
     Icon: icons.Aws,
     unguidedLink: getDbAccessDocLink('redis-aws'),
+    event: DiscoverEventResource.DatabaseRedisElasticache,
   },
   {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.TODO },
+    dbMeta: {
+      location: DatabaseLocation.Aws,
+      engine: DatabaseEngine.Cassandra,
+    },
     name: 'Keyspaces (Apache Cassandra)',
     keywords: awsKeywords + 'keyspaces apache cassandra',
     kind: ResourceKind.Database,
     Icon: icons.Aws,
     unguidedLink: getDbAccessDocLink('aws-cassandra-keyspaces'),
+    event: DiscoverEventResource.DatabaseCassandraKeyspaces,
   },
   {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.TODO },
-    name: 'RDS & Aurora',
-    keywords: awsKeywords + 'rds aurora postgresql mysql mariadb',
-    kind: ResourceKind.Database,
-    Icon: icons.Aws,
-    unguidedLink: getDbAccessDocLink('rds'),
-  },
-  {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.TODO },
-    name: 'RDS Proxy',
-    keywords: awsKeywords + 'rds proxy',
-    kind: ResourceKind.Database,
-    Icon: icons.Aws,
-    unguidedLink: getDbAccessDocLink('rds-proxy'),
-  },
-  {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.TODO },
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redshift },
     name: 'Redshift PostgreSQL',
     keywords: awsKeywords + 'redshift postgresql',
     kind: ResourceKind.Database,
     Icon: icons.Redshift,
     unguidedLink: getDbAccessDocLink('postgres-redshift'),
+    event: DiscoverEventResource.DatabasePostgresRedshift,
   },
   {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.TODO },
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Redshift },
     name: 'Redshift Serverless',
-    keywords: awsKeywords + 'redshift serverless',
+    keywords: awsKeywords + 'redshift serverless postgresql',
     kind: ResourceKind.Database,
     Icon: icons.Redshift,
     unguidedLink: getDbAccessDocLink('redshift-serverless'),
+    event: DiscoverEventResource.DatabasePostgresRedshiftServerless,
   },
   {
-    dbMeta: { location: DatabaseLocation.Azure, engine: DatabaseEngine.TODO },
+    dbMeta: { location: DatabaseLocation.Azure, engine: DatabaseEngine.Redis },
     name: 'Cache for Redis',
     keywords: azureKeywords + 'cache redis',
     kind: ResourceKind.Database,
     Icon: icons.Azure,
     unguidedLink: getDbAccessDocLink('azure-redis'),
+    event: DiscoverEventResource.DatabaseRedisAzureCache,
   },
   {
-    dbMeta: { location: DatabaseLocation.Azure, engine: DatabaseEngine.TODO },
-    name: 'PostgreSQL & MySQL',
-    keywords: azureKeywords + 'postgresql mysql',
+    dbMeta: {
+      location: DatabaseLocation.Azure,
+      engine: DatabaseEngine.Postgres,
+    },
+    name: 'PostgreSQL',
+    keywords: azureKeywords + 'postgresql',
     kind: ResourceKind.Database,
     Icon: icons.Azure,
     unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
+    event: DiscoverEventResource.DatabasePostgresAzure,
   },
   {
-    dbMeta: { location: DatabaseLocation.Azure, engine: DatabaseEngine.TODO },
+    dbMeta: { location: DatabaseLocation.Azure, engine: DatabaseEngine.MySql },
+    name: 'MySQL',
+    keywords: azureKeywords + 'mysql',
+    kind: ResourceKind.Database,
+    Icon: icons.Azure,
+    unguidedLink: getDbAccessDocLink('azure-postgres-mysql'),
+    event: DiscoverEventResource.DatabaseMysqlAzure,
+  },
+  {
+    dbMeta: {
+      location: DatabaseLocation.Azure,
+      engine: DatabaseEngine.SqlServer,
+    },
     name: 'SQL Server (Preview)',
-    keywords: azureKeywords + 'active directory ad sql server preview',
+    keywords:
+      azureKeywords + 'active directory ad sql server sqlserver preview',
     kind: ResourceKind.Database,
     Icon: icons.Azure,
     unguidedLink: getDbAccessDocLink('azure-sql-server-ad'),
+    event: DiscoverEventResource.DatabaseSqlServerAzure,
   },
   {
-    dbMeta: { location: DatabaseLocation.GCP, engine: DatabaseEngine.TODO },
+    dbMeta: {
+      location: DatabaseLocation.Microsoft,
+      engine: DatabaseEngine.SqlServer,
+    },
+    name: 'SQL Server (Preview)',
+    keywords:
+      baseDatabaseKeywords +
+      'microsoft active directory ad sql server sqlserver preview',
+    kind: ResourceKind.Database,
+    Icon: icons.Windows,
+    unguidedLink: getDbAccessDocLink('sql-server-ad'),
+    event: DiscoverEventResource.DatabaseSqlServerMicrosoft,
+  },
+  {
+    dbMeta: { location: DatabaseLocation.Gcp, engine: DatabaseEngine.MySql },
     name: 'Cloud SQL MySQL',
     keywords: gcpKeywords + 'mysql',
     kind: ResourceKind.Database,
     Icon: icons.Gcp,
     unguidedLink: getDbAccessDocLink('mysql-cloudsql'),
+    event: DiscoverEventResource.DatabaseMysqlGcp,
   },
   {
-    dbMeta: { location: DatabaseLocation.GCP, engine: DatabaseEngine.TODO },
+    dbMeta: { location: DatabaseLocation.Gcp, engine: DatabaseEngine.Postgres },
     name: 'Cloud SQL PostgreSQL',
     keywords: gcpKeywords + 'postgresql',
     kind: ResourceKind.Database,
     Icon: icons.Gcp,
     unguidedLink: getDbAccessDocLink('postgres-cloudsql'),
+    event: DiscoverEventResource.DatabasePostgresGcp,
   },
   {
-    dbMeta: { location: DatabaseLocation.Mongo, engine: DatabaseEngine.TODO },
+    dbMeta: {
+      location: DatabaseLocation.TODO,
+      engine: DatabaseEngine.MongoDb,
+    },
     name: 'MongoDB Atlas',
     keywords: baseDatabaseKeywords + 'mongodb atlas',
     kind: ResourceKind.Database,
     Icon: icons.Mongo,
     unguidedLink: getDbAccessDocLink('mongodb-atlas'),
+    event: DiscoverEventResource.DatabaseMongodbAtlas,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.TODO,
+      engine: DatabaseEngine.Cassandra,
     },
     name: 'Cassandra & ScyllaDB',
     keywords: selfhostedKeywords + 'cassandra scylladb',
     kind: ResourceKind.Database,
     Icon: icons.SelfHosted,
     unguidedLink: getDbAccessDocLink('cassandra-self-hosted'),
+    event: DiscoverEventResource.DatabaseCassandraSelfHosted,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.TODO,
+      engine: DatabaseEngine.CoackroachDb,
     },
     name: 'CockroachDB',
     keywords: selfhostedKeywords + 'cockroachdb',
     kind: ResourceKind.Database,
     Icon: icons.Cockroach,
     unguidedLink: getDbAccessDocLink('cockroachdb-self-hosted'),
+    event: DiscoverEventResource.DatabaseCockroachDbSelfHosted,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.TODO,
+      engine: DatabaseEngine.ElasticSearch,
     },
     name: 'Elasticsearch',
     keywords: selfhostedKeywords + 'elasticsearch',
     kind: ResourceKind.Database,
     Icon: icons.SelfHosted,
     unguidedLink: getDbAccessDocLink('elastic'),
+    event: DiscoverEventResource.DatabaseElasticSearchSelfHosted,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.TODO,
+      engine: DatabaseEngine.MongoDb,
     },
     name: 'MongoDB',
     keywords: selfhostedKeywords + 'mongodb',
     kind: ResourceKind.Database,
     Icon: icons.Mongo,
     unguidedLink: getDbAccessDocLink('mongodb-self-hosted'),
+    event: DiscoverEventResource.DatabaseMongodbSelfHosted,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.TODO,
+      engine: DatabaseEngine.Redis,
     },
     name: 'Redis',
     keywords: selfhostedKeywords + 'redis',
     kind: ResourceKind.Database,
     Icon: icons.SelfHosted,
     unguidedLink: getDbAccessDocLink('redis'),
+    event: DiscoverEventResource.DatabaseRedisSelfHosted,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.TODO,
+      engine: DatabaseEngine.Redis,
     },
     name: 'Redis Cluster',
     keywords: selfhostedKeywords + 'redis cluster',
     kind: ResourceKind.Database,
     Icon: icons.SelfHosted,
     unguidedLink: getDbAccessDocLink('redis-cluster'),
+    event: DiscoverEventResource.DatabaseRedisClusterSelfHosted,
   },
   {
-    dbMeta: { location: DatabaseLocation.TODO, engine: DatabaseEngine.TODO },
+    dbMeta: {
+      location: DatabaseLocation.TODO,
+      engine: DatabaseEngine.Snowflake,
+    },
     name: 'Snowflake (Preview)',
     keywords: baseDatabaseKeywords + 'snowflake preview',
     kind: ResourceKind.Database,
     Icon: icons.Snowflake,
     unguidedLink: getDbAccessDocLink('snowflake'),
+    event: DiscoverEventResource.DatabaseSnowflake,
   },
 ];
 
 export const DATABASES: ResourceSpec[] = [
   {
     dbMeta: {
-      location: DatabaseLocation.AWS,
-      engine: DatabaseEngine.PostgreSQL,
+      location: DatabaseLocation.Aws,
+      engine: DatabaseEngine.Postgres,
     },
     name: 'RDS PostgreSQL',
     keywords: awsKeywords + 'rds postgresql',
     kind: ResourceKind.Database,
     Icon: icons.Aws,
+    event: DiscoverEventResource.DatabasePostgresRds,
   },
   {
-    dbMeta: { location: DatabaseLocation.AWS, engine: DatabaseEngine.MySQL },
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.MySql },
     name: 'RDS MySQL/MariaDB',
     keywords: awsKeywords + 'rds mysql mariadb',
     kind: ResourceKind.Database,
     Icon: icons.Aws,
+    event: DiscoverEventResource.DatabaseMysqlRds,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.PostgreSQL,
+      engine: DatabaseEngine.Postgres,
     },
     name: 'PostgreSQL',
     keywords: selfhostedKeywords + 'postgresql',
     kind: ResourceKind.Database,
     Icon: icons.Postgres,
+    event: DiscoverEventResource.DatabasePostgresSelfHosted,
   },
   {
     dbMeta: {
       location: DatabaseLocation.SelfHosted,
-      engine: DatabaseEngine.MySQL,
+      engine: DatabaseEngine.MySql,
     },
     name: 'MySQL/MariaDB',
     keywords: selfhostedKeywords + 'mysql mariadb',
     kind: ResourceKind.Database,
     Icon: icons.SelfHosted,
+    event: DiscoverEventResource.DatabaseMysqlSelfHosted,
   },
 ];
 
 export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
   switch (engine) {
-    case DatabaseEngine.PostgreSQL:
+    case DatabaseEngine.Postgres:
       return 'postgres';
-    case DatabaseEngine.MySQL:
+    case DatabaseEngine.MySql:
       return 'mysql';
   }
 
@@ -265,9 +312,9 @@ export function getDatabaseProtocol(engine: DatabaseEngine): DbProtocol {
 
 export function getDefaultDatabasePort(engine: DatabaseEngine): string {
   switch (engine) {
-    case DatabaseEngine.PostgreSQL:
+    case DatabaseEngine.Postgres:
       return '5432';
-    case DatabaseEngine.MySQL:
+    case DatabaseEngine.MySql:
       return '3306';
   }
   return '';
