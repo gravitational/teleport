@@ -770,7 +770,7 @@ steps:
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - cd $TeleportSrc/e/windows_authentication_package
+  - cd $TeleportSrc/e/windows_auth_package
   - make VERSION=$TeleportVersion  all
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
@@ -1067,7 +1067,7 @@ steps:
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - cd $TeleportSrc/e/windows_authentication_package
+  - cd $TeleportSrc/e/windows_auth_package
   - make VERSION=$TeleportVersion  all
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
@@ -19079,8 +19079,3 @@ volumes:
     medium: memory
 - name: awsconfig
   temp: {}
----
-kind: signature
-hmac: 7d2c3d9056c06be70ff50a0ea675ca5a89b8a149600258e219e1376840b560cf
-
-...
