@@ -1206,7 +1206,11 @@
         {
           "title": "How to Build an Access Request Plugin",
           "slug": "/api/access-plugin/"
-        }
+        },
+	{
+	    "title": "Automatically Register Teleport Agents",
+	    "slug": "/api/automatically-register-agents/"
+	}
       ]
     },
     {
