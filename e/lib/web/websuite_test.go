@@ -1,8 +1,12 @@
 package web
 
 import (
+	"bytes"
 	"context"
+	"encoding/base32"
+	"encoding/json"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
 	"os/user"
@@ -11,31 +15,38 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/jonboulle/clockwork"
+	"github.com/pquerna/otp/totp"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	eauth "github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 )
 
-// webSuite is a suite of components for testing SAML authentication. It has been
+// webSuite is a suite of components for testing enterprise web API endpoints. It has been
 // copied from teleport/lib/web/apiserver_test.go and stripped down to just what
 // is needed for the test cases in this package.
 type webSuite struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-
+	ctx            context.Context
+	cancel         context.CancelFunc
 	user           string
 	webServer      *httptest.Server
+	webServerURL   *url.URL
 	testAuthServer *auth.TestServer
 	proxyClient    *auth.Client
 	clock          clockwork.FakeClock
@@ -138,6 +149,10 @@ func newWebSuite(t *testing.T) *webSuite {
 	s.webServer.Config.Handler = handler
 	s.webServer.StartTLS()
 
+	serverURL, err := url.Parse("https://" + s.webServer.Listener.Addr().String())
+	require.NoError(t, err)
+	s.webServerURL = serverURL
+
 	t.Cleanup(func() {
 		s.cancel()
 		s.webServer.Close()
@@ -154,13 +169,140 @@ func (s *webSuite) clientNoRedirects(opts ...roundtrip.ClientParam) *client.WebC
 		return http.ErrUseLastResponse
 	}
 	opts = append(opts, roundtrip.HTTPClient(hclient))
-	u, err := url.Parse("https://" + s.webServer.Listener.Addr().String())
-	if err != nil {
-		panic(err)
-	}
-	wc, err := client.NewWebClient(u.String(), opts...)
+
+	wc, err := client.NewWebClient(s.webServerURL.String(), opts...)
 	if err != nil {
 		panic(err)
 	}
 	return wc
+}
+
+func (s *webSuite) newAdminAuthClient(ctx context.Context, t *testing.T) auth.ClientI {
+	tlsConfig, err := s.testAuthServer.TLS.ClientTLSConfig(auth.TestIdentity{
+		I: authz.BuiltinRole{
+			Role:     types.RoleAdmin,
+			Username: "authcli",
+		},
+	})
+	require.NoError(t, err)
+
+	sshConfig, err := s.testAuthServer.TLS.Identity.SSHClientConfig(false)
+	require.NoError(t, err)
+
+	authClientConfig := &authclient.Config{
+		TLS:                  tlsConfig,
+		SSH:                  sshConfig,
+		AuthServers:          []utils.NetAddr{utils.FromAddr(s.testAuthServer.TLS.Addr())},
+		Log:                  logrus.StandardLogger(),
+		CircuitBreakerConfig: breaker.Config{},
+	}
+
+	client, err := authclient.Connect(ctx, authClientConfig)
+	require.NoError(t, err)
+
+	return client
+}
+
+type authWebPack struct {
+	clt *TestWebClient
+}
+
+// newAuthWebPack creates new user and returns authenticated http client for that user.
+func (s *webSuite) newAuthWebPack(t *testing.T, user string) *authWebPack {
+	// login is the login principal for websuite (equivalent to OS user).
+	login := s.user
+	pass := "abc123"
+	rawOTPSecret := "def456"
+	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawOTPSecret))
+
+	s.createUser(t, user, login, pass, otpSecret)
+
+	validToken, err := totp.GenerateCode(otpSecret, s.clock.Now())
+	require.NoError(t, err)
+
+	clt := s.client(t)
+
+	csrfToken := "2ebcb768d0090ea4368e42880c970b61865c326172a4a2343b645cf5d7f20992"
+	rawSess, err := s.login(clt, csrfToken, web.CreateSessionReq{
+		User:              user,
+		Pass:              pass,
+		SecondFactorToken: validToken,
+	})
+	require.NoError(t, err)
+
+	var session *web.CreateSessionResponse
+	require.NoError(t, json.Unmarshal(rawSess.Bytes(), &session))
+
+	jar, err := cookiejar.New(nil)
+	require.NoError(t, err)
+
+	jar.SetCookies(s.webServerURL, rawSess.Cookies())
+	clt = s.client(t, roundtrip.BearerAuth(session.Token), roundtrip.CookieJar(jar))
+
+	return &authWebPack{
+		clt: clt,
+	}
+}
+
+type TestWebClient struct {
+	*client.WebClient
+}
+
+func (s *webSuite) createUser(t *testing.T, user string, login string, pass string, otpSecret string) {
+	teleUser, err := types.NewUser(user)
+	require.NoError(t, err)
+
+	role := services.NewPresetEditorRole()
+	role.SetLogins(types.Allow, []string{login})
+
+	err = s.testAuthServer.Auth().UpsertRole(s.ctx, role)
+	require.NoError(t, err)
+
+	teleUser.AddRole(role.GetName())
+	teleUser.SetCreatedBy(types.CreatedBy{
+		User: types.UserRef{Name: "some-auth-user"},
+	})
+
+	err = s.testAuthServer.Auth().CreateUser(s.ctx, teleUser)
+	require.NoError(t, err)
+
+	err = s.testAuthServer.Auth().UpsertPassword(user, []byte(pass))
+	require.NoError(t, err)
+
+	if otpSecret != "" {
+		dev, err := services.NewTOTPDevice("otp", otpSecret, s.clock.Now())
+		require.NoError(t, err)
+		err = s.testAuthServer.Auth().UpsertMFADevice(context.Background(), user, dev)
+		require.NoError(t, err)
+	}
+}
+
+func (s *webSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
+	opts = append(opts, roundtrip.HTTPClient(client.NewInsecureWebClient()))
+	wc, err := client.NewWebClient(s.webServerURL.String(), opts...)
+	require.NoError(t, err)
+
+	return &TestWebClient{wc}
+}
+
+func (s *webSuite) login(clt *TestWebClient, csrfToken string, reqData web.CreateSessionReq) (*roundtrip.Response, error) {
+	return httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		data, err := json.Marshal(reqData)
+		if err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequest("POST", clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
+		if err != nil {
+			return nil, err
+		}
+
+		req.AddCookie(&http.Cookie{
+			Name:  csrf.CookieName,
+			Value: csrfToken,
+		})
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(csrf.HeaderName, csrfToken)
+		return clt.HTTPClient().Do(req)
+	}))
 }
