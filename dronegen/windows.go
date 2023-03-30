@@ -280,19 +280,6 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 	}
 }
 
-func fixWindwresName() step {
-	return step{
-		Name: "Link x86_64-w64-mingw32-windres to windres",
-		Commands: []string{
-			`$ErrorActionPreference = 'Stop'`,
-			`$windres_bin = Join-Path "C:\mingw64\bin" windres.exe`,
-			`$link_path = Join-Path "C:\mingw64\bin" x86_64-w64-mingw32-windres.exe`,
-			`echo "Creating link $windres_bin -> $link_path"`,
-			`New-Item -ItemType HardLink -Path $link_path -Value $windres_bin -Force | Out-Null`,
-		},
-	}
-}
-
 func buildWindowsAuthenticationPackageStep(workspace string) step {
 	return step{
 		Name: "Build Windows Authentication Package",

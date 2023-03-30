@@ -958,13 +958,6 @@ depends_on:
 concurrency:
   limit: 1
 steps:
-- name: Link x86_64-w64-mingw32-windres to windres
-  commands:
-  - $ErrorActionPreference = 'Stop'
-  - $windres_bin = Join-Path "C:\mingw64\bin" windres.exe
-  - $link_path = Join-Path "C:\mingw64\bin" x86_64-w64-mingw32-windres.exe
-  - echo "Creating link $windres_bin -> $link_path"
-  - New-Item -ItemType HardLink -Path $link_path -Value $windres_bin -Force | Out-Null
 - name: Check out Teleport
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -19088,6 +19081,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 47838fc19ea489c300c02c559f3f42e97b2efc88d3cd6a4aa234ae7d4efb1754
+hmac: 586aba3f580564481d224d22d3fc8d65f62daa018323e89d7a30a24b3ab99040
 
 ...
