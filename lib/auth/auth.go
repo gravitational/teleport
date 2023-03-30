@@ -4188,7 +4188,7 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 // Fetching them ahead of time may cause some unnecessary queries, so the converted is
 // responsible for calling those methods as needed.
 type userMetadataGetter struct {
-	userGetter *Server
+	userGetter *services.UserGetter
 }
 
 // GetUsername returns the username of a remote HTTP client making the call.
