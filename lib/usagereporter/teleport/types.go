@@ -17,8 +17,6 @@ limitations under the License.
 package usagereporter
 
 import (
-	"context"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -418,7 +416,7 @@ type UserMetadata struct {
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
-func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf, userMD UserMetadata) (Anonymizable, error) {
+func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata) (Anonymizable, error) {
 	// Note: events (especially pre-registration) that embed a username of their
 	// own should generally pass that through rather than using the identity
 	// username provided to the function. It may be the username of a Teleport

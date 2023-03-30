@@ -15,7 +15,6 @@
 package usagereporter
 
 import (
-	"context"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -29,8 +28,6 @@ import (
 func TestConvertUsageEvent(t *testing.T) {
 	anonymizer, err := utils.NewHMACAnonymizer("cluster-id")
 	require.NoError(t, err)
-
-	ctx := context.Background()
 
 	expectedAnonymizedUserString := anonymizer.AnonymizeString("myuser")
 
@@ -223,7 +220,7 @@ func TestConvertUsageEvent(t *testing.T) {
 				Username: tt.identityUsername,
 				IsSSO:    tt.isSSOUser,
 			}
-			usageEvent, err := ConvertUsageEvent(ctx, tt.event, userMD)
+			usageEvent, err := ConvertUsageEvent(tt.event, userMD)
 			tt.errCheck(t, err)
 			if err != nil {
 				return
