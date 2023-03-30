@@ -2,9 +2,6 @@ name: Unit Tests UI
 run-name: Unit Tests UI - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths:
       - 'web/**'
