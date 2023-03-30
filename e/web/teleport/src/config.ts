@@ -1,5 +1,8 @@
 import { generatePath } from 'react-router';
-import ossCfg from 'teleport/config';
+
+import ossCfg, { UrlResourcesParams } from 'teleport/config';
+
+import generateResourcePath from 'teleport/generateResourcePath';
 
 import { AccessRequestFilter, ResourceId } from 'e-teleport/services/workflow';
 
@@ -32,6 +35,9 @@ const cfg = {
     // allow SAML IdP handlers
     samlIdPHandler: '/enterprise/saml-idp/*',
 
+    // device trust
+    deviceTrust: `/web/devices`,
+
     integrations: '/web/integrations',
     integrationEnroll: '/web/integrations/new',
   },
@@ -63,6 +69,14 @@ const cfg = {
     license: '/v1/enterprise/license',
 
     pluginPath: '/v1/enterprise/plugin/:name?',
+
+    // TODO(sshah): limit, startKey and search is supported by this API but currently
+    // only limit and startKey based pagination is implemented in the UI.
+    devices: '/v1/enterprise/devices?limit=:limit?&startKey=:startKey?',
+  },
+
+  getTrustedDevicesUrl(params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.devices, { ...params });
   },
 
   getAccessRequestRoute(requestId?: string) {

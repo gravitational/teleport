@@ -6,6 +6,8 @@ import StoreAccessRequests from 'e-teleport/stores/storeAccessRequests';
 import CloudService from 'e-teleport/services/cloud';
 import RecoveryService from 'e-teleport/services/recovery';
 
+import { deviceService } from 'e-teleport/services/devices';
+
 import { downloadsService } from './services/downloads';
 import { pluginsService } from './services/plugins';
 
@@ -20,6 +22,7 @@ class TeleportEContext extends TeleportContext {
   upgradeWindowService = upgradeWindowService;
   downloadsService = downloadsService;
   pluginsService = pluginsService;
+  deviceService = deviceService;
 }
 
 export default TeleportEContext;

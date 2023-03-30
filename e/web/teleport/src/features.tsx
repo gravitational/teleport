@@ -4,15 +4,16 @@ import * as Icons from 'design/Icon';
 import * as OSS from 'teleport/features';
 
 import {
-  ManagementSection,
   NavigationCategory,
+  ManagementSection,
 } from 'teleport/Navigation/categories';
 
 import {
   AccessRequestsIcon,
   DownloadsIcon,
-  IntegrationsIcon,
   SupportIcon,
+  DevicesIcon,
+  IntegrationsIcon,
 } from 'design/SVGIcon';
 
 import cfg from 'e-teleport/config';
@@ -36,6 +37,10 @@ const Plugins = React.lazy(
 );
 const SupportE = React.lazy(
   () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
+);
+
+const DeviceTrust = React.lazy(
+  () => import(/* webpackChunkName: "e-devices" */ 'e-teleport/DeviceTrust')
 );
 
 // ****************************
@@ -159,6 +164,29 @@ class FeatureAuthConnectors extends OSS.FeatureAuthConnectors {
   };
 }
 
+class FeatureDeviceTrust implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+  route = {
+    title: 'Manage Trusted Devices',
+    path: cfg.routes.deviceTrust,
+    exact: true,
+    component: DeviceTrust,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.deviceTrust;
+  }
+
+  navigationItem = {
+    title: 'Trusted Devices',
+    icon: <DevicesIcon />,
+    exact: true,
+    getLink() {
+      return cfg.routes.deviceTrust;
+    },
+  };
+}
 class FeatureIntegrations implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
@@ -226,6 +254,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // - Access
     new OSS.FeatureUsers(),
     new OSS.FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new OSS.FeatureDiscover(),
