@@ -288,7 +288,6 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
-			`Install-MinGW -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`cd $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
 			`cd $TeleportSrc/e/windows_authentication_package`,
