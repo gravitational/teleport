@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -1053,11 +1052,11 @@ type deviceCollection struct {
 }
 
 func (c *deviceCollection) resources() []types.Resource {
-	r := make([]types.Resource, len(c.devices))
-	for i, resource := range c.devices {
-		r[i] = device.ProtoToResource(resource)
+	resources := make([]types.Resource, len(c.devices))
+	for i, dev := range c.devices {
+		resources[i] = types.DeviceToResource(dev)
 	}
-	return r
+	return resources
 }
 
 func (c *deviceCollection) writeText(w io.Writer) error {

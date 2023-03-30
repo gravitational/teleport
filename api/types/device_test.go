@@ -12,83 +12,80 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package device
+package types
 
 import (
-	"strings"
 	"testing"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/stretchr/testify/require"
-	kyaml "k8s.io/apimachinery/pkg/util/yaml"
-
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestUnmarshalDevice tests that devices can be successfully
 // unmarshalled from YAML and JSON.
 func TestUnmarshalDevice(t *testing.T) {
-	t.Parallel()
 	for _, tc := range []struct {
 		desc          string
 		input         string
 		errorContains string
-		expected      *devicepb.Device
+		expected      *DeviceV1
 	}{
 		{
 			desc: "success",
-			input: `---
-kind: device
-version: v1
-metadata:
-  name: xaa
-spec:
-  asset_tag: mymachine
-  os_type: macos
-  enroll_status: enrolled
-`,
-			expected: &devicepb.Device{
-				Id:            "xaa",
-				AssetTag:      "mymachine",
-				OsType:        devicepb.OSType_OS_TYPE_MACOS,
-				ApiVersion:    "v1",
-				EnrollStatus:  devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-				CollectedData: []*devicepb.DeviceCollectedData{},
+			input: `
+{
+  "kind": "device",
+	"version": "v1",
+	"metadata": {
+		"name": "xaa"
+	},
+	"spec": {
+		"asset_tag": "mymachine",
+		"os_type": "macos",
+		"enroll_status": "enrolled"
+	}
+}`,
+			expected: &DeviceV1{
+				ResourceHeader: ResourceHeader{
+					Kind:    KindDevice,
+					Version: "v1",
+					Metadata: Metadata{
+						Namespace: defaults.Namespace,
+						Name:      "xaa",
+					},
+				},
+				Spec: &DeviceSpec{
+					OsType:       "macos",
+					AssetTag:     "mymachine",
+					EnrollStatus: "enrolled",
+				},
 			},
 		},
 		{
 			desc:          "fail string as num",
-			errorContains: `ReadString: expects " or n`,
-			input: `---
-kind: device
-version: v1
-metadata:
-  name: secretid
-spec:
-  asset_tag: 4
-  os_type: macos
-  enroll_status: enrolled
-`,
+			errorContains: `cannot unmarshal number`,
+			input: `
+{
+  "kind": "device",
+	"version": "v1",
+	"metadata": {
+		"name": "secretid"
+	},
+	"spec": {
+		"asset_tag": 4,
+		"os_type": "macos",
+		"enroll_status": "enrolled"
+	}
+}`,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			// Mimic tctl resource command by using the same decoder and
-			// initially unmarshalling into services.UnknownResource
-			reader := strings.NewReader(tc.input)
-			decoder := kyaml.NewYAMLOrJSONDecoder(reader, defaults.LookaheadBufSize)
-			var raw services.UnknownResource
-			err := decoder.Decode(&raw)
-			require.NoError(t, err)
-			require.Equal(t, "device", raw.Kind)
-
-			out, err := UnmarshalDevice(raw.Raw)
+			out, err := UnmarshalDevice([]byte(tc.input))
 			if tc.errorContains != "" {
 				require.ErrorContains(t, err, tc.errorContains, "error from UnmarshalDevice does not contain the expected string")
 				return
 			}
 			require.NoError(t, err, "UnmarshalDevice returned unexpected error")
-
 			require.Equal(t, tc.expected, out, "unmarshalled device  does not match what was expected")
 		})
 	}
