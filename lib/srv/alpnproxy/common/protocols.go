@@ -136,6 +136,12 @@ func ProtocolsToString(protocols []Protocol) []string {
 	return out
 }
 
+// NextProtosWithPing adds Ping protocols to provided list of ALPN protocols
+// then converts them to a list of strings for tls.Config.NextProtos.
+func NextProtosWithPing(protocols ...Protocol) []string {
+	return ProtocolsToString(WithPingProtocols(protocols))
+}
+
 // ToALPNProtocol maps provided database protocol to ALPN protocol.
 func ToALPNProtocol(dbProtocol string) (Protocol, error) {
 	switch dbProtocol {

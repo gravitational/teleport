@@ -27,16 +27,16 @@ func TestWithPingProtocols(t *testing.T) {
 		[]Protocol{
 			"teleport-tcp-ping",
 			"teleport-redis-ping",
-			"teleport-reversetunnel",
+			"teleport-auth@",
 			"teleport-tcp",
 			"teleport-redis",
 			"h2",
 		},
 		WithPingProtocols([]Protocol{
-			ProtocolReverseTunnel,
+			ProtocolAuth,
 			ProtocolTCP,
 			ProtocolRedisDB,
-			ProtocolReverseTunnel,
+			ProtocolAuth,
 			ProtocolHTTP2,
 		}),
 	)
@@ -47,4 +47,22 @@ func TestIsDBTLSProtocol(t *testing.T) {
 	require.True(t, IsDBTLSProtocol("teleport-redis-ping"))
 	require.False(t, IsDBTLSProtocol("teleport-tcp"))
 	require.False(t, IsDBTLSProtocol(""))
+}
+
+func BenchmarkNextProtosWithPing(b *testing.B) {
+	b.Run("one with ping support", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			NextProtosWithPing(ProtocolReverseTunnel)
+		}
+	})
+	b.Run("one without ping support", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			NextProtosWithPing(ProtocolHTTP)
+		}
+	})
+	b.Run("five", func(b *testing.B) {
+		for n := 0; n < b.N; n++ {
+			NextProtosWithPing(ProtocolAuth, ProtocolTCP, ProtocolRedisDB, ProtocolAuth, ProtocolHTTP2)
+		}
+	})
 }

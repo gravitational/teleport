@@ -330,9 +330,7 @@ type (
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout,
-		WithTLSConfig(&tls.Config{
-			InsecureSkipVerify: params.tlsConfig.InsecureSkipVerify,
-		}),
+		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
 		WithALPNConnUpgrade(IsWebProxyAndConnUpgradeRequired(ctx, params.addr, &params.cfg)),
 	)
 
@@ -343,10 +341,16 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
-// TODO
+// IsWebProxyAndConnUpgradeRequired returns if targetAddr is a Teleport web
+// proxy address and ALPN connection upgrade is required for it. If no cluster
+// name is provided for ALPN, assume dialer is not trying to connect Auth
+// through Proxy using TLS routing.
 func IsWebProxyAndConnUpgradeRequired(ctx context.Context, targetAddr string, cfg *Config) bool {
-	return isWebProxy(ctx, targetAddr, cfg) && cfg.IsALPNConnUpgradeRequired(targetAddr, cfg.InsecureAddressDiscovery)
+	return cfg.ALPNSNIAuthDialClusterName != "" &&
+		isWebProxy(ctx, targetAddr, cfg) &&
+		cfg.IsALPNConnUpgradeRequired(targetAddr, cfg.InsecureAddressDiscovery)
 }
+
 func isWebProxy(ctx context.Context, targetAddr string, cfg *Config) bool {
 	if cfg.WebProxyAddr != "" && cfg.WebProxyAddr == targetAddr {
 		return true
@@ -518,7 +522,9 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 type Config struct {
 	// Addrs is a list of teleport auth/proxy server addresses to dial.
 	Addrs []string
-	// WebProxyAddr is the Teleport Proxy web address.
+	// WebProxyAddr is the Teleport Proxy web address. If not provided, extra
+	// webapi pings may be required to find out if Addrs are web proxy
+	// addresses.
 	WebProxyAddr string
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
@@ -590,11 +596,9 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.IsALPNConnUpgradeRequired == nil {
 		c.IsALPNConnUpgradeRequired = IsALPNConnUpgradeRequired
 	}
-
 	if c.WebProxyAddr != "" {
 		c.Addrs = utils.Deduplicate(append(c.Addrs, c.WebProxyAddr))
 	}
-
 	return nil
 }
 

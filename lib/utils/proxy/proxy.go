@@ -27,7 +27,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
@@ -78,7 +77,7 @@ type Dialer interface {
 
 type directDial struct {
 	// alpnDialer is the dialer used for TLS routing.
-	alpnDialer client.ContextDialer
+	alpnDialer apiclient.ContextDialer
 }
 
 // Dial calls ssh.Dial directly.
@@ -99,11 +98,13 @@ func (d directDial) Dial(ctx context.Context, network string, addr string, confi
 
 // DialTimeout acts like Dial but takes a timeout.
 func (d directDial) DialTimeout(ctx context.Context, network, address string, timeout time.Duration) (net.Conn, error) {
-	dialer := d.alpnDialer
-	if dialer == nil {
-		dialer = &net.Dialer{
-			Timeout: timeout,
-		}
+	if d.alpnDialer != nil {
+		conn, err := d.alpnDialer.DialContext(ctx, network, address)
+		return conn, trace.Wrap(err)
+	}
+
+	dialer := &net.Dialer{
+		Timeout: timeout,
 	}
 
 	conn, err := dialer.DialContext(ctx, network, address)
@@ -116,8 +117,10 @@ func (d directDial) DialTimeout(ctx context.Context, network, address string, ti
 type proxyDial struct {
 	// proxyHost is the HTTPS proxy address.
 	proxyURL *url.URL
+	// insecure is whether to skip certificate validation.
+	insecure bool
 	// alpnDialer is the dialer used for TLS routing.
-	alpnDialer client.ContextDialer
+	alpnDialer apiclient.ContextDialer
 }
 
 // DialTimeout acts like Dial but takes a timeout.
@@ -128,12 +131,14 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 		defer cancel()
 		ctx = timeoutCtx
 	}
+
+	// ALPN dialer handles proxy URL internally.
 	if d.alpnDialer != nil {
 		tlsConn, err := d.alpnDialer.DialContext(ctx, network, address)
 		return tlsConn, trace.Wrap(err)
 	}
 
-	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address)
+	conn, err := apiclient.DialProxy(ctx, d.proxyURL, address, apiclient.WithInsecureSkipVerify(d.insecure))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -144,13 +149,7 @@ func (d proxyDial) DialTimeout(ctx context.Context, network, address string, tim
 // SSH connection.
 func (d proxyDial) Dial(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 	// Build a proxy connection first.
-	var pconn net.Conn
-	var err error
-	if d.alpnDialer != nil {
-		pconn, err = d.alpnDialer.DialContext(ctx, network, addr)
-	} else {
-		pconn, err = apiclient.DialProxy(ctx, d.proxyURL, addr)
-	}
+	pconn, err := d.DialTimeout(ctx, network, addr, config.Timeout)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -178,16 +177,23 @@ type dialerOptions struct {
 	// insecureSkipTLSVerify is whether to skip certificate validation.
 	insecureSkipTLSVerify bool
 	// alpnDialer is the dialer used for TLS routing.
-	alpnDialer client.ContextDialer
+	alpnDialer apiclient.ContextDialer
 }
 
 // DialerOptionFunc allows setting options as functional arguments to DialerFromEnvironment
 type DialerOptionFunc func(options *dialerOptions)
 
 // WithALPNDialer creates a dialer that allows to Teleport running in single-port mode.
-func WithALPNDialer(alpnDialerConfig client.ALPNDialerConfig) DialerOptionFunc {
+func WithALPNDialer(alpnDialerConfig apiclient.ALPNDialerConfig) DialerOptionFunc {
 	return func(options *dialerOptions) {
-		options.alpnDialer = client.NewALPNDialer(alpnDialerConfig)
+		options.alpnDialer = apiclient.NewALPNDialer(alpnDialerConfig)
+	}
+}
+
+// WithInsecureSkipTLSVerify skips the certs verifications.
+func WithInsecureSkipTLSVerify(insecure bool) DialerOptionFunc {
+	return func(options *dialerOptions) {
+		options.insecureSkipTLSVerify = insecure
 	}
 }
 
@@ -215,6 +221,7 @@ func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	log.Debugf("Found proxy %q in environment, returning proxy dialer.", proxyURL)
 	return proxyDial{
 		proxyURL:   proxyURL,
+		insecure:   options.insecureSkipTLSVerify,
 		alpnDialer: options.alpnDialer,
 	}
 }

@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"strings"
 	"time"
@@ -31,6 +32,17 @@ import (
 	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
+// GetClusterCAsFunc is a function to fetch cluster CAs.
+type GetClusterCAsFunc func(ctx context.Context) (*x509.CertPool, error)
+
+// ClusterCAsFromCertPool returns a GetClusterCAsFunc with provided static cert
+// pool.
+func ClusterCAsFromCertPool(cas *x509.CertPool) GetClusterCAsFunc {
+	return func(_ context.Context) (*x509.CertPool, error) {
+		return cas, nil
+	}
+}
+
 // ALPNDialerConfig is the config for ALPNDialer.
 type ALPNDialerConfig struct {
 	// KeepAlivePeriod defines period between keep alives.
@@ -41,13 +53,17 @@ type ALPNDialerConfig struct {
 	TLSConfig *tls.Config
 	// ALPNConnUpgradeRequired specifies if ALPN connection upgrade is required.
 	ALPNConnUpgradeRequired bool
+	// GetClusterCAs is an optional callback function to fetch cluster
+	// CAs when connection upgrade is required. If not provided, it's assumed
+	// the proper CAs are already present in TLSConfig.
+	GetClusterCAs GetClusterCAsFunc
 }
 
 // ALPNDialer is a ContextDialer that dials a connection to the Proxy Service
 // with ALPN and SNI configured in the provided TLSConfig. An ALPN connection
 // upgrade is also performed at the initial connection, if an upgrade is
-// required. If the negotiated protocol is a ping protocol, it will return the
-// de-multiplexed connection without the ping.
+// required. If the negotiated protocol is a Ping protocol, it will return the
+// de-multiplexed connection without the Ping.
 type ALPNDialer struct {
 	cfg ALPNDialerConfig
 }
@@ -59,36 +75,54 @@ func NewALPNDialer(cfg ALPNDialerConfig) ContextDialer {
 	}
 }
 
-func (d *ALPNDialer) getTLSConfig(addr string) (*tls.Config, error) {
+func (d *ALPNDialer) shouldUpdateTLSConfig() bool {
+	switch {
+	case d.cfg.TLSConfig.ServerName == "":
+		return true
+	case d.cfg.ALPNConnUpgradeRequired && d.cfg.TLSConfig.RootCAs == nil && d.cfg.GetClusterCAs != nil:
+		return true
+	default:
+		return false
+	}
+}
+
+func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config, error) {
 	if d.cfg.TLSConfig == nil {
 		return nil, trace.BadParameter("missing TLS config")
 	}
-	if d.cfg.TLSConfig.ServerName != "" {
+
+	if !d.shouldUpdateTLSConfig() {
 		return d.cfg.TLSConfig, nil
 	}
 
 	tlsConfig := d.cfg.TLSConfig.Clone()
-	host, _, err := webclient.ParseHostPort(addr)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if d.cfg.ALPNConnUpgradeRequired && d.cfg.TLSConfig.RootCAs == nil && d.cfg.GetClusterCAs != nil {
+		rootCAs, err := d.cfg.GetClusterCAs(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig.RootCAs = rootCAs
 	}
-	tlsConfig.ServerName = host
+
+	if d.cfg.TLSConfig.ServerName == "" {
+		host, _, err := webclient.ParseHostPort(addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		tlsConfig.ServerName = host
+	}
 	return tlsConfig, nil
 }
 
 // DialContext implements ContextDialer.
 func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	tlsConfig, err := d.getTLSConfig(addr)
+	tlsConfig, err := d.getTLSConfig(ctx, addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfigForDialer := &tls.Config{
-		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
-	}
-
 	dialer := NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout,
-		WithTLSConfig(tlsConfigForDialer),
+		WithInsecureSkipVerify(d.cfg.TLSConfig.InsecureSkipVerify),
 		WithALPNConnUpgrade(d.cfg.ALPNConnUpgradeRequired),
 	)
 

@@ -87,7 +87,9 @@ type TunnelAuthDialer struct {
 // DialContext dials auth server via SSH tunnel
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
-	opts := []proxy.DialerOptionFunc{}
+	opts := []proxy.DialerOptionFunc{
+		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
+	}
 
 	addr, mode, err := t.Resolver(ctx)
 	if err != nil {
@@ -96,23 +98,14 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	}
 
 	if mode == types.ProxyListenerMode_Multiplex {
-		tlsConfig := &tls.Config{
-			NextProtos: []string{
-				string(alpncommon.ProtocolWithPing(alpncommon.ProtocolReverseTunnel)),
-				string(alpncommon.ProtocolReverseTunnel),
-			},
-			InsecureSkipVerify: t.InsecureSkipTLSVerify,
-		}
-
-		alpnConnUpgradeRequired := client.IsALPNConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify)
-		if alpnConnUpgradeRequired {
-			tlsConfig.RootCAs = t.ClusterCAs
-		}
-
 		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
-			TLSConfig:               tlsConfig,
-			ALPNConnUpgradeRequired: alpnConnUpgradeRequired,
+			TLSConfig: &tls.Config{
+				NextProtos:         alpncommon.NextProtosWithPing(alpncommon.ProtocolReverseTunnel),
+				InsecureSkipVerify: t.InsecureSkipTLSVerify,
+			},
 			DialTimeout:             t.ClientConfig.Timeout,
+			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify),
+			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
 		}))
 	}
 

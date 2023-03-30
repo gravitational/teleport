@@ -242,11 +242,8 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 
 		dialer = client.NewALPNDialer(client.ALPNDialerConfig{
 			TLSConfig: &tls.Config{
-				RootCAs: pool,
-				NextProtos: []string{
-					string(alpncommon.ProtocolWithPing(alpncommon.ProtocolProxySSH)),
-					string(alpncommon.ProtocolProxySSH),
-				},
+				RootCAs:            pool,
+				NextProtos:         alpncommon.NextProtosWithPing(alpncommon.ProtocolProxySSH),
 				InsecureSkipVerify: tc.InsecureSkipVerify,
 				ServerName:         sp.proxyHost,
 			},
@@ -254,9 +251,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 		})
 
 	default:
-		dialer = client.NewDialer(ctx, apidefaults.DefaultIOTimeout, apidefaults.DefaultIdleTimeout, client.WithTLSConfig(&tls.Config{
-			InsecureSkipVerify: tc.InsecureSkipVerify,
-		}))
+		dialer = client.NewDialer(ctx, apidefaults.DefaultIOTimeout, apidefaults.DefaultIdleTimeout, client.WithInsecureSkipVerify(tc.InsecureSkipVerify))
 	}
 
 	conn, err := dialer.DialContext(ctx, "tcp", remoteProxyAddr)

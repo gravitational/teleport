@@ -19,6 +19,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net"
 	"net/url"
 	"time"
@@ -112,19 +113,6 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 	})
 }
 
-func isAddrWebProxy(ctx context.Context, targetAddr, knownWebProxyAddr string, insecure bool) bool {
-	if knownWebProxyAddr != "" && targetAddr == knownWebProxyAddr {
-		return true
-	}
-
-	_, err := webclient.Find(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: targetAddr,
-		Insecure:  insecure,
-	})
-	return err == nil
-}
-
 // NewProxyDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
 // The dialer will ping the web client to discover the tunnel proxy address on each dial.
 func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool, opts ...DialProxyOption) ContextDialer {
@@ -176,11 +164,7 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		insecure := params.cfg.InsecureAddressDiscovery
-		resp, err := webclient.Find(&webclient.Config{
-			Context:   ctx,
-			ProxyAddr: params.addr,
-			Insecure:  insecure,
-		})
+		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: params.addr, Insecure: insecure})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -198,11 +182,9 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		tlsConn, err := DialALPN(ctx, tunnelAddr, ALPNDialerConfig{
-			ALPNConnUpgradeRequired: params.cfg.IsALPNConnUpgradeRequired(tunnelAddr, insecure),
-			DialTimeout:             params.cfg.DialTimeout,
-			KeepAlivePeriod:         params.cfg.KeepAlivePeriod,
+			DialTimeout:     params.cfg.DialTimeout,
+			KeepAlivePeriod: params.cfg.KeepAlivePeriod,
 			TLSConfig: &tls.Config{
 				NextProtos: []string{
 					constants.ALPNSNIProtocolReverseTunnel + constants.ALPNSNIProtocolPingSuffix,
@@ -210,6 +192,17 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 				},
 				InsecureSkipVerify: insecure,
 				ServerName:         host,
+			},
+			ALPNConnUpgradeRequired: params.cfg.IsALPNConnUpgradeRequired(tunnelAddr, insecure),
+			GetClusterCAs: func(_ context.Context) (*x509.CertPool, error) {
+				if len(params.cfg.Credentials) == 0 {
+					return nil, trace.BadParameter("no credentials")
+				}
+				tlsConfig, err := params.cfg.Credentials[0].TLSConfig()
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return tlsConfig.RootCAs, nil
 			},
 		})
 		if err != nil {

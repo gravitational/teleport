@@ -45,7 +45,16 @@ func WithTLSConfig(tlsConfig *tls.Config) DialProxyOption {
 	}
 }
 
-// TODO
+// WithInsecureSkipVerify specifies if dialing insecure when using an HTTPS proxy.
+func WithInsecureSkipVerify(insecure bool) DialProxyOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.tlsConfig = &tls.Config{
+			InsecureSkipVerify: insecure,
+		}
+	}
+}
+
+// WithALPNConnUpgrade specifies if ALPN connection upgrade is required.
 func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialProxyOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.alpnConnUpgradeRequired = alpnConnUpgradeRequired
