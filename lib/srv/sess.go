@@ -389,14 +389,6 @@ func (s *SessionRegistry) isApprovedFileTransfer(ctx context.Context, scx *Serve
 	return sess.checkIfFileTransferApproved(fileTransferRequest)
 }
 
-// NotifyFileTransferRequest is called to notify all members in the party that
-// a file transfer request has been created and is awaiting approval. It will not
-// be sent to the originating requester's channel.
-func (s *SessionRegistry) NotifyFileTransferRequest(ctx context.Context, params rsession.FileTransferParams, scx *ServerContext) {
-	s.sessionsMux.Lock()
-
-}
-
 // NotifyWinChange is called to notify all members in the party that the PTY
 // size has changed. The notification is sent as a global SSH request and it
 // is the responsibility of the client to update it's window size upon receipt.
