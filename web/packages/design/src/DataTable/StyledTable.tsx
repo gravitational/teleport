@@ -23,7 +23,7 @@ import Icon from '../Icon';
 
 export const StyledTable = styled.table(
   props => `
-  background: ${props.theme.colors.primary.light};
+  background: ${props.theme.colors.levels.surface};
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   border-collapse: collapse;
   border-spacing: 0;
@@ -52,8 +52,8 @@ export const StyledTable = styled.table(
   }
 
   & > thead > tr > th {
-    background: ${props.theme.colors.primary.dark};
-    color: ${props.theme.colors.primary.contrastText};
+    background: ${props.theme.colors.levels.sunkenSecondary};
+    color: ${props.theme.colors.text.contrast};
     cursor: pointer;
     font-size: 10px;
     font-weight: 400;
@@ -77,11 +77,11 @@ export const StyledTable = styled.table(
   }
 
   tbody tr {
-    border-bottom: 1px solid ${props.theme.colors.primary.main};
+    border-bottom: 1px solid ${props.theme.colors.levels.surfaceSecondary};
   }
 
   tbody tr:hover {
-    background-color: ${darken(props.theme.colors.primary.lighter, 0.14)};
+    background-color: ${darken(props.theme.colors.levels.elevated, 0.14)};
   }
 
   `,
@@ -96,13 +96,13 @@ export const StyledPanel = styled.nav`
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
   ${borderRadius}
 `;
 
 export const StyledEmptyIndicator = styled.div(
   props => `
-  background: ${props.theme.colors.primary.main};
+  background: ${props.theme.colors.levels.surfaceSecondary};
   border-radius: 4px;
   box-sizing: border-box;
   margin: 48px auto;

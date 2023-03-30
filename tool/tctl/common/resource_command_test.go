@@ -37,11 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
+	caCertFilePath := filepath.Join(t.TempDir(), "ca-cert.pem")
+	require.NoError(t, os.WriteFile(caCertFilePath, []byte(fixtures.TLSCACertPEM), 0644))
 
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -63,6 +66,11 @@ func TestDatabaseServerResource(t *testing.T) {
 					Description: "Example2 MySQL",
 					Protocol:    "mysql",
 					URI:         "localhost:33307",
+					TLS: config.DatabaseTLS{
+						Mode:       "verify-ca",
+						ServerName: "db.example.com",
+						CACertFile: caCertFilePath,
+					},
 				},
 			},
 		},
@@ -81,41 +89,56 @@ func TestDatabaseServerResource(t *testing.T) {
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	wantDB, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "example2",
+		Description: "Example2 MySQL",
+		Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:33307",
+		CACert:   fixtures.TLSCACertPEM,
+		TLS: types.DatabaseTLS{
+			Mode:       types.DatabaseTLSMode_VERIFY_CA,
+			ServerName: "db.example.com",
+			CACert:     fixtures.TLSCACertPEM,
+		},
+	})
+	require.NoError(t, err)
 
-	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
+	_ = makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	var out []*types.DatabaseServerV3
 
-	t.Run("get all database servers", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 2)
-	})
+	// get all database servers
+	buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 2)
 
-	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
+	wantServer := fmt.Sprintf("%v/%v", types.KindDatabaseServer, wantDB.GetName())
 
-	t.Run("get specific database server", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 1)
-	})
+	// get specific database server
+	buff, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 1)
+	gotDB := out[0].GetDatabase()
+	require.Empty(t, cmp.Diff([]types.Database{wantDB}, []types.Database{gotDB},
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
+	))
 
-	t.Run("remove database server", func(t *testing.T) {
-		_, err := runResourceCommand(t, fileConfig, []string{"rm", server})
-		require.NoError(t, err)
+	// remove database server
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServer})
+	require.NoError(t, err)
 
-		_, err = runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
-		require.Error(t, err)
-		require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
+	_, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	require.Error(t, err)
+	require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 0)
-	})
+	buff, err = runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 0)
 }
 
 // TestDatabaseResource tests tctl commands that manage database resources.
@@ -163,6 +186,9 @@ func TestDatabaseResource(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",
+		TLS: types.DatabaseTLS{
+			Mode: types.DatabaseTLSMode_VERIFY_CA,
+		},
 	})
 	require.NoError(t, err)
 
@@ -184,6 +210,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 2)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbA, dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -192,6 +219,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -204,6 +232,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -506,7 +535,9 @@ metadata:
   name: db-b
 spec:
   protocol: "mysql"
-  uri: "localhost:3306"`
+  uri: "localhost:3306"
+  tls:
+    mode: "verify-ca"`
 
 	appYAML = `kind: app
 version: v3
