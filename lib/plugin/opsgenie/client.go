@@ -19,12 +19,12 @@ package opsgenie
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"text/template"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/teleport-plugins/lib"
 	"github.com/gravitational/teleport/api/types"
@@ -32,9 +32,6 @@ import (
 )
 
 const (
-	ogMaxConns    = 100
-	ogHTTPTimeout = 10 * time.Second
-
 	ogAlertKeyPrefix = "teleport-access-request"
 )
 
@@ -56,58 +53,42 @@ var resolutionNoteTemplate = template.Must(template.New("resolution note").Parse
 
 // OpsgenieClient is a wrapper around resty.Client.
 type OpsgenieClient struct {
+	OpsgenieClientConfig
+
 	client *resty.Client
-	// webProxyURL is the address used when building the bodies of the alerts
-	// allowing links to the access requests to be built
-	webProxyURL      *url.URL
-	clusterName      string
-	defaultSchedules []string
-	Priority         String
 }
 
 type OpsgenieClientConfig struct {
-	APIKey           string
-	APIEndpoint      string
-	defaultSchedules []string
-	Priority         String
+	// APIKey is the API key for Opsgenie
+	APIKey string
+	// APIEndpoint is the endpoitn for the Opsgenie API
+	APIEndpoint string
+	// DefaultSchedules are the default on-call schedules to check for auto approval
+	DefaultSchedules []string
+	// Priority is the priority alerts are to be created with
+	Priority string
+
+	// webProxyURL is the address used when building the bodies of the alerts
+	// allowing links to the access requests to be built
+	WebProxyURL *url.URL
+	// ClusterName is the name of the Teleport cluster
+	ClusterName string
 }
 
-func NewOpsgenieClient(conf OpsgenieClientConfig, clusterName, webProxyAddr string) (OpsgenieClient, error) {
-	var (
-		webProxyURL *url.URL
-		err         error
-	)
-	if webProxyAddr != "" {
-		if webProxyURL, err = lib.AddrToURL(webProxyAddr); err != nil {
-			return OpsgenieClient{}, trace.Wrap(err)
-		}
-	}
+// NewOpsgenieClient creates a new Opsgenie client for managing alerts.
+func NewOpsgenieClient(conf OpsgenieClientConfig) (*OpsgenieClient, error) {
 
-	client := resty.NewWithClient(&http.Client{
-		Timeout: ogHTTPTimeout,
-		Transport: &http.Transport{
-			MaxConnsPerHost:     ogMaxConns,
-			MaxIdleConnsPerHost: ogMaxConns,
-		},
-	})
-	if conf.APIEndpoint != "" {
-		client.SetHostURL(conf.APIEndpoint)
-	} else {
-		client.SetHostURL("") // TODO: Find reasonable default
-	}
+	client := resty.NewWithClient(defaults.Config().HTTPClient)
 	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
-	return OpsgenieClient{
-		client:           client,
-		clusterName:      clusterName,
-		webProxyURL:      webProxyURL,
-		defaultSchedules: conf.defaultSchedules,
-		Priority:         conf.Priority,
+	return &OpsgenieClient{
+		client:               client,
+		OpsgenieClientConfig: conf,
 	}, nil
 }
 
 // CreateAlert creates an opsgenie alert.
 func (og OpsgenieClient) CreateAlert(ctx context.Context, reqID string, reqData RequestData) (OpsgenieData, error) {
-	bodyDetails, err := og.buildAlertBody(reqID, reqData)
+	bodyDetails, err := buildAlertBody(reqID, reqData)
 	if err != nil {
 		return OpsgenieData{}, trace.Wrap(err)
 	}
@@ -135,7 +116,7 @@ func (og OpsgenieClient) CreateAlert(ctx context.Context, reqID string, reqData 
 }
 
 func (og OpsgenieClient) getResponders(reqData RequestData) []Responder {
-	schedules := og.defaultSchedules
+	schedules := og.DefaultSchedules
 	if reqSchedules, ok := reqData.RequestAnnotations[ReqAnnotationRespondersKey]; ok {
 		schedules = reqSchedules
 	}
@@ -151,7 +132,7 @@ func (og OpsgenieClient) getResponders(reqData RequestData) []Responder {
 
 // PostReviewNote posts a note once a new request review appears.
 func (og OpsgenieClient) PostReviewNote(ctx context.Context, alertID string, review types.AccessReview) error {
-	note, err := og.buildReviewNoteBody(review)
+	note, err := buildReviewNoteBody(review)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -171,7 +152,7 @@ func (og OpsgenieClient) PostReviewNote(ctx context.Context, alertID string, rev
 
 // ResolveAlert resolves an alert and posts a note with resolution details.
 func (og OpsgenieClient) ResolveAlert(ctx context.Context, alertID string, resolution Resolution) error {
-	note, err := og.buildResolutionNoteBody(resolution)
+	note, err := buildResolutionNoteBody(resolution)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -189,10 +170,30 @@ func (og OpsgenieClient) ResolveAlert(ctx context.Context, alertID string, resol
 	return nil
 }
 
-func (og OpsgenieClient) buildAlertBody(reqID string, reqData RequestData) (string, error) {
+// GetOnCall returns the list of responders on-call for a schedule.
+func (og OpsgenieClient) GetOnCall(ctx context.Context, scheduleName string) (RespondersResult, error) {
+	// v2/schedules/ScheduleName/on-calls?scheduleIdentifierType=name&flat=true'
+
+	var result RespondersResult
+	if _, err := og.client.NewRequest().
+		SetContext(ctx).
+		SetPathParams(map[string]string{"scheduleName": scheduleName}).
+		SetQueryParams(map[string]string{
+			"scheduleIdentifierType": "name",
+			// When flat is enabled it returns user names of on-call participants.
+			"flat": "true",
+		}).
+		SetResult(&result).
+		Post("schedules/{scheduleName}/on-calls"); err != nil {
+		return RespondersResult{}, trace.Wrap(err)
+	}
+	return result, nil
+}
+
+func buildAlertBody(webProxyURL *url.URL, reqID string, reqData RequestData) (string, error) {
 	var requestLink string
-	if og.webProxyURL != nil {
-		reqURL := *og.webProxyURL
+	if webProxyURL != nil {
+		reqURL := *webProxyURL
 		reqURL.Path = lib.BuildURLPath("web", "requests", reqID)
 		requestLink = reqURL.String()
 	}
@@ -215,7 +216,7 @@ func (og OpsgenieClient) buildAlertBody(reqID string, reqData RequestData) (stri
 	return builder.String(), nil
 }
 
-func (og OpsgenieClient) buildReviewNoteBody(review types.AccessReview) (string, error) {
+func buildReviewNoteBody(review types.AccessReview) (string, error) {
 	var builder strings.Builder
 	err := reviewNoteTemplate.Execute(&builder, struct {
 		types.AccessReview
@@ -232,7 +233,7 @@ func (og OpsgenieClient) buildReviewNoteBody(review types.AccessReview) (string,
 	return builder.String(), nil
 }
 
-func (og OpsgenieClient) buildResolutionNoteBody(resolution Resolution) (string, error) {
+func buildResolutionNoteBody(resolution Resolution) (string, error) {
 	var builder strings.Builder
 	err := resolutionNoteTemplate.Execute(&builder, struct {
 		Resolution    string
@@ -245,23 +246,4 @@ func (og OpsgenieClient) buildResolutionNoteBody(resolution Resolution) (string,
 		return "", trace.Wrap(err)
 	}
 	return builder.String(), nil
-}
-
-// GetOnCall returns the list of responders on-call for a schedule.
-func (og OpsgenieClient) GetOnCall(ctx context.Context, scheduleName string) (RespondersResult, error) {
-	// v2/schedules/ScheduleName/on-calls?scheduleIdentifierType=name&flat=true'
-
-	var result RespondersResult
-	if _, err := og.client.NewRequest().
-		SetContext(ctx).
-		SetPathParams(map[string]string{"scheduleName": scheduleName}).
-		SetQueryParams(map[string]string{
-			"scheduleIdentifierType": "name",
-			"flat":                   "true",
-		}).
-		SetResult(&result).
-		Post("schedules/{scheduleName}/on-calls"); err != nil {
-		return RespondersResult{}, trace.Wrap(err)
-	}
-	return result, nil
 }
