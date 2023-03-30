@@ -357,6 +357,11 @@
               "title": "Login Rules Reference",
               "slug": "/access-controls/login-rules/reference/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Terraform",
+              "slug": "/access-controls/login-rules/terraform/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
