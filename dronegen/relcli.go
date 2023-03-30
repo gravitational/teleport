@@ -62,6 +62,7 @@ func pullRelcliStep(awsConfigVolumeRef volumeRef) step {
 		},
 		Volumes: []volumeRef{
 			volumeRefDocker,
+			volumeRefDockerConfig,
 			volumeRefAwsConfig,
 		},
 		Commands: []string{
@@ -85,6 +86,7 @@ func executeRelcliStep(name string, command string) step {
 		},
 		Volumes: []volumeRef{
 			volumeRefDocker,
+			volumeRefDockerConfig,
 			volumeRefTmpfs,
 			volumeRefAwsConfig,
 		},

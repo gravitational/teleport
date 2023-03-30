@@ -88,9 +88,12 @@ var (
 	}
 
 	// volumeDockerConfig is a temporary volume for storing docker
-	// related configs on a per-workflow basis. Drone claims to
-	// destroy the the temp volumes after a workflow has run, do
-	// it should be safe to write credentials etc.
+	// credentials for use with the Docker-in-Docker service we use
+	// to isolate the host machines docker daemon from the one used
+	// during the build. Mount this any tome you use `volumeDocker`
+	//
+	// Drone claims to destroy the the temp volumes after a workflow
+	// has run, so it should be safe to write credentials etc.
 	volumeDockerConfig = volume{
 		Name: "dockerConfig",
 		Temp: &volumeTemp{},

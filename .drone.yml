@@ -936,6 +936,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Clean up previously built artifacts
@@ -960,6 +962,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   - name: tmpfs
     path: /tmpfs
   - name: awsconfig
@@ -1858,6 +1862,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2063,6 +2068,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2275,6 +2281,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2478,6 +2485,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2753,6 +2761,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3031,6 +3040,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3303,6 +3313,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3567,6 +3578,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3771,6 +3783,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -4046,6 +4059,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -4318,6 +4332,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -5172,6 +5187,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -5748,6 +5764,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -6287,6 +6304,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -6499,6 +6517,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -7027,6 +7046,7 @@ steps:
     path: /root/.aws
 - name: Build and push buildbox
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
@@ -7046,6 +7066,7 @@ steps:
     path: /root/.aws
 - name: Build and push buildbox-fips
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
@@ -7066,6 +7087,7 @@ steps:
     path: /root/.aws
 - name: Build and push buildbox-arm
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
@@ -7086,6 +7108,7 @@ steps:
     path: /root/.aws
 - name: Build and push buildbox-centos7
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
@@ -7106,6 +7129,7 @@ steps:
     path: /root/.aws
 - name: Build and push buildbox-centos7-fips
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
@@ -19508,6 +19532,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Publish in Release API
@@ -19532,6 +19558,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   - name: tmpfs
     path: /tmpfs
   - name: awsconfig
@@ -19557,6 +19585,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: ef2782e5198baa3a811128db9ee4b995766d4d8e6dc4191d24f22beaf9ef9ee8
+hmac: a2b732cf8ead08b11e934eeee187a45297d9631448267c613b42f32c8253e35f
 
 ...

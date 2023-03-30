@@ -39,7 +39,11 @@ func main() {
 	pipelines = append(pipelines, buildContainerImagePipelines()...)
 	pipelines = append(pipelines, publishReleasePipeline())
 
-	// inject the dockerhub credentials into all non-exec pipelines.
+	// Inject the Drone-level dockerhub credentials into all non-exec
+	// pipelines. Drone will then use the docker credentials file in
+	// the named secret as its credentials when pulling images from
+	// dockerhub.
+	//
 	// Exec pipelines to not have the `image_pull_secrets` option, as
 	// their steps are invoked directly on the host runner and not
 	// into a per-step container.
