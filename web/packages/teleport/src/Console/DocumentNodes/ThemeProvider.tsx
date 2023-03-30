@@ -24,9 +24,13 @@ const customTheme = {
   ...theme,
   colors: {
     ...theme.colors,
-    primary: {
-      ...theme.colors.primary,
-      ...colors.primary,
+    levels: {
+      ...theme.colors.levels,
+      ...colors.levels,
+    },
+    buttons: {
+      ...theme.colors.buttons,
+      ...colors.buttons,
     },
   },
 };

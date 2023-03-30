@@ -20,8 +20,9 @@ import {
   StyleSheetManager,
 } from 'styled-components';
 
+import theme from '../theme';
+
 import { GlobalStyle } from './globals';
-import theme from './../theme';
 
 const ThemeProvider = props => (
   <StyledThemeProvider theme={props.theme || theme}>

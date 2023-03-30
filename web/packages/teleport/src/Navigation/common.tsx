@@ -40,7 +40,7 @@ interface LinkContentProps {
 }
 
 const padding = {
-  [NavigationItemSize.Small]: '7px 30px',
+  [NavigationItemSize.Small]: '7px 0px 7px 30px',
   [NavigationItemSize.Indented]: '7px 30px 7px 67px',
   [NavigationItemSize.Large]: '16px 30px',
 };

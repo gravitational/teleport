@@ -47,7 +47,7 @@ export function RegisterSuccess({
     <Card
       width="540px"
       p={6}
-      bg="primary.light"
+      bg="levels.surface"
       mt={6}
       mx="auto"
       textAlign="center"

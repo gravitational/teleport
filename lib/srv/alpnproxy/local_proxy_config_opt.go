@@ -42,12 +42,27 @@ type GetClusterCACertPoolFunc func(ctx context.Context) (*x509.CertPool, error)
 func WithALPNConnUpgradeTest(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.ALPNConnUpgradeRequired = IsALPNConnUpgradeRequired(config.RemoteProxyAddr, config.InsecureSkipVerify)
+		return trace.Wrap(WithClusterCAsIfConnUpgrade(ctx, getClusterCertPool)(config))
+	}
+}
+
+// WithClusterCAsIfConnUpgrade is a LocalProxyConfigOpt that fetches the
+// cluster CAs when ALPN connection upgrades are required.
+func WithClusterCAsIfConnUpgrade(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
 		if !config.ALPNConnUpgradeRequired {
 			return nil
 		}
 
 		// If ALPN connection upgrade is required, explicitly use the cluster
 		// CAs since the tunneled TLS routing connection serves the Host cert.
+		return trace.Wrap(WithClusterCAs(ctx, getClusterCertPool)(config))
+	}
+}
+
+// WithClusterCAs is a LocalProxyConfigOpt that fetches the cluster CAs.
+func WithClusterCAs(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
 		clusterCAs, err := getClusterCertPool(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -113,6 +128,14 @@ func WithMiddleware(middleware LocalProxyMiddleware) LocalProxyConfigOpt {
 func WithCheckCertsNeeded() LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.CheckCertsNeeded = true
+		return nil
+	}
+}
+
+// WithSNI is a LocalProxyConfigOpt that sets the SNI.
+func WithSNI(sni string) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		config.SNI = sni
 		return nil
 	}
 }

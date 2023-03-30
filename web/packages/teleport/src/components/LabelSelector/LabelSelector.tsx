@@ -225,7 +225,7 @@ const AddLabelContainer = styled.div`
 const AddLabelInput = styled.input`
   background: #182250;
   border-radius: 52px;
-  border: 1.5px solid #512fc9;
+  border: 1.5px solid ${({ theme }) => theme.colors.brand.main};
   color: white;
   height: 40px;
   padding: 0 12px;

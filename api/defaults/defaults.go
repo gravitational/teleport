@@ -145,4 +145,15 @@ const (
 const (
 	// TunnelPublicAddrEnvar optionally specifies the alternative reverse tunnel address.
 	TunnelPublicAddrEnvar = "TELEPORT_TUNNEL_PUBLIC_ADDR"
+
+	// TLSRoutingConnUpgradeEnvVar overwrites the test result for deciding if
+	// ALPN connection upgrade is required.
+	//
+	// Sample values:
+	// true
+	// <some.cluster.com>=yes,<another.cluster.com>=no
+	// 0,<some.cluster.com>=1
+	//
+	// TODO(greedy52) DELETE IN 15.0
+	TLSRoutingConnUpgradeEnvVar = "TELEPORT_TLS_ROUTING_CONN_UPGRADE"
 )
