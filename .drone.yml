@@ -937,10 +937,10 @@ name: build-native-windows-amd64
 trigger:
   event:
     include:
-    - push
+    - tag
   ref:
     include:
-    - probakowski/*
+    - refs/tags/v*
   repo:
     include:
     - gravitational/*
@@ -19081,6 +19081,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: f7e41cc41cb065564a6ddb1e4577f66921c16fcdfc5bdebd14438eccdaa456a7
+hmac: 7d2c3d9056c06be70ff50a0ea675ca5a89b8a149600258e219e1376840b560cf
 
 ...
