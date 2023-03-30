@@ -83,7 +83,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -203,7 +202,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -323,7 +321,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -443,7 +440,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -881,7 +877,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -1236,7 +1231,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -1772,7 +1766,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -1976,7 +1969,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -2179,7 +2171,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -2389,7 +2380,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -2587,7 +2577,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -2862,7 +2851,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -3134,7 +3122,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -3395,7 +3382,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -3656,7 +3642,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -3854,7 +3839,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -4129,7 +4113,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -5043,7 +5026,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -5549,7 +5531,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -6073,7 +6054,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -6351,7 +6331,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -6886,7 +6865,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -8336,7 +8314,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -9583,7 +9560,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -11229,7 +11205,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -13939,7 +13914,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -16649,7 +16623,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -19357,7 +19330,6 @@ steps:
   pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
-  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
   environment:
     DOCKERHUB_LOGIN:
       from_secret: DOCKERHUB_USERNAME
@@ -19451,6 +19423,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 80d22ee4285a288654fbb0d5592291b715a812359a69c04e3d9c93649486768d
+hmac: 52226d624680a45f091bcf1e299928fc27f38a2d5d410ee1187abdc33dd74049
 
 ...

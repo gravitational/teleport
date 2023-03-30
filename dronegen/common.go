@@ -302,7 +302,7 @@ func waitForDockerStep() step {
 		Pull:  "if-not-exists",
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
-			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin`,
+			//			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin`,
 		},
 		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 		Environment: map[string]value{
