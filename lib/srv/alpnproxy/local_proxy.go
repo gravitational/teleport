@@ -100,18 +100,6 @@ type LocalProxyMiddleware interface {
 	OnStart(ctx context.Context, lp *LocalProxy) error
 }
 
-// LocalProxyHTTPMiddleware provides callback functions for LocalProxy in HTTP proxy mode.
-type LocalProxyHTTPMiddleware interface {
-	// CheckAndSetDefaults checks configuration validity and sets defaults
-	CheckAndSetDefaults() error
-
-	// HandleRequest returns true if requests has been handled and must not be processed further, false otherwise.
-	HandleRequest(rw http.ResponseWriter, req *http.Request) bool
-
-	// HandleResponse processes the server response before sending it to the client.
-	HandleResponse(resp *http.Response) error
-}
-
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
 func (cfg *LocalProxyConfig) CheckAndSetDefaults() error {
 	if cfg.RemoteProxyAddr == "" {
@@ -263,17 +251,8 @@ func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) client.ALPNDia
 	}
 }
 
-// StartHTTPAccessProxy starts the local HTTP access proxy.
-func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware == nil {
-		return trace.BadParameter("Missing HTTPMiddleware in configuration")
-	}
-
-	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxy := &httputil.ReverseProxy{
+func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
@@ -301,9 +280,24 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: &http.Transport{
-			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(l.getCerts())).DialContext,
+			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(certs)).DialContext,
 		},
 	}
+}
+
+// StartHTTPAccessProxy starts the local HTTP access proxy.
+func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware == nil {
+		return trace.BadParameter("Missing HTTPMiddleware in configuration")
+	}
+
+	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	l.cfg.Log.Info("Starting HTTP access proxy")
+	defer l.cfg.Log.Info("HTTP access proxy stopped")
+	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 			return
@@ -315,12 +309,30 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			req.Header.Set("X-Forwarded-Host", req.Host)
 		}
 
+		proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
+		if err != nil {
+			l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
+			trace.WriteError(rw, trace.Wrap(err))
+			return
+		}
+
 		proxy.ServeHTTP(rw, req)
 	}))
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request, defaultProxy *httputil.ReverseProxy) (*httputil.ReverseProxy, error) {
+	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return defaultProxy, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	return l.makeHTTPReverseProxy(certs), nil
 }
 
 // getCerts returns the local proxy's configured TLS certificates.

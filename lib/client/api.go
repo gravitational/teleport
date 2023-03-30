@@ -1262,11 +1262,12 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.IssueUserCertsWithMFA(
+	key, err := proxyClient.IssueUserCertsWithMFA(
 		ctx, params,
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 			return tc.PromptMFAChallenge(ctx, proxyAddr, c, applyOpts)
 		})
+	return key, trace.Wrap(err)
 }
 
 // CreateAccessRequest registers a new access request with the auth server.

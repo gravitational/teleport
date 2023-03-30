@@ -61,6 +61,4 @@ k+vHAoGBAJyA+RtBF5m64/TqhZFcesTtnpWaRhQ50xXnNVF3W1eKGPtdTDKOaENA
 LJxgC1GdoEz2ilXW802H9QrdKf9GPqxwi2TVzfO6pzWkdZcmbItu+QCCFz+co+r8
 +ki49FmlfbR5YVPN+8X40aLQB4xDkCHwRwTkrigzWQhIOv8NAhDA
 -----END RSA PRIVATE KEY-----`
-	// Backwards-compatibility alias for teleport.e
-	SigningCertPEM = TLSCACertPEM
 )
