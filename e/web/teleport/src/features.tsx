@@ -38,6 +38,9 @@ const Plugins = React.lazy(
 const SupportE = React.lazy(
   () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
 );
+const NewLock = React.lazy(
+  () => import(/* webpackChunkName: "new-lock" */ 'e-teleport/NewLock')
+);
 
 const DeviceTrust = React.lazy(
   () => import(/* webpackChunkName: "e-devices" */ 'e-teleport/DeviceTrust')
@@ -105,6 +108,19 @@ class FeatureReviewAccessRequests implements TeleportFeature {
       return cfg.getAccessRequestRoute();
     },
   };
+}
+
+export class FeatureNewLock implements TeleportFeature {
+  route = {
+    title: 'Create New Lock',
+    path: cfg.oss.routes.newLock,
+    exact: true,
+    component: NewLock,
+  };
+
+  hasAccess() {
+    return true;
+  }
 }
 
 // ****************************
@@ -256,6 +272,8 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureRoles(),
     new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
+    new OSS.FeatureLocks(),
+    new FeatureNewLock(),
     new FeatureIntegrations(),
     new OSS.FeatureDiscover(),
 
