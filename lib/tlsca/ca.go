@@ -190,6 +190,9 @@ type Identity struct {
 
 	// DeviceExtensions holds device-aware extensions for the identity.
 	DeviceExtensions DeviceExtensions
+
+	// IsSSOUser indicates that this identity is from an SSO user.
+	IsSSOUser bool
 }
 
 // RouteToApp holds routing information for applications.

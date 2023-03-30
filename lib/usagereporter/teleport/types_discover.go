@@ -24,11 +24,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func discoverMetadataToPrehog(u *usageeventsv1.DiscoverMetadata, identityUsername string, isSSOUser bool) *prehogv1.DiscoverMetadata {
+func discoverMetadataToPrehog(u *usageeventsv1.DiscoverMetadata, userMD UserMetadata) *prehogv1.DiscoverMetadata {
 	return &prehogv1.DiscoverMetadata{
 		Id:       u.Id,
-		UserName: identityUsername,
-		Sso:      isSSOUser,
+		UserName: userMD.Username,
+		Sso:      userMD.IsSSO,
 	}
 }
 

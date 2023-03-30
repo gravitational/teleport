@@ -26,18 +26,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-type mockUserMetadataClient struct {
-	username string
-	isSSO    bool
-}
-
-func (m mockUserMetadataClient) GetUsername(ctx context.Context) (string, error) {
-	return m.username, nil
-}
-func (m mockUserMetadataClient) IsSSOUser(ctx context.Context) (bool, error) {
-	return m.isSSO, nil
-}
-
 func TestConvertUsageEvent(t *testing.T) {
 	anonymizer, err := utils.NewHMACAnonymizer("cluster-id")
 	require.NoError(t, err)
@@ -231,12 +219,11 @@ func TestConvertUsageEvent(t *testing.T) {
 			tt := tt
 			t.Parallel()
 
-			m := mockUserMetadataClient{
-				username: tt.identityUsername,
-				isSSO:    tt.isSSOUser,
+			userMD := UserMetadata{
+				Username: tt.identityUsername,
+				IsSSO:    tt.isSSOUser,
 			}
-
-			usageEvent, err := ConvertUsageEvent(ctx, tt.event, m)
+			usageEvent, err := ConvertUsageEvent(ctx, tt.event, userMD)
 			tt.errCheck(t, err)
 			if err != nil {
 				return
