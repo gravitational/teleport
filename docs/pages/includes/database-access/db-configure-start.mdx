@@ -1,0 +1,103 @@
+
+<Tabs>
+<TabItem label="Using a config file">
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
+
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:443 \
+   --name=test \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev 
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=mytenant.teleport.sh:443 \
+   --name=test \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev
+```
+
+</ScopedBlock>
+
+<Admonition
+  type="tip"
+  title="Tip"
+>
+  A single Teleport process can run multiple different services, for example
+  multiple Database Service agents as well as the SSH Service or Application
+  Service.
+
+</Admonition>
+
+Start the database service:
+
+```code
+$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
+```
+
+</TabItem>
+<TabItem label="With CLI flags">
+
+You can start the Teleport Database Service without configuration file using a
+CLI command:
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ teleport db start \
+   --token=/tmp/token \
+   --auth-server=teleport.example.com:443 \
+   --name=test \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev
+```
+
+Note that the `--auth-server` flag must point to the Teleport cluster's Proxy
+Service endpoint because the Database Service always connects back to the
+cluster over a reverse tunnel.
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ teleport db start \
+   --token=/tmp/token \
+   --auth-server=mytenant.teleport.sh:443 \
+   --name=test \
+   --protocol={{ dbProtocol }} \
+   --uri={{ databaseAddress }} \
+   --labels=env=dev
+```
+
+Note that the `--auth-server` flag must point to your Teleport Cloud tenant
+address.
+
+</ScopedBlock>
+
+</TabItem>
+</Tabs>
+
+<Admonition type="note">
+
+The `--auth-server` flag must point to the Teleport cluster's Proxy Service
+endpoint because the Database Service always connects back to the cluster over a
+reverse tunnel.
+
+</Admonition>
