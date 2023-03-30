@@ -475,6 +475,8 @@ Processing bitmaps in the Rust library is a no-brainer per it being simple to bu
 A proof of concept for bitmap caching was created, with underwhelming results. While there may be some overall improvement, it wasn't immediately obvious to the naked eye, which is the primary standard that's relevant
 to improving UX at this point in the feature's maturity.
 
+Different image format (WebP) that would replace PNG also offers several benefits. It would reduce the time to process each bitmap message, send it (as it would be smaller), and render it on the screen as there would be fewer data to send to GPU for drawing. It would also reduce the size of the session recording as we store each message in the session recording.
+
 Contrast that with the clear improvements demonstrated in the performance comparison videos using `IronRDP` above. As such, we've decided to move forward
 with swapping out `rdp-rs` with `IronRDP`. An POC was created for "Option 1: IronRDP in WDS", however the performance improvement was underwhelming, the cause
 of which was inferred to be the fact that PNG's are still being encoded and sent over the wire. Therefore, we will be moving ahead with "Option 2: IronRDP in
