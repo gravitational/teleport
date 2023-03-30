@@ -25,6 +25,7 @@ import clusterService from './services/clusters';
 import sessionService from './services/session';
 import ResourceService from './services/resources';
 import userService from './services/user';
+import pingService from './services/ping';
 import appService from './services/apps';
 import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
@@ -47,6 +48,7 @@ class TeleportContext implements types.Context {
   sshService = sessionService;
   resourceService = new ResourceService();
   userService = userService;
+  pingService = pingService;
   appService = appService;
   joinTokenService = new JoinTokenService();
   kubeService = new KubeService();
@@ -54,6 +56,9 @@ class TeleportContext implements types.Context {
   desktopService = desktopService;
   mfaService = new MfaService();
   isEnterprise = cfg.isEnterprise;
+  isCloud = cfg.isCloud;
+
+  automaticUpgradesEnabled = false;
 
   agentService = agentService;
 
@@ -73,6 +78,9 @@ class TeleportContext implements types.Context {
         await userService.checkUserHasAccessToRegisteredResource();
       localStorage.setOnboardDiscover({ hasResource });
     }
+
+    const pingResponse = await pingService.fetchPing();
+    this.automaticUpgradesEnabled = pingResponse.automaticUpgrades;
   }
 
   getFeatureFlags(): types.FeatureFlags {

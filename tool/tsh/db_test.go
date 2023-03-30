@@ -254,6 +254,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 	tests := map[string]struct {
 		clusterAuthPref types.AuthPreference
 		route           *tlsca.RouteToDatabase
+		setupTC         func(*client.TeleportClient)
 		wantLocalProxy  bool
 		wantTunnel      bool
 	}{
@@ -276,6 +277,25 @@ func TestLocalProxyRequirement(t *testing.T) {
 			wantLocalProxy: true,
 			wantTunnel:     true,
 		},
+		"local proxy not required for separate port": {
+			clusterAuthPref: defaultAuthPref,
+			setupTC: func(tc *client.TeleportClient) {
+				tc.TLSRoutingEnabled = false
+				tc.TLSRoutingConnUpgradeRequired = true
+				tc.PostgresProxyAddr = "separate.postgres.hostport:8888"
+			},
+			wantLocalProxy: false,
+			wantTunnel:     false,
+		},
+		"local proxy required if behind lb": {
+			clusterAuthPref: defaultAuthPref,
+			setupTC: func(tc *client.TeleportClient) {
+				tc.TLSRoutingEnabled = true
+				tc.TLSRoutingConnUpgradeRequired = true
+			},
+			wantLocalProxy: true,
+			wantTunnel:     false,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -290,6 +310,9 @@ func TestLocalProxyRequirement(t *testing.T) {
 			}
 			tc, err := makeClient(cf, false)
 			require.NoError(t, err)
+			if tt.setupTC != nil {
+				tt.setupTC(tc)
+			}
 			route := &tlsca.RouteToDatabase{
 				ServiceName: "foo-db",
 				Protocol:    "postgres",
