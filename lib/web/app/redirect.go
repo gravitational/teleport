@@ -22,8 +22,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/httplib"
 )
 
 const metaRedirectHTML = `
