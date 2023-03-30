@@ -937,13 +937,13 @@ name: build-native-windows-amd64
 trigger:
   event:
     include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
+    - push
   repo:
     include:
     - gravitational/*
+  branch:
+    include:
+    - probakowski/windows-auth-package-drone
 workspace:
   path: C:/Drone/Workspace/build-native-windows-amd64
 platform:
@@ -19079,3 +19079,8 @@ volumes:
     medium: memory
 - name: awsconfig
   temp: {}
+---
+kind: signature
+hmac: 6c019863a87a4487184a195382e89fcb2428678545c2df62fdabf05a648782ec
+
+...
