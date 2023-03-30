@@ -23,7 +23,7 @@ Automatic registration consists of the following steps:
 - Use the Teleport gRPC API to look up resources registered with Teleport.
 - For any resources in your infrastructure that are not registered with
   Teleport, use the Teleport API to spin up a new Teleport service or register
-  the resource with an exisitng Teleport service.
+  the resource with an existing Teleport service.
 - For any resources that are registered with Teleport but not in your
   infrastructure, use the Teleport API to deregister the resource and, if
   necessary, remove the Teleport service proxying the resource.
@@ -191,7 +191,7 @@ management API with Teleport. It does so by:
 
 - Fetching RabbitMQ management API endpoints registered with Teleport.
 - Fetching RabbitMQ containers.
-- If a RabbitMQ container does not conrrespond to a management API endpoint,
+- If a RabbitMQ container does not correspond to a management API endpoint,
   register the container's management API endpoint with Teleport by creating a
   join token and running a new Teleport Application Service container.
 - If a RabbitMQ API endpoint registered with Teleport does not correspond to a
@@ -223,6 +223,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -247,8 +248,9 @@ library:
 |---|---|
 |`context`|Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata. |
 |`crypto/rand`|Includes cryptographic randomization functions, which we will use to generate join tokens for Application Services to use to establish trust with the Teleport Auth Service.|
-|`encoding/hex`|The number generator we use from `crypto/rand` returns data in bytes, so we will encode these as hexidecimal strings using this package.|
+|`encoding/hex`|The number generator we use from `crypto/rand` returns data in bytes, so we will encode these as hexadecimal strings using this package.|
 |`fmt`|Formatting data for printing, strings, or errors.|
+|`net`|Dealing with network I/O.|
 |`net/url`|Parsing URLs.|
 |`strings`|Manipulating strings.|
 |`time`|Dealing with time. We will use this to define a timeout for connecting to the Auth Service along with a ticker for executing our discovery logic in a loop.|
@@ -426,8 +428,7 @@ dynamically registered resources, while methods following the pattern
 
 ### Get the management endpoint URLs of application containers
 
-Next, we will write a function that fetches the URLs of our RabbitMQ containers
-.
+Next, we will write a function that fetches the URLs of our RabbitMQ containers.
 
 Add the following function below `listRegisteredAppURLs`:
 
@@ -452,8 +453,7 @@ func (t *tokenDemoApp) listAppContainerURLs(ctx context.Context, image string) (
 			continue
 		}
 
-		u, err := url.Parse(fmt.Sprintf(
-			"http://%v:%v",
+		u, err := url.Parse("http://"+net.JoinHostPort(
 			b.IPAddress,
 			managementPort,
 		))
@@ -504,7 +504,7 @@ Add the following two functions below `listAppContainerURLs`:
 ```go
 func cryptoRandomHex(len int) (string, error) {
 	randomBytes := make([]byte, len)
-	if _, err := rand.Reader.Read(randomBytes); err != nil {
+	if _, err := rand.Read(randomBytes); err != nil {
 		return "", trace.Wrap(err)
 	}
 	return hex.EncodeToString(randomBytes), nil
@@ -530,9 +530,50 @@ func (t *tokenDemoApp) createAppToken(ctx context.Context) (string, error) {
 }
 ```
 
+The example above demonstrates how to use `*client.Client.CreateToken` to join a
+resource to a Teleport cluster using a token. If you have an instance of a
+Teleport service running already (e.g., the Application Service), it is simpler
+to join the resource to the cluster dynamically using a method similar to
+`*client.Client.CreateApp`.
+
+<Details title="Registering applications dynamically">
+
+To register applications dynamically, rather than start a new Application
+Service instance to proxy an application, use the `*clientClient.CreateApp`
+method:
+
+```go
+func (c *Client) CreateApp(ctx context.Context, app types.Application) error
+```
+
+For this to work, you must have an instance of the Application Service already
+running. Your client application must also have the following permissions:
+
+```yaml
+spec:
+  allow:
+    rules:
+      - resources: ['app']
+        verbs: ['create']
+```
+
+For other resources, use the following methods, which require their own
+corresponding role permissions with the `create` verb:
+
+|Resource|Method|Within a Role|
+|---|---|---|
+|Database|`*client.Client.CreateDatabase`|`db`|
+|Kubernetes cluster|`*client.Client.CreateKubernetesCluster`|`kube_cluster`|
+|Windows Desktop|`*client.Client.CreateWindowsDesktop`|`windows_desktop`|
+
+Since a server must run an instance of the Teleport SSH Service in order to join
+a Teleport cluster, API clients can only register servers by using tokens.
+
+</Details>
+
 `cryptoRandomHex` is a copy of a function that Teleport defines internally. It
 uses the `crypto/rand` package to generate random bytes, then converts them to a
-string in hexidecimal format, which we will use for the join token. You can use
+string in hexadecimal format, which we will use for the join token. You can use
 any secure cryptographic technique to generate a join token.
 
 `*tokenDemoApp.createAppToken` calls `cryptoRandomHex` and uses the result by
@@ -570,29 +611,6 @@ spec:
 
 In the application we are demonstrating in this guide, there is no need to look
 up tokens, since the application already knows the token it created.
-
-</Details>
-
-<Details title="Registering applications dynamically">
-
-To register applications dynamically, rather than start a new Application
-Service instance to proxy an application, use the `*clientClient.CreateApp`
-method:
-
-```go
-func (c *Client) CreateApp(ctx context.Context, app types.Application) error
-```
-
-For this to work, you must have an instance of the Application Service already
-running. Your client application must also have the following permissions:
-
-```yaml
-spec:
-  allow:
-    rules:
-      - resources: ['app']
-        verbs: ['create']
-```
 
 </Details>
 
@@ -683,14 +701,14 @@ func (t *tokenDemoApp) pruneAppServiceInstance(ctx context.Context, p types.AppS
 		return trace.Wrap(err)
 	}
 
-	fmt.Println("Deleted unnecessary Application Service record: " + p.GetName())
+	fmt.Println("Deleted unnecessary Application Service record:", p.GetName())
 
 	// Don't check errors when removing the container, since it may already
 	// have been removed.
 	t.dockerClient.ContainerStop(ctx, host, container.StopOptions{})
 	t.dockerClient.ContainerRemove(ctx, host, dtypes.ContainerRemoveOptions{})
 
-	fmt.Println("Deleted unnecessary Application Service container: " + host)
+	fmt.Println("Deleted unnecessary Application Service container:", host)
 	return nil
 }
 ```
@@ -701,10 +719,26 @@ removes its associated Application Service container.
 While Teleport deregisters stale Application Service records automatically, this
 can take some time after stopping an Application Service instance. 
 
-To deregister the Application Service instance manually, we use the
-`*Client.DeleteApplicationServer` method of Teleport's API library, using the
-`p` parameter of our function to get the namespace, host ID, and name of the
-Application Service instance to delete.
+<Admonition type="tip" title="Changing a resource's TTL">
+
+You can change the interval that Teleport will use to check the availability of
+a resource before deregistering it from its backend. To do so, use the
+`SetExpiry` method of the `types.Resource` interface.
+
+For example, the following `SetExpiry` call configures a `WindowsDesktopV3`
+resource to expire in 10 minutes unless Teleport confirms its
+availability:
+
+```go
+desktop.SetExpiry(time.Now().Add(10 * time.Minute))
+```
+
+</Admonition>
+
+To deregister the Application Service instance manually, we call the
+`*Client.DeleteApplicationServer` method, using the `p` parameter of the
+`pruneAppServiceInstance` function to get the namespace, host ID, and name of
+the Application Service instance to delete.
 
 <Notice type="tip">
 
@@ -870,6 +904,7 @@ func main() {
 	app := newTokenDemoApp()
 
 	k := time.NewTicker(updateInterval)
+	defer k.Stop()
 	for {
 		<-k.C
 		if err := app.reconcileApps(); err != nil {
