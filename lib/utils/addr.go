@@ -181,7 +181,7 @@ func ParseAddr(a string) (*NetAddr, error) {
 	case "http", "https":
 		return &NetAddr{Addr: u.Host, AddrNetwork: u.Scheme, Path: u.Path}, nil
 	default:
-		return nil, trace.BadParameter("'%v': unsupported scheme: '%v'", a, u.Scheme)
+		return nil, trace.BadParameter("%q: unsupported scheme: %q", a, u.Scheme)
 	}
 }
 
