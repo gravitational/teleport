@@ -56,18 +56,16 @@ services with your Teleport cluster.
 
 ## Step 1/5. Set up your Go project
 
-The first step is to create a project directory and initialize a Go module for
-your project: 
+Download the source code for our minimal API client:
 
 ```code
-$ mkdir register-app-service
-$ cd register-app-service
-$ go mod init register-app-service
-go: creating new go.mod: module register-app-service
+$ git clone https://github.com/gravitational/teleport
+$ cd examples/service-discovery-api-client
 ```
 
-This creates a new file in your project directory, `go.mod`, which Go's package
-management system uses to fetch your plugin's dependencies.
+For the rest of this guide, we will show you how to set up this API client and
+explore the way it uses Teleport's API to synchronize Teleport Application
+Service instances with an external service discovery solution.
 
 ## Step 2/5. Define RBAC resources
 
@@ -185,7 +183,9 @@ Auth Service's gRPC endpoint.
 
 ## Step 4/5. Write the client application
 
-Our demo application will watch for containers running RabbitMQ, a popular open
+In this step, we will walk you through the example client application.
+
+Our demo application watches for containers running RabbitMQ, a popular open
 source message broker, in order to register (and, if necessary, deregister) its
 management API with Teleport. It does so by:
 
@@ -200,49 +200,19 @@ management API with Teleport. It does so by:
 
 <Admonition type="tip" title="Dynamic registration">
 
-While the client application we will write in this guide launches a new
-Application Service instance to proxy every instance of the target application,
-you can also proxy multiple applications through the same Application Service
-instance.
+While the client application launches a new Application Service instance to
+proxy every instance of the target application, you can also proxy multiple
+applications through the same Application Service instance.
 
 To do so, you would write the client application to register applications
 dynamically via the Teleport API. We will discuss ways to do so in this guide.
 
 </Admonition>
 
-### Add imports
+### Imports
 
-Create a file called `main.go` in your project directory with the following
-content:
-
-```go
-package main
-
-import (
-	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
-	"net"
-	"net/url"
-	"strings"
-	"time"
-
-	dtypes "github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/strslice"
-	docker "github.com/docker/docker/client"
-	teleport "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
-)
-```
-
-Here are the packages our client application will import from Go's standard
-library:
+The program, which you can find in
+`examples/service-discovery-api-client/main.go`, imports the following packages:
 
 |Package|Description|
 |---|---|
@@ -270,12 +240,10 @@ The client imports the following third-party code:
 |`github.com/gravitational/trace`|Presenting errors with more useful detail than the standard library provides.|
 |`google.golang.org/grpc`|The gRPC client and server library.|
 
-### Make program-level declarations
+### Global declarations
 
-We will define constants for the program in a visible location so, later on,
-it's easier to make them configurable outside the program.
-
-Add the following to `main.go` after the package imports:
+The program defines constants in a visible location so, later on, it's easier to
+make them configurable:
 
 ```go
 const (
@@ -307,7 +275,7 @@ want to change later, including:
 |`tokenLenBytes`| The length of join tokens to create, in bytes.|
 |`rabbitMQImage`| The name of the RabbitMQ container image. The container image we use here has the management API enabled.|
 
-Below the `const` declaration, add the following: 
+Below the `const` declaration is the following type declaration:
 
 ```go
 type tokenDemoApp struct {
@@ -340,7 +308,8 @@ resources they are proxying. This because we are spinning up one Application
 Service instance per application. Other client applications may need to look up
 dynamically registered resources instead.
 
-In `main.go`, add the following below the `tokenDemoApp` declaration:
+Here is the method that the application uses to fetch the URLs of registered
+applications: 
 
 ```go
 func (t *tokenDemoApp) listRegisteredAppURLs(ctx context.Context) (map[string]types.AppServer, error) {
@@ -400,7 +369,7 @@ through the result of `ListResources` and, for each resources that is a
 `types.AppServer`, inserts the URL of its proxied application as a key within
 the map, assigning the corresponding `types.AppServer` as its value.
 
-We will generate the second map in the next section.
+In the next section, we will show you how to generate the second map.
 
 <Details title="Other ways to get resources">
 
@@ -428,9 +397,7 @@ dynamically registered resources, while methods following the pattern
 
 ### Get the management endpoint URLs of application containers
 
-Next, we will write a function that fetches the URLs of our RabbitMQ containers.
-
-Add the following function below `listRegisteredAppURLs`:
+The next function fetches the URLs of our RabbitMQ containers:
 
 ```go
 func (t *tokenDemoApp) listAppContainerURLs(ctx context.Context, image string) (map[string]struct{}, error) {
@@ -499,7 +466,7 @@ To launch a new Application Service instance, we will create a **join token**.
 Teleport's services can join a cluster by presenting a token to the Auth
 Service.
 
-Add the following two functions below `listAppContainerURLs`:
+The code below generates a join token for a new Applicaiton Service instance:
 
 ```go
 func cryptoRandomHex(len int) (string, error) {
@@ -618,9 +585,7 @@ up tokens, since the application already knows the token it created.
 
 Our program needs a way to launch Application Service instances. To do this, we
 will use the token we created earlier, plus the URL of a RabbitMQ management API
-endpoint, to launch a container.
-
-Add the following below  `createAppToken`:
+endpoint, to launch a container:
 
 ```go
 func (t *tokenDemoApp) startApplicationServiceContainer(
@@ -684,9 +649,7 @@ Finally, we use the ID of the container we created to run the container.
 
 Alongside creating Application Service containers, our client application will
 reconcile registered applications with running containers by removing
-unnecessary Application Service instances.
-
-Add the following function below `startApplicationServiceContainer`:
+unnecessary Application Service instances:
 
 ```go
 func (t *tokenDemoApp) pruneAppServiceInstance(ctx context.Context, p types.AppServer) error {
@@ -758,9 +721,7 @@ container, so we can pass the hostname to `t.dockerClient.ContainerStop` and
 
 We have declared a number of functions to list, add, and remove Application
 Service instances and application containers. Next, we will use these functions
-to implement our reconciliation logic.
-
-Add the following below `pruneAppServiceInstance`:
+to implement our reconciliation logic:
 
 ```go
 func (t *tokenDemoApp) reconcileApps() error {
@@ -828,9 +789,7 @@ Service instance, and we call `pruneAppServiceInstance` to remove it.
 
 The `*tokenDemoApp.reconcileApps` method performs a single reconciliation. The
 next step is to initialize our API clients so we can  run the reconciliation in
-a loop within the entrypoint of our program.
-
-Add the following below `*tokenDemoApp.reconcileApps`:
+a loop within the entrypoint of our program:
 
 ```go
 func newTokenDemoApp() *tokenDemoApp {
@@ -893,10 +852,9 @@ The `newTokenDemoApp` function also initializes a Docker client. It uses version
 negotiation (`docker.WithAPIVersionNegotiation`) to avoid errors due to
 mismatches between your client's API version and the Docker daemon's.
 
-### Add the entrypoint
+### The entrypoint
 
-We are now ready to tie our application together with the entrypoint function,
-`main`. Add the following below the `newTokenDemoApp` function:
+We tie our application together with the entrypoint function, `main`: 
 
 ```go
 func main() {
@@ -925,9 +883,9 @@ the channel, calling `app.reconcileApps` every interval.
 
 ## Step 5/5. Test your client application
 
-Now that you have written your demo application, run it to see how Teleport can
-register and deregister resources in your infrastructure to synchronize with
-your service discovery solution.
+Run the client application to see how Teleport can register and deregister
+resources in your infrastructure to synchronize with your service discovery
+solution.
 
 Make sure you have pulled the Teleport container image so the application can
 create containers based on it:
@@ -939,7 +897,6 @@ $ docker image pull (=teleport.latest_oss_docker_image=)
 In your project directory, run the following command:
 
 ```code
-$ go get
 $ go run main.go
 Starting the application
 Connected to Teleport
