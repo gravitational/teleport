@@ -233,50 +233,44 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
 	httpsProxy := apiutils.GetProxyURL(remoteProxyAddr)
 
-	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if sp.tlsRouting {
+		conn, err := dialSSHThroughALPNSNIProxy(ctx, tc, sp)
+		return conn, trace.Wrap(err)
 	}
 
 	// If HTTPS_PROXY is configured, we need to open a TCP connection via
 	// the specified HTTPS Proxy, otherwise, we can just open a plain TCP
 	// connection.
-	var tcpConn net.Conn
 	if httpsProxy != nil {
 		httpProxyTLSConfig := &tls.Config{
-			RootCAs:            pool,
 			InsecureSkipVerify: tc.InsecureSkipVerify,
-			ServerName:         httpsProxy.Hostname(),
 		}
-		tcpConn, err = client.DialProxy(ctx, httpsProxy, remoteProxyAddr, client.WithTLSConfig(httpProxyTLSConfig))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		tcpConn, err = (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		tcpConn, err := client.DialProxy(ctx, httpsProxy, remoteProxyAddr, client.WithTLSConfig(httpProxyTLSConfig))
+		return tcpConn, trace.Wrap(err)
 	}
+	tcpConn, err := (&net.Dialer{}).DialContext(ctx, "tcp", remoteProxyAddr)
+	return tcpConn, err
+}
 
-	// If TLS routing is not enabled, just return the TCP connection
-	if !sp.tlsRouting {
-		return tcpConn, nil
-	}
-
-	// Otherwise, we need to upgrade the TCP connection to a TLS connection.
-	tlsConfig := &tls.Config{
-		RootCAs:            pool,
-		NextProtos:         []string{string(alpncommon.ProtocolProxySSH)},
-		InsecureSkipVerify: tc.InsecureSkipVerify,
-		ServerName:         sp.proxyHost,
-	}
-	tlsConn := tls.Client(tcpConn, tlsConfig)
-	if err := tlsConn.HandshakeContext(ctx); err != nil {
-		tlsConn.Close()
+func dialSSHThroughALPNSNIProxy(ctx context.Context, tc *libclient.TeleportClient) (net.Conn, error) {
+	pool, err := tc.LocalAgent().ClientCertPool(sp.clusterName)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	remoteProxyAddr := net.JoinHostPort(sp.proxyHost, sp.proxyPort)
+	conn, err := client.DialALPN(ctx, remoteProxyAddr, client.ALPNDialerConfig{
+		TLSConfig: &tls.Config{
+			RootCAs: pool,
+			NextProtos: []string{
+				string(alpncommon.ProtocolWithPing(alpncommon.ProtocolProxySSH)),
+				string(alpncommon.ProtocolProxySSH),
+			},
+			InsecureSkipVerify: tc.InsecureSkipVerify,
+			ServerName:         sp.proxyHost,
+		},
+		ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(remoteProxyAddr, tc.InsecureSkipVerify),
+	})
 	return tlsConn, nil
 }
 
