@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sftp handles file transfers client-side via SFTP
+// Package sftp handles file transfers client-side via SFTP or HTTP.
 package sftp
 
 import (
@@ -24,13 +24,16 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/user"
 	"path" // SFTP requires UNIX-style path separators
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	"github.com/schollz/progressbar/v3"
@@ -38,7 +41,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
 
 // Options control aspects of a file transfer
@@ -63,6 +65,9 @@ type Config struct {
 	// getHomeDir returns the home directory of the remote user of the
 	// SSH session
 	getHomeDir homeDirRetriever
+	// isHttpTransfer denotes whether this is a file transfer over
+	// HTTP instead of SFTP
+	isHttpTransfer bool
 
 	// ProgressStream is a callback to return a read/writer for printing the progress
 	// (used only on the client)
@@ -84,7 +89,7 @@ type FileSystem interface {
 	// Open opens a file
 	Open(ctx context.Context, path string) (fs.File, error)
 	// Create creates a new file
-	Create(ctx context.Context, path string) (io.WriteCloser, error)
+	Create(ctx context.Context, path string, size int64) (io.WriteCloser, error)
 	// Mkdir creates a directory
 	Mkdir(ctx context.Context, path string) error
 	// Chmod sets file permissions
@@ -93,7 +98,7 @@ type FileSystem interface {
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
 }
 
-// CreateUploadConfig returns a Config ready to upload files
+// CreateUploadConfig returns a Config ready to upload files over SFTP.
 func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error) {
 	for _, srcPath := range src {
 		if srcPath == "" {
@@ -116,7 +121,7 @@ func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error)
 	return c, nil
 }
 
-// CreateDownloadConfig returns a Config ready to download files
+// CreateDownloadConfig returns a Config ready to download files over SFTP.
 func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 	if src == "" {
 		return nil, trace.BadParameter("source path is empty")
@@ -131,6 +136,87 @@ func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 		srcFS:    &remoteFS{},
 		dstFS:    &localFS{},
 		opts:     opts,
+	}
+	c.setDefaults()
+
+	return c, nil
+}
+
+// HTTPTransferRequest describes file transfer request over HTTP.
+type HTTPTransferRequest struct {
+	// Dst is the source file name
+	Src string
+	// Dst is the destination file name
+	Dst string
+	// HTTPRequest is where the source file will be read from for
+	// file upload transfers
+	HTTPRequest *http.Request
+	// HTTPResponse is where the destination file will be written to for
+	// file download transfers
+	HTTPResponse http.ResponseWriter
+}
+
+// CreateHTTPUploadConfig returns a Config ready to upload a file over
+// HTTP.
+func CreateHTTPUploadConfig(req HTTPTransferRequest) (*Config, error) {
+	if req.Src == "" {
+		return nil, trace.BadParameter("source path is empty")
+	}
+	if req.Dst == "" {
+		return nil, trace.BadParameter("destination path is empty")
+	}
+	if req.HTTPRequest == nil {
+		return nil, trace.BadParameter("HTTP request is empty")
+	}
+
+	contentLength := req.HTTPRequest.Header.Get("Content-Length")
+	fileSize, err := strconv.ParseInt(contentLength, 10, 0)
+	if err != nil {
+		return nil, trace.Errorf("failed to parse Content-Length header: %w", err)
+	}
+
+	c := &Config{
+		srcPaths: []string{req.Src},
+		dstPath:  req.Dst,
+		srcFS: &httpFS{
+			reader:   req.HTTPRequest.Body,
+			fileName: req.Src,
+			fileSize: fileSize,
+		},
+		dstFS: &localFS{
+			partOfHTTPTransfer: true,
+		},
+		isHttpTransfer: true,
+	}
+	c.setDefaults()
+
+	return c, nil
+}
+
+// CreateHTTPDownloadConfig returns a Config ready to download a file
+// over HTTP.
+func CreateHTTPDownloadConfig(req HTTPTransferRequest) (*Config, error) {
+	if req.Src == "" {
+		return nil, trace.BadParameter("source path is empty")
+	}
+	if req.Dst == "" {
+		return nil, trace.BadParameter("destination path is empty")
+	}
+	if req.HTTPResponse == nil {
+		return nil, trace.BadParameter("HTTP response is empty")
+	}
+
+	c := &Config{
+		srcPaths: []string{req.Src},
+		dstPath:  req.Dst,
+		srcFS: &localFS{
+			partOfHTTPTransfer: true,
+		},
+		dstFS: &httpFS{
+			writer:   req.HTTPResponse,
+			fileName: req.Dst,
+		},
+		isHttpTransfer: true,
 	}
 	c.setDefaults()
 
@@ -155,8 +241,17 @@ func (c *Config) setDefaults() {
 }
 
 // TransferFiles transfers files from the configured source paths to the
-// configured destination path over SFTP
+// configured destination path over SFTP or HTTP depending on the Config.
 func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error {
+	// if this is a transfer over HTTP, no SFTP client is needed
+	if c.isHttpTransfer {
+		err := c.expandPaths(false, false)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(c.transfer(ctx))
+	}
+
 	sftpClient, err := sftp.NewClient(sshClient,
 		// Use concurrent stream to speed up transfer on slow networks as described in
 		// https://github.com/gravitational/teleport/issues/20579
@@ -181,7 +276,6 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 // initFS ensures the source and destination filesystems are ready to transfer
 func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 	var haveRemoteFS bool
-
 	srcFS, srcOK := c.srcFS.(*remoteFS)
 	if srcOK {
 		srcFS.c = client
@@ -427,7 +521,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(ctx, dstPath)
+	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Size())
 	if err != nil {
 		return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
@@ -443,9 +537,11 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 
 	reader, writer := prepareStreams(ctx, srcFile, dstFile, progressBar)
-
-	if err := assertStreamsType(reader, writer); err != nil {
-		return trace.Wrap(err)
+	// skip this SFTP-specific check if we're transferring over HTTP
+	if !c.isHttpTransfer {
+		if err := assertStreamsType(reader, writer); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	n, err := io.Copy(writer, reader)

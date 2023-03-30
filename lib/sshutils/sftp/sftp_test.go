@@ -22,12 +22,16 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -583,6 +587,83 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	checkTransfer(t, false, dstPath, linkPath)
 }
 
+func TestHTTPUpload(t *testing.T) {
+	tempDir := t.TempDir()
+	src := "source"
+	dst := filepath.Join(tempDir, "destination")
+
+	createFile(t, tempDir, src)
+	src = filepath.Join(tempDir, src)
+	f, err := os.Open(src)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		f.Close()
+	})
+
+	req, err := http.NewRequest("POST", "/", f)
+	require.NoError(t, err)
+
+	fi, err := f.Stat()
+	require.NoError(t, err)
+	req.Header.Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+
+	cfg, err := CreateHTTPUploadConfig(
+		HTTPTransferRequest{
+			Src:         "source",
+			Dst:         dst,
+			HTTPRequest: req,
+		},
+	)
+	require.NoError(t, err)
+
+	err = cfg.transfer(req.Context())
+	require.NoError(t, err)
+
+	srcContents, err := os.ReadFile(src)
+	require.NoError(t, err)
+	dstContents, err := os.ReadFile(dst)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(string(srcContents), string(dstContents)))
+}
+
+func TestHTTPDownload(t *testing.T) {
+	tempDir := t.TempDir()
+	src := "source"
+
+	createFile(t, tempDir, src)
+	src = filepath.Join(tempDir, src)
+	f, err := os.Open(src)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		f.Close()
+	})
+
+	contents, err := os.ReadFile(src)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	cfg, err := CreateHTTPDownloadConfig(
+		HTTPTransferRequest{
+			Src:          src,
+			Dst:          "/home/robots.txt",
+			HTTPResponse: w,
+		},
+	)
+	require.NoError(t, err)
+
+	err = cfg.transfer(context.Background())
+	require.NoError(t, err)
+
+	data, err := io.ReadAll(w.Body)
+	require.NoError(t, err)
+	contentLengthStr := strconv.Itoa(len(data))
+
+	require.Empty(t, cmp.Diff(string(contents), string(data)))
+	require.Empty(t, cmp.Diff(contentLengthStr, w.Header().Get("Content-Length")))
+	require.Empty(t, cmp.Diff("application/octet-stream", w.Header().Get("Content-Type")))
+	require.Empty(t, cmp.Diff(`attachment;filename="robots.txt"`, w.Header().Get("Content-Disposition")))
+}
+
 func createFile(t *testing.T, rootDir, path string) {
 	dir := filepath.Dir(path)
 	if dir != path {
@@ -677,7 +758,7 @@ func compareFiles(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo
 	require.NoError(t, err)
 	srcBytes, err := os.ReadFile(src)
 	require.NoError(t, err)
-	require.True(t, bytes.Equal(dstBytes, srcBytes), "%q and %q contents not equal", dst, src[0])
+	require.True(t, bytes.Equal(dstBytes, srcBytes), "%q and %q contents not equal", dst, src)
 }
 
 func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo, dst, src string) {

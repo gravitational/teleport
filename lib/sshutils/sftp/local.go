@@ -29,9 +29,16 @@ import (
 
 // localFS provides API for accessing the files on
 // the local file system
-type localFS struct{}
+type localFS struct {
+	partOfHTTPTransfer bool
+}
 
 func (l localFS) Type() string {
+	// if this localFS is being used in a HTTP file transfer, from the
+	// user's perspective this filesystem is remote
+	if l.partOfHTTPTransfer {
+		return "remote"
+	}
 	return "local"
 }
 
@@ -103,7 +110,7 @@ func (l localFS) Open(ctx context.Context, p string) (fs.File, error) {
 	return &fileWrapper{file: f}, nil
 }
 
-func (l localFS) Create(ctx context.Context, p string) (io.WriteCloser, error) {
+func (l localFS) Create(ctx context.Context, p string, _ int64) (io.WriteCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
