@@ -2116,6 +2116,126 @@ exports[`render with all access 1`] = `
         </div>
       </div>
     </a>
+    <a
+      class="c7 c8 unguided"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/rds-proxy"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c13"
+            color="white"
+          >
+            RDS Proxy
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c8 unguided"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/ha"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c13"
+            color="white"
+          >
+            High Availability
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c8 unguided"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/dynamic-registration"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c13"
+            color="white"
+          >
+            Dynamic Registration
+          </div>
+        </div>
+      </div>
+    </a>
   </div>
   <div
     class="c19"
@@ -3705,6 +3825,138 @@ exports[`render with no access 1`] = `
             color="white"
           >
             Snowflake (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c8 unguided"
+      data-testid="1"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10"
+      >
+        <div
+          class="c11"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+            color="white"
+          >
+            RDS Proxy
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c8 unguided"
+      data-testid="1"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10"
+      >
+        <div
+          class="c11"
+          width="24px"
+        >
+          <img
+            class="c12"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c14"
+            color="white"
+          >
+            High Availability
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c8 unguided"
+      data-testid="1"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c10"
+      >
+        <div
+          class="c11"
+          width="24px"
+        >
+          <img
+            class="c12"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c13"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c14"
+            color="white"
+          >
+            Dynamic Registration
           </div>
         </div>
       </div>
@@ -5327,6 +5579,138 @@ exports[`render with partial access 1`] = `
             color="white"
           >
             Snowflake (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c19 unguided"
+      data-testid="1"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c20"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c17"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c13"
+            color="white"
+          >
+            RDS Proxy
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c19 unguided"
+      data-testid="1"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c20"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c13"
+            color="white"
+          >
+            High Availability
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c7 c19 unguided"
+      data-testid="1"
+      rel="noreferrer"
+      target="_blank"
+    >
+      <div
+        class="c20"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c16"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c13"
+            color="white"
+          >
+            Dynamic Registration
           </div>
         </div>
       </div>

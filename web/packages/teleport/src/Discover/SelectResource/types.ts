@@ -41,6 +41,8 @@ export enum DatabaseEngine {
   ElasticSearch,
   DynamoDb,
   Redshift,
+
+  Doc,
 }
 
 export interface ResourceSpec {

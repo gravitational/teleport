@@ -18,8 +18,12 @@ import { DiscoverEventResource } from 'teleport/services/userEvent';
 
 import { ResourceKind } from '../Shared/ResourceKind';
 
-import { DATABASES, DATABASES_UNGUIDED } from './databases';
-import { ResourceSpec, DatabaseLocation } from './types';
+import {
+  DATABASES,
+  DATABASES_UNGUIDED,
+  DATABASES_UNGUIDED_DOC,
+} from './databases';
+import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
 import { icons } from './icons';
 
 const baseServerKeywords = 'server node';
@@ -107,6 +111,7 @@ export const RESOURCES: ResourceSpec[] = [
   ...SERVERS,
   ...DATABASES,
   ...DATABASES_UNGUIDED,
+  ...DATABASES_UNGUIDED_DOC,
 ];
 
 export function getResourcePretitle(r: ResourceSpec) {
@@ -128,6 +133,10 @@ export function getResourcePretitle(r: ResourceSpec) {
             return 'Azure';
           case DatabaseLocation.Microsoft:
             return 'Microsoft';
+        }
+
+        if (r.dbMeta.engine === DatabaseEngine.Doc) {
+          return 'Database';
         }
       }
       break;

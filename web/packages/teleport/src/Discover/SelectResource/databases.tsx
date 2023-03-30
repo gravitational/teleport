@@ -33,6 +33,38 @@ function getDbAccessDocLink(guide: string) {
   return `https://goteleport.com/docs/database-access/guides/${guide}`;
 }
 
+// DATABASES_UNGUIDED_DOC are documentations that is not specific
+// to one type of database.
+export const DATABASES_UNGUIDED_DOC: ResourceSpec[] = [
+  {
+    dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.Doc },
+    name: 'RDS Proxy',
+    keywords: awsKeywords + 'rds proxy',
+    kind: ResourceKind.Database,
+    Icon: icons.Aws,
+    unguidedLink: getDbAccessDocLink('rds-proxy'),
+    event: DiscoverEventResource.DatabaseDocRdsProxy,
+  },
+  {
+    dbMeta: { location: DatabaseLocation.TODO, engine: DatabaseEngine.Doc },
+    name: 'High Availability',
+    keywords: baseDatabaseKeywords + 'high availability ha',
+    kind: ResourceKind.Database,
+    Icon: icons.Database,
+    unguidedLink: getDbAccessDocLink('ha'),
+    event: DiscoverEventResource.DatabaseDocHighAvailability,
+  },
+  {
+    dbMeta: { location: DatabaseLocation.TODO, engine: DatabaseEngine.Doc },
+    name: 'Dynamic Registration',
+    keywords: baseDatabaseKeywords + 'dynamic registration',
+    kind: ResourceKind.Database,
+    Icon: icons.Database,
+    unguidedLink: getDbAccessDocLink('dynamic-registration'),
+    event: DiscoverEventResource.DatabaseDocDynamicRegistration,
+  },
+];
+
 export const DATABASES_UNGUIDED: ResourceSpec[] = [
   {
     dbMeta: { location: DatabaseLocation.Aws, engine: DatabaseEngine.DynamoDb },
