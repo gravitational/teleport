@@ -1,10 +1,6 @@
 name: OS Compatibility Test
 run-name: OS Compatibility Test
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
     paths-ignore:
       - 'docs/**'
