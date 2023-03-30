@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -287,12 +288,19 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 	scx.Infof("Creating (exec) session %v.", sessionID)
 
+	approved, err := s.isApprovedFileTransfer(ctx, scx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	canStart, _, err := sess.checkIfStart()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if !canStart {
+	// canStart will be true for non-moderated sessions. If canStart is false, check to
+	// see if the request has been approved through a moderated session next.
+	if !canStart && !approved {
 		return errCannotStartUnattendedSession
 	}
 
@@ -336,6 +344,57 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 	}
 
 	return sess.term.GetWinSize()
+}
+
+func (s *SessionRegistry) isApprovedFileTransfer(ctx context.Context, scx *ServerContext) (bool, error) {
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
+
+	// if a sessID and requestID environment variables were not set, return not approved and no error.
+	// This means the file transfer came from a non-moderated session. sessionID will be passed after a
+	// moderated session approval process has completed.
+	sessID, _ := scx.GetEnv(scp.ModeratedSession)
+	if sessID == "" {
+		return false, nil
+	}
+	// fetch session from registry with sessionID
+	sess := s.sessions[rsession.ID(sessID)]
+	if sess == nil {
+		// If they sent a sessionID and it wasn't found, send an actual error
+		return false, trace.NotFound("Session not found")
+	}
+
+	requestID, _ := scx.GetEnv(scp.FileTransferRequest)
+	if requestID == "" {
+		return false, nil
+	}
+	// find file transfer request in the session by requestID
+	fileTransferRequest := sess.fileTransferRequests[requestID]
+	if fileTransferRequest == nil {
+		// If they sent a fileTransferRequestID and it wasn't found, send an actual error
+		return false, trace.NotFound("File transfer request not found")
+	}
+
+	if fileTransferRequest.requester != scx.Identity.TeleportUser {
+		return false, trace.AccessDenied("Teleport user does not match original requester")
+	}
+
+	incomingShellCmd := string(scx.sshRequest.Payload)
+	if incomingShellCmd != fileTransferRequest.shellCmd {
+		return false, trace.AccessDenied("Incoming request does not match the approved request")
+	}
+	// validate incoming request (user/file/direction/etc) against the stored request
+
+	// if all is good, TRUE
+	return sess.checkIfFileTransferApproved(fileTransferRequest)
+}
+
+// NotifyFileTransferRequest is called to notify all members in the party that
+// a file transfer request has been created and is awaiting approval. It will not
+// be sent to the originating requester's channel.
+func (s *SessionRegistry) NotifyFileTransferRequest(ctx context.Context, params rsession.FileTransferParams, scx *ServerContext) {
+	s.sessionsMux.Lock()
+
 }
 
 // NotifyWinChange is called to notify all members in the party that the PTY
@@ -453,6 +512,11 @@ type session struct {
 	// never removed from this map as it's used to report the full list of
 	// participants at the end of a session.
 	participants map[rsession.ID]*party
+
+	// fileTransferRequests is a set of fileTransferRequests that are currently in the approval
+	// process, or already approved and not yet executed during a moderated session. If a request is
+	// denied or, once it's been executed, it should be removed from this map.
+	fileTransferRequests map[string]*fileTransferRequest
 
 	io       *TermManager
 	inWriter io.Writer
@@ -1403,6 +1467,38 @@ func (s *session) checkPresence() error {
 	}
 
 	return nil
+}
+
+type fileTransferRequest struct {
+	// requester is the Teleport User that requested the file transfer
+	requester string
+	// shellCmd is the requested scp command to run
+	shellCmd string
+	// approvers is a list of participants of moderator or peer type that have approved the request
+	approvers []*party
+}
+
+func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, error) {
+	var participants []auth.SessionAccessContext
+
+	for _, party := range req.approvers {
+		if party.ctx.Identity.TeleportUser == s.initiator {
+			continue
+		}
+
+		participants = append(participants, auth.SessionAccessContext{
+			Username: party.ctx.Identity.TeleportUser,
+			Roles:    party.ctx.Identity.AccessChecker.Roles(),
+			Mode:     party.mode,
+		})
+	}
+
+	isApproved, _, err := s.access.FulfilledFor(participants)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return isApproved, nil
 }
 
 func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {

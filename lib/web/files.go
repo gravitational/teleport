@@ -17,6 +17,7 @@ limitations under the License.
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -51,18 +52,25 @@ type fileTransferRequest struct {
 	filename string
 	// webauthn is an optional parameter that contains a webauthn response string used to issue single use certs
 	webauthn string
+	// fileTransferRequestID is used to find a FileTransferRequest on a session
+	fileTransferRequestID string
+	// moderatedSessonID is an ID of a moderated session that has completed a
+	// file transfer request approval process
+	moderatedSessionID string
 }
 
 func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	query := r.URL.Query()
 	req := fileTransferRequest{
-		cluster:        site.GetName(),
-		login:          p.ByName("login"),
-		serverID:       p.ByName("server"),
-		remoteLocation: query.Get("location"),
-		filename:       query.Get("filename"),
-		namespace:      defaults.Namespace,
-		webauthn:       query.Get("webauthn"),
+		cluster:               site.GetName(),
+		login:                 p.ByName("login"),
+		serverID:              p.ByName("server"),
+		remoteLocation:        query.Get("location"),
+		filename:              query.Get("filename"),
+		namespace:             defaults.Namespace,
+		webauthn:              query.Get("webauthn"),
+		fileTransferRequestID: query.Get("file_transfer_request_id"),
+		moderatedSessionID:    query.Get("moderated_session_id"),
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), site)
@@ -116,6 +124,7 @@ type fileTransfer struct {
 }
 
 func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, w http.ResponseWriter) error {
+	ctx := httpReq.Context()
 	cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
 		RemoteLocation: req.remoteLocation,
 		HTTPResponse:   w,
@@ -137,7 +146,13 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 		}
 	}
 
-	err = tc.ExecuteSCP(httpReq.Context(), req.serverID, cmd)
+	if req.fileTransferRequestID != "" {
+		// These values should never exist independently of each other so we can set them at the same time
+		ctx = context.WithValue(ctx, scp.FileTransferRequest, req.fileTransferRequestID)
+		ctx = context.WithValue(ctx, scp.ModeratedSession, req.moderatedSessionID)
+	}
+
+	err = tc.ExecuteSCP(ctx, req.serverID, cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -146,6 +161,7 @@ func (f *fileTransfer) download(req fileTransferRequest, httpReq *http.Request, 
 }
 
 func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) error {
+	ctx := httpReq.Context()
 	cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
 		RemoteLocation: req.remoteLocation,
 		FileName:       req.filename,
@@ -168,7 +184,13 @@ func (f *fileTransfer) upload(req fileTransferRequest, httpReq *http.Request) er
 		}
 	}
 
-	err = tc.ExecuteSCP(httpReq.Context(), req.serverID, cmd)
+	if req.fileTransferRequestID != "" {
+		// These values should never exist independently of each other so we can set them at the same time
+		ctx = context.WithValue(ctx, scp.FileTransferRequest, req.fileTransferRequestID)
+		ctx = context.WithValue(ctx, scp.ModeratedSession, req.moderatedSessionID)
+	}
+
+	err = tc.ExecuteSCP(ctx, req.serverID, cmd)
 	if err != nil {
 		return trace.Wrap(err)
 	}

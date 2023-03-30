@@ -55,6 +55,11 @@ type HTTPTransferRequest struct {
 	User string
 	// AuditLog is AuditLog log
 	AuditLog events.AuditLogSessionStreamer
+	// FileTransferRequestID is used to find a FileTransferRequest on a session
+	FileTransferRequestID string
+	// ModeratedSessonID is an ID of a moderated session that has completed a
+	// file transfer request approval process
+	ModeratedSessionID string
 }
 
 func (r *HTTPTransferRequest) parseRemoteLocation() (string, string, error) {
@@ -269,3 +274,15 @@ type nopWriteCloser struct {
 func (wr *nopWriteCloser) Close() error {
 	return nil
 }
+
+const (
+	// FileTransferRequest is an optional parameter id of an file transfer request that has gone through
+	// an approval process during a moderated session to allow a file transfer scp command to be executed
+	// used as a value in the file transfer context and env var for exec session
+	FileTransferRequest string = "FILE_TRANSFER_REQUEST_ID"
+
+	// ModeratedSession is an optional parameter sent during SCP requests to specify which moderated session
+	// to check for valid FileTransferRequests
+	// used as a value in the file transfer context and env var for exec session
+	ModeratedSession string = "MODERATED_SESSION_ID"
+)
