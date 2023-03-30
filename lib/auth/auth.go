@@ -4183,18 +4183,18 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 	return nil
 }
 
-// convertUsageEventUserMetadata is used to provide User Metadata queries to the ConvertUsageEvent.
+// userMetadataGetter is used to provide User Metadata queries to the ConvertUsageEvent.
 //
 // Fetching them ahead of time may cause some unnecessary queries, so the converted is
 // responsible for calling those methods as needed.
-type convertUsageEventUserMetadata struct {
-	*Server
+type userMetadataGetter struct {
+	userGetter *Server
 }
 
 // GetUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, returns an error.
-func (a convertUsageEventUserMetadata) GetUsername(ctx context.Context) (string, error) {
+func (a userMetadataGetter) GetUsername(ctx context.Context) (string, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -4202,9 +4202,9 @@ func (a convertUsageEventUserMetadata) GetUsername(ctx context.Context) (string,
 	return username, nil
 }
 
-// GetUserIsSSO returns whether the user is an SSO user.
-func (a convertUsageEventUserMetadata) GetUserIsSSO(ctx context.Context, username string) (bool, error) {
-	user, err := a.GetUser(username, false /* withSecrets */)
+// IsSSOUser returns whether the user is an SSO user.
+func (a userMetadataGetter) IsSSOUser(ctx context.Context, username string) (bool, error) {
+	user, err := a.userGetter.GetUser(username, false /* withSecrets */)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -4214,9 +4214,8 @@ func (a convertUsageEventUserMetadata) GetUserIsSSO(ctx context.Context, usernam
 
 // SubmitUsageEvent submits an external usage event.
 func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-
-	userMDGetter := convertUsageEventUserMetadata{
-		Server: a,
+	userMDGetter := userMetadataGetter{
+		userGetter: a,
 	}
 
 	event, err := usagereporter.ConvertUsageEvent(ctx, req.GetEvent(), userMDGetter)
