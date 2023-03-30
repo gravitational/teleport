@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
 	teletermv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/usagereporter"
