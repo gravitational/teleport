@@ -35,52 +35,13 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestProxyKube(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
-	rootKubeCluster1 := "root-kube1"
-	rootKubeCluster2 := "root-kube2"
-	leafKubeCluster := "leaf-kube"
-
-	ctx := context.Background()
-	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
-		}),
-		withLeafCluster(),
-		withLeafConfigFunc(func(cfg *servicecfg.Config) {
-			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
-			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
-		}),
-		withValidationFunc(func(s *suite) bool {
-			rootClusters, err := s.root.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			leafClusters, err := s.leaf.GetAuthServer().GetKubernetesServers(ctx)
-			require.NoError(t, err)
-			return len(rootClusters) >= 2 && len(leafClusters) >= 1
-		}),
-	)
-
-	mustLoginSetEnv(t, s)
-
+func (p *kubeTestPack) testProxyKube(t *testing.T) {
 	// Set default kubeconfig to a non-exist file to avoid loading other things.
 	t.Setenv("KUBECONFIG", path.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
-
-	rootClusterName := s.root.Config.Auth.ClusterName.GetClusterName()
-	leafClusterName := s.leaf.Config.Auth.ClusterName.GetClusterName()
 
 	// Test "tsh proxy kube root-cluster1".
 	t.Run("with kube cluster arg", func(t *testing.T) {
@@ -90,12 +51,12 @@ func TestProxyKube(t *testing.T) {
 
 		validateCmd := func(cmd *exec.Cmd) error {
 			config := kubeConfigFromCmdEnv(t, cmd)
-			checkKubeLocalProxyConfig(t, s, config, rootClusterName, rootKubeCluster1)
+			checkKubeLocalProxyConfig(t, p.suite, config, p.rootClusterName, p.rootKubeCluster1)
 			return nil
 		}
 		err := Run(
 			ctx,
-			[]string{"proxy", "kube", rootKubeCluster1, "--insecure"},
+			[]string{"proxy", "kube", p.rootKubeCluster1, "--insecure"},
 			setCmdRunner(validateCmd),
 		)
 		require.NoError(t, err)
@@ -107,13 +68,13 @@ func TestProxyKube(t *testing.T) {
 		defer cancel()
 		t.Cleanup(cancel)
 
-		require.NoError(t, Run(ctx, []string{"kube", "login", rootKubeCluster2, "--insecure"}))
-		require.NoError(t, Run(ctx, []string{"kube", "login", leafKubeCluster, "-c", leafClusterName, "--insecure"}))
+		require.NoError(t, Run(ctx, []string{"kube", "login", p.rootKubeCluster2, "--insecure"}))
+		require.NoError(t, Run(ctx, []string{"kube", "login", p.leafKubeCluster, "-c", p.leafClusterName, "--insecure"}))
 
 		validateCmd := func(cmd *exec.Cmd) error {
 			config := kubeConfigFromCmdEnv(t, cmd)
-			checkKubeLocalProxyConfig(t, s, config, rootClusterName, rootKubeCluster2)
-			checkKubeLocalProxyConfig(t, s, config, leafClusterName, leafKubeCluster)
+			checkKubeLocalProxyConfig(t, p.suite, config, p.rootClusterName, p.rootKubeCluster2)
+			checkKubeLocalProxyConfig(t, p.suite, config, p.leafClusterName, p.leafKubeCluster)
 			return nil
 		}
 		err := Run(
