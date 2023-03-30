@@ -313,6 +313,10 @@ type ExecOptions struct {
 	GetPodTimeout                  time.Duration
 	Config                         *restclient.Config
 	displayParticipantRequirements bool
+	// invited is a list of users that are invited to the session
+	invited []string
+	// reason is the reason for the session
+	reason string
 }
 
 // Run executes a validated remote execution against a pod.
@@ -382,7 +386,9 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 			Name(pod.Name).
 			Namespace(pod.Namespace).
 			SubResource("exec").
-			Param("displayParticipantRequirements", strconv.FormatBool(p.displayParticipantRequirements))
+			Param(teleport.KubeSessionDisplayParticipantRequirementsQueryParam, strconv.FormatBool(p.displayParticipantRequirements)).
+			Param(teleport.KubeSessionInvitedQueryParam, strings.Join(p.invited, ",")).
+			Param(teleport.KubeSessionReasonQueryParam, p.reason)
 		req.VersionedParams(&corev1.PodExecOptions{
 			Container: containerName,
 			Command:   p.Command,
@@ -454,6 +460,8 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.restClientGetter = f
 	p.Executor = &DefaultRemoteExecutor{}
 	p.displayParticipantRequirements = c.displayParticipantRequirements
+	p.invited = strings.Split(c.invited, ",")
+	p.reason = c.reason
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
