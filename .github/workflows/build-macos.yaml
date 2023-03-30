@@ -46,5 +46,9 @@ jobs:
         with:
           go-version: ${{ steps.go-version.outputs.go-version }}
 
+      - name: Print Cargo version
+        shell: bash
+        run: echo "Cargo version = $(cargo --version)"
+
       - name: Build
         run: make binaries
