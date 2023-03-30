@@ -406,7 +406,7 @@ const InputWrapper = styled.div`
   &:hover,
   &:focus,
   &:active {
-    background: ${props => props.theme.colors.primary.main};
+    background: ${props => props.theme.colors.levels.surfaceSecondary};
   }
 `;
 

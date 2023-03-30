@@ -85,7 +85,7 @@ export default function Player() {
 
   return (
     <StyledPlayer>
-      <Flex bg={colors.primary.light} height="38px">
+      <Flex bg={colors.levels.surface} height="38px">
         <Tabs flex="1 0">
           <TabItem title="Session Player" />
         </Tabs>
