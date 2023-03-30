@@ -2,9 +2,6 @@ name: Build on Windows
 run-name: Build on Windows
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
     # We only build tsh on Windows so only consider Go code as tsh doesn't
     # run any Rust.
