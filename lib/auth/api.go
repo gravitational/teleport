@@ -724,8 +724,7 @@ type DiscoveryAccessPoint interface {
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
-// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta]
-// except for access requests, which are expected to only be used by events.
+// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta].
 type ReadOktaAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
