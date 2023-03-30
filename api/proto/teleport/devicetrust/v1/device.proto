@@ -19,6 +19,7 @@ package teleport.devicetrust.v1;
 import "google/protobuf/timestamp.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
+import "teleport/devicetrust/v1/device_profile.proto";
 import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/os_type.proto";
 
@@ -82,6 +83,9 @@ message Device {
   // Devices managed directly via Teleport (`tctl`, Web UI, etc) have no
   // assigned source.
   DeviceSource source = 11;
+
+  // Device information acquired from an external source.
+  DeviceProfile profile = 12;
 }
 
 // DeviceCredential represents the current enrolled public key of a device.
