@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -35,6 +37,8 @@ type enterpriseModules struct {
 	license             types.License
 	enableRecoveryCodes atomic.Bool
 	enablePlugins       atomic.Bool
+	automaticUpgrades   bool
+	loadDynamicValues   sync.Once
 }
 
 // Features returns supported features
@@ -42,6 +46,11 @@ func (p *enterpriseModules) Features() modules.Features {
 	if p.license == nil {
 		return modules.Features{}
 	}
+
+	p.loadDynamicValues.Do(func() {
+		p.automaticUpgrades = automaticupgrades.IsEnabled()
+	})
+
 	// All features are always enabled in Teleport Cloud since it does a
 	// per-resource usage reporting. Also, for backward compatibility so
 	// we don't need to reissue licenses every time we add a new feature.
@@ -58,6 +67,7 @@ func (p *enterpriseModules) Features() modules.Features {
 		HSM:                     true,
 		RecoveryCodes:           p.license.GetCloud().Value() || p.enableRecoveryCodes.Load(),
 		Plugins:                 p.enablePlugins.Load(),
+		AutomaticUpgrades:       p.automaticUpgrades,
 	}
 }
 
