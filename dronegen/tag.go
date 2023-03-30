@@ -282,6 +282,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -291,6 +292,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
+			Pull:        "if-not-exists",
 			Environment: tagEnvironment,
 			Volumes:     []volumeRef{volumeRefDocker},
 			Commands:    tagBuildCommands(b),
@@ -298,6 +300,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Copy artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCopyArtifactCommands(b),
 		},
 		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
@@ -317,12 +320,16 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
+	}
+	p.ImagePullSecrets = []string{
+		"DOCKERHUB_CREDENTIALS",
 	}
 	return p
 }

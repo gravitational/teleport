@@ -93,6 +93,7 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 	return step{
 		Name:  s.name,
 		Image: "amazon/aws-cli",
+		Pull:  "if-not-exists",
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,

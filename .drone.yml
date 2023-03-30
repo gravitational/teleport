@@ -61,6 +61,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -79,13 +80,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -130,6 +141,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerConfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -166,6 +181,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -184,13 +200,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -233,6 +259,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerConfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -269,6 +299,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -289,13 +320,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -340,6 +381,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerConfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -376,6 +421,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -394,13 +440,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -443,6 +499,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerConfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -818,13 +878,23 @@ steps:
     && exit 1)'
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -1144,6 +1214,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -1162,13 +1233,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -1211,6 +1292,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerConfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -1242,6 +1327,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -1260,6 +1346,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -1535,6 +1622,7 @@ clone:
 steps:
   - name: Check out code
     image: alpine/git
+    pull: if-not-exists
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -1657,6 +1745,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -1680,13 +1769,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -1704,6 +1803,7 @@ steps:
     path: /var/run
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -1717,6 +1817,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -1753,6 +1854,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -1812,6 +1914,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -1845,6 +1949,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -1868,13 +1973,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -1894,6 +2009,7 @@ steps:
     path: /var/run
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -1904,6 +2020,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -1940,6 +2057,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -1999,6 +2117,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2032,6 +2152,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -2055,13 +2176,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -2081,6 +2212,7 @@ steps:
     path: /var/run
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -2098,6 +2230,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2134,6 +2267,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -2193,6 +2327,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2226,6 +2362,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -2249,13 +2386,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -2275,6 +2422,7 @@ steps:
     path: /var/run
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -2283,6 +2431,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2319,6 +2468,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -2378,6 +2528,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2432,13 +2584,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2480,6 +2642,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2541,6 +2704,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2695,13 +2859,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2741,6 +2915,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2801,6 +2976,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2955,13 +3131,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3003,6 +3189,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3055,6 +3242,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3204,13 +3392,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3250,6 +3448,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3301,6 +3500,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3429,6 +3629,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -3452,13 +3653,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -3476,6 +3687,7 @@ steps:
     path: /var/run
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -3486,6 +3698,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3522,6 +3735,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -3581,6 +3795,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -3635,13 +3851,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3683,6 +3909,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3744,6 +3971,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3898,13 +4126,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3946,6 +4184,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3998,6 +4237,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -4776,6 +5016,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -4799,13 +5040,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -4823,6 +5074,7 @@ steps:
     path: /var/run
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -4833,6 +5085,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -4869,6 +5122,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -4928,6 +5182,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -4958,6 +5214,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -4976,6 +5233,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -5288,13 +5546,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5336,6 +5604,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5388,6 +5657,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5800,13 +6070,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5848,6 +6128,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5909,6 +6190,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6042,6 +6324,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -6065,13 +6348,23 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - apk add --no-cache make
   - chown -R $UID:$GID /go
@@ -6093,6 +6386,7 @@ steps:
     path: /var/run
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts \;
@@ -6102,6 +6396,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6138,6 +6433,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -6197,6 +6493,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 kind: pipeline
@@ -6585,13 +6883,23 @@ steps:
   - git checkout ${DRONE_COMMIT}
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Configure Staging AWS Profile
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6616,6 +6924,7 @@ steps:
     path: /root/.aws
 - name: Configure Production AWS Profile
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6806,11 +7115,13 @@ clone:
 steps:
 - name: Verify build is tagged
   image: alpine:latest
+  pull: if-not-exists
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -6820,6 +7131,7 @@ steps:
   - git checkout -qf "${DRONE_TAG}"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6867,6 +7179,7 @@ steps:
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -7012,11 +7325,13 @@ clone:
 steps:
 - name: Verify build is tagged
   image: alpine:latest
+  pull: if-not-exists
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -7026,6 +7341,7 @@ steps:
   - git checkout -qf "${DRONE_TAG}"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -7073,6 +7389,7 @@ steps:
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -7723,6 +8040,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -7741,6 +8059,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -8014,19 +8333,30 @@ depends_on:
 steps:
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
     != "200" ]; do sleep 1; done'
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -8042,6 +8372,7 @@ steps:
   - echo $(cat "/go/var/full-version")
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8066,6 +8397,7 @@ steps:
     path: /root/.aws
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8092,6 +8424,7 @@ steps:
   - Assume ECR - staging AWS Role
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8421,6 +8754,7 @@ steps:
   - Tag and push image "teleport:v13-arm64" to ECR - staging
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8751,6 +9085,7 @@ steps:
   - Tag and push image "teleport-ent:v13-arm64" to ECR - staging
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -9164,6 +9499,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -9182,6 +9518,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -9221,6 +9558,7 @@ clone:
 steps:
 - name: Verify build is tagged
   image: alpine:latest
+  pull: if-not-exists
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
@@ -9242,16 +9580,26 @@ steps:
     '; echo 'a prerelease'
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -9261,6 +9609,7 @@ steps:
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -9288,6 +9637,7 @@ steps:
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -9315,6 +9665,7 @@ steps:
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -10875,15 +11226,25 @@ steps:
     "v12"
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   depends_on:
   - Find the latest available semver for v12
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -10892,6 +11253,7 @@ steps:
   - Find the latest available semver for v12
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -10918,6 +11280,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -10944,6 +11307,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -10971,6 +11335,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -10998,6 +11363,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -11738,6 +12104,7 @@ steps:
   - Tag and push image "teleport:v12-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -12484,6 +12851,7 @@ steps:
   - Tag and push image "teleport-ent:v12-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13568,15 +13936,25 @@ steps:
     "v11"
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   depends_on:
   - Find the latest available semver for v11
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -13585,6 +13963,7 @@ steps:
   - Find the latest available semver for v11
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -13611,6 +13990,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13637,6 +14017,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13664,6 +14045,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13691,6 +14073,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -14431,6 +14814,7 @@ steps:
   - Tag and push image "teleport:v11-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -15177,6 +15561,7 @@ steps:
   - Tag and push image "teleport-ent:v11-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16261,15 +16646,25 @@ steps:
     "v10"
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
   depends_on:
   - Find the latest available semver for v10
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -16278,6 +16673,7 @@ steps:
   - Find the latest available semver for v10
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -16304,6 +16700,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16330,6 +16727,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16357,6 +16755,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16384,6 +16783,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -17124,6 +17524,7 @@ steps:
   - Tag and push image "teleport:v10-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -17870,6 +18271,7 @@ steps:
   - Tag and push image "teleport-ent:v10-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -18952,13 +19354,23 @@ steps:
     && exit 1)'
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin
+  environment:
+    DOCKERHUB_LOGIN:
+      from_secret: DOCKERHUB_USERNAME
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_PASSSWORD
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerConfig
+    path: /root/.docker
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -19039,6 +19451,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4107c52101a8fbd297c24a1408d6bb96999140c0a3d67cc7fba23abaa447ea38
+hmac: 80d22ee4285a288654fbb0d5592291b715a812359a69c04e3d9c93649486768d
 
 ...

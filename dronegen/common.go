@@ -86,6 +86,22 @@ var (
 		Name: "awsconfig",
 		Path: "/root/.aws",
 	}
+
+	// volumeDockerConfig is a temporary volume for storing docker
+	// related configs on a per-workflow basis. Drone claims to
+	// destroy the the temp volumes after a workflow has run, do
+	// it should be safe to write credentials etc.
+	volumeDockerConfig = volume{
+		Name: "dockerConfig",
+		Temp: &volumeTemp{},
+	}
+
+	// volumeRefDockerConfig is how you reference the docker config
+	// volume in a workflow step
+	volumeRefDockerConfig = volumeRef{
+		Name: "dockerConfig",
+		Path: "/root/.docker",
+	}
 )
 
 var buildboxVersion value
@@ -283,10 +299,16 @@ func waitForDockerStep() step {
 	return step{
 		Name:  "Wait for docker",
 		Image: "docker",
+		Pull:  "if-not-exists",
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
+			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_LOGIN" --password-stdin`,
 		},
-		Volumes: []volumeRef{volumeRefDocker},
+		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig},
+		Environment: map[string]value{
+			"DOCKERHUB_LOGIN":    {fromSecret: "DOCKERHUB_USERNAME"},
+			"DOCKERHUB_PASSWORD": {fromSecret: "DOCKERHUB_PASSSWORD"},
+		},
 	}
 }
 
@@ -295,6 +317,7 @@ func waitForDockerRegistryStep() step {
 	return step{
 		Name:  "Wait for docker registry",
 		Image: "alpine",
+		Pull:  "if-not-exists",
 		Commands: []string{
 			"apk add curl",
 			fmt.Sprintf(`timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %%{http_code} http://%s/)" != "200" ]; do sleep 1; done'`, LocalRegistrySocket),
@@ -306,6 +329,7 @@ func verifyTaggedStep() step {
 	return step{
 		Name:  "Verify build is tagged",
 		Image: "alpine:latest",
+		Pull:  "if-not-exists",
 		Commands: []string{
 			"[ -n ${DRONE_TAG} ] || (echo 'DRONE_TAG is not set. Is the commit tagged?' && exit 1)",
 		},
@@ -317,6 +341,7 @@ func cloneRepoStep(clonePath, commit string) step {
 	return step{
 		Name:     "Check out code",
 		Image:    "alpine/git:latest",
+		Pull:     "if-not-exists",
 		Commands: cloneRepoCommands(clonePath, commit),
 	}
 }
