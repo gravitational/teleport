@@ -48,7 +48,6 @@ func windowsTagPipeline() pipeline {
 	}
 
 	p.Steps = []step{
-		fixWindwresName(),
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
