@@ -364,7 +364,16 @@ func (b *Bot) generateImpersonatedIdentity(
 	defaultRoles []string,
 ) (*identity.Identity, error) {
 	ident, err := b.generateIdentity(
-		ctx, b.ident(), expires, destCfg, defaultRoles, nil,
+		ctx, b.ident(), expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+			// For now this is mutually exclusive to the other options, but
+			// eventually will be combinable with them.
+			// When this occurs, this may need to be integrated with the
+			// certificate creation process for app,db,k8s etc so that resources
+			// are searched for in the correct cluster.
+			if destCfg.Cluster != "" {
+				req.RouteToCluster = destCfg.Cluster
+			}
+		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
