@@ -1978,6 +1978,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
+		IsSSOUser: req.user.IsSSO(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -4183,44 +4184,24 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 	return nil
 }
 
-// userMetadataGetter is used to provide User Metadata queries to the ConvertUsageEvent.
-//
-// Fetching them ahead of time may cause some unnecessary queries, so the converter is
-// responsible for calling those methods as needed.
-type userMetadataGetter struct {
-	userGetter services.UserGetter
-}
-
-// GetUsername returns the username of a remote HTTP client making the call.
-// If ctx didn't pass through auth middleware or did not come from an HTTP
-// request, returns an error.
-func (u userMetadataGetter) GetUsername(ctx context.Context) (string, error) {
-	username, err := authz.GetClientUsername(ctx)
-	return username, trace.Wrap(err)
-}
-
-// IsSSOUser returns whether the user is an SSO user.
-func (u userMetadataGetter) IsSSOUser(ctx context.Context) (bool, error) {
-	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	user, err := u.userGetter.GetUser(username, false /* withSecrets */)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	return user.GetCreatedBy().Connector != nil, nil
-}
-
 // SubmitUsageEvent submits an external usage event.
 func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEventRequest) error {
-	userMDGetter := userMetadataGetter{
-		userGetter: a,
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(ctx, req.GetEvent(), userMDGetter)
+	userIsSSO, err := authz.GetClientUserIsSSO(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userMetadata := usagereporter.UserMetadata{
+		Username: username,
+		IsSSO:    userIsSSO,
+	}
+
+	event, err := usagereporter.ConvertUsageEvent(ctx, req.GetEvent(), userMetadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -368,6 +368,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		MFAVerified:       u.Identity.MFAVerified,
 		LoginIP:           u.Identity.LoginIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
+		IsSSOUser:         u.Identity.IsSSOUser,
 	}
 
 	return &Context{
@@ -936,19 +937,40 @@ func ClientUsername(ctx context.Context) string {
 	return identity.Username
 }
 
+func userIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
+	userWithIdentity, err := UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("missing identity")
+	}
+
+	identity := userWithIdentity.GetIdentity()
+	if identity.Username == "" {
+		return nil, trace.AccessDenied("missing identity username")
+	}
+
+	return &identity, nil
+}
+
 // GetClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, returns an error.
 func GetClientUsername(ctx context.Context) (string, error) {
-	userWithIdentity, err := UserFromContext(ctx)
+	identity, err := userIdentityFromContext(ctx)
 	if err != nil {
-		return "", trace.AccessDenied("missing identity")
-	}
-	identity := userWithIdentity.GetIdentity()
-	if identity.Username == "" {
-		return "", trace.AccessDenied("missing identity username")
+		return "", trace.Wrap(err)
 	}
 	return identity.Username, nil
+}
+
+// GetClientUserIsSSO extracts the identity of a remote HTTP client and indicates whether that is an SSO user.
+// If ctx didn't pass through auth middleware or did not come from an HTTP
+// request, returns an error.
+func GetClientUserIsSSO(ctx context.Context) (bool, error) {
+	identity, err := userIdentityFromContext(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return identity.IsSSOUser, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client

@@ -98,6 +98,8 @@ type User interface {
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
+	// IsSSO indicates if the user was created by an SSO provider
+	IsSSO() bool
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
@@ -391,6 +393,11 @@ func (u UserV2) GetAzureIdentities() []string {
 // GetGCPServiceAccounts gets a list of GCP service accounts for the user
 func (u UserV2) GetGCPServiceAccounts() []string {
 	return u.getTrait(constants.TraitGCPServiceAccounts)
+}
+
+// IsSSO indicates if the user was created by an SSO provider.
+func (u UserV2) IsSSO() bool {
+	return u.GetCreatedBy().Connector != nil
 }
 
 func (u *UserV2) String() string {
