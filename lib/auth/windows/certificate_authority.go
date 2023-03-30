@@ -166,9 +166,10 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, c
 	// another nested container with the CA name, I think, and then multiple
 	// separate CRL objects in that container.
 	//
-	// We name our parent container "Teleport" and the CRL object is named
-	// after the Teleport cluster name. For example, CRL for cluster "prod"
-	// will be placed at:
+	// We name our parent container based on the CA type (for example, for User
+	// CA, it is called "Teleport"), and the CRL object is named after the
+	// Teleport cluster name. So, for instance, CRL for cluster "prod" and User
+	// CA will be placed at:
 	// ... > CDP > Teleport > prod
 	containerDN := crlContainerDN(c.cfg.LDAPConfig, caType)
 	crlDN := crlDN(c.cfg.ClusterName, c.cfg.LDAPConfig, caType)
