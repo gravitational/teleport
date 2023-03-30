@@ -228,6 +228,16 @@ accept events using TLS and print them:
       time_type string
       time_format %Y-%m-%dT%H:%M:%S
     </parse>
+
+    <buffer>
+      @type file
+      flush_thread_count 8
+      flush_interval 1s
+      chunk_limit_size 10M
+      queue_limit_length 16
+      retry_max_interval 30
+      retry_forever true
+    </buffer>
 </source>
 
 # Events sent to test.log will be dumped to STDOUT.
