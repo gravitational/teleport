@@ -21,11 +21,9 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
@@ -1735,106 +1732,6 @@ func newClientConn(
 // Close closes the proxy and auth clients
 func (proxy *ProxyClient) Close() error {
 	return trace.NewAggregate(proxy.Client.Close(), proxy.currentCluster.Close())
-}
-
-// ExecuteSCP runs remote scp command(shellCmd) on the remote server and
-// runs local scp handler using SCP Command
-func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
-	ctx, span := c.Tracer.Start(
-		ctx,
-		"nodeClient/ExecuteSCP",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	shellCmd, err := cmd.GetRemoteShellCmd()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s, err := c.Client.NewSession(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer s.Close()
-
-	// File transfers in a moderated session require these two variablesto check for
-	// approval on the ssh server. If they exist in the context, set them in our env vars
-	if moderatedSessionID, ok := ctx.Value(scp.ModeratedSessionID).(string); ok {
-		s.Setenv(ctx, string(scp.ModeratedSessionID), moderatedSessionID)
-	}
-	if fileTransferRequestID, ok := ctx.Value(scp.FileTransferRequestID).(string); ok {
-		s.Setenv(ctx, string(scp.FileTransferRequestID), fileTransferRequestID)
-	}
-
-	stdin, err := s.StdinPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	stdout, err := s.StdoutPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Stream scp's stderr so tsh gets the verbose remote error
-	// if the command fails
-	stderr, err := s.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go io.Copy(os.Stderr, stderr)
-
-	ch := utils.NewPipeNetConn(
-		stdout,
-		stdin,
-		utils.MultiCloser(),
-		&net.IPAddr{},
-		&net.IPAddr{},
-	)
-
-	execC := make(chan error, 1)
-	go func() {
-		err := cmd.Execute(ch)
-		if err != nil && !trace.IsEOF(err) {
-			log.WithError(err).Warn("Failed to execute SCP command.")
-		}
-		stdin.Close()
-		execC <- err
-	}()
-
-	runC := make(chan error, 1)
-	go func() {
-		err := s.Run(ctx, shellCmd)
-		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
-			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
-			// the remote side cannot send exit-status and this error results.
-			// To abort the session properly, Teleport needs to support `signal` request
-			err = nil
-		}
-		runC <- err
-	}()
-
-	var runErr error
-	select {
-	case <-ctx.Done():
-		if err := s.Close(); err != nil {
-			log.WithError(err).Debug("Failed to close the SSH session.")
-		}
-		err, runErr = <-execC, <-runC
-	case err = <-execC:
-		runErr = <-runC
-	case runErr = <-runC:
-		err = <-execC
-	}
-
-	if runErr != nil && (err == nil || trace.IsEOF(err)) {
-		err = runErr
-	}
-	if trace.IsEOF(err) {
-		err = nil
-	}
-	return trace.Wrap(err)
 }
 
 // TransferFiles transfers files over SFTP.
