@@ -263,6 +263,11 @@ message DeviceOrStatus {
 message CreateDeviceEnrollTokenRequest {
   // ID of the device.
   string device_id = 1;
+
+  // Device collected data.
+  // Used to authorize issuance of device enrollment tokens for auto-enrollment.
+  // Not required otherwise.
+  DeviceCollectedData device_data = 2;
 }
 
 // Request for EnrollDevice.
