@@ -30,7 +30,8 @@ import (
 )
 
 type dialProxyConfig struct {
-	tlsConfig *tls.Config
+	tlsConfig               *tls.Config
+	alpnConnUpgradeRequired bool
 }
 
 // DialProxyOption allows setting options as functional arguments to DialProxy.
@@ -41,6 +42,13 @@ type DialProxyOption func(cfg *dialProxyConfig)
 func WithTLSConfig(tlsConfig *tls.Config) DialProxyOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.tlsConfig = tlsConfig
+	}
+}
+
+// TODO
+func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialProxyOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.alpnConnUpgradeRequired = alpnConnUpgradeRequired
 	}
 }
 

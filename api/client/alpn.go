@@ -27,6 +27,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
@@ -45,7 +46,8 @@ type ALPNDialerConfig struct {
 // ALPNDialer is a ContextDialer that dials a connection to the Proxy Service
 // with ALPN and SNI configured in the provided TLSConfig. An ALPN connection
 // upgrade is also performed at the initial connection, if an upgrade is
-// required.
+// required. If the negotiated protocol is a ping protocol, it will return the
+// de-multiplexed connection without the ping.
 type ALPNDialer struct {
 	cfg ALPNDialerConfig
 }
@@ -81,13 +83,14 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO support system proxy.
-	dialer := NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout)
-	if d.cfg.ALPNConnUpgradeRequired {
-		dialer = newALPNConnUpgradeDialer(dialer, &tls.Config{
-			InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
-		})
+	tlsConfigForDialer := &tls.Config{
+		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
 	}
+
+	dialer := NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout,
+		WithTLSConfig(tlsConfigForDialer),
+		WithALPNConnUpgrade(d.cfg.ALPNConnUpgradeRequired),
+	)
 
 	conn, err := dialer.DialContext(ctx, network, addr)
 	if err != nil {
@@ -100,16 +103,14 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 		return nil, trace.Wrap(err)
 	}
 
-	if strings.HasSuffix(tlsConn.ConnectionState().NegotiatedProtocol, "-ping") {
+	if strings.HasSuffix(tlsConn.ConnectionState().NegotiatedProtocol, constants.ALPNSNIProtocolPingSuffix) {
 		logrus.Debug("Using ping connection")
 		return pingconn.New(tlsConn), nil
 	}
 	return tlsConn, nil
 }
 
-// TODO remove
-// DialALPN a helper to dial using an ALPNDialer and returns a net.Conn if
-// successful.
+// DialALPN a helper to dial using an ALPNDialer.
 func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (net.Conn, error) {
 	conn, err := NewALPNDialer(cfg).DialContext(ctx, "tcp", addr)
 	return conn, trace.Wrap(err)

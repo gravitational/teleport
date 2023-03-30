@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"net/url"
 	"time"
@@ -99,9 +100,17 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		if len(cfg.Addrs) == 0 {
 			return nil, trace.BadParameter("no addresses to dial")
 		}
-		contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout, client.WithTLSConfig(httpTLS))
 		httpDialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 			for _, addr := range cfg.Addrs {
+				contextDialerOpts := []client.DialProxyOption{
+					client.WithTLSConfig(&tls.Config{
+						InsecureSkipVerify: httpTLS.InsecureSkipVerify,
+					}),
+					client.WithALPNConnUpgrade(client.IsWebProxyAndConnUpgradeRequired(ctx, addr, &cfg)),
+				}
+
+				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout, contextDialerOpts...)
+
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
 					return conn, nil

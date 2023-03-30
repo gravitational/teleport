@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"net"
+	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -56,6 +57,12 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) *net.Dialer {
 	}
 }
 
+func newProxyURLDialer(proxyURL *url.URL, dialer *net.Dialer, opts ...DialProxyOption) ContextDialer {
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		return DialProxyWithDialer(ctx, proxyURL, addr, dialer, opts...)
+	})
+}
+
 // tracedDialer ensures that the provided ContextDialerFunc is given a context
 // which contains tracing information. In the event that a grpc dial occurs without
 // a grpc.WithBlock dialing option, the context provided to the dial function will
@@ -79,13 +86,43 @@ func tracedDialer(ctx context.Context, fn ContextDialerFunc) ContextDialerFunc {
 // NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
 // on the environment.
 func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, opts ...DialProxyOption) ContextDialer {
+	var cfg dialProxyConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	return tracedDialer(ctx, func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
+		netDialer := newDirectDialer(keepAlivePeriod, dialTimeout)
+
+		// Base direct dialer.
+		var dialer ContextDialer = netDialer
+
+		// Wrap with proxy URL dialer if proxy URL is detected
 		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
-			return DialProxyWithDialer(ctx, proxyURL, addr, dialer, opts...)
+			dialer = newProxyURLDialer(proxyURL, netDialer, opts...)
 		}
+
+		// Wrap with alpnConnUpgradeDialer if upgrade is required.
+		if cfg.alpnConnUpgradeRequired {
+			dialer = newALPNConnUpgradeDialer(dialer, cfg.tlsConfig)
+		}
+
+		// Dial.
 		return dialer.DialContext(ctx, network, addr)
 	})
+}
+
+func isAddrWebProxy(ctx context.Context, targetAddr, knownWebProxyAddr string, insecure bool) bool {
+	if knownWebProxyAddr != "" && targetAddr == knownWebProxyAddr {
+		return true
+	}
+
+	_, err := webclient.Find(&webclient.Config{
+		Context:   ctx,
+		ProxyAddr: targetAddr,
+		Insecure:  insecure,
+	})
+	return err == nil
 }
 
 // NewProxyDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
@@ -161,12 +198,16 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		tlsConn, err := DialALPN(ctx, tunnelAddr, ALPNDialerConfig{
 			ALPNConnUpgradeRequired: params.cfg.IsALPNConnUpgradeRequired(tunnelAddr, insecure),
 			DialTimeout:             params.cfg.DialTimeout,
 			KeepAlivePeriod:         params.cfg.KeepAlivePeriod,
 			TLSConfig: &tls.Config{
-				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
+				NextProtos: []string{
+					constants.ALPNSNIProtocolReverseTunnel + constants.ALPNSNIProtocolPingSuffix,
+					constants.ALPNSNIProtocolReverseTunnel,
+				},
 				InsecureSkipVerify: insecure,
 				ServerName:         host,
 			},

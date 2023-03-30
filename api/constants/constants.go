@@ -319,6 +319,8 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
+	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (

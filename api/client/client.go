@@ -329,13 +329,12 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
-
-	if authConnectShouldALPNConnUpgrade(ctx, params) {
-		dialer = newALPNConnUpgradeDialer(dialer, &tls.Config{
-			InsecureSkipVerify: params.cfg.InsecureAddressDiscovery,
-		})
-	}
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout,
+		WithTLSConfig(&tls.Config{
+			InsecureSkipVerify: params.tlsConfig.InsecureSkipVerify,
+		}),
+		WithALPNConnUpgrade(IsWebProxyAndConnUpgradeRequired(ctx, params.addr, &params.cfg)),
+	)
 
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
@@ -344,27 +343,20 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
-func authConnectShouldALPNConnUpgrade(ctx context.Context, params connectParams) bool {
-	if !authConnectShouldUseTLSRouting(ctx, params) {
-		return false
-	}
-	return params.cfg.IsALPNConnUpgradeRequired(params.addr, params.cfg.InsecureAddressDiscovery)
+// TODO
+func IsWebProxyAndConnUpgradeRequired(ctx context.Context, targetAddr string, cfg *Config) bool {
+	return isWebProxy(ctx, targetAddr, cfg) && cfg.IsALPNConnUpgradeRequired(targetAddr, cfg.InsecureAddressDiscovery)
 }
-
-func authConnectShouldUseTLSRouting(ctx context.Context, params connectParams) bool {
-	if params.cfg.WebProxyAddr != "" && params.cfg.WebProxyAddr == params.addr {
+func isWebProxy(ctx context.Context, targetAddr string, cfg *Config) bool {
+	if cfg.WebProxyAddr != "" && cfg.WebProxyAddr == targetAddr {
 		return true
 	}
-	resp, err := webclient.Find(&webclient.Config{
+	_, err := webclient.Find(&webclient.Config{
 		Context:   ctx,
-		ProxyAddr: params.addr,
-		Insecure:  params.cfg.InsecureAddressDiscovery,
+		ProxyAddr: targetAddr,
+		Insecure:  cfg.InsecureAddressDiscovery,
 	})
-	if err != nil {
-		// HTTP ping call failed. This is likely an auth address.
-		return false
-	}
-	return resp.Proxy.TLSRoutingEnabled
+	return err == nil
 }
 
 // tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.

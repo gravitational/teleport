@@ -2899,11 +2899,14 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
+	tlsConfig.NextProtos = []string{
+		string(alpncommon.ProtocolWithPing(alpncommon.ProtocolProxySSH)),
+		string(alpncommon.ProtocolProxySSH),
+	}
 
 	alpnConfig := client.ALPNDialerConfig{
 		TLSConfig:               tlsConfig,
-		ALPNConnUpgradeRequired: tc.isALPNConnUpgradeRequired(proxyAddr, tlsConfig.InsecureSkipVerify),
+		ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired(proxyAddr, tlsConfig.InsecureSkipVerify),
 		DialTimeout:             sshConfig.Timeout,
 	}
 
@@ -4458,7 +4461,7 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		IsALPNConnUpgradeRequired: tc.isALPNConnUpgradeRequired,
+		IsALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4466,7 +4469,8 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 	return kubeproto.NewKubeServiceClient(clt.GetConnection()), nil
 }
 
-func (tc *TeleportClient) isALPNConnUpgradeRequired(addr string, insecure bool) bool {
+// IsALPNConnUpgradeRequired returns true if connection upgrade is required for provided addr.
+func (tc *TeleportClient) IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
 	// Use cached value.
 	if addr == tc.WebProxyAddr {
 		return tc.TLSRoutingConnUpgradeRequired
