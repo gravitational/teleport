@@ -370,6 +370,7 @@ func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindUser},
+		{Kind: types.KindAppServer},
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
