@@ -235,7 +235,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
 		LimiterConfig:        cfg.Kube.Limiter,
-		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
+		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentKube),
 		GetRotation:          process.GetRotation,
 		ConnectedProxyGetter: proxyGetter,
 		ResourceMatchers:     cfg.Kube.ResourceMatchers,
