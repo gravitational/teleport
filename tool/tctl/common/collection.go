@@ -1075,3 +1075,69 @@ func (c *deviceCollection) writeText(w io.Writer) error {
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
+
+type oktaImportRuleCollection struct {
+	importRules []types.OktaImportRule
+}
+
+func (c *oktaImportRuleCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.importRules))
+	for i, resource := range c.importRules {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *oktaImportRuleCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, importRule := range c.importRules {
+		t.AddRow([]string{importRule.GetName()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type oktaAssignmentCollection struct {
+	assignments []types.OktaAssignment
+}
+
+func (c *oktaAssignmentCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.assignments))
+	for i, resource := range c.assignments {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *oktaAssignmentCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, assignment := range c.assignments {
+		t.AddRow([]string{assignment.GetName()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type userGroupCollection struct {
+	userGroups []types.UserGroup
+}
+
+func (c *userGroupCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.userGroups))
+	for i, resource := range c.userGroups {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *userGroupCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Origin"})
+	for _, userGroup := range c.userGroups {
+		t.AddRow([]string{
+			userGroup.GetName(),
+			userGroup.Origin(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
