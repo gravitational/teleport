@@ -409,9 +409,12 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 	}
 }
 
+// UserMetadataClient defines the required methods to add user context to events.
 type UserMetadataClient interface {
+	// GetUsername returns the username for the current event.
 	GetUsername(context.Context) (string, error)
-	IsSSOUser(context.Context, string) (bool, error)
+	// IsSSOUser returns whether the user's event is an SSO User.
+	IsSSOUser(context.Context) (bool, error)
 }
 
 // ConvertUsageEvent converts a usage event from an API object into an
@@ -512,7 +515,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -530,7 +533,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -549,7 +552,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -568,7 +571,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -587,7 +590,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -606,7 +609,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -625,7 +628,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -644,7 +647,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -664,7 +667,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -683,7 +686,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -702,7 +705,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -721,7 +724,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -4185,26 +4185,28 @@ func (a *Server) DeleteKubernetesCluster(ctx context.Context, name string) error
 
 // userMetadataGetter is used to provide User Metadata queries to the ConvertUsageEvent.
 //
-// Fetching them ahead of time may cause some unnecessary queries, so the converted is
+// Fetching them ahead of time may cause some unnecessary queries, so the converter is
 // responsible for calling those methods as needed.
 type userMetadataGetter struct {
-	userGetter *services.UserGetter
+	userGetter services.UserGetter
 }
 
 // GetUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, returns an error.
-func (a userMetadataGetter) GetUsername(ctx context.Context) (string, error) {
+func (u userMetadataGetter) GetUsername(ctx context.Context) (string, error) {
 	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return username, nil
+	return username, trace.Wrap(err)
 }
 
 // IsSSOUser returns whether the user is an SSO user.
-func (a userMetadataGetter) IsSSOUser(ctx context.Context, username string) (bool, error) {
-	user, err := a.userGetter.GetUser(username, false /* withSecrets */)
+func (u userMetadataGetter) IsSSOUser(ctx context.Context) (bool, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	user, err := u.userGetter.GetUser(username, false /* withSecrets */)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
