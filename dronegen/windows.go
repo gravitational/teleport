@@ -52,10 +52,11 @@ func windowsTagPipeline() pipeline {
 		updateWindowsSubreposStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
+		fixWindwresName(),
+		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
 		signTshStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
-		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		{
 			Name: "Assume AWS Role",
 			Environment: map[string]value{
@@ -276,6 +277,20 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 			`yarn install --frozen-lockfile`,
 			`yarn build-term`,
 			`yarn package-term "-c.extraMetadata.version=$TeleportVersion"`,
+		},
+	}
+}
+
+func fixWindwresName() step {
+	return step{
+		Name: "Fix windres name",
+		Commands: []string{
+			`$ErrorActionPreference = 'Stop'`,
+			`$mingw_bin = C:\mingw64\bin`,
+			`$windres_bin = Join-Path $mingw_bin windres.exe`,
+			`$link_path = Join-Path $mingw_bin x86_64-w64-mingw32-windres.exe`,
+			`echo "Creating link $windres_bin -> $link_path"`,
+			`New-Item -ItemType HardLink -Path $link_path -Value $windres_bin -Force | Out-Null`,
 		},
 	}
 }
