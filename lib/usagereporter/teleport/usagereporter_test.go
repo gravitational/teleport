@@ -34,7 +34,7 @@ type mockUserMetadataClient struct {
 func (m mockUserMetadataClient) GetUsername(ctx context.Context) (string, error) {
 	return m.username, nil
 }
-func (m mockUserMetadataClient) IsSSOUser(ctx context.Context, username string) (bool, error) {
+func (m mockUserMetadataClient) IsSSOUser(ctx context.Context) (bool, error) {
 	return m.isSSO, nil
 }
 
