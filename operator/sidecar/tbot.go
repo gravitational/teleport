@@ -137,7 +137,7 @@ func (b *Bot) GetClient(ctx context.Context) (auth.ClientI, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig, err := id.SSHClientConfig()
+	sshConfig, err := id.SSHClientConfig(false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
