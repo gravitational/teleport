@@ -474,7 +474,8 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
-	format string
+	format   string
+	siteName string
 }
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
@@ -482,11 +483,14 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions."),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
-
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	return c
 }
 
 func (c *kubeSessionsCommand) run(cf *CLIConf) error {
+	if c.siteName != "" {
+		cf.SiteName = c.siteName
+	}
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
