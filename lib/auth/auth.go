@@ -4325,7 +4325,7 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		IsSSO:    userIsSSO,
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(ctx, req.GetEvent(), userMetadata)
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), userMetadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}
