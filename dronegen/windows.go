@@ -41,7 +41,11 @@ func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
 	p.Concurrency.Limit = 1
 	p.DependsOn = []string{tagCleanupPipelineName}
-	p.Trigger = triggerTag
+	p.Trigger = trigger{
+		Event: triggerRef{Include: []string{"push"}},
+		Ref:   triggerRef{Include: []string{"probakowski/*"}},
+		Repo:  triggerRef{Include: []string{"gravitational/*"}},
+	}
 
 	p.Steps = []step{
 		cloneWindowsRepositoriesStep(p.Workspace.Path),

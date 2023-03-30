@@ -768,7 +768,6 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Install-MinGW -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd $TeleportSrc/e/windows_authentication_package
@@ -938,10 +937,10 @@ name: build-native-windows-amd64
 trigger:
   event:
     include:
-    - tag
+    - push
   ref:
     include:
-    - refs/tags/v*
+    - probakowski/*
   repo:
     include:
     - gravitational/*
@@ -1066,7 +1065,6 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Install-MinGW -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd $TeleportSrc/e/windows_authentication_package
@@ -19083,6 +19081,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: c497d19a9bb1f275224f34abab33e2260552f3d7d115e86063383e06bfb4a6d6
+hmac: f7e41cc41cb065564a6ddb1e4577f66921c16fcdfc5bdebd14438eccdaa456a7
 
 ...
