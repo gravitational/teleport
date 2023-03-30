@@ -226,22 +226,22 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 		return nil, trace.Wrap(err)
 	}
 
+	envs := map[string]string{}
+
 	// pass language info into the remote session.
-	evarsToPass := []string{"LANG", "LANGUAGE"}
-	for _, evar := range evarsToPass {
-		if value := os.Getenv(evar); value != "" {
-			err = sess.Setenv(ctx, evar, value)
-			if err != nil {
-				log.Warn(err)
-			}
+	langVars := []string{"LANG", "LANGUAGE"}
+	for _, env := range langVars {
+		if value := os.Getenv(env); value != "" {
+			envs[env] = value
 		}
 	}
 	// pass environment variables set by client
 	for key, val := range ns.env {
-		err = sess.Setenv(ctx, key, val)
-		if err != nil {
-			log.Warn(err)
-		}
+		envs[key] = val
+	}
+
+	if err := sess.SetEnvs(ctx, envs); err != nil {
+		log.Warn(err)
 	}
 
 	// if agent forwarding was requested (and we have a agent to forward),
