@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -1158,12 +1159,31 @@ type wantEvent struct {
 	WantFail   bool
 }
 
+type mockEmitter interface {
+	Events() []apievents.AuditEvent
+}
+
+// assertEventsEmitter waits for the emitter to have at least the number of
+// wanted events, then calls assertEvents.
+func assertEventsEmitter(t *testing.T, emitter mockEmitter, want []wantEvent) {
+	t.Helper()
+	assert.Eventually(
+		t,
+		func() bool { return len(emitter.Events()) >= len(want) },
+		2*time.Second,
+		10*time.Millisecond,
+		"Timed out waiting for emitter events")
+	assertEvents(t, emitter.Events(), want)
+}
+
 func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 	t.Helper()
+
 	if len(got) != len(want) {
 		t.Errorf("Audit: found an unexpected number events: got %v, want %v", len(got), len(want))
 		return
 	}
+
 	for i, g := range got {
 		w := want[i]
 		if g.GetType() != w.Type {

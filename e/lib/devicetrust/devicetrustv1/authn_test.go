@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -167,7 +169,7 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			}
 
 			// Verify audit log.
-			assertEvents(t, emitter.Events(), []wantEvent{
+			assertEventsEmitter(t, emitter, []wantEvent{
 				{
 					Type: events.DeviceEvent,
 					Code: events.DeviceAuthenticateCode,
@@ -376,7 +378,7 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			assert.ErrorContains(t, err, test.wantErr, "AuthenticateDevice error mismatch")
 
 			// Verify audit log.
-			assertEvents(t, emitter.Events(), []wantEvent{
+			assertEventsEmitter(t, emitter, []wantEvent{
 				{
 					Type:     events.DeviceEvent,
 					Code:     events.DeviceAuthenticateCode,
@@ -440,7 +442,13 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
-	emitter.Reset() // Clear create/enrollment events.
+	// Wait for the Create, CreateToken and Enroll audit events.
+	require.Eventually(
+		t,
+		func() bool { return len(emitter.Events()) >= 3 },
+		2*time.Second, 10*time.Millisecond,
+		"Failed to drain createAndEnroll audit events")
+	emitter.Reset()
 
 	// authenticate wraps the AuthenticateDevice logic so error handling is
 	// simpler below.
@@ -562,7 +570,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			checker.roles = test.roles
-			emitter.Reset()
+			defer emitter.Reset()
 
 			// Test!
 			err := authenticate()
@@ -574,9 +582,11 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 				}
 				// See if issued audit events, but don't test the specifics here - these
 				// are tested elsewhere.
-				if events := emitter.Events(); len(events) == 0 {
-					t.Errorf("AuthenticateDevice issued 0 audit events, want >0")
-				}
+				assert.Eventually(
+					t,
+					func() bool { return len(emitter.Events()) > 0 },
+					2*time.Second, 10*time.Millisecond,
+					"AuthenticateDevice issued 0 audit events, want >0")
 				return
 			}
 
