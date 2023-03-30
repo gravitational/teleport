@@ -267,7 +267,6 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
-			`$Env:GOCACHE = "$Workspace/gocache"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`Enable-Node -ToolchainDir "$Workspace` + toolchainDir + `"`,
@@ -291,6 +290,7 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
+			`$Env:GOCACHE = "$Workspace/gocache"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`cd $TeleportSrc`,
