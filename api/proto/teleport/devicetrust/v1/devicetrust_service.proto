@@ -22,6 +22,7 @@ import "google/rpc/status.proto";
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
+import "teleport/devicetrust/v1/device_source.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
@@ -120,6 +121,14 @@ service DeviceTrustService {
   //
   // Only registered and enrolled devices may perform device authentication.
   rpc AuthenticateDevice(stream AuthenticateDeviceRequest) returns (stream AuthenticateDeviceResponse);
+
+  // Syncs device inventory from a source exterior to Teleport, for example an
+  // MDM.
+  // Allows both partial and full syncs; for the latter, devices missing from
+  // the external inventory are handled as specified.
+  // Authorized either by a valid MDM service certificate or the appropriate
+  // "device" permissions (create/update/delete).
+  rpc SyncInventory(stream SyncInventoryRequest) returns (stream SyncInventoryResponse);
 }
 
 // Request for CreateDevice.
@@ -257,6 +266,10 @@ message DeviceOrStatus {
   // ID of the created device.
   // Only present if the status is OK.
   string id = 2;
+
+  // If true the action attempted against the device was a delete, instead of a
+  // create or update.
+  bool deleted = 3;
 }
 
 // Request for CreateDeviceEnrollToken.
@@ -390,4 +403,108 @@ message AuthenticateDeviceChallenge {
 message AuthenticateDeviceChallengeResponse {
   // Signature over the challenge, using the device key.
   bytes signature = 1;
+}
+
+// Request for SyncInventory.
+//
+// A typical message sequence is as follows:
+// (-> means client-to-server, <- means server-to-client)
+// -> SyncInventoryStart
+// <- SyncInventoryAck
+// (loop)
+// -> SyncInventoryDevices (add/remove devices)
+// <- SyncInventoryResult
+// (end loop)
+// -> SyncInventoryEnd
+// <- SyncInventoryResult (missing devices)
+message SyncInventoryRequest {
+  oneof payload {
+    SyncInventoryStart start = 1;
+    SyncInventoryEnd end = 2;
+    SyncInventoryDevices devices_to_upsert = 3;
+    SyncInventoryDevices devices_to_remove = 4;
+  }
+}
+
+// Response for SyncInventory.
+message SyncInventoryResponse {
+  oneof payload {
+    SyncInventoryAck ack = 1;
+    SyncInventoryResult result = 2;
+  }
+}
+
+// SyncInventoryStart starts the inventory sync.
+message SyncInventoryStart {
+  // Source of the inventory sync.
+  // Acquired from the mTLS certificate for MDM services, must be explicitly
+  // supplied otherwise.
+  // This source is used for all devices. The `source` field in individual
+  // devices is ignored by this RPC.
+  DeviceSource source = 1;
+
+  // Mode of syncing.
+  // Required.
+  SyncInventoryMode mode = 2;
+
+  // Action for devices missing from the external inventory, but present in
+  // Teleport.
+  // Only executed if mode is FULL and mdm_sync_successful is set to true in the
+  // SyncInventoryEnd message.
+  SyncInventoryDeviceAction on_missing_action = 3;
+}
+
+// Mode of sync for SyncInventory.
+enum SyncInventoryMode {
+  SYNC_INVENTORY_MODE_UNSPECIFIED = 0;
+
+  // Partial inventory sync; not all devices in the external inventory are sent
+  // to the stream.
+  // Partial sync precludes inventory cleanup.
+  SYNC_INVENTORY_MODE_PARTIAL = 1;
+
+  // Full inventory sync; all devices in the external inventory must be sent to
+  // the stream.
+  // Full sync allows for handling of missing devices.
+  SYNC_INVENTORY_MODE_FULL = 2;
+}
+
+// Device action for SyncInventory.
+// Typically triggered at the end of FULL syncs..
+enum SyncInventoryDeviceAction {
+  SYNC_INVENTORY_DEVICE_ACTION_UNSPECIFIED = 0;
+
+  // Noop is a no-action.
+  SYNC_INVENTORY_DEVICE_ACTION_NOOP = 1;
+
+  // Deletes the device if the action condition is met.
+  SYNC_INVENTORY_DEVICE_ACTION_DELETE = 2;
+}
+
+// SyncInventoryEnd ends the inventory sync, signaling that no more
+// SyncInventoryDevices messages will be sent by the client.
+message SyncInventoryEnd {
+  // True if the external sync was fully successful (for example, all reads from
+  // an MDM API were successful).
+  // If false the sync's on_missing_action is skipped.
+  bool external_sync_successful = 1;
+}
+
+// SyncInventoryDevices transports devices to add/update/remove.
+// Removals only need identifying fields to be set.
+message SyncInventoryDevices {
+  // Devices to sync.
+  repeated Device devices = 1;
+}
+
+// SyncInventoryAck is used to confirm successful processing of messages that
+// lack a more specific response.
+message SyncInventoryAck {}
+
+// SyncInventoryResult is the response for SyncInventoryDevices or
+// SyncInventoryEnd
+// It lists all synced/deleted devices.
+message SyncInventoryResult {
+  // Devices modified, in the same order as the input when applicable.
+  repeated DeviceOrStatus devices = 1;
 }
