@@ -369,22 +369,22 @@ func (s *SessionRegistry) isApprovedFileTransfer(ctx context.Context, scx *Serve
 		return false, nil
 	}
 	// find file transfer request in the session by requestID
-	fileTransferRequest := sess.fileTransferRequests[requestID]
-	if fileTransferRequest == nil {
+	req := sess.fileTransferRequests[requestID]
+	if req == nil {
 		// If they sent a fileTransferRequestID and it wasn't found, send an actual error
 		return false, trace.NotFound("File transfer request not found")
 	}
 
-	if fileTransferRequest.requester != scx.Identity.TeleportUser {
+	if req.requester != scx.Identity.TeleportUser {
 		return false, trace.AccessDenied("Teleport user does not match original requester")
 	}
 
 	incomingShellCmd := string(scx.sshRequest.Payload)
-	if incomingShellCmd != fileTransferRequest.shellCmd {
+	if incomingShellCmd != req.shellCmd {
 		return false, trace.AccessDenied("Incoming request does not match the approved request")
 	}
 
-	return sess.checkIfFileTransferApproved(fileTransferRequest)
+	return sess.checkIfFileTransferApproved(req)
 }
 
 // NotifyWinChange is called to notify all members in the party that the PTY
