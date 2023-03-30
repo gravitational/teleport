@@ -38,16 +38,22 @@ Read our guides to how [authorization](./architecture/authorization.mdx) and
 
 ### Teleport Proxy Service
 
-The **Teleport Proxy Service** allows for secure access to resources in a your
-infrastructure from the public internet without the need for a VPN. 
+The **Teleport Proxy Service** allows for secure access to resources in your
+infrastructure from the public internet without the need for a VPN.  The
+Proxy Service provides connectivity for users, machines and resources
+within the cluster.
 
-It establishes reverse tunnels to the **Teleport Auth Service** and **Teleport
+It establishes reverse tunnels to the **Teleport Auth Service** for **Teleport
 Services**, which can run in private networks. This means that, in the Proxy
 Service's minimal configuration, you can expose only port `443` to the internet
 and run the rest of your infrastructure in private networks.
 
-You can also configure clients to bypass Proxy Service instances and connect to
-resources with Teleport-issued certificates directly. 
+You can run multiple Proxy Service instances in a cluster for high availability.
+
+The Proxy Service, and all Teleport Services, can run on the public internet,
+isolated networks or even air-gapped infrastructure. You can also configure 
+clients to bypass Proxy Service instances and connect to resources with 
+Teleport-issued certificates directly. 
 
 Read our guide to [how the Teleport Proxy Service
 works](./architecture/proxy.mdx).
@@ -62,10 +68,13 @@ A single running `teleport` process can run one or more **Teleport Services**,
 depending on the user's configuration. Read about all subcommands of `teleport`
 in our [CLI Reference](./reference/cli.mdx#teleport).
 
+All Teleport Services, except for Teleport SSH Service, support running in a 
+high availability configuration for multiple connections to the same resources.
+
 ### Teleport Application Service
 
 Proxies HTTP and TCP traffic to user-configured endpoints, e.g., internal web
-applications or the AWS Console.
+applications or Cloud APIs including AWS, Azure and GCP.
 
 Read more about the [Teleport Application
 Service](./application-access/introduction.mdx).
@@ -80,7 +89,7 @@ Service](./database-access/introduction.mdx).
 
 ### Teleport Desktop Service
 
-Proxies Remote Desktop Protocol traffic to Windows desktops.
+Proxies Remote Desktop Protocol (RDP) traffic to Windows desktops.
 
 Read more about the [Teleport Desktop
 Service](./desktop-access/introduction.mdx).
@@ -94,9 +103,9 @@ Service](./kubernetes-access/introduction.mdx)
 
 ### Teleport SSH Service 
 
-An SSH server implementation that allows users to execute commands on remote
-machines while taking advantage of Teleport's built-in access controls,
-auditing, and session recording.
+An SSH server implementation that allows users to open SSH sessions and
+execute commands on remote machines while taking advantage of 
+Teleport's built-in access controls, auditing, and session recording.
 
 Read more about the [Teleport SSH Service](./server-access/introduction.mdx).
 
@@ -200,8 +209,9 @@ authentication works in Teleport](./access-controls/sso.mdx).
 
 ### Authentication connector
 
-An authentication connector is a **configuration resource** that allows users to
-authenticate to Teleport via a Single Sign-On (SSO) solution. 
+An authentication connector (also known as Auth connector) is a 
+**configuration resource** that allows users to authenticate
+to Teleport via a Single Sign-On (SSO) solution. 
 
 See our guide to [Authentication Options](./reference/authentication.mdx).
 
