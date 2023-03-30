@@ -44,21 +44,31 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 	tests := []struct {
 		name           string
 		serverProtos   []string
+		insecure       bool
 		expectedResult bool
 	}{
 		{
-			name:           "upgrade required",
+			name:           "upgrade required (handshake success)",
 			serverProtos:   nil, // Use nil for NextProtos to simulate no ALPN support.
+			insecure:       true,
 			expectedResult: true,
 		},
 		{
 			name:           "upgrade not required (proto negotiated)",
 			serverProtos:   []string{string(common.ProtocolReverseTunnel)},
+			insecure:       true,
 			expectedResult: false,
 		},
 		{
-			name:           "upgrade not required (handshake error)",
+			name:           "upgrade required (handshake with no ALPN error)",
 			serverProtos:   []string{"unknown"},
+			insecure:       true,
+			expectedResult: true,
+		},
+		{
+			name:           "upgrade not required (other handshake error)",
+			serverProtos:   []string{string(common.ProtocolReverseTunnel)},
+			insecure:       false, // to cause handshake error
 			expectedResult: false,
 		},
 	}
@@ -66,7 +76,50 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := mustStartMockALPNServer(t, test.serverProtos)
-			require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), true))
+			require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), test.insecure))
+		})
+	}
+}
+
+func TestIsALPNConnUpgradeRequiredByEnv(t *testing.T) {
+	t.Parallel()
+
+	addr := "example.teleport.com:443"
+	tests := []struct {
+		name     string
+		envValue string
+		require  require.BoolAssertionFunc
+	}{
+		{
+			name:     "upgraded required (for all addr)",
+			envValue: "yes",
+			require:  require.True,
+		},
+		{
+			name:     "upgraded required (for target addr)",
+			envValue: "0;example.teleport.com:443=1",
+			require:  require.True,
+		},
+		{
+			name:     "upgraded not required (for all addr)",
+			envValue: "false",
+			require:  require.False,
+		},
+		{
+			name:     "upgraded not required (no addr match)",
+			envValue: "another.teleport.com:443=true",
+			require:  require.False,
+		},
+		{
+			name:     "upgraded not required (for target addr)",
+			envValue: "another.teleport.com:443=true,example.teleport.com:443=false",
+			require:  require.False,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.require(t, isALPNConnUpgradeRequiredByEnv(addr, test.envValue))
 		})
 	}
 }
