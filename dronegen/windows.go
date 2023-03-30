@@ -290,7 +290,7 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`cd $TeleportSrc`,
 			`$TeleportVersion=$(make print-version).Trim()`,
-			`cd $TeleportSrc/e/windows_authentication_package`,
+			`cd $TeleportSrc/e/windows_auth_package`,
 			`make VERSION=$TeleportVersion  all`,
 			`([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content windows-signing-cert.pfx -Encoding Byte`,
 			`& 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe' sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe`,
