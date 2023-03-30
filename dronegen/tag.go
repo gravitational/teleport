@@ -294,7 +294,7 @@ func tagPipeline(b buildType) pipeline {
 			Image:       "docker",
 			Pull:        "if-not-exists",
 			Environment: tagEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    tagBuildCommands(b),
 		},
 		{
@@ -327,9 +327,6 @@ func tagPipeline(b buildType) pipeline {
 				"RELEASES_KEY":  {fromSecret: "RELEASES_KEY"},
 			},
 		},
-	}
-	p.ImagePullSecrets = []string{
-		"DOCKERHUB_CREDENTIALS",
 	}
 	return p
 }
@@ -474,10 +471,12 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 
 	packageDockerVolumes := []volume{
 		volumeDocker,
+		volumeDockerConfig,
 		volumeAwsConfig,
 	}
 	packageDockerVolumeRefs := []volumeRef{
 		volumeRefDocker,
+		volumeRefDockerConfig,
 		volumeRefAwsConfig,
 	}
 	packageDockerService := dockerService()

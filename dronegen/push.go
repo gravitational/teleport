@@ -146,13 +146,10 @@ func pushPipeline(b buildType) pipeline {
 			Image:       "docker",
 			Pull:        "if-not-exists",
 			Environment: pushEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    pushBuildCommands(b),
 		},
 		sendErrorToSlackStep(),
-	}
-	p.ImagePullSecrets = []string{
-		"DOCKERHUB_CREDENTIALS",
 	}
 	return p
 }

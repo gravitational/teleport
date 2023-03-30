@@ -39,6 +39,18 @@ func main() {
 	pipelines = append(pipelines, buildContainerImagePipelines()...)
 	pipelines = append(pipelines, publishReleasePipeline())
 
+	// inject the dockerhub credentials into all non-exec pipelines.
+	// Exec pipelines to not have the `image_pull_secrets` option, as
+	// their steps are invoked directly on the host runner and not
+	// into a per-step container.
+	for pidx := range pipelines {
+		p := &pipelines[pidx]
+		if p.Type == "exec" {
+			continue
+		}
+		p.ImagePullSecrets = append(p.ImagePullSecrets, "DOCKERHUB_CREDENTIALS")
+	}
+
 	if err := writePipelines(".drone.yml", pipelines); err != nil {
 		fmt.Println("failed writing drone pipelines:", err)
 		os.Exit(1)
