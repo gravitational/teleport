@@ -258,10 +258,22 @@ Remove Teleport Connect for MacOS from the Applications directory with this comm
 $ sudo rm -f /Applications/Teleport\ Connect.app
 ```
 
+To remove the local user data directory:
+
+```code
+$ sudo rm -rf ~/Library/Application\ Support/Teleport\ Connect
+``` 
+
 </TabItem>
 <TabItem label="Windows">
 
 (!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
+
+To remove the local user data directory:
+
+```powershell
+$ rmdir /s /q "%APPDATA%\Teleport Connect"
+```
 
 </TabItem>
 <TabItem label="Linux">
