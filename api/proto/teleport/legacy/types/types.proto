@@ -5288,12 +5288,12 @@ message IntegrationV1 {
 message IntegrationSpecV1 {
   oneof SubKindSpec {
     // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
-    AWSOIDCIntegrationSpec AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+    AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
   }
 }
 
 // AWSOIDCIntegrationSpec contains the spec properties for the AWS OIDC SubKind Integration.
-message AWSOIDCIntegrationSpec {
+message AWSOIDCIntegrationSpecV1 {
   // RoleARN contains the Role ARN used to set up the Integration.
   // This is the AWS Role that Teleport will use to issue tokens for API Calls.
   string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
