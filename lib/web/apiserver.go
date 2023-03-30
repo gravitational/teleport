@@ -3462,10 +3462,10 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 	})
 }
 
-// WithAuth2 ensures that a request is authenticated
+// WithAuthCookieAndCSRF ensures that a request is authenticated
 // for plain old non-AJAX requests (does not check the Bearer header).
-// It enforces CSRF checks.
-func (h *Handler) WithAuth2(fn ContextHandler) httprouter.Handle {
+// It enforces CSRF checks (except for "safe" methods).
+func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
 	f := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 		sctx, err := h.AuthenticateRequest(w, r, false)
 		if err != nil {
