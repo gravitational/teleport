@@ -69,7 +69,8 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 	return step{
 		Name:    "Build and push " + buildboxName,
 		Image:   "docker",
-		Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
+		Pull:    "if-not-exists",
+		Volumes: dockerVolumeRefs(volumeRefAwsConfig),
 		Commands: []string{
 			`apk add --no-cache make aws-cli`,
 			`chown -R $UID:$GID /go`,
@@ -101,7 +102,7 @@ func buildboxPipeline() pipeline {
 	// only on master for now; add the release branch name when forking a new release series.
 	p.Trigger = pushTriggerForBranch("master", "branch/*")
 	p.Workspace = workspace{Path: "/go/src/github.com/gravitational/teleport"}
-	p.Volumes = []volume{volumeDocker, volumeAwsConfig}
+	p.Volumes = dockerVolumes(volumeAwsConfig)
 	p.Services = []service{
 		dockerService(),
 	}
