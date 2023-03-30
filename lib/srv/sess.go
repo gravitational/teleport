@@ -383,9 +383,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(ctx context.Context, scx *Serve
 	if incomingShellCmd != fileTransferRequest.shellCmd {
 		return false, trace.AccessDenied("Incoming request does not match the approved request")
 	}
-	// validate incoming request (user/file/direction/etc) against the stored request
 
-	// if all is good, TRUE
 	return sess.checkIfFileTransferApproved(fileTransferRequest)
 }
 
