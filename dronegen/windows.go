@@ -48,11 +48,11 @@ func windowsTagPipeline() pipeline {
 	}
 
 	p.Steps = []step{
+		fixWindwresName(),
 		cloneWindowsRepositoriesStep(p.Workspace.Path),
 		updateWindowsSubreposStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
-		fixWindwresName(),
 		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
 		signTshStep(p.Workspace.Path),

@@ -958,6 +958,13 @@ depends_on:
 concurrency:
   limit: 1
 steps:
+- name: Link x86_64-w64-mingw32-windres to windres
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $windres_bin = Join-Path "C:\mingw64\bin" windres.exe
+  - $link_path = Join-Path "C:\mingw64\bin" x86_64-w64-mingw32-windres.exe
+  - echo "Creating link $windres_bin -> $link_path"
+  - New-Item -ItemType HardLink -Path $link_path -Value $windres_bin -Force | Out-Null
 - name: Check out Teleport
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -1011,13 +1018,6 @@ steps:
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-- name: Link x86_64-w64-mingw32-windres to windres
-  commands:
-  - $ErrorActionPreference = 'Stop'
-  - $windres_bin = Join-Path "C:\mingw64\bin" windres.exe
-  - $link_path = Join-Path "C:\mingw64\bin" x86_64-w64-mingw32-windres.exe
-  - echo "Creating link $windres_bin -> $link_path"
-  - New-Item -ItemType HardLink -Path $link_path -Value $windres_bin -Force | Out-Null
 - name: Build Windows Authentication Package
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -19088,6 +19088,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 01a70cdbc603ad986cc1b37120389b3d543216559fe74342b664f1742e7be96c
+hmac: 47838fc19ea489c300c02c559f3f42e97b2efc88d3cd6a4aa234ae7d4efb1754
 
 ...
