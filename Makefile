@@ -503,6 +503,28 @@ release-windows: release-windows-unsigned
 	@echo "---> Created $(RELEASE).zip."
 
 #
+# make release-connect produces a release package of Teleport Connect.
+# It is used only for MacOS releases. Windows releases do not use this
+# Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
+#
+# Only export the CSC_NAME (developer key ID) when the recipe is run, so
+# that we do not shell out and run the `security` command if not necessary.
+#
+# Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
+# should be defined for the `yarn package-term` command to succeed. CI sets
+# this appropriately depending on whether a push build is running, or a
+# proper release (a proper release needs the APP_PATH as that points to
+# the complete signed package). See web/packages/teleterm/README.md for
+# details.
+#
+.PHONY: release-connect
+release-connect:
+	$(eval export CSC_NAME)
+	yarn install --frozen-lockfile
+	yarn build-term
+	yarn package-term -c.extraMetadata.version=$(VERSION)
+
+#
 # Remove trailing whitespace in all markdown files under docs/.
 #
 # Note: this runs in a busybox container to avoid incompatibilities between

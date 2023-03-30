@@ -118,7 +118,7 @@ const StyledCard = styled(Card)`
   position: absolute;
   right: 0;
   top: ${({ theme }) => theme.fontSizes[7] + 'px'};
-  background-color: ${({ theme }) => theme.colors.primary.main};
+  background-color: ${({ theme }) => theme.colors.levels.surfaceSecondary};
 `;
 
 const StyledRelative = styled.div`

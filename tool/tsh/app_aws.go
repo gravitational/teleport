@@ -277,7 +277,7 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
 		alpnproxy.WithClientCerts(appCerts),
-		alpnproxy.WithALPNConnUpgradeTest(a.cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AWSAccessMiddleware{
 			AWSCredentials: cred,
 		}),

@@ -44,7 +44,7 @@ export function TopBar() {
 }
 
 const Grid = styled.div`
-  background: ${props => props.theme.colors.primary.main};
+  background: ${props => props.theme.colors.levels.surfaceSecondary};
   display: grid;
   grid-template-columns: 1fr minmax(0, 700px) 1fr;
   width: 100%;
