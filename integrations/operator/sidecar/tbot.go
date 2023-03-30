@@ -155,7 +155,7 @@ func (c clientCredentials) TLSConfig() (*tls.Config, error) {
 }
 
 func (c clientCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
-	return c.id.SSHClientConfig()
+	return c.id.SSHClientConfig(false)
 }
 
 func (b *Bot) NeedLeaderElection() bool {
