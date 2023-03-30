@@ -454,7 +454,7 @@ func TestRemoteDBCAMigration(t *testing.T) {
 	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
 	types.RemoveCASecrets(remoteHostCA)
 
-	err = a.UpsertCertAuthority(remoteHostCA)
+	err = a.UpsertCertAuthority(ctx, remoteHostCA)
 	require.NoError(t, err)
 
 	// Run the migration
@@ -518,10 +518,10 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
-	err = a.addCertAuthorities(trustedCluster, []types.CertAuthority{ca})
+	err = a.addCertAuthorities(ctx, trustedCluster, []types.CertAuthority{ca})
 	require.NoError(t, err)
 
-	err = a.UpsertCertAuthority(ca)
+	err = a.UpsertCertAuthority(ctx, ca)
 	require.NoError(t, err)
 
 	err = a.createReverseTunnel(trustedCluster)

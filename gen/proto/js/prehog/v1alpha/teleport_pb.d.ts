@@ -15,6 +15,9 @@ export class UserLoginEvent extends jspb.Message {
     getConnectorType(): string;
     setConnectorType(value: string): UserLoginEvent;
 
+    getDeviceId(): string;
+    setDeviceId(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -30,6 +33,7 @@ export namespace UserLoginEvent {
     export type AsObject = {
         userName: string,
         connectorType: string,
+        deviceId: string,
     }
 }
 
@@ -72,6 +76,37 @@ export class ResourceCreateEvent extends jspb.Message {
 export namespace ResourceCreateEvent {
     export type AsObject = {
         resourceType: string,
+    }
+}
+
+export class ResourceHeartbeatEvent extends jspb.Message { 
+    getResourceName(): Uint8Array | string;
+    getResourceName_asU8(): Uint8Array;
+    getResourceName_asB64(): string;
+    setResourceName(value: Uint8Array | string): ResourceHeartbeatEvent;
+
+    getResourceKind(): ResourceKind;
+    setResourceKind(value: ResourceKind): ResourceHeartbeatEvent;
+
+    getStatic(): boolean;
+    setStatic(value: boolean): ResourceHeartbeatEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ResourceHeartbeatEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ResourceHeartbeatEvent): ResourceHeartbeatEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ResourceHeartbeatEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ResourceHeartbeatEvent;
+    static deserializeBinaryFromReader(message: ResourceHeartbeatEvent, reader: jspb.BinaryReader): ResourceHeartbeatEvent;
+}
+
+export namespace ResourceHeartbeatEvent {
+    export type AsObject = {
+        resourceName: Uint8Array | string,
+        resourceKind: ResourceKind,
+        pb_static: boolean,
     }
 }
 
@@ -1314,6 +1349,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAgentMetadataEvent(value?: AgentMetadataEvent): SubmitEventRequest;
 
 
+    hasResourceHeartbeat(): boolean;
+    clearResourceHeartbeat(): void;
+    getResourceHeartbeat(): ResourceHeartbeatEvent | undefined;
+    setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1365,6 +1406,7 @@ export namespace SubmitEventRequest {
         kubeRequest?: KubeRequestEvent.AsObject,
         sftp?: SFTPEvent.AsObject,
         agentMetadataEvent?: AgentMetadataEvent.AsObject,
+        resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1439,6 +1481,8 @@ export namespace SubmitEventRequest {
     SFTP = 37,
 
     AGENT_METADATA_EVENT = 38,
+
+    RESOURCE_HEARTBEAT = 39,
 
     }
 
@@ -1533,6 +1577,16 @@ export class HelloTeleportResponse extends jspb.Message {
 export namespace HelloTeleportResponse {
     export type AsObject = {
     }
+}
+
+export enum ResourceKind {
+    RESOURCE_KIND_UNSPECIFIED = 0,
+    RESOURCE_KIND_NODE = 1,
+    RESOURCE_KIND_APP_SERVER = 2,
+    RESOURCE_KIND_KUBE_SERVER = 3,
+    RESOURCE_KIND_DB_SERVER = 4,
+    RESOURCE_KIND_WINDOWS_DESKTOP = 5,
+    RESOURCE_KIND_NODE_OPENSSH = 6,
 }
 
 export enum DiscoverResource {

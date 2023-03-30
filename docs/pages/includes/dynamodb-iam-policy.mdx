@@ -1,0 +1,66 @@
+You'll need to replace these values in the policy example below:
+
+| Placeholder value       | Replace with                                                                                       |
+|-------------------------|----------------------------------------------------------------------------------------------------|
+| `us-west-2`             | AWS region                                                                                         |
+| `1234567890`            | AWS account ID                                                                                     |
+| `teleport-helm-backend` | DynamoDB table name to use for the Teleport backend                                                |
+| `teleport-helm-events`  | DynamoDB table name to use for the Teleport audit log (**must** be different to the backend table) |
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ClusterStateStorage",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:DescribeStream",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:CreateTable",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetShardIterator",
+                "dynamodb:GetItem",
+                "dynamodb:UpdateTable",
+                "dynamodb:GetRecords",
+                "dynamodb:UpdateContinuousBackups"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend",
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend/stream/*"
+            ]
+        },
+        {
+            "Sid": "ClusterEventsStorage",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:CreateTable",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:UpdateTable",
+                "dynamodb:UpdateContinuousBackups"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events",
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events/index/*"
+            ]
+        }
+    ]
+}
+```
+

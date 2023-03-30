@@ -18,10 +18,11 @@ import { readlink } from 'fs';
 
 import { exec } from 'child_process';
 
-import * as nodePTY from 'node-pty';
 import { promisify } from 'util';
 
 import { EventEmitter } from 'events';
+
+import * as nodePTY from 'node-pty';
 
 import Logger from 'teleterm/logger';
 

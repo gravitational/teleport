@@ -643,8 +643,9 @@ func TestProxyPingConnections(t *testing.T) {
 		return nil
 	}
 
+	// MatchByProtocol should match the corresponding Ping protocols.
 	suite.router.Add(HandlerDecs{
-		MatchFunc: MatchByProtocolWithPing(common.ProtocolsWithPingSupport...),
+		MatchFunc: MatchByProtocol(common.ProtocolsWithPingSupport...),
 		Handler:   handlerFunc,
 	})
 	suite.router.AddDBTLSHandler(handlerFunc)
@@ -660,11 +661,17 @@ func TestProxyPingConnections(t *testing.T) {
 
 			localProxyConfig := LocalProxyConfig{
 				RemoteProxyAddr:    suite.GetServerAddress(),
-				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol), protocol},
+				Protocols:          []common.Protocol{common.ProtocolWithPing(protocol)},
 				Listener:           localProxyListener,
 				SNI:                "localhost",
 				ParentContext:      context.Background(),
 				InsecureSkipVerify: true,
+				verifyUpstreamConnection: func(state tls.ConnectionState) error {
+					if state.NegotiatedProtocol != string(common.ProtocolWithPing(protocol)) {
+						return fmt.Errorf("expected negotiated protocol %q but got %q", common.ProtocolWithPing(protocol), state.NegotiatedProtocol)
+					}
+					return nil
+				},
 			}
 			mustStartLocalProxy(t, localProxyConfig)
 

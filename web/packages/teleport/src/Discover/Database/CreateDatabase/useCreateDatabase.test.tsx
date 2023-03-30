@@ -23,11 +23,7 @@ import { ContextProvider } from 'teleport';
 import { DiscoverProvider } from 'teleport/Discover/useDiscover';
 import api from 'teleport/services/api';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import {
-  DiscoverEvent,
-  DiscoverEventResource,
-  userEventService,
-} from 'teleport/services/userEvent';
+import { userEventService } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
 import {
@@ -255,12 +251,7 @@ describe('registering new databases, mainly error checking', () => {
     agentMeta: {} as any,
     updateAgentMeta: jest.fn(x => x),
     nextStep: jest.fn(x => x),
-    resourceState: {},
-    eventState: {
-      currEventName: DiscoverEvent.DatabaseRegister,
-      id: '1234',
-      resource: DiscoverEventResource.DatabaseMysqlSelfHosted,
-    },
+    resourceSpec: { dbMeta: {} } as any,
   };
   const ctx = createTeleportContext();
 

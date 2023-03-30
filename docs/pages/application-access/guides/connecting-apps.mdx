@@ -126,9 +126,9 @@ teleport:
   proxy_server: teleport.example.com:3080
 app_service:
     enabled: yes
-    # Teleport provides a small debug app that can be used to make sure application
-    # access is working correctly. It'll output JWTs so it can be useful
-    # when extending your application.
+    # Teleport provides a small debug app called "dumper" that can be used
+    # to make sure application access is working correctly. It outputs JWTs,
+    #  so it can be useful when extending your application.
     debug_app: true
     # This section contains definitions of all applications proxied by this
     # service. It can contain multiple items.
@@ -163,10 +163,10 @@ $ sudo teleport start --config=/path/to/teleport.yaml
 
 ## Advanced options
 
-### Running the debug application
+### Running the dumper application
 
-For testing and debugging purposes, we provide a built-in debug app. It can
-be turned on using `debug_app: true`.
+For testing and debugging purposes, we provide a built-in debug app called "dumper".
+It can be turned on using `debug_app: true`.
 
 ```yaml
 app_service:
@@ -174,7 +174,7 @@ app_service:
    debug_app: true
 ```
 
-The app will dump all the request headers in the response.
+The dumper app will dump all the request headers in the response.
 
 ### Customize public address
 

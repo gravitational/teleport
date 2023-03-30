@@ -38,17 +38,6 @@ exports[`callback error message 1`] = `
   border-radius: 8px;
 }
 
-.c0 {
-  display: block;
-  outline: none;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 40px;
-  margin-bottom: 40px;
-  max-width: 200px;
-  max-height: 120px;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -70,6 +59,17 @@ exports[`callback error message 1`] = `
   text-align: center;
 }
 
+.c0 {
+  display: block;
+  outline: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  max-width: 200px;
+  max-height: 120px;
+}
+
 .c5 {
   color: #03a9f4;
 }
@@ -81,7 +81,7 @@ exports[`callback error message 1`] = `
   />
   <div
     class="c1"
-    color="text.onLight"
+    color="text.primaryInverse"
     width="540px"
   >
     <div
@@ -148,17 +148,6 @@ exports[`default error message 1`] = `
   border-radius: 8px;
 }
 
-.c0 {
-  display: block;
-  outline: none;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 40px;
-  margin-bottom: 40px;
-  max-width: 200px;
-  max-height: 120px;
-}
-
 .c2 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -180,6 +169,17 @@ exports[`default error message 1`] = `
   text-align: center;
 }
 
+.c0 {
+  display: block;
+  outline: none;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  max-width: 200px;
+  max-height: 120px;
+}
+
 .c5 {
   color: #03a9f4;
 }
@@ -191,7 +191,7 @@ exports[`default error message 1`] = `
   />
   <div
     class="c1"
-    color="text.onLight"
+    color="text.primaryInverse"
     width="540px"
   >
     <div

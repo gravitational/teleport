@@ -1305,13 +1305,14 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 		Labels:                cfg.Labels,
 		WebProxyAddr:          webProxyAddr,
 		SSHProxyAddr:          sshProxyAddr,
-		Interactive:           cfg.Interactive,
+		InteractiveCommand:    cfg.Interactive,
 		TLSRoutingEnabled:     i.IsSinglePortSetup,
 		Tracer:                tracing.NoopProvider().Tracer("test"),
 		EnableEscapeSequences: cfg.EnableEscapeSequences,
 		Stderr:                cfg.Stderr,
 		Stdin:                 cfg.Stdin,
 		Stdout:                cfg.Stdout,
+		NonInteractive:        true,
 	}
 
 	// JumpHost turns on jump host mode

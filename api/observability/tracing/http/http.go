@@ -15,6 +15,7 @@
 package http
 
 import (
+	"net/http"
 	nethttp "net/http"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
@@ -43,39 +44,37 @@ func HandlerFormatter(operation string, r *nethttp.Request) string {
 // https://github.com/open-telemetry/opentelemetry-go-contrib/issues/3543.
 // Once the issue is resolved the wrapper may be discarded.
 func NewTransport(rt nethttp.RoundTripper) nethttp.RoundTripper {
-	return enforceCloseIdleConnections(
-		otelhttp.NewTransport(rt,
-			otelhttp.WithSpanNameFormatter(TransportFormatter),
-		), rt)
+	return &roundTripWrapper{
+		RoundTripper: otelhttp.NewTransport(rt, otelhttp.WithSpanNameFormatter(TransportFormatter)),
+		inner:        rt,
+	}
 }
 
-// enforceCloseIdleConnections ensures that the returned [nethttp.RoundTripper]
+type closeIdler interface {
+	CloseIdleConnections()
+}
+
+type roundTripWrapper struct {
+	nethttp.RoundTripper
+	inner nethttp.RoundTripper
+}
+
+// Unwrap returns the inner round tripper.
+func (w *roundTripWrapper) Unwrap() http.RoundTripper {
+	return w.inner
+}
+
+// CloseIdleConnections ensures that the returned [nethttp.RoundTripper]
 // has a CloseIdleConnections method. Since [otelhttp.Transport] does not implement
 // this any [nethttp.Client.CloseIdleConnections] calls result in a noop instead
 // of forwarding the request onto its wrapped [nethttp.RoundTripper].
 //
 // DELETE WHEN https://github.com/open-telemetry/opentelemetry-go-contrib/issues/3543
 // has been resolved.
-func enforceCloseIdleConnections(wrapper, wrapped nethttp.RoundTripper) nethttp.RoundTripper {
-	type closeIdler interface {
-		CloseIdleConnections()
+func (w *roundTripWrapper) CloseIdleConnections() {
+	if c, ok := w.RoundTripper.(closeIdler); ok {
+		c.CloseIdleConnections()
+	} else if c, ok := w.inner.(closeIdler); ok {
+		c.CloseIdleConnections()
 	}
-
-	type unwrapper struct {
-		nethttp.RoundTripper
-		closeIdler
-	}
-
-	if _, ok := wrapper.(closeIdler); ok {
-		return wrapper
-	}
-
-	if c, ok := wrapped.(closeIdler); ok {
-		return &unwrapper{
-			RoundTripper: wrapper,
-			closeIdler:   c,
-		}
-	}
-
-	return wrapper
 }

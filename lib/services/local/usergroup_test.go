@@ -40,7 +40,8 @@ func TestUserGroupCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewUserGroupService(backend)
+	service, err := NewUserGroupService(backend)
+	require.NoError(t, err)
 
 	// Create a couple user groups.
 	g1, err := types.NewUserGroup(

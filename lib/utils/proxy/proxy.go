@@ -29,9 +29,9 @@ import (
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -315,7 +315,7 @@ func WithInsecureSkipTLSVerify(insecure bool) DialerOptionFunc {
 // server directly.
 func DialerFromEnvironment(addr string, opts ...DialerOptionFunc) Dialer {
 	// Try and get proxy addr from the environment.
-	proxyURL := apiproxy.GetProxyURL(addr)
+	proxyURL := apiutils.GetProxyURL(addr)
 
 	var options dialerOptions
 	for _, opt := range opts {

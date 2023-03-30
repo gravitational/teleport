@@ -38,12 +38,18 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			return nil
 		}
 
+		var deviceID string
+		if e.TrustedDevice != nil {
+			deviceID = e.TrustedDevice.DeviceId
+		}
+
 		// Note: we can have different behavior based on event code (local vs
 		// SSO) if desired, but we currently only care about connector type /
 		// method
 		return &UserLoginEvent{
 			UserName:      e.User,
 			ConnectorType: e.Method,
+			DeviceId:      deviceID,
 		}
 
 	case *apievents.SessionStart:

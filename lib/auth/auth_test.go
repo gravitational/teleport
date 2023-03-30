@@ -37,7 +37,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/license"
-	reporting "github.com/gravitational/reporting/types"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -165,10 +164,13 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
+		return p, trace.Wrap(err)
+	}
+	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -913,8 +915,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "test")))
 
 	err = s.a.createReverseTunnel(tc)
 	require.NoError(t, err)
@@ -1886,6 +1888,50 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	require.Equal(t, extension.Value, val)
 }
 
+func TestGenerateOpenSSHCert(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
+
+	// create keypair and sign with OpenSSH CA
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	require.NoError(t, err)
+
+	priv, err := native.GeneratePrivateKey()
+	require.NoError(t, err)
+
+	reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
+		Username:  user.GetName(),
+		PublicKey: priv.MarshalSSHPublicKey(),
+		TTL:       proto.Duration(time.Hour),
+		Cluster:   p.clusterName.GetClusterName(),
+	})
+	require.NoError(t, err)
+
+	// verify that returned cert is signed with OpenSSH CA
+	signedCert, err := sshutils.ParseCertificate(reply.Cert)
+	require.NoError(t, err)
+
+	ca, err := p.a.GetCertAuthority(
+		ctx,
+		types.CertAuthID{
+			Type:       types.OpenSSHCA,
+			DomainName: p.clusterName.GetClusterName(),
+		},
+		false,
+	)
+	require.NoError(t, err)
+
+	keys := ca.GetActiveKeys().SSH
+	require.NotEmpty(t, keys)
+	caPubkey, _, _, _, err := ssh.ParseAuthorizedKey(keys[0].PublicKey)
+	require.NoError(t, err)
+
+	require.Equal(t, caPubkey.Marshal(), signedCert.SignatureKey.Marshal())
+}
+
 func TestGenerateUserCertWithLocks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -2805,42 +2851,6 @@ func TestGetLicense(t *testing.T) {
 	actual, err := s.a.GetLicense(context.Background())
 	assert.Nil(t, err)
 	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
-}
-
-type mockEnforcer struct {
-	services.Enforcer
-	notifications []reporting.Notification
-}
-
-func (m mockEnforcer) GetLicenseCheckResult(ctx context.Context) (*reporting.Heartbeat, error) {
-	return &reporting.Heartbeat{
-		Spec: reporting.HeartbeatSpec{
-			Notifications: m.notifications,
-		},
-	}, nil
-}
-
-func TestEnforcerGetLicenseCheckResult(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	s := newAuthSuite(t)
-
-	expected := []reporting.Notification{
-		{
-			Type:     "test",
-			Severity: "warning",
-			Text:     "test warning",
-			HTML:     "test warning",
-		},
-	}
-
-	s.a.SetEnforcer(&mockEnforcer{
-		notifications: expected,
-	})
-
-	heartbeat, err := s.a.GetLicenseCheckResult(ctx)
-	require.NoError(t, err)
-	require.Equal(t, expected, heartbeat.Spec.Notifications)
 }
 
 func TestInstallerCRUD(t *testing.T) {

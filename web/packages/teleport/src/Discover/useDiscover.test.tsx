@@ -31,7 +31,7 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { useDiscover, DiscoverProvider } from './useDiscover';
-import { ResourceKind } from './Shared';
+import { SERVERS } from './SelectResource/resources';
 
 const crypto = require('crypto');
 
@@ -53,11 +53,7 @@ describe('emitting events', () => {
       .mockResolvedValue(null as never); // return value does not matter but required by ts
 
     wrapper = ({ children }) => (
-      <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: 'server' } },
-        ]}
-      >
+      <MemoryRouter initialEntries={[{ pathname: cfg.routes.discover }]}>
         <ContextProvider ctx={ctx}>
           <FeaturesContextProvider value={[]}>
             <DiscoverProvider>{children}</DiscoverProvider>
@@ -71,22 +67,17 @@ describe('emitting events', () => {
     jest.resetAllMocks();
   });
 
-  test('init the eventState state', async () => {
+  test('first render, init event state and emits started event', async () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
 
     // Test init hook.
     expect(result.current.currentStep).toBe(0);
-    expect(result.current.selectedResourceKind).toEqual(ResourceKind.Server);
-    expect(result.current.selectedResource.kind).toEqual(ResourceKind.Server);
-
-    expect(result.current.currentStep).toBe(0);
     expect(result.current.eventState).toEqual(
       expect.objectContaining({
         id: expect.any(String),
-        currEventName: DiscoverEvent.ResourceSelection,
-        resource: DiscoverEventResource.Server,
+        currEventName: DiscoverEvent.Started,
       })
     );
 
@@ -103,26 +94,52 @@ describe('emitting events', () => {
       })
     );
     jest.resetAllMocks();
-
-    // Calling to update eventState again should not emit an event
-    // but update the state only.
-    await act(async () => {
-      result.current.onSelectResource(ResourceKind.Kubernetes);
-    });
-    expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(0);
-    expect(result.current.eventState).toEqual({
-      id: eventId,
-      currEventName: DiscoverEvent.ResourceSelection,
-      resource: DiscoverEventResource.Kubernetes,
-    });
   });
 
-  test('incrementing view by one, emits success event', async () => {
+  test('onSelectResource emits resource selected event', async () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-    jest.resetAllMocks(); // to discount the initial start event.
+    jest.resetAllMocks(); // discount the init event
 
+    await act(async () => {
+      result.current.onSelectResource(SERVERS[0]);
+    });
+
+    // Event state is set to the next step.
+    expect(result.current.eventState).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        currEventName: DiscoverEvent.DeployService,
+        eventResourceName: DiscoverEventResource.Server,
+      })
+    );
+
+    const eventId = result.current.eventState.id;
+    expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(1);
+    expect(userEventService.captureDiscoverEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: DiscoverEvent.ResourceSelection,
+        eventData: {
+          id: eventId,
+          resource: DiscoverEventResource.Server,
+          stepStatus: DiscoverEventStatus.Success,
+        },
+      })
+    );
+    jest.resetAllMocks();
+  });
+
+  test('incrementing view by one, emits success events', async () => {
+    const { result } = renderHook(() => useDiscover(), {
+      wrapper,
+    });
+
+    // Set the resources.
+    await act(async () => {
+      result.current.onSelectResource(SERVERS[0]);
+    });
+    jest.resetAllMocks(); // discount the events from init and select resource
     const id = result.current.eventState.id;
 
     // Test next step gets incremented by 1, passing in a non-number.
@@ -133,7 +150,7 @@ describe('emitting events', () => {
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(1);
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: DiscoverEvent.ResourceSelection,
+        event: DiscoverEvent.DeployService,
         eventData: {
           id,
           resource: DiscoverEventResource.Server,
@@ -144,8 +161,8 @@ describe('emitting events', () => {
     // Test the `eventState` got updated to the next view.
     expect(result.current.eventState).toEqual({
       id,
-      currEventName: DiscoverEvent.DeployService,
-      resource: DiscoverEventResource.Server,
+      currEventName: DiscoverEvent.PrincipalsConfigure,
+      eventResourceName: DiscoverEventResource.Server,
     });
     jest.resetAllMocks();
 
@@ -157,7 +174,7 @@ describe('emitting events', () => {
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(1);
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: DiscoverEvent.DeployService,
+        event: DiscoverEvent.PrincipalsConfigure,
         eventData: {
           id,
           resource: DiscoverEventResource.Server,
@@ -171,7 +188,12 @@ describe('emitting events', () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-    jest.resetAllMocks(); // to discount the initial start event.
+
+    // Set the resources.
+    await act(async () => {
+      result.current.onSelectResource(SERVERS[0]);
+    });
+    jest.resetAllMocks(); // discount the events from init and select resource
 
     const id = result.current.eventState.id;
 
@@ -186,7 +208,7 @@ describe('emitting events', () => {
     expect(userEventService.captureDiscoverEvent).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        event: DiscoverEvent.ResourceSelection,
+        event: DiscoverEvent.DeployService,
         eventData: {
           id,
           resource: DiscoverEventResource.Server,
@@ -199,7 +221,7 @@ describe('emitting events', () => {
     expect(userEventService.captureDiscoverEvent).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        event: DiscoverEvent.DeployService,
+        event: DiscoverEvent.PrincipalsConfigure,
         eventData: {
           id,
           resource: DiscoverEventResource.Server,
@@ -210,7 +232,7 @@ describe('emitting events', () => {
     expect(userEventService.captureDiscoverEvent).toHaveBeenNthCalledWith(
       3,
       expect.objectContaining({
-        event: DiscoverEvent.PrincipalsConfigure,
+        event: DiscoverEvent.TestConnection,
         eventData: {
           id,
           resource: DiscoverEventResource.Server,
@@ -224,7 +246,11 @@ describe('emitting events', () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-    jest.resetAllMocks(); // to discount the initial start event.
+    // Set the resources.
+    await act(async () => {
+      result.current.onSelectResource(SERVERS[0]);
+    });
+    jest.resetAllMocks(); // discount the events from init and select resource
 
     const id = result.current.eventState.id;
 
@@ -235,7 +261,7 @@ describe('emitting events', () => {
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(1);
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: DiscoverEvent.ResourceSelection,
+        event: DiscoverEvent.DeployService,
         eventData: {
           id,
           resource: DiscoverEventResource.Server,
@@ -249,7 +275,11 @@ describe('emitting events', () => {
     const { result } = renderHook(() => useDiscover(), {
       wrapper,
     });
-    jest.resetAllMocks(); // to discount the initial start event.
+    // Set the resources.
+    await act(async () => {
+      result.current.onSelectResource(SERVERS[0]);
+    });
+    jest.resetAllMocks(); // discount the events from init and select resource
 
     await act(async () => {
       result.current.emitErrorEvent('some error message');
@@ -258,7 +288,7 @@ describe('emitting events', () => {
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledTimes(1);
     expect(userEventService.captureDiscoverEvent).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: DiscoverEvent.ResourceSelection,
+        event: DiscoverEvent.DeployService,
         eventData: {
           id: result.current.eventState.id,
           resource: DiscoverEventResource.Server,

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"crypto/x509/pkix"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -34,6 +35,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
@@ -336,7 +339,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 		withStandardRoleMapping(),
 	)
 
-	k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
+	k8Client, k8ClientConfig, err := kube.ProxyClient(kube.ProxyConfig{
 		T:                   suite.root,
 		Username:            kubeRoleSpec.Allow.Logins[0],
 		PinnedIP:            "127.0.0.1",
@@ -350,6 +353,53 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+
+	// Simulate how tsh uses a kube local proxy to send kube requests to
+	// Teleport Proxy with a L7 LB in front.
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		teleportCluster := suite.root.Config.Auth.ClusterName.GetClusterName()
+		kubeCluster := "gke_project_europecentral2a_cluster1"
+
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+
+		// Generate a self-signed CA for kube local proxy.
+		localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
+			CommonName: "localhost",
+		}, []string{alpncommon.KubeLocalProxyWildcardDomain(teleportCluster)}, defaults.CATTL)
+		require.NoError(t, err)
+
+		// Create the kube local proxy.
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			Listener:                mustCreateKubeLocalProxyListener(t, teleportCluster, localCACert, localCAKey),
+			RemoteProxyAddr:         albProxy.Addr().String(),
+			ALPNConnUpgradeRequired: true,
+			InsecureSkipVerify:      true,
+			SNI:                     localK8SNI,
+			HTTPMiddleware:          mustCreateKubeLocalProxyMiddleware(t, teleportCluster, kubeCluster, k8ClientConfig.CertData, k8ClientConfig.KeyData),
+			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+		})
+		require.NoError(t, err)
+
+		// Create a proxy-url for kube clients.
+		fp := mustStartKubeForwardProxy(t, lp.GetAddr())
+
+		k8Client, err := kubernetes.NewForConfig(&rest.Config{
+			Host:  "https://" + teleportCluster,
+			Proxy: http.ProxyURL(mustParseURL(t, "http://"+fp.GetAddr())),
+			TLSClientConfig: rest.TLSClientConfig{
+				CAData:     localCACert,
+				CertData:   localCACert, // Client uses same cert as local proxy server.
+				KeyData:    localCAKey,
+				ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+			},
+		})
+		require.NoError(t, err)
+		resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+		require.NoError(t, err)
+		require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+	})
 }
 
 // TestALPNSNIProxyKubeV2Leaf tests remove cluster kubernetes configuration where root and leaf proxies
@@ -642,7 +692,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 	})
 
 	t.Run("postgres", func(t *testing.T) {
-		lp := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolPostgres)
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
+			Protocols:          []alpncommon.Protocol{alpncommon.ProtocolPostgres},
+			InsecureSkipVerify: true,
+			// Since this a non-tunnel local proxy, we should check certs are needed
+			// for postgres.
+			// (this is how a local proxy would actually be configured for postgres).
+			CheckCertsNeeded: true,
+		})
 		t.Run("connect to main cluster via proxy", func(t *testing.T) {
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
@@ -680,7 +738,15 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			mustClosePostgresClient(t, client)
 		})
 		t.Run("connect to main cluster via proxy with ping protocol", func(t *testing.T) {
-			pingProxy := mustStartALPNLocalProxy(t, pack.Root.Cluster.SSHProxy, alpncommon.ProtocolWithPing(alpncommon.ProtocolPostgres))
+			pingProxy := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+				RemoteProxyAddr:    pack.Root.Cluster.SSHProxy,
+				Protocols:          []alpncommon.Protocol{alpncommon.ProtocolWithPing(alpncommon.ProtocolPostgres)},
+				InsecureSkipVerify: true,
+				// Since this a non-tunnel local proxy, we should check certs are needed
+				// for postgres.
+				// (this is how a local proxy would actually be configured for postgres).
+				CheckCertsNeeded: true,
+			})
 			client, err := postgres.MakeTestClient(context.Background(), common.TestClientConfig{
 				AuthClient: pack.Root.Cluster.GetSiteAPI(pack.Root.Cluster.Secrets.SiteName),
 				AuthServer: pack.Root.Cluster.Process.GetAuthServer(),
@@ -978,15 +1044,44 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 		},
 	})
 
-	cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
-	status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
+	t.Run("root cluster", func(t *testing.T) {
+		cookies := pack.CreateAppSession(t, pack.RootAppPublicAddr(), pack.RootAppClusterName())
+		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
 
-	cookies = pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
-	status, _, err = pack.MakeRequest(cookies, http.MethodGet, "/")
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, status)
+	t.Run("leaf cluster", func(t *testing.T) {
+		cookies := pack.CreateAppSession(t, pack.LeafAppPublicAddr(), pack.LeafAppClusterName())
+		status, _, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, status)
+	})
+
+	t.Run("ALPN connection upgrade", func(t *testing.T) {
+		// Get client cert for app request.
+		clientCerts := pack.CreateAppSessionWithClientCert(t)
+
+		// Make a mock ALB which points to the Teleport Proxy Service. Then
+		// ALPN local proxies will point to this ALB instead.
+		albProxy := mustStartMockALBProxy(t, pack.RootWebAddr())
+
+		lp := mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
+			RemoteProxyAddr:         albProxy.Addr().String(),
+			Protocols:               []alpncommon.Protocol{alpncommon.ProtocolHTTP},
+			ALPNConnUpgradeRequired: true,
+			InsecureSkipVerify:      true,
+			Certs:                   clientCerts,
+		})
+
+		// Send the request to local proxy.
+		req, err := http.NewRequest(http.MethodGet, "http://"+lp.GetAddr(), nil)
+		require.NoError(t, err)
+		resp, err := http.DefaultClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+	})
 }
 
 // TestALPNProxyRootLeafAuthDial tests dialing local/remote auth service based on ALPN

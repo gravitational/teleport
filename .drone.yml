@@ -1263,7 +1263,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_BRANCH}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
     -input "upload-artifacts=false" '
   environment:
@@ -4979,8 +4979,9 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG} -input
-    oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input "upload-artifacts=true" '
+    -tag-workflow -timeout 1h0m0s -workflow release-linux-arm64.yml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
+    "upload-artifacts=true" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -6850,7 +6851,7 @@ steps:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
   - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="${ENT_FILTER}*.deb*"
+  - FILTER="$${ENT_FILTER}*.deb*"
   - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -7056,7 +7057,7 @@ steps:
   - mkdir -pv "$ARTIFACT_PATH"
   - rm -rf "$ARTIFACT_PATH"/*
   - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="${ENT_FILTER}*.rpm*"
+  - FILTER="$${ENT_FILTER}*.rpm*"
   - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
     "$ARTIFACT_PATH"
   environment:
@@ -7743,7 +7744,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -workflow promote-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 1h0m0s -workflow promote-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
     -input "release-source-tag=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
@@ -9184,7 +9185,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -workflow release-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
+    -tag-workflow -timeout 1h0m0s -workflow release-teleport-oci-distroless.yml -workflow-ref=${DRONE_TAG}
     -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -19038,6 +19039,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: d17f0dff7d28b2f0beed2fbef216d59e77ac6ea4ba542f9fdc4ab9f57ecd58d0
+hmac: 4107c52101a8fbd297c24a1408d6bb96999140c0a3d67cc7fba23abaa447ea38
 
 ...

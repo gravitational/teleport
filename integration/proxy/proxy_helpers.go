@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"path/filepath"
 	"testing"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -357,17 +359,18 @@ func createTestRole(username string) types.Role {
 func withStandardRoleMapping() proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
+			ctx := context.Background()
 			rc := suite.root
 			lc := suite.leaf
 			role := suite.root.Secrets.Users[helpers.MustGetCurrentUser(t).Username].Roles[0]
-			ca, err := lc.Process.GetAuthServer().GetCertAuthority(context.Background(), types.CertAuthID{
+			ca, err := lc.Process.GetAuthServer().GetCertAuthority(ctx, types.CertAuthID{
 				Type:       types.UserCA,
 				DomainName: rc.Secrets.SiteName,
 			}, false)
 			require.NoError(t, err)
 			ca.SetRoles(nil) // Reset roles, otherwise they will take precedence.
 			ca.SetRoleMap(types.RoleMap{{Remote: role.GetName(), Local: []string{role.GetName()}}})
-			err = lc.Process.GetAuthServer().UpsertCertAuthority(ca)
+			err = lc.Process.GetAuthServer().UpsertCertAuthority(ctx, ca)
 			require.NoError(t, err)
 		}
 	}
@@ -460,6 +463,8 @@ func startKubeAPIMock(t *testing.T) *httptest.Server {
 }
 
 func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
+	t.Helper()
+
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	err := clientcmd.WriteToFile(config, configPath)
 	require.NoError(t, err)
@@ -467,6 +472,8 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 }
 
 func mustCreateListener(t *testing.T) net.Listener {
+	t.Helper()
+
 	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
 
@@ -476,7 +483,22 @@ func mustCreateListener(t *testing.T) net.Listener {
 	return listener
 }
 
+func mustCreateKubeLocalProxyListener(t *testing.T, teleportCluster string, caCert, caKey []byte) net.Listener {
+	t.Helper()
+
+	ca, err := tls.X509KeyPair(caCert, caKey)
+	require.NoError(t, err)
+
+	listener, err := alpnproxy.NewKubeListener(map[string]tls.Certificate{
+		teleportCluster: ca,
+	})
+	require.NoError(t, err)
+	return listener
+}
+
 func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Protocol) *alpnproxy.LocalProxy {
+	t.Helper()
+
 	return mustStartALPNLocalProxyWithConfig(t, alpnproxy.LocalProxyConfig{
 		RemoteProxyAddr:    addr,
 		Protocols:          []alpncommon.Protocol{protocol},
@@ -485,13 +507,10 @@ func mustStartALPNLocalProxy(t *testing.T, addr string, protocol alpncommon.Prot
 }
 
 func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxyConfig) *alpnproxy.LocalProxy {
+	t.Helper()
+
 	if config.Listener == nil {
 		config.Listener = mustCreateListener(t)
-	}
-	if config.SNI == "" {
-		address, err := utils.ParseAddr(config.RemoteProxyAddr)
-		require.NoError(t, err)
-		config.SNI = address.Host()
 	}
 	if config.ParentContext == nil {
 		config.ParentContext = context.TODO()
@@ -504,10 +523,40 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 	})
 
 	go func() {
-		err := lp.Start(context.Background())
-		require.NoError(t, err)
+		var err error
+		if config.HTTPMiddleware == nil {
+			err = lp.Start(context.Background())
+		} else {
+			err = lp.StartHTTPAccessProxy(context.Background())
+		}
+		assert.NoError(t, err)
 	}()
 	return lp
+}
+
+func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardProxy {
+	t.Helper()
+
+	fp, err := alpnproxy.NewKubeForwardProxy(context.Background(), "", lpAddr)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		fp.Close()
+	})
+
+	go func() {
+		assert.NoError(t, fp.Start())
+	}()
+	return fp
+}
+
+func mustCreateKubeLocalProxyMiddleware(t *testing.T, teleportCluster, kubeCluster string, userCert, userKey []byte) alpnproxy.LocalProxyHTTPMiddleware {
+	t.Helper()
+
+	cert, err := tls.X509KeyPair(userCert, userKey)
+	require.NoError(t, err)
+	certs := make(alpnproxy.KubeClientCerts)
+	certs.Add(teleportCluster, kubeCluster, cert)
+	return alpnproxy.NewKubeMiddleware(certs)
 }
 
 func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
@@ -524,6 +573,8 @@ func makeNodeConfig(nodeName, proxyAddr string) *servicecfg.Config {
 }
 
 func mustCreateSelfSignedCert(t *testing.T) tls.Certificate {
+	t.Helper()
+
 	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
 	}, []string{"localhost"}, defaults.CATTL)
@@ -579,6 +630,8 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 }
 
 func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
+	t.Helper()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
@@ -600,4 +653,12 @@ func waitForActivePeerProxyConnections(t *testing.T, tunnel reversetunnel.Server
 		time.Second,
 		"Peer proxy connections did not reach %v in the expected time frame %v", expectedCount, 30*time.Second,
 	)
+}
+
+func mustParseURL(t *testing.T, rawURL string) *url.URL {
+	t.Helper()
+
+	u, err := url.Parse(rawURL)
+	require.NoError(t, err)
+	return u
 }

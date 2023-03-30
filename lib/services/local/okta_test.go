@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
@@ -114,10 +115,17 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Create both import rules.
-	err = service.CreateOktaImportRule(ctx, importRule1)
+	importRule, err := service.CreateOktaImportRule(ctx, importRule1)
 	require.NoError(t, err)
-	err = service.CreateOktaImportRule(ctx, importRule2)
+	require.Empty(t, cmp.Diff(importRule1, importRule,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	importRule, err = service.CreateOktaImportRule(ctx, importRule2)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(importRule2, importRule,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
 
 	// Fetch all import rules.
 	out, nextToken, err = service.ListOktaImportRules(ctx, 200, "")
@@ -145,9 +153,9 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	))
 
 	// Fetch a specific import rule.
-	sp, err := service.GetOktaImportRule(ctx, importRule2.GetName())
+	importRule, err = service.GetOktaImportRule(ctx, importRule2.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(importRule2, sp,
+	require.Empty(t, cmp.Diff(importRule2, importRule,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -156,16 +164,16 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	// Try to create the same import rule.
-	err = service.CreateOktaImportRule(ctx, importRule1)
+	_, err = service.CreateOktaImportRule(ctx, importRule1)
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Update an import rule.
 	importRule1.SetExpiry(clock.Now().Add(30 * time.Minute))
-	err = service.UpdateOktaImportRule(ctx, importRule1)
+	_, err = service.UpdateOktaImportRule(ctx, importRule1)
 	require.NoError(t, err)
-	sp, err = service.GetOktaImportRule(ctx, importRule1.GetName())
+	importRule, err = service.GetOktaImportRule(ctx, importRule1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(importRule1, sp,
+	require.Empty(t, cmp.Diff(importRule1, importRule,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -265,10 +273,17 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.Empty(t, out)
 
 	// Create both assignments.
-	err = service.CreateOktaAssignment(ctx, assignment1)
+	assignment, err := service.CreateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
-	err = service.CreateOktaAssignment(ctx, assignment2)
+	require.Empty(t, cmp.Diff(assignment1, assignment,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	assignment, err = service.CreateOktaAssignment(ctx, assignment2)
 	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(assignment2, assignment,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
 
 	// Fetch all assignments.
 	out, nextToken, err = service.ListOktaAssignments(ctx, 200, "")
@@ -298,9 +313,9 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	))
 
 	// Fetch a specific assignment.
-	sp, err := service.GetOktaAssignment(ctx, assignment2.GetName())
+	assignment, err = service.GetOktaAssignment(ctx, assignment2.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(assignment2, sp,
+	require.Empty(t, cmp.Diff(assignment2, assignment,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
@@ -309,16 +324,29 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.True(t, trace.IsNotFound(err), "expected not found error, got %v", err)
 
 	// Try to create the same assignment.
-	err = service.CreateOktaAssignment(ctx, assignment1)
+	_, err = service.CreateOktaAssignment(ctx, assignment1)
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Update an assignment.
 	assignment1.SetExpiry(clock.Now().Add(30 * time.Minute))
-	err = service.UpdateOktaAssignment(ctx, assignment1)
+	_, err = service.UpdateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
-	sp, err = service.GetOktaAssignment(ctx, assignment1.GetName())
+	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(assignment1, sp,
+	require.Empty(t, cmp.Diff(assignment1, assignment,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	// Update the statuses for an assignment.
+	assignment1.GetActions()[0].SetStatus(constants.OktaAssignmentActionStatusProcessing)
+	assignment, err = service.UpdateOktaAssignmentActionStatuses(ctx, assignment1.GetName(), constants.OktaAssignmentActionStatusProcessing)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(assignment1, assignment,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(assignment1, assignment,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 
