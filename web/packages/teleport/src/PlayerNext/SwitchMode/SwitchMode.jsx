@@ -92,7 +92,7 @@ const StyledButton = styled.button`
   ${Icon} {
     font-size: 14px;
     color: ${({ theme, active }) => {
-      return active ? theme.colors.primary.dark : '';
+      return active ? theme.colors.levels.sunkenSecondary : '';
     }};
   }
 
@@ -108,7 +108,7 @@ const StyledButton = styled.button`
     border-top-right-radius: 0px;
     border-right: 1px solid;
     border-left: 1px solid;
-    border-color: ${({ theme }) => theme.colors.primary.main};
+    border-color: ${({ theme }) => theme.colors.levels.surfaceSecondary};
   }
 
   :nth-child(3) {

@@ -146,7 +146,7 @@ function getLoginItemListContent(
         <Indicator
           css={({ theme }) => `
             align-self: center;
-            color: ${theme.colors.secondary.dark}
+            color: ${theme.colors.brand.secondaryAccent}
           `}
         />
       );

@@ -88,7 +88,7 @@ class TopNavUserMenu extends React.Component {
 
 const StyledAvatar = styled.div`
   align-items: center;
-  background: ${props => props.theme.colors.accent};
+  background: ${props => props.theme.colors.brand.accent};
   border-radius: 50%;
   display: flex;
   font-size: 14px;

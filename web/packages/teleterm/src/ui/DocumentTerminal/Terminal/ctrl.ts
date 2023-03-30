@@ -54,7 +54,7 @@ export default class TtyTerminal {
       fontFamily: this.options.fontFamily,
       scrollback: 5000,
       theme: {
-        background: theme.colors.primary.darker,
+        background: theme.colors.levels.sunken,
       },
       windowOptions: {
         setWinSizeChars: true,

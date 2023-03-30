@@ -143,7 +143,7 @@ export function NewMfaDevice(props: Props) {
             justifyContent="center"
             alignItems="center"
             borderRadius={8}
-            bg={mfaType?.value === 'optional' ? 'primary.lighter' : ''}
+            bg={mfaType?.value === 'optional' ? 'levels.elevated' : ''}
             height={mfaType?.value === 'optional' ? '340px' : '240px'}
             px={3}
           >

@@ -19,7 +19,7 @@ exports[`design/SlideTabs supports a round medium size 1`] = `
 }
 
 .c4 {
-  background-color: #512fc9;
+  background-color: #512FC9;
   border-radius: 60px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 40px;
@@ -114,7 +114,7 @@ exports[`design/SlideTabs supports a round xlarge appearance 1`] = `
 }
 
 .c4 {
-  background-color: #512fc9;
+  background-color: #512FC9;
   border-radius: 60px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 56px;
@@ -209,7 +209,7 @@ exports[`design/SlideTabs supports a square medium size 1`] = `
 }
 
 .c4 {
-  background-color: #512fc9;
+  background-color: #512FC9;
   border-radius: 8px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 40px;
@@ -304,7 +304,7 @@ exports[`design/SlideTabs supports a square xlarge appearance (default) 1`] = `
 }
 
 .c4 {
-  background-color: #512fc9;
+  background-color: #512FC9;
   border-radius: 8px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 56px;
@@ -399,7 +399,7 @@ exports[`design/SlideTabs supports passing in a selected index 1`] = `
 }
 
 .c4 {
-  background-color: #512fc9;
+  background-color: #512FC9;
   border-radius: 8px;
   box-shadow: 0px 2px 6px rgba(12,12,14,0.1);
   height: 56px;

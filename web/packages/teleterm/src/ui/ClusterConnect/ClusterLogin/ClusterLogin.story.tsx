@@ -315,8 +315,8 @@ const TestContainer: React.FC = ({ children }) => (
     <Box
       css={`
         width: 450px;
-        border: 1px solid ${props => props.theme.colors.primary.lighter};
-        background: ${props => props.theme.colors.primary.main};
+        border: 1px solid ${props => props.theme.colors.levels.elevated};
+        background: ${props => props.theme.colors.levels.surfaceSecondary};
       `}
     >
       {children}

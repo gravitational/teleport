@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,26 +31,35 @@ const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
 
 const colors = {
-  accent: '#651FFF',
-  progressBarColor: '#00BFA5',
+  /*
+  Colors in `levels` are used to reflect the perceived depth of elements in the UI.
+  The further back an element is, the more "sunken" it is, and the more forwards it is, the more "elevated" it is (think CSS z-index).
 
-  dark: '#000',
+  A `sunken` colour would be used to represent something like the background of the app.
+  While `surface` would be the color of the primary surface where most content is located (such as tables).
+  Any colors more "elevated" than that would be used for things such as popovers, menus, and dialogs.
 
-  light: '#FFFFFF',
+  `...Secondary` colours are used to differentiate different colors that represent the same depth.
 
-  primary: {
-    main: '#1C254D',
-    light: '#222C59',
-    lighter: '#2C3A73',
-    dark: '#111B48',
-    contrastText: '#FFFFFF',
+  For more information on this concept: https://m3.material.io/styles/elevation/applying-elevation
+ */
+  levels: {
+    sunken: '#0C143D',
+    sunkenSecondary: '#111B48',
+
+    surface: '#222C59',
+    surfaceSecondary: '#1C254D',
+
+    elevated: '#2C3A73',
+
+    popout: '#3E4B7E',
+    popoutHighlighted: '#535c8a',
   },
 
-  secondary: {
+  brand: {
     main: '#512FC9',
-    light: '#651FFF',
-    dark: '#354AA4',
-    contrastText: '#FFFFFF',
+    accent: '#651FFF',
+    secondaryAccent: '#354AA4',
   },
 
   text: {
@@ -62,13 +71,65 @@ const colors = {
     placeholder: 'rgba(255, 255, 255, 0.24)',
     // Disabled text have even lower visual prominence.
     disabled: 'rgba(0, 0, 0, 0.24)',
-    // Text hints.
-    hint: 'rgba(0, 0, 0, 0.24)',
-    // On light backgrounds
-    onLight: '#324148',
-    // On dark backgrounds
-    onDark: 'rgba(255, 255, 255, 0.87)',
+    // For maximum contrast.
+    contrast: '#FFFFFF',
+    // For text on  a background that is on a color opposite to the theme. For dark theme,
+    // this would mean text that is on a light background.
+    primaryInverse: '#324148',
   },
+
+  buttons: {
+    text: 'rgba(255,255,255,0.87)',
+    textDisabled: 'rgba(255, 255, 255, 0.3)',
+    bgDisabled: 'rgba(255, 255, 255, 0.12)',
+
+    primary: {
+      default: '#512FC9',
+      hover: '#651FFF',
+      active: '#354AA4',
+    },
+
+    secondary: {
+      default: '#222C59',
+      hover: '#2C3A73',
+    },
+
+    border: {
+      default: '#2C3A73',
+      hover: '#2C3A73',
+      border: '#1C254D',
+      borderHover: 'rgba(255, 255, 255, 0.1)',
+    },
+
+    warning: {
+      default: '#d50000',
+      hover: '#ff1744',
+    },
+
+    outlinedPrimary: {
+      text: '#651FFF',
+      border: '#512FC9',
+      borderHover: '#651FFF',
+      borderActive: '#354AA4',
+    },
+
+    outlinedDefault: {
+      text: 'rgba(255,255,255,0.87)',
+      textHover: '#FFFFFF',
+      border: 'rgba(255,255,255,0.87)',
+      borderHover: '#FFFFFF',
+    },
+
+    trashButton: {
+      default: '#2e3860',
+      hover: '#414b70',
+    },
+  },
+
+  progressBarColor: '#00BFA5',
+
+  dark: '#000000',
+  light: '#FFFFFF',
 
   grey: {
     ...blueGrey,

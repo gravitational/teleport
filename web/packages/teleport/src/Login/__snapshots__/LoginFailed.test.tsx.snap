@@ -81,7 +81,7 @@ exports[`callback error message 1`] = `
   />
   <div
     class="c1"
-    color="text.onLight"
+    color="text.primaryInverse"
     width="540px"
   >
     <div
@@ -191,7 +191,7 @@ exports[`default error message 1`] = `
   />
   <div
     class="c1"
-    color="text.onLight"
+    color="text.primaryInverse"
     width="540px"
   >
     <div

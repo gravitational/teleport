@@ -536,7 +536,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
               <input
                 autocomplete="off"
                 class="c17"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"
@@ -1136,7 +1136,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
               <input
                 autocomplete="off"
                 class="c18"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"
@@ -1706,7 +1706,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 <input
                   autocomplete="one-time-code"
                   class="c19"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="numeric"
                   placeholder="123 456"
                   type="text"
@@ -1727,7 +1727,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
               <input
                 autocomplete="off"
                 class="c19"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"

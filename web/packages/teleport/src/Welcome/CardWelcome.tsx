@@ -19,7 +19,7 @@ import { Card, Box, Text, ButtonPrimary } from 'design';
 
 export function CardWelcome({ title, subTitle, btnText, onClick }: Props) {
   return (
-    <Card bg="primary.light" my={6} mx="auto" width="464px">
+    <Card bg="levels.surface" my={6} mx="auto" width="464px">
       <Box p={6}>
         <Text typography="h2" mb={3} textAlign="center" color="light">
           {title}

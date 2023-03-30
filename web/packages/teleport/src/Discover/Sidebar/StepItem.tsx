@@ -93,21 +93,21 @@ const Bullet = styled.span`
 `;
 
 const ActiveBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.secondary.main};
-  background: ${props => props.theme.colors.secondary.main};
+  border-color: ${props => props.theme.colors.brand.main};
+  background: ${props => props.theme.colors.brand.main};
 
   :before {
     content: '';
     height: 8px;
     width: 8px;
     border-radius: 50%;
-    border: 2px solid ${props => props.theme.colors.primary.main};
+    border: 2px solid ${props => props.theme.colors.levels.surfaceSecondary};
   }
 `;
 
 const CheckedBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.secondary.main};
-  background: ${props => props.theme.colors.secondary.main};
+  border-color: ${props => props.theme.colors.brand.main};
+  background: ${props => props.theme.colors.brand.main};
 
   :before {
     content: '✓';

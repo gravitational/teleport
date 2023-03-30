@@ -31,7 +31,7 @@ export function StatusBar() {
       width="100%"
       height="28px"
       css={`
-        border-top: 1px solid ${props => props.theme.colors.primary.light};
+        border-top: 1px solid ${props => props.theme.colors.levels.surface};
       `}
       alignItems="center"
       justifyContent="space-between"

@@ -76,15 +76,15 @@ const LogoItem = styled(Flex)(
   text-decoration: none;
   width: 100%;
   &:hover {
-    background ${props.theme.colors.primary.lighter};
-    color ${props.theme.colors.primary.contrastText};
+    background ${props.theme.colors.levels.elevated};
+    color ${props.theme.colors.text.contrast};
   }
 `
 );
 
 export const Nav = styled.nav`
-  background: ${props => props.theme.colors.primary.light};
-  border-right: 1px solid ${props => props.theme.colors.primary.dark};
+  background: ${props => props.theme.colors.levels.surface};
+  border-right: 1px solid ${props => props.theme.colors.levels.sunkenSecondary};
   overflow: auto;
   height: 100%;
   display: flex;
