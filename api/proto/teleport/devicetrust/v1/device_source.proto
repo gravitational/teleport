@@ -18,8 +18,8 @@ package teleport.devicetrust.v1;
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
 
-// Source of device, for devices that are managed by external systems (such as
-// MDMs).
+// Source of device, for devices that are managed by external systems
+// (for example, MDMs).
 message DeviceSource {
   // Name of the source.
   // Matches the name of the corresponding MDM service, if applicable.
