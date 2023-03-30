@@ -158,6 +158,19 @@ func TestAuthenticate(t *testing.T) {
 			ClusterName:       "local",
 			CachingAuthClient: ap,
 		},
+		getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			servers, err := ap.GetKubernetesServers(ctx)
+			if err != nil {
+				return nil, err
+			}
+			var filtered []types.KubeServer
+			for _, server := range servers {
+				if server.GetCluster().GetName() == name {
+					filtered = append(filtered, server)
+				}
+			}
+			return filtered, nil
+		},
 	}
 
 	const remoteAddr = "user.example.com"
@@ -215,6 +228,21 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "local",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -238,6 +266,30 @@ func TestAuthenticate(t *testing.T) {
 						DynamicLabels: map[string]types.CommandLabelV2{},
 					},
 				},
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "foo",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "bar",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
 			),
 			wantCtx: &authContext{
 				kubeUsers:       utils.StringsSet([]string{"user-a"}),
@@ -252,6 +304,21 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "local",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -284,6 +351,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -315,6 +394,19 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -347,6 +439,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -448,6 +552,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -496,6 +612,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -554,6 +682,21 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "foo",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -953,6 +1096,9 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	f.cfg.CachingAuthClient = mockAccessPoint{
 		kubeServers: []types.KubeServer{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},
 	}
+
+	authCtx.kubeServers, err = f.cfg.CachingAuthClient.GetKubernetesServers(context.Background())
+	require.NoError(t, err)
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
 	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
