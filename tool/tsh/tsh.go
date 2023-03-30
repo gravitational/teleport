@@ -166,6 +166,9 @@ type CLIConf struct {
 	CopySpec []string
 	// -r flag for scp
 	RecursiveCopy bool
+	// Force overwriting of files that may be read only
+	Force bool
+
 	// -L flag for ssh. Local port forwarding like 'ssh -L 80:remote.host:80 -L 443:remote.host:443'
 	LocalForwardPorts []string
 	// DynamicForwardedPorts is port forwarding using SOCKS5. It is similar to
@@ -835,6 +838,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
+	scp.Flag("force", "Try to delete read only files before overwriting them").BoolVar(&cf.Force)
 	scp.Flag("port", "Port to connect to on the remote host").Short('P').Int32Var(&cf.NodePort)
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
@@ -3242,6 +3246,7 @@ func onSCP(cf *CLIConf) error {
 	opts := sftp.Options{
 		Recursive:     cf.RecursiveCopy,
 		PreserveAttrs: cf.PreserveAttrs,
+		Force:         cf.Force,
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		return tc.SFTP(cf.Context, cf.CopySpec, int(cf.NodePort), opts, cf.Quiet)

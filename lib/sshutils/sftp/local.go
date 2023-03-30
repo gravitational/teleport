@@ -112,10 +112,22 @@ func (l localFS) Create(ctx context.Context, path string, _ int64) (io.WriteClos
 
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaults.FilePermissions)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	return f, nil
+}
+
+func (l localFS) Remove(ctx context.Context, path string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	if err := os.Remove(path); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+
+	return nil
 }
 
 func (l localFS) Mkdir(ctx context.Context, path string) error {
