@@ -1564,8 +1564,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			s.Logger.Debugf("%v: deliberately ignoring request for '%v' channel", s.Component(), sshutils.PuTTYSimpleRequest)
 			return nil
 		default:
-			return trace.BadParameter(
-				"(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)
+			s.Logger.Warnf("(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)
+			if req.WantReply {
+				if err := req.Reply(false, nil); err != nil {
+					s.Logger.Errorf("sending error reply on SSH channel: %v", err)
+				}
+			}
+			return nil
 		}
 	}
 
@@ -1662,8 +1667,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.PuTTYWinadjRequest:
 		return s.handlePuTTYWinadj(ch, req)
 	default:
-		return trace.BadParameter(
-			"%v doesn't support request type '%v'", s.Component(), req.Type)
+		s.Logger.Warnf("%v doesn't support request type '%v'", s.Component(), req.Type)
+		if req.WantReply {
+			if err := req.Reply(false, nil); err != nil {
+				s.Logger.Errorf("sending error reply on SSH channel: %v", err)
+			}
+		}
+		return nil
 	}
 }
 
