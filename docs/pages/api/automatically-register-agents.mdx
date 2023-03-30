@@ -30,7 +30,7 @@ Automatic registration consists of the following steps:
 
 <Notice type="danger">
 
-The program we will build in this guide is intended as a learning tool. **Do not
+The program we build in this guide is intended as a learning tool. **Do not
 connect it to your production Teleport cluster.**  Use a demo cluster instead.
 
 </Notice>
@@ -71,7 +71,7 @@ Service instances with an external service discovery solution.
 
 Clients that communicate with Teleport's gRPC API assume the identity of a
 Teleport user and role in order to authenticate to the Auth Service, which
-authorizes the identity to perform certain API actions. 
+authorizes the identity to perform certain API actions.
 
 Your own Teleport user also requires permissions to impersonate the API client's
 user in order to generate credentials for the client.
@@ -529,9 +529,8 @@ corresponding role permissions with the `create` verb:
 |Resource|Method|Within a Role|
 |---|---|---|
 |Database|`*client.Client.CreateDatabase`|`db`|
-|Kubernetes cluster|`*client.Client.CreateKubernetesCluster`|`kube_cluster`|
-|Windows Desktop|`*client.Client.CreateWindowsDesktop`|`windows_desktop`|
-
+|Kubernetes cluster|<nobr>`*client.Client.CreateKubernetesCluster`</nobr>|`kube_cluster`|
+|Windows Desktop|`*client.Client.CreateWindowsDesktop`|<nobr>`windows_desktop`</nobr>|
 Since a server must run an instance of the Teleport SSH Service in order to join
 a Teleport cluster, API clients can only register servers by using tokens.
 
