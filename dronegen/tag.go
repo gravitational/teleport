@@ -274,7 +274,7 @@ func tagPipeline(b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeAwsConfig, volumeDocker}
+	p.Volumes = dockerVolumes(volumeAwsConfig)
 	p.Services = []service{
 		dockerService(),
 	}
@@ -282,6 +282,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -291,13 +292,15 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
+			Pull:        "if-not-exists",
 			Environment: tagEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    tagBuildCommands(b),
 		},
 		{
 			Name:     "Copy artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCopyArtifactCommands(b),
 		},
 		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
@@ -317,6 +320,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
@@ -465,12 +469,10 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := []volume{
-		volumeDocker,
-		volumeAwsConfig,
-	}
+	packageDockerVolumes := dockerVolumes(volumeAwsConfig)
 	packageDockerVolumeRefs := []volumeRef{
 		volumeRefDocker,
+		volumeRefDockerConfig,
 		volumeRefAwsConfig,
 	}
 	packageDockerService := dockerService()

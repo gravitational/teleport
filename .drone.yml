@@ -61,6 +61,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -79,14 +80,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -103,6 +116,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
   settings:
@@ -130,6 +145,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -166,6 +185,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -184,14 +204,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -206,6 +238,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
   settings:
@@ -233,6 +267,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -269,6 +307,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -289,14 +328,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -313,6 +364,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
   settings:
@@ -340,6 +393,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -376,6 +433,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -394,14 +452,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -416,6 +486,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
   settings:
@@ -443,6 +515,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -818,13 +894,24 @@ steps:
     && exit 1)'
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -858,6 +945,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Clean up previously built artifacts
@@ -882,6 +971,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: tmpfs
     path: /tmpfs
   - name: awsconfig
@@ -896,13 +987,17 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -1144,6 +1239,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -1162,14 +1258,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -1184,6 +1292,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
   settings:
@@ -1211,6 +1321,10 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -1242,6 +1356,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -1260,6 +1375,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -1286,6 +1402,8 @@ steps:
   when:
     status:
     - failure
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 kind: pipeline
@@ -1535,6 +1653,7 @@ clone:
 steps:
   - name: Check out code
     image: alpine/git
+    pull: if-not-exists
     commands:
       - mkdir -p /go/src/github.com/gravitational/teleport
       - cd /go/src/github.com/gravitational/teleport
@@ -1657,6 +1776,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -1680,14 +1800,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -1702,8 +1834,11 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -1717,6 +1852,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -1741,6 +1877,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -1753,6 +1890,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -1812,6 +1950,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -1845,6 +1987,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -1868,14 +2011,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -1892,8 +2047,11 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -1904,6 +2062,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -1928,6 +2087,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -1940,6 +2100,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -1999,6 +2160,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2032,6 +2197,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -2055,14 +2221,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -2079,8 +2257,11 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -2098,6 +2279,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2122,6 +2304,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2134,6 +2317,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -2193,6 +2377,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2226,6 +2414,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -2249,14 +2438,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -2273,8 +2474,11 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find e/ -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -2283,6 +2487,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2307,6 +2512,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2319,6 +2525,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -2378,6 +2585,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2432,13 +2643,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2480,6 +2702,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2527,6 +2750,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
   - name: tmpfs
@@ -2541,6 +2766,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2565,6 +2791,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2634,13 +2861,17 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
-- name: awsconfig
+- name: dockerconfig
   temp: {}
 - name: tmpfs
   temp:
     medium: memory
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2695,13 +2926,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2741,6 +2983,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2789,6 +3032,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
   - name: tmpfs
@@ -2801,6 +3046,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -2825,6 +3071,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -2894,13 +3141,17 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
-- name: awsconfig
+- name: dockerconfig
   temp: {}
 - name: tmpfs
   temp:
     medium: memory
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -2955,13 +3206,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3003,6 +3265,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3043,6 +3306,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Copy artifacts
@@ -3055,6 +3320,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3079,6 +3345,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3146,10 +3413,14 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -3204,13 +3475,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3250,6 +3532,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3291,6 +3574,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Copy artifacts
@@ -3301,6 +3586,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3325,6 +3611,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3392,10 +3679,14 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -3429,6 +3720,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -3452,14 +3744,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -3474,8 +3778,11 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -3486,6 +3793,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3510,6 +3818,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3522,6 +3831,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -3581,6 +3891,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -3635,13 +3949,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3683,6 +4008,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3730,6 +4056,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
   - name: tmpfs
@@ -3744,6 +4072,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3768,6 +4097,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -3837,13 +4167,17 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
-- name: awsconfig
+- name: dockerconfig
   temp: {}
 - name: tmpfs
   temp:
     medium: memory
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -3898,13 +4232,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3946,6 +4291,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -3986,6 +4332,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Copy artifacts
@@ -3998,6 +4346,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -4022,6 +4371,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -4089,10 +4439,14 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -4776,6 +5130,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -4799,14 +5154,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -4821,8 +5188,11 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.tar.gz" -print -exec cp {} /go/artifacts
@@ -4833,6 +5203,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -4857,6 +5228,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -4869,6 +5241,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -4928,6 +5301,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -4958,6 +5335,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -4976,6 +5354,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -4985,6 +5364,8 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -5288,13 +5669,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5336,6 +5728,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5376,6 +5769,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Copy artifacts
@@ -5388,6 +5783,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5412,6 +5808,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -5479,10 +5876,14 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -5800,13 +6201,24 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5848,6 +6260,7 @@ steps:
     path: /root/.aws
 - name: Assume Build AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5895,6 +6308,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
   - name: tmpfs
@@ -5909,6 +6324,7 @@ steps:
     \;
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -5933,6 +6349,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -6002,13 +6419,17 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
-- name: awsconfig
+- name: dockerconfig
   temp: {}
 - name: tmpfs
   temp:
     medium: memory
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -6042,6 +6463,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -p /go/src/github.com/gravitational/teleport
   - cd /go/src/github.com/gravitational/teleport
@@ -6065,14 +6487,26 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build artifacts
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -6091,8 +6525,11 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Copy artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - cd /go/src/github.com/gravitational/teleport
   - find . -maxdepth 1 -iname "teleport*.zip" -print -exec cp {} /go/artifacts \;
@@ -6102,6 +6539,7 @@ steps:
     done && ls -l
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6126,6 +6564,7 @@ steps:
     path: /root/.aws
 - name: Upload to S3
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - cd /go/artifacts/
   - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
@@ -6138,6 +6577,7 @@ steps:
     path: /root/.aws
 - name: Register artifacts
   image: docker
+  pull: if-not-exists
   commands:
   - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
   - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
@@ -6197,6 +6637,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 kind: pipeline
@@ -6585,13 +7029,24 @@ steps:
   - git checkout ${DRONE_COMMIT}
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Configure Staging AWS Profile
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6616,6 +7071,7 @@ steps:
     path: /root/.aws
 - name: Configure Production AWS Profile
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6640,7 +7096,9 @@ steps:
     path: /root/.aws
 - name: Build and push buildbox
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -6653,13 +7111,17 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: awsconfig
     path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build and push buildbox-fips
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -6673,13 +7135,17 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: awsconfig
     path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build and push buildbox-arm
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -6693,13 +7159,17 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: awsconfig
     path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build and push buildbox-centos7
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -6713,13 +7183,17 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: awsconfig
     path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Build and push buildbox-centos7-fips
   image: docker
+  pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -6733,10 +7207,12 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
   volumes:
-  - name: dockersock
-    path: /var/run
   - name: awsconfig
     path: /root/.aws
+  - name: dockersock
+    path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 services:
 - name: Start Docker
   image: docker:dind
@@ -6745,10 +7221,14 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -6777,6 +7257,8 @@ steps:
   image: alpine:latest
   commands:
   - echo "This command, step, and pipeline never runs"
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -6806,11 +7288,13 @@ clone:
 steps:
 - name: Verify build is tagged
   image: alpine:latest
+  pull: if-not-exists
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -6820,6 +7304,7 @@ steps:
   - git checkout -qf "${DRONE_TAG}"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6867,6 +7352,7 @@ steps:
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -6955,6 +7441,8 @@ volumes:
     medium: memory
 - name: awsconfig
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -6983,6 +7471,8 @@ steps:
   image: alpine:latest
   commands:
   - echo "This command, step, and pipeline never runs"
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -7012,11 +7502,13 @@ clone:
 steps:
 - name: Verify build is tagged
   image: alpine:latest
+  pull: if-not-exists
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -7026,6 +7518,7 @@ steps:
   - git checkout -qf "${DRONE_TAG}"
 - name: Assume Download AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -7073,6 +7566,7 @@ steps:
   - Check out code
 - name: Assume Upload AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -7162,6 +7656,8 @@ volumes:
     medium: memory
 - name: awsconfig
   temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 kind: pipeline
@@ -7723,6 +8219,7 @@ clone:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -7741,6 +8238,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -7749,6 +8247,8 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -8014,19 +8514,31 @@ depends_on:
 steps:
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
     != "200" ]; do sleep 1; done'
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -8042,6 +8554,7 @@ steps:
   - echo $(cat "/go/var/full-version")
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8066,6 +8579,7 @@ steps:
     path: /root/.aws
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8092,6 +8606,7 @@ steps:
   - Assume ECR - staging AWS Role
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8197,6 +8712,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v13-tag_amd64.deb" artifacts from S3
@@ -8258,6 +8775,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v13-tag_arm.deb" artifacts from S3
@@ -8319,6 +8838,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v13-tag_arm64.deb" artifacts from S3
@@ -8344,6 +8865,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v13-amd64"
 - name: Tag and push image "teleport:v13-arm" to ECR - staging
@@ -8367,6 +8890,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v13-arm"
 - name: Tag and push image "teleport:v13-arm64" to ECR - staging
@@ -8391,6 +8916,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v13-arm64"
 - name: Create manifest and push "teleport:full" to ECR - staging
@@ -8415,12 +8942,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - staging
   - Tag and push image "teleport:v13-arm" to ECR - staging
   - Tag and push image "teleport:v13-arm64" to ECR - staging
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8526,6 +9056,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag_amd64.deb" artifacts from S3
@@ -8587,6 +9119,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag_arm.deb" artifacts from S3
@@ -8648,6 +9182,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag_arm64.deb" artifacts from S3
@@ -8673,6 +9209,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v13-amd64"
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - staging
@@ -8697,6 +9235,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v13-arm"
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - staging
@@ -8721,6 +9261,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v13-arm64"
 - name: Create manifest and push "teleport-ent:full" to ECR - staging
@@ -8745,12 +9287,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v13-arm" to ECR - staging
   - Tag and push image "teleport-ent:v13-arm64" to ECR - staging
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -8858,6 +9403,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag-fips_amd64.deb" artifacts from S3
@@ -8883,6 +9430,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v13-fips-amd64"
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - staging
@@ -8905,6 +9454,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - staging
 - name: Build teleport-operator image "teleport-operator:v13-amd64"
@@ -8936,6 +9487,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Wait for docker
@@ -8973,6 +9526,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Wait for docker
@@ -9010,6 +9565,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Wait for docker
@@ -9040,6 +9597,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v13-amd64"
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - staging
@@ -9064,6 +9623,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v13-arm"
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - staging
@@ -9088,6 +9649,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v13-arm64"
 - name: Create manifest and push "teleport-operator:full" to ECR - staging
@@ -9112,6 +9675,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v13-arm" to ECR - staging
@@ -9132,6 +9697,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -9164,6 +9733,7 @@ depends_on:
 steps:
 - name: Check out code
   image: docker:git
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -9182,6 +9752,7 @@ steps:
       from_secret: GITHUB_PRIVATE_KEY
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
@@ -9190,6 +9761,8 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -9221,6 +9794,7 @@ clone:
 steps:
 - name: Verify build is tagged
   image: alpine:latest
+  pull: if-not-exists
   commands:
   - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
     && exit 1)'
@@ -9242,16 +9816,27 @@ steps:
     '; echo 'a prerelease'
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -9261,6 +9846,7 @@ steps:
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -9288,6 +9874,7 @@ steps:
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -9315,6 +9902,7 @@ steps:
   - Record if tag ($DRONE_TAG) is prerelease
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -9360,6 +9948,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9388,6 +9978,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9416,6 +10008,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9452,6 +10046,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm" to Quay
@@ -9480,6 +10076,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm64" to Quay
@@ -9509,6 +10107,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport:major" to Quay
@@ -9535,6 +10135,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to Quay
   - Tag and push image "teleport:v13-arm" to Quay
@@ -9563,6 +10165,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to Quay
   - Tag and push image "teleport:v13-arm" to Quay
@@ -9588,6 +10192,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to Quay
   - Tag and push image "teleport:v13-arm" to Quay
@@ -9618,6 +10224,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm" to ECR - production
@@ -9645,6 +10253,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm64" to ECR - production
@@ -9673,6 +10283,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -9698,6 +10310,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - production
   - Tag and push image "teleport:v13-arm" to ECR - production
@@ -9725,6 +10339,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - production
   - Tag and push image "teleport:v13-arm" to ECR - production
@@ -9750,6 +10366,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - production
   - Tag and push image "teleport:v13-arm" to ECR - production
@@ -9773,6 +10391,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9801,6 +10421,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9829,6 +10451,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9865,6 +10489,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm" to Quay
@@ -9894,6 +10520,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm64" to Quay
@@ -9923,6 +10551,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -9949,6 +10579,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to Quay
   - Tag and push image "teleport-ent:v13-arm" to Quay
@@ -9977,6 +10609,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to Quay
   - Tag and push image "teleport-ent:v13-arm" to Quay
@@ -10003,6 +10637,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to Quay
   - Tag and push image "teleport-ent:v13-arm" to Quay
@@ -10034,6 +10670,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10062,6 +10700,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - production
@@ -10091,6 +10731,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -10116,6 +10758,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - production
   - Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10143,6 +10787,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - production
   - Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10168,6 +10814,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - production
   - Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10192,6 +10840,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10228,6 +10878,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -10252,6 +10904,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -10276,6 +10930,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -10298,6 +10954,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
@@ -10327,6 +10985,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -10350,6 +11010,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -10373,6 +11035,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -10394,6 +11058,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
 - name: Pull teleport-operator:v13-amd64 and push it to Local Registry
@@ -10416,6 +11082,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10445,6 +11113,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10474,6 +11144,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10510,6 +11182,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm" to Quay
@@ -10539,6 +11213,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm64" to Quay
@@ -10568,6 +11244,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -10594,6 +11272,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to Quay
   - Tag and push image "teleport-operator:v13-arm" to Quay
@@ -10622,6 +11302,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to Quay
   - Tag and push image "teleport-operator:v13-arm" to Quay
@@ -10648,6 +11330,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to Quay
   - Tag and push image "teleport-operator:v13-arm" to Quay
@@ -10679,6 +11363,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -10708,6 +11394,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - production
@@ -10737,6 +11425,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -10762,6 +11452,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - production
   - Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -10789,6 +11481,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - production
   - Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -10814,6 +11508,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - production
   - Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -10834,6 +11530,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -10875,15 +11575,26 @@ steps:
     "v12"
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Find the latest available semver for v12
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -10892,6 +11603,7 @@ steps:
   - Find the latest available semver for v12
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -10918,6 +11630,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -10944,6 +11657,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -10971,6 +11685,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -10998,6 +11713,7 @@ steps:
   - Find the latest available semver for v12
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -11107,6 +11823,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v12-tag_amd64.deb" artifacts from S3
@@ -11168,6 +11886,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v12-tag_arm.deb" artifacts from S3
@@ -11229,6 +11949,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v12-tag_arm64.deb" artifacts from S3
@@ -11267,6 +11989,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-amd64"
 - name: Tag and push image "teleport:v12-arm" to ECR - staging
@@ -11303,6 +12027,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm"
 - name: Tag and push image "teleport:v12-arm64" to ECR - staging
@@ -11340,6 +12066,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm64"
 - name: Create manifest and push "teleport:major-$TIMESTAMP" to ECR - staging
@@ -11365,6 +12093,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - staging
   - Tag and push image "teleport:v12-arm" to ECR - staging
@@ -11392,6 +12122,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - staging
   - Tag and push image "teleport:v12-arm" to ECR - staging
@@ -11419,6 +12151,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - staging
   - Tag and push image "teleport:v12-arm" to ECR - staging
@@ -11450,6 +12184,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-amd64"
 - name: Tag and push image "teleport:v12-arm" to Quay
@@ -11478,6 +12214,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm"
 - name: Tag and push image "teleport:v12-arm64" to Quay
@@ -11507,6 +12245,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm64"
 - name: Create manifest and push "teleport:major" to Quay
@@ -11529,6 +12269,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to Quay
   - Tag and push image "teleport:v12-arm" to Quay
@@ -11553,6 +12295,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to Quay
   - Tag and push image "teleport:v12-arm" to Quay
@@ -11578,6 +12322,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to Quay
   - Tag and push image "teleport:v12-arm" to Quay
@@ -11608,6 +12354,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-amd64"
 - name: Tag and push image "teleport:v12-arm" to ECR - production
@@ -11635,6 +12383,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm"
 - name: Tag and push image "teleport:v12-arm64" to ECR - production
@@ -11663,6 +12413,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm64"
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -11684,6 +12436,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - production
   - Tag and push image "teleport:v12-arm" to ECR - production
@@ -11707,6 +12461,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - production
   - Tag and push image "teleport:v12-arm" to ECR - production
@@ -11732,12 +12488,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - production
   - Tag and push image "teleport:v12-arm" to ECR - production
   - Tag and push image "teleport:v12-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -11847,6 +12606,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag_amd64.deb" artifacts from S3
@@ -11908,6 +12669,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag_arm.deb" artifacts from S3
@@ -11969,6 +12732,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag_arm64.deb" artifacts from S3
@@ -12007,6 +12772,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-amd64"
 - name: Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12044,6 +12811,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm"
 - name: Tag and push image "teleport-ent:v12-arm64" to ECR - staging
@@ -12081,6 +12850,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
@@ -12106,6 +12877,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12133,6 +12906,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12160,6 +12935,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12191,6 +12968,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-amd64"
 - name: Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12220,6 +12999,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm"
 - name: Tag and push image "teleport-ent:v12-arm64" to Quay
@@ -12249,6 +13030,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm64"
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -12271,6 +13054,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to Quay
   - Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12295,6 +13080,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to Quay
   - Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12321,6 +13108,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to Quay
   - Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12352,6 +13141,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-amd64"
 - name: Tag and push image "teleport-ent:v12-arm" to ECR - production
@@ -12380,6 +13171,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm"
 - name: Tag and push image "teleport-ent:v12-arm64" to ECR - production
@@ -12409,6 +13202,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm64"
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -12430,6 +13225,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - production
   - Tag and push image "teleport-ent:v12-arm" to ECR - production
@@ -12453,6 +13250,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - production
   - Tag and push image "teleport-ent:v12-arm" to ECR - production
@@ -12478,12 +13277,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - production
   - Tag and push image "teleport-ent:v12-arm" to ECR - production
   - Tag and push image "teleport-ent:v12-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -12595,6 +13397,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag-fips_amd64.deb" artifacts from S3
@@ -12633,6 +13437,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v12-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
@@ -12656,6 +13462,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
@@ -12679,6 +13487,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
@@ -12702,6 +13512,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent:v12-fips-amd64" to Quay
@@ -12731,6 +13543,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v12-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -12751,6 +13565,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -12771,6 +13587,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -12793,6 +13611,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
@@ -12822,6 +13642,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v12-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -12841,6 +13663,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -12860,6 +13684,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -12881,6 +13707,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v12-amd64"
@@ -12912,6 +13740,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v12
@@ -12951,6 +13781,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v12
@@ -12990,6 +13822,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v12
@@ -13035,6 +13869,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-amd64"
 - name: Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13072,6 +13908,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm"
 - name: Tag and push image "teleport-operator:v12-arm64" to ECR - staging
@@ -13109,6 +13947,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm64"
 - name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
@@ -13134,6 +13974,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13161,6 +14003,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13188,6 +14032,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13219,6 +14065,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-amd64"
 - name: Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13248,6 +14096,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm"
 - name: Tag and push image "teleport-operator:v12-arm64" to Quay
@@ -13277,6 +14127,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm64"
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -13299,6 +14151,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to Quay
   - Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13323,6 +14177,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to Quay
   - Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13349,6 +14205,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to Quay
   - Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13380,6 +14238,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-amd64"
 - name: Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -13409,6 +14269,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm"
 - name: Tag and push image "teleport-operator:v12-arm64" to ECR - production
@@ -13438,6 +14300,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm64"
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -13459,6 +14323,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - production
   - Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -13482,6 +14348,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - production
   - Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -13507,6 +14375,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - production
   - Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -13527,6 +14397,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -13568,15 +14442,26 @@ steps:
     "v11"
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Find the latest available semver for v11
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -13585,6 +14470,7 @@ steps:
   - Find the latest available semver for v11
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -13611,6 +14497,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13637,6 +14524,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13664,6 +14552,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13691,6 +14580,7 @@ steps:
   - Find the latest available semver for v11
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -13800,6 +14690,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v11-tag_amd64.deb" artifacts from S3
@@ -13861,6 +14753,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v11-tag_arm.deb" artifacts from S3
@@ -13922,6 +14816,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v11-tag_arm64.deb" artifacts from S3
@@ -13960,6 +14856,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-amd64"
 - name: Tag and push image "teleport:v11-arm" to ECR - staging
@@ -13996,6 +14894,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm"
 - name: Tag and push image "teleport:v11-arm64" to ECR - staging
@@ -14033,6 +14933,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm64"
 - name: Create manifest and push "teleport:major-$TIMESTAMP" to ECR - staging
@@ -14058,6 +14960,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
@@ -14085,6 +14989,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
@@ -14112,6 +15018,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
@@ -14143,6 +15051,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-amd64"
 - name: Tag and push image "teleport:v11-arm" to Quay
@@ -14171,6 +15081,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm"
 - name: Tag and push image "teleport:v11-arm64" to Quay
@@ -14200,6 +15112,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm64"
 - name: Create manifest and push "teleport:major" to Quay
@@ -14222,6 +15136,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to Quay
   - Tag and push image "teleport:v11-arm" to Quay
@@ -14246,6 +15162,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to Quay
   - Tag and push image "teleport:v11-arm" to Quay
@@ -14271,6 +15189,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to Quay
   - Tag and push image "teleport:v11-arm" to Quay
@@ -14301,6 +15221,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-amd64"
 - name: Tag and push image "teleport:v11-arm" to ECR - production
@@ -14328,6 +15250,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm"
 - name: Tag and push image "teleport:v11-arm64" to ECR - production
@@ -14356,6 +15280,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm64"
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -14377,6 +15303,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
@@ -14400,6 +15328,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
@@ -14425,12 +15355,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
   - Tag and push image "teleport:v11-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -14540,6 +15473,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
@@ -14601,6 +15536,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
@@ -14662,6 +15599,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
@@ -14700,6 +15639,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-amd64"
 - name: Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -14737,6 +15678,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm"
 - name: Tag and push image "teleport-ent:v11-arm64" to ECR - staging
@@ -14774,6 +15717,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
@@ -14799,6 +15744,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -14826,6 +15773,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -14853,6 +15802,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -14884,6 +15835,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-amd64"
 - name: Tag and push image "teleport-ent:v11-arm" to Quay
@@ -14913,6 +15866,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm"
 - name: Tag and push image "teleport-ent:v11-arm64" to Quay
@@ -14942,6 +15897,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm64"
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -14964,6 +15921,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to Quay
   - Tag and push image "teleport-ent:v11-arm" to Quay
@@ -14988,6 +15947,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to Quay
   - Tag and push image "teleport-ent:v11-arm" to Quay
@@ -15014,6 +15975,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to Quay
   - Tag and push image "teleport-ent:v11-arm" to Quay
@@ -15045,6 +16008,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-amd64"
 - name: Tag and push image "teleport-ent:v11-arm" to ECR - production
@@ -15073,6 +16038,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm"
 - name: Tag and push image "teleport-ent:v11-arm64" to ECR - production
@@ -15102,6 +16069,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm64"
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -15123,6 +16092,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
@@ -15146,6 +16117,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
@@ -15171,12 +16144,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
   - Tag and push image "teleport-ent:v11-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -15288,6 +16264,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
@@ -15326,6 +16304,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
@@ -15349,6 +16329,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
@@ -15372,6 +16354,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
@@ -15395,6 +16379,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
@@ -15424,6 +16410,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -15444,6 +16432,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -15464,6 +16454,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -15486,6 +16478,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
@@ -15515,6 +16509,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -15534,6 +16530,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -15553,6 +16551,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -15574,6 +16574,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v11-amd64"
@@ -15605,6 +16607,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v11
@@ -15644,6 +16648,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v11
@@ -15683,6 +16689,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v11
@@ -15728,6 +16736,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -15765,6 +16775,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - staging
@@ -15802,6 +16814,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
@@ -15827,6 +16841,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -15854,6 +16870,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -15881,6 +16899,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -15912,6 +16932,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
@@ -15941,6 +16963,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
@@ -15970,6 +16994,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -15992,6 +17018,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
@@ -16016,6 +17044,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
@@ -16042,6 +17072,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
@@ -16073,6 +17105,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16102,6 +17136,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
@@ -16131,6 +17167,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -16152,6 +17190,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16175,6 +17215,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16200,6 +17242,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16220,6 +17264,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -16261,15 +17309,26 @@ steps:
     "v10"
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Find the latest available semver for v10
 - name: Wait for docker registry
   image: alpine
+  pull: if-not-exists
   commands:
   - apk add curl
   - timeout 30s /bin/sh -c 'while [ "$(curl -s -o /dev/null -w %{http_code} http://drone-docker-registry:5000/)"
@@ -16278,6 +17337,7 @@ steps:
   - Find the latest available semver for v10
 - name: Check out code
   image: alpine/git:latest
+  pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
   - cd "/go/src/github.com/gravitational/teleport"
@@ -16304,6 +17364,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume ECR - staging AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16330,6 +17391,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume ECR - authenticated-pull AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16357,6 +17419,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume ECR - production AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16384,6 +17447,7 @@ steps:
   - Find the latest available semver for v10
 - name: Assume S3 Download AWS Role for teleport
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -16493,6 +17557,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v10-tag_amd64.deb" artifacts from S3
@@ -16554,6 +17620,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v10-tag_arm.deb" artifacts from S3
@@ -16615,6 +17683,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v10-tag_arm64.deb" artifacts from S3
@@ -16653,6 +17723,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-amd64"
 - name: Tag and push image "teleport:v10-arm" to ECR - staging
@@ -16689,6 +17761,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm"
 - name: Tag and push image "teleport:v10-arm64" to ECR - staging
@@ -16726,6 +17800,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm64"
 - name: Create manifest and push "teleport:major-$TIMESTAMP" to ECR - staging
@@ -16751,6 +17827,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - staging
   - Tag and push image "teleport:v10-arm" to ECR - staging
@@ -16778,6 +17856,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - staging
   - Tag and push image "teleport:v10-arm" to ECR - staging
@@ -16805,6 +17885,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - staging
   - Tag and push image "teleport:v10-arm" to ECR - staging
@@ -16836,6 +17918,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-amd64"
 - name: Tag and push image "teleport:v10-arm" to Quay
@@ -16864,6 +17948,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm"
 - name: Tag and push image "teleport:v10-arm64" to Quay
@@ -16893,6 +17979,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm64"
 - name: Create manifest and push "teleport:major" to Quay
@@ -16915,6 +18003,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to Quay
   - Tag and push image "teleport:v10-arm" to Quay
@@ -16939,6 +18029,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to Quay
   - Tag and push image "teleport:v10-arm" to Quay
@@ -16964,6 +18056,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to Quay
   - Tag and push image "teleport:v10-arm" to Quay
@@ -16994,6 +18088,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-amd64"
 - name: Tag and push image "teleport:v10-arm" to ECR - production
@@ -17021,6 +18117,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm"
 - name: Tag and push image "teleport:v10-arm64" to ECR - production
@@ -17049,6 +18147,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm64"
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -17070,6 +18170,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
@@ -17093,6 +18195,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
@@ -17118,12 +18222,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
   - Tag and push image "teleport:v10-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -17233,6 +18340,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag_amd64.deb" artifacts from S3
@@ -17294,6 +18403,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag_arm.deb" artifacts from S3
@@ -17355,6 +18466,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag_arm64.deb" artifacts from S3
@@ -17393,6 +18506,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-amd64"
 - name: Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -17430,6 +18545,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm"
 - name: Tag and push image "teleport-ent:v10-arm64" to ECR - staging
@@ -17467,6 +18584,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
@@ -17492,6 +18611,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -17519,6 +18640,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -17546,6 +18669,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -17577,6 +18702,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-amd64"
 - name: Tag and push image "teleport-ent:v10-arm" to Quay
@@ -17606,6 +18733,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm"
 - name: Tag and push image "teleport-ent:v10-arm64" to Quay
@@ -17635,6 +18764,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -17657,6 +18788,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to Quay
   - Tag and push image "teleport-ent:v10-arm" to Quay
@@ -17681,6 +18814,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to Quay
   - Tag and push image "teleport-ent:v10-arm" to Quay
@@ -17707,6 +18842,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to Quay
   - Tag and push image "teleport-ent:v10-arm" to Quay
@@ -17738,6 +18875,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-amd64"
 - name: Tag and push image "teleport-ent:v10-arm" to ECR - production
@@ -17766,6 +18905,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm"
 - name: Tag and push image "teleport-ent:v10-arm64" to ECR - production
@@ -17795,6 +18936,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -17816,6 +18959,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
@@ -17839,6 +18984,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
@@ -17864,12 +19011,15 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
   - Tag and push image "teleport-ent:v10-arm64" to ECR - production
 - name: Assume S3 Download AWS Role for teleport-ent-fips
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -17981,6 +19131,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag-fips_amd64.deb" artifacts from S3
@@ -18019,6 +19171,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
@@ -18042,6 +19196,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
@@ -18065,6 +19221,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
@@ -18088,6 +19246,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent:v10-fips-amd64" to Quay
@@ -18117,6 +19277,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -18137,6 +19299,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -18157,6 +19321,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -18179,6 +19345,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
@@ -18208,6 +19376,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -18227,6 +19397,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -18246,6 +19418,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -18267,6 +19441,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v10-amd64"
@@ -18298,6 +19474,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v10
@@ -18337,6 +19515,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v10
@@ -18376,6 +19556,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v10
@@ -18421,6 +19603,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-amd64"
 - name: Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -18458,6 +19642,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm"
 - name: Tag and push image "teleport-operator:v10-arm64" to ECR - staging
@@ -18495,6 +19681,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm64"
 - name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
@@ -18520,6 +19708,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -18547,6 +19737,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -18574,6 +19766,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -18605,6 +19799,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-amd64"
 - name: Tag and push image "teleport-operator:v10-arm" to Quay
@@ -18634,6 +19830,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm"
 - name: Tag and push image "teleport-operator:v10-arm64" to Quay
@@ -18663,6 +19861,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm64"
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -18685,6 +19885,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to Quay
   - Tag and push image "teleport-operator:v10-arm" to Quay
@@ -18709,6 +19911,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to Quay
   - Tag and push image "teleport-operator:v10-arm" to Quay
@@ -18735,6 +19939,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to Quay
   - Tag and push image "teleport-operator:v10-arm" to Quay
@@ -18766,6 +19972,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-amd64"
 - name: Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -18795,6 +20003,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm"
 - name: Tag and push image "teleport-operator:v10-arm64" to ECR - production
@@ -18824,6 +20034,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm64"
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -18845,6 +20057,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - production
   - Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -18868,6 +20082,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - production
   - Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -18893,6 +20109,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - production
   - Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -18913,6 +20131,10 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -18952,13 +20174,24 @@ steps:
     && exit 1)'
 - name: Wait for docker
   image: docker
+  pull: if-not-exists
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
+  - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - ls -la /root/.docker
+  environment:
+    DOCKERHUB_PASSWORD:
+      from_secret: DOCKERHUB_READONLY_TOKEN
+    DOCKERHUB_USERNAME:
+      from_secret: DOCKERHUB_USERNAME
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
 - name: Assume AWS Role
   image: amazon/aws-cli
+  pull: if-not-exists
   commands:
   - aws sts get-caller-identity
   - |-
@@ -18992,6 +20225,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Publish in Release API
@@ -19016,6 +20251,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: tmpfs
     path: /tmpfs
   - name: awsconfig
@@ -19030,15 +20267,19 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 4107c52101a8fbd297c24a1408d6bb96999140c0a3d67cc7fba23abaa447ea38
+hmac: 8ecda446167789807d209245b464e21ac8988a3b9464d5a6ee97df77496db6c8
 
 ...
