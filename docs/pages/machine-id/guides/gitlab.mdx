@@ -49,8 +49,8 @@ To allow GitLab CI to authenticate to your Teleport cluster, you'll first need
 to create a join token. These tokens define the rules that allow a bot to join
 your Teleport cluster.
 
-A GitLab join token contains allow rules that describe which pipelines should
-be able to use that token in order to join the Teleport cluster. A rule can
+A GitLab join token contains allow rules that describe which pipelines can
+use that token in order to join the Teleport cluster. A rule can
 contain multiple constraints, and any pipeline that matches all of the
 constraints within a single rule is granted access.
 
