@@ -1011,10 +1011,10 @@ steps:
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-- name: Fix windres name
+- name: Link x86_64-w64-mingw32-windres to windres
   commands:
   - $ErrorActionPreference = 'Stop'
-  - $mingw_bin = C:\mingw64\bin
+  - $mingw_bin = "C:\mingw64\bin""
   - $windres_bin = Join-Path $mingw_bin windres.exe
   - $link_path = Join-Path $mingw_bin x86_64-w64-mingw32-windres.exe
   - echo "Creating link $windres_bin -> $link_path"
@@ -19089,6 +19089,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 4e2b80d544df4a36c04c8f5934e1ae3a10ad6f62188ffdb2e6833213801a4131
+hmac: b031660d813a236b72503adb4cfc2ec3331a1a6da9f60e9abd4168702e1a1a4d
 
 ...

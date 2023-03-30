@@ -283,10 +283,10 @@ func buildWindowsTeleportConnectStep(workspace string) step {
 
 func fixWindwresName() step {
 	return step{
-		Name: "Fix windres name",
+		Name: "Link x86_64-w64-mingw32-windres to windres",
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
-			`$mingw_bin = C:\mingw64\bin`,
+			`$mingw_bin = "C:\mingw64\bin""`,
 			`$windres_bin = Join-Path $mingw_bin windres.exe`,
 			`$link_path = Join-Path $mingw_bin x86_64-w64-mingw32-windres.exe`,
 			`echo "Creating link $windres_bin -> $link_path"`,
