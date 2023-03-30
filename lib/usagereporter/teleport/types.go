@@ -18,7 +18,6 @@ package usagereporter
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
@@ -412,7 +411,7 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 
 type UserMetadataClient interface {
 	GetUsername(context.Context) (string, error)
-	GetUserIsSSO(context.Context, string) (bool, error)
+	IsSSOUser(context.Context, string) (bool, error)
 }
 
 // ConvertUsageEvent converts a usage event from an API object into an
@@ -513,11 +512,10 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		fmt.Println("USER IS", isSSOUser)
 		ret := &UIDiscoverStartedEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, identityUsername, isSSOUser),
 			Status:   discoverStatusToPrehog(e.UiDiscoverStartedEvent.Status),
@@ -532,7 +530,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -551,7 +549,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -570,7 +568,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -589,7 +587,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -608,7 +606,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -627,7 +625,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -646,7 +644,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -666,7 +664,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -685,7 +683,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -704,7 +702,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -723,7 +721,7 @@ func ConvertUsageEvent(ctx context.Context, event *usageeventsv1.UsageEventOneOf
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		isSSOUser, err := clt.GetUserIsSSO(ctx, identityUsername)
+		isSSOUser, err := clt.IsSSOUser(ctx, identityUsername)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
