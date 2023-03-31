@@ -1,4 +1,4 @@
-.version: &version "13.0.0-walt.docker.9"
+.version: &version "13.0.0-walt.docker.10"
 
 name: teleport-cluster
 apiVersion: v2
