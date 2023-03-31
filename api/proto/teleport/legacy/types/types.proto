@@ -5290,6 +5290,23 @@ message IntegrationSpecV1 {
     // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
   }
+
+  // IntegrationStatus contains the current integration status.
+  enum IntegrationStatus {
+    IntegrationStatusUnknown = 0;
+
+    // Integration is not running because it was just created or was disabled by the user.
+    IntegrationStatusPaused = 1;
+
+    // Integration is running.
+    IntegrationStatusRunning = 2;
+
+    // Integration has an error and that should be fixed before receiving requests.
+    IntegrationStatusError = 3;
+  }
+
+  // Status contains the current Integration Status
+  IntegrationStatus status = 2;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
