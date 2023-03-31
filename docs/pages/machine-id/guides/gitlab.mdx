@@ -31,12 +31,11 @@ control.
 
 (!docs/pages/includes/tctl.mdx!)
 
-- A running instance of the Teleport SSH Service registered with
-your Teleport cluster. For instructions on setting this up, see the
-[Getting Started Guide](../../server-access/introduction.mdx). The SSH node must
-include a user you want to grant access to. In this guide, we will call the SSH
-node `my-node` and the user `ci-user`. Replace these with values appropriate to
-your setup.
+- A running instance of the Teleport SSH Service registered with your Teleport
+cluster. For instructions on setting this up, see the [Getting Started
+Guide](../../server-access/introduction.mdx). The SSH node must include a user
+you want to grant access to. In this guide, we will call the SSH node `my-node`
+and the user `ci-user`. Replace these with values appropriate to your setup.
 - A GitLab project to connect to Teleport. This can either be on GitLab's
 cloud-hosted offering (gitlab.com) or on a self-hosted GitLab instance. **When
 using a self-hosted GitLab instance, your Teleport Auth Server must be able to
@@ -48,8 +47,8 @@ a valid TLS certificate.**
 To allow GitLab CI to authenticate to your Teleport cluster, you'll first need
 to create a join token. A GitLab join token contains allow rules that describe
 which pipelines can use that token in order to join the Teleport cluster. A rule
-can contain multiple fields, and any pipeline that matches all of the
-fields within a single rule is granted access.
+can contain multiple fields, and any pipeline that matches all of the fields
+within a single rule is granted access.
 
 In this example, you will create a token with a rule that grants access to any
 GitLab CI job within a specific GitLab project. Determine the fully qualified
