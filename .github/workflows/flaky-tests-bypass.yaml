@@ -8,8 +8,7 @@
 #
 # Note both workflows must have the same name.
 name: Flaky Tests Detector
-on:
-  merge_group:
+run-name: Flaky Tests Detector
 
 jobs:
   test:
