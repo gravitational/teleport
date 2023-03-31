@@ -27,7 +27,7 @@ RUN groupadd ci --gid=$GID -o && \
 RUN install --directory --mode=0700 --owner=ci --group=ci /var/lib/teleport
 
 ## LIBPCSCLITE ################################################################
-# 
+#
 FROM gcc AS libpcsclite
 ARG LIBPCSCLITE_VERSION
 
@@ -80,9 +80,9 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 # Install libfido2.
 # Depends on libcbor, openssl, zlib-devel and libudev.
 # Linked so `make build/tsh` finds the library where it expects it.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
+    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
       LDFLAGS="-lpthread" cmake3 \
           -DBUILD_EXAMPLES=OFF \
           -DBUILD_MANPAGES=OFF \
@@ -129,7 +129,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --pr
     cargo --version && \
     rustc --version && \
     rustup target add ${RUST_ARCH}
-    
+
 USER root
 
 # Copy dependencies
@@ -140,7 +140,7 @@ COPY --from=libfido2 \
     /usr/local/lib64/libcrypto.a \
     /usr/local/lib64/libcrypto.so.1.1 \
     /usr/local/lib64/libfido2.a \
-    /usr/local/lib64/libfido2.so.1.12.0 \
+    /usr/local/lib64/libfido2.so.1.13.0 \
     /usr/local/lib64/libssl.a \
     /usr/local/lib64/libssl.so.1.1 \
     /usr/local/lib64/libudev.a \
@@ -148,7 +148,7 @@ COPY --from=libfido2 \
 # Re-create usual lib64 links.
 RUN cd /usr/local/lib64 && \
     ln -s libcrypto.so.1.1 libcrypto.so && \
-    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
     ln -s libssl.so.1.1 libssl.so && \
 # Update ld.
