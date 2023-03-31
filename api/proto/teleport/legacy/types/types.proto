@@ -5271,7 +5271,7 @@ message IntegrationV1 {
   option (gogoproto.stringer) = false;
 
   // Header is the resource header.
-  ResourceHeader header = 1 [
+  ResourceHeader Header = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
@@ -5292,7 +5292,7 @@ message IntegrationSpecV1 {
   }
 }
 
-// AWSOIDCIntegrationSpec contains the spec properties for the AWS OIDC SubKind Integration.
+// AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
 message AWSOIDCIntegrationSpecV1 {
   // RoleARN contains the Role ARN used to set up the Integration.
   // This is the AWS Role that Teleport will use to issue tokens for API Calls.

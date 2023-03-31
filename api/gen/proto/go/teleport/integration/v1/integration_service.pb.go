@@ -94,7 +94,7 @@ func (x *ListIntegrationsRequest) GetNextKey() string {
 	return ""
 }
 
-// ListIntegrationsResponse a paginated list of Integrations.
+// ListIntegrationsResponse is the response for ListIntegrationsRequest.
 type ListIntegrationsResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -104,7 +104,7 @@ type ListIntegrationsResponse struct {
 	Integrations []*types.IntegrationV1 `protobuf:"bytes,1,rep,name=integrations,proto3" json:"integrations,omitempty"`
 	// NextKey is the key for the next page of Integrations.
 	NextKey string `protobuf:"bytes,2,opt,name=next_key,json=nextKey,proto3" json:"next_key,omitempty"`
-	// TotalCount is the total number of resources available after filter, if any.
+	// TotalCount is the total number of integrations in all pages.
 	TotalCount int32 `protobuf:"varint,3,opt,name=total_count,json=totalCount,proto3" json:"total_count,omitempty"`
 }
 

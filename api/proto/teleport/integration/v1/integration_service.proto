@@ -50,13 +50,13 @@ message ListIntegrationsRequest {
   string next_key = 2;
 }
 
-// ListIntegrationsResponse a paginated list of Integrations.
+// ListIntegrationsResponse is the response for ListIntegrationsRequest.
 message ListIntegrationsResponse {
   // Integrations is a list of Integrations.
   repeated types.IntegrationV1 integrations = 1;
   // NextKey is the key for the next page of Integrations.
   string next_key = 2;
-  // TotalCount is the total number of resources available after filter, if any.
+  // TotalCount is the total number of integrations in all pages.
   int32 total_count = 3;
 }
 
