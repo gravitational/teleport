@@ -19,9 +19,9 @@ package common
 import (
 	"context"
 
-	"github.com/gravitational/teleport/api/types"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // StatusSink defines a destination for PluginStatus
