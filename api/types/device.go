@@ -28,6 +28,10 @@ import (
 // CheckAndSetDefaults checks DeviceV1 fields to catch simple errors, and sets
 // default values for all fields with defaults.
 func (d *DeviceV1) CheckAndSetDefaults() error {
+	if d == nil {
+		return trace.BadParameter("device is nil")
+	}
+
 	// Assign defaults:
 	// - Kind = device
 	// - Metadata.Name = UUID
@@ -79,6 +83,10 @@ func UnmarshalDevice(raw []byte) (*DeviceV1, error) {
 
 // DeviceFromResource converts a resource DeviceV1 to an API devicepb.Device.
 func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
+	if res == nil {
+		return nil, trace.BadParameter("device is nil")
+	}
+
 	toTimePB := func(t *time.Time) *timestamppb.Timestamp {
 		if t == nil {
 			return nil
@@ -135,6 +143,10 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 // DeviceToResource converts an API devicepb.Device to a resource DeviceV1 and
 // assigns all default fields.
 func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
+	if dev == nil {
+		return nil
+	}
+
 	toTimePtr := func(pb *timestamppb.Timestamp) *time.Time {
 		if pb == nil {
 			return nil
