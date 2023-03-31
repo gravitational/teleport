@@ -368,7 +368,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		MFAVerified:       u.Identity.MFAVerified,
 		LoginIP:           u.Identity.LoginIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
-		IsSSOUser:         u.Identity.IsSSOUser,
+		UserType:          u.Identity.UserType,
 	}
 
 	return &Context{
@@ -970,7 +970,7 @@ func GetClientUserIsSSO(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return identity.IsSSOUser, nil
+	return identity.UserType == types.UserTypeSSO, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client

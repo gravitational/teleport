@@ -480,7 +480,7 @@ func (s *Server) generateInitialBotCerts(ctx context.Context, username string, p
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if user.IsSSO() {
+	if user.GetUserType() == types.UserTypeSSO {
 		log.Warningf("Tried to issue a renewable cert for externally managed user %v, this is not supported.", username)
 		return nil, trace.AccessDenied("access denied")
 	}

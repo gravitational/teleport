@@ -1978,7 +1978,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
-		IsSSOUser: req.user.IsSSO(),
+		UserType: req.user.GetUserType(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {

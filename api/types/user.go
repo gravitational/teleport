@@ -26,6 +26,16 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+// UserType is the user's types that indicates where it was created.
+type UserType string
+
+const (
+	// UserTypeSSO identifies a user that was created from an SSO provider.
+	UserTypeSSO UserType = "sso"
+	// UserTypeLocal identifies a user that was created in Teleport itself and has no connection to an external identity.
+	UserTypeLocal UserType = "local"
+)
+
 // User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
@@ -98,8 +108,8 @@ type User interface {
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
-	// IsSSO indicates if the user was created by an SSO provider
-	IsSSO() bool
+	// GetUserType indicates if the User was created by an SSO Provider or locally.
+	GetUserType() UserType
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
@@ -395,9 +405,13 @@ func (u UserV2) GetGCPServiceAccounts() []string {
 	return u.getTrait(constants.TraitGCPServiceAccounts)
 }
 
-// IsSSO indicates if the user was created by an SSO provider.
-func (u UserV2) IsSSO() bool {
-	return u.GetCreatedBy().Connector != nil
+// GetUserType indicates if the User was created by an SSO Provider or locally.
+func (u UserV2) GetUserType() UserType {
+	if u.GetCreatedBy().Connector == nil {
+		return UserTypeLocal
+	}
+
+	return UserTypeSSO
 }
 
 func (u *UserV2) String() string {
