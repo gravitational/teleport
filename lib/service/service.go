@@ -421,8 +421,8 @@ func (process *TeleportProcess) GetBackend() backend.Backend {
 	return process.backend
 }
 
-// onHeartbeat generates the default OnHeartbeat callback for the specified component.
-func (process *TeleportProcess) onHeartbeat(component string) func(err error) {
+// OnHeartbeat generates the default OnHeartbeat callback for the specified component.
+func (process *TeleportProcess) OnHeartbeat(component string) func(err error) {
 	return func(err error) {
 		if err != nil {
 			process.BroadcastEvent(Event{Name: TeleportDegradedEvent, Payload: component})
@@ -1811,7 +1811,7 @@ func (process *TeleportProcess) initAuthService() error {
 		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
 		CheckPeriod:     defaults.HeartbeatCheckPeriod,
 		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat:     process.onHeartbeat(teleport.ComponentAuth),
+		OnHeartbeat:     process.OnHeartbeat(teleport.ComponentAuth),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -2356,7 +2356,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetFIPS(cfg.FIPS),
 			regular.SetBPF(ebpf),
 			regular.SetRestrictedSessionManager(rm),
-			regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentNode)),
+			regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentNode)),
 			regular.SetAllowTCPForwarding(cfg.SSH.AllowTCPForwarding),
 			regular.SetLockWatcher(lockWatcher),
 			regular.SetX11ForwardingConfig(cfg.SSH.X11),
@@ -3771,7 +3771,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetNamespace(apidefaults.Namespace),
 		regular.SetRotationGetter(process.GetRotation),
 		regular.SetFIPS(cfg.FIPS),
-		regular.SetOnHeartbeat(process.onHeartbeat(teleport.ComponentProxy)),
+		regular.SetOnHeartbeat(process.OnHeartbeat(teleport.ComponentProxy)),
 		regular.SetEmitter(streamEmitter),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetNodeWatcher(nodeWatcher),
@@ -3899,7 +3899,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			LimiterConfig:   cfg.Proxy.Limiter,
 			AccessPoint:     accessPoint,
 			GetRotation:     process.GetRotation,
-			OnHeartbeat:     process.onHeartbeat(component),
+			OnHeartbeat:     process.OnHeartbeat(component),
 			Log:             log,
 			IngressReporter: ingressReporter,
 		})
@@ -4715,7 +4715,7 @@ func (process *TeleportProcess) initApps() {
 			Apps:                 applications,
 			CloudLabels:          process.cloudLabels,
 			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
-			OnHeartbeat:          process.onHeartbeat(teleport.ComponentApp),
+			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
 			ConnectedProxyGetter: proxyGetter,
 			Emitter:              asyncEmitter,
 			ConnectionMonitor:    connMonitor,
