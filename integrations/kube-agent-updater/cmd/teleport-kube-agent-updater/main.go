@@ -43,10 +43,6 @@ var (
 	scheme        = runtime.NewScheme()
 )
 
-const (
-	namespace = "namespace"
-)
-
 func init() {
 	SchemeBuilder.Register(
 		&appsv1.Deployment{},
@@ -124,6 +120,7 @@ func main() {
 	// End of mocks
 
 	versionUpdater := controller.NewVersionUpdater(versionGetter, imageValidators, maintenanceTriggers, baseImage)
+
 	// Controller registration
 	deploymentController := controller.DeploymentVersionUpdater{
 		VersionUpdater: versionUpdater,
@@ -136,8 +133,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	statefulsetController := controller.StatefulSetVersionUpdater{
+		VersionUpdater: versionUpdater,
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+	}
+
+	if err := statefulsetController.SetupWithManager(mgr); err != nil {
+		ctrl.Log.Error(err, "failed to setup statefulset controller, exiting")
+		os.Exit(1)
+	}
+
 	if err := mgr.Start(ctx); err != nil {
-		ctrl.Log.Error(err, "failed to setup deployment controller, exiting")
+		ctrl.Log.Error(err, "failed to start manager, exiting")
 		os.Exit(1)
 	}
 }

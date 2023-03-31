@@ -235,17 +235,24 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth s
 	contexts[name] = newContext
 }
 
-// Remove removes Teleport configuration from kubeconfig.
+// RemoveByClusterName removes Teleport configuration from kubeconfig.
 //
-// If `path` is empty, Remove will try to guess it based on the environment or
+// If `path` is empty, RemoveByClusterName will try to guess it based on the environment or
 // known defaults.
-func Remove(path, clusterName string) error {
+func RemoveByClusterName(path, clusterName string) error {
 	// Load existing kubeconfig from disk.
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	removeByClusterName(config, clusterName)
+
+	// Update kubeconfig on disk.
+	return trace.Wrap(Save(path, *config))
+}
+
+func removeByClusterName(config *clientcmdapi.Config, clusterName string) {
 	// Remove Teleport related AuthInfos, Clusters, and Contexts from kubeconfig.
 	maps.DeleteFunc(
 		config.Contexts,
@@ -264,9 +271,32 @@ func Remove(path, clusterName string) error {
 	if strings.HasPrefix(config.CurrentContext, clusterName) {
 		config.CurrentContext = prevSelectedCluster
 	}
+}
+
+// RemoveByServerAddr removes all clusters with the provided server address
+// from kubeconfig
+//
+// If `path` is empty, RemoveByServerAddr will try to guess it based on the
+// environment or known defaults.
+func RemoveByServerAddr(path, wantServer string) error {
+	// Load existing kubeconfig from disk.
+	config, err := Load(path)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	removeByServerAddr(config, wantServer)
 
 	// Update kubeconfig on disk.
-	return Save(path, *config)
+	return trace.Wrap(Save(path, *config))
+}
+
+func removeByServerAddr(config *clientcmdapi.Config, wantServer string) {
+	for clusterName, cluster := range config.Clusters {
+		if cluster.Server == wantServer {
+			removeByClusterName(config, clusterName)
+		}
+	}
 }
 
 // Load tries to read a kubeconfig file and if it can't, returns an error.

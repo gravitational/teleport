@@ -32,7 +32,7 @@ export function MenuLoginExamples() {
       height="100px"
       alignItems="center"
       justifyContent="space-around"
-      bg="primary.light"
+      bg="levels.surface"
     >
       <MenuLogin
         getLoginItems={() => []}

@@ -189,7 +189,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
-	asyncEmitter, err := process.newAsyncEmitter(conn.Client)
+	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -235,8 +235,8 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
 		LimiterConfig:        cfg.Kube.Limiter,
-		OnHeartbeat:          process.onHeartbeat(teleport.ComponentKube),
-		GetRotation:          process.getRotation,
+		OnHeartbeat:          process.OnHeartbeat(teleport.ComponentKube),
+		GetRotation:          process.GetRotation,
 		ConnectedProxyGetter: proxyGetter,
 		ResourceMatchers:     cfg.Kube.ResourceMatchers,
 		StaticLabels:         cfg.Kube.StaticLabels,

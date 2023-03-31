@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -281,7 +282,7 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 // OktaClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
-func (a *ServerWithRoles) OktaClient() *okta.Client {
+func (a *ServerWithRoles) OktaClient() services.Okta {
 	return okta.NewClient(oktapb.NewOktaServiceClient(
 		utils.NewGRPCDummyClientConnection("OktaClient() should not be called on ServerWithRoles")))
 }
@@ -1119,30 +1120,6 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	return a.authServer.UpsertNode(ctx, s)
 }
 
-// DELETE IN: 5.1.0
-//
-// This logic has moved to KeepAliveServer.
-func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAlive) error {
-	if !a.hasBuiltinRole(types.RoleNode) {
-		return trace.AccessDenied("[10] access denied")
-	}
-	clusterName, err := a.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
-	if err != nil {
-		return trace.AccessDenied("[10] access denied")
-	}
-	if serverName != handle.Name {
-		return trace.AccessDenied("[10] access denied")
-	}
-	if err := a.action(apidefaults.Namespace, types.KindNode, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.KeepAliveNode(ctx, handle)
-}
-
 // KeepAliveServer updates expiry time of a server resource.
 func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.KeepAlive) error {
 	clusterName, err := a.GetDomainName(ctx)
@@ -1393,8 +1370,25 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+const (
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	kubeService = "kube_service"
+)
+
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	if req.ResourceType == kubeService {
+		return &types.ListResourcesResponse{}, nil
+	}
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -1482,6 +1476,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.Labels = nil
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
+
+	// Increase the limit to one more than was requested so
+	// that an additional page load is not needed to determine
+	// the next key.
+	req.Limit++
 
 	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
 	if err != nil {
@@ -2197,12 +2196,6 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	}
 }
 
-// pingCacheKey is used to with Server.ttlCache to cache frequently-loaded
-// values in the Ping method.
-type pingCacheKey struct {
-	kind string
-}
-
 // Ping gets basic info about the auth server.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	// The Ping method does not require special permissions since it only returns
@@ -2213,27 +2206,12 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 
-	// license check result is loaded from real backend, and is not modified once loaded, so we
-	// can save a lot of IO by doing short-lived ttl caching.
-	heartbeat, err := utils.FnCacheGet(ctx, a.authServer.ttlCache, pingCacheKey{"license-check-result"}, a.authServer.GetLicenseCheckResult)
-	if err != nil {
-		log.Warnf("Failed to load license check result for Ping: %v", err)
-	}
-	var warnings []string
-	if heartbeat != nil {
-		for _, notification := range heartbeat.Spec.Notifications {
-			if notification.Type == LicenseExpiredNotification {
-				warnings = append(warnings, notification.Text)
-			}
-		}
-	}
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
 		ServerFeatures:  modules.GetModules().Features().ToProto(),
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LicenseWarnings: warnings,
 		LoadAllCAs:      a.authServer.loadAllCAs,
 	}, nil
 }
@@ -2629,7 +2607,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
+	if req.Username != a.context.User.GetName() && user.GetUserType() == types.UserTypeSSO {
 		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -5478,11 +5456,36 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
+//
+// This CRL can be requested by:
+//
+//   - Windows desktop service when updating the certificate authority contents
+//     on LDAP.
+//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//     on the auth server to produce revocation list used to be configured on
+//     external services such as Windows certificate store.
+//   - Remote user using "tctl auth crl --type=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they have permission to read
+//     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	// Only windows_desktop_service should be requesting CRLs
-	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
-		return nil, trace.AccessDenied("access denied")
+	// Assume this is a user request, check if the user has permission to read CAs.
+	err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets)
+	if err != nil {
+		// An error means the user doesn't have permission to read CAs, or this
+		// is an admin on the auth server or the windows desktop service. We
+		// expect to see an access denied error in any of those cases.
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// If this is an admin on the auth server (types.RoleAdmin) or the
+		// windows desktop service (types.RoleWindowsDesktop), allow the
+		// request. Otherwise, return the access denied error.
+		if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
+			return nil, trace.AccessDenied("access denied")
+		}
 	}
+
 	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5732,14 +5735,86 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // GetHeadlessAuthentication retrieves a headless authentication by id.
 func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
-	// TODO (joerger): Add implementation - follow up PR
-	return nil, trace.NotImplemented("GetHeadlessAuthentication is not implemented")
+	// GetHeadlessAuthentication will wait for the headless details
+	// if they don't yet exist in the backend.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only users can get their own headless authentication requests.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		// This method would usually time out above if the headless authentication
+		// does not exist, so we mimick this behavior here for users without access.
+		<-ctx.Done()
+		return nil, trace.Wrap(ctx.Err())
+	}
+
+	return headlessAuthn, nil
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
-	// TODO (joerger): Add implementation - follow up PR
-	return trace.NotImplemented("UpdateHeadlessAuthenticationState is not implemented")
+	// GetHeadlessAuthentication will wait for the headless details
+	// if they don't yet exist in the backend.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only users can update their own headless authentication requests.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		// This method would usually time out above if the headless authentication
+		// does not exist, so we mimick this behavior here for users without access.
+		<-ctx.Done()
+		return trace.Wrap(ctx.Err())
+	}
+
+	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+		return trace.AccessDenied("cannot update a headless authentication state from a non-pending state")
+	}
+
+	// Shallow copy headless authn for compare and swap below.
+	replaceHeadlessAuthn := *headlessAuthn
+	replaceHeadlessAuthn.State = state
+
+	switch state {
+	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
+		// The user must authenticate with MFA to change the state to approved.
+		if mfaResp == nil {
+			return trace.BadParameter("expected MFA auth challenge response")
+		}
+
+		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
+		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
+			return trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		}
+
+		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		replaceHeadlessAuthn.MfaDevice = mfaDevice
+	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+		// continue to compare and swap without MFA.
+	default:
+		return trace.AccessDenied("cannot update a headless authentication state to %v", state.String())
+	}
+
+	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+	return trace.Wrap(err)
+}
+
+// CloneHTTPClient creates a new HTTP client with the same configuration.
+func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	return nil, trace.NotImplemented("not implemented")
 }
 
 // NewAdminAuthServer returns auth server authorized as admin,

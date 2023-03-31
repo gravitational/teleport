@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -303,6 +304,34 @@ func TestCheckDatabase(t *testing.T) {
 			outErr: true,
 		},
 		{
+			desc: "SQL Server missing LDAP Cert",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain:      "test-domain",
+					SPN:         "test-spn",
+					KDCHostName: "test-domain",
+				},
+			},
+			outErr: true,
+		},
+		{
+			desc: "SQL Server missing KDC Hostname",
+			inDatabase: Database{
+				Name:     "sqlserver",
+				Protocol: defaults.ProtocolSQLServer,
+				URI:      "localhost:1433",
+				AD: DatabaseAD{
+					Domain:   "test-domain",
+					SPN:      "test-spn",
+					LDAPCert: "random-content",
+				},
+			},
+			outErr: true,
+		},
+		{
 			desc: "MySQL with server version",
 			inDatabase: Database{
 				Name:     "mysql-foo",
@@ -463,7 +492,7 @@ func TestValidateConfig(t *testing.T) {
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			err: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service or discovery_service",
+			err: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, or okta_service",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -530,6 +559,73 @@ func TestValidateConfig(t *testing.T) {
 			} else {
 				require.EqualError(t, err, test.err)
 			}
+		})
+	}
+}
+
+func TestVerifyEnabledService(t *testing.T) {
+	tests := []struct {
+		desc             string
+		config           *Config
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			desc:             "auth enabled",
+			config:           &Config{Auth: AuthConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "ssh enabled",
+			config:           &Config{SSH: SSHConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "proxy enabled",
+			config:           &Config{Proxy: ProxyConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "kube enabled",
+			config:           &Config{Kube: KubeConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "apps enabled",
+			config:           &Config{Apps: AppsConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "databases enabled",
+			config:           &Config{Databases: DatabasesConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "windows desktop enabled",
+			config:           &Config{WindowsDesktop: WindowsDesktopConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "discovery enabled",
+			config:           &Config{Discovery: DiscoveryConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:             "okta enabled",
+			config:           &Config{Okta: OktaConfig{Enabled: true}},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			desc:   "nothing enabled",
+			config: &Config{},
+			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			test.errAssertionFunc(t, verifyEnabledService(test.config))
 		})
 	}
 }

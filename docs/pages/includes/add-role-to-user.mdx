@@ -1,7 +1,7 @@
 {{ role="myrole" }}
 Assign the `{{ role }}` role to your Teleport user by running the following
 commands, depending on whether you authenticate as a local Teleport user or via
-the `github`, `saml`, or `oidc` authentication connectors: 
+the `github`, `saml`, or `oidc` authentication connectors:
 
 <Tabs>
 <TabItem label="Local User">
@@ -34,7 +34,7 @@ $ tctl create -f out.yaml
 Retrieve your `github`  configuration resource:
 
 ```code
-$ tctl get github/github > github.yaml
+$ tctl get github/github --with-secrets > github.yaml
 ```
 
 Edit `github.yaml`, adding `{{ role }}` to the
@@ -46,8 +46,8 @@ Here is an example:
 
 ```diff
   teams_to_roles:
-    - organization: octocats 
-      team: admins 
+    - organization: octocats
+      team: admins
       roles:
         - access
 +       - {{ role }}
@@ -59,13 +59,19 @@ Apply your changes:
 $ tctl create -f github.yaml
 ```
 
+<Admonition type="warning">
+Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
+`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+so take precautions when creating this file and remove it after updating the resource.
+</Admonition>
+
 </TabItem>
 <TabItem label="SAML">
 
 Retrieve your `saml`  configuration resource:
 
 ```code
-$ tctl get saml/mysaml > saml.yaml
+$ tctl get --with-secrets saml/mysaml > saml.yaml
 ```
 
 Edit `saml.yaml`, adding `{{ role }}` to the
@@ -78,8 +84,8 @@ Here is an example:
 
 ```diff
   attributes_to_roles:
-    - name: "groups" 
-      value: "my-group" 
+    - name: "groups"
+      value: "my-group"
       roles:
         - access
 +       - {{ role }}
@@ -91,13 +97,19 @@ Apply your changes:
 $ tctl create -f saml.yaml
 ```
 
+<Admonition type="warning">
+Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
+`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+so take precautions when creating this file and remove it after updating the resource.
+</Admonition>
+
 </TabItem>
 <TabItem label="OIDC">
 
 Retrieve your `oidc`  configuration resource:
 
 ```code
-$ tctl get oidc/myoidc > oidc.yaml
+$ tctl get oidc/myoidc --with-secrets > oidc.yaml
 ```
 
 Edit `oidc.yaml`, adding `{{ role }}` to the
@@ -110,8 +122,8 @@ Here is an example:
 
 ```diff
   claims_to_roles:
-    - name: "groups" 
-      value: "my-group" 
+    - name: "groups"
+      value: "my-group"
       roles:
         - access
 +       - {{ role }}
@@ -122,6 +134,12 @@ Apply your changes:
 ```code
 $ tctl create -f saml.yaml
 ```
+
+<Admonition type="warning">
+Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
+`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+so take precautions when creating this file and remove it after updating the resource.
+</Admonition>
 
 </TabItem>
 </Tabs>

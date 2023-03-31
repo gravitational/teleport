@@ -449,9 +449,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// DELETE IN 13.0.0
-	c.CheckSetRequireSessionMFA()
-
 	if c.Spec.Type == "" {
 		c.Spec.Type = constants.Local
 	}
@@ -607,16 +604,6 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 
 	return nil
-}
-
-// RequireSessionMFA must be checked/set when communicating with an old server or client.
-// DELETE IN 13.0.0
-func (c *AuthPreferenceV2) CheckSetRequireSessionMFA() {
-	if c.Spec.RequireMFAType != RequireMFAType_OFF {
-		c.Spec.RequireSessionMFA = c.Spec.RequireMFAType.IsSessionMFARequired()
-	} else if c.Spec.RequireSessionMFA {
-		c.Spec.RequireMFAType = RequireMFAType_SESSION
-	}
 }
 
 // String represents a human readable version of authentication settings.

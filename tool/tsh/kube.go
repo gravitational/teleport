@@ -146,7 +146,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		crt, err := k.KubeTLSCertificate(kubeCluster)
+		crt, err := k.KubeX509Cert(kubeCluster)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -168,7 +168,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 			}
 
 			// Cache the new cert on disk for reuse.
-			if err := tc.LocalAgent().AddKey(k); err != nil {
+			if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -475,7 +475,8 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
-	format string
+	format   string
+	siteName string
 }
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
@@ -483,11 +484,14 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions."),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
-
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	return c
 }
 
 func (c *kubeSessionsCommand) run(cf *CLIConf) error {
+	if c.siteName != "" {
+		cf.SiteName = c.siteName
+	}
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -574,14 +578,14 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// loading process since Teleport Store transverses the entire store to find the keys.
 	// This operation takes a long time when the store has a lot of keys and when
 	// we call the function multiple times in parallel.
-	// Although client.LoadKeysToKubeFromStore function speeds up the process
-	// since it removes all transversals, it still has to read 4 different files:
-	// - $TSH_HOME/current_profile
+	// Although client.LoadKeysToKubeFromStore function speeds up the process since
+	// it removes all transversals, it still has to read 3 different files from the disk:
 	// - $TSH_HOME/$profile.yaml
 	// - $TSH_HOME/keys/$PROXY/$USER-kube/$TELEPORT_CLUSTER/$KUBE_CLUSTER-x509.pem
 	// - $TSH_HOME/keys/$PROXY/$USER
 	if kubeCert, privKey, err := client.LoadKeysToKubeFromStore(
 		cf.HomePath,
+		cf.Proxy,
 		c.teleportCluster,
 		c.kubeCluster,
 	); err == nil {
@@ -608,8 +612,8 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeTLSCertificate")
-		crt, err := k.KubeTLSCertificate(c.kubeCluster)
+		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeX509Cert")
+		crt, err := k.KubeX509Cert(c.kubeCluster)
 		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -646,7 +650,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.
-	if err := tc.LocalAgent().AddKey(k); err != nil {
+	if err := tc.LocalAgent().AddKubeKey(k); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -696,7 +700,7 @@ func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
 }
 
 func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
-	crt, err := key.KubeTLSCertificate(kubeClusterName)
+	crt, err := key.KubeX509Cert(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1200,6 +1204,10 @@ func updateKubeConfig(cf *CLIConf, tc *client.TeleportClient, path string) error
 	kubeStatus, err := fetchKubeStatus(cf.Context, tc)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if cf.Proxy == "" {
+		cf.Proxy = tc.WebProxyAddr
 	}
 
 	values, err := buildKubeConfigUpdate(cf, kubeStatus)

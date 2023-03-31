@@ -114,7 +114,7 @@ func sidecarRole(roleName string) (types.Role, error) {
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
 				{
-					Resources: []string{"role", "user", "auth_connector"},
+					Resources: []string{"role", "user", "auth_connector", "login_rule"},
 					Verbs:     []string{"*"},
 				},
 			},

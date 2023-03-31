@@ -18,29 +18,25 @@ package local
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // CreateHeadlessAuthenticationStub creates a headless authentication stub in the backend.
 func (s *IdentityService) CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	expires := s.Clock().Now().Add(time.Minute)
-	headlessAuthn := &types.HeadlessAuthentication{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name:    name,
-				Expires: &expires,
-			},
-		},
+	expires := s.Clock().Now().Add(defaults.CallbackTimeout)
+	headlessAuthn, err := types.NewHeadlessAuthenticationStub(name, expires)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	item, err := marshalHeadlessAuthenticationToItem(headlessAuthn)
+	item, err := MarshalHeadlessAuthenticationToItem(headlessAuthn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -59,12 +55,12 @@ func (s *IdentityService) CompareAndSwapHeadlessAuthentication(ctx context.Conte
 		return nil, trace.Wrap(err)
 	}
 
-	oldItem, err := marshalHeadlessAuthenticationToItem(old)
+	oldItem, err := MarshalHeadlessAuthenticationToItem(old)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	newItem, err := marshalHeadlessAuthenticationToItem(new)
+	newItem, err := MarshalHeadlessAuthenticationToItem(new)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -119,7 +115,8 @@ func (s *IdentityService) DeleteHeadlessAuthentication(ctx context.Context, name
 	return trace.Wrap(err)
 }
 
-func marshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
+// MarshalHeadlessAuthenticationToItem marshals a headless authentication to a backend.Item.
+func MarshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentication) (*backend.Item, error) {
 	if err := headlessAuthn.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -136,15 +133,13 @@ func marshalHeadlessAuthenticationToItem(headlessAuthn *types.HeadlessAuthentica
 	}, nil
 }
 
+// unmarshalHeadlessAuthenticationFromItem unmarshals a headless authentication from a backend.Item.
 func unmarshalHeadlessAuthenticationFromItem(item *backend.Item) (*types.HeadlessAuthentication, error) {
 	var headlessAuthn types.HeadlessAuthentication
 	if err := utils.FastUnmarshal(item.Value, &headlessAuthn); err != nil {
 		return nil, trace.Wrap(err, "error unmarshalling headless authentication from storage")
 	}
 
-	// Copy item.Expires without pointer to avoid race conditions with memory backend.
-	headlessAuthn.Metadata.Expires = new(time.Time)
-	*headlessAuthn.Metadata.Expires = item.Expires
 	if err := headlessAuthn.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

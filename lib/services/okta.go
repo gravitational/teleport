@@ -30,6 +30,12 @@ import (
 var _ OktaImportRules = (*okta.Client)(nil)
 var _ OktaAssignments = (*okta.Client)(nil)
 
+// Okta is an Okta interface for both the rules and assignments.
+type Okta interface {
+	OktaImportRules
+	OktaAssignments
+}
+
 // OktaImportRules defines an interface for managing OktaImportRules.
 type OktaImportRules interface {
 	// ListOktaImportRules returns a paginated list of all Okta import rule resources.
@@ -56,6 +62,10 @@ type OktaAssignments interface {
 	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
+	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
+	// will be updated if possible.
+	UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error)
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 	// DeleteAllOktaAssignments removes all Okta assignments.

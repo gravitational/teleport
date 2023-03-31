@@ -150,6 +150,10 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newSAMLIDPServiceProviderParser()
 		case types.KindUserGroup:
 			parser = newUserGroupParser()
+		case types.KindOktaImportRule:
+			parser = newOktaImportRuleParser()
+		case types.KindOktaAssignment:
+			parser = newOktaAssignmentParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -1463,6 +1467,54 @@ func (p *userGroupParser) parse(event backend.Event) (types.Resource, error) {
 		return resourceHeader(event, types.KindUserGroup, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalUserGroup(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newOktaImportRuleParser() *oktaImportRuleParser {
+	return &oktaImportRuleParser{
+		baseParser: newBaseParser(backend.Key(oktaImportRulePrefix)),
+	}
+}
+
+type oktaImportRuleParser struct {
+	baseParser
+}
+
+func (p *oktaImportRuleParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindOktaImportRule, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalOktaImportRule(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newOktaAssignmentParser() *oktaAssignmentParser {
+	return &oktaAssignmentParser{
+		baseParser: newBaseParser(backend.Key(oktaAssignmentPrefix)),
+	}
+}
+
+type oktaAssignmentParser struct {
+	baseParser
+}
+
+func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindOktaAssignment, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalOktaAssignment(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

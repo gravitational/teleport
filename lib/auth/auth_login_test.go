@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
@@ -697,6 +698,140 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 			req.Username = username
 			_, err = proxyClient.AuthenticateWebUser(ctx, req)
 			require.NoError(t, err, "Web authentication expected to succeed")
+		})
+	}
+}
+
+func TestServer_Authenticate_headless(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+
+	type updateHeadlessAuthnFn func(*types.HeadlessAuthentication, *types.MFADevice)
+	updateHeadlessAuthnInGoroutine := func(ctx context.Context, srv *TestTLSServer, mfa *types.MFADevice, update updateHeadlessAuthnFn) chan error {
+		errC := make(chan error)
+		go func() {
+			defer close(errC)
+
+			headlessAuthn, err := srv.Auth().GetHeadlessAuthentication(ctx, headlessID)
+			if err != nil {
+				errC <- err
+				return
+			}
+
+			// create a shallow copy and update for the compare and swap below.
+			replaceHeadlessAuthn := *headlessAuthn
+			update(&replaceHeadlessAuthn, mfa)
+
+			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+			if err != nil {
+				errC <- err
+				return
+			}
+		}()
+		return errC
+	}
+
+	for _, tc := range []struct {
+		name      string
+		update    updateHeadlessAuthnFn
+		expectErr bool
+	}{
+		{
+			name: "OK approved",
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+				ha.MfaDevice = mfa
+			},
+		}, {
+			name: "NOK approved without MFA",
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+			},
+			expectErr: true,
+		}, {
+			name: "NOK user mismatch",
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+				ha.MfaDevice = mfa
+				ha.User = "other-user"
+			},
+			expectErr: true,
+		}, {
+			name: "NOK denied",
+			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
+				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
+			},
+			expectErr: true,
+		}, {
+			name:      "NOK timeout",
+			update:    func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {},
+			expectErr: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tc := tc
+			t.Parallel()
+
+			srv := newTestTLSServer(t)
+			proxyClient, err := srv.NewClient(TestBuiltin(types.RoleProxy))
+			require.NoError(t, err)
+
+			// We don't mind about the specifics of the configuration, as long as we have
+			// a user and TOTP/WebAuthn devices.
+			mfa := configureForMFA(t, srv)
+			username := mfa.User
+
+			// Fail a login attempt so we have a non-empty list of attempts.
+			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+				AuthenticateUserRequest: AuthenticateUserRequest{
+					Username:  username,
+					Webauthn:  &wanlib.CredentialAssertionResponse{}, // bad response
+					PublicKey: []byte(sshPubKey),
+				},
+				TTL: 24 * time.Hour,
+			})
+			require.True(t, trace.IsAccessDenied(err), "got err = %v, want AccessDenied", err)
+			attempts, err := srv.Auth().GetUserLoginAttempts(username)
+			require.NoError(t, err)
+			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
+
+			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			defer cancel()
+
+			errC := updateHeadlessAuthnInGoroutine(ctx, srv, mfa.WebDev.MFA, tc.update)
+			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+				AuthenticateUserRequest: AuthenticateUserRequest{
+					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
+					HeadlessAuthenticationID: headlessID,
+					Webauthn:                 &wanlib.CredentialAssertionResponse{},
+					OTP:                      &OTPCreds{},
+					Username:                 username,
+					PublicKey:                []byte(sshPubKey),
+					ClientMetadata: &ForwardedClientMetadata{
+						RemoteAddr: "0.0.0.0",
+					},
+				},
+				TTL: defaults.CallbackTimeout,
+			})
+			require.NoError(t, <-errC)
+
+			if tc.expectErr {
+				require.Error(t, err)
+				// Verify login attempts unchanged. This is a proxy for various other user
+				// checks (locked, etc).
+				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
+				require.NoError(t, err)
+				require.Equal(t, attempts, updatedAttempts, "Login attempts unexpectedly changed")
+			} else {
+				require.NoError(t, err)
+				// Verify zeroed login attempts. This is a proxy for various other user
+				// checks (locked, etc).
+				updatedAttempts, err := srv.Auth().GetUserLoginAttempts(username)
+				require.NoError(t, err)
+				require.Empty(t, updatedAttempts, "Login attempts not reset")
+			}
 		})
 	}
 }
