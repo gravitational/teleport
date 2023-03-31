@@ -45,21 +45,30 @@ type Bot struct {
 }
 
 // onAfterResponseSlack resty error function for Slack
-func onAfterResponseSlack(_ *resty.Client, resp *resty.Response) error {
-	if !resp.IsSuccess() {
-		return trace.Errorf("slack api returned unexpected code %v", resp.StatusCode())
-	}
+func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *resty.Response) error {
+	return func(_ *resty.Client, resp *resty.Response) error {
+		var status types.PluginStatus
+		defer func() {
+			common.TryEmitStatus(context.TODO(), sink, status)
+		}()
+		status = statusFromStatusCode(resp.StatusCode())
 
-	var result APIResponse
-	if err := json.Unmarshal(resp.Body(), &result); err != nil {
-		return trace.Wrap(err)
-	}
+		if !resp.IsSuccess() {
+			return trace.Errorf("slack api returned unexpected code %v", resp.StatusCode())
+		}
 
-	if !result.Ok {
-		return trace.Errorf("%s", result.Error)
-	}
+		var result APIResponse
+		if err := json.Unmarshal(resp.Body(), &result); err != nil {
+			return trace.Wrap(err)
+		}
+		status = statusFromResponse(&result)
 
-	return nil
+		if !result.Ok {
+			return trace.Errorf("%s", result.Error)
+		}
+
+		return nil
+	}
 }
 
 func (b Bot) CheckHealth(ctx context.Context) error {
