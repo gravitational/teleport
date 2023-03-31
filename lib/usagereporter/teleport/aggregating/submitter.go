@@ -22,7 +22,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -42,7 +41,7 @@ type UsageReportsSubmitter func(context.Context, *prehogv1.SubmitUsageReportsReq
 const (
 	submitInterval     = 5 * time.Minute
 	submitLockDuration = time.Minute
-	submitBatch        = 10
+	submitBatchSize    = 10
 
 	alertGraceHours    = 24
 	alertGraceDuration = alertGraceHours * time.Hour
@@ -103,14 +102,15 @@ func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 }
 
 func submitOnce(ctx context.Context, c SubmitterConfig) {
-	rangeStart := backend.ExactKey(userActivityReportsPrefix)
-	getResult, err := c.Backend.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), submitBatch)
+	svc := reportService{c.Backend}
+
+	reports, err := svc.listUserActivityReports(ctx, submitBatchSize)
 	if err != nil {
 		c.Log.WithError(err).Errorf("Failed to load usage reports for submission.")
 		return
 	}
 
-	if len(getResult.Items) < 1 {
+	if len(reports) < 1 {
 		if _, err := c.Status.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 			AlertID: alertName,
 		}); err != nil && trace.IsNotFound(err) {
@@ -128,21 +128,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		return
 	}
 
-	reports := make([]*prehogv1.UserActivityReport, 0, len(getResult.Items))
-	for _, item := range getResult.Items {
-		report := &prehogv1.UserActivityReport{}
-		if err := proto.Unmarshal(item.Value, report); err != nil {
-			c.Log.WithError(err).WithField("key", item.Key).Error("Failed to parse usage report from the backend.")
-			return
-		}
-		reports = append(reports, report)
-	}
-
-	if _, err := c.Backend.Create(ctx, backend.Item{
-		Key:     backend.Key(userActivityReportsLock),
-		Value:   []byte("null"),
-		Expires: c.Backend.Clock().Now().UTC().Add(submitLockDuration),
-	}); err != nil {
+	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration); err != nil {
 		if trace.IsAlreadyExists(err) {
 			c.Log.Debugf("Failed to acquire lock %v, already held.", userActivityReportsLock)
 		} else {
@@ -190,8 +176,8 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}).Info("Successfully sent usage reports.")
 
 	var lastErr error
-	for _, item := range getResult.Items {
-		if err := c.Backend.Delete(ctx, item.Key); err != nil {
+	for _, report := range reports {
+		if err := svc.deleteUserActivityReport(ctx, report); err != nil {
 			lastErr = err
 		}
 	}

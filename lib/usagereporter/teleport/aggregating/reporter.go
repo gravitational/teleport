@@ -19,11 +19,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
@@ -33,24 +30,9 @@ import (
 )
 
 const (
-	userActivityReportsPrefix = "userActivityReports"
-	userActivityReportsLock   = "userActivityReportsLock"
-
-	// maxSize is the maximum size for a backend value; dynamodb has a limit of
-	// 400KiB per item, we store values in base64, there's some framing, and a
-	// healthy 50% margin gets us to about 128KiB.
-	maxSize = 128 * 1024
-
 	reportGranularity = 15 * time.Minute
 	reportTTL         = 60 * 24 * time.Hour
 )
-
-// userActivityReportKey returns the backend key for a user activity report with
-// a given UUID and start time, such that reports with an earlier start time
-// will appear earlier in lexicographic ordering.
-func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
-	return backend.Key(userActivityReportsPrefix, startTime.Format(time.RFC3339), reportUUID.String())
-}
 
 type ReporterConfig struct {
 	Backend backend.Backend
@@ -97,7 +79,7 @@ func NewReporter(
 
 	r := &Reporter{
 		anonymizer: anonymizer,
-		backend:    cfg.Backend,
+		svc:        reportService{cfg.Backend},
 		log:        cfg.Log,
 
 		clusterName:    anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
@@ -117,7 +99,7 @@ func NewReporter(
 // Reporter aggregates and persists usage events to the backend.
 type Reporter struct {
 	anonymizer utils.Anonymizer
-	backend    backend.Backend
+	svc        reportService
 	log        logrus.FieldLogger
 
 	clusterName    []byte
@@ -273,11 +255,8 @@ func (r *Reporter) persistUserActivity(startTime time.Time, userActivity map[str
 		records = append(records, record)
 	}
 
-	pbStartTime := timestamppb.New(startTime)
-	expiry := startTime.Add(reportTTL)
-
 	for len(records) > 0 {
-		reportUUID, data, rem, err := prepareUserActivityReport(r.clusterName, r.reporterHostID, pbStartTime, records)
+		report, err := prepareUserActivityReport(r.clusterName, r.reporterHostID, startTime, records)
 		if err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,
@@ -285,50 +264,15 @@ func (r *Reporter) persistUserActivity(startTime time.Time, userActivity map[str
 			}).Error("Failed to prepare user activity report, dropping data.")
 			return
 		}
-		reportRecords := len(records) - len(rem)
-		records = rem
+		records = records[len(report.Records):]
 
-		if _, err := r.backend.Put(r.baseCtx, backend.Item{
-			Key:     userActivityReportKey(reportUUID, startTime),
-			Value:   data,
-			Expires: expiry,
-		}); err != nil {
+		if err := r.svc.upsertUserActivityReport(r.baseCtx, report, reportTTL); err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,
-				"lost_records": reportRecords,
+				"lost_records": len(report.Records),
 			}).Error("Failed to persist user activity report, dropping data.")
 		}
 	}
-}
-
-func prepareUserActivityReport(
-	clusterName, reporterHostID []byte,
-	startTime *timestamppb.Timestamp,
-	records []*prehogv1.UserActivityRecord,
-) (reportUUID uuid.UUID, data []byte, remaining []*prehogv1.UserActivityRecord, err error) {
-	reportUUID = uuid.New()
-	report := &prehogv1.UserActivityReport{
-		ReportUuid:     reportUUID[:],
-		ClusterName:    clusterName,
-		ReporterHostid: reporterHostID,
-		StartTime:      startTime,
-		Records:        records,
-	}
-
-	for proto.Size(report) > maxSize {
-		if len(report.Records) <= 1 {
-			return uuid.Nil, nil, nil, trace.LimitExceeded("failed to marshal user activity report within size limit (this is a bug)")
-		}
-
-		report.Records = report.Records[:len(report.Records)/2]
-	}
-
-	wire, err := proto.Marshal(report)
-	if err != nil {
-		return uuid.Nil, nil, nil, trace.Wrap(err)
-	}
-
-	return reportUUID, wire, records[len(report.Records):], nil
 }
 
 func (r *Reporter) runPeriodicFinalize(ctx context.Context) {
