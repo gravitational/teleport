@@ -167,7 +167,7 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 		// PPKFile can only be generated from an RSA private key. If the key is in a different
 		// format, a BadParameter error is returned and we can skip PPK generation.
 		if err != nil && !trace.IsBadParameter(err) {
-			fs.log.WithError(err).Debugf("Cannot convert private key to PPK-formatted keypair.")
+			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
 		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(key.KeyIndex)); err != nil {
 				return trace.Wrap(err)
