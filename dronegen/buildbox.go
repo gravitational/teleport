@@ -69,9 +69,10 @@ func buildboxPipelineStep(buildboxName string, fips bool) step {
 	return step{
 		Name:    "Build and push " + buildboxName,
 		Image:   "docker",
-		Pull:  "if-not-exists",
+		Pull:    "if-not-exists",
 		Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
 		Commands: []string{
+			`tree /root/.docker`,
 			`apk add --no-cache make aws-cli`,
 			`chown -R $UID:$GID /go`,
 			// Authenticate to staging registry

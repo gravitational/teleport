@@ -42,6 +42,7 @@ func pushCheckoutCommands(b buildType) []string {
 // pushBuildCommands generates a list of commands for Drone to build an artifact as part of a push build
 func pushBuildCommands(b buildType) []string {
 	commands := []string{
+		`tree ` + volumeRefDockerConfig.Path,
 		`apk add --no-cache make`,
 		`chown -R $UID:$GID /go`,
 		`cd /go/src/github.com/gravitational/teleport`,

@@ -84,6 +84,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -92,12 +93,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -114,7 +116,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
@@ -143,7 +145,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -206,6 +208,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -214,12 +217,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -234,7 +238,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
@@ -263,7 +267,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -328,6 +332,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -336,12 +341,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -358,7 +364,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
@@ -387,7 +393,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -450,6 +456,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -458,12 +465,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -478,7 +486,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
@@ -507,7 +515,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -890,6 +898,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -898,7 +907,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume AWS Role
   image: amazon/aws-cli
@@ -936,7 +945,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -962,7 +971,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: tmpfs
     path: /tmpfs
@@ -1251,6 +1260,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -1259,12 +1269,13 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -1279,7 +1290,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Send Slack notification
   image: plugins/slack
@@ -1308,7 +1319,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -1791,6 +1802,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -1799,7 +1811,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
@@ -1819,7 +1831,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Copy artifacts
   image: docker
@@ -1998,6 +2010,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2006,7 +2019,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
@@ -2028,7 +2041,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Copy artifacts
   image: docker
@@ -2204,6 +2217,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2212,7 +2226,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
@@ -2234,7 +2248,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Copy artifacts
   image: docker
@@ -2417,6 +2431,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2425,7 +2440,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
@@ -2447,7 +2462,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Copy artifacts
   image: docker
@@ -2618,6 +2633,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2626,7 +2642,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -2720,7 +2736,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -2833,7 +2849,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -2900,6 +2916,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2908,7 +2925,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -3001,7 +3018,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -3112,7 +3129,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -3179,6 +3196,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3187,7 +3205,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -3274,7 +3292,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -3383,7 +3401,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -3447,6 +3465,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3455,7 +3474,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -3541,7 +3560,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -3648,7 +3667,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -3715,6 +3734,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3723,7 +3743,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
@@ -3743,7 +3763,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Copy artifacts
   image: docker
@@ -3916,6 +3936,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3924,7 +3945,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -4018,7 +4039,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -4131,7 +4152,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -4198,6 +4219,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -4206,7 +4228,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -4293,7 +4315,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -4402,7 +4424,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -5119,6 +5141,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -5127,7 +5150,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
@@ -5147,7 +5170,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Copy artifacts
   image: docker
@@ -5630,6 +5653,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -5638,7 +5662,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -5725,7 +5749,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -5834,7 +5858,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -6161,6 +6185,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -6169,7 +6194,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume Download AWS Role
   image: amazon/aws-cli
@@ -6263,7 +6288,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -6376,7 +6401,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -6446,6 +6471,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -6454,7 +6480,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Build artifacts
   image: docker
@@ -6478,7 +6504,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Copy artifacts
   image: docker
@@ -6984,6 +7010,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -6992,7 +7019,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Configure Staging AWS Profile
   image: amazon/aws-cli
@@ -7048,6 +7075,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7068,6 +7096,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7089,6 +7118,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7110,6 +7140,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7131,6 +7162,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - tree /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7158,7 +7190,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-- name: dockerConfig
+- name: dockerconfig
   temp: {}
 - name: awsconfig
   temp: {}
@@ -8453,6 +8485,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -8461,7 +8494,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Wait for docker registry
   image: alpine
@@ -9704,6 +9737,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -9712,7 +9746,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   depends_on:
   - Verify build is tagged
@@ -11352,6 +11386,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -11360,7 +11395,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   depends_on:
   - Find the latest available semver for v12
@@ -14064,6 +14099,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -14072,7 +14108,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   depends_on:
   - Find the latest available semver for v11
@@ -16776,6 +16812,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -16784,7 +16821,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   depends_on:
   - Find the latest available semver for v10
@@ -19486,6 +19523,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
+  - tree /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -19494,7 +19532,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
 - name: Assume AWS Role
   image: amazon/aws-cli
@@ -19532,7 +19570,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: awsconfig
     path: /root/.aws
@@ -19558,7 +19596,7 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerConfig
+  - name: dockerconfig
     path: /root/.docker
   - name: tmpfs
     path: /tmpfs
@@ -19585,6 +19623,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: a2b732cf8ead08b11e934eeee187a45297d9631448267c613b42f32c8253e35f
+hmac: d85c6f3f86cb99b2d9c42c215a8abbfdf4da952811e52f4737dfcafd7e87fe55
 
 ...

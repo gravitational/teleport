@@ -95,14 +95,14 @@ var (
 	// Drone claims to destroy the the temp volumes after a workflow
 	// has run, so it should be safe to write credentials etc.
 	volumeDockerConfig = volume{
-		Name: "dockerConfig",
+		Name: "dockerconfig",
 		Temp: &volumeTemp{},
 	}
 
 	// volumeRefDockerConfig is how you reference the docker config
 	// volume in a workflow step
 	volumeRefDockerConfig = volumeRef{
-		Name: "dockerConfig",
+		Name: "dockerconfig",
 		Path: "/root/.docker",
 	}
 )
@@ -306,6 +306,7 @@ func waitForDockerStep() step {
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
+			`tree ` + volumeRefDockerConfig.Path,
 		},
 		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 		Environment: map[string]value{
