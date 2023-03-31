@@ -35,6 +35,7 @@ audit event (code T3009I) and include the Kubernetes cluster metadata.
   * Added support for application access behind ALB. [#23054](https://github.com/gravitational/teleport/pull/23054)
   * Fixed app access requests being redirected to leaf's public address in some cases. [#23220](https://github.com/gravitational/teleport/pull/23220)
   * Reduced log noise. [#23365](https://github.com/gravitational/teleport/pull/23365)
+  * Added ability to specify command in AWS `tsh` proxy. [#23835](https://github.com/gravitational/teleport/pull/23835)
 * Bootstrap
   * Added provision tokens support. [#23474](https://github.com/gravitational/teleport/pull/23474)
 * CLI
@@ -43,6 +44,7 @@ audit event (code T3009I) and include the Kubernetes cluster metadata.
   * Fixed issue with `tsh` reporting errors about missing webauthn.dll on Windows. [#23161](https://github.com/gravitational/teleport/pull/23161)
   * Updated `tsh status` to not display internal logins. [#23411](https://github.com/gravitational/teleport/pull/23411)
   * Added `--cluster` flag to `tsh kube sessions` command. [#23825](https://github.com/gravitational/teleport/pull/23825)
+  * Fixed issue with invalid TLS mode when creating database resources. [#23808](https://github.com/gravitational/teleport/pull/23808)
 * Database Access
   * Added support for canceling in-progress PostgreSQL requests in database access. [#23467](https://github.com/gravitational/teleport/pull/23467)
   * Fixed issue with query audit events always having `success: false` status. [#23274](https://github.com/gravitational/teleport/pull/23274)
@@ -60,6 +62,7 @@ audit event (code T3009I) and include the Kubernetes cluster metadata.
   * Added support for Azure delegated joining. [#23391](https://github.com/gravitational/teleport/pull/23391)
   * Added support for Gitlab delegated joining. [#23191](https://github.com/gravitational/teleport/pull/23191)
   * Added support for trusted clusters. [#23390](https://github.com/gravitational/teleport/pull/23390)
+  * Added FIPS support. [#23850](https://github.com/gravitational/teleport/pull/23850)
 * Proxy Peering
   * Fixed proxy peering issues when running behind a load balancer. [#23506](https://github.com/gravitational/teleport/pull/23506)
 * Reverse Tunnels
@@ -68,6 +71,8 @@ audit event (code T3009I) and include the Kubernetes cluster metadata.
 * Performance & scalability
   * Improved `tsh ls -R` performance in large clusters. [#23596](https://github.com/gravitational/teleport/pull/23596)
   * Improved performance when setting session environment variables. [#23834](https://github.com/gravitational/teleport/pull/23834)
+* Server Access
+  * Fixed issue with successful SFTP transfers returning non-zero code. [#23729](https://github.com/gravitational/teleport/pull/23729)
 * SSO
   * Fixed issue with Github Enterprise SSO not working with custom URLs. [#23568](https://github.com/gravitational/teleport/pull/23568)
 * Teleport Connect
