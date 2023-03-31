@@ -5293,16 +5293,16 @@ message IntegrationSpecV1 {
 
   // IntegrationStatus contains the current integration status.
   enum IntegrationStatus {
-    IntegrationStatusUnknown = 0;
+    INTEGRATION_STATUS_UNSPECIFIED = 0;
 
     // Integration is not running because it was just created or was disabled by the user.
-    IntegrationStatusPaused = 1;
+    INTEGRATION_STATUS_PAUSED = 1;
 
     // Integration is running.
-    IntegrationStatusRunning = 2;
+    INTEGRATION_STATUS_RUNNING = 2;
 
     // Integration has an error and that should be fixed before receiving requests.
-    IntegrationStatusError = 3;
+    INTEGRATION_STATUS_ERROR = 3;
   }
 
   // Status contains the current Integration Status
