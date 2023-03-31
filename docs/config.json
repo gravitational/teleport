@@ -364,7 +364,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Kubernetes",
+              "title": "Kubernetes Operator",
               "slug": "/access-controls/login-rules/kubernetes/",
               "forScopes": ["enterprise"]
             }

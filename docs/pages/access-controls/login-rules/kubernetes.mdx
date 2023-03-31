@@ -1,5 +1,5 @@
 ---
-title: Deploy Login Rules to Kubernetes (Preview)
+title: Deploy Login Rules using Kubernetes Operator (Preview)
 description: Use Teleport's Kubernetes Operator to deploy Login Rules to your cluster
 ---
 
@@ -77,7 +77,7 @@ FIELDS:
 Paste the following into a file called `login-rules.yaml` that describes two
 custom Login Rule resources:
 
-```
+```yaml
 # login-rules.yaml
 apiVersion: resources.teleport.dev/v1
 kind: TeleportLoginRule
