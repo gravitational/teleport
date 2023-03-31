@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	awssession "github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -290,8 +290,7 @@ type Log struct {
 	// Config is a backend configuration
 	Config
 
-	// session holds the AWS client.
-	session *awssession.Session
+	awsConfig aws.Config
 }
 
 // New creates an instance of an Athena based audit log.
@@ -307,18 +306,15 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		Entry:  logEntry,
 		Config: cfg,
 	}
-	// Create an AWS session using default SDK behavior, i.e. it will interpret
-	// the environment and ~/.aws directory just like an AWS CLI tool would.
-	l.session, err = awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-	})
+
+	l.awsConfig, err = awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// override the default environment (region + credentials) with the values
 	// from the config.
 	if cfg.Region != "" {
-		l.session.Config.Region = aws.String(cfg.Region)
+		l.awsConfig.Region = cfg.Region
 	}
 
 	// TODO(tobiaszheller): initialize publisher
