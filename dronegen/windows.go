@@ -211,6 +211,7 @@ func installWindowsGoToolchainStep(workspacePath string) step {
 			`Push-Location "$TeleportSrc/build.assets"`,
 			`$GoVersion = $(make print-go-version).TrimStart("go")`,
 			`Pop-Location`,
+			`echo $GoVersion`,
 			`Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace` + toolchainDir + `"`,
 		},
 	}

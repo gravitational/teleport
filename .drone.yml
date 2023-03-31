@@ -711,6 +711,7 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $GoVersion = $(make print-go-version).TrimStart("go")
   - Pop-Location
+  - echo $GoVersion
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -772,7 +773,7 @@ steps:
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd $TeleportSrc/e/windows_auth_package
-  - make VERSION=$TeleportVersion  all
+  - make VERSION=v$TeleportVersion  all
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
@@ -1009,6 +1010,7 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $GoVersion = $(make print-go-version).TrimStart("go")
   - Pop-Location
+  - echo $GoVersion
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
@@ -1022,7 +1024,7 @@ steps:
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd $TeleportSrc/e/windows_auth_package
-  - make VERSION=$TeleportVersion  all
+  - make VERSION=v$TeleportVersion  all
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
@@ -19083,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: a0ff5e5d5b61abef42e5a266cffe123362a99d146d52387b6313435b7d039832
+hmac: 0a80efad666e63744c9c332f5e337fbe3d0fe7c2d54dad679b6a33cc92feffd5
 
 ...
