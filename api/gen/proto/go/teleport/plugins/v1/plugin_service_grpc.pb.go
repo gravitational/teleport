@@ -35,12 +35,13 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	PluginService_CreatePlugin_FullMethodName         = "/teleport.plugins.v1.PluginService/CreatePlugin"
-	PluginService_GetPlugin_FullMethodName            = "/teleport.plugins.v1.PluginService/GetPlugin"
-	PluginService_DeletePlugin_FullMethodName         = "/teleport.plugins.v1.PluginService/DeletePlugin"
-	PluginService_ListPlugins_FullMethodName          = "/teleport.plugins.v1.PluginService/ListPlugins"
-	PluginService_SetPluginCredentials_FullMethodName = "/teleport.plugins.v1.PluginService/SetPluginCredentials"
-	PluginService_SetPluginStatus_FullMethodName      = "/teleport.plugins.v1.PluginService/SetPluginStatus"
+	PluginService_CreatePlugin_FullMethodName            = "/teleport.plugins.v1.PluginService/CreatePlugin"
+	PluginService_GetPlugin_FullMethodName               = "/teleport.plugins.v1.PluginService/GetPlugin"
+	PluginService_DeletePlugin_FullMethodName            = "/teleport.plugins.v1.PluginService/DeletePlugin"
+	PluginService_ListPlugins_FullMethodName             = "/teleport.plugins.v1.PluginService/ListPlugins"
+	PluginService_SetPluginCredentials_FullMethodName    = "/teleport.plugins.v1.PluginService/SetPluginCredentials"
+	PluginService_SetPluginStatus_FullMethodName         = "/teleport.plugins.v1.PluginService/SetPluginStatus"
+	PluginService_GetAvailablePluginTypes_FullMethodName = "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes"
 )
 
 // PluginServiceClient is the client API for PluginService service.
@@ -128,7 +129,7 @@ func (c *pluginServiceClient) SetPluginStatus(ctx context.Context, in *SetPlugin
 
 func (c *pluginServiceClient) GetAvailablePluginTypes(ctx context.Context, in *GetAvailablePluginTypesRequest, opts ...grpc.CallOption) (*GetAvailablePluginTypesResponse, error) {
 	out := new(GetAvailablePluginTypesResponse)
-	err := c.cc.Invoke(ctx, "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes", in, out, opts...)
+	err := c.cc.Invoke(ctx, PluginService_GetAvailablePluginTypes_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +314,7 @@ func _PluginService_GetAvailablePluginTypes_Handler(srv interface{}, ctx context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/teleport.plugins.v1.PluginService/GetAvailablePluginTypes",
+		FullMethod: PluginService_GetAvailablePluginTypes_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(PluginServiceServer).GetAvailablePluginTypes(ctx, req.(*GetAvailablePluginTypesRequest))
