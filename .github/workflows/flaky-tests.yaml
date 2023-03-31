@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - '**.go'
+  merge_group:
+    paths:
+      - '**.go'
 
 jobs:
   test:
