@@ -316,10 +316,13 @@ func TestModeratedSessions(t *testing.T) {
 
 					// moderator waits for the user informed that he joined the session.
 					<-moderatorJoined
+					dataFound := false
 					for {
 						p := make([]byte, 1024)
 						n, err := stream.Read(p)
-						if err != nil {
+						if errors.Is(err, io.EOF) {
+							break
+						} else if err != nil {
 							return trace.Wrap(err)
 						}
 						stringData := string(p[:n])
@@ -332,15 +335,21 @@ func TestModeratedSessions(t *testing.T) {
 
 						// stdinPayload is sent by the user after the session started.
 						if strings.Contains(stringData, stdinPayload) {
-							break
+							dataFound = true
 						}
 
 						// podContainerName is returned by the kubemock server and it's used
 						// to control that the session has effectively started.
 						// return to force the defer to run.
 						if strings.Contains(stringData, podContainerName) && tt.args.moderatorForcedClose {
-							return nil
+							if err := stream.ForceTerminate(); err != nil {
+								return trace.Wrap(err)
+							}
+							continue
 						}
+					}
+					if !dataFound && !tt.args.moderatorForcedClose {
+						return trace.Wrap(errors.New("stdinPayload was not received"))
 					}
 					return nil
 				})
