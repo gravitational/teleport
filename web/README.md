@@ -77,7 +77,6 @@ mkdir -p certs && mkcert -cert-file certs/server.crt -key-file certs/server.key 
 (Note: the `certs/` directory in this repo is ignored by git, so you can place your certificate/keys
 in there without having to worry that they'll end up in a commit.)
 
-
 #### Certificates in an alternative location
 
 If you already have local certificates, you can set the environment variables:
@@ -218,7 +217,7 @@ proxy_service:
   public_addr: ['proxy.127.0.0.1.nip.io']
 ```
 
-Then start the dev server like `yarn start-teleport --target=https://proxy.127.0.0.1.nip.io:3080` and access it at https://proxy.127.0.0.1.nip.io:8080.
+Then start the dev server like `PROXY_TARGET=https://proxy.127.0.0.1.nip.io:3080 yarn start-teleport` and access it at https://proxy.127.0.0.1.nip.io:8080.
 
 ### Adding Packages/Dependencies
 
