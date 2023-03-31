@@ -4396,3 +4396,31 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, clien
 	}
 	return nil
 }
+
+func TestUnimplementedClients(t *testing.T) {
+	ctx := context.Background()
+	testAuth, err := NewTestAuthServer(TestAuthServerConfig{Dir: t.TempDir()})
+	server := &ServerWithRoles{
+		authServer: testAuth.AuthServer,
+	}
+
+	require.NoError(t, err)
+
+	t.Run("DevicesClient", func(t *testing.T) {
+		_, err := server.DevicesClient().ListDevices(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
+
+	t.Run("LoginRuleClient", func(t *testing.T) {
+		_, err := server.LoginRuleClient().ListLoginRules(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
+
+	t.Run("PluginClient", func(t *testing.T) {
+		_, err := server.PluginsClient().ListPlugins(ctx, nil)
+		require.Error(t, err)
+		require.True(t, trace.IsNotImplemented(err), err)
+	})
+}
