@@ -2245,8 +2245,34 @@ message UpdateHeadlessAuthenticationStateRequest {
   MFAAuthenticateResponse mfa_response = 3;
 }
 
+message AssistantRequest {
+  // conversation_id used to tie all messages in a one conversation.
+  string conversation_id = 1;
+}
+
+message AssistantMessage {
+  // conversation_id used to tie all messages in a one conversation.
+  string conversation_id = 1;
+
+  // type is a type of message. It can be Chat response/query or a command to run.
+  string type = 2;
+
+  // payload is a JSON message
+  bytes payload = 3;
+}
+
+message GetAssistantMessagesResponse {
+  repeated AssistantMessage messages = 1;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
+  // GetAssistantMessages returns all messages associated with the given conversation ID.
+  rpc GetAssistantMessages(AssistantRequest) returns (GetAssistantMessagesResponse);
+
+  //InsertAssistantMessage adds a message to given conversation.
+  rpc InsertAssistantMessage(AssistantMessage) returns (google.protobuf.Empty);
+
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
   // presence/version/etc to the auth server.
   rpc InventoryControlStream(stream UpstreamInventoryOneOf) returns (stream DownstreamInventoryOneOf);

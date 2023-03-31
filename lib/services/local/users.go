@@ -25,6 +25,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1384,6 +1386,48 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	return trace.Wrap(err)
 }
 
+func (s *IdentityService) GetAssistantMessages(ctx context.Context, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
+	startKey := backend.Key(webPrefix, assistantPrefix, conversationId)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sort.Slice(result.Items, func(i, j int) bool {
+		// Key contains timestamp, use for sorting.
+		// TODO: the beginning of the key is always the same
+		return bytes.Compare(result.Items[i].Key, result.Items[j].Key) < 0
+	})
+
+	out := make([]*proto.AssistantMessage, len(result.Items))
+	for i, item := range result.Items {
+		var a proto.AssistantMessage
+		if err := json.Unmarshal(item.Value, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = &a
+	}
+
+	return &proto.GetAssistantMessagesResponse{
+		Messages: out,
+	}, nil
+}
+
+func (s *IdentityService) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+	value, err := json.Marshal(msg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(webPrefix, assistantPrefix, msg.ConversationId, strconv.FormatInt(time.Now().UTC().Unix(), 10)),
+		Value: value,
+	}
+
+	_, err = s.Create(ctx, item)
+	return trace.Wrap(err)
+}
+
 // GetUserRecoveryAttempts returns users recovery attempts.
 func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
 	if user == "" {
@@ -1538,4 +1582,5 @@ const (
 	recoveryCodesPrefix       = "recoverycodes"
 	recoveryAttemptsPrefix    = "recoveryattempts"
 	attestationsPrefix        = "key_attestations"
+	assistantPrefix           = "assistant"
 )

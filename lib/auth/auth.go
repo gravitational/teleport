@@ -4887,6 +4887,16 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 	return headlessAuthn, trace.Wrap(err)
 }
 
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *Server) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
+	return a.Services.GetAssistantMessages(ctx, id)
+}
+
+// InsertAssistantMessage adds the message to the backend.
+func (a *Server) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
+}
+
 // CompareAndSwapHeadlessAuthentication performs a compare
 // and swap replacement on a headless authentication resource.
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {

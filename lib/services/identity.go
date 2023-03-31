@@ -267,6 +267,10 @@ type Identity interface {
 	// DeleteHeadlessAuthentication deletes a headless authentication from the backend by name.
 	DeleteHeadlessAuthentication(ctx context.Context, name string) error
 
+	GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error)
+
+	CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
