@@ -99,12 +99,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 			parser = p
 		case types.KindAppServer:
-			switch kind.Version {
-			case types.V2: // DELETE IN 9.0.
-				parser = newAppServerV2Parser()
-			default:
-				parser = newAppServerV3Parser()
-			}
+			parser = newAppServerParser()
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSAMLIdPSession:
@@ -865,17 +860,17 @@ func (p *reverseTunnelParser) parse(event backend.Event) (types.Resource, error)
 	}
 }
 
-func newAppServerV3Parser() *appServerV3Parser {
-	return &appServerV3Parser{
+func newAppServerParser() *appServerParser {
+	return &appServerParser{
 		baseParser: newBaseParser(backend.Key(appServersPrefix, apidefaults.Namespace)),
 	}
 }
 
-type appServerV3Parser struct {
+type appServerParser struct {
 	baseParser
 }
 
-func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
+func (p *appServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
 		hostID, name, err := baseTwoKeys(event.Item.Key)
@@ -900,21 +895,6 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
-}
-
-func newAppServerV2Parser() *appServerV2Parser {
-	return &appServerV2Parser{
-		baseParser: newBaseParser(backend.Key(appsPrefix, serversPrefix, apidefaults.Namespace)),
-	}
-}
-
-// DELETE IN 9.0. Deprecated, replaced by applicationServerParser.
-type appServerV2Parser struct {
-	baseParser
-}
-
-func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindAppServer)
 }
 
 func newSAMLIdPSessionParser() *webSessionParser {

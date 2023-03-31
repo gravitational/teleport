@@ -2514,13 +2514,25 @@ func TestAppServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = clt.UpsertApplicationServer(ctx, appServer2)
-	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"))
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create Okta app servers"), err)
 
 	delete(app2.Metadata.Labels, types.OriginLabel)
 	appServer2.SetOrigin(types.OriginOkta)
 
 	_, err = clt.UpsertApplicationServer(ctx, appServer2)
-	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"))
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create Okta app servers"), err)
+
+	delete(appServer2.Metadata.Labels, types.OriginLabel)
+	app2.SetSubKind(types.SubKindOktaApp)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create Okta app servers"), err)
+
+	app2.SetSubKind(types.SubKindTeleportApp)
+	appServer2.SetSubKind(types.SubKindOktaApp)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.ErrorIs(t, trace.BadParameter("only the Okta role can create Okta app servers"), err)
 
 	// Create an app server with Okta labels using the Okta role.
 	clt, err = srv.NewClient(TestBuiltin(types.RoleOkta))

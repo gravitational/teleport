@@ -36,7 +36,7 @@ func TestGetTunnelType(t *testing.T) {
 			expected:  AppTunnel,
 		},
 		{
-			name: "okta",
+			name: "okta (label)",
 			appServer: &AppServerV3{
 				Metadata: Metadata{
 					Labels: map[string]string{
@@ -46,11 +46,54 @@ func TestGetTunnelType(t *testing.T) {
 			},
 			expected: OktaTunnel,
 		},
+		{
+			name: "okta (subkind)",
+			appServer: &AppServerV3{
+				SubKind: SubKindOktaApp,
+			},
+			expected: OktaTunnel,
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, test.appServer.GetTunnelType())
+		})
+	}
+}
+
+func TestGetSubKind(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		appServer AppServer
+		expected  string
+	}{
+		{
+			name:      "no subkind set",
+			appServer: &AppServerV3{},
+			expected:  SubKindTeleportApp,
+		},
+		{
+			name: "subkind of teleport app",
+			appServer: &AppServerV3{
+				SubKind: SubKindTeleportApp,
+			},
+			expected: SubKindTeleportApp,
+		},
+		{
+			name: "subkind of Okta app",
+			appServer: &AppServerV3{
+				SubKind: SubKindOktaApp,
+			},
+			expected: SubKindOktaApp,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.appServer.GetSubKind())
 		})
 	}
 }

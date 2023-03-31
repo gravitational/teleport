@@ -107,6 +107,11 @@ func (s *AppServerV3) GetKind() string {
 
 // GetSubKind returns the resource subkind.
 func (s *AppServerV3) GetSubKind() string {
+	// If the SubKind is not set, this is a Teleport app.
+	if s.SubKind == "" {
+		return SubKindTeleportApp
+	}
+
 	return s.SubKind
 }
 
@@ -185,6 +190,8 @@ func (s *AppServerV3) GetTunnelType() TunnelType {
 	switch {
 	case s.Origin() == OriginOkta:
 		return OktaTunnel
+	case s.GetSubKind() == SubKindOktaApp:
+		return OktaTunnel
 	default:
 		return AppTunnel
 	}
@@ -192,8 +199,8 @@ func (s *AppServerV3) GetTunnelType() TunnelType {
 
 // String returns the server string representation.
 func (s *AppServerV3) String() string {
-	return fmt.Sprintf("AppServer(Name=%v, Version=%v, Hostname=%v, HostID=%v, App=%v)",
-		s.GetName(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetApp())
+	return fmt.Sprintf("AppServer(Name=%v, Subkind=%v, Version=%v, Hostname=%v, HostID=%v, App=%v)",
+		s.GetName(), s.GetSubKind(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetApp())
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -219,6 +226,9 @@ func (s *AppServerV3) CheckAndSetDefaults() error {
 	}
 	if err := s.Spec.App.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
+	}
+	if s.SubKind == "" {
+		s.SubKind = s.Spec.App.GetSubKind()
 	}
 	return nil
 }

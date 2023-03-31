@@ -288,6 +288,7 @@ func TestNewAppV3(t *testing.T) {
 		name    string
 		meta    Metadata
 		spec    AppSpecV3
+		subkind string
 		want    *AppV3
 		wantErr require.ErrorAssertionFunc
 	}{
@@ -308,6 +309,7 @@ func TestNewAppV3(t *testing.T) {
 			spec: AppSpecV3{URI: "example.com"},
 			want: &AppV3{
 				Kind:    "app",
+				SubKind: SubKindTeleportApp,
 				Version: "v3",
 				Metadata: Metadata{Name: "myapp",
 					Namespace:   "default",
@@ -327,6 +329,7 @@ func TestNewAppV3(t *testing.T) {
 			spec: AppSpecV3{URI: "example.com"},
 			want: &AppV3{
 				Kind:    "app",
+				SubKind: SubKindTeleportApp,
 				Version: "v3",
 				Metadata: Metadata{
 					Name:        "myapp",
@@ -344,6 +347,7 @@ func TestNewAppV3(t *testing.T) {
 			spec: AppSpecV3{Cloud: CloudAzure},
 			want: &AppV3{
 				Kind:     "app",
+				SubKind:  SubKindTeleportApp,
 				Version:  "v3",
 				Metadata: Metadata{Name: "myazure", Namespace: "default"},
 				Spec:     AppSpecV3{URI: "cloud://Azure", Cloud: CloudAzure},
@@ -356,6 +360,7 @@ func TestNewAppV3(t *testing.T) {
 			spec: AppSpecV3{Cloud: CloudAWS},
 			want: &AppV3{
 				Kind:     "app",
+				SubKind:  SubKindTeleportApp,
 				Version:  "v3",
 				Metadata: Metadata{Name: "myaws", Namespace: "default"},
 				Spec:     AppSpecV3{URI: "cloud://AWS", Cloud: CloudAWS},
@@ -368,9 +373,31 @@ func TestNewAppV3(t *testing.T) {
 			spec: AppSpecV3{Cloud: CloudAWS, URI: constants.AWSConsoleURL},
 			want: &AppV3{
 				Kind:     "app",
+				SubKind:  SubKindTeleportApp,
 				Version:  "v3",
 				Metadata: Metadata{Name: "myaws", Namespace: "default"},
 				Spec:     AppSpecV3{URI: constants.AWSConsoleURL, Cloud: CloudAWS},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "okta app",
+			meta: Metadata{
+				Name:        "myapp",
+				Description: "my fancy app",
+				ID:          123,
+			},
+			spec:    AppSpecV3{URI: "example.com"},
+			subkind: SubKindOktaApp,
+			want: &AppV3{
+				Kind:    "app",
+				SubKind: SubKindOktaApp,
+				Version: "v3",
+				Metadata: Metadata{Name: "myapp",
+					Namespace:   "default",
+					Description: "my fancy app",
+					ID:          123,
+				}, Spec: AppSpecV3{URI: "example.com"},
 			},
 			wantErr: require.NoError,
 		},
@@ -385,6 +412,9 @@ func TestNewAppV3(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actual, err := NewAppV3(tt.meta, tt.spec)
+			if actual != nil && tt.subkind != "" {
+				actual.SetSubKind(tt.subkind)
+			}
 			tt.wantErr(t, err)
 			require.Equal(t, tt.want, actual)
 		})

@@ -2681,6 +2681,7 @@ func TestSerializeApps(t *testing.T) {
 	expected := `
 	[{
 		"kind": "app",
+		"sub_kind": "teleport_app",
 		"version": "v3",
 		"metadata": {
 			"name": "my app",

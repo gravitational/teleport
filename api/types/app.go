@@ -101,6 +101,11 @@ func (a *AppV3) GetKind() string {
 
 // GetSubKind returns the app resource subkind.
 func (a *AppV3) GetSubKind() string {
+	// If the SubKind is not set, this is a Teleport app.
+	if a.SubKind == "" {
+		return SubKindTeleportApp
+	}
+
 	return a.SubKind
 }
 
@@ -359,6 +364,10 @@ func (a *AppV3) CheckAndSetDefaults() error {
 	if strings.HasPrefix(host, constants.KubeTeleportProxyALPNPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeTeleportProxyALPNPrefix, a.Spec.PublicAddr)
+	}
+
+	if a.SubKind == "" {
+		a.SubKind = SubKindTeleportApp
 	}
 
 	return nil
