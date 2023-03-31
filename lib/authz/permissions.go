@@ -369,6 +369,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		LoginIP:           u.Identity.LoginIP,
 		PinnedIP:          u.Identity.PinnedIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
+		UserType:          u.Identity.UserType,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
@@ -931,19 +932,40 @@ func ClientUsername(ctx context.Context) string {
 	return identity.Username
 }
 
+func userIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
+	userWithIdentity, err := UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("missing identity")
+	}
+
+	identity := userWithIdentity.GetIdentity()
+	if identity.Username == "" {
+		return nil, trace.AccessDenied("missing identity username")
+	}
+
+	return &identity, nil
+}
+
 // GetClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, returns an error.
 func GetClientUsername(ctx context.Context) (string, error) {
-	userWithIdentity, err := UserFromContext(ctx)
+	identity, err := userIdentityFromContext(ctx)
 	if err != nil {
-		return "", trace.AccessDenied("missing identity")
-	}
-	identity := userWithIdentity.GetIdentity()
-	if identity.Username == "" {
-		return "", trace.AccessDenied("missing identity username")
+		return "", trace.Wrap(err)
 	}
 	return identity.Username, nil
+}
+
+// GetClientUserIsSSO extracts the identity of a remote HTTP client and indicates whether that is an SSO user.
+// If ctx didn't pass through auth middleware or did not come from an HTTP
+// request, returns an error.
+func GetClientUserIsSSO(ctx context.Context) (bool, error) {
+	identity, err := userIdentityFromContext(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return identity.UserType == types.UserTypeSSO, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client
