@@ -42,7 +42,10 @@ export function useServers() {
     );
     const documentsService =
       appContext.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
-    const doc = documentsService.createTshNodeDocument(server.uri);
+    const doc = documentsService.createTshNodeDocument(
+      server.uri,
+      'resource_table'
+    );
     doc.title = `${login}@${server.hostname}`;
     doc.login = login;
 

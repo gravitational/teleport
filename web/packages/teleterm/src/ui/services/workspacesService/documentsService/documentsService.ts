@@ -33,6 +33,7 @@ import {
   DocumentAccessRequests,
   DocumentCluster,
   DocumentGateway,
+  DocumentOrigin,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithLoginHost,
@@ -104,10 +105,14 @@ export class DocumentsService {
         options.kubeConfigRelativePath ||
         `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
       title: params.kubeId,
+      origin: options.origin,
     };
   }
 
-  createTshNodeDocument(serverUri: ServerUri): DocumentTshNodeWithServerId {
+  createTshNodeDocument(
+    serverUri: ServerUri,
+    origin: DocumentOrigin
+  ): DocumentTshNodeWithServerId {
     const { params } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
 
@@ -121,6 +126,7 @@ export class DocumentsService {
       serverUri,
       title: '',
       login: '',
+      origin,
     };
   }
 
@@ -132,10 +138,12 @@ export class DocumentsService {
    * the command will succeed only if the given cluster has only a single server with the hostname
    * matching `host`.
    * @param loginHost - the "user@host" pair.
+   * @param origin - where the document was opened from.
    */
   createTshNodeDocumentFromLoginHost(
     clusterUri: ClusterUri,
-    loginHost: string
+    loginHost: string,
+    origin: DocumentOrigin
   ): DocumentTshNodeWithLoginHost {
     const { params } = routing.parseClusterUri(clusterUri);
     const uri = routing.getDocUri({ docId: unique() });
@@ -148,6 +156,7 @@ export class DocumentsService {
       rootClusterId: params.rootClusterId,
       leafClusterId: params.leafClusterId,
       loginHost,
+      origin,
     };
   }
 
@@ -162,6 +171,7 @@ export class DocumentsService {
       targetSubresourceName,
       port,
       gatewayUri,
+      origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
     const title = `${targetUser}@${targetName}`;
@@ -176,6 +186,7 @@ export class DocumentsService {
       gatewayUri,
       title,
       port,
+      origin,
     };
   }
 

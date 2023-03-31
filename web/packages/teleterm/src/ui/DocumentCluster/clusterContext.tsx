@@ -20,6 +20,7 @@ import { useStore, Store } from 'shared/libs/stores';
 
 import { IAppContext } from 'teleterm/ui/types';
 import { ClusterUri, DocumentUri, KubeUri, routing } from 'teleterm/ui/uri';
+import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
@@ -71,8 +72,11 @@ class ClusterContext extends Store<State> {
     });
   };
 
-  connectKube = (kubeUri: KubeUri) => {
-    this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
+  connectKube = (kubeUri: KubeUri, origin: DocumentOrigin) => {
+    this.appCtx.commandLauncher.executeCommand('kube-connect', {
+      kubeUri,
+      origin,
+    });
   };
 
   refresh = () => {

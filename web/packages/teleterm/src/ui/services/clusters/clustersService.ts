@@ -320,7 +320,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   async createGateway(params: tsh.CreateGatewayParams) {
     const gateway = await this.client.createGateway(params);
-    this.usageService.captureProtocolUse(params.targetUri, 'db');
     this.setState(draft => {
       draft.gateways.set(gateway.uri, gateway);
     });
