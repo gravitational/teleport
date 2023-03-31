@@ -60,6 +60,7 @@ echo "$$VERSION" > /go/.version.txt`,
 // tagBuildCommands generates a list of commands for Drone to build an artifact as part of a tag build
 func tagBuildCommands(b buildType) []string {
 	commands := []string{
+		`ls -la ` + volumeRefDockerConfig.Path,
 		`apk add --no-cache make`,
 		`chown -R $UID:$GID /go`,
 		`cd /go/src/github.com/gravitational/teleport`,

@@ -84,7 +84,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -99,7 +99,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -208,7 +208,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -223,7 +223,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -332,7 +332,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -347,7 +347,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -456,7 +456,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -471,7 +471,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -898,7 +898,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -1260,7 +1260,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -1275,7 +1275,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -1802,7 +1802,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -1817,6 +1817,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -2010,7 +2011,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2025,6 +2026,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -2217,7 +2219,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2232,6 +2234,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -2431,7 +2434,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2446,6 +2449,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -2633,7 +2637,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -2916,7 +2920,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3196,7 +3200,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3465,7 +3469,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3734,7 +3738,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -3749,6 +3753,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -3936,7 +3941,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -4219,7 +4224,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -5141,7 +5146,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -5156,6 +5161,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -5653,7 +5659,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -6185,7 +6191,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -6471,7 +6477,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -6486,6 +6492,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
+  - ls -la /root/.docker
   - apk add --no-cache make
   - chown -R $UID:$GID /go
   - cd /go/src/github.com/gravitational/teleport
@@ -7010,7 +7017,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -7075,7 +7082,7 @@ steps:
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7090,13 +7097,15 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Build and push buildbox-fips
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7112,13 +7121,15 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Build and push buildbox-arm
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7134,13 +7145,15 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Build and push buildbox-centos7
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7156,13 +7169,15 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Build and push buildbox-centos7-fips
   image: docker
   pull: if-not-exists
   commands:
-  - tree /root/.docker
+  - ls -la /root/.docker
   - apk add --no-cache make aws-cli
   - chown -R $UID:$GID /go
   - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
@@ -7178,6 +7193,8 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 services:
@@ -8485,7 +8502,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -9737,7 +9754,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -11386,7 +11403,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -14099,7 +14116,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -16812,7 +16829,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -19523,7 +19540,7 @@ steps:
   commands:
   - timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'
   - printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin
-  - tree /root/.docker
+  - ls -la /root/.docker
   environment:
     DOCKERHUB_PASSWORD:
       from_secret: DOCKERHUB_READONLY_TOKEN
@@ -19623,6 +19640,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: d85c6f3f86cb99b2d9c42c215a8abbfdf4da952811e52f4737dfcafd7e87fe55
+hmac: 0bf62e8942de78644e08f33bc507855937f91fb619030f779a657f0748b95a84
 
 ...

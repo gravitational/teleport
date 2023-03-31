@@ -306,7 +306,7 @@ func waitForDockerStep() step {
 		Commands: []string{
 			`timeout 30s /bin/sh -c 'while [ ! -S /var/run/docker.sock ]; do sleep 1; done'`,
 			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
-			`tree ` + volumeRefDockerConfig.Path,
+			`ls -la ` + volumeRefDockerConfig.Path,
 		},
 		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 		Environment: map[string]value{
