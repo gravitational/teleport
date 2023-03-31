@@ -369,7 +369,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		LoginIP:           u.Identity.LoginIP,
 		PinnedIP:          u.Identity.PinnedIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
-		IsSSOUser:         u.Identity.IsSSOUser,
+		UserType:          u.Identity.UserType,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
@@ -965,7 +965,7 @@ func GetClientUserIsSSO(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	return identity.IsSSOUser, nil
+	return identity.UserType == types.UserTypeSSO, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client

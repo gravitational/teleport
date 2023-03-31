@@ -201,7 +201,7 @@ func TestGetClientUserIsSSO(t *testing.T) {
 	require.False(t, isSSO, "expected a non-SSO user")
 
 	// An SSO user must return true
-	u.Identity.IsSSOUser = true
+	u.Identity.UserType = types.UserTypeSSO
 	ssoUserCtx := context.WithValue(ctx, contextUser, u)
 	localUserIsSSO, err := GetClientUserIsSSO(ssoUserCtx)
 	require.NoError(t, err)

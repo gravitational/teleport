@@ -2073,7 +2073,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
-		IsSSOUser: req.user.IsSSO(),
+		UserType: req.user.GetUserType(),
 	}
 
 	var signedTLSCert []byte
