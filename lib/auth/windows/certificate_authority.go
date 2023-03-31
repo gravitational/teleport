@@ -59,8 +59,9 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	// have to do it here.
 	//
 	// TODO(zmb3): support multiple CA certs per cluster (such as with HSMs).
+	caType := types.UserCA
 	ca, err := c.cfg.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
+		Type:       caType,
 		DomainName: c.cfg.ClusterName,
 	}, false)
 	if err != nil {
@@ -90,7 +91,7 @@ func (c *CertificateStoreClient) Update(ctx context.Context) error {
 	if err := c.updateCAInNTAuthStore(ctx, caDER); err != nil {
 		return trace.Wrap(err, "updating NTAuth store over LDAP: %v", err)
 	}
-	if err := c.updateCRL(ctx, crlDER); err != nil {
+	if err := c.updateCRL(ctx, crlDER, caType); err != nil {
 		return trace.Wrap(err, "updating CRL over LDAP: %v", err)
 	}
 	return nil
@@ -156,7 +157,7 @@ func (c *CertificateStoreClient) updateCAInNTAuthStore(ctx context.Context, caDE
 	return nil
 }
 
-func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte) error {
+func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte, caType types.CertAuthType) error {
 	// Publish the CRL for current cluster CA. For trusted clusters, their
 	// respective windows_desktop_services will publish CRLs of their CAs so we
 	// don't have to do it here.
@@ -165,12 +166,13 @@ func (c *CertificateStoreClient) updateCRL(ctx context.Context, crlDER []byte) e
 	// another nested container with the CA name, I think, and then multiple
 	// separate CRL objects in that container.
 	//
-	// We name our parent container "Teleport" and the CRL object is named
-	// after the Teleport cluster name. For example, CRL for cluster "prod"
-	// will be placed at:
+	// We name our parent container based on the CA type (for example, for User
+	// CA, it is called "Teleport"), and the CRL object is named after the
+	// Teleport cluster name. So, for instance, CRL for cluster "prod" and User
+	// CA will be placed at:
 	// ... > CDP > Teleport > prod
-	containerDN := crlContainerDN(c.cfg.LDAPConfig)
-	crlDN := crlDN(c.cfg.ClusterName, c.cfg.LDAPConfig)
+	containerDN := crlContainerDN(c.cfg.LDAPConfig, caType)
+	crlDN := crlDN(c.cfg.ClusterName, c.cfg.LDAPConfig, caType)
 
 	// Create the parent container.
 	if err := c.cfg.LC.CreateContainer(containerDN); err != nil {

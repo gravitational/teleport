@@ -1695,6 +1695,30 @@ func TestEnvs(t *testing.T) {
 	}
 }
 
+// TestUnknownRequest validates that any unknown session
+// requests do not terminate the session.
+func TestUnknownRequest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	defer se.Close()
+
+	// send a random request that won't be handled
+	ok, err := se.SendRequest(ctx, uuid.NewString(), true, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// ensure the session is still active
+	require.NoError(t, se.Setenv(ctx, "HOME_TEST", "/test"))
+	output, err := se.Output(ctx, "env")
+	require.NoError(t, err)
+	require.Contains(t, string(output), "HOME_TEST=/test")
+}
+
 // TestNoAuth tries to log in with no auth methods and should be rejected
 func TestNoAuth(t *testing.T) {
 	t.Parallel()

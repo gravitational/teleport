@@ -10,9 +10,6 @@
 name: OS Compatibility Test
 run-name: OS Compatibility Test
 on:
-  push:
-    branches:
-      - master
   pull_request:
    paths:
       - 'docs/**'
