@@ -112,7 +112,7 @@ func (l localFS) Create(ctx context.Context, path string, _ int64) (io.WriteClos
 
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaults.FilePermissions)
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return f, nil
@@ -124,7 +124,7 @@ func (l localFS) Remove(ctx context.Context, path string) error {
 	}
 
 	if err := os.Remove(path); err != nil {
-		return trace.ConvertSystemError(err)
+		return trace.Wrap(err)
 	}
 
 	return nil

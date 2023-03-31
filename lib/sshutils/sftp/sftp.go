@@ -227,6 +227,7 @@ func (c *Config) setDefaults() {
 			"DstPath":       c.dstPath,
 			"Recursive":     c.opts.Recursive,
 			"PreserveAttrs": c.opts.PreserveAttrs,
+			"Force":         c.opts.Force,
 		},
 	})
 }
@@ -537,15 +538,13 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 
 	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Size())
 	if err != nil {
-		if trace.IsAccessDenied(err) && c.opts.Force {
+		if errors.Is(err, fs.ErrPermission) && c.opts.Force {
 			if err := c.dstFS.Remove(ctx, dstPath); err != nil {
 				return trace.Wrap(err)
 			}
 			dstFile, err = c.dstFS.Create(ctx, dstPath, srcFileInfo.Mode())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-		} else {
+		} // Re-check error as it may be nil from the remove-create case above.
+		if err != nil {
 			return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 		}
 	}
