@@ -211,7 +211,6 @@ func installWindowsGoToolchainStep(workspacePath string) step {
 			`Push-Location "$TeleportSrc/build.assets"`,
 			`$GoVersion = $(make print-go-version).TrimStart("go")`,
 			`Pop-Location`,
-			`echo $GoVersion`,
 			`Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace` + toolchainDir + `"`,
 		},
 	}
@@ -292,6 +291,7 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$Env:GOCACHE = "$Workspace/gocache"`,
+			`Enable-Go -ToolchainDir "$Workspace` + toolchainDir + `"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
 			`. "$TeleportSrc/build.assets/windows/build.ps1"`,
 			`cd $TeleportSrc`,

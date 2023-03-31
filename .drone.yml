@@ -711,7 +711,6 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $GoVersion = $(make print-go-version).TrimStart("go")
   - Pop-Location
-  - echo $GoVersion
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
@@ -768,6 +767,7 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
@@ -1010,7 +1010,6 @@ steps:
   - Push-Location "$TeleportSrc/build.assets"
   - $GoVersion = $(make print-go-version).TrimStart("go")
   - Pop-Location
-  - echo $GoVersion
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
@@ -1019,6 +1018,7 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - cd $TeleportSrc
@@ -19085,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 0a80efad666e63744c9c332f5e337fbe3d0fe7c2d54dad679b6a33cc92feffd5
+hmac: 5a51f9112245154cba4200d45dc0c97eab781d75f6756bf259b48ecf0785a5cd
 
 ...
