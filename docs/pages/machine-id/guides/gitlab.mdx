@@ -46,34 +46,15 @@ a valid TLS certificate.**
 ## Step 1/3. Create a join token
 
 To allow GitLab CI to authenticate to your Teleport cluster, you'll first need
-to create a join token. These tokens define the rules that allow a bot to join
-your Teleport cluster.
+to create a join token. A GitLab join token contains allow rules that describe
+which pipelines can use that token in order to join the Teleport cluster. A rule
+can contain multiple fields, and any pipeline that matches all of the
+fields within a single rule is granted access.
 
-A GitLab join token contains allow rules that describe which pipelines can
-use that token in order to join the Teleport cluster. A rule can
-contain multiple constraints, and any pipeline that matches all of the
-constraints within a single rule is granted access.
-
-The following constraints exist:
-- `sub`: a string uniquely identifying the CI run's source. It follows the
-  following format:
-  `project_path:{group}/{project}:ref_type:{type}:ref:{branch_name}`
-- `ref`: the git reference that triggered the CI run
-- `ref_type`: the type of reference that triggered the CI run. This will either
-  be `branch` or `tag`
-- `namespace_path`: the group or user that the project belongs to.
-- `project_path`: the full name of the project that the run belongs to. For
-example: `my-user/my-project`
-- `pipeline_source`: the trigger of the CI run. For example: `web`
-- `environment`: the environment that the job is associated with
-
-A full explanation of these constraints values can be found on the [GitLab
-Documentation.](https://docs.gitlab.com/ee/ci/secrets/id_token_authentication.html#token-payload)
-
-In this example, you will create a rule that grants access to any GitLab CI job
-within a specific GitLab project. Determine the fully qualified path of your
-GitLab project. This will include your username (or group) and the name of your
-project, e.g `my-user/my-project`.
+In this example, you will create a token with a rule that grants access to any
+GitLab CI job within a specific GitLab project. Determine the fully qualified
+path of your GitLab project. This will include your username (or group) and the
+name of your project, e.g `my-user/my-project`.
 
 Create a file named `gitlab-token.yaml`. Ensure you substitute any values as
 suggested by the comments in this example:
@@ -95,11 +76,18 @@ spec:
     # domain should be the domain of your GitLab instance. If you are using
     # GitLab's cloud hosted offering, omit this field entirely.
     domain: gitlab.example.com
+    # allow specifies rules that control which GitLab tokens will be accepted
+    # by Teleport. Tokens not matching any allow rule will be denied.
     allow:
         # project_path should be the fully qualified path of your GitLab
-        # project that you determined earlier.
+        # project that you determined earlier. This will grant access to any
+        # GitLab CI run in that project.
       - project_path: my-user/my-project
 ```
+
+You can find a full list of the token configuration options for GitLab joining
+on the
+[GitLab CI reference page.](../reference/gitlab.mdx#gitlab-join-token)
 
 Apply this to your Teleport cluster using `tctl`:
 
@@ -150,10 +138,10 @@ deploy-job:
       # an ID token with an audience that matches your Teleport cluster's name.
       aud: teleport.example.com
   script:
-    - 'cd /tmp'
+    - cd /tmp
     - 'curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
-    - 'tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz'
-    - 'sudo ./teleport/install'
+    - tar -xvf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    - sudo ./teleport/install
     - 'tbot start --token=gitlab-demo --destination-dir=/tmp/tbot-user --data-dir=/tmp/tbot-data --auth-server=teleport.example.com:443 --join-method=gitlab --oneshot'
     - 'tsh -i /tmp/tbot-user/identity --proxy teleport.example.com:443 ssh ci-user@my-node "echo $CI_JOB_ID >> ~/gitlab_run_log"'
 ```
@@ -167,5 +155,8 @@ that includes the ID of the CI run.
 
 For more information about GitLab itself, read
 [their documentation](https://docs.gitlab.com/ee/ci/).
+
+For more information about GitLab joining, read the
+[GitLab CI reference page.](../reference/gitlab.mdx#gitlab-join-token)
 
 [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)
