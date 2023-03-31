@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/pkg/sftp"
 	log "github.com/sirupsen/logrus"
@@ -76,11 +77,13 @@ func (c compositeCh) Close() error {
 
 // sftpHandler provides handlers for a SFTP server.
 type sftpHandler struct {
+	logger *log.Entry
 	events chan<- *apievents.SFTP
 }
 
-func newSFTPHandler(events chan<- *apievents.SFTP) *sftpHandler {
+func newSFTPHandler(logger *log.Entry, events chan<- *apievents.SFTP) *sftpHandler {
 	return &sftpHandler{
+		logger: logger,
 		events: events,
 	}
 }
@@ -228,30 +231,20 @@ func (s *sftpHandler) setstat(req *sftp.Request) error {
 			return err
 		}
 	}
-	if !attrFlags.Permissions && !attrFlags.UidGid && !attrFlags.Size {
-		return nil
-	}
-
-	f, err := os.OpenFile(req.Filepath, os.O_WRONLY, defaultFilePerms)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
 	if attrFlags.Permissions {
-		err := f.Chmod(attrs.FileMode().Perm())
+		err := os.Chmod(req.Filepath, attrs.FileMode())
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.UidGid {
-		err := f.Chown(int(attrs.UID), int(attrs.GID))
+		err := os.Chown(req.Filepath, int(attrs.UID), int(attrs.GID))
 		if err != nil {
 			return err
 		}
 	}
 	if attrFlags.Size {
-		err := f.Truncate(int64(attrs.Size))
+		err := os.Truncate(req.Filepath, int64(attrs.Size))
 		if err != nil {
 			return err
 		}
@@ -362,7 +355,7 @@ func (s *sftpHandler) Lstat(req *sftp.Request) (sftp.ListerAt, error) {
 	return listerAt{fi}, nil
 }
 
-func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, err error) {
+func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, reqErr error) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{
 			Type: events.SFTPEvent,
@@ -372,76 +365,76 @@ func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, err error) {
 
 	switch req.Method {
 	case methodOpen, methodGet, methodPut:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPOpenCode
 		} else {
 			event.Code = events.SFTPOpenFailureCode
 		}
 		event.Action = apievents.SFTPAction_OPEN
 	case methodSetStat:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPSetstatCode
 		} else {
 			event.Code = events.SFTPSetstatFailureCode
 		}
 		event.Action = apievents.SFTPAction_SETSTAT
 	case methodList:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPReaddirCode
 		} else {
 			event.Code = events.SFTPReaddirFailureCode
 		}
 		event.Action = apievents.SFTPAction_READDIR
 	case methodRemove:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPRemoveCode
 		} else {
 			event.Code = events.SFTPRemoveFailureCode
 		}
 		event.Action = apievents.SFTPAction_REMOVE
 	case methodMkdir:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPMkdirCode
 		} else {
 			event.Code = events.SFTPMkdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_MKDIR
 	case methodRmdir:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPRmdirCode
 		} else {
 			event.Code = events.SFTPRmdirFailureCode
 		}
 		event.Action = apievents.SFTPAction_RMDIR
 	case methodRename:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPRenameCode
 		} else {
 			event.Code = events.SFTPRenameFailureCode
 		}
 		event.Action = apievents.SFTPAction_RENAME
 	case methodSymlink:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPSymlinkCode
 		} else {
 			event.Code = events.SFTPSymlinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_SYMLINK
 	case methodLink:
-		if err == nil {
+		if reqErr == nil {
 			event.Code = events.SFTPLinkCode
 		} else {
 			event.Code = events.SFTPLinkFailureCode
 		}
 		event.Action = apievents.SFTPAction_LINK
 	default:
-		log.Warnf("Unknown SFTP request %q", req.Method)
+		s.logger.Warnf("Unknown SFTP request %q", req.Method)
 		return
 	}
 
 	wd, err := os.Getwd()
 	if err != nil {
-		log.WithError(err).Warn("Failed to get working dir.")
+		s.logger.WithError(err).Warn("Failed to get working dir.")
 	}
 
 	event.WorkingDirectory = wd
@@ -471,18 +464,19 @@ func (s *sftpHandler) sendSFTPEvent(req *sftp.Request, err error) {
 			event.Attributes.GID = &attrs.GID
 		}
 	}
-	if err != nil {
+	if reqErr != nil {
+		s.logger.Debugf("%s: %v", req.Method, reqErr)
 		// If possible, strip the filename from the error message. The
 		// path will be included in audit events already, no need to
 		// make the error message longer than it needs to be.
 		var pathErr *fs.PathError
 		var linkErr *os.LinkError
-		if errors.As(err, &pathErr) {
+		if errors.As(reqErr, &pathErr) {
 			event.Error = pathErr.Err.Error()
-		} else if errors.As(err, &linkErr) {
+		} else if errors.As(reqErr, &linkErr) {
 			event.Error = linkErr.Err.Error()
 		} else {
-			event.Error = err.Error()
+			event.Error = reqErr.Error()
 		}
 	}
 
@@ -508,7 +502,9 @@ func onSFTP() error {
 	defer auditFile.Close()
 
 	// Ensure the parent process will receive log messages from us
-	utils.InitLogger(utils.LoggingForDaemon, log.InfoLevel)
+	l := utils.NewLogger()
+	l.SetOutput(os.Stderr)
+	logger := l.WithField(trace.Component, teleport.ComponentSubsystemSFTP)
 
 	currentUser, err := user.Current()
 	if err != nil {
@@ -520,7 +516,7 @@ func onSFTP() error {
 	}
 
 	sftpEvents := make(chan *apievents.SFTP, 1)
-	h := newSFTPHandler(sftpEvents)
+	h := newSFTPHandler(logger, sftpEvents)
 	handler := sftp.Handlers{
 		FileGet:  h,
 		FilePut:  h,
@@ -538,14 +534,14 @@ func onSFTP() error {
 		for event := range sftpEvents {
 			buf.Reset()
 			if err := m.Marshal(&buf, event); err != nil {
-				log.WithError(err).Warn("Failed to marshal SFTP event.")
+				logger.WithError(err).Warn("Failed to marshal SFTP event.")
 			} else {
 				// Append a NULL byte so the parent process will know where
 				// this event ends
 				buf.WriteByte(0x0)
 				_, err = io.Copy(auditFile, &buf)
 				if err != nil {
-					log.WithError(err).Warn("Failed to send SFTP event to parent.")
+					logger.WithError(err).Warn("Failed to send SFTP event to parent.")
 				}
 			}
 		}

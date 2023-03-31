@@ -7247,10 +7247,17 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
 	})
 
-	// Test creating a directory, creating files in it and listing it.
+	// Test operations on a directory.
 	t.Run("mkdir", func(t *testing.T) {
 		dirPath := filepath.Join(tempDir, "dir")
 		require.NoError(t, sftpClient.Mkdir(dirPath))
+
+		err := sftpClient.Chmod(dirPath, 0o777)
+		require.NoError(t, err)
+
+		fi, err := os.Stat(dirPath)
+		require.NoError(t, err)
+		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
 
 		f, err := sftpClient.Create(filepath.Join(dirPath, "file"))
 		require.NoError(t, err)
