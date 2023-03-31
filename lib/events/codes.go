@@ -400,6 +400,8 @@ const (
 	DeviceEnrollCode = "TV005I"
 	// DeviceAuthenticateCode is the device authentication code.
 	DeviceAuthenticateCode = "TV006I"
+	// DeviceUpdateCode is the device update code.
+	DeviceUpdateCode = "TV007I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"

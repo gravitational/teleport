@@ -20,6 +20,7 @@ package regular
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -1570,8 +1571,9 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case sshutils.SubsystemRequest:
 			return s.handleSubsystem(ctx, ch, req, serverContext)
 		case sshutils.EnvRequest:
-			// we currently ignore setting any environment variables via SSH for security purposes
 			return s.handleEnv(ch, req, serverContext)
+		case tracessh.EnvsRequest:
+			return s.handleEnvs(ch, req, serverContext)
 		case sshutils.AgentForwardRequest:
 			// process agent forwarding, but we will only forward agent to proxy in
 			// recording proxy mode.
@@ -1588,8 +1590,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			s.Logger.Debugf("%v: deliberately ignoring request for '%v' channel", s.Component(), sshutils.PuTTYSimpleRequest)
 			return nil
 		default:
-			return trace.BadParameter(
-				"(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)
+			s.Logger.Warnf("(%v) proxy doesn't support request type '%v'", s.Component(), req.Type)
+			if req.WantReply {
+				if err := req.Reply(false, nil); err != nil {
+					s.Logger.Errorf("sending error reply on SSH channel: %v", err)
+				}
+			}
+			return nil
 		}
 	}
 
@@ -1607,7 +1614,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
-		case sshutils.EnvRequest:
+		case sshutils.EnvRequest, tracessh.EnvsRequest:
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
@@ -1655,6 +1662,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ch, req, serverContext)
+	case tracessh.EnvsRequest:
+		return s.handleEnvs(ch, req, serverContext)
 	case sshutils.SubsystemRequest:
 		// subsystems are SSH subsystems defined in http://tools.ietf.org/html/rfc4254 6.6
 		// they are in essence SSH session extensions, allowing to implement new SSH commands
@@ -1684,8 +1693,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.PuTTYWinadjRequest:
 		return s.handlePuTTYWinadj(ch, req)
 	default:
-		return trace.BadParameter(
-			"%v doesn't support request type '%v'", s.Component(), req.Type)
+		s.Logger.Warnf("%v doesn't support request type '%v'", s.Component(), req.Type)
+		if req.WantReply {
+			if err := req.Reply(false, nil); err != nil {
+				s.Logger.Errorf("sending error reply on SSH channel: %v", err)
+			}
+		}
+		return nil
 	}
 }
 
@@ -1817,7 +1831,7 @@ func (s *Server) handleSubsystem(ctx context.Context, ch ssh.Channel, req *ssh.R
 	return nil
 }
 
-// handleEnv accepts environment variables sent by the client and stores them
+// handleEnv accepts an environment variable sent by the client and stores it
 // in connection context
 func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
 	var e sshutils.EnvReqParams
@@ -1826,6 +1840,27 @@ func (s *Server) handleEnv(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerCont
 		return trace.Wrap(err, "failed to parse env request")
 	}
 	ctx.SetEnv(e.Name, e.Value)
+	return nil
+}
+
+// handleEnvs accepts environment variables sent by the client and stores them
+// in connection context
+func (s *Server) handleEnvs(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
+	var raw tracessh.EnvsReq
+	if err := ssh.Unmarshal(req.Payload, &raw); err != nil {
+		ctx.Error(err)
+		return trace.Wrap(err, "failed to parse envs request")
+	}
+
+	var envs map[string]string
+	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
+		return trace.Wrap(err, "failed to unmarshal envs")
+	}
+
+	for k, v := range envs {
+		ctx.SetEnv(k, v)
+	}
+
 	return nil
 }
 

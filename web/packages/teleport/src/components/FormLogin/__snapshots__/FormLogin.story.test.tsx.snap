@@ -222,7 +222,7 @@ exports[`auth2faType: off 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -245,7 +245,7 @@ exports[`auth2faType: off 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -586,7 +586,7 @@ exports[`auth2faType: optional rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -609,7 +609,7 @@ exports[`auth2faType: optional rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -1030,7 +1030,7 @@ exports[`auth2faType: otp rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -1053,7 +1053,7 @@ exports[`auth2faType: otp rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -1146,7 +1146,7 @@ exports[`auth2faType: otp rendering 1`] = `
                   <input
                     autocomplete="one-time-code"
                     class="c7"
-                    color="text.onLight"
+                    color="text.primaryInverse"
                     inputmode="numeric"
                     placeholder="123 456"
                     type="text"
@@ -1488,7 +1488,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -1511,7 +1511,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -1999,7 +1999,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -2022,7 +2022,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -2475,7 +2475,7 @@ exports[`server error rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c8"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -2498,7 +2498,7 @@ exports[`server error rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c8"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="text"
                   placeholder="Password"
                   type="password"

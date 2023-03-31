@@ -1,10 +1,6 @@
 name: Trivy
 
 on:
-  push:
-    branches:
-      - master
-      - branch/*
   pull_request:
   merge_group:
 
