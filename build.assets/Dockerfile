@@ -36,8 +36,17 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     make install && \
     make clean
 
+# Install openssl.
+# install_sw install only binaries, skips docs.
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
+    cd openssl && \
+    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
+    ./config --release --libdir=/usr/local/lib && \
+    make && \
+    make install_sw
+
 # Install libfido2.
-# Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
+# Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
@@ -46,6 +55,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
+    grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
     make && \
     make install && \
     make clean
@@ -288,16 +298,24 @@ RUN cd /usr/local/lib && ldconfig
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 /usr/local/lib/engines-3/ /usr/local/lib/engines-3/
+COPY --from=libfido2 /usr/local/lib/ossl-modules/ /usr/local/lib/ossl-modules/
 COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
+    /usr/local/lib/libcrypto.a \
+    /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
     /usr/local/lib/libfido2.so.1.12.0 \
+    /usr/local/lib/libssl.a \
+    /usr/local/lib/libssl.so.3 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
+    ln -s libcrypto.so.3 libcrypto.so && \
     ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
+    ln -s libssl.so.3 libssl.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
 
