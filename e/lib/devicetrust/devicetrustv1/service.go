@@ -132,6 +132,131 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 	return dev, nil
 }
 
+func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRequest) (*devicepb.Device, error) {
+	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case req.Device == nil:
+		return nil, trace.BadParameter("device required")
+	case req.Device.Id == "":
+		return nil, trace.BadParameter("device ID required")
+	case req.UpdateMask == nil:
+		return nil, trace.BadParameter("update mask required")
+	}
+	dev := req.Device
+	paths := req.UpdateMask.Paths
+
+	// Validate update mask before hitting storage.
+	if err := applyDeviceUpdateMask(paths, dev, dev); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(dst *devicepb.Device) {
+		// err is safe to swallow if the validation above passed.
+		_ = applyDeviceUpdateMask(paths, dst, dev)
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+		Metadata: apievents.Metadata{
+			Type: events.DeviceEvent,
+			Code: events.DeviceUpdateCode,
+		},
+		Status: &apievents.Status{
+			Success: true,
+		},
+		Device: getDeviceMetadata(updated),
+		User:   getUserMetadata(ctx),
+	})
+
+	return updated, nil
+}
+
+func applyDeviceUpdateMask(paths []string, dst, src *devicepb.Device) error {
+	if len(paths) == 0 {
+		return trace.BadParameter("at least one update mask path is required")
+	}
+
+	for _, path := range paths {
+		// IMPORTANT: Keep in sync with UpsertDevice.
+		switch path {
+		case "enroll_status":
+			dst.EnrollStatus = src.EnrollStatus
+		default:
+			return trace.BadParameter("unsupported update mask path: %q", path)
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRequest) (*devicepb.Device, error) {
+	if err := s.authorizeVerbs(ctx, types.KindDevice, []string{types.VerbCreate, types.VerbUpdate}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Device == nil {
+		return nil, trace.BadParameter("device required")
+	}
+	dev := req.Device
+
+	emitEvent := func(code string, dev *devicepb.Device) {
+		s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+			Metadata: apievents.Metadata{
+				Type: events.DeviceEvent,
+				Code: code,
+			},
+			Status: &apievents.Status{
+				Success: true,
+			},
+			Device: getDeviceMetadata(dev),
+			User:   getUserMetadata(ctx),
+		})
+	}
+
+	// Attempt an update first, if it makes sense.
+	if dev.Id != "" {
+		updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(dst *devicepb.Device) {
+			// Skipped fields:
+			// - ApiVersion: doesn't interfere with storage.
+			// - Id: already a parameter for UpdateDevice
+			// - UpdateTime: skipped so eventual copies/backups don't have to be super
+			//   fresh, as long as other fields are accurate.
+			// - All transient fields.
+
+			// Readonly fields.
+			// Copied so we can flag disallowed changes.
+			dst.OsType = dev.OsType
+			dst.AssetTag = dev.AssetTag
+			dst.CreateTime = dev.CreateTime
+			dst.Credential = dev.Credential
+
+			// Mutable fields.
+			// IMPORTANT: Keep in sync with applyDeviceUpdateMask.
+			dst.EnrollStatus = dev.EnrollStatus
+		})
+		switch {
+		case err == nil:
+			emitEvent(events.DeviceUpdateCode, updated)
+			return updated, nil
+		case !trace.IsNotFound(err):
+			return nil, trace.Wrap(err)
+		}
+		// NotFound errors fall into the create flow.
+	}
+
+	created, err := s.storage.CreateDevice(ctx, dev, req.CreateAsResource)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	emitEvent(events.DeviceCreateCode, created)
+
+	return created, nil
+}
+
 func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRequest) (*emptypb.Empty, error) {
 	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)

@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -179,6 +180,33 @@ func TestService_authz(t *testing.T) {
 				return err
 			},
 			assertErr: func(err error) bool { return err == nil },
+		},
+		{
+			name: "UpdateDevice",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbUpdate},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.UpdateDevice(ctx, &devicepb.UpdateDeviceRequest{})
+				return err
+			},
+			assertErr: trace.IsBadParameter,
+		},
+		{
+			name: "UpsertDevice",
+			checker: &ruleVerifyingChecker{
+				want: []wantRuleVerb{
+					{rule: types.KindDevice, verb: types.VerbCreate},
+					{rule: types.KindDevice, verb: types.VerbUpdate},
+				},
+			},
+			rpc: func() error {
+				_, err := devices.UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{})
+				return err
+			},
+			assertErr: trace.IsBadParameter,
 		},
 	}
 	for _, test := range tests {
@@ -676,6 +704,389 @@ func authenticateDevice(ctx context.Context, devices devicepb.DeviceTrustService
 		return fmt.Errorf("got payload type %T, wanted UserCertificates", resp.Payload)
 	}
 	return nil
+}
+
+func TestService_UpdateDevice(t *testing.T) {
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	enrolled, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	tests := []struct {
+		name      string
+		req       *devicepb.UpdateDeviceRequest
+		assertDev func(t *testing.T, updated *devicepb.Device)
+	}{
+		{
+			name: "unenroll",
+			req: &devicepb.UpdateDeviceRequest{
+				Device: &devicepb.Device{
+					Id:           enrolled.Id,
+					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"enroll_status"},
+				},
+			},
+			assertDev: func(t *testing.T, updated *devicepb.Device) {
+				want := proto.Clone(enrolled).(*devicepb.Device)
+				want.UpdateTime = updated.UpdateTime
+				want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+				want.Credential = nil
+				if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
+					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			emitter.Reset()
+
+			updated, err := devices.UpdateDevice(ctx, test.req)
+			if err != nil {
+				t.Fatalf("UpdateDevice failed: %v", err)
+			}
+			test.assertDev(t, updated)
+
+			// Verify stored device.
+			stored, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+				DeviceId: updated.Id,
+			})
+			if err != nil {
+				t.Fatalf("GetDevice failed: %v", err)
+			}
+			stored.CollectedData = nil // not returned by UpdateDevice
+			if diff := cmp.Diff(updated, stored, protocmp.Transform()); diff != "" {
+				t.Errorf("GetDevice mismatch (-want +got)\n%s", diff)
+			}
+
+			// Verify audit log.
+			assertEvents(t, emitter.Events(), []wantEvent{
+				{
+					Type: events.DeviceEvent,
+					Code: events.DeviceUpdateCode,
+				},
+			})
+		})
+	}
+}
+
+func TestService_UpdateDevice_errors(t *testing.T) {
+	env := testenv.MustNew()
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	enrolled, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	validUpdateDev := &devicepb.Device{
+		Id:           enrolled.Id,
+		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+	}
+
+	validUpdateMask := &fieldmaskpb.FieldMask{
+		Paths: []string{"enroll_status"},
+	}
+
+	tests := []struct {
+		name      string
+		req       *devicepb.UpdateDeviceRequest
+		assertErr func(err error) bool
+		wantErr   string
+	}{
+		{
+			name: "UpdateMask nil",
+			req: &devicepb.UpdateDeviceRequest{
+				Device: validUpdateDev,
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "update mask required",
+		},
+		{
+			name: "UpdateMask empty",
+			req: &devicepb.UpdateDeviceRequest{
+				Device:     validUpdateDev,
+				UpdateMask: &fieldmaskpb.FieldMask{},
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "update mask path",
+		},
+		{
+			name: "UpdateMask invalid",
+			req: &devicepb.UpdateDeviceRequest{
+				Device: validUpdateDev,
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{
+						"enroll_status", // OK
+						"id",            // NOK
+					},
+				},
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "unsupported update mask",
+		},
+		{
+			name: "Device nil",
+			req: &devicepb.UpdateDeviceRequest{
+				UpdateMask: validUpdateMask,
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "device required",
+		},
+		{
+			name: "Device.Id empty",
+			req: &devicepb.UpdateDeviceRequest{
+				Device: &devicepb.Device{
+					Id:           "",
+					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				},
+				UpdateMask: validUpdateMask,
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "ID required",
+		},
+		{
+			name: "unknown device",
+			req: &devicepb.UpdateDeviceRequest{
+				Device: &devicepb.Device{
+					Id:           "unknown",
+					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				},
+				UpdateMask: validUpdateMask,
+			},
+			assertErr: trace.IsNotFound,
+			wantErr:   "not found",
+		},
+		{
+			name: "invalid update",
+			req: &devicepb.UpdateDeviceRequest{
+				Device: &devicepb.Device{
+					Id:           enrolled.Id,
+					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, // invalid
+				},
+				UpdateMask: validUpdateMask,
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "enroll_status",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := devices.UpdateDevice(ctx, test.req)
+			if err == nil {
+				t.Fatal("UpdateDevice returned err=nil, want non-nil")
+			}
+
+			if !test.assertErr(err) {
+				t.Errorf("UpdateDevice: assertErr failed, err=%v (%T)", err, err)
+			}
+
+			assert.ErrorContains(t, err, test.wantErr, "UpdateDevice error mismatch")
+		})
+	}
+}
+
+func TestService_UpsertDevice(t *testing.T) {
+	emitter := &eventstest.MockEmitter{}
+	env := testenv.MustNew(testenv.WithEmitter(emitter))
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	enrolled, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	// enrolledUpdate is to used to unenroll `enrolled`.
+	enrolledUpdate := proto.Clone(enrolled).(*devicepb.Device)
+	enrolledUpdate.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+
+	tests := []struct {
+		name       string
+		req        *devicepb.UpsertDeviceRequest
+		assertDev  func(t *testing.T, base, upserted *devicepb.Device)
+		wantEvents []wantEvent
+	}{
+		{
+			name: "create",
+			req: &devicepb.UpsertDeviceRequest{
+				Device: &devicepb.Device{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "llama1",
+				},
+			},
+			assertDev: func(t *testing.T, base, upserted *devicepb.Device) {
+				// Only the request parameters have to match.
+				want := proto.Clone(upserted).(*devicepb.Device)
+				want.OsType = base.OsType
+				want.AssetTag = base.AssetTag
+				if diff := cmp.Diff(want, upserted, protocmp.Transform()); diff != "" {
+					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+			wantEvents: []wantEvent{
+				{Type: events.DeviceEvent, Code: events.DeviceCreateCode},
+			},
+		},
+		{
+			name: "create as resource",
+			req: &devicepb.UpsertDeviceRequest{
+				Device: &devicepb.Device{
+					ApiVersion:   "v1",
+					Id:           "71c51595-dfbc-4cae-b511-bce96a632a7e",
+					OsType:       devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag:     "llama2",
+					CreateTime:   timestamppb.New(time.UnixMilli(1680038979000)), // Tue, 28 Mar 2023 21:29:25 GMT
+					UpdateTime:   timestamppb.New(time.UnixMilli(1680038979000)),
+					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				},
+				CreateAsResource: true,
+			},
+			assertDev: func(t *testing.T, base, upserted *devicepb.Device) {
+				// Devices are exactly the same in this case.
+				if diff := cmp.Diff(base, upserted, protocmp.Transform()); diff != "" {
+					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+			wantEvents: []wantEvent{
+				{Type: events.DeviceEvent, Code: events.DeviceCreateCode},
+			},
+		},
+		{
+			name: "update",
+			req: &devicepb.UpsertDeviceRequest{
+				Device: enrolledUpdate,
+			},
+			assertDev: func(t *testing.T, base *devicepb.Device, upserted *devicepb.Device) {
+				want := base
+				want.UpdateTime = upserted.UpdateTime // updated
+				want.Credential = nil                 // removed on unenroll
+				if diff := cmp.Diff(want, upserted, protocmp.Transform()); diff != "" {
+					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+			wantEvents: []wantEvent{
+				{Type: events.DeviceEvent, Code: events.DeviceUpdateCode},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			emitter.Reset()
+
+			upserted, err := devices.UpsertDevice(ctx, test.req)
+			if err != nil {
+				t.Fatalf("UpsertDevice failed: %v", err)
+			}
+			test.assertDev(t, test.req.Device, upserted)
+
+			// Verify stored device.
+			stored, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+				DeviceId: upserted.Id,
+			})
+			if err != nil {
+				t.Fatalf("GetDevice failed: %v", err)
+			}
+			stored.CollectedData = nil // not returned by UpsertDevice
+			if diff := cmp.Diff(upserted, stored, protocmp.Transform()); diff != "" {
+				t.Errorf("GetDevice mismatch (-want +got)\n%s", diff)
+			}
+
+			// Verify audit log.
+			assertEvents(t, emitter.Events(), test.wantEvents)
+		})
+	}
+}
+
+func TestService_UpsertDevice_errors(t *testing.T) {
+	env := testenv.MustNew()
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	invalidUpdate := proto.Clone(created).(*devicepb.Device)
+	invalidUpdate.AssetTag = "invalid" // cannot change
+
+	tests := []struct {
+		name      string
+		req       *devicepb.UpsertDeviceRequest
+		assertErr func(err error) bool
+		wantErr   string
+	}{
+		{
+			name:      "device nil",
+			req:       &devicepb.UpsertDeviceRequest{},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "device required",
+		},
+		{
+			name: "create invalid device",
+			req: &devicepb.UpsertDeviceRequest{
+				Device: &devicepb.Device{
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					AssetTag: "", // required
+				},
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "asset_tag required",
+		},
+		{
+			name: "update invalid device",
+			req: &devicepb.UpsertDeviceRequest{
+				Device: invalidUpdate,
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "asset_tag is readonly",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := devices.UpsertDevice(ctx, test.req)
+			if err == nil {
+				t.Fatal("UpsertDevice returned err=nil, want non-nil")
+			}
+
+			if !test.assertErr(err) {
+				t.Errorf("UpsertDevice: assertErr failed, err=%v (%T)", err, err)
+			}
+
+			assert.ErrorContains(t, err, test.wantErr, "UpsertDevice error mismatch")
+		})
+	}
 }
 
 func TestService_DeleteDevice(t *testing.T) {
