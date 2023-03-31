@@ -51,6 +51,7 @@ interface DocumentTshNodeBase extends DocumentBase {
   status: '' | 'connecting' | 'connected' | 'error';
   rootClusterId: string;
   leafClusterId: string | undefined;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentTshNodeWithServerId extends DocumentTshNodeBase {
@@ -89,6 +90,7 @@ export interface DocumentTshKube extends DocumentBase {
   kubeConfigRelativePath: string;
   rootClusterId: string;
   leafClusterId?: string;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentGateway extends DocumentBase {
@@ -99,6 +101,7 @@ export interface DocumentGateway extends DocumentBase {
   targetName: string;
   targetSubresourceName?: string;
   port?: string;
+  origin: DocumentOrigin;
 }
 
 export interface DocumentCluster extends DocumentBase {
@@ -157,6 +160,7 @@ export type CreateGatewayDocumentOpts = {
   targetSubresourceName?: string;
   title?: string;
   port?: string;
+  origin: DocumentOrigin;
 };
 
 export type CreateClusterDocumentOpts = {
@@ -166,6 +170,7 @@ export type CreateClusterDocumentOpts = {
 export type CreateTshKubeDocumentOptions = {
   kubeUri: uri.KubeUri;
   kubeConfigRelativePath?: string;
+  origin: DocumentOrigin;
 };
 
 export type CreateAccessRequestDocumentOpts = {

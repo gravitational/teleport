@@ -82,6 +82,7 @@ const getDocTshNodeWithServerId: () => DocumentTshNodeWithServerId = () => ({
   rootClusterId: 'test',
   leafClusterId: undefined,
   login: 'user',
+  origin: 'resource_table',
 });
 
 const getDocTshNodeWithLoginHost: () => DocumentTshNodeWithLoginHost = () => {
