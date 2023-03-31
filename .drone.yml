@@ -987,14 +987,14 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
-- name: dockerconfig
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
 - name: awsconfig
+  temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -2861,11 +2861,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 - name: tmpfs
   temp:
@@ -3141,11 +3141,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 - name: tmpfs
   temp:
@@ -3413,11 +3413,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -3679,11 +3679,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -4167,11 +4167,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 - name: tmpfs
   temp:
@@ -4439,11 +4439,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -5876,11 +5876,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -6419,11 +6419,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 - name: tmpfs
   temp:
@@ -7111,12 +7111,12 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox:$BUILDBOX_VERSION
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   - name: dockerconfig
     path: /root/.docker
-  - name: awsconfig
-    path: /root/.aws
 - name: Build and push buildbox-fips
   image: docker
   pull: if-not-exists
@@ -7135,12 +7135,12 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   - name: dockerconfig
     path: /root/.docker
-  - name: awsconfig
-    path: /root/.aws
 - name: Build and push buildbox-arm
   image: docker
   pull: if-not-exists
@@ -7159,12 +7159,12 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-arm:$BUILDBOX_VERSION
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   - name: dockerconfig
     path: /root/.docker
-  - name: awsconfig
-    path: /root/.aws
 - name: Build and push buildbox-centos7
   image: docker
   pull: if-not-exists
@@ -7183,12 +7183,12 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7:$BUILDBOX_VERSION
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   - name: dockerconfig
     path: /root/.docker
-  - name: awsconfig
-    path: /root/.aws
 - name: Build and push buildbox-centos7-fips
   image: docker
   pull: if-not-exists
@@ -7207,12 +7207,12 @@ steps:
     login -u="AWS" --password-stdin public.ecr.aws
   - docker push public.ecr.aws/gravitational/teleport-buildbox-centos7-fips:$BUILDBOX_VERSION
   volumes:
+  - name: awsconfig
+    path: /root/.aws
   - name: dockersock
     path: /var/run
   - name: dockerconfig
     path: /root/.docker
-  - name: awsconfig
-    path: /root/.aws
 services:
 - name: Start Docker
   image: docker:dind
@@ -7221,11 +7221,11 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
+- name: awsconfig
+  temp: {}
 - name: dockersock
   temp: {}
 - name: dockerconfig
-  temp: {}
-- name: awsconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -8712,6 +8712,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v13-tag_amd64.deb" artifacts from S3
@@ -8773,6 +8775,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v13-tag_arm.deb" artifacts from S3
@@ -8834,6 +8838,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v13-tag_arm64.deb" artifacts from S3
@@ -8859,6 +8865,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v13-amd64"
 - name: Tag and push image "teleport:v13-arm" to ECR - staging
@@ -8882,6 +8890,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v13-arm"
 - name: Tag and push image "teleport:v13-arm64" to ECR - staging
@@ -8906,6 +8916,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v13-arm64"
 - name: Create manifest and push "teleport:full" to ECR - staging
@@ -8930,6 +8942,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - staging
   - Tag and push image "teleport:v13-arm" to ECR - staging
@@ -9042,6 +9056,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag_amd64.deb" artifacts from S3
@@ -9103,6 +9119,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag_arm.deb" artifacts from S3
@@ -9164,6 +9182,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag_arm64.deb" artifacts from S3
@@ -9189,6 +9209,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v13-amd64"
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - staging
@@ -9213,6 +9235,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v13-arm"
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - staging
@@ -9237,6 +9261,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v13-arm64"
 - name: Create manifest and push "teleport-ent:full" to ECR - staging
@@ -9261,6 +9287,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v13-arm" to ECR - staging
@@ -9375,6 +9403,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v13-tag-fips_amd64.deb" artifacts from S3
@@ -9400,6 +9430,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v13-fips-amd64"
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - staging
@@ -9422,6 +9454,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - staging
 - name: Build teleport-operator image "teleport-operator:v13-amd64"
@@ -9453,6 +9487,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Wait for docker
@@ -9490,6 +9526,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Wait for docker
@@ -9527,6 +9565,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Wait for docker
@@ -9557,6 +9597,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v13-amd64"
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - staging
@@ -9581,6 +9623,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v13-arm"
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - staging
@@ -9605,6 +9649,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v13-arm64"
 - name: Create manifest and push "teleport-operator:full" to ECR - staging
@@ -9629,6 +9675,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v13-arm" to ECR - staging
@@ -9648,6 +9696,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -9898,6 +9948,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9926,6 +9978,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9954,6 +10008,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -9990,6 +10046,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm" to Quay
@@ -10018,6 +10076,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm64" to Quay
@@ -10047,6 +10107,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport:major" to Quay
@@ -10073,6 +10135,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to Quay
   - Tag and push image "teleport:v13-arm" to Quay
@@ -10101,6 +10165,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to Quay
   - Tag and push image "teleport:v13-arm" to Quay
@@ -10126,6 +10192,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to Quay
   - Tag and push image "teleport:v13-arm" to Quay
@@ -10156,6 +10224,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm" to ECR - production
@@ -10183,6 +10253,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport:v13-arm64" to ECR - production
@@ -10211,6 +10283,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -10236,6 +10310,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - production
   - Tag and push image "teleport:v13-arm" to ECR - production
@@ -10263,6 +10339,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - production
   - Tag and push image "teleport:v13-arm" to ECR - production
@@ -10288,6 +10366,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v13-amd64" to ECR - production
   - Tag and push image "teleport:v13-arm" to ECR - production
@@ -10311,6 +10391,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10339,6 +10421,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10367,6 +10451,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10403,6 +10489,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm" to Quay
@@ -10432,6 +10520,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm64" to Quay
@@ -10461,6 +10551,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -10487,6 +10579,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to Quay
   - Tag and push image "teleport-ent:v13-arm" to Quay
@@ -10515,6 +10609,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to Quay
   - Tag and push image "teleport-ent:v13-arm" to Quay
@@ -10541,6 +10637,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to Quay
   - Tag and push image "teleport-ent:v13-arm" to Quay
@@ -10572,6 +10670,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10600,6 +10700,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-ent:v13-arm64" to ECR - production
@@ -10629,6 +10731,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -10654,6 +10758,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - production
   - Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10681,6 +10787,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - production
   - Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10706,6 +10814,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-amd64" to ECR - production
   - Tag and push image "teleport-ent:v13-arm" to ECR - production
@@ -10730,6 +10840,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10766,6 +10878,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -10790,6 +10904,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -10814,6 +10930,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -10836,6 +10954,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
@@ -10865,6 +10985,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-ent:v13-fips-amd64 and push it to Local Registry
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -10888,6 +11010,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -10911,6 +11035,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -10932,6 +11058,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v13-fips-amd64" to ECR - production
 - name: Pull teleport-operator:v13-amd64 and push it to Local Registry
@@ -10954,6 +11082,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -10983,6 +11113,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -11012,6 +11144,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Verify build is tagged
   - Record if tag ($DRONE_TAG) is prerelease
@@ -11048,6 +11182,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm" to Quay
@@ -11077,6 +11213,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm64" to Quay
@@ -11106,6 +11244,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -11132,6 +11272,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to Quay
   - Tag and push image "teleport-operator:v13-arm" to Quay
@@ -11160,6 +11302,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to Quay
   - Tag and push image "teleport-operator:v13-arm" to Quay
@@ -11186,6 +11330,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to Quay
   - Tag and push image "teleport-operator:v13-arm" to Quay
@@ -11217,6 +11363,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-amd64 and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -11246,6 +11394,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm and push it to Local Registry
 - name: Tag and push image "teleport-operator:v13-arm64" to ECR - production
@@ -11275,6 +11425,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Pull teleport-operator:v13-arm64 and push it to Local Registry
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -11300,6 +11452,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - production
   - Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -11327,6 +11481,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - production
   - Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -11352,6 +11508,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v13-amd64" to ECR - production
   - Tag and push image "teleport-operator:v13-arm" to ECR - production
@@ -11371,6 +11529,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -11663,6 +11823,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v12-tag_amd64.deb" artifacts from S3
@@ -11724,6 +11886,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v12-tag_arm.deb" artifacts from S3
@@ -11785,6 +11949,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v12-tag_arm64.deb" artifacts from S3
@@ -11823,6 +11989,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-amd64"
 - name: Tag and push image "teleport:v12-arm" to ECR - staging
@@ -11859,6 +12027,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm"
 - name: Tag and push image "teleport:v12-arm64" to ECR - staging
@@ -11896,6 +12066,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm64"
 - name: Create manifest and push "teleport:major-$TIMESTAMP" to ECR - staging
@@ -11921,6 +12093,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - staging
   - Tag and push image "teleport:v12-arm" to ECR - staging
@@ -11948,6 +12122,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - staging
   - Tag and push image "teleport:v12-arm" to ECR - staging
@@ -11975,6 +12151,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - staging
   - Tag and push image "teleport:v12-arm" to ECR - staging
@@ -12006,6 +12184,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-amd64"
 - name: Tag and push image "teleport:v12-arm" to Quay
@@ -12034,6 +12214,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm"
 - name: Tag and push image "teleport:v12-arm64" to Quay
@@ -12063,6 +12245,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm64"
 - name: Create manifest and push "teleport:major" to Quay
@@ -12085,6 +12269,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to Quay
   - Tag and push image "teleport:v12-arm" to Quay
@@ -12109,6 +12295,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to Quay
   - Tag and push image "teleport:v12-arm" to Quay
@@ -12134,6 +12322,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to Quay
   - Tag and push image "teleport:v12-arm" to Quay
@@ -12164,6 +12354,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-amd64"
 - name: Tag and push image "teleport:v12-arm" to ECR - production
@@ -12191,6 +12383,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm"
 - name: Tag and push image "teleport:v12-arm64" to ECR - production
@@ -12219,6 +12413,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v12-arm64"
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -12240,6 +12436,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - production
   - Tag and push image "teleport:v12-arm" to ECR - production
@@ -12263,6 +12461,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - production
   - Tag and push image "teleport:v12-arm" to ECR - production
@@ -12288,6 +12488,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v12-amd64" to ECR - production
   - Tag and push image "teleport:v12-arm" to ECR - production
@@ -12404,6 +12606,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag_amd64.deb" artifacts from S3
@@ -12465,6 +12669,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag_arm.deb" artifacts from S3
@@ -12526,6 +12732,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag_arm64.deb" artifacts from S3
@@ -12564,6 +12772,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-amd64"
 - name: Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12601,6 +12811,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm"
 - name: Tag and push image "teleport-ent:v12-arm64" to ECR - staging
@@ -12638,6 +12850,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
@@ -12663,6 +12877,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12690,6 +12906,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12717,6 +12935,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v12-arm" to ECR - staging
@@ -12748,6 +12968,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-amd64"
 - name: Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12777,6 +12999,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm"
 - name: Tag and push image "teleport-ent:v12-arm64" to Quay
@@ -12806,6 +13030,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm64"
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -12828,6 +13054,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to Quay
   - Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12852,6 +13080,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to Quay
   - Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12878,6 +13108,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to Quay
   - Tag and push image "teleport-ent:v12-arm" to Quay
@@ -12909,6 +13141,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-amd64"
 - name: Tag and push image "teleport-ent:v12-arm" to ECR - production
@@ -12937,6 +13171,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm"
 - name: Tag and push image "teleport-ent:v12-arm64" to ECR - production
@@ -12966,6 +13202,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v12-arm64"
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -12987,6 +13225,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - production
   - Tag and push image "teleport-ent:v12-arm" to ECR - production
@@ -13010,6 +13250,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - production
   - Tag and push image "teleport-ent:v12-arm" to ECR - production
@@ -13035,6 +13277,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-amd64" to ECR - production
   - Tag and push image "teleport-ent:v12-arm" to ECR - production
@@ -13153,6 +13397,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v12-tag-fips_amd64.deb" artifacts from S3
@@ -13191,6 +13437,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v12-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
@@ -13214,6 +13462,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
@@ -13237,6 +13487,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
@@ -13260,6 +13512,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent:v12-fips-amd64" to Quay
@@ -13289,6 +13543,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v12-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -13309,6 +13565,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -13329,6 +13587,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -13351,6 +13611,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
@@ -13380,6 +13642,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v12-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -13399,6 +13663,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -13418,6 +13684,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -13439,6 +13707,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v12-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v12-amd64"
@@ -13470,6 +13740,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v12
@@ -13509,6 +13781,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v12
@@ -13548,6 +13822,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v12
@@ -13593,6 +13869,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-amd64"
 - name: Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13630,6 +13908,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm"
 - name: Tag and push image "teleport-operator:v12-arm64" to ECR - staging
@@ -13667,6 +13947,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm64"
 - name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
@@ -13692,6 +13974,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13719,6 +14003,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13746,6 +14032,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v12-arm" to ECR - staging
@@ -13777,6 +14065,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-amd64"
 - name: Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13806,6 +14096,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm"
 - name: Tag and push image "teleport-operator:v12-arm64" to Quay
@@ -13835,6 +14127,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm64"
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -13857,6 +14151,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to Quay
   - Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13881,6 +14177,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to Quay
   - Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13907,6 +14205,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to Quay
   - Tag and push image "teleport-operator:v12-arm" to Quay
@@ -13938,6 +14238,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-amd64"
 - name: Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -13967,6 +14269,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm"
 - name: Tag and push image "teleport-operator:v12-arm64" to ECR - production
@@ -13996,6 +14300,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v12-arm64"
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -14017,6 +14323,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - production
   - Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -14040,6 +14348,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - production
   - Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -14065,6 +14375,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v12-amd64" to ECR - production
   - Tag and push image "teleport-operator:v12-arm" to ECR - production
@@ -14084,6 +14396,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -14376,6 +14690,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v11-tag_amd64.deb" artifacts from S3
@@ -14437,6 +14753,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v11-tag_arm.deb" artifacts from S3
@@ -14498,6 +14816,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v11-tag_arm64.deb" artifacts from S3
@@ -14536,6 +14856,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-amd64"
 - name: Tag and push image "teleport:v11-arm" to ECR - staging
@@ -14572,6 +14894,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm"
 - name: Tag and push image "teleport:v11-arm64" to ECR - staging
@@ -14609,6 +14933,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm64"
 - name: Create manifest and push "teleport:major-$TIMESTAMP" to ECR - staging
@@ -14634,6 +14960,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
@@ -14661,6 +14989,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
@@ -14688,6 +15018,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - staging
   - Tag and push image "teleport:v11-arm" to ECR - staging
@@ -14719,6 +15051,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-amd64"
 - name: Tag and push image "teleport:v11-arm" to Quay
@@ -14747,6 +15081,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm"
 - name: Tag and push image "teleport:v11-arm64" to Quay
@@ -14776,6 +15112,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm64"
 - name: Create manifest and push "teleport:major" to Quay
@@ -14798,6 +15136,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to Quay
   - Tag and push image "teleport:v11-arm" to Quay
@@ -14822,6 +15162,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to Quay
   - Tag and push image "teleport:v11-arm" to Quay
@@ -14847,6 +15189,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to Quay
   - Tag and push image "teleport:v11-arm" to Quay
@@ -14877,6 +15221,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-amd64"
 - name: Tag and push image "teleport:v11-arm" to ECR - production
@@ -14904,6 +15250,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm"
 - name: Tag and push image "teleport:v11-arm64" to ECR - production
@@ -14932,6 +15280,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v11-arm64"
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -14953,6 +15303,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
@@ -14976,6 +15328,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
@@ -15001,6 +15355,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v11-amd64" to ECR - production
   - Tag and push image "teleport:v11-arm" to ECR - production
@@ -15117,6 +15473,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag_amd64.deb" artifacts from S3
@@ -15178,6 +15536,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag_arm.deb" artifacts from S3
@@ -15239,6 +15599,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag_arm64.deb" artifacts from S3
@@ -15277,6 +15639,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-amd64"
 - name: Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -15314,6 +15678,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm"
 - name: Tag and push image "teleport-ent:v11-arm64" to ECR - staging
@@ -15351,6 +15717,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
@@ -15376,6 +15744,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -15403,6 +15773,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -15430,6 +15802,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v11-arm" to ECR - staging
@@ -15461,6 +15835,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-amd64"
 - name: Tag and push image "teleport-ent:v11-arm" to Quay
@@ -15490,6 +15866,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm"
 - name: Tag and push image "teleport-ent:v11-arm64" to Quay
@@ -15519,6 +15897,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm64"
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -15541,6 +15921,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to Quay
   - Tag and push image "teleport-ent:v11-arm" to Quay
@@ -15565,6 +15947,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to Quay
   - Tag and push image "teleport-ent:v11-arm" to Quay
@@ -15591,6 +15975,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to Quay
   - Tag and push image "teleport-ent:v11-arm" to Quay
@@ -15622,6 +16008,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-amd64"
 - name: Tag and push image "teleport-ent:v11-arm" to ECR - production
@@ -15650,6 +16038,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm"
 - name: Tag and push image "teleport-ent:v11-arm64" to ECR - production
@@ -15679,6 +16069,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v11-arm64"
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -15700,6 +16092,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
@@ -15723,6 +16117,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
@@ -15748,6 +16144,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-amd64" to ECR - production
   - Tag and push image "teleport-ent:v11-arm" to ECR - production
@@ -15866,6 +16264,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v11-tag-fips_amd64.deb" artifacts from S3
@@ -15904,6 +16304,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
@@ -15927,6 +16329,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
@@ -15950,6 +16354,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
@@ -15973,6 +16379,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to Quay
@@ -16002,6 +16410,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -16022,6 +16432,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -16042,6 +16454,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -16064,6 +16478,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
@@ -16093,6 +16509,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v11-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -16112,6 +16530,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -16131,6 +16551,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -16152,6 +16574,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v11-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v11-amd64"
@@ -16183,6 +16607,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v11
@@ -16222,6 +16648,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v11
@@ -16261,6 +16689,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v11
@@ -16306,6 +16736,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -16343,6 +16775,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - staging
@@ -16380,6 +16814,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
@@ -16405,6 +16841,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -16432,6 +16870,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -16459,6 +16899,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v11-arm" to ECR - staging
@@ -16490,6 +16932,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to Quay
@@ -16519,6 +16963,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to Quay
@@ -16548,6 +16994,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -16570,6 +17018,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
@@ -16594,6 +17044,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
@@ -16620,6 +17072,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to Quay
   - Tag and push image "teleport-operator:v11-arm" to Quay
@@ -16651,6 +17105,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-amd64"
 - name: Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16680,6 +17136,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm"
 - name: Tag and push image "teleport-operator:v11-arm64" to ECR - production
@@ -16709,6 +17167,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v11-arm64"
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -16730,6 +17190,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16753,6 +17215,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16778,6 +17242,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v11-amd64" to ECR - production
   - Tag and push image "teleport-operator:v11-arm" to ECR - production
@@ -16797,6 +17263,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -17089,6 +17557,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v10-tag_amd64.deb" artifacts from S3
@@ -17150,6 +17620,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v10-tag_arm.deb" artifacts from S3
@@ -17211,6 +17683,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport_v10-tag_arm64.deb" artifacts from S3
@@ -17249,6 +17723,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-amd64"
 - name: Tag and push image "teleport:v10-arm" to ECR - staging
@@ -17285,6 +17761,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm"
 - name: Tag and push image "teleport:v10-arm64" to ECR - staging
@@ -17322,6 +17800,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm64"
 - name: Create manifest and push "teleport:major-$TIMESTAMP" to ECR - staging
@@ -17347,6 +17827,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - staging
   - Tag and push image "teleport:v10-arm" to ECR - staging
@@ -17374,6 +17856,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - staging
   - Tag and push image "teleport:v10-arm" to ECR - staging
@@ -17401,6 +17885,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - staging
   - Tag and push image "teleport:v10-arm" to ECR - staging
@@ -17432,6 +17918,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-amd64"
 - name: Tag and push image "teleport:v10-arm" to Quay
@@ -17460,6 +17948,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm"
 - name: Tag and push image "teleport:v10-arm64" to Quay
@@ -17489,6 +17979,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm64"
 - name: Create manifest and push "teleport:major" to Quay
@@ -17511,6 +18003,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to Quay
   - Tag and push image "teleport:v10-arm" to Quay
@@ -17535,6 +18029,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to Quay
   - Tag and push image "teleport:v10-arm" to Quay
@@ -17560,6 +18056,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to Quay
   - Tag and push image "teleport:v10-arm" to Quay
@@ -17590,6 +18088,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-amd64"
 - name: Tag and push image "teleport:v10-arm" to ECR - production
@@ -17617,6 +18117,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm"
 - name: Tag and push image "teleport:v10-arm64" to ECR - production
@@ -17645,6 +18147,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport image "teleport:v10-arm64"
 - name: Create manifest and push "teleport:major" to ECR - production
@@ -17666,6 +18170,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
@@ -17689,6 +18195,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
@@ -17714,6 +18222,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport:v10-amd64" to ECR - production
   - Tag and push image "teleport:v10-arm" to ECR - production
@@ -17830,6 +18340,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag_amd64.deb" artifacts from S3
@@ -17891,6 +18403,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag_arm.deb" artifacts from S3
@@ -17952,6 +18466,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag_arm64.deb" artifacts from S3
@@ -17990,6 +18506,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-amd64"
 - name: Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -18027,6 +18545,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm"
 - name: Tag and push image "teleport-ent:v10-arm64" to ECR - staging
@@ -18064,6 +18584,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP" to ECR - staging
@@ -18089,6 +18611,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -18116,6 +18640,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -18143,6 +18669,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - staging
   - Tag and push image "teleport-ent:v10-arm" to ECR - staging
@@ -18174,6 +18702,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-amd64"
 - name: Tag and push image "teleport-ent:v10-arm" to Quay
@@ -18203,6 +18733,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm"
 - name: Tag and push image "teleport-ent:v10-arm64" to Quay
@@ -18232,6 +18764,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
 - name: Create manifest and push "teleport-ent:major" to Quay
@@ -18254,6 +18788,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to Quay
   - Tag and push image "teleport-ent:v10-arm" to Quay
@@ -18278,6 +18814,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to Quay
   - Tag and push image "teleport-ent:v10-arm" to Quay
@@ -18304,6 +18842,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to Quay
   - Tag and push image "teleport-ent:v10-arm" to Quay
@@ -18335,6 +18875,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-amd64"
 - name: Tag and push image "teleport-ent:v10-arm" to ECR - production
@@ -18363,6 +18905,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm"
 - name: Tag and push image "teleport-ent:v10-arm64" to ECR - production
@@ -18392,6 +18936,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent image "teleport-ent:v10-arm64"
 - name: Create manifest and push "teleport-ent:major" to ECR - production
@@ -18413,6 +18959,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
@@ -18436,6 +18984,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
@@ -18461,6 +19011,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-amd64" to ECR - production
   - Tag and push image "teleport-ent:v10-arm" to ECR - production
@@ -18579,6 +19131,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Download "teleport-ent_v10-tag-fips_amd64.deb" artifacts from S3
@@ -18617,6 +19171,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-$TIMESTAMP-fips" to ECR - staging
@@ -18640,6 +19196,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:minor-$TIMESTAMP-fips" to ECR - staging
@@ -18663,6 +19221,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Create manifest and push "teleport-ent:full-$TIMESTAMP-fips" to ECR - staging
@@ -18686,6 +19246,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - staging
 - name: Tag and push image "teleport-ent:v10-fips-amd64" to Quay
@@ -18715,6 +19277,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to Quay
@@ -18735,6 +19299,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:minor-fips" to Quay
@@ -18755,6 +19321,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Create manifest and push "teleport-ent:full-fips" to Quay
@@ -18777,6 +19345,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to Quay
 - name: Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
@@ -18806,6 +19376,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-ent-fips image "teleport-ent:v10-fips-amd64"
 - name: Create manifest and push "teleport-ent:major-fips" to ECR - production
@@ -18825,6 +19397,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:minor-fips" to ECR - production
@@ -18844,6 +19418,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Create manifest and push "teleport-ent:full-fips" to ECR - production
@@ -18865,6 +19441,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-ent:v10-fips-amd64" to ECR - production
 - name: Build teleport-operator image "teleport-operator:v10-amd64"
@@ -18896,6 +19474,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v10
@@ -18935,6 +19515,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v10
@@ -18974,6 +19556,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Assume ECR - authenticated-pull AWS Role
   - Find the latest available semver for v10
@@ -19019,6 +19603,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-amd64"
 - name: Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -19056,6 +19642,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm"
 - name: Tag and push image "teleport-operator:v10-arm64" to ECR - staging
@@ -19093,6 +19681,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm64"
 - name: Create manifest and push "teleport-operator:major-$TIMESTAMP" to ECR - staging
@@ -19118,6 +19708,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -19145,6 +19737,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -19172,6 +19766,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - staging
   - Tag and push image "teleport-operator:v10-arm" to ECR - staging
@@ -19203,6 +19799,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-amd64"
 - name: Tag and push image "teleport-operator:v10-arm" to Quay
@@ -19232,6 +19830,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm"
 - name: Tag and push image "teleport-operator:v10-arm64" to Quay
@@ -19261,6 +19861,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm64"
 - name: Create manifest and push "teleport-operator:major" to Quay
@@ -19283,6 +19885,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to Quay
   - Tag and push image "teleport-operator:v10-arm" to Quay
@@ -19307,6 +19911,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to Quay
   - Tag and push image "teleport-operator:v10-arm" to Quay
@@ -19333,6 +19939,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to Quay
   - Tag and push image "teleport-operator:v10-arm" to Quay
@@ -19364,6 +19972,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-amd64"
 - name: Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -19393,6 +20003,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm"
 - name: Tag and push image "teleport-operator:v10-arm64" to ECR - production
@@ -19422,6 +20034,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Build teleport-operator image "teleport-operator:v10-arm64"
 - name: Create manifest and push "teleport-operator:major" to ECR - production
@@ -19443,6 +20057,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - production
   - Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -19466,6 +20082,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - production
   - Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -19491,6 +20109,8 @@ steps:
     path: /root/.aws
   - name: dockersock
     path: /var/run
+  - name: dockerconfig
+    path: /root/.docker
   depends_on:
   - Tag and push image "teleport-operator:v10-amd64" to ECR - production
   - Tag and push image "teleport-operator:v10-arm" to ECR - production
@@ -19510,6 +20130,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -19645,19 +20267,19 @@ services:
   - name: dockersock
     path: /var/run
 volumes:
-- name: dockersock
-  temp: {}
-- name: dockerconfig
-  temp: {}
 - name: tmpfs
   temp:
     medium: memory
 - name: awsconfig
   temp: {}
+- name: dockersock
+  temp: {}
+- name: dockerconfig
+  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 2510ab3f0a818f50e2c4089a0e410c2be1f255d8d474a734a312d742ee308575
+hmac: 8ecda446167789807d209245b464e21ac8988a3b9464d5a6ee97df77496db6c8
 
 ...

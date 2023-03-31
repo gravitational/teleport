@@ -44,12 +44,7 @@ func relcliPipeline(trigger trigger, name string, stepName string, command strin
 	}
 
 	p.Services = []service{dockerService(volumeRefTmpfs)}
-	p.Volumes = []volume{
-		volumeDocker,
-		volumeDockerConfig,
-		volumeTmpfs,
-		volumeAwsConfig,
-	}
+	p.Volumes = dockerVolumes(volumeTmpfs, volumeAwsConfig)
 
 	return p
 }

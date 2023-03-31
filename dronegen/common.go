@@ -264,13 +264,13 @@ func dockerRegistryService() service {
 // dockerVolumes returns a slice of volumes
 // It includes the Docker socket volume by default, plus any extra volumes passed in
 func dockerVolumes(v ...volume) []volume {
-	return append(v, volumeDocker)
+	return append(v, volumeDocker, volumeDockerConfig)
 }
 
 // dockerVolumeRefs returns a slice of volumeRefs
 // It includes the Docker socket volumeRef as a default, plus any extra volumeRefs passed in
 func dockerVolumeRefs(v ...volumeRef) []volumeRef {
-	return append(v, volumeRefDocker)
+	return append(v, volumeRefDocker, volumeRefDockerConfig)
 }
 
 // releaseMakefileTarget gets the correct Makefile target for a given arch/fips/centos combo
@@ -308,7 +308,7 @@ func waitForDockerStep() step {
 			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
 			`ls -la ` + volumeRefDockerConfig.Path,
 		},
-		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig},
+		Volumes: dockerVolumeRefs(),
 		Environment: map[string]value{
 			"DOCKERHUB_USERNAME": {fromSecret: "DOCKERHUB_USERNAME"},
 			"DOCKERHUB_PASSWORD": {fromSecret: "DOCKERHUB_READONLY_TOKEN"},
