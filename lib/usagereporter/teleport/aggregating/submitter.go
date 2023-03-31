@@ -46,14 +46,18 @@ const (
 	alertGraceHours    = 24
 	alertGraceDuration = alertGraceHours * time.Hour
 	alertName          = "reporting-failed"
+	alertLink          = "https://goteleport.com/support/"
 )
 
-const DefaultEndpoint = "https://reporting-teleport.teleportinfra.sh"
+const (
+	defaultEndpointHostname = "reporting-teleport.teleportinfra.sh"
+	DefaultEndpoint         = "https://" + defaultEndpointHostname
+)
 
 var alertMessage = fmt.Sprintf("Teleport has failed to contact the usage reporting server for more than %v hours. "+
 	"Please make sure that the Teleport Auth Server can connect to (%v). "+
-	"Otherwise, contact Teleport Support at (https://support.goteleport.com).",
-	alertGraceHours, DefaultEndpoint)
+	"Otherwise, contact Teleport Support at (%v).",
+	alertGraceHours, defaultEndpointHostname, alertLink)
 
 type SubmitterConfig struct {
 	Backend   backend.Backend
@@ -158,6 +162,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			alertMessage,
 			types.WithAlertLabel(types.AlertOnLogin, "yes"),
 			types.WithAlertLabel(types.AlertPermitAll, "yes"),
+			types.WithAlertLabel(types.AlertLink, alertLink),
 		)
 		if err != nil {
 			c.Log.WithError(err).Errorf("Failed to create cluster alert %v.", alertName)
