@@ -276,7 +276,12 @@ Described [above](#user_s-point-of-view).
 
 #### Web API
 Integration resource will have the usual CRUD operations via Web API.
-The only updatable field is `aws_role_arn`.
+
+The user can only update two fields:
+- awsOIDC.roleARN: to set the AWS Role that should be used for this Integration
+- status:
+	- Paused: when the Integration should not be used, to support a disable operation
+	- Running: when the Integration is running
 
 HTTP API:
 ```
@@ -291,10 +296,11 @@ JSON representation:
 ```json
 {
 	"name": "myaws",
-	"subkind": "aws-oidc"
-	"subkindData": {
-		"aws_role_arn": "arn:aws:123:TeleportOIDC"
-	}
+	"subkind": "aws-oidc",
+	"awsOIDC": {
+		"roleARN": "arn:aws:123:TeleportOIDC"
+	},
+	"status": "IntegrationStatusRunning"
 }
 ```
 
@@ -339,7 +345,7 @@ Pagination/Offset and search capabilities are out of scope for now.
 #### CLI
 Users can also create/update the resource using `tctl`.
 
-The only updatable field is `aws_role_arn`.
+The only updatable field is `role_arn`.
 
 `tctl`:
 
@@ -351,7 +357,9 @@ version: v1
 metadata:
 	name: some-name
 spec:
-	aws_role_arn: arn:aws:123:TeleportOIDC
+	subkind_spec:
+		aws_oidc:
+			role_arn: arn:aws:123:TeleportOIDC
 
 $ tctl get integration/myaws
 kind: integration
@@ -360,7 +368,9 @@ version: v1
 metadata:
 	name: some-name
 spec:
-	aws_role_arn: arn:aws:123:TeleportOIDC
+	subkind_spec:
+		aws_oidc:
+			role_arn: arn:aws:123:TeleportOIDC
 
 $ tctl create aws-integration.yaml
 ```
@@ -373,7 +383,9 @@ version: v1
 metadata:
 	name: myaws
 spec:
-	aws_role_arn: arn:aws:123:TeleportOIDC
+	subkind_spec:
+		aws_oidc:
+			role_arn: arn:aws:123:TeleportOIDC
 ```
 
 #### IaC - Terraform
