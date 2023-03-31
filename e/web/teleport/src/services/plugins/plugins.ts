@@ -4,11 +4,11 @@ import cfg from 'e-teleport/config';
 
 import type { Plugin } from './types';
 
-const pluginNiceNames = {
-  slack: 'Slack',
-};
-
 export const pluginsService = {
+  fetchAvailableTypes(): Promise<string[]> {
+    return api.get(cfg.api.pluginTypesPath);
+  },
+
   fetchPlugins(): Promise<Plugin[]> {
     return api.get(cfg.getPluginUrl(null)).then(json => json.map(makePlugin));
   },
@@ -26,6 +26,5 @@ function makePlugin(json: any): Plugin {
     details,
     status,
     type,
-    niceType: pluginNiceNames[type] ?? type,
   };
 }

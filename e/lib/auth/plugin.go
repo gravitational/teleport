@@ -13,6 +13,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
@@ -53,7 +54,6 @@ type Config struct {
 	// License holds the license under which the Teleport instance is running.
 	License License
 
-	// HostedPlugins holds the configuration for plugins runtime
 	HostedPlugins servicecfg.HostedPluginsConfig
 }
 
@@ -236,16 +236,19 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 		return trace.Wrap(err)
 	}
 
-	exchangers := &plugins.ExchangerSet{}
+	authorizers := plugins.NewAuthorizerSet()
 	if c := cfg.OAuthProviders.Slack; c != nil {
-		exchangers.Slack = slack.NewAuthorizer(c.ID, c.Secret)
+		authorizers.Add(apitypes.PluginTypeSlack, &plugins.Authorizer{
+			Authorizer: slack.NewAuthorizer(c.ID, c.Secret),
+			ClientID:   c.ID,
+		})
 	}
 
 	backendService := local.NewPluginsService(server.GetBackend())
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
-		Authorizer:     p.authorizer,
-		BackendService: backendService,
-		Exchangers:     exchangers,
+		Authorizer:        p.authorizer,
+		BackendService:    backendService,
+		PluginAuthorizers: authorizers,
 	})
 	if err != nil {
 		return trace.Wrap(err)

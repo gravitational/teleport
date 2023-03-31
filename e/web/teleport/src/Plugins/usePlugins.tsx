@@ -43,7 +43,6 @@ export function usePlugins() {
     attempt,
     run,
     operation,
-    setOperation,
     onCancelDelete,
     onDelete,
     onStartDelete,

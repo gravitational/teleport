@@ -7,6 +7,8 @@ import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { Plugin } from '../services/plugins';
 
+import { pluginTypeMap } from './data';
+
 import { PluginIcon } from './PluginIcon';
 
 type Props = {
@@ -26,8 +28,8 @@ export function PluginList({ plugins = [], onDelete }: Props) {
           render: plugin => (
             <Cell>
               <Flex alignItems="center">
-                <PluginIcon type={plugin.type} />
-                {plugin.niceType}
+                <PluginIcon size={18} pr={2} type={plugin.type} />
+                {pluginTypeMap[plugin.type]?.name ?? plugin.type}
               </Flex>
             </Cell>
           ),

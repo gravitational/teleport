@@ -10,16 +10,21 @@ import (
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-type mockExchanger struct {
+type mockAuthorizer struct {
 	exchange func(authorizationCode, redirectURI string) (*storage.Credentials, error)
 }
 
-func (m *mockExchanger) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
+func (m *mockAuthorizer) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
 	return m.exchange(authorizationCode, redirectURI)
+}
+
+func (m *mockAuthorizer) Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error) {
+	return nil, trace.NotImplemented("Refresh() not used by the test")
 }
 
 func TestPluginCreate(t *testing.T) {
@@ -70,7 +75,7 @@ func TestPluginCreate(t *testing.T) {
 		ExpiresAt:    time.Now().UTC().Add(6 * time.Hour),
 	}
 
-	suite.exchangers.Slack = &mockExchanger{
+	slackAuthorizer := &mockAuthorizer{
 		exchange: func(authCode string, redirectURI string) (*storage.Credentials, error) {
 			if authCode == validAuthCode && redirectURI == validRedirectURI {
 				return exchangedCreds, nil
@@ -78,6 +83,8 @@ func TestPluginCreate(t *testing.T) {
 			return nil, trace.AccessDenied("invalid parameters")
 		},
 	}
+
+	suite.pluginAuthorizers.Add(types.PluginTypeSlack, &plugins.Authorizer{Authorizer: slackAuthorizer, ClientID: "123456"})
 
 	ctx := context.Background()
 

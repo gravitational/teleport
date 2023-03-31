@@ -1,0 +1,749 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render Failed 1`] = `
+.c4 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c4 a {
+  color: #FFFFFF;
+}
+
+.c3 {
+  box-sizing: border-box;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Select Integration Type
+      </div>
+    </div>
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+        kind="danger"
+      >
+        some error message
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render NoPluginsEnrolled 1`] = `
+.c3 {
+  box-sizing: border-box;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  font-weight: 600;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c15 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c11 {
+  display: block;
+  outline: none;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 16px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c12 {
+  display: inline-block;
+  height: 100%;
+}
+
+.c10 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 4px;
+  height: 144px;
+  width: 144px;
+  background-color: #222C59;
+}
+
+.c10:hover {
+  background-color: #2C3A73;
+}
+
+.c9 {
+  color: inherit;
+  text-decoration: none;
+}
+
+.c16 {
+  color: inherit;
+  text-decoration: none;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Select Integration Type
+      </div>
+    </div>
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+      >
+        <div
+          class="c5"
+        >
+          <div
+            class="c6"
+            font-weight="bold"
+          >
+            No-Code Integrations
+          </div>
+          <div
+            class="c7"
+          >
+            Hosted Integrations eliminate the setup work so you can quickly connect applications to Teleport for alerting and other useful functions. This list is short for now, but it will grow with time!
+          </div>
+          <div
+            class="c8"
+          >
+            <a
+              class="c9"
+              href="/web/integrations/new/slack"
+            >
+              <div
+                class="c10"
+              >
+                <img
+                  class="c11 c12"
+                  src="file_stub"
+                />
+                <div
+                  class="c13"
+                >
+                  <div
+                    class="c14"
+                  >
+                    Slack
+                  </div>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+        <div
+          class="c5"
+        >
+          <div
+            class="c6"
+            font-weight="bold"
+          >
+            Self-Hosted Plugins
+          </div>
+          <div
+            class="c7"
+          >
+            There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
+             
+            <a
+              class="c15"
+              href="https://github.com/gravitational/teleport-plugins"
+              rel="noreferrer"
+            >
+              https://github.com/gravitational/teleport-plugins
+            </a>
+            . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
+          </div>
+          <div
+            class="c8"
+          >
+            <a
+              class="c15 c16"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
+              rel="noreferrer"
+            >
+              <div
+                class="c10"
+              >
+                <img
+                  class="c11 c12"
+                  src="file_stub"
+                />
+                <div
+                  class="c13"
+                >
+                  <div
+                    class="c14"
+                  >
+                    PagerDuty
+                  </div>
+                </div>
+              </div>
+            </a>
+            <a
+              class="c15 c16"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
+              rel="noreferrer"
+            >
+              <div
+                class="c10"
+              >
+                <img
+                  class="c11 c12"
+                  src="file_stub"
+                />
+                <div
+                  class="c13"
+                >
+                  <div
+                    class="c14"
+                  >
+                    Email
+                  </div>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render Processing 1`] = `
+.c3 {
+  box-sizing: border-box;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin: 72px;
+  text-align: center;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Select Integration Type
+      </div>
+    </div>
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+      />
+    </div>
+  </div>
+</div>
+`;
+
+exports[`render SlackAlreadyEnrolled 1`] = `
+.c3 {
+  box-sizing: border-box;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+}
+
+.c14 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #00bfa5;
+}
+
+.c6 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 18px;
+  line-height: 32px;
+  margin: 0px;
+  font-weight: 600;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 8px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-right: -14px;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c15 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c10 {
+  display: block;
+  outline: none;
+  margin-top: 16px;
+  margin-bottom: 16px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.c8 {
+  box-sizing: border-box;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  gap: 16px;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c11 {
+  display: inline-block;
+  height: 100%;
+}
+
+.c9 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 4px;
+  height: 144px;
+  width: 144px;
+  background-color: #222C59;
+}
+
+.c17 {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 4px;
+  height: 144px;
+  width: 144px;
+  background-color: #222C59;
+}
+
+.c17:hover {
+  background-color: #2C3A73;
+}
+
+.c16 {
+  color: inherit;
+  text-decoration: none;
+}
+
+<div>
+  <div
+    class="c0"
+  >
+    <div
+      class="c1"
+    >
+      <div
+        class="c2"
+      >
+        Select Integration Type
+      </div>
+    </div>
+    <div
+      class="c3"
+    >
+      <div
+        class="c4"
+      >
+        <div
+          class="c5"
+        >
+          <div
+            class="c6"
+            font-weight="bold"
+          >
+            No-Code Integrations
+          </div>
+          <div
+            class="c7"
+          >
+            Hosted Integrations eliminate the setup work so you can quickly connect applications to Teleport for alerting and other useful functions. This list is short for now, but it will grow with time!
+          </div>
+          <div
+            class="c8"
+          >
+            <div
+              class="c9"
+              disabled=""
+            >
+              <img
+                class="c10 c11"
+                src="file_stub"
+              />
+              <div
+                class="c12"
+              >
+                <div
+                  class="c13"
+                >
+                  Slack
+                   
+                  <span
+                    class="c14 icon icon-check "
+                    color="success"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div
+          class="c5"
+        >
+          <div
+            class="c6"
+            font-weight="bold"
+          >
+            Self-Hosted Plugins
+          </div>
+          <div
+            class="c7"
+          >
+            There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
+             
+            <a
+              class="c15"
+              href="https://github.com/gravitational/teleport-plugins"
+              rel="noreferrer"
+            >
+              https://github.com/gravitational/teleport-plugins
+            </a>
+            . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
+          </div>
+          <div
+            class="c8"
+          >
+            <a
+              class="c15 c16"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
+              rel="noreferrer"
+            >
+              <div
+                class="c17"
+              >
+                <img
+                  class="c10 c11"
+                  src="file_stub"
+                />
+                <div
+                  class="c12"
+                >
+                  <div
+                    class="c18"
+                  >
+                    PagerDuty
+                  </div>
+                </div>
+              </div>
+            </a>
+            <a
+              class="c15 c16"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
+              rel="noreferrer"
+            >
+              <div
+                class="c17"
+              >
+                <img
+                  class="c10 c11"
+                  src="file_stub"
+                />
+                <div
+                  class="c12"
+                >
+                  <div
+                    class="c18"
+                  >
+                    Email
+                  </div>
+                </div>
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

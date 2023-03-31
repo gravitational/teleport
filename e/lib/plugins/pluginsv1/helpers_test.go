@@ -18,10 +18,10 @@ import (
 )
 
 type suite struct {
-	authorizer     *fakeAuthorizer
-	backendService services.Plugins
-	exchangers     *plugins.ExchangerSet
-	svc            *Service
+	authorizer        *fakeAuthorizer
+	backendService    services.Plugins
+	pluginAuthorizers *plugins.AuthorizerSet
+	svc               *Service
 }
 
 // createPlugin creates a simple plugin directly in the underlying backend service.
@@ -66,16 +66,16 @@ func createSuite(t *testing.T) *suite {
 
 	authorizer := &fakeAuthorizer{checker: &fakeChecker{}}
 	backendService := local.NewPluginsService(mem)
-	exchangers := &plugins.ExchangerSet{}
+	pluginAuthorizers := plugins.NewAuthorizerSet()
 
 	return &suite{
-		authorizer:     authorizer,
-		backendService: backendService,
-		exchangers:     exchangers,
+		authorizer:        authorizer,
+		backendService:    backendService,
+		pluginAuthorizers: pluginAuthorizers,
 		svc: &Service{
-			authorizer:     authorizer,
-			backendService: backendService,
-			exchangers:     exchangers,
+			authorizer:        authorizer,
+			backendService:    backendService,
+			pluginAuthorizers: pluginAuthorizers,
 		},
 	}
 }

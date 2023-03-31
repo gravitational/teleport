@@ -3,7 +3,6 @@ export type Plugin = {
   details: string;
   status: PluginStatus;
   type: string;
-  niceType: string;
 };
 
 export type PluginStatus = {

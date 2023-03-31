@@ -39,7 +39,7 @@ const cfg = {
     deviceTrust: `/web/devices`,
 
     integrations: '/web/integrations',
-    integrationEnroll: '/web/integrations/new',
+    integrationEnroll: '/web/integrations/new/:type?',
   },
 
   api: {
@@ -68,6 +68,7 @@ const cfg = {
     releases: '/v1/enterprise/releases',
     license: '/v1/enterprise/license',
 
+    pluginTypesPath: '/v1/enterprise/plugins/types',
     pluginPath: '/v1/enterprise/plugin/:name?',
 
     // TODO(sshah): limit, startKey and search is supported by this API but currently
@@ -117,6 +118,10 @@ const cfg = {
 
   getRecoveryTokenUrl(tokenId: string) {
     return generatePath(cfg.api.recoveryTokenPath, { tokenId });
+  },
+
+  getIntegrationEnrollRoute(type?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getPluginUrl(name?: string) {

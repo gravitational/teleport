@@ -3,27 +3,28 @@ import styled from 'styled-components';
 
 import { Image } from 'design';
 
-import slackIcon from './assets/slack.svg';
+import { pluginTypeMap } from './data';
 
-const pluginIcons = {
-  slack: slackIcon,
-};
-
-export function PluginIcon({ type }: Props) {
-  const src = pluginIcons[type];
+export function PluginIcon({ size, type, ...props }: Props) {
+  const src = pluginTypeMap[type]?.icon;
   if (!src) {
     return null;
   }
-  return <Icon src={src} />;
+  return <Icon {...props} size={size} src={src} />;
 }
 
-type Props = {
+interface Props {
+  size?: number;
   type: string;
-};
+  [x: string]: any;
+}
 
 const Icon = styled(Image)`
-  padding-right: 8px;
   display: inline-block;
   height: 100%;
-  max-height: 18px;
+  ${({ size }) =>
+    size &&
+    `
+    max-height: ${size}px;
+  `}
 `;

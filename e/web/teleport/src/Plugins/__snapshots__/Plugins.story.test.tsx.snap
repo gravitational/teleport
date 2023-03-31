@@ -2,6 +2,12 @@
 
 exports[`render Empty 1`] = `
 .c3 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: 0px;
+}
+
+.c4 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -25,42 +31,41 @@ exports[`render Empty 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-left: auto;
   width: 240px;
 }
 
-.c3:active {
+.c4:active {
   opacity: 0.56;
 }
 
-.c3:hover,
-.c3:focus {
+.c4:hover,
+.c4:focus {
   background: #651FFF;
 }
 
-.c3:active {
+.c4:active {
   background: #354AA4;
 }
 
-.c3:disabled {
+.c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c6 {
+.c7 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c8 {
+.c9 {
   display: inline-block;
   transition: color 0.3s;
   margin-right: 8px;
   color: #FFFFFF;
 }
 
-.c7 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -109,7 +114,7 @@ exports[`render Empty 1`] = `
   padding-bottom: 24px;
 }
 
-.c4 {
+.c5 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -118,39 +123,39 @@ exports[`render Empty 1`] = `
   width: 100%;
 }
 
-.c4 > thead > tr > th,
-.c4 > tbody > tr > th,
-.c4 > tfoot > tr > th,
-.c4 > thead > tr > td,
-.c4 > tbody > tr > td,
-.c4 > tfoot > tr > td {
+.c5 > thead > tr > th,
+.c5 > tbody > tr > th,
+.c5 > tfoot > tr > th,
+.c5 > thead > tr > td,
+.c5 > tbody > tr > td,
+.c5 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c4 > thead > tr > th:first-child,
-.c4 > tbody > tr > th:first-child,
-.c4 > tfoot > tr > th:first-child,
-.c4 > thead > tr > td:first-child,
-.c4 > tbody > tr > td:first-child,
-.c4 > tfoot > tr > td:first-child {
+.c5 > thead > tr > th:first-child,
+.c5 > tbody > tr > th:first-child,
+.c5 > tfoot > tr > th:first-child,
+.c5 > thead > tr > td:first-child,
+.c5 > tbody > tr > td:first-child,
+.c5 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c4 > thead > tr > th:last-child,
-.c4 > tbody > tr > th:last-child,
-.c4 > tfoot > tr > th:last-child,
-.c4 > thead > tr > td:last-child,
-.c4 > tbody > tr > td:last-child,
-.c4 > tfoot > tr > td:last-child {
+.c5 > thead > tr > th:last-child,
+.c5 > tbody > tr > th:last-child,
+.c5 > tfoot > tr > th:last-child,
+.c5 > thead > tr > td:last-child,
+.c5 > tbody > tr > td:last-child,
+.c5 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c4 > tbody > tr > td {
+.c5 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c4 > thead > tr > th {
+.c5 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -164,22 +169,22 @@ exports[`render Empty 1`] = `
   white-space: nowrap;
 }
 
-.c4 > thead > tr > th .c5 {
+.c5 > thead > tr > th .c6 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c4 > tbody > tr > td {
+.c5 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c4 tbody tr {
+.c5 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c4 tbody tr:hover {
+.c5 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
@@ -195,16 +200,24 @@ exports[`render Empty 1`] = `
       >
         Integrations
       </div>
-      <button
+      <div
         class="c3"
-        kind="primary"
-        width="240px"
       >
-        Enroll new integration
-      </button>
+        <a
+          href="/web/integrations/new"
+        >
+          <button
+            class="c4"
+            kind="primary"
+            width="240px"
+          >
+            Enroll new integration
+          </button>
+        </a>
+      </div>
     </div>
     <table
-      class="c4"
+      class="c5"
     >
       <thead>
         <tr>
@@ -212,7 +225,7 @@ exports[`render Empty 1`] = `
             <a>
               Integration
               <span
-                class="c5 c6 icon icon-chevron-up "
+                class="c6 c7 icon icon-chevron-up "
                 color="light"
                 title="sort items asc"
               />
@@ -227,7 +240,7 @@ exports[`render Empty 1`] = `
             <a>
               Status
               <span
-                class="c5 c6 icon icon-chevrons-expand-vertical "
+                class="c6 c7 icon icon-chevrons-expand-vertical "
                 color="light"
                 title="sort items"
               />
@@ -244,12 +257,12 @@ exports[`render Empty 1`] = `
             colspan="4"
           >
             <div
-              class="c7"
+              class="c8"
               color="text.primary"
               style="display: flex; align-items: center; justify-content: center;"
             >
               <span
-                class="c5 c8 icon icon-database "
+                class="c6 c9 icon icon-database "
                 color="light"
               />
               No Integrations Found
@@ -263,7 +276,7 @@ exports[`render Empty 1`] = `
 `;
 
 exports[`render Failed 1`] = `
-.c4 {
+.c5 {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -280,11 +293,17 @@ exports[`render Failed 1`] = `
   color: #FFFFFF;
 }
 
-.c4 a {
+.c5 a {
   color: #FFFFFF;
 }
 
 .c3 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: 0px;
+}
+
+.c4 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -308,24 +327,23 @@ exports[`render Failed 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-left: auto;
   width: 240px;
 }
 
-.c3:active {
+.c4:active {
   opacity: 0.56;
 }
 
-.c3:hover,
-.c3:focus {
+.c4:hover,
+.c4:focus {
   background: #651FFF;
 }
 
-.c3:active {
+.c4:active {
   background: #354AA4;
 }
 
-.c3:disabled {
+.c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -381,16 +399,24 @@ exports[`render Failed 1`] = `
       >
         Integrations
       </div>
-      <button
+      <div
         class="c3"
-        kind="primary"
-        width="240px"
       >
-        Enroll new integration
-      </button>
+        <a
+          href="/web/integrations/new"
+        >
+          <button
+            class="c4"
+            kind="primary"
+            width="240px"
+          >
+            Enroll new integration
+          </button>
+        </a>
+      </div>
     </div>
     <div
-      class="c4"
+      class="c5"
       kind="danger"
     >
       some error message
@@ -401,6 +427,12 @@ exports[`render Failed 1`] = `
 
 exports[`render Loaded 1`] = `
 .c3 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: 0px;
+}
+
+.c4 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -424,29 +456,28 @@ exports[`render Loaded 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-left: auto;
   width: 240px;
 }
 
-.c3:active {
+.c4:active {
   opacity: 0.56;
 }
 
-.c3:hover,
-.c3:focus {
+.c4:hover,
+.c4:focus {
   background: #651FFF;
 }
 
-.c3:active {
+.c4:active {
   background: #354AA4;
 }
 
-.c3:disabled {
+.c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c9 {
+.c10 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -475,33 +506,33 @@ exports[`render Loaded 1`] = `
   height: 24px;
 }
 
-.c9:active {
+.c10:active {
   opacity: 0.56;
 }
 
-.c9:hover,
-.c9:focus {
+.c10:hover,
+.c10:focus {
   background: #2C3A73;
   border: 1px solid rgba(255,255,255,0.1);
   opacity: 1;
 }
 
-.c9:active {
+.c10:active {
   opacity: 0.24;
 }
 
-.c9:disabled {
+.c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
 
-.c6 {
+.c7 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c10 {
+.c11 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: 8px;
@@ -510,12 +541,13 @@ exports[`render Loaded 1`] = `
   font-size: 14px;
 }
 
-.c11 {
+.c12 {
   display: block;
   outline: none;
+  padding-right: 8px;
 }
 
-.c7 {
+.c8 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -560,7 +592,7 @@ exports[`render Loaded 1`] = `
   padding-bottom: 24px;
 }
 
-.c4 {
+.c5 {
   background: #222C59;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
@@ -569,39 +601,39 @@ exports[`render Loaded 1`] = `
   width: 100%;
 }
 
-.c4 > thead > tr > th,
-.c4 > tbody > tr > th,
-.c4 > tfoot > tr > th,
-.c4 > thead > tr > td,
-.c4 > tbody > tr > td,
-.c4 > tfoot > tr > td {
+.c5 > thead > tr > th,
+.c5 > tbody > tr > th,
+.c5 > tfoot > tr > th,
+.c5 > thead > tr > td,
+.c5 > tbody > tr > td,
+.c5 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c4 > thead > tr > th:first-child,
-.c4 > tbody > tr > th:first-child,
-.c4 > tfoot > tr > th:first-child,
-.c4 > thead > tr > td:first-child,
-.c4 > tbody > tr > td:first-child,
-.c4 > tfoot > tr > td:first-child {
+.c5 > thead > tr > th:first-child,
+.c5 > tbody > tr > th:first-child,
+.c5 > tfoot > tr > th:first-child,
+.c5 > thead > tr > td:first-child,
+.c5 > tbody > tr > td:first-child,
+.c5 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c4 > thead > tr > th:last-child,
-.c4 > tbody > tr > th:last-child,
-.c4 > tfoot > tr > th:last-child,
-.c4 > thead > tr > td:last-child,
-.c4 > tbody > tr > td:last-child,
-.c4 > tfoot > tr > td:last-child {
+.c5 > thead > tr > th:last-child,
+.c5 > tbody > tr > th:last-child,
+.c5 > tfoot > tr > th:last-child,
+.c5 > thead > tr > td:last-child,
+.c5 > tbody > tr > td:last-child,
+.c5 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c4 > tbody > tr > td {
+.c5 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c4 > thead > tr > th {
+.c5 > thead > tr > th {
   background: #111B48;
   color: #FFFFFF;
   cursor: pointer;
@@ -615,33 +647,32 @@ exports[`render Loaded 1`] = `
   white-space: nowrap;
 }
 
-.c4 > thead > tr > th .c5 {
+.c5 > thead > tr > th .c6 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c4 > tbody > tr > td {
+.c5 > tbody > tr > td {
   color: rgba(255,255,255,0.87);
   line-height: 16px;
 }
 
-.c4 tbody tr {
+.c5 tbody tr {
   border-bottom: 1px solid #1C254D;
 }
 
-.c4 tbody tr:hover {
+.c5 tbody tr:hover {
   background-color: rgb(37,49,98);
 }
 
-.c12 {
-  padding-right: 8px;
+.c13 {
   display: inline-block;
   height: 100%;
   max-height: 18px;
 }
 
-.c8 {
+.c9 {
   box-sizing: border-box;
   border-radius: 50%;
   background-color: #ff5252;
@@ -650,7 +681,7 @@ exports[`render Loaded 1`] = `
   height: 8px;
 }
 
-.c13 {
+.c14 {
   box-sizing: border-box;
   border-radius: 50%;
   background-color: #00bfa5;
@@ -659,7 +690,7 @@ exports[`render Loaded 1`] = `
   height: 8px;
 }
 
-.c14 {
+.c15 {
   box-sizing: border-box;
   border-radius: 50%;
   background-color: #90a4ae;
@@ -680,16 +711,24 @@ exports[`render Loaded 1`] = `
       >
         Integrations
       </div>
-      <button
+      <div
         class="c3"
-        kind="primary"
-        width="240px"
       >
-        Enroll new integration
-      </button>
+        <a
+          href="/web/integrations/new"
+        >
+          <button
+            class="c4"
+            kind="primary"
+            width="240px"
+          >
+            Enroll new integration
+          </button>
+        </a>
+      </div>
     </div>
     <table
-      class="c4"
+      class="c5"
     >
       <thead>
         <tr>
@@ -697,7 +736,7 @@ exports[`render Loaded 1`] = `
             <a>
               Integration
               <span
-                class="c5 c6 icon icon-chevron-up "
+                class="c6 c7 icon icon-chevron-up "
                 color="light"
                 title="sort items asc"
               />
@@ -712,7 +751,7 @@ exports[`render Loaded 1`] = `
             <a>
               Status
               <span
-                class="c5 c6 icon icon-chevrons-expand-vertical "
+                class="c6 c7 icon icon-chevrons-expand-vertical "
                 color="light"
                 title="sort items"
               />
@@ -727,9 +766,9 @@ exports[`render Loaded 1`] = `
         <tr>
           <td>
             <div
-              class="c7"
+              class="c8"
             >
-              AcmeCo.
+              acmeco
             </div>
           </td>
           <td>
@@ -737,10 +776,10 @@ exports[`render Loaded 1`] = `
           </td>
           <td>
             <div
-              class="c7"
+              class="c8"
             >
               <div
-                class="c8"
+                class="c9"
               />
               <td>
                 Unauthorized
@@ -751,13 +790,13 @@ exports[`render Loaded 1`] = `
             align="right"
           >
             <button
-              class="c9"
+              class="c10"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c5 c10 icon icon-caret-down "
+                class="c6 c11 icon icon-caret-down "
                 color="text.secondary"
                 font-size="2"
               />
@@ -767,10 +806,11 @@ exports[`render Loaded 1`] = `
         <tr>
           <td>
             <div
-              class="c7"
+              class="c8"
             >
               <img
-                class="c11 c12"
+                class="c12 c13"
+                size="18"
                 src="file_stub"
               />
               Slack
@@ -781,10 +821,10 @@ exports[`render Loaded 1`] = `
           </td>
           <td>
             <div
-              class="c7"
+              class="c8"
             >
               <div
-                class="c13"
+                class="c14"
               />
               <td>
                 Running
@@ -795,13 +835,13 @@ exports[`render Loaded 1`] = `
             align="right"
           >
             <button
-              class="c9"
+              class="c10"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c5 c10 icon icon-caret-down "
+                class="c6 c11 icon icon-caret-down "
                 color="text.secondary"
                 font-size="2"
               />
@@ -811,10 +851,11 @@ exports[`render Loaded 1`] = `
         <tr>
           <td>
             <div
-              class="c7"
+              class="c8"
             >
               <img
-                class="c11 c12"
+                class="c12 c13"
+                size="18"
                 src="file_stub"
               />
               Slack
@@ -825,10 +866,10 @@ exports[`render Loaded 1`] = `
           </td>
           <td>
             <div
-              class="c7"
+              class="c8"
             >
               <div
-                class="c14"
+                class="c15"
               />
               <td>
                 Unknown
@@ -839,13 +880,13 @@ exports[`render Loaded 1`] = `
             align="right"
           >
             <button
-              class="c9"
+              class="c10"
               height="24px"
               kind="border"
             >
               OPTIONS
               <span
-                class="c5 c10 icon icon-caret-down "
+                class="c6 c11 icon icon-caret-down "
                 color="text.secondary"
                 font-size="2"
               />
@@ -859,13 +900,19 @@ exports[`render Loaded 1`] = `
 `;
 
 exports[`render Processing 1`] = `
-.c4 {
+.c3 {
+  box-sizing: border-box;
+  margin-left: auto;
+  margin-right: 0px;
+}
+
+.c5 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
 }
 
-.c3 {
+.c4 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -889,24 +936,23 @@ exports[`render Processing 1`] = `
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-  margin-left: auto;
   width: 240px;
 }
 
-.c3:active {
+.c4:active {
   opacity: 0.56;
 }
 
-.c3:hover,
-.c3:focus {
+.c4:hover,
+.c4:focus {
   background: #651FFF;
 }
 
-.c3:active {
+.c4:active {
   background: #354AA4;
 }
 
-.c3:disabled {
+.c4:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
 }
@@ -962,16 +1008,24 @@ exports[`render Processing 1`] = `
       >
         Integrations
       </div>
-      <button
+      <div
         class="c3"
-        kind="primary"
-        width="240px"
       >
-        Enroll new integration
-      </button>
+        <a
+          href="/web/integrations/new"
+        >
+          <button
+            class="c4"
+            kind="primary"
+            width="240px"
+          >
+            Enroll new integration
+          </button>
+        </a>
+      </div>
     </div>
     <div
-      class="c4"
+      class="c5"
     />
   </div>
 </div>

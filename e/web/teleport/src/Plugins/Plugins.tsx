@@ -1,4 +1,7 @@
 import React from 'react';
+
+import { Link } from 'react-router-dom';
+
 import { Indicator, Box, ButtonPrimary, Alert } from 'design';
 
 import {
@@ -6,6 +9,8 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+
+import cfg from 'e-teleport/config';
 
 import { usePlugins, State } from './usePlugins';
 import { PluginList } from './PluginList';
@@ -24,10 +29,11 @@ export function Plugins(props: State) {
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
-        {/* TODO(justinas): actually link to "new integration" wizard */}
-        <ButtonPrimary ml="auto" width="240px">
-          Enroll new integration
-        </ButtonPrimary>
+        <Box mr={0} ml="auto">
+          <Link to={cfg.getIntegrationEnrollRoute()}>
+            <ButtonPrimary width="240px">Enroll new integration</ButtonPrimary>
+          </Link>
+        </Box>
       </FeatureHeader>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       {attempt.status === 'processing' && (
@@ -35,8 +41,8 @@ export function Plugins(props: State) {
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && (
-        /* TODO(justinas): redirect to "new integration" when 'items' empty*/
+      {attempt.status == 'success' && (
+        /* TODO(justinas): show splash screen when list is empty */
         <PluginList plugins={items} onDelete={onStartDelete} />
       )}
       {operation.type === 'delete' && (

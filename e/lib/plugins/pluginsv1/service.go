@@ -16,9 +16,9 @@ import (
 
 // ServiceConfig holds configuration options for the plugins gRPC service.
 type ServiceConfig struct {
-	Authorizer     authz.Authorizer
-	Exchangers     *plugins.ExchangerSet
-	BackendService services.Plugins
+	Authorizer        authz.Authorizer
+	PluginAuthorizers *plugins.AuthorizerSet
+	BackendService    services.Plugins
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -26,8 +26,8 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Authorizer == nil {
 		return trace.BadParameter("authorizer must be set")
 	}
-	if cfg.Exchangers == nil {
-		return trace.BadParameter("exchangers must be set")
+	if cfg.PluginAuthorizers == nil {
+		return trace.BadParameter("pluginAuthorizers must be set")
 	}
 	if cfg.BackendService == nil {
 		return trace.BadParameter("backendService must be set")
@@ -39,9 +39,9 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 type Service struct {
 	pluginspb.UnimplementedPluginServiceServer
 
-	authorizer     authz.Authorizer
-	exchangers     *plugins.ExchangerSet
-	backendService services.Plugins
+	authorizer        authz.Authorizer
+	pluginAuthorizers *plugins.AuthorizerSet
+	backendService    services.Plugins
 }
 
 var _ pluginspb.PluginServiceServer = (*Service)(nil)
@@ -52,9 +52,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 	return &Service{
-		authorizer:     cfg.Authorizer,
-		exchangers:     cfg.Exchangers,
-		backendService: cfg.BackendService,
+		authorizer:        cfg.Authorizer,
+		pluginAuthorizers: cfg.PluginAuthorizers,
+		backendService:    cfg.BackendService,
 	}, nil
 }
 
@@ -78,12 +78,12 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.BadParameter("unknown type of bootstrap credentials received")
 	}
 
-	exchanger, err := s.exchangers.GetExchanger(plugin)
+	authorizer, err := s.pluginAuthorizers.Get(plugin.GetType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	creds, err := exchanger.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
+	creds, err := authorizer.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -184,6 +184,27 @@ func (s *Service) SetPluginStatus(ctx context.Context, req *pluginspb.SetPluginS
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
+}
+
+// GetAvailablePluginTypes returns the types of plugins
+// that the auth server supports onboarding.
+func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.GetAvailablePluginTypesRequest) (*pluginspb.GetAvailablePluginTypesResponse, error) {
+	if err := s.authorizeVerbs(ctx, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &pluginspb.GetAvailablePluginTypesResponse{
+		PluginTypes: make([]*pluginspb.PluginType, 0, len(s.pluginAuthorizers.Authorizers)),
+	}
+
+	for typ, a := range s.pluginAuthorizers.Authorizers {
+		resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{
+			Type:          string(typ),
+			OauthClientId: a.ClientID,
+		})
+	}
+
+	return resp, nil
 }
 
 func (s *Service) authorizeVerbs(ctx context.Context, verbs ...string) error {

@@ -6,6 +6,7 @@ This directory contains test licenses for Teleport enterprise.
 * `license-pro.pem` - legacy pro (with reporting enabled) license.
 * `license-all-features.pem` - license with Kubernetes, app and database access enabled.
 * `license-no-features.pem` - license with Kubernetes, app and database access disabled.
+* `license-cloud.pem` - Teleport Cloud license.
 
 ## Generating test license
 

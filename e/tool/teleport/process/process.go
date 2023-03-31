@@ -1,6 +1,9 @@
 package process
 
 import (
+	"net/url"
+	"os"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/e/lib/auth"
@@ -11,6 +14,11 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
+
+// PluginShimURLEnvVar is the environment variable name
+// for the Cloud plugin shim URL.
+// See lib/web/Plugin.*Config for more info.
+const pluginShimURLEnvVar = "TELEPORT_PLUGIN_SHIM_URL"
 
 // NewTeleport initializes a new Teleport Enterprise process
 func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
@@ -57,7 +65,21 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile) (webPl
 	pluginRegistry := plugin.NewRegistry()
 
 	if cfg.Proxy.Enabled {
-		webPlugin, err = web.NewPlugin(web.Config{})
+		var pluginShimURL *url.URL
+		if urlVal := os.Getenv(pluginShimURLEnvVar); urlVal != "" {
+			var err error
+			pluginShimURL, err = url.Parse(urlVal)
+			if err != nil {
+				return nil, nil, trace.WrapWithMessage(err, "error parsing env var %v", pluginShimURLEnvVar)
+			}
+			if pluginShimURL.Scheme == "" {
+				return nil, nil, trace.BadParameter("scheme must be present, but was missing in %q", pluginShimURL.String())
+			}
+		}
+
+		webPlugin, err = web.NewPlugin(web.Config{
+			PluginShimURL: pluginShimURL,
+		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

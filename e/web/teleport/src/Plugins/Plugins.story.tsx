@@ -1,37 +1,45 @@
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { Plugins } from './Plugins';
+
+import type { Plugin } from 'e-teleport/services/plugins';
 
 export default {
   title: 'TeleportE/Plugins',
 };
 
-export function Processing() {
-  return <Plugins {...sample} attempt={{ status: 'processing' as any }} />;
-}
+export const Processing = () => (
+  <MemoryRouter>
+    <Plugins {...sample} attempt={{ status: 'processing' as any }} />
+  </MemoryRouter>
+);
 
-export function Loaded() {
-  return <Plugins {...sample} />;
-}
+export const Loaded = () => (
+  <MemoryRouter>
+    <Plugins {...sample} />
+  </MemoryRouter>
+);
 
-export function Empty() {
-  return <Plugins {...sample} items={[]} />;
-}
+export const Empty = () => (
+  <MemoryRouter>
+    <Plugins {...sample} items={[]} />
+  </MemoryRouter>
+);
 
-export function Failed() {
-  return (
+export const Failed = () => (
+  <MemoryRouter>
     <Plugins
       {...sample}
       attempt={{ status: 'failed', statusText: 'some error message' }}
     />
-  );
-}
+  </MemoryRouter>
+);
 
-const plugins = [
+const plugins: Plugin[] = [
   {
     name: 'slack-default',
     type: 'slack',
-    niceType: 'Slack',
     status: {
       code: 'Running',
     },
@@ -39,9 +47,8 @@ const plugins = [
   },
 
   {
-    name: 'slack-secondary',
+    name: 'slack-another',
     type: 'slack',
-    niceType: 'Slack',
     status: {
       code: 'Unknown',
     },
@@ -50,8 +57,7 @@ const plugins = [
 
   {
     name: 'acmeco-default',
-    type: 'acmeco', // unknown plugin, should handle gracefuly
-    niceType: 'AcmeCo.',
+    type: 'acmeco', // unknown plugin type, should handle gracefuly
     status: {
       code: 'Unauthorized',
     },
@@ -61,8 +67,8 @@ const plugins = [
 
 const sample = {
   attempt: {
-    status: 'success',
-  } as const,
+    status: 'success' as const,
+  },
   operation: { type: 'none' } as const,
   items: plugins,
   onCancelDelete: () => {},

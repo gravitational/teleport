@@ -29,6 +29,14 @@ const (
 type Config struct {
 	// Log is the logger
 	Log logrus.FieldLogger
+
+	// PluginShimURL is the URL for the Cloud plugin shim,
+	// which is used to forward OAuth callbacks back to individual tenants
+	// from a single domain.
+	// If not set (i.e. in a single tenant or debug scenario),
+	// the `redirect_uri` we submit to API providers will point
+	// directly to the cluster, and the OAuth app needs to be configured accordingly.
+	PluginShimURL *url.URL
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -164,8 +172,14 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))
 
+	// Plugins: RESTy endpoints (create/list/delete)
+	h.POST("/enterprise/plugin", h.WithAuthCookieAndCSRF(p.createPluginHandle))
 	h.GET("/enterprise/plugin", h.WithAuth(p.getPluginsHandle))
 	h.DELETE("/enterprise/plugin/:name", h.WithAuth(p.deletePluginHandle))
+
+	// Plugins: supporting endpoints ("meta", and OAuth callbacks)
+	h.GET("/enterprise/plugins/types", h.WithAuth(p.getAvailablePluginTypesHandle))
+	h.GET("/enterprise/plugins/callback/:type", h.WithAuthCookieAndCSRF(p.pluginCallbackHandle))
 
 	if p.h.ClusterFeatures.GetCloud() {
 		h.DELETE("/enterprise/cloud/card", p.withCloudAuth(p.removeCardHandle))

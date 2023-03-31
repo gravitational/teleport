@@ -35,6 +35,12 @@ const AccountE = React.lazy(
 const Plugins = React.lazy(
   () => import(/* webpackChunkName: "e-plugins" */ 'e-teleport/Plugins')
 );
+const PluginEnroll = React.lazy(
+  () =>
+    import(
+      /* webpackChunkName: "e-plugins" */ 'e-teleport/Plugins/PluginEnroll'
+    )
+);
 const SupportE = React.lazy(
   () => import(/* webpackChunkName: "e-support" */ 'e-teleport/Support')
 );
@@ -214,15 +220,41 @@ class FeatureIntegrations implements TeleportFeature {
   route = {
     title: 'Manage Integrations',
     path: cfg.routes.integrations,
-    exact: false,
+    exact: true,
     component: () => <Plugins />,
   };
 
   navigationItem = {
     title: 'Integrations',
     icon: <IntegrationsIcon />,
+    exact: true,
     getLink() {
       return cfg.routes.integrations;
+    },
+  };
+}
+
+class FeatureNewIntegration implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Enroll New Integration',
+    path: cfg.routes.integrationEnroll,
+    exact: false,
+    component: () => <PluginEnroll />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.plugins;
+  }
+
+  navigationItem = {
+    title: 'Enroll New Integration',
+    icon: <Icons.Add />,
+    exact: false,
+    getLink() {
+      return cfg.getIntegrationEnrollRoute(null);
     },
   };
 }
@@ -276,6 +308,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureNewLock(),
     new FeatureIntegrations(),
     new OSS.FeatureDiscover(),
+    new FeatureNewIntegration(),
 
     // - Activity
     new OSS.FeatureRecordings(),
