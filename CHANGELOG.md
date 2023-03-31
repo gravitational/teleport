@@ -1,6 +1,6 @@
 # Changelog
 
-## 12.1.3 (03/30/23)
+## 12.1.5 (03/30/23)
 
 This release of Teleport contains 2 security fixes as well as multiple improvements and bug fixes.
 
