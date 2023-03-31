@@ -32,8 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const aggregateTimeGranularity = 15 * time.Minute
-
 const (
 	userActivityReportsPrefix = "userActivityReports"
 	userActivityReportsLock   = "userActivityReportsLock"
@@ -41,9 +39,10 @@ const (
 	// maxSize is the maximum size for a backend value; dynamodb has a limit of
 	// 400KiB per item, we store values in base64, there's some framing, and a
 	// healthy 50% margin gets us to about 128KiB.
-	maxSize = 131072
+	maxSize = 128 * 1024
 
-	reportTTL = 60 * 24 * time.Hour
+	reportGranularity = 15 * time.Minute
+	reportTTL         = 60 * 24 * time.Hour
 )
 
 // userActivityReportKey returns the backend key for a user activity report with
@@ -248,13 +247,13 @@ func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 func (r *Reporter) maybeFinalizeReportsLocked() {
 	now := time.Now().UTC()
 
-	if !r.startTime.Add(aggregateTimeGranularity).Before(now) {
+	if !r.startTime.Add(reportGranularity).Before(now) {
 		return
 	}
 
 	startTime := r.startTime
 	userActivity := r.userActivity
-	r.startTime = now.Truncate(aggregateTimeGranularity)
+	r.startTime = now.Truncate(reportGranularity)
 	// we expect the amount of users to not vary a lot between one time window
 	// and the next
 	r.userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
