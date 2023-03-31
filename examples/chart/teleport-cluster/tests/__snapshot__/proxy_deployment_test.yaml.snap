@@ -51,6 +51,9 @@ should set affinity when set in values:
             operator: In
             values:
             - teleport
+should set imagePullSecrets when set in values:
+  1: |
+    - name: myRegistryKeySecretName
 should set nodeSelector when set in values:
   1: |
     affinity:
