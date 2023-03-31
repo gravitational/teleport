@@ -154,7 +154,7 @@ func (r *Reporter) GracefulStop(ctx context.Context) error {
 
 	r.wg.Wait()
 	r.baseCancel()
-	return r.baseCtx.Err()
+	return ctx.Err()
 }
 
 // AnonymizeAndSubmit implements [usagereporter.UsageReporter].
