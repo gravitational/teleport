@@ -1562,7 +1562,11 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	)
 	defer span.End()
 
-	if nodeDetails.MFACheck == nil {
+	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
+		return nil, trace.AccessDenied("no access to %s", nodeDetails.Addr)
+	}
+
+
 		check, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
 			Target: &proto.IsMFARequiredRequest_Node{
 				Node: &proto.NodeLogin{
@@ -1574,13 +1578,11 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		nodeDetails.MFACheck = check
-	}
 
 	// per-session mfa isn't required, the user simply does not
 	// have access to the provided node
-	if !nodeDetails.MFACheck.Required {
-		return nil, trace.Wrap(trace.AccessDenied("no access to %s", nodeDetails.Addr))
+	if !check.Required {
+		return nil, trace.AccessDenied("no access to %s", nodeDetails.Addr)
 	}
 
 	// per-session mfa is required, perform the mfa ceremony
