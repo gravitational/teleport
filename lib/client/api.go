@@ -1497,11 +1497,9 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	directResultC := make(chan clientRes, 1)
 	mfaResultC := make(chan clientRes, 1)
 
-
-	// use a child context so the goroutine ends if this
-	// function returns early
+	// use a child context so the goroutines can terminate the other if they succeed
 	directCtx, directCancel := context.WithCancel(ctx)
-	defer directCancel()
+	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
 		// try connecting to the node with the certs we already have
 		// try connecting to the node
@@ -1515,35 +1513,88 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
 
-	// use a child context so the goroutine ends if this
-	// function returns early
-	mfaCtx, mfaCancel := context.WithCancel(ctx)
-	defer mfaCancel()
 	go func() {
 		// try performing mfa and then connecting with the single use certs
 		clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
 		mfaResultC <- clientRes{clt: clt, err: err}
 	}()
 
-	var connectErr error
+	var directErr, mfaErr error
 	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
+			mfaCancel()
+			directCancel()
 			return nil, ctx.Err()
 		case res := <-directResultC:
 			if res.clt != nil {
+				mfaCancel()
+				res.clt.AddCancel(directCancel)
 				return res.clt, nil
 			}
 
-			connectErr = res.err
+			directErr = res.err
 		case res := <-mfaResultC:
 			if res.clt != nil {
+				directCancel()
+				res.clt.AddCancel(mfaCancel)
 				return res.clt, nil
 			}
+
+			mfaErr = res.err
 		}
 	}
 
-	return nil, trace.Wrap(connectErr)
+	mfaCancel()
+	directCancel()
+
+	// Only return the error from connecting with mfa if the error
+	// originates from the mfa ceremony. If mfa is not required then
+	// the error from the direct connection to the node must be returned.
+	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) {
+		return nil, trace.Wrap(mfaErr)
+	}
+
+	return nil, trace.Wrap(directErr)
+}
+
+// MFARequiredUnknownErr indicates that connections to an instance failed
+// due to being unable to determine if mfa is required
+type MFARequiredUnknownErr struct {
+	err error
+}
+
+// MFARequiredUnknown creates a new MFARequiredUnknownErr that wraps the
+// error encountered attempting to determine if the mfa ceremony should proceed.
+func MFARequiredUnknown(err error) error {
+	return MFARequiredUnknownErr{err: err}
+}
+
+// Error returns the error string of the wrapped error if one exists.
+func (m MFARequiredUnknownErr) Error() string {
+	if m.err == nil {
+		return ""
+	}
+
+	return m.err.Error()
+}
+
+// Unwrap returns the underlying error from checking if an mfa
+// ceremony should have been performed.
+func (m MFARequiredUnknownErr) Unwrap() error {
+	return m.err
+}
+
+// Is determines if the provided error is an MFARequiredUnknownErr.
+func (m MFARequiredUnknownErr) Is(err error) bool {
+	switch err.(type) {
+	case MFARequiredUnknownErr:
+		return true
+	case *MFARequiredUnknownErr:
+		return true
+	default:
+		return false
+	}
 }
 
 // connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
@@ -1563,26 +1614,25 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	defer span.End()
 
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
-		return nil, trace.AccessDenied("no access to %s", nodeDetails.Addr)
+		return nil, MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr))
 	}
 
-
-		check, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-			Target: &proto.IsMFARequiredRequest_Node{
-				Node: &proto.NodeLogin{
-					Node:  node,
-					Login: tc.HostLogin,
-				},
+	check, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
+		Target: &proto.IsMFARequiredRequest_Node{
+			Node: &proto.NodeLogin{
+				Node:  node,
+				Login: tc.HostLogin,
 			},
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// per-session mfa isn't required, the user simply does not
 	// have access to the provided node
 	if !check.Required {
-		return nil, trace.AccessDenied("no access to %s", nodeDetails.Addr)
+		return nil, MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr))
 	}
 
 	// per-session mfa is required, perform the mfa ceremony

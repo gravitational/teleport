@@ -647,10 +647,10 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	directResultC := make(chan clientRes, 1)
 	mfaResultC := make(chan clientRes, 1)
 
-	// use a child context so the goroutine ends if this
-	// function returns early
+	// use a child context so the goroutines can terminate the other if they succeed
+
 	directCtx, directCancel := context.WithCancel(ctx)
-	defer directCancel()
+	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
 		// try connecting to the node with the certs we already have
 		clt, err := t.connectToNode(directCtx, ws, tc, accessChecker, getAgent, signer)
@@ -659,33 +659,49 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 
 	// use a child context so the goroutine ends if this
 	// function returns early
-	mfaCtx, mfaCancel := context.WithCancel(ctx)
-	defer mfaCancel()
 	go func() {
 		// try performing mfa and then connecting with the single use certs
 		clt, err := t.connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
 		mfaResultC <- clientRes{clt: clt, err: err}
 	}()
 
-	var connectErr error
+	var directErr, mfaErr error
 	for i := 0; i < 2; i++ {
 		select {
 		case <-ctx.Done():
+			mfaCancel()
+			directCancel()
 			return nil, ctx.Err()
 		case res := <-directResultC:
 			if res.clt != nil {
+				mfaCancel()
+				res.clt.AddCancel(directCancel)
 				return res.clt, nil
 			}
 
-			connectErr = res.err
+			directErr = res.err
 		case res := <-mfaResultC:
 			if res.clt != nil {
+				directCancel()
+				res.clt.AddCancel(mfaCancel)
 				return res.clt, nil
 			}
+
+			mfaErr = res.err
 		}
 	}
 
-	return nil, trace.Wrap(connectErr)
+	mfaCancel()
+	directCancel()
+
+	// Only return the error from connecting with mfa if the error
+	// originates from the mfa ceremony. If mfa is not required then
+	// the error from the direct connection to the node must be returned.
+	if mfaErr != nil && !errors.Is(mfaErr, client.MFARequiredUnknownErr{}) {
+		return nil, trace.Wrap(mfaErr)
+	}
+
+	return nil, trace.Wrap(directErr)
 }
 
 // streamTerminal opens a SSH connection to the remote host and streams
@@ -700,7 +716,10 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
 		t.writeError(err)
+		return
 	}
+
+	defer nc.Close()
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
@@ -762,11 +781,11 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocke
 		},
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, client.MFARequiredUnknown(trace.Wrap(err))
 	}
 
 	if !mfaRequiredResp.Required {
-		return nil, trace.AccessDenied("no access to %s", t.sessionData.ServerHostname)
+		return nil, client.MFARequiredUnknown(trace.AccessDenied("no access to %s", t.sessionData.ServerHostname))
 	}
 
 	// perform mfa ceremony and retrieve new certs
