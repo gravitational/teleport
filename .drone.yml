@@ -1013,28 +1013,6 @@ steps:
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-- name: Build Windows Authentication Package
-  commands:
-  - $ErrorActionPreference = 'Stop'
-  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $Env:GOCACHE = "$Workspace/gocache"
-  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Go -ToolchainDir "$Workspace/toolchains"
-  - cd $TeleportSrc
-  - $TeleportVersion=$(make print-version).Trim()
-  - cd $TeleportSrc/e/windows_auth_package
-  - make VERSION=v$TeleportVersion  all
-  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
-    windows-signing-cert.pfx -Encoding Byte
-  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
-    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe'
-  - rm -r windows-signing-cert.pfx
-  environment:
-    CSC_LINK:
-      from_secret: WINDOWS_SIGNING_CERT
-    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -1064,6 +1042,28 @@ steps:
   - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Build Windows Authentication Package
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - cd $TeleportSrc/e/windows_auth_package
+  - make VERSION=v$TeleportVersion  all
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe'
+  - rm -r windows-signing-cert.pfx
+  environment:
+    CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build Teleport Connect
@@ -19085,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: fef8f51d3058e517182f9298b50258c9928c5c6155209d35b1e1c499e9da8350
+hmac: 2c0ca79c45fd07793eb06deec063c563937094f4a33895a184145be2aa35248a
 
 ...

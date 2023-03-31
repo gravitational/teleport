@@ -52,9 +52,9 @@ func windowsTagPipeline() pipeline {
 		updateWindowsSubreposStep(p.Workspace.Path),
 		installWindowsNodeToolchainStep(p.Workspace.Path),
 		installWindowsGoToolchainStep(p.Workspace.Path),
-		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		buildWindowsTshStep(p.Workspace.Path),
 		signTshStep(p.Workspace.Path),
+		buildWindowsAuthenticationPackageStep(p.Workspace.Path),
 		buildWindowsTeleportConnectStep(p.Workspace.Path),
 		{
 			Name: "Assume AWS Role",
