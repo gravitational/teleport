@@ -54,25 +54,21 @@ func userActivityReportKey(reportUUID uuid.UUID, startTime time.Time) []byte {
 }
 
 type ReporterConfig struct {
-	Anonymizer utils.Anonymizer
-	Backend    backend.Backend
-	Log        logrus.FieldLogger
+	Backend backend.Backend
+	Log     logrus.FieldLogger
 
-	ClusterName    string
+	ClusterName    types.ClusterName
 	ReporterHostID string
 }
 
 func (cfg *ReporterConfig) CheckAndSetDefaults() error {
-	if cfg.Anonymizer == nil {
-		return trace.BadParameter("missing Anonymizer")
-	}
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")
 	}
 	if cfg.Log == nil {
 		return trace.BadParameter("missing Log")
 	}
-	if cfg.ClusterName == "" {
+	if cfg.ClusterName == nil {
 		return trace.BadParameter("missing ClusterName")
 	}
 	if cfg.ReporterHostID == "" {
@@ -92,16 +88,21 @@ func NewReporter(
 		return nil, trace.Wrap(err)
 	}
 
+	anonymizer, err := utils.NewHMACAnonymizer(cfg.ClusterName.GetClusterID())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	baseCtx, baseCancel := context.WithCancel(ctx)
 	periodicCtx, periodicCancel := context.WithCancel(baseCtx)
 
 	r := &Reporter{
-		anonymizer: cfg.Anonymizer,
+		anonymizer: anonymizer,
 		backend:    cfg.Backend,
 		log:        cfg.Log,
 
-		clusterName:    cfg.Anonymizer.AnonymizeNonEmpty(cfg.ClusterName),
-		reporterHostID: cfg.Anonymizer.AnonymizeNonEmpty(cfg.ReporterHostID),
+		clusterName:    anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
+		reporterHostID: anonymizer.AnonymizeNonEmpty(cfg.ReporterHostID),
 
 		baseCtx:        baseCtx,
 		baseCancel:     baseCancel,
@@ -136,7 +137,8 @@ type Reporter struct {
 
 var _ usagereporter.GracefulStopper = (*Reporter)(nil)
 
-// GracefulStop implements [ur.GracefulStopper]. Can only be called at most once.
+// GracefulStop implements [usagereporter.GracefulStopper]. Can only be called
+// at most once.
 func (r *Reporter) GracefulStop(ctx context.Context) error {
 	r.periodicCancel()
 
@@ -174,7 +176,7 @@ func (r *Reporter) GracefulStop(ctx context.Context) error {
 	return r.baseCtx.Err()
 }
 
-// AnonymizeAndSubmit implements [ur.UsageReporter].
+// AnonymizeAndSubmit implements [usagereporter.UsageReporter].
 func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 	filtered := events[:0]
 	for _, event := range events {
