@@ -989,6 +989,8 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
@@ -1948,6 +1950,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -2155,6 +2159,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -2371,6 +2377,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -2576,6 +2584,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -3880,6 +3890,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -5289,6 +5301,8 @@ volumes:
   temp: {}
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -6622,6 +6636,8 @@ volumes:
 - name: awsconfig
   temp: {}
 - name: dockersock
+  temp: {}
+- name: dockerconfig
   temp: {}
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
@@ -19631,6 +19647,8 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+- name: dockerconfig
+  temp: {}
 - name: tmpfs
   temp:
     medium: memory
@@ -19640,6 +19658,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 0bf62e8942de78644e08f33bc507855937f91fb619030f779a657f0748b95a84
+hmac: 2510ab3f0a818f50e2c4089a0e410c2be1f255d8d474a734a312d742ee308575
 
 ...
