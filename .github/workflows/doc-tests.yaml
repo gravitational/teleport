@@ -42,7 +42,7 @@ jobs:
         run: cd /src && yarn install && yarn build
 
       - name: Check spelling
-        run: cd /src && yarn spellcheck
+        run: cd /src && yarn spellcheck /src/content/docs
 
       - name: Lint the docs
         run: cd /src && yarn markdown-lint
