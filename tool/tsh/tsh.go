@@ -531,6 +531,7 @@ const (
 	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
 	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
+	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -761,6 +762,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyGcloud.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyGcloud.Alias("gcp")
+
+	proxyKube := newProxyKubeCommand(proxy)
 
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
@@ -1184,6 +1187,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAzure(&cf)
 	case proxyGcloud.FullCommand():
 		err = onProxyCommandGCloud(&cf)
+	case proxyKube.FullCommand():
+		err = proxyKube.run(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)

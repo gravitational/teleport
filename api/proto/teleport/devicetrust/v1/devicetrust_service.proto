@@ -17,6 +17,7 @@ syntax = "proto3";
 package teleport.devicetrust.v1;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
 import "google/rpc/status.proto";
 import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
@@ -53,6 +54,18 @@ service DeviceTrustService {
   // It is possible to create both a Device and a DeviceEnrollToken in a
   // single invocation, see CreateDeviceRequest.create_enroll_token.
   rpc CreateDevice(CreateDeviceRequest) returns (Device);
+
+  // UpdateDevice is a masked device update.
+  //
+  // Only certain fields may be updated, see Device for details.
+  rpc UpdateDevice(UpdateDeviceRequest) returns (Device);
+
+  // UpsertDevice creates or updates a device.
+  //
+  // UpsertDevice attempts a write of all mutable fields on updates, therefore
+  // reading a fresh copy of the device is recommended. Update semantics still
+  // apply.
+  rpc UpsertDevice(UpsertDeviceRequest) returns (Device);
 
   // DeleteDevice hard-deletes a device, removing it and all collected data
   // history from the system.
@@ -122,6 +135,27 @@ message CreateDeviceRequest {
   // to storage.
   // Prefer using non-resource creation semantics if possible.
   bool create_as_resource = 3;
+}
+
+// Request for UpdateDevice.
+message UpdateDeviceRequest {
+  // Device to update.
+  Device device = 1;
+
+  // Update mask applied to the resource.
+  // Fields are masked according to their proto name.
+  google.protobuf.FieldMask update_mask = 2;
+}
+
+// Request for UpsertDevice.
+message UpsertDeviceRequest {
+  // Device to create or update.
+  Device device = 1;
+
+  // If true, creates the device using resource semantics.
+  // Has no effect on device updates.
+  // See create_as_resource in CreateDeviceRequest.
+  bool create_as_resource = 2;
 }
 
 // Request for DeleteDevice.

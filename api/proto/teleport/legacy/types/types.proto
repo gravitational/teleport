@@ -39,17 +39,29 @@ message KeepAlive {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "expires"
   ];
-  // Type is the type of keep alive, used by servers. At the moment only
-  // "node", "app" and "database" are supported.
+
+  // The type of a KeepAlive. When adding a new type, please double-check
+  // lib/usagereporter/teleport to see if we need any change in the resource
+  // heartbeat event.
   enum KeepAliveType {
     UNKNOWN = 0;
+
+    // "node", KindNode. For the sake of correct usage reporting, it shouldn't
+    // be used for OpenSSH nodes.
     NODE = 1;
+    // "app_server", KindAppServer
     APP = 2;
+    // "db_server", KindDatabaseServer
     DATABASE = 3;
+    // "windows_desktop_service", KindWindowsDesktopService
     WINDOWS_DESKTOP = 4;
+    // "kube_server", KindKubeServer
     KUBERNETES = 5;
+    // "db_service", KindDatabaseService
     DATABASE_SERVICE = 6;
   }
+
+  // Type is the type (or kind) of the resource that's being kept alive.
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
@@ -1601,11 +1613,7 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "u2f,omitempty"
   ];
 
-  // RequireSessionMFA causes all sessions in this cluster to require MFA
-  // checks.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 5 [(gogoproto.jsontag) = "-"];
+  reserved 5; // RequireSessionMFA replaced by RequireMFAType
 
   // DisconnectExpiredCert provides disconnect expired certificate setting -
   // if true, connections with expired client certificates will get disconnected
@@ -2289,11 +2297,7 @@ message RoleOptions {
   // RequestPrompt is an optional message which tells users what they aught to
   string RequestPrompt = 12 [(gogoproto.jsontag) = "request_prompt,omitempty"];
 
-  // RequireSessionMFA specifies whether a user is required to do an MFA
-  // check for every session.
-  //
-  // DELETE IN 13.0.0 in favor of RequireMFAType
-  bool RequireSessionMFA = 13 [(gogoproto.jsontag) = "-"];
+  reserved 13; // RequireSessionMFA replaced by RequireMFAType
 
   // Lock specifies the locking mode (strict|best_effort) to be applied with
   // the role.
@@ -5227,6 +5231,12 @@ message OktaAssignmentActionV1 {
     CLEANED_UP = 4;
     // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
     CLEANUP_FAILED = 5;
+    // PROCESSSING indicates that the assignment is being applied.
+    PROCESSING = 6;
+    // CLEANUP_PENDING indicates the action needs to be cleaned up.
+    CLEANUP_PENDING = 7;
+    // CLEANUP_PROCESSING indicates the action is being cleaned up.
+    CLEANUP_PROCESSING = 8;
   }
 
   // Status is the status of the action.
@@ -5251,6 +5261,42 @@ message OktaAssignmentActionTargetV1 {
   OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
+}
+
+// IntegrationV1 represents a connection between Teleport and some other 3rd party system.
+// This connection allows API access to that service from Teleport.
+// Each Integration instance must have a SubKind defined which identifies the external system.
+message IntegrationV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is an Integration specification.
+  IntegrationSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// IntegrationSpecV1 contains properties of all the supported integrations.
+message IntegrationSpecV1 {
+  oneof SubKindSpec {
+    // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
+    AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+  }
+}
+
+// AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
+message AWSOIDCIntegrationSpecV1 {
+  // RoleARN contains the Role ARN used to set up the Integration.
+  // This is the AWS Role that Teleport will use to issue tokens for API Calls.
+  string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
 }
 
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.

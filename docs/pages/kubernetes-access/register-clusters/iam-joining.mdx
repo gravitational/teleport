@@ -147,7 +147,7 @@ To extract the AWS account ID you can use the following command:
 $ account_id=$(aws sts get-caller-identity --query "Account" --output text)
 ```
 
-The OICD provider URL can be extracted from the cluster configuration:
+The OIDC provider URL can be extracted from the cluster configuration:
 
 ```code
 $ oidc_provider=$(aws eks describe-cluster --name <Var name="kube-cluster"/> --region <Var name="aws-region"/> --query "cluster.identity.oidc.issuer" --output text | sed -e "s/^https:\/\///")
