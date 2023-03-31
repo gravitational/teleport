@@ -250,13 +250,13 @@ RUN mkdir -p helm-tarball && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
-RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
+RUN helm plugin install --debug https://github.com/quintush/helm-unittest --version 0.2.11 && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
     chown -R ci /home/ci/.local/share/helm && \
     helm plugin uninstall unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
-RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
+RUN helm plugin install --debug https://github.com/vbehar/helm3-unittest && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
     chown -R ci /home/ci/.local/share/helm && \
