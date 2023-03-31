@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -33,10 +34,10 @@ import (
 )
 
 // UsageReportsSubmitter is almost SubmitUsageReports from
-// prehog.v1alpha.TeleportReportingService, but instead of returning a response
-// (and requiring wrapping the request in a [connect.Request]) it should do its
-// own error checking on the response.
-type UsageReportsSubmitter func(context.Context, *prehogv1.SubmitUsageReportsRequest) error
+// prehog.v1alpha.TeleportReportingService, but instead of returning the raw
+// response (and requiring wrapping the request in a [connect.Request]) it
+// should parse the response and return the batch UUID.
+type UsageReportsSubmitter func(context.Context, *prehogv1.SubmitUsageReportsRequest) (uuid.UUID, error)
 
 const (
 	submitInterval     = 5 * time.Minute
@@ -153,9 +154,10 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	lockCtx, cancel := context.WithTimeout(ctx, submitLockDuration*9/10)
 	defer cancel()
 
-	if err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
+	batchUUID, err := c.Submitter(lockCtx, &prehogv1.SubmitUsageReportsRequest{
 		UserActivity: reports,
-	}); err != nil {
+	})
+	if err != nil {
 		c.Log.WithError(err).WithFields(logrus.Fields{
 			"reports":       len(reports),
 			"oldest_report": reports[0].GetStartTime().AsTime(),
@@ -182,6 +184,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 	}
 
 	c.Log.WithFields(logrus.Fields{
+		"batch_uuid":    batchUUID,
 		"reports":       len(reports),
 		"oldest_report": reports[0].GetStartTime().AsTime(),
 	}).Info("Successfully sent usage reports.")
