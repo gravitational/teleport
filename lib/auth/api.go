@@ -732,14 +732,18 @@ type DiscoveryAccessPoint interface {
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
-// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta]
-// except for access requests, which are expected to only be used by events.
+// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta].
 type ReadOktaAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	AccessCache
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetProxies returns a list of proxy servers registered in the cluster
+	GetProxies() ([]types.Server, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
@@ -762,11 +766,11 @@ type ReadOktaAccessPoint interface {
 	// GetOktaAssignmen treturns the specified Okta assignment resources.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
 
-	// GetApps returns all application resources.
-	GetApps(context.Context) ([]types.Application, error)
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
+	// ListResources returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -804,14 +808,8 @@ type OktaAccessPoint interface {
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
-	// CreateApp creates a new application resource.
-	CreateApp(context.Context, types.Application) error
-
-	// UpdateApp updates an existing application resource.
-	UpdateApp(context.Context, types.Application) error
-
-	// DeleteApp removes the specified application resource.
-	DeleteApp(ctx context.Context, name string) error
+	// DeleteApplicationServer removes specified application server.
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1268,19 +1266,9 @@ func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) err
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
 }
 
-// CreateApp creates a new application resource.
-func (w *OktaWrapper) CreateApp(ctx context.Context, app types.Application) error {
-	return w.NoCache.CreateApp(ctx, app)
-}
-
-// UpdateApp updates an existing application resource.
-func (w *OktaWrapper) UpdateApp(ctx context.Context, app types.Application) error {
-	return w.NoCache.UpdateApp(ctx, app)
-}
-
-// DeleteApp removes the specified application resource.
-func (w *OktaWrapper) DeleteApp(ctx context.Context, name string) error {
-	return w.NoCache.DeleteApp(ctx, name)
+// DeleteApplicationServer removes specified application server.
+func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
 }
 
 // Close closes all associated resources
