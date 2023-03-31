@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - '**.go'
+      - '.github/workflows/flaky-tests.yaml'
 
 jobs:
   test:
