@@ -91,7 +91,7 @@ export function createViteConfig(
       config.server.proxy = {
         '^\\/v1\\/webapi\\/sites\\/(.*?)\\/connect': {
           target: `wss://${target}`,
-          changeOrigin: true,
+          changeOrigin: false,
           secure: false,
           ws: true,
         },

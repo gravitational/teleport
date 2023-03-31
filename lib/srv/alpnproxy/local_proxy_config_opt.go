@@ -132,6 +132,14 @@ func WithCheckCertsNeeded() LocalProxyConfigOpt {
 	}
 }
 
+// WithSNI is a LocalProxyConfigOpt that sets the SNI.
+func WithSNI(sni string) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		config.SNI = sni
+		return nil
+	}
+}
+
 // WithMySQLVersionProto is a LocalProxyConfigOpt that encodes MySQL version in
 // the ALPN protocol.
 func WithMySQLVersionProto(db types.Database) LocalProxyConfigOpt {
