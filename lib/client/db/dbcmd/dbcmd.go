@@ -69,6 +69,8 @@ const (
 	elasticsearchSQLBin = "elasticsearch-sql-cli"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
+	// oracleBin is the Oracle CLI program name.
+	oracleBin = "sql"
 )
 
 // Execer is an abstraction of Go's exec module, as this one doesn't specify any interfaces.
@@ -192,6 +194,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 
 	case defaults.ProtocolDynamoDB:
 		return c.getDynamoDBCommand()
+
+	case defaults.ProtocolOracle:
+		return c.getOracleCommand()
 	}
 
 	return nil, trace.BadParameter("unsupported database protocol: %v", c.db)
@@ -617,6 +622,36 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 		"<command>",
 	}
 	return c.options.exe.Command(awsBin, args...), nil
+}
+
+type jdbcOracleThinConnection struct {
+	host     string
+	port     int
+	db       string
+	tnsAdmin string
+}
+
+func (j *jdbcOracleThinConnection) ConnString() string {
+	return fmt.Sprintf(`jdbc:oracle:thin:@tcps://%s:%d/%s?TNS_ADMIN=%s`, j.host, j.port, j.db, j.tnsAdmin)
+}
+
+func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
+	cs := jdbcOracleThinConnection{
+		host:     c.host,
+		port:     c.port,
+		db:       c.db.Database,
+		tnsAdmin: c.profile.OracleWalletDir(c.profile.Cluster, c.db.ServiceName),
+	}
+	// Quote the address for printing as the address contains "?".
+	connString := cs.ConnString()
+	if c.options.printFormat {
+		connString = fmt.Sprintf(`'%s'`, connString)
+	}
+	args := []string{
+		"-L", // dont retry
+		connString,
+	}
+	return c.options.exe.Command(oracleBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
