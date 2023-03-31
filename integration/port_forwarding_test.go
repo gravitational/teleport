@@ -22,10 +22,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os/user"
 	"strconv"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -71,19 +73,49 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 }
 
 func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
+	invalidOSLogin := uuid.NewString()[:12]
+	notFound := false
+	for i := 0; i < 10; i++ {
+		if _, err := user.Lookup(invalidOSLogin); err == nil {
+			invalidOSLogin = uuid.NewString()[:12]
+			continue
+		}
+		notFound = true
+		break
+	}
+	require.True(t, notFound, "unable to locate invalid os user")
+
+	// Providing our own logins to Teleport so we can verify that a user
+	// that exists within Teleport but does not exist on the local node
+	// cannot port forward.
+	logins := []string{
+		invalidOSLogin,
+		suite.Me.Username,
+	}
+
 	testCases := []struct {
 		desc                  string
 		portForwardingAllowed bool
 		expectSuccess         bool
+		login                 string
 	}{
 		{
 			desc:                  "Enabled",
 			portForwardingAllowed: true,
 			expectSuccess:         true,
-		}, {
+			login:                 suite.Me.Username,
+		},
+		{
 			desc:                  "Disabled",
 			portForwardingAllowed: false,
 			expectSuccess:         false,
+			login:                 suite.Me.Username,
+		},
+		{
+			desc:                  "Enabled with invalid user",
+			portForwardingAllowed: true,
+			expectSuccess:         false,
+			login:                 invalidOSLogin,
 		},
 	}
 
@@ -106,7 +138,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cfg.SSH.Enabled = true
 			cfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 
-			teleport := suite.NewTeleportWithConfig(t, nil, nil, cfg)
+			teleport := suite.NewTeleportWithConfig(t, logins, nil, cfg)
 			defer teleport.StopAll()
 
 			site := teleport.GetSiteAPI(helpers.Site)
@@ -127,7 +159,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			nodeSSHPort := helpers.Port(t, teleport.SSH)
 			cl, err := teleport.NewClient(helpers.ClientConfig{
-				Login:   suite.Me.Username,
+				Login:   tt.login,
 				Cluster: helpers.Site,
 				Host:    Host,
 				Port:    nodeSSHPort,
