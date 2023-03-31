@@ -362,6 +362,11 @@
               "title": "Terraform",
               "slug": "/access-controls/login-rules/terraform/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Kubernetes",
+              "slug": "/access-controls/login-rules/kubernetes/",
+              "forScopes": ["enterprise"]
             }
           ]
         },
