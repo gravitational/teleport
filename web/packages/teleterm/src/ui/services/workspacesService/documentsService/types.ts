@@ -25,6 +25,12 @@ export type Kind =
   | 'doc.terminal_tsh_node'
   | 'doc.terminal_tsh_kube';
 
+export type DocumentOrigin =
+  | 'resource_table'
+  | 'search_bar'
+  | 'connection_list'
+  | 'reopened_session';
+
 interface DocumentBase {
   uri: uri.DocumentUri;
   title: string;
