@@ -1778,6 +1778,10 @@ type DatabaseAD struct {
 	Domain string `yaml:"domain"`
 	// SPN is the service principal name for the database.
 	SPN string `yaml:"spn"`
+	// LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+	LDAPCert string `yaml:"ldap_cert,omitempty"`
+	// KDCHostName is the host name for a KDC for x509 Authentication.
+	KDCHostName string `yaml:"kdc_host_name,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.

@@ -43,7 +43,7 @@ export default function DeleteTrustedClusterDialog(props: Props) {
         {attempt.isFailed && <Alerts.Danger>{attempt.message}</Alerts.Danger>}
         <Text typography="paragraph" mb="6">
           Are you sure you want to delete trusted cluster{' '}
-          <Text as="span" bold color="primary.contrastText">
+          <Text as="span" bold color="text.contrast">
             {name}
           </Text>
           ?

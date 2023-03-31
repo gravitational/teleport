@@ -171,6 +171,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.DEVICE_ENROLL]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
+  [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
@@ -265,7 +266,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
 const StyledCliIcon = styled(Icons.Cli)(
   props => `
   background: ${props.theme.colors.dark};
-  border: 2px solid ${props.theme.colors.accent};
+  border: 2px solid ${props.theme.colors.brand.accent};
   color: ${props.theme.colors.text.primary};
   cursor: pointer;
   display: flex;

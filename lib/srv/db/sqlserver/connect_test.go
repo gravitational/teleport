@@ -221,7 +221,7 @@ func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.Cluster
 }
 
 func (m *mockAuth) GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
-	return &proto.DatabaseCertResponse{Cert: []byte(mockCA)}, nil
+	return &proto.DatabaseCertResponse{Cert: []byte(mockCA), CACerts: [][]byte{[]byte(mockCA)}}, nil
 }
 
 func TestConnectorKInitClient(t *testing.T) {
@@ -234,9 +234,6 @@ func TestConnectorKInitClient(t *testing.T) {
 		DBAuth:                &mockDBAuth{},
 		AuthClient:            &mockAuth{},
 		kinitCommandGenerator: &staticCache{t: t, pass: true},
-		caFunc: func(ctx context.Context, clusterName string) ([]byte, error) {
-			return []byte(mockCA), nil
-		},
 	}
 
 	krbConfPath := filepath.Join(dir, "krb5.conf")
