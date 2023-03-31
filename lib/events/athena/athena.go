@@ -73,9 +73,9 @@ type Config struct {
 	QueryResultsS3 string
 	// Workgroup is Glue workgroup where Athena queries are executed (optional).
 	Workgroup string
-	// GetQueryResultsSleepTime is used to define how long query will wait before
+	// GetQueryResultsInterval is used to define how long query will wait before
 	// checking again for results status if previous status was not ready (optional).
-	GetQueryResultsSleepTime time.Duration
+	GetQueryResultsInterval time.Duration
 	// LimiterRate defines rate at which search_event rate limiter is filled (optional).
 	LimiterRate float64
 	// LimiterBurst defines rate limit bucket capacity (optional).
@@ -152,8 +152,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("QueueURL must be valid url and start with https")
 	}
 
-	if cfg.GetQueryResultsSleepTime == 0 {
-		cfg.GetQueryResultsSleepTime = 100 * time.Millisecond
+	if cfg.GetQueryResultsInterval == 0 {
+		cfg.GetQueryResultsInterval = 100 * time.Millisecond
 	}
 
 	if cfg.BatchMaxItems == 0 {
@@ -228,13 +228,13 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	if workgroup != "" {
 		cfg.Workgroup = workgroup
 	}
-	getQueryResultsSleepTime := url.Query().Get("getQueryResultsSleepTime")
-	if getQueryResultsSleepTime != "" {
-		dur, err := time.ParseDuration(getQueryResultsSleepTime)
+	getQueryResultsInterval := url.Query().Get("getQueryResultsInterval")
+	if getQueryResultsInterval != "" {
+		dur, err := time.ParseDuration(getQueryResultsInterval)
 		if err != nil {
-			return trace.BadParameter("invalid getQueryResultsSleepTime value: %v", err)
+			return trace.BadParameter("invalid getQueryResultsInterval value: %v", err)
 		}
-		cfg.GetQueryResultsSleepTime = dur
+		cfg.GetQueryResultsInterval = dur
 	}
 	rateInString := url.Query().Get("limiterRate")
 	if rateInString != "" {
