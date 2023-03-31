@@ -20,17 +20,20 @@ package identityfile
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
+	"software.sslmate.com/src/go-pkcs12"
 
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
@@ -99,6 +102,12 @@ const (
 
 	// DefaultFormat is what Teleport uses by default
 	DefaultFormat = FormatFile
+
+	// FormatOracle produces CA and ke pair in the Oracle wallet format.
+	// The execution depend on Orapki binary and if this binary is not found
+	// Teleport will print intermediate steps how to convert Teleport certs
+	// to Oracle wallet on Oracle Server instance.
+	FormatOracle Format = "oracle"
 )
 
 // FormatList is a list of all possible FormatList.
@@ -108,6 +117,7 @@ type FormatList []Format
 var KnownFileFormats = FormatList{
 	FormatFile, FormatOpenSSH, FormatTLS, FormatKubernetes, FormatDatabase, FormatWindows,
 	FormatMongo, FormatCockroach, FormatRedis, FormatSnowflake, FormatElasticsearch, FormatCassandra, FormatScylla,
+	FormatOracle,
 }
 
 // String returns human-readable version of FormatList, ex:
@@ -181,8 +191,8 @@ type WriteConfig struct {
 	OverwriteDestination bool
 	// Writer is the filesystem implementation.
 	Writer ConfigWriter
-	// JKSPassword is the password for the JKS keystore used by Cassandra format.
-	JKSPassword string
+	// Password is the password for the JKS keystore used by Cassandra format and Oracle wallet.
+	Password string
 }
 
 // Write writes user credentials to disk in a specified format.
@@ -309,7 +319,6 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 	// FormatMongo is the same as FormatTLS or FormatDatabase certificate and
 	// key are concatenated in the same .crt file which is what Mongo expects.
 	case FormatMongo:
@@ -371,6 +380,12 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 			return nil, trace.Wrap(err)
 		}
 		filesWritten = append(filesWritten, out...)
+	case FormatOracle:
+		out, err := writeOracleFormat(cfg, writer)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		filesWritten = append(filesWritten, out...)
 
 	case FormatKubernetes:
 		filesWritten = append(filesWritten, cfg.OutputPath)
@@ -410,12 +425,12 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 }
 
 func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
-	if cfg.JKSPassword == "" {
+	if cfg.Password == "" {
 		pass, err := utils.CryptoRandomHex(16)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		cfg.JKSPassword = pass
+		cfg.Password = pass
 	}
 	// Cassandra expects a JKS keystore file with the private key and certificate
 	// in it. The keystore file is password protected.
@@ -445,6 +460,116 @@ func writeCassandraFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error
 	return []string{certPath, casPath}, nil
 }
 
+// writeOracleFormat creates an Oracle wallet files if orapki Oracle tool is available
+// is user env otherwise creates a p12 key-pair file allowing to run orapki on the Oracle server
+// and create the Oracle wallet manually.
+func writeOracleFormat(cfg WriteConfig, writer ConfigWriter) ([]string, error) {
+	certBlock, err := tlsca.ParseCertificatePEM(cfg.Key.TLSCert)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	keyK, err := utils.ParsePrivateKeyPEM(cfg.Key.PrivateKeyPEM())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var caCerts []*x509.Certificate
+	for _, ca := range cfg.Key.TrustedCerts {
+		for _, cert := range ca.TLSCertificates {
+			c, err := tlsca.ParseCertificatePEM(cert)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			caCerts = append(caCerts, c)
+		}
+	}
+
+	pf, err := pkcs12.Encode(rand.Reader, keyK, certBlock, caCerts, cfg.Password)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p12Path := cfg.OutputPath + ".p12"
+	certPath := cfg.OutputPath + ".crt"
+
+	if err := writer.WriteFile(p12Path, pf, identityfile.FilePermissions); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	err = writer.WriteFile(certPath, cfg.Key.TLSCert, identityfile.FilePermissions)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Is ORAPKI binary is available is user env run command ang generate autologin Oracle wallet.
+	if isOrapkiAvailable() {
+		// Is Orapki is available in the user env create the Oracle wallet directly.
+		// otherwise Orapki tool needs to be executed on the server site to import keypair to
+		// Oracle wallet.
+		if err := createOracleWallet(cfg.OutputPath, p12Path, certPath, cfg.Password); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// If Oracle Wallet was created the raw p12 keypair and trusted cert are no longer needed.
+		if err := os.Remove(p12Path); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if err := os.Remove(certPath); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		// Return the path to the Oracle wallet.
+		return []string{cfg.OutputPath}, nil
+	}
+
+	// Otherwise return destinations to p12 keypair and trusted CA allowing a user to run the convert flow on the
+	// Oracle server instance in order to create Oracle wallet file.
+	return []string{p12Path, certPath}, nil
+}
+
+const (
+	orapkiBinary = "orapki"
+)
+
+func isOrapkiAvailable() bool {
+	_, err := exec.LookPath(orapkiBinary)
+	return err == nil
+}
+
+func createOracleWallet(walletPath, p12Path, certPath, password string) error {
+	errDetailsFormat := "\n\nOrapki command:\n%s \n\nCompleted with following error: \n%s"
+	// Create Raw Oracle wallet with auto_login_only flag -  no password required.
+	args := []string{
+		"wallet", "create", "-wallet", walletPath,
+		"-auto_login_only",
+	}
+	cmd := exec.Command(orapkiBinary, args...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return trace.Wrap(err, fmt.Sprintf(errDetailsFormat, cmd.String(), output))
+	}
+
+	// Import keypair into oracle wallet as a user cert.
+	args = []string{
+		"wallet", "import_pkcs12", "-wallet", walletPath,
+		"-auto_login_only",
+		"-pkcs12file", p12Path,
+		"-pkcs12pwd", password,
+	}
+	cmd = exec.Command(orapkiBinary, args...)
+	if output, err := exec.Command(orapkiBinary, args...).CombinedOutput(); err != nil {
+		return trace.Wrap(err, fmt.Sprintf(errDetailsFormat, cmd.String(), output))
+	}
+
+	// Add import teleport CA to the oracle wallet.
+	args = []string{
+		"wallet", "add", "-wallet", walletPath,
+		"-trusted_cert",
+		"-auto_login_only",
+		"-cert", certPath,
+	}
+	cmd = exec.Command(orapkiBinary, args...)
+	if output, err := exec.Command(orapkiBinary, args...).CombinedOutput(); err != nil {
+		return trace.Wrap(err, fmt.Sprintf(errDetailsFormat, cmd.String(), output))
+	}
+	return nil
+}
+
 func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 	var caCerts []byte
 	for _, ca := range cfg.Key.TrustedCerts {
@@ -466,7 +591,7 @@ func prepareCassandraTruststore(cfg WriteConfig) (*bytes.Buffer, error) {
 		return nil, trace.Wrap(err)
 	}
 	var buff bytes.Buffer
-	if err := ks.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
+	if err := ks.Store(&buff, []byte(cfg.Password)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &buff, nil
@@ -497,11 +622,11 @@ func prepareCassandraKeystore(cfg WriteConfig) (*bytes.Buffer, error) {
 			},
 		},
 	}
-	if err := ks.SetPrivateKeyEntry("cassandra", pkeIn, []byte(cfg.JKSPassword)); err != nil {
+	if err := ks.SetPrivateKeyEntry("cassandra", pkeIn, []byte(cfg.Password)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var buff bytes.Buffer
-	if err := ks.Store(&buff, []byte(cfg.JKSPassword)); err != nil {
+	if err := ks.Store(&buff, []byte(cfg.Password)); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &buff, nil
