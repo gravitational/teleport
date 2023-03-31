@@ -409,8 +409,10 @@ func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEv
 
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
+	// Username contains the user's name.
 	Username string
-	IsSSO    bool
+	// IsSSO indicates if the user was created by an SSO provider.
+	IsSSO bool
 }
 
 // ConvertUsageEvent converts a usage event from an API object into an
