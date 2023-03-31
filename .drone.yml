@@ -767,9 +767,9 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
-  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd $TeleportSrc/e/windows_auth_package
@@ -1018,9 +1018,9 @@ steps:
   - $ErrorActionPreference = 'Stop'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
-  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
   - cd $TeleportSrc/e/windows_auth_package
@@ -19085,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 5a51f9112245154cba4200d45dc0c97eab781d75f6756bf259b48ecf0785a5cd
+hmac: fef8f51d3058e517182f9298b50258c9928c5c6155209d35b1e1c499e9da8350
 
 ...
