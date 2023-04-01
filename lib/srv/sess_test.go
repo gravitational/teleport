@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -83,6 +84,137 @@ func TestParseAccessRequestIDs(t *testing.T) {
 			out, err := ParseAccessRequestIDs(tt.input)
 			tt.assertErr(t, err)
 			require.Equal(t, out, tt.result)
+		})
+	}
+}
+
+func TestIsApprovedFileTransfer(t *testing.T) {
+	// set enterprise for tests
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	// init a session registry
+	reg, _ := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+
+	// Create the auditorRole and moderator Party
+	auditorRole, _ := types.NewRole("auditor", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "foo",
+				Roles: []string{"access"},
+				Kinds: []string{string(types.SSHSessionKind)},
+				Modes: []string{string(types.SessionModeratorMode)},
+			}},
+		},
+	})
+	auditorRoleSet := services.NewRoleSet(auditorRole)
+	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
+	// change the teleport user so we dont match the user in the test cases
+	auditScx.Identity.TeleportUser = "mod"
+	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
+	approvers := make(map[string]*party)
+	auditChan := newMockSSHChannel()
+	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
+
+	// create the accessRole to be used for the requester
+	accessRole, _ := types.NewRole("access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:   "foo",
+				Filter: "contains(user.roles, \"auditor\")", // escape to avoid illegal rune
+				Kinds:  []string{string(types.SSHSessionKind)},
+				Modes:  []string{string(types.SessionModeratorMode)},
+				Count:  1,
+			}},
+		},
+	})
+	accessRoleSet := services.NewRoleSet(accessRole)
+
+	cases := []struct {
+		name           string
+		expectedResult bool
+		expectedError  string
+		req            *fileTransferRequest
+		reqID          string
+	}{
+
+		{
+			name:           "no file request found with supplied ID",
+			expectedResult: false,
+			expectedError:  "",
+			reqID:          "",
+			req:            nil,
+		},
+		{
+			name:           "no file request found with supplied ID",
+			expectedResult: false,
+			expectedError:  "File transfer request not found",
+			reqID:          "111",
+			req:            nil,
+		},
+		{
+			name:           "current requester does not match original requester",
+			expectedResult: false,
+			expectedError:  "Teleport user does not match original requester",
+			reqID:          "123",
+			req: &fileTransferRequest{
+				requester: "michael",
+				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
+				approvers: make(map[string]*party),
+			},
+		},
+		{
+			name:           "current payload does not match original payload",
+			expectedResult: false,
+			expectedError:  "Incoming request does not match the approved request",
+			reqID:          "123",
+			req: &fileTransferRequest{
+				requester: "teleportUser",
+				shellCmd:  "badcommand",
+				approvers: make(map[string]*party),
+			},
+		},
+		{
+			name:           "approved request",
+			expectedResult: true,
+			expectedError:  "",
+			reqID:          "123",
+			req: &fileTransferRequest{
+				requester: "teleportUser",
+				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
+				approvers: approvers,
+			},
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			// create and add a session to the registry
+			sess, _ := testOpenSession(t, reg, accessRoleSet)
+
+			// create a fileTransferRequest. can be nil
+			sess.fileTransferRequests = map[string]*fileTransferRequest{
+				"123": tt.req,
+			}
+
+			// new exec request context
+			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
+			scx.sshRequest = &ssh.Request{
+				Payload: []byte("/usr/bin/scp -f ~/logs.txt"),
+			}
+
+			scx.SetEnv(scp.ModeratedSession, sess.ID())
+			scx.SetEnv(scp.FileTransferRequest, tt.reqID)
+			result, err := reg.isApprovedFileTransfer(scx)
+			if err != nil {
+				require.Equal(t, tt.expectedError, err.Error())
+			}
+
+			require.Equal(t, tt.expectedResult, result)
 		})
 	}
 }

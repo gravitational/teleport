@@ -288,7 +288,7 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 	scx.Infof("Creating (exec) session %v.", sessionID)
 
-	approved, err := s.isApprovedFileTransfer(ctx, scx)
+	approved, err := s.isApprovedFileTransfer(scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -346,7 +346,7 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 	return sess.term.GetWinSize()
 }
 
-func (s *SessionRegistry) isApprovedFileTransfer(ctx context.Context, scx *ServerContext) (bool, error) {
+func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, error) {
 	s.sessionsMux.Lock()
 	defer s.sessionsMux.Unlock()
 
@@ -1465,7 +1465,7 @@ type fileTransferRequest struct {
 	// shellCmd is the requested scp command to run
 	shellCmd string
 	// approvers is a list of participants of moderator or peer type that have approved the request
-	approvers []*party
+	approvers map[string]*party
 }
 
 func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, error) {
@@ -1485,6 +1485,9 @@ func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, e
 
 	isApproved, _, err := s.access.FulfilledFor(participants)
 	if err != nil {
+		fmt.Println("-----")
+		fmt.Printf("errerr %+v\n", err)
+		fmt.Println("-----")
 		return false, trace.Wrap(err)
 	}
 
