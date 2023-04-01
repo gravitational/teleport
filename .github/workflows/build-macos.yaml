@@ -2,9 +2,6 @@ name: Build on Mac OS
 run-name: Build on Mac OS
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths:
       - '**.go'

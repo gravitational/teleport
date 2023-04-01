@@ -804,6 +804,10 @@
               "slug": "/server-access/guides/ec2-discovery/"
             },
             {
+              "title": "Azure Instance Discovery (Preview)",
+              "slug": "/server-access/guides/azure-discovery/"
+            },
+            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }
@@ -1215,6 +1219,10 @@
 	{
 	    "title": "Automatically Register Teleport Agents",
 	    "slug": "/api/automatically-register-agents/"
+	},
+	{
+	    "title": "Automatically Generate Roles",
+	    "slug": "/api/rbac/"
 	}
       ]
     },

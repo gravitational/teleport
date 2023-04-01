@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/template"
@@ -74,7 +75,7 @@ type AuthCommand struct {
 	windowsDomain              string
 	windowsSID                 string
 	signOverwrite              bool
-	jksPassword                string
+	password                   string
 	caType                     string
 
 	rotateGracePeriod time.Duration
@@ -256,12 +257,20 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		a.jksPassword = jskPass
+		a.password = jskPass
 		return a.generateDatabaseKeys(ctx, clusterAPI)
 	case identityfile.FormatSnowflake:
 		return a.generateSnowflakeKey(ctx, clusterAPI)
 	case identityfile.FormatWindows:
 		return a.generateWindowsCert(ctx, clusterAPI)
+	case identityfile.FormatOracle:
+		oracleWalletPass, err := utils.CryptoRandomHex(32)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		a.password = oracleWalletPass
+		return a.generateDBOracleCert(ctx, clusterAPI)
+
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
@@ -292,6 +301,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI auth.C
 	}
 
 	certDER, _, err := windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+		CAType:             types.UserCA,
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		ActiveDirectorySID: a.windowsSID,
@@ -497,14 +507,14 @@ func (a *AuthCommand) generateDatabaseKeysForKey(ctx context.Context, clusterAPI
 		OutputLocation:     a.output,
 		TTL:                a.genTTL,
 		Key:                key,
-		JKSPassword:        a.jksPassword,
+		Password:           a.password,
 	}
 	filesWritten, err := db.GenerateDatabaseCertificates(ctx, dbCertReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.jksPassword))
+	return trace.Wrap(writeHelperMessageDBmTLS(os.Stdout, filesWritten, a.output, a.outputFormat, a.password))
 }
 
 var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Template{
@@ -516,9 +526,10 @@ var mapIdentityFileFormatHelperTemplate = map[identityfile.Format]*template.Temp
 	identityfile.FormatElasticsearch: elasticsearchAuthSignTpl,
 	identityfile.FormatCassandra:     cassandraAuthSignTpl,
 	identityfile.FormatScylla:        scyllaAuthSignTpl,
+	identityfile.FormatOracle:        oracleAuthSignTpl,
 }
 
-func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, jksPassword string) error {
+func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output string, outputFormat identityfile.Format, password string) error {
 	if writer == nil {
 		return nil
 	}
@@ -530,9 +541,13 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		return nil
 	}
 	tplVars := map[string]interface{}{
-		"files":       strings.Join(filesWritten, ", "),
-		"jksPassword": jksPassword,
-		"output":      output,
+		"files":    strings.Join(filesWritten, ", "),
+		"password": password,
+		"output":   output,
+	}
+	if outputFormat == defaults.ProtocolOracle {
+		tplVars["manualOrapkiFlow"] = len(filesWritten) != 1
+		tplVars["walletDir"] = filepath.Dir(output)
 	}
 
 	return trace.Wrap(tpl.Execute(writer, tplVars))
@@ -617,23 +632,48 @@ https://www.elastic.co/guide/en/elasticsearch/reference/current/security-setting
 `))
 
 	cassandraAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
-
 To enable mutual TLS on your Cassandra server, add the following to your
 cassandra.yaml configuration file:
-
 client_encryption_options:
    enabled: true
    optional: false
    keystore: /path/to/{{.output}}.keystore
-   keystore_password: "{{.jksPassword}}"
-
+   keystore_password: "{{.password}}"
    require_client_auth: true
    truststore: /path/to/{{.output}}.truststore
-   truststore_password: "{{.jksPassword}}"
+   truststore_password: "{{.password}}"
    protocol: TLS
    algorithm: SunX509
    store_type: JKS
    cipher_suites: [TLS_RSA_WITH_AES_256_CBC_SHA]
+`))
+
+	oracleAuthSignTpl = template.Must(template.New("").Parse(`
+{{if .manualOrapkiFlow}}
+Orapki binary was not found. Please create oracle wallet file manually by running the following commands on the Oracle server:
+
+orapki wallet create -wallet {{.walletDir}} -auto_login_only
+orapki wallet import_pkcs12 -wallet {{.walletDir}} -auto_login_only -pkcs12file {{.output}}.p12 -pkcs12pwd {{.password}}
+orapki wallet add -wallet {{.walletDir}} -trusted_cert -auto_login_only -cert {{.output}}.crt
+{{end}}
+To enable mutual TLS on your Oracle server, add the following settings to Oracle sqlnet.ora configuration file:
+
+WALLET_LOCATION = (SOURCE = (METHOD = FILE)(METHOD_DATA = (DIRECTORY = /path/to/oracleWalletDir)))
+SSL_CLIENT_AUTHENTICATION = TRUE
+SQLNET.AUTHENTICATION_SERVICES = (TCPS)
+
+
+To enable mutual TLS on your Oracle server, add the following TCPS entries to listener.ora configuration file:
+
+LISTENER =
+  (DESCRIPTION_LIST =
+    (DESCRIPTION =
+      (ADDRESS = (PROTOCOL = TCPS)(HOST = 0.0.0.0)(PORT = 2484))
+    )
+  )
+
+WALLET_LOCATION = (SOURCE = (METHOD = FILE)(METHOD_DATA = (DIRECTORY = /path/to/oracleWalletDir)))
+SSL_CLIENT_AUTHENTICATION = TRUE
 `))
 
 	scyllaAuthSignTpl = template.Must(template.New("").Parse(`Database credentials have been written to {{.files}}.
@@ -940,6 +980,14 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.Client
 	}
 
 	return trace.BadParameter("couldn't find registered public proxies, specify --proxy when using --format=%q", identityfile.FormatKubernetes)
+}
+
+func (a *AuthCommand) generateDBOracleCert(ctx context.Context, api auth.ClientI) error {
+	key, err := client.GenerateRSAKey()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return a.generateDatabaseKeysForKey(ctx, api, key)
 }
 
 func parseURL(rawurl string) (*url.URL, error) {

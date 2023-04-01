@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -73,6 +74,9 @@ type Database struct {
 
 // CheckAndSetDefaults validates the database proxy configuration.
 func (d *Database) CheckAndSetDefaults() error {
+	if err := enterprise.ProtocolValidation(d.Protocol); err != nil {
+		return trace.Wrap(err)
+	}
 	if d.Name == "" {
 		return trace.BadParameter("empty database name")
 	}
