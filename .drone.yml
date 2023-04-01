@@ -908,8 +908,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Clean up previously built artifacts
@@ -934,8 +932,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
   - name: tmpfs
     path: /tmpfs
   - name: awsconfig
@@ -20200,8 +20196,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
   - name: awsconfig
     path: /root/.aws
 - name: Publish in Release API
@@ -20226,8 +20220,6 @@ steps:
   volumes:
   - name: dockersock
     path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
   - name: tmpfs
     path: /tmpfs
   - name: awsconfig
@@ -20255,6 +20247,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: cbe93fa7e2ef50d7d9ba09b9504673dcbfcc2253d348bb1413fa6e8c9774fd63
+hmac: 3fa6da738b8cc780170001d7791c96115662e94d044b6c4ed524d752303a1a53
 
 ...
