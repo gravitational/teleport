@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgconn"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
@@ -398,6 +399,25 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 	}
 }
 
+func withTrustedClusterBehindALB() proxySuiteOptionsFunc {
+	return func(options *suiteOptions) {
+		originalSetup := options.updateRoleMappingFunc
+
+		options.updateRoleMappingFunc = func(t *testing.T, suite *Suite) {
+			t.Helper()
+
+			if originalSetup != nil {
+				originalSetup(t, suite)
+			}
+			require.NotNil(t, options.trustedCluster)
+
+			albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+			options.trustedCluster.SetProxyAddress(albProxy.Addr().String())
+			options.trustedCluster.SetReverseTunnelAddress(albProxy.Addr().String())
+		}
+	}
+}
+
 func mustRunPostgresQuery(t *testing.T, client *pgconn.PgConn) {
 	result, err := client.Exec(context.Background(), "select 1").ReadAll()
 	require.NoError(t, err)
@@ -474,7 +494,7 @@ func mustCreateKubeConfigFile(t *testing.T, config clientcmdapi.Config) string {
 func mustCreateListener(t *testing.T) net.Listener {
 	t.Helper()
 
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -594,7 +614,7 @@ type mockAWSALBProxy struct {
 	cert      tls.Certificate
 }
 
-func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
+func (m *mockAWSALBProxy) serve(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -604,26 +624,33 @@ func (m *mockAWSALBProxy) serve(ctx context.Context, t *testing.T) {
 
 		conn, err := m.Accept()
 		if err != nil {
-			if utils.IsOKNetworkError(err) {
-				return
-			}
-			require.NoError(t, err)
+			logrus.WithError(err).Debugf("Failed to accept conn.")
 			return
 		}
 
 		go func() {
+			defer conn.Close()
+
 			// Handshake with incoming client and drops ALPN.
 			downstreamConn := tls.Server(conn, &tls.Config{
 				Certificates: []tls.Certificate{m.cert},
 			})
-			require.NoError(t, downstreamConn.HandshakeContext(ctx))
+
+			// api.Client may try different connection methods. Just close the
+			// connection when something goes wrong.
+			if err := downstreamConn.HandshakeContext(ctx); err != nil {
+				logrus.WithError(err).Debugf("Failed to handshake.")
+				return
+			}
 
 			// Make a connection to the proxy server with ALPN protos.
 			upstreamConn, err := tls.Dial("tcp", m.proxyAddr, &tls.Config{
 				InsecureSkipVerify: true,
 			})
-			require.NoError(t, err)
-
+			if err != nil {
+				logrus.WithError(err).Debugf("Failed to dial upstream.")
+				return
+			}
 			utils.ProxyConn(ctx, downstreamConn, upstreamConn)
 		}()
 	}
@@ -640,7 +667,7 @@ func mustStartMockALBProxy(t *testing.T, proxyAddr string) *mockAWSALBProxy {
 		Listener:  mustCreateListener(t),
 		cert:      mustCreateSelfSignedCert(t),
 	}
-	go m.serve(ctx, t)
+	go m.serve(ctx)
 	return m
 }
 

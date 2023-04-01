@@ -4390,7 +4390,7 @@ func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv revers
 func setupTLSConfigALPNProtocols(tlsConfig *tls.Config) {
 	// Go 1.17 introduced strict ALPN https://golang.org/doc/go1.17#ALPN If a client protocol is not recognized
 	// the TLS handshake will fail.
-	tlsConfig.NextProtos = apiutils.Deduplicate(append(tlsConfig.NextProtos, alpncommon.ProtocolsToString(alpncommon.SupportedProtocols)...))
+	alpncommon.AddNextProtos(tlsConfig, alpncommon.SupportedProtocols...)
 }
 
 func setupTLSConfigClientCAsForCluster(tlsConfig *tls.Config, accessPoint auth.ReadProxyAccessPoint, clusterName string) {
@@ -4491,7 +4491,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
-		TLSConfig: serverTLSConfig,
+		TLSConfig: alpncommon.AddNextProtos(serverTLSConfig.Clone(), alpncommon.ProtocolProxySSH),
 	})
 	listeners.ssh = sshProxyListener
 

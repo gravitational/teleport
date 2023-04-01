@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"crypto/tls"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -140,6 +141,12 @@ func ProtocolsToString(protocols []Protocol) []string {
 // then converts them to a list of strings for tls.Config.NextProtos.
 func NextProtosWithPing(protocols ...Protocol) []string {
 	return ProtocolsToString(WithPingProtocols(protocols))
+}
+
+// AddNextProtos adds ALPN protocols to the provided tls.Config.
+func AddNextProtos(config *tls.Config, protocols ...Protocol) *tls.Config {
+	config.NextProtos = utils.Deduplicate(append(config.NextProtos, NextProtosWithPing(protocols...)...))
+	return config
 }
 
 // ToALPNProtocol maps provided database protocol to ALPN protocol.

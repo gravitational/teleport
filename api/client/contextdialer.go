@@ -195,9 +195,6 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 			},
 			ALPNConnUpgradeRequired: params.cfg.IsALPNConnUpgradeRequired(tunnelAddr, insecure),
 			GetClusterCAs: func(_ context.Context) (*x509.CertPool, error) {
-				if len(params.cfg.Credentials) == 0 {
-					return nil, trace.BadParameter("no credentials")
-				}
 				tlsConfig, err := params.cfg.Credentials[0].TLSConfig()
 				if err != nil {
 					return nil, trace.Wrap(err)

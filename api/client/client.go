@@ -327,7 +327,7 @@ type (
 	}
 )
 
-// authConnect connects to the Teleport Auth Server directly.
+// authConnect connects to the Teleport Auth Server directly or through Proxy.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout,
 		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
@@ -352,8 +352,8 @@ func IsWebProxyAndConnUpgradeRequired(ctx context.Context, targetAddr string, cf
 }
 
 func isWebProxy(ctx context.Context, targetAddr string, cfg *Config) bool {
-	if cfg.WebProxyAddr != "" && cfg.WebProxyAddr == targetAddr {
-		return true
+	if cfg.WebProxyAddr != "" {
+		return cfg.WebProxyAddr == targetAddr
 	}
 	_, err := webclient.Find(&webclient.Config{
 		Context:   ctx,

@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -69,6 +70,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 		secondClusterPortSetup    helpers.InstanceListenerSetupFunc
 		disableALPNListenerOnRoot bool
 		disableALPNListenerOnLeaf bool
+		testALPNConnUpgrade       bool
 	}{
 		{
 			name:                      "StandardAndOnePortSetupMasterALPNDisabled",
@@ -85,17 +87,20 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 			name:                   "TwoClusterOnePortSetup",
 			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
 			secondClusterPortSetup: helpers.SingleProxyPortSetup,
+			testALPNConnUpgrade:    true,
 		},
 		{
 			name:                      "OnePortAndStandardListenerSetupLeafALPNDisabled",
 			mainClusterPortSetup:      helpers.SingleProxyPortSetup,
 			secondClusterPortSetup:    helpers.StandardListenerSetup,
 			disableALPNListenerOnLeaf: true,
+			testALPNConnUpgrade:       true,
 		},
 		{
 			name:                   "OnePortAndStandardListenerSetup",
 			mainClusterPortSetup:   helpers.SingleProxyPortSetup,
 			secondClusterPortSetup: helpers.StandardListenerSetup,
+			testALPNConnUpgrade:    true,
 		},
 	}
 
@@ -132,6 +137,31 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 				Host:    helpers.Loopback,
 				Port:    helpers.Port(t, suite.leaf.SSH),
 			})
+
+			if tc.testALPNConnUpgrade {
+				t.Run("ALPN conn upgrade", func(t *testing.T) {
+					// Make a mock ALB which points to the Teleport Proxy Service.
+					albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+
+					// Run command in root.
+					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
+						Login:   username,
+						Cluster: suite.root.Secrets.SiteName,
+						Host:    helpers.Loopback,
+						Port:    helpers.Port(t, suite.root.SSH),
+						ALBAddr: albProxy.Addr().String(),
+					})
+
+					// Run command in leaf.
+					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
+						Login:   username,
+						Cluster: suite.leaf.Secrets.SiteName,
+						Host:    helpers.Loopback,
+						Port:    helpers.Port(t, suite.leaf.SSH),
+						ALBAddr: albProxy.Addr().String(),
+					})
+				})
+			}
 		})
 	}
 }
@@ -144,6 +174,7 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 		secondClusterListenerSetup helpers.InstanceListenerSetupFunc
 		disableALPNListenerOnRoot  bool
 		disableALPNListenerOnLeaf  bool
+		extraSuiteOptions          []proxySuiteOptionsFunc
 	}{
 		{
 			name:                       "StandardAndOnePortSetupMasterALPNDisabled",
@@ -172,6 +203,12 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
 			secondClusterListenerSetup: helpers.StandardListenerSetup,
 		},
+		{
+			name:                       "TrustedClusterBehindALB",
+			mainClusterListenerSetup:   helpers.SingleProxyPortSetup,
+			secondClusterListenerSetup: helpers.SingleProxyPortSetup,
+			extraSuiteOptions:          []proxySuiteOptionsFunc{withTrustedClusterBehindALB()},
+		},
 	}
 	for _, tc := range testCase {
 		t.Run(tc.name, func(t *testing.T) {
@@ -180,7 +217,7 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 
 			username := helpers.MustGetCurrentUser(t).Username
 
-			suite := newSuite(t,
+			opts := []proxySuiteOptionsFunc{
 				withRootClusterConfig(rootClusterStandardConfig(t)),
 				withLeafClusterConfig(leafClusterStandardConfig(t)),
 				withRootClusterListeners(tc.mainClusterListenerSetup),
@@ -189,7 +226,8 @@ func TestALPNSNIProxyTrustedClusterNode(t *testing.T) {
 				withLeafClusterRoles(newRole(t, "auxdevs", username)),
 				withRootAndLeafTrustedClusterReset(),
 				withTrustedCluster(),
-			)
+			}
+			suite := newSuite(t, append(opts, tc.extraSuiteOptions...)...)
 
 			nodeHostname := "clusterauxnode"
 			suite.addNodeToLeafCluster(t, "clusterauxnode")
@@ -1172,16 +1210,60 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	identity := client.LoadIdentityFile(identityFilePath)
 	require.NoError(t, err)
 
-	tc, err := client.New(context.Background(), client.Config{
-		Addrs:                    []string{rc.Web},
-		Credentials:              []client.Credentials{identity},
-		InsecureAddressDiscovery: true,
-	})
-	require.NoError(t, err)
+	// Make a mock ALB which points to the Teleport Proxy Service. Then
+	// client can point to this ALB instead.
+	albProxy := mustStartMockALBProxy(t, rc.Web)
 
-	resp, err := tc.Ping(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, rc.Secrets.SiteName, resp.ClusterName)
+	connectTypes := []struct {
+		name         string
+		clientConfig client.Config
+	}{
+		{
+			name: "sync",
+			clientConfig: client.Config{
+				Credentials:              []client.Credentials{identity},
+				InsecureAddressDiscovery: true,
+			},
+		},
+		{
+			name: "background",
+			clientConfig: client.Config{
+				Credentials:                []client.Credentials{identity},
+				InsecureAddressDiscovery:   true,
+				DialInBackground:           true,
+				ALPNSNIAuthDialClusterName: cfg.ClusterName,
+			},
+		},
+	}
+
+	targets := []struct {
+		name string
+		addr string
+	}{
+		{
+			name: "web",
+			addr: rc.Web,
+		},
+		{
+			name: "alb",
+			addr: albProxy.Addr().String(),
+		},
+	}
+
+	for _, target := range targets {
+		for _, connectType := range connectTypes {
+			t.Run(fmt.Sprintf("%v/%v", target.name, connectType.name), func(t *testing.T) {
+				connectType.clientConfig.Addrs = []string{target.addr}
+
+				tc, err := client.New(context.Background(), connectType.clientConfig)
+				require.NoError(t, err)
+
+				resp, err := tc.Ping(context.Background())
+				require.NoError(t, err)
+				require.Equal(t, rc.Secrets.SiteName, resp.ClusterName)
+			})
+		}
+	}
 }
 
 // TestALPNProxyDialProxySSHWithoutInsecureMode tests dialing to the localhost with teleport-proxy-ssh

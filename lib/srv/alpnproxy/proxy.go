@@ -209,10 +209,6 @@ func (h *HandlerDecs) CheckAndSetDefaults() error {
 		return trace.BadParameter("the ForwardTLS flag and TLSConfig can't be used at the same time")
 	}
 
-	if h.TLSConfig != nil && len(h.TLSConfig.NextProtos) == 0 {
-		h.TLSConfig = h.TLSConfig.Clone()
-		h.TLSConfig.NextProtos = common.ProtocolsToString(common.SupportedProtocols)
-	}
 	return nil
 }
 

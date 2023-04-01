@@ -17,6 +17,7 @@ limitations under the License.
 package common
 
 import (
+	"crypto/tls"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -47,6 +48,16 @@ func TestIsDBTLSProtocol(t *testing.T) {
 	require.True(t, IsDBTLSProtocol("teleport-redis-ping"))
 	require.False(t, IsDBTLSProtocol("teleport-tcp"))
 	require.False(t, IsDBTLSProtocol(""))
+}
+
+func TestAddNextProtos(t *testing.T) {
+	input := &tls.Config{
+		NextProtos: []string{"proto1", "proto2"},
+	}
+	want := &tls.Config{
+		NextProtos: []string{"proto1", "proto2", "teleport-proxy-ssh-ping", "teleport-proxy-ssh"},
+	}
+	require.Equal(t, want, AddNextProtos(input, ProtocolProxySSH))
 }
 
 func BenchmarkNextProtosWithPing(b *testing.B) {
