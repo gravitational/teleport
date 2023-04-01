@@ -22,6 +22,7 @@ on:
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - '.github/workflows/build-macos.yaml'
   merge_group:
     paths-ignore:
       - '**.go'
@@ -32,6 +33,7 @@ on:
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - '.github/workflows/build-macos.yaml'
 
 jobs:
   build:
