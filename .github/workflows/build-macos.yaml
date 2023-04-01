@@ -28,12 +28,12 @@ on:
 jobs:
   build:
     name: Build on Mac OS
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    # if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: macos-12-xl
 
     permissions:
       contents: read
-#
+
     steps:
       - name: Checkout Teleport
         uses: actions/checkout@v3
