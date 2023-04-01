@@ -207,8 +207,8 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 				Payload: []byte("/usr/bin/scp -f ~/logs.txt"),
 			}
 
-			scx.SetEnv(scp.ModeratedSession, sess.ID())
-			scx.SetEnv(scp.FileTransferRequest, tt.reqID)
+			scx.SetEnv(string(scp.ModeratedSession), sess.ID())
+			scx.SetEnv(string(scp.FileTransferRequest), tt.reqID)
 			result, err := reg.isApprovedFileTransfer(scx)
 			if err != nil {
 				require.Equal(t, tt.expectedError, err.Error())

@@ -353,7 +353,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	// if a sessID and requestID environment variables were not set, return not approved and no error.
 	// This means the file transfer came from a non-moderated session. sessionID will be passed after a
 	// moderated session approval process has completed.
-	sessID, _ := scx.GetEnv(scp.ModeratedSession)
+	sessID, _ := scx.GetEnv(string(scp.ModeratedSession))
 	if sessID == "" {
 		return false, nil
 	}
@@ -364,7 +364,7 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.NotFound("Session not found")
 	}
 
-	requestID, _ := scx.GetEnv(scp.FileTransferRequest)
+	requestID, _ := scx.GetEnv(string(scp.FileTransferRequest))
 	if requestID == "" {
 		return false, nil
 	}
