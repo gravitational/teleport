@@ -35,17 +35,10 @@ jobs:
       contents: read
 
     steps:
-      - name: Checkout Teleport
-        uses: actions/checkout@v3
-
-      - name: Determine Enterprise Teleport reference
-        run: echo TELEPORT_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
-
-      - name: Checkout Enterprise Teleport
+      - name: Checkout Teleport with teleport.e
         uses: actions/checkout@v3
         with:
-          path: e
-          ref: ${{ env.TELEPORT_E_REF }}
+          submodules: recursive
 
       - name: Prepare toolchain
         uses: ./e/.github/actions/prepare-toolchain-mac
