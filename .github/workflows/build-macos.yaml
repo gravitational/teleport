@@ -39,6 +39,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           submodules: recursive
+          fetch-depth: 0
 
       - name: Prepare toolchain
         uses: ./e/.github/actions/prepare-toolchain-mac
