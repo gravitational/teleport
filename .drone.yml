@@ -764,7 +764,7 @@ steps:
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Build Windows Authentication Package
   commands:
-  - $ErrorActionPreference = 'Stop'
+  - $ErrorActionPreference = 'Continue'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
@@ -774,6 +774,9 @@ steps:
   - $TeleportVersion=$(make print-version).Trim()
   - cd "$TeleportSrc\e\windows_auth_package"
   - make VERSION=v$TeleportVersion  all
+  - ls
+  - ls build
+  - pwd
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
@@ -1015,7 +1018,7 @@ steps:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build Windows Authentication Package
   commands:
-  - $ErrorActionPreference = 'Stop'
+  - $ErrorActionPreference = 'Continue'
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $Env:GOCACHE = "$Workspace/gocache"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
@@ -1025,6 +1028,9 @@ steps:
   - $TeleportVersion=$(make print-version).Trim()
   - cd "$TeleportSrc\e\windows_auth_package"
   - make VERSION=v$TeleportVersion  all
+  - ls
+  - ls build
+  - pwd
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
@@ -19085,6 +19091,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: a965b98d3408d3197ddc903e6fdd2fca0b85bc5863af6d5c6fbcab908f8eeb6f
+hmac: 655d806c34411822c9fe10b257cfce3cf54357a7672d9b3bf2e4773a14bd820b
 
 ...
