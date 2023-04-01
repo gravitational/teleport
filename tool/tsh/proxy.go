@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
@@ -35,6 +36,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -368,15 +371,15 @@ func formatCommand(cmd *exec.Cmd) string {
 }
 
 func onProxyCommandDB(cf *CLIConf) error {
-	client, err := makeClient(cf, false)
+	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	profile, err := client.ProfileStatus()
+	profile, err := tc.ProfileStatus()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	route, db, err := getDatabaseInfo(cf, client, cf.DatabaseService)
+	route, db, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -386,18 +389,18 @@ func onProxyCommandDB(cf *CLIConf) error {
 	// 2. check if db login is required.
 	// These steps are not needed with `--tunnel`, because the local proxy tunnel
 	// will manage database certificates itself and reissue them as needed.
-	requires := getDBLocalProxyRequirement(client, route)
+	requires := getDBLocalProxyRequirement(tc, route)
 	if requires.tunnel && !isLocalProxyTunnelRequested(cf) {
 		// Some scenarios require a local proxy tunnel, e.g.:
 		// - Snowflake, DynamoDB protocol
 		// - Hardware-backed private key policy
 		return trace.BadParameter(formatDbCmdUnsupported(cf, route, requires.tunnelReasons...))
 	}
-	if err := maybeDatabaseLogin(cf, client, profile, route, requires); err != nil {
+	if err := maybeDatabaseLogin(cf, tc, profile, route, requires); err != nil {
 		return trace.Wrap(err)
 	}
 
-	rootCluster, err := client.RootClusterName(cf.Context)
+	rootCluster, err := tc.RootClusterName(cf.Context)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -408,10 +411,12 @@ func onProxyCommandDB(cf *CLIConf) error {
 		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
-	listener, err := net.Listen("tcp", addr)
+
+	listener, err := createLocalProxyListener(addr, route, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	defer func() {
 		if err := listener.Close(); err != nil {
 			log.WithError(err).Warnf("Failed to close listener.")
@@ -421,11 +426,10 @@ func onProxyCommandDB(cf *CLIConf) error {
 	tunnel := isLocalProxyTunnelRequested(cf)
 	proxyOpts, err := prepareLocalProxyOptions(&localProxyConfig{
 		cf:               cf,
-		tc:               client,
+		tc:               tc,
 		profile:          profile,
 		route:            *route,
 		database:         db,
-		listener:         listener,
 		autoReissueCerts: cf.LocalProxyTunnel, // only auto-reissue certs for --tunnel flag.
 		tunnel:           tunnel,
 	})
@@ -433,7 +437,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	lp, err := mkLocalProxy(cf.Context, proxyOpts)
+	lp, err := alpnproxy.NewLocalProxy(makeBasicLocalProxyConfig(cf, tc, listener), proxyOpts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -458,7 +462,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 
-		commands, err := dbcmd.NewCmdBuilder(client, profile, route, rootCluster,
+		commands, err := dbcmd.NewCmdBuilder(tc, profile, route, rootCluster,
 			opts...,
 		).GetConnectCommandAlternatives()
 		if err != nil {
@@ -469,12 +473,12 @@ func onProxyCommandDB(cf *CLIConf) error {
 		templateArgs := map[string]any{
 			"database":   route.ServiceName,
 			"type":       defaults.ReadableDatabaseProtocol(route.Protocol),
-			"cluster":    client.SiteName,
+			"cluster":    tc.SiteName,
 			"address":    listener.Addr().String(),
 			"randomPort": randomPort,
 		}
 
-		tmpl := chooseProxyCommandTemplate(templateArgs, commands)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands, route.Protocol)
 		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
@@ -520,10 +524,14 @@ type templateCommandItem struct {
 	Command     string
 }
 
-func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative) *template.Template {
+func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, protocol string) *template.Template {
 	// there is only one command, use plain template.
 	if len(commands) == 1 {
 		templateArgs["command"] = formatCommand(commands[0].Command)
+		if protocol == defaults.ProtocolOracle {
+			templateArgs["args"] = commands[0].Command.Args
+			return dbProxyOracleAuthTpl
+		}
 		return dbProxyAuthTpl
 	}
 
@@ -536,35 +544,6 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 
 	templateArgs["commands"] = commandsArg
 	return dbProxyAuthMultiTpl
-}
-
-// TODO(greedy52) replace localProxyOpts with []alpnproxy.LocalProxyConfigOpt and remove mkLocalProxy.
-type localProxyOpts struct {
-	proxyAddr        string
-	listener         net.Listener
-	protocols        []alpncommon.Protocol
-	insecure         bool
-	certs            []tls.Certificate
-	middleware       alpnproxy.LocalProxyMiddleware
-	configOpts       []alpnproxy.LocalProxyConfigOpt
-	checkCertsNeeded bool
-}
-
-func mkLocalProxy(ctx context.Context, opts *localProxyOpts) (*alpnproxy.LocalProxy, error) {
-	lp, err := alpnproxy.NewLocalProxy(alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify: opts.insecure,
-		RemoteProxyAddr:    opts.proxyAddr,
-		Protocols:          opts.protocols,
-		Listener:           opts.listener,
-		ParentContext:      ctx,
-		Certs:              opts.certs,
-		Middleware:         opts.middleware,
-		CheckCertsNeeded:   opts.checkCertsNeeded,
-	}, opts.configOpts...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return lp, nil
 }
 
 func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
@@ -603,8 +582,8 @@ func onProxyCommandApp(cf *CLIConf) error {
 	lp, err := alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(cf, tc, listener),
 		alpnproxy.WithALPNProtocol(alpnProtocolForApp(app)),
-		alpnproxy.WithClientCert(appCerts),
-		alpnproxy.WithALPNConnUpgradeTest(cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClusterCAsIfConnUpgrade(cf.Context, tc.RootClusterCACertPool),
 	)
 	if err != nil {
 		if cerr := listener.Close(); cerr != nil {
@@ -843,11 +822,38 @@ func isLocalProxyTunnelRequested(cf *CLIConf) bool {
 
 func makeBasicLocalProxyConfig(cf *CLIConf, tc *libclient.TeleportClient, listener net.Listener) alpnproxy.LocalProxyConfig {
 	return alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:    tc.WebProxyAddr,
-		InsecureSkipVerify: cf.InsecureSkipVerify,
-		ParentContext:      cf.Context,
-		Listener:           listener,
+		RemoteProxyAddr:         tc.WebProxyAddr,
+		InsecureSkipVerify:      cf.InsecureSkipVerify,
+		ParentContext:           cf.Context,
+		Listener:                listener,
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 	}
+}
+
+func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStatus) error {
+	path := profile.DatabaseLocalCAPath()
+	if utils.FileExists(path) {
+		return nil
+
+	}
+	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         defaults.CATTL,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.WriteFile(profile.DatabaseLocalCAPath(), certPem, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
@@ -860,6 +866,10 @@ Use following credentials to connect to the {{.database}} proxy:
   key_file={{.key}}
 `))
 
+var templateFunctions = map[string]any{
+	"contains": strings.Contains,
+}
+
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
@@ -867,6 +877,22 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 {{end}}
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
+`))
+
+// dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
+var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunctions).Parse(
+	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Use the following command to connect to the Oracle database server using CLI:
+  $ {{.command}}
+
+or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
+{{- range $val := .args}}
+  {{- if contains $val "jdbc:oracle:"}}
+  {{$val}}
+  {{- end}}
+{{- end}}
 `))
 
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.

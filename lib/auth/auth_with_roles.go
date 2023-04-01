@@ -1370,8 +1370,25 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+const (
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	kubeService = "kube_service"
+)
+
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	if req.ResourceType == kubeService {
+		return &types.ListResourcesResponse{}, nil
+	}
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -1459,6 +1476,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.Labels = nil
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
+
+	// Increase the limit to one more than was requested so
+	// that an additional page load is not needed to determine
+	// the next key.
+	req.Limit++
 
 	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
 	if err != nil {
@@ -2174,12 +2196,6 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	}
 }
 
-// pingCacheKey is used to with Server.ttlCache to cache frequently-loaded
-// values in the Ping method.
-type pingCacheKey struct {
-	kind string
-}
-
 // Ping gets basic info about the auth server.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	// The Ping method does not require special permissions since it only returns
@@ -2190,27 +2206,12 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
 
-	// license check result is loaded from real backend, and is not modified once loaded, so we
-	// can save a lot of IO by doing short-lived ttl caching.
-	heartbeat, err := utils.FnCacheGet(ctx, a.authServer.ttlCache, pingCacheKey{"license-check-result"}, a.authServer.GetLicenseCheckResult)
-	if err != nil {
-		log.Warnf("Failed to load license check result for Ping: %v", err)
-	}
-	var warnings []string
-	if heartbeat != nil {
-		for _, notification := range heartbeat.Spec.Notifications {
-			if notification.Type == LicenseExpiredNotification {
-				warnings = append(warnings, notification.Text)
-			}
-		}
-	}
 	return proto.PingResponse{
 		ClusterName:     cn.GetClusterName(),
 		ServerVersion:   teleport.Version,
 		ServerFeatures:  modules.GetModules().Features().ToProto(),
 		ProxyPublicAddr: a.getProxyPublicAddr(),
 		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LicenseWarnings: warnings,
 		LoadAllCAs:      a.authServer.loadAllCAs,
 	}, nil
 }
@@ -2606,7 +2607,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
+	if req.Username != a.context.User.GetName() && user.GetUserType() == types.UserTypeSSO {
 		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -5455,11 +5456,36 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
+//
+// This CRL can be requested by:
+//
+//   - Windows desktop service when updating the certificate authority contents
+//     on LDAP.
+//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//     on the auth server to produce revocation list used to be configured on
+//     external services such as Windows certificate store.
+//   - Remote user using "tctl auth crl --type=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they have permission to read
+//     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	// Only windows_desktop_service should be requesting CRLs
-	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
-		return nil, trace.AccessDenied("access denied")
+	// Assume this is a user request, check if the user has permission to read CAs.
+	err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets)
+	if err != nil {
+		// An error means the user doesn't have permission to read CAs, or this
+		// is an admin on the auth server or the windows desktop service. We
+		// expect to see an access denied error in any of those cases.
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// If this is an admin on the auth server (types.RoleAdmin) or the
+		// windows desktop service (types.RoleWindowsDesktop), allow the
+		// request. Otherwise, return the access denied error.
+		if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
+			return nil, trace.AccessDenied("access denied")
+		}
 	}
+
 	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
 	if err != nil {
 		return nil, trace.Wrap(err)

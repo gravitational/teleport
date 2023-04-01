@@ -86,6 +86,8 @@ type ResourceWithOrigin interface {
 type ResourceWithLabels interface {
 	// ResourceWithOrigin is the base resource interface.
 	ResourceWithOrigin
+	// GetLabel retrieves the label with the provided key.
+	GetLabel(key string) (value string, ok bool)
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
 	// GetStaticLabels returns the resource's static labels.
@@ -316,6 +318,13 @@ func (h *ResourceHeader) GetStaticLabels() map[string]string {
 // SetStaticLabels sets the static labels for the resource.
 func (h *ResourceHeader) SetStaticLabels(sl map[string]string) {
 	h.Metadata.Labels = sl
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (h *ResourceHeader) GetLabel(key string) (value string, ok bool) {
+	v, ok := h.Metadata.Labels[key]
+	return v, ok
 }
 
 // GetAllLabels returns all labels from the resource..

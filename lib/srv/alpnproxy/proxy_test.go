@@ -29,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgproto3/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -301,11 +300,6 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 
 	conn, err := net.Dial("tcp", localProxyListener.Addr().String())
 	require.NoError(t, err)
-
-	// we have to send a request so that the local proxy will inspect
-	// the client conn, see it's not a CancelRequest, and determine
-	// that certs are not needed.
-	mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 
 	mustReadFromConnection(t, conn, databaseHandleResponse)
 	mustCloseConnection(t, conn)
@@ -692,10 +686,6 @@ func TestProxyPingConnections(t *testing.T) {
 					RootCAs:    suite.GetCertPool(),
 					ServerName: "localhost",
 				})
-			}
-
-			if protocol == common.ProtocolPostgres {
-				mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 			}
 
 			mustReadFromConnection(t, conn, dataWritten)

@@ -34,6 +34,6 @@ export const TopBarButton = styled.button`
       : 'transparent'};
 
   &:hover {
-    background: ${props => props.theme.colors.primary.light};
+    background: ${props => props.theme.colors.levels.surface};
   }
 `;

@@ -16,15 +16,13 @@
 
 import React from 'react';
 
-import { Database as DatabaseIcon } from 'design/Icon';
-
 import { ResourceKind, Finished } from 'teleport/Discover/Shared';
-import { Resource } from 'teleport/Discover/flow';
+import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
 import {
-  Database,
+  ResourceSpec,
   DatabaseLocation,
-} from 'teleport/Discover/Database/resources';
+} from 'teleport/Discover/SelectResource';
 
 import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
 import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
@@ -34,20 +32,15 @@ import { TestConnection } from 'teleport/Discover/Database/TestConnection';
 import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
 import { DiscoverEvent } from 'teleport/services/userEvent';
 
-export const DatabaseResource: Resource<Database> = {
+export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Database,
-  icon: <DatabaseIcon />,
   wrapper(component: React.ReactNode) {
     return <DatabaseWrapper>{component}</DatabaseWrapper>;
   },
-  shouldPrompt(currentStep) {
-    // do not prompt on exit if they're selecting a resource
-    return currentStep !== 0;
-  },
-  views(database) {
+  views(resource) {
     let configureResourceViews;
-    if (database) {
-      switch (database.location) {
+    if (resource && resource.dbMeta) {
+      switch (resource.dbMeta.location) {
         case DatabaseLocation.AWS:
           configureResourceViews = [
             {
@@ -93,10 +86,6 @@ export const DatabaseResource: Resource<Database> = {
     }
 
     return [
-      {
-        title: 'Select Resource Type',
-        eventName: DiscoverEvent.ResourceSelection,
-      },
       {
         title: 'Configure Resource',
         views: configureResourceViews,

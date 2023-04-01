@@ -85,6 +85,13 @@ type Profile struct {
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
 
+	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
+	// are required for making TLS routing requests.
+	//
+	// Note that this is applicable to the Proxy's Web port regardless of
+	// whether the Proxy is in single-port or multi-port configuration.
+	TLSRoutingConnUpgradeRequired bool `yaml:"tls_routing_conn_upgrade_required,omitempty"`
+
 	// AuthConnector (like "google", "passwordless").
 	// Equivalent to the --auth tsh flag.
 	AuthConnector string `yaml:"auth_connector,omitempty"`

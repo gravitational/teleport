@@ -83,6 +83,9 @@ type Suite struct {
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
 
+	appFoo *types.AppV3
+	appAWS *types.AppV3
+
 	user       types.User
 	role       types.Role
 	serverPort string
@@ -125,6 +128,13 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+}
+
+type fakeConnMonitor struct {
+}
+
+func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
+	return ctx, nil
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -245,7 +255,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	appFoo, err := types.NewAppV3(types.Metadata{
+	s.appFoo, err = types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
@@ -255,7 +265,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		DynamicLabels:      types.LabelsToV2(dynamicLabels),
 	})
 	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
+	s.appAWS, err = types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
@@ -302,7 +312,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{appFoo, appAWS}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -310,24 +320,24 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	discard := events.NewDiscardEmitter()
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:            s.clock,
-		DataDir:          s.dataDir,
-		AccessPoint:      s.authClient,
-		AuthClient:       s.authClient,
-		TLSConfig:        tlsConfig,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		HostID:           s.hostUUID,
-		Hostname:         "test",
-		Authorizer:       authorizer,
-		GetRotation:      testRotationGetter,
-		Apps:             apps,
-		OnHeartbeat:      func(err error) {},
-		Cloud:            &testCloud{},
-		ResourceMatchers: config.ResourceMatchers,
-		OnReconcile:      config.OnReconcile,
-		LockWatcher:      lockWatcher,
-		Emitter:          discard,
-		CloudLabels:      config.CloudImporter,
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		AccessPoint:       s.authClient,
+		AuthClient:        s.authClient,
+		TLSConfig:         tlsConfig,
+		CipherSuites:      utils.DefaultCipherSuites(),
+		HostID:            s.hostUUID,
+		Hostname:          "test",
+		Authorizer:        authorizer,
+		GetRotation:       testRotationGetter,
+		Apps:              apps,
+		OnHeartbeat:       func(err error) {},
+		Cloud:             &testCloud{},
+		ResourceMatchers:  config.ResourceMatchers,
+		OnReconcile:       config.OnReconcile,
+		Emitter:           discard,
+		CloudLabels:       config.CloudImporter,
+		ConnectionMonitor: fakeConnMonitor{},
 	})
 	require.NoError(t, err)
 
@@ -378,31 +388,18 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo, err := types.NewAppV3(types.Metadata{
-		Name:   "foo",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:                s.testhttp.URL,
-		PublicAddr:         "foo.example.com",
-		InsecureSkipVerify: true,
-		DynamicLabels: map[string]types.CommandLabelV2{
-			dynamicLabelName: {
-				Period:  dynamicLabelPeriod,
-				Command: dynamicLabelCommand,
-				Result:  "4",
-			},
+	appFoo := s.appFoo.Copy()
+	appAWS := s.appAWS.Copy()
+
+	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
+		dynamicLabelName: &types.CommandLabelV2{
+			Period:  dynamicLabelPeriod,
+			Command: dynamicLabelCommand,
+			Result:  "4",
 		},
 	})
-	require.NoError(t, err)
+
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
-	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
-		Name:   "awsconsole",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "aws.example.com",
-	})
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)

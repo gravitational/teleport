@@ -716,9 +716,6 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 		if err != nil {
 			return nil, trail.FromGRPC(err)
 		}
-		// An old server would send RequireSessionMFA instead of RequireMFAType
-		// DELETE IN 13.0.0
-		role.CheckSetRequireSessionMFA()
 		roles = append(roles, role)
 	}
 	return roles, nil
@@ -1439,9 +1436,6 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	role.CheckSetRequireSessionMFA()
 	return role, nil
 }
 
@@ -1453,9 +1447,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	}
 	roles := make([]types.Role, 0, len(resp.GetRoles()))
 	for _, role := range resp.GetRoles() {
-		// An old server would send RequireSessionMFA instead of RequireMFAType
-		// DELETE IN 13.0.0
-		role.CheckSetRequireSessionMFA()
 		roles = append(roles, role)
 	}
 	return roles, nil
@@ -1467,10 +1458,6 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
-
-	// An old server would expect RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	r.CheckSetRequireSessionMFA()
 
 	_, err := c.grpc.UpsertRole(ctx, r, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -1670,7 +1657,7 @@ func (c *Client) GetSAMLAuthRequest(ctx context.Context, id string) (*types.SAML
 // GetGithubConnector returns a Github connector by name.
 func (c *Client) GetGithubConnector(ctx context.Context, name string, withSecrets bool) (types.GithubConnector, error) {
 	if name == "" {
-		return nil, trace.BadParameter("cannot get Github Connector, missing name")
+		return nil, trace.BadParameter("cannot get GitHub Connector, missing name")
 	}
 	req := &types.ResourceWithSecretsRequest{Name: name, WithSecrets: withSecrets}
 	resp, err := c.grpc.GetGithubConnector(ctx, req, c.callOpts...)
@@ -1707,7 +1694,7 @@ func (c *Client) UpsertGithubConnector(ctx context.Context, connector types.Gith
 // DeleteGithubConnector deletes a Github connector by name.
 func (c *Client) DeleteGithubConnector(ctx context.Context, name string) error {
 	if name == "" {
-		return trace.BadParameter("cannot delete Github Connector, missing name")
+		return trace.BadParameter("cannot delete GitHub Connector, missing name")
 	}
 	_, err := c.grpc.DeleteGithubConnector(ctx, &types.ResourceRequest{Name: name}, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -2106,9 +2093,6 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	pref.CheckSetRequireSessionMFA()
 	return pref, nil
 }
 
@@ -2118,9 +2102,6 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 	if !ok {
 		return trace.BadParameter("invalid type %T", authPref)
 	}
-	// An old server would send RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	authPrefV2.CheckSetRequireSessionMFA()
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2, c.callOpts...)
 	return trail.FromGRPC(err)
 }

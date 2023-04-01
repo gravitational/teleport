@@ -53,6 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -92,6 +93,9 @@ type FileConfig struct {
 
 	// Okta is the "okta_service" section in the Teleport configuration file
 	Okta Okta `yaml:"okta_service,omitempty"`
+
+	// Plugins is the section of the config for configuring the plugin service.
+	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -509,6 +513,16 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				return trace.BadParameter("discovery service does not support region %q; supported regions are: %v",
 					region, regions)
 			}
+		}
+
+		if matcher.AssumeRoleARN != "" {
+			_, err := awsutils.ParseRoleARN(matcher.AssumeRoleARN)
+			if err != nil {
+				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
+			}
+		} else if matcher.ExternalID != "" {
+			return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
+				matcher.ExternalID)
 		}
 
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
@@ -992,6 +1006,19 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+}
+
+// PluginService represents the configuration for the plugin service.
+type PluginService struct {
+	Enabled bool `yaml:"enabled"`
+	// Plugins is a map of matchers for enabled plugin resources.
+	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// Opsgenie represents the configuration for the Opsgenie plugin.
+type Opsgenie struct {
+	// APIKeyFile is the path to a file containing an Opsgenie API key.
+	APIKeyFile string `yaml:"api_key_file"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1632,6 +1659,11 @@ type AWSMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// InstallParams sets the join method when installing on
@@ -1746,6 +1778,10 @@ type DatabaseAD struct {
 	Domain string `yaml:"domain"`
 	// SPN is the service principal name for the database.
 	SPN string `yaml:"spn"`
+	// LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+	LDAPCert string `yaml:"ldap_cert,omitempty"`
+	// KDCHostName is the host name for a KDC for x509 Authentication.
+	KDCHostName string `yaml:"kdc_host_name,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -1790,6 +1826,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// AssumeRoleARN is the AWS role to assume to before accessing the database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
