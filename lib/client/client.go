@@ -48,6 +48,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -1501,7 +1502,9 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 
-	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn, nodeAddress.ProxyFormat(), proxy.teleportClient, details.FIPSEnabled)
+	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn,
+		nodeAddress.ProxyFormat(), nodeAddress.Addr,
+		proxy.teleportClient, details.FIPSEnabled)
 	return nc, trace.Wrap(err)
 }
 
@@ -1547,12 +1550,13 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 
-	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, proxy.teleportClient, details.FIPSEnabled)
+	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, "", proxy.teleportClient, details.FIPSEnabled)
 	return nc, trace.Wrap(err)
 }
 
-// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress
-func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
+// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress.
+// The nodeName field is optional and is used only to present better error messages.
+func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"NewNodeClient",
@@ -1567,11 +1571,14 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
+			if nodeName == "" {
+				nodeName = nodeAddress
+			}
 			// TODO(codingllama): Improve error message below for device trust.
 			//  An alternative we have here is querying the cluster to check if device
 			//  trust is required, a check similar to `IsMFARequired`.
-			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
+			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeName)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1849,75 +1856,52 @@ func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error 
 }
 
 type netDialer interface {
-	Dial(string, string) (net.Conn, error)
+	DialContext(context.Context, string, string) (net.Conn, error)
 }
 
 func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dialer netDialer) error {
 	defer conn.Close()
 	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
-	var (
-		remoteConn net.Conn
-		err        error
-	)
-
+	var remoteConn net.Conn
 	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
-	for attempt := 1; attempt <= 5; attempt++ {
-		remoteConn, err = dialer.Dial("tcp", remoteAddr)
-		if err != nil {
-			log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
 
-			timer := time.NewTimer(time.Duration(100*attempt) * time.Millisecond)
-			defer timer.Stop()
-
-			// Wait and attempt to connect again, if the context has closed, exit
-			// right away.
-			select {
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			case <-timer.C:
-				continue
-			}
-		}
-		// Connection established, break out of the loop.
-		break
-	}
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  100 * time.Millisecond,
+		Step:   100 * time.Millisecond,
+		Max:    time.Second,
+		Jitter: retryutils.NewHalfJitter(),
+	})
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for attempt := 1; attempt <= 5; attempt++ {
+		conn, err := dialer.DialContext(ctx, "tcp", remoteAddr)
+		if err == nil {
+			// Connection established, break out of the loop.
+			remoteConn = conn
+			break
+		}
+
+		log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
+		// Wait and attempt to connect again, if the context has closed, exit
+		// right away.
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-retry.After():
+			retry.Inc()
+			continue
+		}
+	}
+	if remoteConn == nil {
 		return trace.BadParameter("failed to connect to node: %v", remoteAddr)
 	}
 	defer remoteConn.Close()
 
 	// Start proxying, close the connection if a problem occurs on either leg.
-	errCh := make(chan error, 2)
-	go func() {
-		defer conn.Close()
-		defer remoteConn.Close()
-
-		_, err := io.Copy(conn, remoteConn)
-		errCh <- err
-	}()
-	go func() {
-		defer conn.Close()
-		defer remoteConn.Close()
-
-		_, err := io.Copy(remoteConn, conn)
-		errCh <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil && err != io.EOF && !strings.Contains(err.Error(), "use of closed network connection") {
-				log.Warnf("Failed to proxy connection: %v.", err)
-				errs = append(errs, err)
-			}
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		}
-	}
-
-	return trace.NewAggregate(errs...)
+	return trace.Wrap(utils.ProxyConn(ctx, remoteConn, conn))
 }
 
 // acceptWithContext calls "Accept" on the listener but will unblock when the
