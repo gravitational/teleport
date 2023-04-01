@@ -3008,6 +3008,7 @@ func testTrustedTunnelNode(t *testing.T, suite *integrationTestSuite) {
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = enableSSH
+		tconf.CachePolicy.MaxRetryPeriod = time.Millisecond * 500
 		return t, nil, tconf
 	}
 	lib.SetInsecureDevMode(true)
@@ -6745,6 +6746,7 @@ func createTrustedClusterPair(t *testing.T, suite *integrationTestSuite, extraSe
 		tconf.Proxy.DisableWebService = false
 		tconf.Proxy.DisableWebInterface = true
 		tconf.SSH.Enabled = false
+		tconf.CachePolicy.MaxRetryPeriod = time.Millisecond * 500
 		return t, nil, tconf
 	}
 
