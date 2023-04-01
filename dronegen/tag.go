@@ -256,7 +256,7 @@ func tagPipeline(b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = dockerVolumes(volumeAwsConfig)
+	p.Volumes = []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -451,7 +451,7 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := dockerVolumes(volumeAwsConfig)
+	packageDockerVolumes := []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	packageDockerVolumeRefs := []volumeRef{
 		volumeRefDocker,
 		volumeRefDockerConfig,
