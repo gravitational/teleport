@@ -38,11 +38,14 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v3
 
-      # Required for the Prepare toolchain step below
+      - name: Determine Enterprise Teleport reference
+        run: echo TELEPORT_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
+
       - name: Checkout Enterprise Teleport
         uses: actions/checkout@v3
         with:
           path: e
+          ref: ${{ env.TELEPORT_E_REF }}
 
       - name: Prepare toolchain
         uses: ./e/.github/actions/prepare-toolchain-mac
