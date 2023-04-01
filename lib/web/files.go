@@ -73,6 +73,11 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		moderatedSessionID:    query.Get("moderated_session_id"),
 	}
 
+	// Send an error if only one of these params has been sent. Both should exist or not exist together
+	if (req.fileTransferRequestID != "") != (req.moderatedSessionID != "") {
+		return nil, trace.BadParameter("file_transfer_request_id and moderated_session_id must both be included in the same request.")
+	}
+
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)
