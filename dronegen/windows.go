@@ -39,7 +39,7 @@ func newWindowsPipeline(name string) pipeline {
 
 func windowsTagPipeline() pipeline {
 	p := newWindowsPipeline("build-native-windows-amd64")
-	p.Concurrency.Limit = 1
+	p.Concurrency.Limit = 5
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Trigger = trigger{
 		Event:  triggerRef{Include: []string{"push"}},
