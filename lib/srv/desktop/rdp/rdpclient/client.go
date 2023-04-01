@@ -249,8 +249,9 @@ func (c *Client) connect(ctx context.Context) error {
 			cert_der_len: C.uint32_t(len(userCertDER)),
 			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
 			// key length and bytes.
-			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+			key_der_len: C.uint32_t(len(userKeyDER)),
+			key_der:     (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+			// for ci test
 			screen_width:            C.uint16_t(c.clientWidth),
 			screen_height:           C.uint16_t(c.clientHeight),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
