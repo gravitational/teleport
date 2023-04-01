@@ -38,6 +38,12 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v3
 
+      # Required for the Prepare toolchain step below
+      - name: Checkout Enterprise Teleport
+        uses: actions/checkout@v3
+        with:
+          path: e
+
       - name: Prepare toolchain
         uses: ./e/.github/actions/prepare-toolchain-mac
 
