@@ -56,7 +56,7 @@ func pullRelcliStep(awsConfigVolumeRef volumeRef) step {
 		Environment: map[string]value{
 			"AWS_DEFAULT_REGION": {raw: "us-west-2"},
 		},
-		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig, volumeRefAwsConfig},
+		Volumes: []volumeRef{volumeRefDocker, volumeRefAwsConfig},
 		Commands: []string{
 			`apk add --no-cache aws-cli`,
 			`aws ecr get-login-password | docker login -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com`,
@@ -76,7 +76,7 @@ func executeRelcliStep(name string, command string) step {
 			"RELCLI_CERT":     {raw: "/tmpfs/creds/releases.crt"},
 			"RELCLI_KEY":      {raw: "/tmpfs/creds/releases.key"},
 		},
-		Volumes: []volumeRef{volumeRefDocker, volumeRefDockerConfig, volumeRefTmpfs, volumeRefAwsConfig},
+		Volumes: []volumeRef{volumeRefDocker, volumeRefTmpfs, volumeRefAwsConfig},
 		Commands: []string{
 			`mkdir -p /tmpfs/creds`,
 			`echo "$RELEASES_CERT" | base64 -d > "$RELCLI_CERT"`,
