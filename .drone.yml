@@ -942,13 +942,13 @@ name: build-native-windows-amd64
 trigger:
   event:
     include:
-    - push
+    - tag
+  ref:
+    include:
+    - refs/tags/v*
   repo:
     include:
     - gravitational/*
-  branch:
-    include:
-    - probakowski/windows-auth-package-drone
 workspace:
   path: C:/Drone/Workspace/build-native-windows-amd64
 platform:
@@ -961,7 +961,7 @@ clone:
 depends_on:
 - clean-up-previous-build
 concurrency:
-  limit: 1
+  limit: 5
 steps:
 - name: Check out Teleport
   commands:
@@ -19091,6 +19091,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 655d806c34411822c9fe10b257cfce3cf54357a7672d9b3bf2e4773a14bd820b
+hmac: f3e2a4b2b91d8119d00280fbb90db4c53be0efb314366a2a2d5162267b6029f6
 
 ...
