@@ -435,7 +435,7 @@ func (p *Product) createBuildStep(arch string, version *ReleaseVersion, publicEc
 	step := step{
 		Name:        p.GetBuildStepName(arch, version),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker, volumeRefDockerConfig},
 		Environment: envVars,
 		Commands:    commands,
 		DependsOn:   getStepNames(publicEcrPullRegistry.SetupSteps),
