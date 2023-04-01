@@ -776,7 +776,6 @@ steps:
   - make VERSION=v$TeleportVersion  all
   - ls
   - ls build
-  - pwd
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
@@ -1030,7 +1029,6 @@ steps:
   - make VERSION=v$TeleportVersion  all
   - ls
   - ls build
-  - pwd
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
@@ -19091,6 +19089,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 22c7a721289399f8fa197619f231242fcd88a9899121538eab9b283f78018234
+hmac: abcc4a3ef871df23192d06b1073f2d17f7d1bdc1a8c17111d7b7937debf1cdf8
 
 ...
