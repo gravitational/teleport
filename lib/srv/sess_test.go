@@ -99,6 +99,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		Srv:                   srv,
 		SessionTrackerService: srv.auth,
 	})
+	t.Cleanup(func() { reg.Close() })
 
 	// Create the auditorRole and moderator Party
 	auditorRole, _ := types.NewRole("auditor", types.RoleSpecV6{
