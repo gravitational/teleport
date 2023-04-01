@@ -254,7 +254,7 @@ func (cr *ContainerRepo) pullPushStep(image *Image, dependencySteps []string) (s
 	return step{
 		Name:        fmt.Sprintf("Pull %s and push it to %s", image.GetDisplayName(), localRepo.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker, volumeRefDockerConfig},
 		Environment: cr.EnvironmentVars,
 		Commands:    commands,
 		DependsOn:   dependencySteps,
@@ -304,7 +304,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	step := step{
 		Name:        fmt.Sprintf("Tag and push image %q to %s", buildStepDetails.BuiltImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker, volumeRefDockerConfig},
 		Environment: cr.EnvironmentVars,
 		Commands:    commands,
 		DependsOn:   dependencySteps,
@@ -332,7 +332,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushSte
 	return step{
 		Name:        fmt.Sprintf("Create manifest and push %q to %s", manifestImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker, volumeRefDockerConfig},
 		Environment: cr.EnvironmentVars,
 		Commands:    cr.buildCommandsWithLogin(commands),
 		DependsOn:   pushStepNames,
