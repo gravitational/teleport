@@ -221,7 +221,7 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(log *logrus.
 			PublicAddr:  publicAddr,
 			StaticHosts: cfg.WindowsDesktop.Hosts,
 			NonADHosts:  cfg.WindowsDesktop.NonADHosts,
-			OnHeartbeat: process.onHeartbeat(teleport.ComponentWindowsDesktop),
+			OnHeartbeat: process.OnHeartbeat(teleport.ComponentWindowsDesktop),
 		},
 		ShowDesktopWallpaper:         cfg.WindowsDesktop.ShowDesktopWallpaper,
 		LDAPConfig:                   windows.LDAPConfig(cfg.WindowsDesktop.LDAP),

@@ -65,6 +65,7 @@ func Run(args []string, stdout io.Writer) error {
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
+	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
 	app.HelpFlag.Short('h')
 
 	joinMethodList := fmt.Sprintf(
