@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -1504,4 +1506,43 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	require.NoError(t, <-startErrC)
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)
+}
+
+// TestALPNSNIProxyGRPCInsecure tests ALPN protocol ProtocolProxyGRPCInsecure
+// by registering a node with IAM join method.
+func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	t.Setenv("AWS_ACCESS_KEY_ID", "FAKE_ID")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "FAKE_KEY")
+	t.Setenv("AWS_SESSION_TOKEN", "FAKE_TOKEN")
+	t.Setenv("AWS_REGION", "us-west-2")
+
+	fakeSTSClient := &fakeSTSClient{
+		accountID:   "123456789012",
+		arn:         "arn:aws:iam::123456789012:role/test",
+		credentials: credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN"),
+	}
+	provisionToken := mustCreateIAMJoinProvisionToken(t, "iam-join-token", fakeSTSClient.accountID, fakeSTSClient.arn)
+
+	suite := newSuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
+			config.Auth.BootstrapResources = []types.Resource{provisionToken}
+			config.Auth.ServerOptions = []auth.ServerOption{auth.WithHTTPClientForAWSSTS(fakeSTSClient)}
+		}),
+		withLeafClusterConfig(leafClusterStandardConfig(t)),
+	)
+
+	// Test register through Proxy.
+	mustRegisterUsingIAMMethod(t, suite.root.Config.Proxy.WebAddr, provisionToken.GetName())
+
+	// Test register through Proxy behind a L7 load balancer.
+	t.Run("ALPN conn upgrade", func(t *testing.T) {
+		albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
+		albAddr, err := utils.ParseAddr(albProxy.Addr().String())
+		require.NoError(t, err)
+
+		mustRegisterUsingIAMMethod(t, *albAddr, provisionToken.GetName())
+	})
 }
