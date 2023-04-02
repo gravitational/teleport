@@ -76,40 +76,36 @@ func NewALPNDialer(cfg ALPNDialerConfig) ContextDialer {
 }
 
 func (d *ALPNDialer) shouldUpdateTLSConfig() bool {
-	switch {
-	case d.cfg.TLSConfig.ServerName == "":
-		return true
-	case d.cfg.ALPNConnUpgradeRequired && d.cfg.TLSConfig.RootCAs == nil && d.cfg.GetClusterCAs != nil:
-		return true
-	default:
-		return false
-	}
+	return d.shouldUpdateServerName() || d.shouldGetClusterCAs()
+}
+func (d *ALPNDialer) shouldUpdateServerName() bool {
+	return d.cfg.TLSConfig.ServerName == ""
+}
+func (d *ALPNDialer) shouldGetClusterCAs() bool {
+	return d.cfg.ALPNConnUpgradeRequired && d.cfg.TLSConfig.RootCAs == nil && d.cfg.GetClusterCAs != nil
 }
 
 func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config, error) {
 	if d.cfg.TLSConfig == nil {
 		return nil, trace.BadParameter("missing TLS config")
 	}
-
 	if !d.shouldUpdateTLSConfig() {
 		return d.cfg.TLSConfig, nil
 	}
 
+	var err error
 	tlsConfig := d.cfg.TLSConfig.Clone()
-	if d.cfg.ALPNConnUpgradeRequired && d.cfg.TLSConfig.RootCAs == nil && d.cfg.GetClusterCAs != nil {
-		rootCAs, err := d.cfg.GetClusterCAs(ctx)
+	if d.shouldGetClusterCAs() {
+		tlsConfig.RootCAs, err = d.cfg.GetClusterCAs(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConfig.RootCAs = rootCAs
 	}
-
-	if d.cfg.TLSConfig.ServerName == "" {
-		host, _, err := webclient.ParseHostPort(addr)
+	if d.shouldUpdateServerName() {
+		tlsConfig.ServerName, _, err = webclient.ParseHostPort(addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConfig.ServerName = host
 	}
 	return tlsConfig, nil
 }
@@ -137,8 +133,8 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 		return nil, trace.Wrap(err)
 	}
 
-	if strings.HasSuffix(tlsConn.ConnectionState().NegotiatedProtocol, constants.ALPNSNIProtocolPingSuffix) {
-		logrus.Debug("Using ping connection")
+	if IsALPNPingProtocol(tlsConn.ConnectionState().NegotiatedProtocol) {
+		logrus.Debugf("Using ping connection for protocol %v.", tlsConn.ConnectionState().NegotiatedProtocol)
 		return pingconn.New(tlsConn), nil
 	}
 	return tlsConn, nil
@@ -148,4 +144,15 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (net.Conn, error) {
 	conn, err := NewALPNDialer(cfg).DialContext(ctx, "tcp", addr)
 	return conn, trace.Wrap(err)
+}
+
+// ALPNSNIProtocolPingSuffix receives an ALPN protocol and returns it with the
+// Ping protocol suffix.
+func ALPNProtocolWithPing(protocol string) string {
+	return protocol + constants.ALPNSNIProtocolPingSuffix
+}
+
+// IsALPNPingProtocol checks if the provided protocol is suffixed with Ping.
+func IsALPNPingProtocol(protocol string) bool {
+	return strings.HasSuffix(protocol, constants.ALPNSNIProtocolPingSuffix)
 }

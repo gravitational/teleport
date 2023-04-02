@@ -399,6 +399,9 @@ func withTrustedCluster() proxySuiteOptionsFunc {
 	}
 }
 
+// withTrustedClusterBehindALB creates a local server that simulates a layer 7
+// LB and puts it infront of the root cluster when the leaf connects through
+// the reverse tunnel.
 func withTrustedClusterBehindALB() proxySuiteOptionsFunc {
 	return func(options *suiteOptions) {
 		originalSetup := options.updateRoleMappingFunc

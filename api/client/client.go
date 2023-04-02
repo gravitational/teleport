@@ -341,10 +341,10 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	return clt, nil
 }
 
-// IsWebProxyAndConnUpgradeRequired returns if targetAddr is a Teleport web
-// proxy address and ALPN connection upgrade is required for it. If no cluster
-// name is provided for ALPN, assume dialer is not trying to connect Auth
-// through Proxy using TLS routing.
+// IsWebProxyAndConnUpgradeRequired returns true if targetAddr is a Teleport
+// web proxy address and ALPN connection upgrade is required for it. If no
+// cluster name is provided for ALPN, assume dialer is not trying to connect
+// Auth through Proxy using TLS Routing.
 func IsWebProxyAndConnUpgradeRequired(ctx context.Context, targetAddr string, cfg *Config) bool {
 	return cfg.ALPNSNIAuthDialClusterName != "" &&
 		isWebProxy(ctx, targetAddr, cfg) &&
@@ -368,7 +368,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
+	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -381,7 +381,7 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithTLSConfig(params.tlsConfig))
+	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)

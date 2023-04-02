@@ -36,6 +36,30 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
 
+type dialConfig struct {
+	tlsConfig               *tls.Config
+	alpnConnUpgradeRequired bool
+}
+
+// WithInsecureSkipVerify specifies if dialing insecure when using an HTTPS proxy.
+func WithInsecureSkipVerify(insecure bool) DialOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.tlsConfig = &tls.Config{
+			InsecureSkipVerify: insecure,
+		}
+	}
+}
+
+// WithALPNConnUpgrade specifies if ALPN connection upgrade is required.
+func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.alpnConnUpgradeRequired = alpnConnUpgradeRequired
+	}
+}
+
+// DialOption allows setting options as functional arguments to api.NewDialer.
+type DialOption func(cfg *dialConfig)
+
 // ContextDialer represents network dialer interface that uses context
 type ContextDialer interface {
 	// DialContext is a function that dials the specified address
@@ -86,8 +110,8 @@ func tracedDialer(ctx context.Context, fn ContextDialerFunc) ContextDialerFunc {
 
 // NewDialer makes a new dialer that connects to an Auth server either directly or via an HTTP proxy, depending
 // on the environment.
-func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, opts ...DialProxyOption) ContextDialer {
-	var cfg dialProxyConfig
+func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, opts ...DialOption) ContextDialer {
+	var cfg dialConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
@@ -98,12 +122,12 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 		// Base direct dialer.
 		var dialer ContextDialer = netDialer
 
-		// Wrap with proxy URL dialer if proxy URL is detected
+		// Wrap with proxy URL dialer if proxy URL is detected.
 		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
 			dialer = newProxyURLDialer(proxyURL, netDialer, opts...)
 		}
 
-		// Wrap with alpnConnUpgradeDialer if upgrade is required.
+		// Wrap with alpnConnUpgradeDialer if upgrade is required for TLS Routing.
 		if cfg.alpnConnUpgradeRequired {
 			dialer = newALPNConnUpgradeDialer(dialer, cfg.tlsConfig)
 		}
@@ -162,7 +186,7 @@ func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dur
 // newTLSRoutingTunnelDialer makes a reverse tunnel TLS Routing dialer to connect to an Auth server
 // through the SSH reverse tunnel on the proxy.
 func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) ContextDialer {
-	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		insecure := params.cfg.InsecureAddressDiscovery
 		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: params.addr, Insecure: insecure})
 		if err != nil {
@@ -182,12 +206,12 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		tlsConn, err := DialALPN(ctx, tunnelAddr, ALPNDialerConfig{
+		conn, err := DialALPN(ctx, tunnelAddr, ALPNDialerConfig{
 			DialTimeout:     params.cfg.DialTimeout,
 			KeepAlivePeriod: params.cfg.KeepAlivePeriod,
 			TLSConfig: &tls.Config{
 				NextProtos: []string{
-					constants.ALPNSNIProtocolReverseTunnel + constants.ALPNSNIProtocolPingSuffix,
+					ALPNProtocolWithPing(constants.ALPNSNIProtocolReverseTunnel),
 					constants.ALPNSNIProtocolReverseTunnel,
 				},
 				InsecureSkipVerify: insecure,
@@ -206,7 +230,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(ctx, tlsConn, ssh, params.cfg.DialTimeout, tunnelAddr)
+		sconn, err := sshConnect(ctx, conn, ssh, params.cfg.DialTimeout, tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -143,7 +143,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 					// Make a mock ALB which points to the Teleport Proxy Service.
 					albProxy := mustStartMockALBProxy(t, suite.root.Config.Proxy.WebAddr.Addr)
 
-					// Run command in root.
+					// Run command in root through ALB address.
 					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
 						Login:   username,
 						Cluster: suite.root.Secrets.SiteName,
@@ -152,7 +152,7 @@ func TestALPNSNIProxyMultiCluster(t *testing.T) {
 						ALBAddr: albProxy.Addr().String(),
 					})
 
-					// Run command in leaf.
+					// Run command in leaf through ALB address.
 					suite.mustConnectToClusterAndRunSSHCommand(t, helpers.ClientConfig{
 						Login:   username,
 						Cluster: suite.leaf.Secrets.SiteName,

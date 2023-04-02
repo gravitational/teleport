@@ -29,35 +29,16 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-type dialProxyConfig struct {
-	tlsConfig               *tls.Config
-	alpnConnUpgradeRequired bool
-}
+type dialProxyConfig = dialConfig
 
 // DialProxyOption allows setting options as functional arguments to DialProxy.
-type DialProxyOption func(cfg *dialProxyConfig)
+type DialProxyOption = DialOption
 
 // WithTLSConfig provides the dialer with the TLS config to use when using an
 // HTTPS proxy.
 func WithTLSConfig(tlsConfig *tls.Config) DialProxyOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.tlsConfig = tlsConfig
-	}
-}
-
-// WithInsecureSkipVerify specifies if dialing insecure when using an HTTPS proxy.
-func WithInsecureSkipVerify(insecure bool) DialProxyOption {
-	return func(cfg *dialProxyConfig) {
-		cfg.tlsConfig = &tls.Config{
-			InsecureSkipVerify: insecure,
-		}
-	}
-}
-
-// WithALPNConnUpgrade specifies if ALPN connection upgrade is required.
-func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialProxyOption {
-	return func(cfg *dialProxyConfig) {
-		cfg.alpnConnUpgradeRequired = alpnConnUpgradeRequired
 	}
 }
 
