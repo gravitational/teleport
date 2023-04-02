@@ -1,4 +1,4 @@
-.version: &version "11.3.9-walt.docker.1"
+.version: &version "11.3.9-walt.docker.2"
 
 name: teleport-kube-agent
 apiVersion: v2
