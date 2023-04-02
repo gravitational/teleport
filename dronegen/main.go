@@ -44,7 +44,7 @@ func main() {
 	// the named secret as its credentials when pulling images from
 	// dockerhub.
 	//
-	// Exec pipelines to not have the `image_pull_secrets` option, as
+	// Exec pipelines do not have the `image_pull_secrets` option, as
 	// their steps are invoked directly on the host runner and not
 	// into a per-step container.
 	for pidx := range pipelines {

@@ -90,7 +90,7 @@ var (
 	// volumeDockerConfig is a temporary volume for storing docker
 	// credentials for use with the Docker-in-Docker service we use
 	// to isolate the host machines docker daemon from the one used
-	// during the build. Mount this any tome you use `volumeDocker`
+	// during the build. Mount this any time you use `volumeDocker`
 	//
 	// Drone claims to destroy the the temp volumes after a workflow
 	// has run, so it should be safe to write credentials etc.
