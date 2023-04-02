@@ -58,6 +58,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -66,6 +67,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 		{
 			Name:  "Delegate build to GitHub",
 			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GHA_APP_KEY": {fromSecret: "GITHUB_WORKFLOW_APP_PRIVATE_KEY"},
 			},
