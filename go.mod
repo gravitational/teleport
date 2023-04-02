@@ -51,7 +51,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/gizak/termui/v3 v3.1.0
 	github.com/go-ldap/ldap/v3 v3.4.4
-	github.com/go-logr/logr v1.2.3
+	github.com/go-logr/logr v1.2.4
 	github.com/go-mysql-org/go-mysql v1.5.0 // replaced
 	github.com/go-piv/piv-go v1.11.0
 	github.com/go-redis/redis/v9 v9.0.0-rc.1 // replaced
