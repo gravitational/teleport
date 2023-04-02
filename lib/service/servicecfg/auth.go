@@ -19,6 +19,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -101,6 +102,9 @@ type AuthConfig struct {
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.
 	Clock clockwork.Clock
+
+	// ServerOptions is a list of auth.Init options used in test.
+	ServerOptions []auth.ServerOption
 }
 
 // HostedPluginsConfig configures the hosted plugin runtime.

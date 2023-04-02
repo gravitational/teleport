@@ -310,6 +310,11 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 		return trace.Wrap(err)
 	}
 
+	// Overwrite STS client if provided.
+	if a.httpClientForAWSSTS != nil {
+		ctx = context.WithValue(ctx, stsClientKey{}, a.httpClientForAWSSTS)
+	}
+
 	// send the signed request to the public AWS API and get the node identity
 	// from the response
 	identity, err := executeSTSIdentityRequest(ctx, identityRequest)
