@@ -1,10 +1,11 @@
-
+{{ dbName="test" }}
 <Tabs>
 <TabItem label="Using a config file">
 On the host where you will run the Teleport Database Service, start Teleport
 with the appropriate configuration.
 
 Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -13,7 +14,7 @@ $ teleport db configure create \
    -o file \
    --token=/tmp/token \
    --proxy=teleport.example.com:443 \
-   --name=test \
+   --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
    --labels=env=dev 
@@ -27,7 +28,7 @@ $ teleport db configure create \
    -o file \
    --token=/tmp/token \
    --proxy=mytenant.teleport.sh:443 \
-   --name=test \
+   --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
    --labels=env=dev
@@ -45,11 +46,34 @@ $ teleport db configure create \
 
 </Admonition>
 
-Start the database service:
+Configure the Database Service to start automatically when the host boots up by
+creating a systemd service for it. The instructions depend on how you installed
+the Database Service.
+
+<Tabs>
+<TabItem label="Package Manager">
+
+On the host where you will run {{ service }}, start Teleport:
 
 ```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
 ```
+
+</TabItem>
+<TabItem label="TAR Archive">
+
+On the host where you will run {{ service }}, create a systemd service
+configuration for Teleport, enable the Teleport service, and start Teleport:
+
+```code
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+</Tabs>
 
 </TabItem>
 <TabItem label="With CLI flags">
@@ -63,7 +87,7 @@ CLI command:
 $ teleport db start \
    --token=/tmp/token \
    --auth-server=teleport.example.com:443 \
-   --name=test \
+   --name={{ dbName }}  \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
    --labels=env=dev
@@ -80,7 +104,7 @@ cluster over a reverse tunnel.
 $ teleport db start \
    --token=/tmp/token \
    --auth-server=mytenant.teleport.sh:443 \
-   --name=test \
+   --name={{ dbName }} \
    --protocol={{ dbProtocol }} \
    --uri={{ databaseAddress }} \
    --labels=env=dev

@@ -45,7 +45,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx  dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-mongo" dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
 
 </TabItem>
 <TabItem label="Kubernetes Cluster">
@@ -53,9 +53,11 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-mongo" dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 You can specify either a single connection address or a MongoDB
 [connection string](https://docs.mongodb.com/manual/reference/connection-string/)
