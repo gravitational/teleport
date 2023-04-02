@@ -251,7 +251,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 		})
 
 	default:
-		dialer = client.NewDialer(ctx, apidefaults.DefaultIOTimeout, apidefaults.DefaultIdleTimeout, client.WithInsecureSkipVerify(tc.InsecureSkipVerify))
+		dialer = client.NewDialer(ctx, apidefaults.DefaultIdleTimeout, apidefaults.DefaultIOTimeout, client.WithInsecureSkipVerify(tc.InsecureSkipVerify))
 	}
 
 	conn, err := dialer.DialContext(ctx, "tcp", remoteProxyAddr)
