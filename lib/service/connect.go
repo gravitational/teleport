@@ -17,9 +17,11 @@ limitations under the License.
 package service
 
 import (
+	"context"
 	"crypto/tls"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
@@ -43,7 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -682,6 +686,96 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 	}
 	process.log.Infof("The process successfully wrote the credentials and state of %v to the disk.", role)
 	return connector, nil
+}
+
+func (process *TeleportProcess) initOpenSSH() {
+	process.RegisterWithAuthServer(types.RoleNode, SSHIdentityEvent)
+	process.SSHD = openssh.NewSSHD(process.Config.OpenSSH.RestartCommand)
+	process.RegisterCriticalFunc("openssh.rotate", process.syncOpenSSHRotationState)
+}
+
+func (process *TeleportProcess) syncOpenSSHRotationState() error {
+	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
+		return trace.Wrap(err)
+	}
+	conn, err := process.WaitForConnector(SSHIdentityEvent, nil)
+	if conn == nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	_, err = process.syncRotationState(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	id, err := process.storage.ReadIdentity(auth.IdentityCurrent, types.RoleNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx := process.ExitContext()
+	cas, err := conn.Client.GetCertAuthorities(ctx, types.OpenSSHCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keysDir := filepath.Join(process.Config.DataDir, openssh.SSHDKeysDir)
+	if err := openssh.WriteKeys(keysDir, id, cas); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = process.SSHD.UpdateConfig(openssh.SSHDConfigUpdate{
+		SSHDConfigPath: process.Config.OpenSSH.SSHDConfigPath,
+		DataDir:        process.Config.DataDir,
+	}, process.Config.OpenSSH.RestartSSHD)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := registerServer(process.Config, ctx, conn.Client); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if any of the above exits with non nil error, the process is
+	// shut down as it is run via RegisterCriticalFunction, so we
+	// manually shut down here as we dont want teleport to remain
+	// running after
+	go func() {
+		// run in a go routine as process.Shutdown waits until
+		// all registered services/functions have finished and
+		// this cant finish if its waiting on this function to
+		// rrturn
+		process.Shutdown(context.Background())
+		if err := process.Close(); err != nil {
+			process.log.Errorf("Error closing process: %s", err)
+		}
+	}()
+
+	return nil
+}
+
+func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI) error {
+	server, err := types.NewServer(a.HostUUID, types.KindNode, types.ServerSpecV2{
+		Addr:     a.OpenSSH.InstanceAddr,
+		Hostname: a.Hostname,
+		Rotation: types.Rotation{
+			LastRotated: time.Now(),
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	server.SetSubKind(types.SubKindOpenSSHNode)
+	server.SetStaticLabels(a.OpenSSH.Labels)
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpsertNode(ctx, server); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // periodicSyncRotationState checks rotation state periodically and
