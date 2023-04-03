@@ -772,13 +772,13 @@ steps:
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - cd "$TeleportSrc\e\windows_auth_package"
+  - cd "$TeleportSrc\e\windowsauth"
   - make VERSION=v$TeleportVersion  all
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
     sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-vg$TeleportVersion-amd64.exe'
   - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
@@ -1023,13 +1023,13 @@ steps:
   - Enable-Go -ToolchainDir "$Workspace/toolchains"
   - cd $TeleportSrc
   - $TeleportVersion=$(make print-version).Trim()
-  - cd "$TeleportSrc\e\windows_auth_package"
+  - cd "$TeleportSrc\e\windowsauth"
   - make VERSION=v$TeleportVersion  all
   - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
     sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-vg$TeleportVersion-amd64.exe'
   - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
@@ -1114,8 +1114,8 @@ steps:
   - Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release
   - Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect
     Setup*.exe" -Destination $OutputsDir
-  - Copy-Item -Path "$TeleportSrc/e/build/teleport-windows-auth-setup-*.exe" -Destination
-    $OutputsDir
+  - Copy-Item -Path "$TeleportSrc/e/windowsauth/build/teleport-windows-auth-setup-*.exe"
+    -Destination $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
   - Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket
@@ -19085,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: ffe165cc160ae30453210bea35bada5b5bd5dc846e313494268aae09bc161690
+hmac: 01e432a50b8669a73d6be6682a2ad530f7ccc75dd26730ac733aa980d9dc164a
 
 ...
