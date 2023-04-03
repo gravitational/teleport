@@ -6,47 +6,36 @@ import React, {
   useEffect,
   useState,
 } from 'react';
+import useWebSocket from 'react-use-websocket';
 
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import { Message } from '../services/messages';
+import { useParams } from 'react-router';
 
 interface MessageContextValue {
   send: (message: Message) => Promise<void>;
   messages: Message[];
-  streaming: boolean;
 }
 
 const MessagesContext = createContext<MessageContextValue>({
   messages: [],
   send: () => Promise.resolve(void 0),
-  streaming: false,
 });
 
 export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
+  const { chatId } = useParams<{ chatId: string }>();
+
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const [streaming, setStreaming] = useState(false);
-
-  const [ws, setWS] = useState<WebSocket>(null);
-
-  useEffect(() => {
-    setWS(
-      new WebSocket(
-        'wss://' +
-          getHostName() +
-          `/v1/webapi/assistant?auth_token=${getAccessToken()}`
-      )
-    );
-  }, []);
+  const socketUrl = `wss://${getHostName()}/v1/webapi/assistant?auth_token=${getAccessToken()}&conversation_id=${chatId}`;
+  const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl);
 
   useEffect(() => {
-    if (ws) {
-      ws.onmessage = data => {
-        console.log('data', data);
-      };
+    if (lastMessage !== null) {
+      setMessages((prev) => prev.concat(lastMessage.data));
     }
-  }, [ws]);
+  }, [lastMessage, setMessages]);
 
   const send = useCallback(
     async (message: Message) => {
@@ -54,13 +43,13 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
 
       setMessages(newMessages);
 
-      ws.send(JSON.stringify(newMessages));
+      sendMessage(JSON.stringify(newMessages));
     },
     [messages]
   );
 
   return (
-    <MessagesContext.Provider value={{ messages, send, streaming }}>
+    <MessagesContext.Provider value={{ messages, send }}>
       {props.children}
     </MessagesContext.Provider>
   );
