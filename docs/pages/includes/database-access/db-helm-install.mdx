@@ -3,9 +3,9 @@ Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
-$ helm install teleport-kube-agent . \
+$ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
-  --namespace teleport \
+  --namespace teleport-agent \
   --set roles=db \
   --set proxyAddr=teleport.exmaple.com:443 \
   --set authToken=${JOIN_TOKEN?} \
@@ -21,9 +21,9 @@ Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
-$ helm install teleport-kube-agent . \
+$ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --create-namespace \
-  --namespace teleport \
+  --namespace teleport-agent \
   --set roles=db \
   --set proxyAddr=mytenant.teleport.sh:443 \
   --set authToken=${JOIN_TOKEN?} \
