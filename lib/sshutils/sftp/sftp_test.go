@@ -416,6 +416,8 @@ func TestUpload(t *testing.T) {
 				tt.errCheck(t, err, tempDir)
 			}
 
+			// try to overwrite a file, to test the --force flag by
+			// re-copying the files that were transferred above
 			if tt.tryOverwrite {
 				err = cfg.transfer(ctx)
 				if tt.expectedOverwriteErr == "" {
