@@ -29,7 +29,11 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
 
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const socketUrl = `wss://${getHostName()}/v1/webapi/assistant?auth_token=${getAccessToken()}&conversation_id=${chatId}`;
+  let socketUrl = `wss://${getHostName()}/v1/webapi/assistant?auth_token=${getAccessToken()}`;
+  if (chatId) {
+    socketUrl += `&conversation_id=${chatId}`;
+  }
+
   const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl);
 
   useEffect(() => {
