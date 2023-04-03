@@ -8,11 +8,11 @@ import React, {
 } from 'react';
 import useWebSocket from 'react-use-websocket';
 
-import { useParams } from 'react-router';
+import { useHistory, useParams } from 'react-router';
 
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { Message } from '../services/messages';
+import { Author, Message, Type } from '../services/messages';
 
 interface MessageContextValue {
   send: (message: Message) => Promise<void>;
@@ -27,9 +27,11 @@ const MessagesContext = createContext<MessageContextValue>({
 export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
   const { chatId } = useParams<{ chatId: string }>();
 
+  const history = useHistory();
+
   const [messages, setMessages] = useState<Message[]>([]);
 
-  let socketUrl = `wss://${getHostName()}/v1/webapi/assistant?auth_token=${getAccessToken()}`;
+  let socketUrl = `wss://${getHostName()}/v1/webapi/assistant?access_token=${getAccessToken()}`;
   if (chatId) {
     socketUrl += `&conversation_id=${chatId}`;
   }
@@ -38,7 +40,25 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
 
   useEffect(() => {
     if (lastMessage !== null) {
-      setMessages((prev) => prev.concat(lastMessage.data));
+      const value = JSON.parse(lastMessage.data);
+
+      if (value.conversation_id) {
+        history.replace(`/web/assist/${value.conversation_id}`);
+
+        return;
+      }
+
+      setMessages(prev =>
+        prev.concat({
+          author: Author.Teleport,
+          content: [
+            {
+              type: Type.Message,
+              value: value.content,
+            },
+          ],
+        })
+      );
     }
   }, [lastMessage, setMessages]);
 
