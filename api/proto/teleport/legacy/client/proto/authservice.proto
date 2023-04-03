@@ -2258,7 +2258,7 @@ message AssistantMessage {
   string type = 2;
 
   // createdTime is the time when the even occurred.
-  google.protobuf.Timestamp createdTime = 3 [
+  google.protobuf.Timestamp created_time = 3 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
