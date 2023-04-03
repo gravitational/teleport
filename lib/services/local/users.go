@@ -25,7 +25,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
@@ -1386,18 +1385,13 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	return trace.Wrap(err)
 }
 
-func (s *IdentityService) GetAssistantMessages(ctx context.Context, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
-	startKey := backend.Key(webPrefix, assistantPrefix, conversationId)
+// GetAssistantMessages returns all messages with given conversation ID.
+func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
+	startKey := backend.Key(assistantPrefix, username, conversationId)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	sort.Slice(result.Items, func(i, j int) bool {
-		// Key contains timestamp, use for sorting.
-		// TODO: the beginning of the key is always the same
-		return bytes.Compare(result.Items[i].Key, result.Items[j].Key) < 0
-	})
 
 	out := make([]*proto.AssistantMessage, len(result.Items))
 	for i, item := range result.Items {
@@ -1408,19 +1402,27 @@ func (s *IdentityService) GetAssistantMessages(ctx context.Context, conversation
 		out[i] = &a
 	}
 
+	sort.Slice(out, func(i, j int) bool {
+		// Sort by created time.
+		return out[i].CreatedTime.Before(out[j].GetCreatedTime())
+	})
+
 	return &proto.GetAssistantMessagesResponse{
 		Messages: out,
 	}, nil
 }
 
-func (s *IdentityService) CreateAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
+// CreateAssistantMessage adds the message to the backend.
+func (s *IdentityService) CreateAssistantMessage(ctx context.Context, user string, msg *proto.AssistantMessage) error {
 	value, err := json.Marshal(msg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	messageID := uuid.New().String()
+
 	item := backend.Item{
-		Key:   backend.Key(webPrefix, assistantPrefix, msg.ConversationId, strconv.FormatInt(time.Now().UTC().Unix(), 10)),
+		Key:   backend.Key(assistantPrefix, user, msg.ConversationId, messageID),
 		Value: value,
 	}
 

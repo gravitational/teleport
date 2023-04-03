@@ -101,6 +101,7 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 			ConversationId: conversationID,
 			Type:           "CHAT_RESPONSE", // Set the message type
 			Payload:        msg,
+			CreatedTime:    h.clock.Now().UTC(),
 		}); err != nil {
 			return nil, trace.Wrap(err)
 		}

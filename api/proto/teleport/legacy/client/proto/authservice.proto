@@ -2257,8 +2257,14 @@ message AssistantMessage {
   // type is a type of message. It can be Chat response/query or a command to run.
   string type = 2;
 
+  // createdTime is the time when the even occurred.
+  google.protobuf.Timestamp createdTime = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+
   // payload is a JSON message
-  bytes payload = 3;
+  bytes payload = 4;
 }
 
 message GetAssistantMessagesResponse {

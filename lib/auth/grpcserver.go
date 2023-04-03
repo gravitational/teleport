@@ -4901,6 +4901,7 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 	return authReq, trace.Wrap(err)
 }
 
+// GetAssistantMessages returns all messages with given conversation ID.
 func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.AssistantRequest) (*proto.GetAssistantMessagesResponse, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
@@ -4910,6 +4911,7 @@ func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.As
 	return messages, trace.Wrap(err)
 }
 
+// InsertAssistantMessage adds the message to the backend.
 func (g *GRPCServer) InsertAssistantMessage(ctx context.Context, assistantMessage *proto.AssistantMessage) (*emptypb.Empty, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {

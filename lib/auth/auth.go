@@ -4889,12 +4889,23 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *Server) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
-	return a.Services.GetAssistantMessages(ctx, id)
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := a.Services.GetAssistantMessages(ctx, username, id)
+	return resp, trace.Wrap(err)
 }
 
 // InsertAssistantMessage adds the message to the backend.
 func (a *Server) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) error {
-	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, username, msg))
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare
