@@ -778,7 +778,7 @@ steps:
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
     sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-vg$TeleportVersion-amd64.exe'
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
   - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
@@ -1029,7 +1029,7 @@ steps:
     windows-signing-cert.pfx -Encoding Byte
   - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
     sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-vg$TeleportVersion-amd64.exe'
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
   - rm -r windows-signing-cert.pfx
   environment:
     WINDOWS_SIGNING_CERT:
@@ -19085,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 01e432a50b8669a73d6be6682a2ad530f7ccc75dd26730ac733aa980d9dc164a
+hmac: 7ebdb8c2e7b8de916583f2549ee0ec6a125f1e8b9ecfabe0b196a176ccc67626
 
 ...
