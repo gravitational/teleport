@@ -151,17 +151,19 @@ func (fs *FSLocalKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// We only generate PPK files for use by PuTTY when running tsh on Windows.
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := key.PPKFile()
-		if err == nil {
+		// PPKFile can only be generated from an RSA private key. If the key is in a different
+		// format, a BadParameter error is returned and we can skip PPK generation.
+		if err != nil && !trace.IsBadParameter(err) {
+			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
+		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(key.KeyIndex)); err != nil {
 				return trace.Wrap(err)
 			}
-		} else if !trace.IsBadParameter(err) {
-			return trace.Wrap(err)
 		}
-		// PPKFile can only be generated from an RSA private key.
-		fs.log.WithError(err).Debugf("Failed to convert private key to PPK-formatted keypair.")
 	}
 
 	// Store per-cluster key data.
