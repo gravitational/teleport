@@ -35,6 +35,15 @@ on:
         type: boolean
         default: false
 
+      build-packages:
+        description: |
+          Build Mac packages for Teleport, tsh and Teleport Connect.
+          Packages are not build for push builds. Release builds do
+          build packages.
+        required: false
+        type: boolean
+        default: false
+
 jobs:
   build-release-artifacts:
     environment: build
@@ -127,7 +136,60 @@ jobs:
           if [ "${{ inputs.release }}" == 'enterprise' ]; then
               cp e/teleport-*.tar.gz build/artifacts
           fi
-          ls -lR build
+
+      - name: Build Teleport Package
+        if: inputs.build-packages
+        env:
+          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          make pkg ARCH=amd64 OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          cp build/teleport-*.pkg build/artifacts
+          if [ "${{ inputs.release }}" == 'enterprise' ]; then
+              cp e/build/teleport-*.pkg build/artifacts
+          fi
+
+      - name: Build tsh Package
+        if: inputs.build-packages
+        env:
+          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+          OSS_TARBALL_PATH: ${{ github.workspace }}/build/artifacts
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          make pkg-tsh ARCH=amd64 OS=darwin ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          cp build/tsh-*.pkg build/artifacts
+
+      - name: Prepare tsh Package for Teleport Connect
+        if: inputs.build-packages
+        env:
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          mkdir -p build/pkg
+          cd build/pkg
+          pkgutil --expand-full ../tsh-${TELEPORT_VERSION:-$(make -C ../.. print-version)}.pkg tsh
+          echo "CONNECT_TSH_APP_PATH=$PWD/tsh/Payload/tsh.app" >> $GITHUB_ENV
+
+      - name: Build Teleport Connect
+        env:
+          APPLE_USERNAME: ${{ vars.APPLE_USERNAME }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APPLICATION_PASSWORD }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          CONNECT_TSH_BIN_PATH: ${{ github.workspace }}/build/tsh
+          ENVIRONMENT_NAME: ${{ vars.ENVIRONMENT_NAME }}
+          TELEPORT_VERSION: ${{ inputs.release-version }}
+        run: |
+          # Make CONNECT_TSH_APP_PATH override CONNECT_TSH_BIN_PATH by unsetting
+          # the latter if the former is set (by the previous step).
+          [ -n "${CONNECT_TSH_APP_PATH:-}" ] && unset CONNECT_TSH_BIN_PATH
+          make release-connect ${TELEPORT_VERSION:+VERSION=${TELEPORT_VERSION}}
+          if [ "${{ inputs.build-packages }}" = 'true' ]; then
+            cp web/packages/teleterm/build/release/*.dmg build/artifacts
+          fi
 
       - name: Checksum artifacts
         if: inputs.save-artifacts

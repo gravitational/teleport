@@ -79,6 +79,7 @@ jobs:
       release: "enterprise"
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+      build-packages: ${{ inputs.build-packages }}
       save-artifacts: ${{ inputs.release-artifacts }}
       release-version: ${{ inputs.release-version }}
 
@@ -110,30 +111,57 @@ jobs:
           printenv RELEASES_KEY | base64 -d > ".releases.key"
           CREDENTIALS="--cert .releases.crt --key .releases.key"
 
-          for file in ${{ steps.download.outputs.download-path }}/teleport-*.tar.gz; do
+          for file in ${{ steps.download.outputs.download-path }}/*; do
+            # We don't upload sha256 files, just use them to verify. skip them
+            [[ "${file##*.}" == sha256 ]] && continue
             # Don't upload unsigned files/archives
+            # TODO(camh): Stop adding -unsigned tarballs as artifacts in build-mac-amd64
             [[ "$file" =~ -unsigned ]] && continue
-            name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+
             (cd "${file%/*}" && sha256sum -c "${file##*/}.sha256") || exit 1
             shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-            description="MacOS Intel"
-            product="$name"
 
-            echo "Releasing $file as $product ($description $TELEPORT_VERSION)"
+            name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
+            products="$name"
+            case "${file##*/}" in
+            teleport-*.tar.gz)
+              description="MacOS Intel" ;;
+            teleport-*.pkg)
+              description="MacOS Intel .pkg installer" ;;
+            tsh-*.pkg)
+              description="MacOS Intel .pkg installer (tsh client only)"
+              products="teleport teleport-ent"
+              ;;
+            'Teleport Connect'*)
+              description="Teleport Connect"
+              products="teleport teleport-ent"
+              ;;
+            *)
+              echo "Skipping unknown artifact: ${file##*/}"
+              continue
+              ;;
+            esac
 
-            status_code=$(
-              curl $CREDENTIALS -o "./curl_out.txt" -w "%{http_code}" \
-                -F "product=$product"                                 \
-                -F "version=$TELEPORT_VERSION"                        \
-                -F "notesMd=# Teleport $TELEPORT_VERSION"             \
-                -F "status=draft"                                     \
-                "$RELEASES_HOST/releases"
-            )
-            if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-              echo "curl HTTP status: $status_code"
-              cat ./curl_out.txt
-              exit 1
-            fi
+            echo "Releasing ${file##*/} for products $products ($description $TELEPORT_VERSION)"
+
+            release_params=""
+            for product in $products; do
+              status_code=$(
+                curl $CREDENTIALS -o "./curl_out.txt" -w "%{http_code}" \
+                  -F "product=$product"                                 \
+                  -F "version=$TELEPORT_VERSION"                        \
+                  -F "notesMd=# Teleport $TELEPORT_VERSION"             \
+                  -F "status=draft"                                     \
+                  "$RELEASES_HOST/releases"
+              )
+              if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
+                echo "curl HTTP status: $status_code"
+                cat ./curl_out.txt
+                exit 1
+              fi
+
+              release_params+=" -F releaseId=$product@$TELEPORT_VERSION"
+            done
 
             curl $CREDENTIALS                           \
               --fail -o /dev/null                       \
@@ -142,7 +170,7 @@ jobs:
               -F "arch=amd64"                           \
               -F "file=@$file"                          \
               -F "sha256=$shasum"                       \
-              -F "releaseId=$product@$TELEPORT_VERSION" \
+              $release_params                           \
               "$RELEASES_HOST/assets"
           done
 
