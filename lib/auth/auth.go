@@ -1978,6 +1978,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
+		UserType: req.user.GetUserType(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -4190,7 +4191,17 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
+	userIsSSO, err := authz.GetClientUserIsSSO(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userMetadata := usagereporter.UserMetadata{
+		Username: username,
+		IsSSO:    userIsSSO,
+	}
+
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), userMetadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}
