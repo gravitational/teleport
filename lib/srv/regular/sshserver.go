@@ -21,6 +21,7 @@ package regular
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -1342,8 +1343,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	defer scx.Debugf("Closing direct-tcpip channel from %v to %v.", scx.SrcAddr, scx.DstAddr)
 
 	// Create command to re-exec Teleport which will perform a net.Dial. The
-	// reason it's not done directly is because the PAM stack needs to be called
-	// from another process.
+	// reason it's not done directly because the PAM stack needs to be called
+	// from the child process.
 	cmd, err := srv.ConfigureCommand(scx)
 	if err != nil {
 		writeStderr(channel, err.Error())
@@ -1375,63 +1376,48 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 		return
 	}
 
-	// Start copy routines that copy from channel to stdin pipe and from stdout
-	// pipe to channel.
-	errorCh := make(chan error, 2)
-	go func() {
-		defer channel.Close()
-		defer pw.Close()
-		defer pr.Close()
-
-		_, err := io.Copy(pw, channel)
-		errorCh <- err
-	}()
-	go func() {
-		defer channel.Close()
-		defer pw.Close()
-		defer pr.Close()
-
-		_, err := io.Copy(channel, pr)
-		errorCh <- err
-	}()
-
-	// Block until copy is complete and the child process is done executing.
-Loop:
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errorCh:
-			if err != nil && err != io.EOF {
-				s.Logger.Warnf("Connection problem in \"direct-tcpip\" channel: %v %T.", trace.DebugReport(err), err)
-			}
-		case <-ctx.Done():
-			break Loop
-		case <-s.ctx.Done():
-			break Loop
-		}
+	if err := utils.ProxyConn(ctx, utils.CombineReadWriteCloser(pr, pw), channel); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, os.ErrClosed) {
+		s.Logger.Warnf("Connection problem in direct-tcpip channel: %v %T.", trace.DebugReport(err), err)
 	}
-	err = cmd.Wait()
-	if err != nil {
-		writeStderr(channel, err.Error())
+
+	// Emit a port forwarding event if the command exited successfully.
+	if err := cmd.Wait(); err == nil {
+		if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
+			Metadata: apievents.Metadata{
+				Type: events.PortForwardEvent,
+				Code: events.PortForwardCode,
+			},
+			UserMetadata: scx.Identity.GetUserMetadata(),
+			ConnectionMetadata: apievents.ConnectionMetadata{
+				LocalAddr:  scx.ServerConn.LocalAddr().String(),
+				RemoteAddr: scx.ServerConn.RemoteAddr().String(),
+			},
+			Addr: scx.DstAddr,
+			Status: apievents.Status{
+				Success: true,
+			},
+		}); err != nil {
+			s.Logger.WithError(err).Warn("Failed to emit port forward event.")
+		}
 		return
 	}
 
-	// Emit a port forwarding event.
-	if err := s.EmitAuditEvent(s.ctx, &apievents.PortForward{
-		Metadata: apievents.Metadata{
-			Type: events.PortForwardEvent,
-			Code: events.PortForwardCode,
-		},
-		UserMetadata: scx.Identity.GetUserMetadata(),
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  scx.ServerConn.LocalAddr().String(),
-			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
-		},
-		Addr: scx.DstAddr,
-		Status: apievents.Status{
-			Success: true,
-		},
-	}); err != nil {
-		s.Logger.WithError(err).Warn("Failed to emit port forward event.")
+	// Get the error to see why the child process failed and
+	// determine the correct course of action.
+	err = scx.GetChildError()
+	switch {
+	case err == nil:
+		s.Logger.Warn("Forwarding data via direct-tcpip channel failed for unknown reason")
+		return
+	// The user does not exist for the provided login. Terminate the connection.
+	case errors.Is(err, trace.NotFound(user.UnknownUserError(scx.Identity.Login).Error())),
+		errors.Is(err, trace.BadParameter("unknown user")):
+		s.Logger.Warnf("Forwarding data via direct-tcpip channel failed. Terminating connection because user %q does not exist", scx.Identity.Login)
+		if err := ccx.ServerConn.Close(); err != nil {
+			s.Logger.Warnf("Unable to terminate connection: %v", err)
+		}
+	default:
+		s.Logger.WithError(err).Error("Forwarding data via direct-tcpip channel failed")
 	}
 }
 

@@ -17,6 +17,7 @@ limitations under the License.
 package proxy
 
 import (
+	"context"
 	"crypto/tls"
 	"net"
 	"net/http"
@@ -184,6 +185,10 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		log.Debug("No local kube credentials on proxy, will not start kubernetes_service heartbeats")
 	}
 
+	fwd.getKubernetesServersForKubeCluster, err = server.getKubernetesServiceFunc()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return server, nil
 }
 
@@ -279,4 +284,61 @@ func (t *TLSServer) GetServerInfo() (types.Resource, error) {
 	srv.SetExpiry(t.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL))
 
 	return srv, nil
+}
+
+// getKubernetesServiceFunc returns a function that returns the kubernetes services
+func (t *TLSServer) getKubernetesServiceFunc() (getKubeServicesByNameFunc, error) {
+	switch t.KubeServiceType {
+	case KubeService:
+		return func(_ context.Context, name string) ([]types.Server, error) {
+			resource, err := t.GetServerInfo()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			srv, ok := resource.(types.Server)
+			if !ok {
+				return nil, trace.BadParameter("unexpected type %T", resource)
+			}
+			return []types.Server{srv}, nil
+		}, nil
+	case ProxyService:
+		return t.getAuthKubeServices, nil
+	case LegacyProxyService:
+		return func(ctx context.Context, name string) ([]types.Server, error) {
+			servers, err := t.getLocalKubeServiceForCluster(name)
+			if err != nil {
+				servers, err := t.getAuthKubeServices(ctx, name)
+				return servers, trace.Wrap(err)
+			}
+			return servers, nil
+		}, nil
+	default:
+		return nil, trace.BadParameter("unknown kubernetes service type %q", t.KubeServiceType)
+	}
+}
+
+// getAuthKubeServers returns the kubernetes servers for a given kube cluster
+// using the Auth server client.
+func (t *TLSServer) getAuthKubeServices(ctx context.Context, name string) ([]types.Server, error) {
+	servers, err := t.CachingAuthClient.GetKubeServices(ctx)
+	return servers, trace.Wrap(err)
+}
+
+// getLocalKubeServiceForCluster returns the local kubernetes service if it
+// includes the given cluster.
+func (t *TLSServer) getLocalKubeServiceForCluster(clusterName string) ([]types.Server, error) {
+	resource, err := t.GetServerInfo()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srv, ok := resource.(types.Server)
+	if !ok {
+		return nil, trace.BadParameter("unexpected type %T", resource)
+	}
+	for _, cluster := range srv.GetKubernetesClusters() {
+		if cluster.Name == clusterName {
+			return []types.Server{srv}, nil
+		}
+	}
+	return nil, trace.NotFound("kubernetes cluster %q not found", clusterName)
 }
