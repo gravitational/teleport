@@ -12,7 +12,7 @@ Teleport images are currently hosted on [Quay.io](https://quay.io/organization/g
 As of August 1st, 2021 Quay.io no longer supports any other authentication provider other than Red Hat Single-Sign On. Users in the Gravitational organization on Quay must be manually removed when they leave Teleport which presents a potential security risk. Migrating to Amazon ECR will consolidate our infrastructure while also improving security with support for IAM policies and our existing SSO infrastructure.
 
 ## Details
-Teleport will use Amazon ECR and Amazon ECR Public in order to host public container images. The multiple stage registry pipeline will allow Teleport to test and verify images internally before promoting them to our customers. As of authoring this RFD, Amazon ECR Public lacks support for [vulnerability scanning and tag immutabilty](https://github.com/aws/containers-roadmap/issues/1288). The two-stage pipeline will allow us to leverage these features in the internal repository before pushing to the public. 
+Teleport will use Amazon ECR and Amazon ECR Public in order to host public container images. The multiple stage registry pipeline will allow Teleport to test and verify images internally before promoting them to our customers. As of authoring this RFD, Amazon ECR Public lacks support for [vulnerability scanning and tag immutability](https://github.com/aws/containers-roadmap/issues/1288). The two-stage pipeline will allow us to leverage these features in the internal repository before pushing to the public. 
 
 **What about name squatting on other container registry platforms?**
 
@@ -78,7 +78,7 @@ Gold standard images (teleport, teleport-ent, etc...) will continue to exist and
 
 ### Alternatives
 #### Self hosted with Docker Distribution or Harbor
-The [Docker Distribution](https://github.com/distribution/distribution) registry is an open source implementation of the [OCI Distribution](https://github.com/opencontainers/distribution-spec) specification. [Harbor](https://goharbor.io/) is an OSS, _all-in-one_, registry solution that is built on top of the docker registry. Harbor has a built-in UI, support for OIDC authenticatio and many more [additional features](https://goharbor.io/docs/2.5.0/). 
+The [Docker Distribution](https://github.com/distribution/distribution) registry is an open source implementation of the [OCI Distribution](https://github.com/opencontainers/distribution-spec) specification. [Harbor](https://goharbor.io/) is an OSS, _all-in-one_, registry solution that is built on top of the docker registry. Harbor has a built-in UI, support for OIDC authentication and many more [additional features](https://goharbor.io/docs/2.5.0/). 
 
 While Harbor provides a maximally featured container registry solution, it also incurs an increased operational overhead that Teleport didn't have with Quay.io.
 

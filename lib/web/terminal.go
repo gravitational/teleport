@@ -667,7 +667,10 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
-	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn,
+		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
+		t.sessionData.ServerHostname,
+		tc, modules.GetModules().IsBoringBinary())
 	switch {
 	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
 		t.log.WithError(connectErr).Warn("Unable to stream terminal - failed to create node client")
@@ -714,7 +717,10 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 			return
 		}
 
-		nc, err = client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+		nc, err = client.NewNodeClient(ctx, sshConfig, conn,
+			net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
+			t.sessionData.ServerHostname,
+			tc, modules.GetModules().IsBoringBinary())
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to create node client")
 			t.writeError(err)

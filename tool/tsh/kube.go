@@ -146,7 +146,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		crt, err := k.KubeTLSCertificate(kubeCluster)
+		crt, err := k.KubeX509Cert(kubeCluster)
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
@@ -313,6 +313,10 @@ type ExecOptions struct {
 	GetPodTimeout                  time.Duration
 	Config                         *restclient.Config
 	displayParticipantRequirements bool
+	// invited is a list of users that are invited to the session
+	invited []string
+	// reason is the reason for the session
+	reason string
 }
 
 // Run executes a validated remote execution against a pod.
@@ -382,7 +386,9 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 			Name(pod.Name).
 			Namespace(pod.Namespace).
 			SubResource("exec").
-			Param("displayParticipantRequirements", strconv.FormatBool(p.displayParticipantRequirements))
+			Param(teleport.KubeSessionDisplayParticipantRequirementsQueryParam, strconv.FormatBool(p.displayParticipantRequirements)).
+			Param(teleport.KubeSessionInvitedQueryParam, strings.Join(p.invited, ",")).
+			Param(teleport.KubeSessionReasonQueryParam, p.reason)
 		req.VersionedParams(&corev1.PodExecOptions{
 			Container: containerName,
 			Command:   p.Command,
@@ -454,6 +460,8 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 	p.restClientGetter = f
 	p.Executor = &DefaultRemoteExecutor{}
 	p.displayParticipantRequirements = c.displayParticipantRequirements
+	p.invited = strings.Split(c.invited, ",")
+	p.reason = c.reason
 	p.Namespace, p.EnforceNamespace, err = f.ToRawKubeConfigLoader().Namespace()
 	if err != nil {
 		return trace.Wrap(err)
@@ -475,7 +483,8 @@ func (c *kubeExecCommand) run(cf *CLIConf) error {
 
 type kubeSessionsCommand struct {
 	*kingpin.CmdClause
-	format string
+	format   string
+	siteName string
 }
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
@@ -483,11 +492,14 @@ func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions."),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
-
+	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	return c
 }
 
 func (c *kubeSessionsCommand) run(cf *CLIConf) error {
+	if c.siteName != "" {
+		cf.SiteName = c.siteName
+	}
 	tc, err := makeClient(cf, true)
 	if err != nil {
 		return trace.Wrap(err)
@@ -608,8 +620,8 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeTLSCertificate")
-		crt, err := k.KubeTLSCertificate(c.kubeCluster)
+		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeX509Cert")
+		crt, err := k.KubeX509Cert(c.kubeCluster)
 		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
@@ -696,7 +708,7 @@ func checkIfCertHasKubeGroupsAndUsers(certB []byte) (bool, error) {
 }
 
 func (c *kubeCredentialsCommand) writeKeyResponse(output io.Writer, key *client.Key, kubeClusterName string) error {
-	crt, err := key.KubeTLSCertificate(kubeClusterName)
+	crt, err := key.KubeX509Cert(kubeClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
