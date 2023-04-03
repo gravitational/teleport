@@ -97,3 +97,20 @@ func UnmarshalUserGroup(data []byte, opts ...MarshalOption) (types.UserGroup, er
 	}
 	return nil, trace.BadParameter("unsupported user group resource version %q", h.Version)
 }
+
+// CompareUserGroups returns true if two user groups are equal.
+func CompareUserGroups(ug1, ug2 types.UserGroup) bool {
+	if ug1.GetKind() != ug2.GetKind() {
+		return false
+	}
+
+	if ug1.GetSubKind() != ug2.GetSubKind() {
+		return false
+	}
+
+	if ug1.GetVersion() != ug2.GetVersion() {
+		return false
+	}
+
+	return CompareMetadata(ug1.GetMetadata(), ug2.GetMetadata(), false, false)
+}

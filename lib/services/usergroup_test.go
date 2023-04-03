@@ -55,6 +55,61 @@ func TestUserGroupMarshal(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestCompareUserGroup(t *testing.T) {
+	tests := []struct {
+		name      string
+		userGroup types.UserGroup
+		want      bool
+	}{
+		{
+			name:      "equal",
+			userGroup: userGroupWithModification(nil),
+			want:      true,
+		},
+		{
+			name:      "kind",
+			userGroup: userGroupWithModification(func(ug *types.UserGroupV1) { ug.Kind = "diff" }),
+		},
+		{
+			name:      "subkind",
+			userGroup: userGroupWithModification(func(ug *types.UserGroupV1) { ug.SetSubKind("diff") }),
+		},
+		{
+			name:      "version",
+			userGroup: userGroupWithModification(func(ug *types.UserGroupV1) { ug.Version = "diff" }),
+		},
+		{
+			name:      "metadata",
+			userGroup: userGroupWithModification(func(ug *types.UserGroupV1) { ug.Metadata = types.Metadata{Name: "diff"} }),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			userGroup := userGroupWithModification(nil)
+			require.Equal(t, test.want, CompareUserGroups(userGroup, test.userGroup))
+		})
+	}
+}
+
+// userGroupWithModification returns a userGroup with modifications performed by the modFn function.
+func userGroupWithModification(modFn func(*types.UserGroupV1)) types.UserGroup {
+	userGroup := &types.UserGroupV1{
+		ResourceHeader: types.ResourceHeader{
+			Kind:     "kind",
+			SubKind:  "subkind",
+			Version:  "version",
+			Metadata: metadataWithModification(nil),
+		},
+	}
+
+	if modFn != nil {
+		modFn(userGroup)
+	}
+
+	return userGroup
+}
+
 var userGroupYAML = `---
 kind: user_group
 version: v1

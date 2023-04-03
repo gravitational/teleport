@@ -18,6 +18,7 @@ package services
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -175,4 +176,84 @@ func TestParseShortcut(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCompareMetadata(t *testing.T) {
+	tests := []struct {
+		name         string
+		metadata     types.Metadata
+		checkExpires bool
+		checkID      bool
+		want         bool
+	}{
+		{
+			name:     "equal",
+			metadata: metadataWithModification(nil),
+			want:     true,
+		},
+		{
+			name:     "name",
+			metadata: metadataWithModification(func(m *types.Metadata) { m.SetName("diff") }),
+		},
+		{
+			name:     "namespace",
+			metadata: metadataWithModification(func(m *types.Metadata) { m.Namespace = "diff" }),
+		},
+		{
+			name:     "description",
+			metadata: metadataWithModification(func(m *types.Metadata) { m.Description = "diff" }),
+		},
+		{
+			name:     "labels",
+			metadata: metadataWithModification(func(m *types.Metadata) { m.Labels = map[string]string{"diff": "diff"} }),
+		},
+		{
+			name:         "expires (checkExpires is true)",
+			checkExpires: true,
+			metadata:     metadataWithModification(func(m *types.Metadata) { now := time.Now(); m.Expires = &now }),
+		},
+		{
+			name:     "expires",
+			metadata: metadataWithModification(func(m *types.Metadata) { now := time.Now(); m.Expires = &now }),
+			want:     true,
+		},
+		{
+			name:     "id (checkID is true)",
+			checkID:  true,
+			metadata: metadataWithModification(func(m *types.Metadata) { m.ID = int64(500) }),
+		},
+		{
+			name:     "id (checkID is false)",
+			metadata: metadataWithModification(func(m *types.Metadata) { m.ID = int64(500) }),
+			want:     true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			metadata := metadataWithModification(nil)
+			require.Equal(t, test.want, CompareMetadata(metadata, test.metadata, test.checkExpires, test.checkID))
+		})
+	}
+}
+
+// metadataWithModification returns a metadata with modifications performed by the modFn function.
+func metadataWithModification(modFn func(*types.Metadata)) types.Metadata {
+	expires := time.Unix(0, 0)
+	metadata := &types.Metadata{
+		Name:        "name",
+		Namespace:   "namespace",
+		Description: "description",
+		Labels: map[string]string{
+			"label1": "label2",
+		},
+		Expires: &expires,
+		ID:      int64(0),
+	}
+
+	if modFn != nil {
+		modFn(metadata)
+	}
+
+	return *metadata
 }

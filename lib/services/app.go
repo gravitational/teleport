@@ -158,3 +158,174 @@ func UnmarshalAppServer(data []byte, opts ...MarshalOption) (types.AppServer, er
 	}
 	return nil, trace.BadParameter("unsupported app server resource version %q", h.Version)
 }
+
+// CompareAppServers returns true if two application servers are equal.
+func CompareAppServers(as1, as2 types.AppServer) bool {
+	if !CompareMetadata(as1.GetMetadata(), as2.GetMetadata(), false, false) {
+		return false
+	}
+
+	if as1.GetKind() != as2.GetKind() {
+		return false
+	}
+
+	if as1.GetSubKind() != as2.GetSubKind() {
+		return false
+	}
+
+	if as1.GetVersion() != as2.GetVersion() {
+		return false
+	}
+
+	if as1.GetTeleportVersion() != as2.GetTeleportVersion() {
+		return false
+	}
+
+	if as1.GetHostname() != as2.GetHostname() {
+		return false
+	}
+
+	if as1.GetHostID() != as2.GetHostID() {
+		return false
+	}
+
+	r := as1.GetRotation()
+	if !r.Matches(as2.GetRotation()) {
+		return false
+	}
+
+	if !CompareApps(as1.GetApp(), as2.GetApp()) {
+		return false
+	}
+
+	if len(as1.GetProxyIDs()) != len(as2.GetProxyIDs()) {
+		return false
+	}
+
+	for i, proxyID := range as1.GetProxyIDs() {
+		if as2.GetProxyIDs()[i] != proxyID {
+			return false
+		}
+	}
+
+	return true
+}
+
+// CompareApps returns true if two applications are equal.
+func CompareApps(app1, app2 types.Application) bool {
+	if !CompareMetadata(app1.GetMetadata(), app2.GetMetadata(), false, false) {
+		return false
+	}
+
+	if app1.GetKind() != app2.GetKind() {
+		return false
+	}
+
+	if app1.GetSubKind() != app2.GetSubKind() {
+		return false
+	}
+
+	if app1.GetVersion() != app2.GetVersion() {
+		return false
+	}
+
+	if app1.GetURI() != app2.GetURI() {
+		return false
+	}
+
+	if app1.GetPublicAddr() != app2.GetPublicAddr() {
+		return false
+	}
+
+	if !compareDynamicLabels(app1.GetDynamicLabels(), app2.GetDynamicLabels()) {
+		return false
+	}
+
+	if app1.GetInsecureSkipVerify() != app2.GetInsecureSkipVerify() {
+		return false
+	}
+
+	if !compareRewrites(app1.GetRewrite(), app2.GetRewrite()) {
+		return false
+	}
+
+	if app1.IsGCP() != app2.IsGCP() {
+		return false
+	}
+
+	if app1.IsTCP() != app2.IsTCP() {
+		return false
+	}
+
+	if app1.GetProtocol() != app2.GetProtocol() {
+		return false
+	}
+
+	if app1.GetAWSAccountID() != app2.GetAWSAccountID() {
+		return false
+	}
+
+	if app1.GetAWSExternalID() != app2.GetAWSExternalID() {
+		return false
+	}
+
+	if app1.IsAWSConsole() != app2.IsAWSConsole() {
+		return false
+	}
+
+	if app1.IsAzureCloud() != app2.IsAzureCloud() {
+		return false
+	}
+
+	return true
+}
+
+func compareDynamicLabels(dl1, dl2 map[string]types.CommandLabel) bool {
+	if len(dl1) != len(dl2) {
+		return false
+	}
+
+	for k, cmd1 := range dl1 {
+		cmd2, ok := dl2[k]
+		if !ok {
+			return false
+		}
+
+		if len(cmd1.GetCommand()) != len(cmd2.GetCommand()) {
+			return false
+		}
+
+		for i, v := range cmd1.GetCommand() {
+			if cmd2.GetCommand()[i] != v {
+				return false
+			}
+		}
+
+		if cmd1.GetPeriod() != cmd2.GetPeriod() {
+			return false
+		}
+
+		if cmd1.GetResult() != cmd2.GetResult() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func compareRewrites(r1, r2 *types.Rewrite) bool {
+	if len(r1.Headers) != len(r2.Headers) {
+		return false
+	}
+
+	for i, h := range r1.Headers {
+		if h.Name != r2.Headers[i].Name {
+			return false
+		}
+		if h.Value != r2.Headers[i].Value {
+			return false
+		}
+	}
+
+	return true
+}

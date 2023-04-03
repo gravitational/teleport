@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // MarshalConfig specifies marshaling options
@@ -615,4 +616,33 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	u.ResourceHeader = h
 	copy(u.Raw, raw)
 	return nil
+}
+
+// CompareMetadata returns true if the metadata fields are equal.
+func CompareMetadata(m1, m2 types.Metadata, checkExpires, checkIgnoreID bool) bool {
+	if m1.Description != m2.Description {
+		return false
+	}
+
+	if checkExpires && (m1.Expires != m2.Expires) {
+		return false
+	}
+
+	if checkIgnoreID && (m1.ID != m2.ID) {
+		return false
+	}
+
+	if !utils.StringMapsEqual(m1.Labels, m2.Labels) {
+		return false
+	}
+
+	if m1.GetName() != m2.GetName() {
+		return false
+	}
+
+	if m1.Namespace != m2.Namespace {
+		return false
+	}
+
+	return true
 }
