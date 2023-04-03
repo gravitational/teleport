@@ -1485,9 +1485,6 @@ func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, e
 
 	isApproved, _, err := s.access.FulfilledFor(participants)
 	if err != nil {
-		fmt.Println("-----")
-		fmt.Printf("errerr %+v\n", err)
-		fmt.Println("-----")
 		return false, trace.Wrap(err)
 	}
 
