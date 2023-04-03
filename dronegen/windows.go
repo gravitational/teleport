@@ -288,7 +288,7 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			"CSC_LINK":      {fromSecret: "WINDOWS_SIGNING_CERT"},
 		},
 		Commands: []string{
-			`$ErrorActionPreference = 'Continue'`,
+			`$ErrorActionPreference = 'Stop'`,
 			`$Workspace = "` + perBuildWorkspace + `"`,
 			`$Env:GOCACHE = "$Workspace/gocache"`,
 			`$TeleportSrc = "$Workspace` + teleportSrc + `"`,
@@ -298,8 +298,6 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 			`$TeleportVersion=$(make print-version).Trim()`,
 			`cd "$TeleportSrc\e\windows_auth_package"`,
 			`make VERSION=v$TeleportVersion  all`,
-			`ls`,
-			`ls build`,
 			`([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content windows-signing-cert.pfx -Encoding Byte`,
 			`& 'C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe' sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe`,
 			`rm -r windows-signing-cert.pfx`,
