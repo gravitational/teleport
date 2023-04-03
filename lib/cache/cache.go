@@ -644,9 +644,22 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.MaxRetryPeriod == 0 {
 		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
+
+		// non-control-plane caches should use a longer backoff in order to limit
+		// thundering herd effects upon restart of control-plane elements.
+		if !isControlPlane(c.target) {
+			c.MaxRetryPeriod = defaults.MaxLongWatcherBackoff
+		}
 	}
 	if c.WatcherInitTimeout == 0 {
-		c.WatcherInitTimeout = time.Minute
+		c.WatcherInitTimeout = defaults.MaxWatcherBackoff
+
+		// permit non-control-plane watchers to take a while to start up. slow receipt of
+		// init events is a common symptom of the thundering herd effect caused by restarting
+		// control plane elements.
+		if !isControlPlane(c.target) {
+			c.WatcherInitTimeout = defaults.MaxLongWatcherBackoff
+		}
 	}
 	if c.CacheInitTimeout == 0 {
 		c.CacheInitTimeout = time.Second * 20
@@ -764,13 +777,14 @@ func New(config Config) (*Cache, error) {
 
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(c.MaxRetryPeriod / 10),
-		Step:   c.MaxRetryPeriod / 5,
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  utils.FullJitter(c.MaxRetryPeriod / 16),
+		Driver: retryutils.NewExponentialDriver(c.MaxRetryPeriod / 16),
 		Max:    c.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
+
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -1222,12 +1236,21 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 // throttled to limit load spiking during a mass
 // restart of nodes
 func fetchLimit(target string) int {
-	switch target {
-	case "auth", "proxy":
+	if isControlPlane(target) {
 		return 5
 	}
 
 	return 1
+}
+
+// isControlPlane checks if the cache target is a control-plane element.
+func isControlPlane(target string) bool {
+	switch target {
+	case "auth", "proxy":
+		return true
+	}
+
+	return false
 }
 
 func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {

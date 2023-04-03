@@ -1421,6 +1421,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 	policy, err := conf.CachePolicy.Parse()
 	require.NoError(t, err)
 	require.True(t, policy.Enabled)
+	require.Equal(t, time.Minute*12, policy.MaxRetryPeriod)
 }
 
 var (
