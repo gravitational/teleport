@@ -102,17 +102,33 @@ type Reporter struct {
 	svc        reportService
 	log        logrus.FieldLogger
 
-	clusterName    []byte
+	// clusterName is the anonymized cluster name.
+	clusterName []byte
+	// reporterHostID is the anonymized host ID of the reporter (this agent).
 	reporterHostID []byte
 
-	wg             sync.WaitGroup
-	baseCtx        context.Context
-	baseCancel     context.CancelFunc
+	// wg tracks all long-lived or I/O bound goroutines, to be waited on during
+	// GracefulStop.
+	wg sync.WaitGroup
+	// baseCtx is the parent context for all operations (backend operations
+	// being the most important).
+	baseCtx context.Context
+	// baseCancel cancels baseCtx.
+	baseCancel context.CancelFunc
+	// periodicCancel cancels the context used by the periodic finalizer; child
+	// of baseCtx.
 	periodicCancel context.CancelFunc
 
-	mu           sync.Mutex
-	stopped      bool
-	startTime    time.Time
+	// mu protects stopped, startTime and userActivity.
+	mu sync.Mutex
+	// stopped indicates that startTime and userActivity should not be touched
+	// anymore, that all events should be dropped, and that no goroutines
+	// tracked by wg should be started.
+	stopped bool
+
+	// startTime is the start time of the currently active data collection.
+	startTime time.Time
+	// userActivity is a map of username (non-anonymized) to UserActivityRecord.
 	userActivity map[string]*prehogv1.UserActivityRecord
 }
 
