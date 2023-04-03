@@ -18,7 +18,7 @@ and searchable audit log mechanism.
 
 In this RFD we focus on integrating scalable datastore to existing interfaces.
 There will be separate RFD which will focus and UI changes and focus on advanced
-search capabilites.
+search capabilities.
 
 ## Why
 
@@ -75,7 +75,7 @@ java](https://docs.aws.amazon.com/sns/latest/dg/large-message-payloads.html)
 works. It allows to specify s3 bucket where messages larger then max limit are
 sent. On SNS/SQS client only sends s3 link to payload.
 
-SNS/SQS message consints of `payload` and `messageAttributes`. `Payload` can be
+SNS/SQS message consists of `payload` and `messageAttributes`. `Payload` can be
 only valid UTF-8 string.
 
 `messageAttributes` will be used to determine on SQS which type is payload.
@@ -114,10 +114,10 @@ We decided go with proto.
 ### Transform and store phase
 
 Consumer will be implemented in one of auth instances. We will use locking
-mechanism which can be aquired on backend, so that only single instace does the
+mechanism which can be acquired on backend, so that only single instance does the
 job. There is already mechanism for that called
 [RunWhileLocked](https://github.com/gravitational/teleport/blob/11eaf9657dcdd9f4c8b73a3880c5648db0139aec/lib/backend/helpers.go#L137-L171).
-It's checking backend with 250ms interval if lock can be aquired. I think it
+It's checking backend with 250ms interval if lock can be acquired. I think it
 makes sense to make that interval configurable in `RunWhileLocked` function
 and set it to 10s. Lock TTL should be set to 30s. It will be automatically
 refreshed if job is still running. So TTL will be only used is Auth died and
@@ -142,7 +142,7 @@ If writing parquet file will fail, whole batch should be NACK.
 
 We will store basic information like (`event_time`, `event_type`,
 `session_id`, `audit_id(uid)`, `user`) as top
-level columns in Parquet files. Additionaly there will be `event_data` column
+level columns in Parquet files. Additionally there will be `event_data` column
 which will store string which contains marshaled data from whole audit
 event.
 
@@ -159,7 +159,7 @@ Data retention should be defined on bucket level during creation of bucket.
 
 Athena during query first checks Glue table and its schema. AWS Glue table is
 used to store and retrieve table metadata for the Amazon S3 data. This schema
-is used by Athena during quering data. The table metadata lets the Athena query
+is used by Athena during querying data. The table metadata lets the Athena query
 engine know how to find, read, and process the data that you want to query. We
 will use dynamic projections to avoid manually creating partitions.
 
@@ -167,7 +167,7 @@ Creating table and database should be done in tenant operator. It's added here
 just to bring more context.
 
 ```sql
-CREATE EXTERNAL TABLE aduitevents_tenantid (
+CREATE EXTERNAL TABLE auditevents_tenantid (
   `uid` string,
   `session_id` string,
   `event_type` string,
@@ -199,10 +199,10 @@ Example queries:
 
 ```sql
 /* get events for given date */
-SELECT DISTINCT event_data, event_time, uid FROM aduitevents_tenantid 
+SELECT DISTINCT event_data, event_time, uid FROM auditevents_tenantid 
 WHERE event_date=date('2023-02-14') ORDER BY event_time DESC, uid DESC
 /* get events for specific db instance */
-SELECT DISTINCT event_data FROM aduitevents_tenantid WHERE event_date>=date('2023-02-14')
+SELECT DISTINCT event_data FROM auditevents_tenantid WHERE event_date>=date('2023-02-14')
 AND event_type = 'db.session.query' AND json_extract_scalar(event_data, '$.db_instance')='production.postgres'
 ```
 
@@ -216,7 +216,7 @@ Results from query execution are stored in s3 bucket (either default for
 workspace or one you specify during StartQueryExecution). `getQueryResults`
 download results from s3 bucket.
 
-`ExecutionParamaters` field from StartQueryExecution endpoint must be used to
+`ExecutionParameters` field from StartQueryExecution endpoint must be used to
 pass query parameters. Using that approach protect us from SQL injection.
 
 `getQueryExecution` will be check at defined interval, passed from config.
@@ -224,12 +224,12 @@ pass query parameters. Using that approach protect us from SQL injection.
 
 #### Pagination support
 
-Both `SeachEvents` and `SearchSessionEvents` supports pagination of results by
+Both `SearchEvents` and `SearchSessionEvents` supports pagination of results by
 providing `startKey` and `limit` and part of their signature.
 
-It is recommended in Athena when quering over large number of data, to query
+It is recommended in Athena when querying over large number of data, to query
 without limit only once, and use `getQueryExecution` to iterate over results.
-Because athena stores query results on s3, you can download it by specifing
+Because athena stores query results on s3, you can download it by specifying
 `queryID` and optional `offsetKey`.
 
 We have decided to not follow that pattern because it opens us with risk of
@@ -239,7 +239,7 @@ can result in RBAC bypass, because SearchSessionEvents RBAC is non trivial. If
 user has `session.list` permission with specific where condition
 `contains(session.participants, user.metadata.name)`, user by guessing queryID
 and offsetKey bypass RBAC because we would try to download results instead of
-execting query.
+executing query.
 
 Workaround that is using standard SQL pagination support, using limit and
 always reexecuting query instead of downloading it.
@@ -291,7 +291,7 @@ bootstraping of infra could be added into teleport codebase.
 
 ### Rate limiting of search events
 
-Athena Service Quotas can be tight in certian cases (for example Teleport Cloud
+Athena Service Quotas can be tight in certain cases (for example Teleport Cloud
 with tenants sharing quota pool). To address that issue we decided to introduce
 new rate limiting mechanism which will work per auth instance for all users,
 not per IP.
@@ -326,4 +326,4 @@ in UI can be delayed up to value of buffer interval.
 
 In this RFD we focus on integrating scalable datastore to existing interfaces.
 There will be separate RFD which will focus and UI changes and focus on advanced
-search capabilites.
+search capabilities.
