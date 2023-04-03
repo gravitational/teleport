@@ -37,7 +37,21 @@ We will run the following Teleport services:
   Google Compute Engine
   [startup script](https://cloud.google.com/compute/docs/instances/startup-scripts),
   or similar.
+
+  <Admonition type="warning">
+
+  This guide is not intended for local environments, e.g., a Docker container on
+  your workstation. For guides to trying out a containerized Teleport deployment
+  locally, see the following:
+
+  - [Local Kubernetes Cluster](./local-kubernetes.mdx)
+  - [Docker Compose](./docker-compose.mdx)
+  - [Single Docker Container](../management/guides/docker.mdx)
+
+  </Admonition>
+
 - A two-factor authenticator app such as [Authy](https://authy.com/download/), [Google Authenticator](https://www.google.com/landing/2step/), or [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
+
 - `python3` installed on your Linux machine. We will use this to run a simple
   HTTP file server, so you can use another HTTP server if you have one
   installed.
