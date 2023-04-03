@@ -86,6 +86,13 @@ do not match the Node will not be checked.
 
 </Admonition>
 
+<Admonition type="warning">
+
+When multiple roles contain `host_sudoers` entries, the sudoers file
+will have the entries written to it ordered by role name
+
+</Admonition>
+
 If a role includes a `deny` rule that sets `host_sudoers` to `'*'`, the user will
 have all sudoers entries removed when accessing matching Nodes, otherwise `deny`
 rules are matched literally when filtering:
