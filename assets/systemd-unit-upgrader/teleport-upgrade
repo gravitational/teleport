@@ -234,19 +234,25 @@ do_upgrade() {
             ;;
         apt)
             log_info "attempting apt install $package_name=$target_version..."
+            # update index for teleport repo
             apt update \
                 -o Dir::Etc::sourcelist="sources.list.d/teleport.list" \
                 -o Dir::Etc::sourceparts="-" \
                 -o APT::Get::List-Cleanup="0"
+            # restart the service if it is currently running
             apt install -y "$package_name=$target_version"
             systemctl try-restart teleport.service
             return 0
             ;;
         yum)
             log_info "attempting yum install $package_name=$target_version..."
-            # TODO
-            log_warn "not implemented!"
-            return 1
+            # update cache for teleport repo
+            yum makecache --disablerepo="*" --enablerepo="teleport"
+            # attempt installation
+            yum install  -y --disablerepo="*" --enablerepo="teleport" "$package_name-$target_version"
+            # restart the service if it is currently running
+            systemctl try-restart teleport.service
+            return 0
             ;;
         *)
             log_warn "unsupported installer kind: $installer_kind (expected one apt, yum, or nop)"
