@@ -299,7 +299,6 @@ func (f *fakeProxy) clientConfig(t *testing.T) ClientConfig {
 	return ClientConfig{
 		ProxyWebAddress: "127.0.0.1",
 		ProxySSHAddress: "127.0.0.1",
-		ClusterName:     "test",
 		SSHDialer: SSHDialerFunc(func(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 			conn, chans, reqs, err := f.fakeSSHServer.newClientConn()
 			if err != nil {
@@ -540,4 +539,84 @@ func TestClient_SSHConfig(t *testing.T) {
 	require.NotNil(t, sshConfig)
 	require.Equal(t, user, sshConfig.User)
 	require.Empty(t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(ssh.ClientConfig{}, "User", "Auth", "HostKeyCallback")))
+}
+
+type fakePublicKey struct{}
+
+func (f fakePublicKey) Type() string {
+	return "test"
+}
+
+func (f fakePublicKey) Marshal() []byte {
+	return nil
+}
+
+func (f fakePublicKey) Verify(data []byte, sig *ssh.Signature) error {
+	return trace.NotImplemented("")
+}
+
+func TestClusterCallback(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                string
+		hostKeyCB           ssh.HostKeyCallback
+		publicKey           ssh.PublicKey
+		expectedClusterName string
+		errAssertion        require.ErrorAssertionFunc
+	}{
+		{
+			name: "handshake failure",
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return context.Canceled
+			},
+			errAssertion: require.Error,
+		},
+		{
+			name:      "invalid certificate",
+			publicKey: fakePublicKey{},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "no authority present",
+			publicKey: &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{},
+				},
+			},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+
+		{
+			name:                "cluster name presented",
+			expectedClusterName: "test-cluster",
+			publicKey: &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{
+						teleportAuthority: "test-cluster",
+					},
+				},
+			},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			c := &clusterName{}
+			err := clusterCallback(c, test.hostKeyCB)("test", addr("127.0.0.1"), test.publicKey)
+			test.errAssertion(t, err)
+			require.Equal(t, test.expectedClusterName, c.get())
+
+		})
+	}
 }

@@ -20,6 +20,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -55,9 +56,6 @@ type ClientConfig struct {
 	ProxySSHAddress string
 	// TLSRoutingEnabled indicates if the cluster is using TLS Routing.
 	TLSRoutingEnabled bool
-	// ClusterName is the name of the Teleport cluster that the client
-	// will be connected to.
-	ClusterName string
 	// TLSConfig contains the tls.Config required for mTLS connections.
 	TLSConfig *tls.Config
 	// SSHDialer allows callers to control how a [tracessh.Client] is created.
@@ -71,15 +69,14 @@ type ClientConfig struct {
 	clientCreds func() client.Credentials
 }
 
+// CheckAndSetDefaults ensures required options are present and
+// sets the default value of any that are omitted.
 func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.ProxyWebAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyWebAddress")
 	}
 	if c.ProxySSHAddress == "" {
 		return trace.BadParameter("missing required parameter ProxySSHAddress")
-	}
-	if c.ClusterName == "" {
-		return trace.BadParameter("missing required parameter ClusterName")
 	}
 	if c.SSHDialer == nil {
 		return trace.BadParameter("missing required parameter SSHDialer")
@@ -125,6 +122,9 @@ type Client struct {
 	cfg *ClientConfig
 	// sshClient is the established SSH connection to the Proxy.
 	sshClient *tracessh.Client
+	// clusterName as determined by inspecting the certificate presented by
+	// the Proxy during the connection handshake.
+	clusterName *clusterName
 }
 
 // NewClient creates a new Client that attempts to connect to the SSH
@@ -138,17 +138,81 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 	return clt, trace.Wrap(err)
 }
 
+// clusterName stores the name of the cluster
+// in a protected manner which allows it to
+// be set during handshakes with the server.
+type clusterName struct {
+	name atomic.Pointer[string]
+}
+
+func (c *clusterName) get() string {
+	name := c.name.Load()
+	if name != nil {
+		return *name
+	}
+	return ""
+}
+
+func (c *clusterName) set(name string) {
+	c.name.CompareAndSwap(nil, &name)
+}
+
+// teleportAuthority is the extension set by the server
+// which contains the name of the cluster it is in.
+const teleportAuthority = "x-teleport-authority"
+
+// clusterCallback is a [ssh.HostKeyCallback] that obtains the name
+// of the cluster being connected to from the certificate presented by the server.
+// This allows the client to determine the cluster name when using jump hosts.
+func clusterCallback(c *clusterName, wrapped ssh.HostKeyCallback) ssh.HostKeyCallback {
+	return func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+		if err := wrapped(hostname, remote, key); err != nil {
+			return trace.Wrap(err)
+		}
+
+		cert, ok := key.(*ssh.Certificate)
+		if !ok {
+			return nil
+		}
+
+		clusterName, ok := cert.Permissions.Extensions[teleportAuthority]
+		if ok {
+			c.set(clusterName)
+		}
+
+		return nil
+	}
+}
+
 // newSSHClient creates a Client that is connected via SSH.
 func newSSHClient(ctx context.Context, cfg *ClientConfig) (*Client, error) {
-	clt, err := cfg.SSHDialer.Dial(ctx, "tcp", cfg.ProxySSHAddress, cfg.SSHConfig)
+	c := &clusterName{}
+	clientCfg := &ssh.ClientConfig{
+		User:              cfg.SSHConfig.User,
+		Auth:              cfg.SSHConfig.Auth,
+		HostKeyCallback:   clusterCallback(c, cfg.SSHConfig.HostKeyCallback),
+		BannerCallback:    cfg.SSHConfig.BannerCallback,
+		ClientVersion:     cfg.SSHConfig.ClientVersion,
+		HostKeyAlgorithms: cfg.SSHConfig.HostKeyAlgorithms,
+		Timeout:           cfg.SSHConfig.Timeout,
+	}
+
+	clt, err := cfg.SSHDialer.Dial(ctx, "tcp", cfg.ProxySSHAddress, clientCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Client{
-		cfg:       cfg,
-		sshClient: clt,
+		cfg:         cfg,
+		sshClient:   clt,
+		clusterName: c,
 	}, nil
+}
+
+// ClusterName returns the name of the cluster that the
+// connected Proxy is a member of.
+func (c *Client) ClusterName() string {
+	return c.clusterName.get()
 }
 
 // Close attempts to close the SSH connection.
@@ -322,7 +386,7 @@ func dialSSH(ctx context.Context, clt *tracessh.Client, proxyAddress, targetAddr
 		// read the stderr output from the failed SSH session and append
 		// it to the end of our own message:
 		serverErrorMsg, _ := io.ReadAll(sessionError)
-		return nil, trace.ConnectionProblem(err, "failed connecting to host %s: %v. %v", targetAddress, serverErrorMsg, err)
+		return nil, trace.ConnectionProblem(err, "failed connecting to host %s: %s. %v", targetAddress, serverErrorMsg, err)
 	}
 
 	return conn, nil
