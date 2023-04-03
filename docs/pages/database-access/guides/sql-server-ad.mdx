@@ -388,7 +388,9 @@ If your `tsh db connect` error includes the following text, the certificate used
 Error message: TLS Handshake failed: x509: certificate signed by unknown authority
 ```
 
-Add the Certificate Authority (CA) `ca_cert_file` into the `tls` section so Teleport can validate the certificate. 
+To solve this, you can add the CA configuration to the database like the
+following:
+
 ```yaml
   databases:
   - name: sqlserver
@@ -401,8 +403,16 @@ Add the Certificate Authority (CA) `ca_cert_file` into the `tls` section so Tele
     static_labels:
       "env": "dev"
     tls:
-      ca_cert_file: /var/lib/teleport/cert.pem
+      # Point it to your Database CA PEM certificate.
+      ca_cert_file: "rdsca.pem"
+      # If your database certificate has an empty CN filed, you must change
+      # the TLS mode to only verify the CA.
+      mode: verify-ca
 ```
+
+If you’re unable to acquire the database CA, you can skip TLS verification by
+providing the configuration `tls.mode: "insecure"`. However, we do not recommend
+skipping TLS verification in production environments.
 
 ## Next steps
 
