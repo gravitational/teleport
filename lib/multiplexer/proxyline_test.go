@@ -46,13 +46,13 @@ var (
 	// source=127.0.0.1:12345 destination=127.0.0.2:42
 	sampleIPv4Addresses = []byte{0x7F, 0x00, 0x00, 0x01, 0x7F, 0x00, 0x00, 0x02, 0x30, 0x39, 0x00, 0x2A}
 	// {0x21, 0x11, 0x00, 0x0C} - 4 bits version, 4 bits command, 4 bits address family, 4 bits protocol, 16 bits length
-	sampleProxyV2Line = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0C}, sampleIPv4Addresses}, nil)
+	sampleProxyV2Line = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x0C}, sampleIPv4Addresses}, nil)
 	// Proxy line with LOCAL command
-	sampleProxyV2LineLocal    = bytes.Join([][]byte{proxyV2Prefix, {0x20, 0x11, 0x00, 0x00}}, nil)
+	sampleProxyV2LineLocal    = bytes.Join([][]byte{ProxyV2Prefix, {0x20, 0x11, 0x00, 0x00}}, nil)
 	sampleTLV                 = []byte{byte(PP2TypeTeleport), 0x00, 0x03, 0x01, 0x02, 0x03}
 	sampleEmptyTLV            = []byte{byte(PP2TypeTeleport), 0x00, 0x00}
-	sampleProxyV2LineTLV      = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x12}, sampleIPv4Addresses, sampleTLV}, nil)
-	sampleProxyV2LineEmptyTLV = bytes.Join([][]byte{proxyV2Prefix, {0x21, 0x11, 0x00, 0x0F}, sampleIPv4Addresses, sampleEmptyTLV}, nil)
+	sampleProxyV2LineTLV      = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x12}, sampleIPv4Addresses, sampleTLV}, nil)
+	sampleProxyV2LineEmptyTLV = bytes.Join([][]byte{ProxyV2Prefix, {0x21, 0x11, 0x00, 0x0F}, sampleIPv4Addresses, sampleEmptyTLV}, nil)
 )
 
 func TestReadProxyLine(t *testing.T) {
@@ -94,7 +94,7 @@ func TestReadProxyLineV2(t *testing.T) {
 		require.ErrorContains(t, err, "unrecognized signature")
 	})
 	t.Run("malformed PROXY v2 header", func(t *testing.T) {
-		_, err := ReadProxyLineV2(bufio.NewReader(bytes.NewReader(append(proxyV2Prefix, []byte("JIBBERISH")...))))
+		_, err := ReadProxyLineV2(bufio.NewReader(bytes.NewReader(append(ProxyV2Prefix, []byte("JIBBERISH")...))))
 		require.ErrorContains(t, err, "unsupported version")
 	})
 	t.Run("successfully read proxy v2 line without TLV", func(t *testing.T) {
@@ -444,7 +444,7 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ca, err := casGetter.GetCertAuthority(context.Background(), types.CertAuthID{
+	ca, err := casGetter(context.Background(), types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: clusterName,
 	}, false)
@@ -570,9 +570,11 @@ func TestProxyLine_VerifySignature(t *testing.T) {
 					},
 				},
 			})
-			mockCAGetter := &mockCAsGetter{HostCA: ca}
-
 			require.NoError(t, err)
+
+			mockCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+				return ca, nil
+			}
 
 			err = pl.VerifySignature(context.Background(), mockCAGetter, tt.localClusterName, clock)
 			if tt.wantErr != "" {

@@ -30,8 +30,10 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
+	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/srv"
@@ -43,6 +45,11 @@ import (
 type PROXYHeaderSigner interface {
 	SignPROXYHeader(source, destination net.Addr) ([]byte, error)
 }
+
+// CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
+// We define our own version to avoid circular dependencies in multiplexer package (it can't depend on 'services'),
+// where this function is used.
+type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 // proxySubsys implements an SSH subsystem for proxying listening sockets from
 // remote hosts to a proxy client (AKA port mapping)
@@ -302,7 +309,7 @@ func (t *proxySubsys) doHandshake(ctx context.Context, clientAddr net.Addr, clie
 			t.log.Error(err)
 		} else {
 			// send a JSON payload sandwiched between 'teleport proxy signature' and 0x00:
-			payload := fmt.Sprintf("%s%s\x00", apisshutils.ProxyHelloSignature, payloadJSON)
+			payload := fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON)
 			_, err = serverConn.Write([]byte(payload))
 			if err != nil {
 				t.log.Error(err)

@@ -39,12 +39,11 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/loglimit"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -55,9 +54,8 @@ var (
 )
 
 // CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
-type CertAuthorityGetter interface {
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
-}
+// We define our own version to not create dependency on the 'services' package, which causes circular references
+type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 // Config is a multiplexer config
 type Config struct {
@@ -472,7 +470,7 @@ func (m *Mux) detect(conn net.Conn) (*Conn, error) {
 				continue
 			}
 
-			if m.CertAuthorityGetter != nil && newProxyLine.isSigned() && !newProxyLine.IsVerified {
+			if m.CertAuthorityGetter != nil && newProxyLine.IsSigned() && !newProxyLine.IsVerified {
 				return nil, trace.BadParameter("could not verify proxy line signature")
 			}
 
@@ -551,10 +549,10 @@ func (p Protocol) String() string {
 
 var (
 	proxyPrefix      = []byte{'P', 'R', 'O', 'X', 'Y'}
-	proxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
+	ProxyV2Prefix    = []byte{0x0D, 0x0A, 0x0D, 0x0A, 0x00, 0x0D, 0x0A, 0x51, 0x55, 0x49, 0x54, 0x0A}
 	sshPrefix        = []byte{'S', 'S', 'H'}
 	tlsPrefix        = []byte{0x16}
-	proxyHelloPrefix = []byte(sshutils.ProxyHelloSignature)
+	proxyHelloPrefix = []byte(constants.ProxyHelloSignature)
 )
 
 // This section defines Postgres wire protocol messages detected by Teleport:
@@ -614,15 +612,15 @@ func detectProto(r *bufio.Reader) (Protocol, error) {
 	switch {
 	case bytes.HasPrefix(in, proxyPrefix):
 		return ProtoProxy, nil
-	case bytes.HasPrefix(in, proxyV2Prefix[:8]):
+	case bytes.HasPrefix(in, ProxyV2Prefix[:8]):
 		// if the first 8 bytes matches the first 8 bytes of the proxy
 		// protocol v2 magic bytes, read more of the connection so we can
 		// ensure all magic bytes match
-		in, err = r.Peek(len(proxyV2Prefix))
+		in, err = r.Peek(len(ProxyV2Prefix))
 		if err != nil {
 			return ProtoUnknown, trace.Wrap(err, failedToPeekConnectionError)
 		}
-		if bytes.HasPrefix(in, proxyV2Prefix) {
+		if bytes.HasPrefix(in, ProxyV2Prefix) {
 			return ProtoProxyV2, nil
 		}
 	case bytes.HasPrefix(in, proxyHelloPrefix[:8]):
