@@ -50,7 +50,8 @@ import (
 
 var (
 	// ErrBadIP is returned when there's a problem with client source or destination IP address
-	ErrBadIP = trace.BadParameter("client source and destination addresses should be valid non-nil IP addresses")
+	ErrBadIP = trace.BadParameter(
+		"client source and destination addresses should be valid same TCP version non-nil IP addresses")
 )
 
 // CertAuthorityGetter allows to get cluster's host CA for verification of signed PROXY headers.
@@ -313,10 +314,14 @@ func getTCPAddr(a net.Addr) net.TCPAddr {
 	}
 }
 
+func isDifferentTCPVersion(addr1, addr2 net.TCPAddr) bool {
+	return (addr1.IP.To4() != nil && addr2.IP.To4() == nil) || (addr2.IP.To4() != nil && addr1.IP.To4() == nil)
+}
+
 func signPROXYHeader(sourceAddress, destinationAddress net.Addr, clusterName string, signingCert []byte, signer JWTPROXYSigner) ([]byte, error) {
 	sAddr := getTCPAddr(sourceAddress)
 	dAddr := getTCPAddr(destinationAddress)
-	if sAddr.IP == nil || dAddr.IP == nil {
+	if sAddr.IP == nil || dAddr.IP == nil || isDifferentTCPVersion(sAddr, dAddr) {
 		return nil, trace.Wrap(ErrBadIP, "source address: %s, destination address: %s", sourceAddress, destinationAddress)
 	}
 	if sAddr.Port < 0 || dAddr.Port < 0 {
