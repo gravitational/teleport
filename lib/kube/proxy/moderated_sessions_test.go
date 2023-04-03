@@ -410,8 +410,8 @@ func TestModeratedSessions(t *testing.T) {
 
 					// checks if moderator has joined the session.
 					// Each time a user joins a session the following message is broadcasted
-					// User <user> joined the session.
-					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session.", moderatorUsername)) {
+					// User <user> joined the session with participant mode: <mode>.
+					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session with participant mode: moderator.", moderatorUsername)) {
 						t.Logf("identified that moderator joined the session")
 						// inform moderator goroutine that the user detected that he joined the
 						// session.
