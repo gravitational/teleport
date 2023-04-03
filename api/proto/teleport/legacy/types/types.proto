@@ -5263,6 +5263,42 @@ message OktaAssignmentActionTargetV1 {
   string id = 2 [(gogoproto.jsontag) = "id"];
 }
 
+// IntegrationV1 represents a connection between Teleport and some other 3rd party system.
+// This connection allows API access to that service from Teleport.
+// Each Integration instance must have a SubKind defined which identifies the external system.
+message IntegrationV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is an Integration specification.
+  IntegrationSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// IntegrationSpecV1 contains properties of all the supported integrations.
+message IntegrationSpecV1 {
+  oneof SubKindSpec {
+    // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
+    AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+  }
+}
+
+// AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
+message AWSOIDCIntegrationSpecV1 {
+  // RoleARN contains the Role ARN used to set up the Integration.
+  // This is the AWS Role that Teleport will use to issue tokens for API Calls.
+  string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
+}
+
 // HeadlessAuthentication holds data for an ongoing headless authentication attempt.
 message HeadlessAuthentication {
   // Header is the resource header.

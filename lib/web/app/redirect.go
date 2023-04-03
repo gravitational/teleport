@@ -18,11 +18,28 @@ package app
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"strings"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/lib/httplib"
 )
+
+const metaRedirectHTML = `
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Teleport Redirection Service</title>
+		<meta http-equiv="cache-control" content="no-cache"/>
+		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
+	</head>
+	<body></body>
+</html>
+`
+
+var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
 func SetRedirectPageHeaders(h http.Header, nonce string) {
 	httplib.SetNoCacheHeaders(h)
@@ -41,4 +58,10 @@ func SetRedirectPageHeaders(h http.Header, nonce string) {
 		"img-src 'self'",
 	}, ";")
 	h.Set("Content-Security-Policy", csp)
+}
+
+// MetaRedirect issues a "meta refresh" redirect.
+func MetaRedirect(w http.ResponseWriter, redirectURL string) error {
+	SetRedirectPageHeaders(w.Header(), "")
+	return trace.Wrap(metaRedirectTemplate.Execute(w, redirectURL))
 }
