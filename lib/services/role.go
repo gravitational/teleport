@@ -2709,10 +2709,7 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	roleSet := make([]types.Role, len(set))
 	copy(roleSet, set)
 	slices.SortStableFunc(roleSet, func(a types.Role, b types.Role) bool {
-		if cmp := strings.Compare(a.GetName(), b.GetName()); cmp != -1 {
-			return false
-		}
-		return true
+		return strings.Compare(a.GetName(), b.GetName()) == -1
 	})
 
 	for _, role := range roleSet {
@@ -2746,14 +2743,21 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Deny) {
 			delete(groups, group)
 		}
-		for _, sudoer := range role.GetHostSudoers(types.Deny) {
-			if sudoer == "*" {
-				sudoers = nil
-				break
+
+		var finalSudoers []string
+	outer:
+		for _, sudoer := range sudoers {
+			for _, deniedSudoer := range role.GetHostSudoers(types.Deny) {
+				if deniedSudoer == "*" {
+					finalSudoers = nil
+					break outer
+				}
+				if sudoer != deniedSudoer {
+					finalSudoers = append(finalSudoers, sudoer)
+				}
 			}
-			sudoerIndex := slices.Index(sudoers, sudoer)
-			sudoers = slices.Delete(sudoers, sudoerIndex, sudoerIndex+1)
 		}
+		sudoers = finalSudoers
 	}
 
 	return &HostUsersInfo{
