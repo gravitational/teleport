@@ -291,6 +291,8 @@ type Log struct {
 	Config
 
 	awsConfig aws.Config
+
+	publisher *publisher
 }
 
 // New creates an instance of an Athena based audit log.
@@ -317,7 +319,11 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		l.awsConfig.Region = cfg.Region
 	}
 
-	// TODO(tobiaszheller): initialize publisher
+	l.publisher, err = newPublisher(cfg, l.awsConfig, logEntry)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// TODO(tobiaszheller): initialize batcher
 	// TODO(tobiaszheller): initialize querier
 
@@ -325,7 +331,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
-	return trace.NotImplemented("not implemented")
+	return l.publisher.EmitAuditEvent(ctx, in)
 }
 
 func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
