@@ -67,7 +67,7 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: origin => {
+      activate: params => {
         let srvDoc = documentsService
           .getDocuments()
           .find(getServerDocumentByConnection(connection));
@@ -75,7 +75,7 @@ export class TrackedConnectionOperationsFactory {
         if (!srvDoc) {
           srvDoc = documentsService.createTshNodeDocument(
             connection.serverUri,
-            origin
+            params
           );
           srvDoc.status = 'connecting';
           srvDoc.login = connection.login;
