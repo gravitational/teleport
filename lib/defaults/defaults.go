@@ -362,6 +362,10 @@ var (
 	// DiskAlertInterval is disk space check interval.
 	DiskAlertInterval = 5 * time.Minute
 
+	// MaxLongWatcherBackoff is the maximum backoff used for watchers that incur high cluster-level
+	// load (non-control-plane caches being the primary example).
+	MaxLongWatcherBackoff = 256 * time.Second
+
 	// AuthQueueSize is auth service queue size
 	AuthQueueSize = 8192
 

@@ -1,5 +1,92 @@
 # Changelog
 
+## 10.3.15 (03/30/23)
+
+This release of Teleport contains 2 security fixes as well as multiple improvements and bug fixes.
+
+### [High] OS authorization bypass in SSH tunneling
+
+When establishing an SSH port forwarding connection, Teleport did not
+sufficiently validate the specified OS principal.
+
+This could allow an attacker in possession of valid cluster credentials to
+establish a TCP tunnel to a node using a non-existent Linux user.
+
+The connection attempt would show up in the audit log as a "port" audit event
+(code T3003I) and include a Teleport username in the "user" field.
+
+### [High] Teleport authorization bypass in Kubernetes Access
+
+When authorizing a Kubernetes Access request, Teleport did not adequately
+validate the target Kubernetes cluster.
+
+This could allow an attacker in possession of valid Kubernetes agent credentials
+or a join token to trick Teleport into forwarding requests to a different
+Kubernetes cluster.
+
+Every Kubernetes request would show up in the audit log as a "kube.request"
+audit event (code T3009I) and include the Kubernetes cluster metadata.
+
+### [Medium] Moderated sessions leave behavior
+
+Fixed issue with moderated session being terminated after a short delay instead
+of being immediately paused when moderator leaves.
+
+[#21972](https://github.com/gravitational/teleport/pull/21972)
+
+### Other improvements and fixes
+
+* AMIs
+  * Added support for configuring TLS routing mode in AMIs. [#23676](https://github.com/gravitational/teleport/pull/23676)
+* Application Access
+  * Fixed app access requests being redirected to leaf's public address in some cases. [#23222](https://github.com/gravitational/teleport/pull/23222)
+  * Reduced log noise. [#23367](https://github.com/gravitational/teleport/pull/23367)
+* Access Management
+  * Added per-session MFA support to connection testers. [#22922](https://github.com/gravitational/teleport/pull/22922)
+* Performance & scalability
+  * Improved idle connection handling. [#22916](https://github.com/gravitational/teleport/pull/22916)
+  * Removed unnecessary resource updates. [#22573](https://github.com/gravitational/teleport/pull/22573)
+  * Fixed proxy peering issues when running behind a load balancer. [#23508](https://github.com/gravitational/teleport/pull/23508)
+  * Improved `tsh ls -R` performance in large clusters. [#23606](https://github.com/gravitational/teleport/pull/23606)
+  * Improved performance when setting environment for user session. [#23832](https://github.com/gravitational/teleport/pull/23832)
+* Database Access
+  * Fixed `tsh db config` returning incorrect port in TLS routing mode. [#22891](https://github.com/gravitational/teleport/pull/22891)
+  * Fixed issue with query audit events always having `success: false` status. [#23276](https://github.com/gravitational/teleport/pull/23276)
+  * Fixed issue with Redis protocol not handling nil response [#22230](https://github.com/gravitational/teleport/pull/22230)
+* Server Access
+  * Fixed issue with OS group check leading to session failures in some cases. [#22803](https://github.com/gravitational/teleport/pull/22803)
+  * Fixed issue with PuTTY `winadj` channel requests not being correctly handled. [#22421](https://github.com/gravitational/teleport/pull/22421)
+  * Improved handling of child processes upon session termination. [#22231](https://github.com/gravitational/teleport/pull/22231)
+* Desktop Access
+  * Fixed panics on systems using large numbers of file descriptors. [#22800](https://github.com/gravitational/teleport/pull/22800)
+  * Fixed incorrect login options for Windows desktops. [#22344](https://github.com/gravitational/teleport/pull/22344)
+  * Updated setup script to be idempotent. [#23174](https://github.com/gravitational/teleport/pull/23174)
+* Kubernetes Access
+  * Improved label validation for Kubernetes service. [#22780](https://github.com/gravitational/teleport/pull/22780)
+  * Fixed issue with Kubernetes impersonation header overwrite for leaf clusters. [#22247](https://github.com/gravitational/teleport/pull/22247)
+  * Fixed issue with `tsh kube credentials` failing on remote clusters. [#23352](https://github.com/gravitational/teleport/pull/23352)
+  * Fixed issue with `tsh kube credentials` loading incorrect profile. [#23717](https://github.com/gravitational/teleport/pull/23717)
+* Auto-discovery
+  * Fixed issue with open-source package being installed for enterprise clusters. [#22768](https://github.com/gravitational/teleport/pull/22768)
+* Trusted Clusters
+  * Added ability to update role map without having to recreate the trusted cluster resource. [#23645](https://github.com/gravitational/teleport/pull/23645)
+* Tooling
+  * Updated Go to `1.19.7`. [#22729](https://github.com/gravitational/teleport/pull/22729)
+  * Updated Rust to `1.68.0`. [#23103](https://github.com/gravitational/teleport/pull/23103)
+* CLI
+  * Fixed issue with `tsh` not respecting `HTTPS_PROXY` in some cases. [#22490](https://github.com/gravitational/teleport/pull/22490)
+  * Added flag to `tsh` to only display the binary version. [#22169](https://github.com/gravitational/teleport/pull/22169)
+  * Added `app_server` support to `tctl` resource commands. [#23138](https://github.com/gravitational/teleport/pull/23138)
+  * Display year in `tctl` commands output. [#23373](https://github.com/gravitational/teleport/pull/23373)
+  * Added `--cluster` flag to `tsh kube sessions` command. [#23827](https://github.com/gravitational/teleport/pull/23827)
+* Resource Joining
+  * Fixed issue when joining leaf cluster over tunnel port with enabled proxy protocol. [#23485](https://github.com/gravitational/teleport/pull/23485)
+  * Added support for IAM joining in `ap-southeast-4` region. [#22488](https://github.com/gravitational/teleport/pull/22488)
+* FIPS
+  * Fixed startup issue in FIPS mode when `local_auth` isn't explicitly set. [#22242](https://github.com/gravitational/teleport/pull/22242)
+* Web UI
+  * Fixed intermittent "client connection is closing" errors in web UI after logging in. [#23736](https://github.com/gravitational/teleport/pull/23736)
+
 ## 10.3.13
 
 This release of Teleport contains two security fixes as well as multiple improvements and bug fixes.
