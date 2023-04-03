@@ -228,6 +228,9 @@ type Server struct {
 	ingressReporter *ingress.Reporter
 	// ingressService the service name passed to the ingress reporter.
 	ingressService string
+
+	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
+	proxySigner PROXYHeaderSigner
 }
 
 // TargetMetadata returns metadata about the server.
@@ -678,6 +681,14 @@ func SetTracerProvider(provider oteltrace.TracerProvider) ServerOption {
 func SetSessionController(controller *srv.SessionController) ServerOption {
 	return func(s *Server) error {
 		s.sessionController = controller
+		return nil
+	}
+}
+
+// SetPROXYSigner sets the PROXY headers signer
+func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
+	return func(s *Server) error {
+		s.proxySigner = proxySigner
 		return nil
 	}
 }

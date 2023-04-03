@@ -75,6 +75,7 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -237,6 +238,9 @@ type Config struct {
 	// SessionControl is used to determine if users are
 	// allowed to spawn new sessions
 	SessionControl *srv.SessionController
+
+	// PROXYSigner is used to sign PROXY header and securely propagate client IP information
+	PROXYSigner multiplexer.PROXYHeaderSigner
 
 	// TracerProvider generates tracers to create spans with
 	TracerProvider oteltrace.TracerProvider
@@ -2462,6 +2466,7 @@ func (h *Handler) siteNodeConnect(
 		Router:             h.cfg.Router,
 		TracerProvider:     h.cfg.TracerProvider,
 		ParticipantMode:    req.ParticipantMode,
+		PROXYSigner:        h.cfg.PROXYSigner,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)
@@ -3207,7 +3212,7 @@ type ContextHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 type ClusterHandler func(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error)
 
 // WithClusterAuth wraps a ClusterHandler to ensure that a request is authenticated to this proxy
-// (the same as WithAuth), as well as to grab the RemoteSite (which can represent this local cluster
+// (the same as WithAuth), as well as to grab the remoteSite (which can represent this local cluster
 // or a remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
@@ -3222,7 +3227,7 @@ func (h *Handler) WithClusterAuth(fn ClusterHandler) httprouter.Handle {
 
 // authenticateRequestWithCluster ensures that a request is authenticated
 // to this proxy, returning the *SessionContext (same as AuthenticateRequest),
-// and also grabs the RemoteSite (which can represent this local cluster or a
+// and also grabs the remoteSite (which can represent this local cluster or a
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.Request, p httprouter.Params) (*SessionContext, reversetunnel.RemoteSite, error) {
 	sctx, err := h.AuthenticateRequest(w, r, true)
@@ -3239,7 +3244,7 @@ func (h *Handler) authenticateRequestWithCluster(w http.ResponseWriter, r *http.
 	return sctx, site, nil
 }
 
-// getSiteByParams gets the RemoteSite (which can represent this local cluster or a
+// getSiteByParams gets the remoteSite (which can represent this local cluster or a
 // remote trusted cluster) as specified by the ":site" url parameter.
 func (h *Handler) getSiteByParams(sctx *SessionContext, p httprouter.Params) (reversetunnel.RemoteSite, error) {
 	clusterName := p.ByName("site")
