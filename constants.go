@@ -814,3 +814,16 @@ const (
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"
 )
+
+const (
+	// KubeSessionDisplayParticipantRequirementsQueryParam is the query parameter used to
+	// indicate that the client wants to display the participant requirements
+	// for the given session.
+	KubeSessionDisplayParticipantRequirementsQueryParam = "displayParticipantRequirements"
+	// KubeSessionReasonQueryParam is the query parameter used to indicate the reason
+	// for the session request.
+	KubeSessionReasonQueryParam = "reason"
+	// KubeSessionInvitedQueryParam is the query parameter used to indicate the users
+	// to invite to the session.
+	KubeSessionInvitedQueryParam = "invite"
+)
