@@ -118,9 +118,7 @@ func TestModeratedSessions(t *testing.T) {
 		t,
 		moderatorUsername,
 		RoleSpec{
-			Name:       moderatorRoleName,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
+			Name: moderatorRoleName,
 			// sessionJoin:
 			SessionJoin: []*types.SessionJoinPolicy{
 				{
@@ -129,6 +127,10 @@ func TestModeratedSessions(t *testing.T) {
 					Kinds: []string{"k8s"},
 					Modes: []string{string(types.SessionModeratorMode)},
 				},
+			},
+			SetupRoleFunc: func(r types.Role) {
+				// set kubernetes labels to empty to test relaxed join rules
+				r.SetKubernetesLabels(types.Allow, types.Labels{})
 			},
 		})
 
