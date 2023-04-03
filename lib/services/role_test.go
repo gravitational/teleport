@@ -6092,7 +6092,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 					},
 					Allow: types.RoleConditions{
 						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
-						HostSudoers: []string{"sudoers entry 4"},
+						HostSudoers: []string{"sudoers entry 4", "sudoers entry 1"},
 					},
 				},
 			}, &types.RoleV6{
