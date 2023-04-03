@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/netip"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -840,6 +841,14 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 				c.logger.Error(err)
 			} else {
 				c.traceContext = hp.TracingContext
+
+				// source-address check in go SSH package server requires net.TCPAddr
+				ca, err := getTCPAddr(hp.ClientAddr)
+				if err == nil {
+					// replace proxy's client addr with a real client address
+					// we just got from the custom payload.
+					c.clientAddr = ca
+				}
 			}
 			skip = payloadBoundary + 1
 		}
@@ -885,6 +894,14 @@ func (c *connectionWrapper) Read(b []byte) (int, error) {
 		c.upstreamReader = io.MultiReader(bytes.NewBuffer(buff[skip:]), c.Conn)
 	}
 	return c.upstreamReader.Read(b)
+}
+
+func getTCPAddr(addr string) (*net.TCPAddr, error) {
+	ap, err := netip.ParseAddrPort(addr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return net.TCPAddrFromAddrPort(ap), nil
 }
 
 type CertAuthorityGetter = func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
