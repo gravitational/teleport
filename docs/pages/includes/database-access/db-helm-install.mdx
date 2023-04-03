@@ -13,7 +13,7 @@ $ helm install teleport-kube-agent . \
   --set "databases[0].uri={{ databaseAddress }}" \
   --set "databases[0].protocol={{ dbProtocol }}" \
   --set "labels.env=dev" \
-  --version (=cloud.version=)
+  --version (=teleport.version=)
 ```
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
