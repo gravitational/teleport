@@ -75,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -623,7 +622,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
-	if required, ok := alpnproxy.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
+	if required, ok := client.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
 		c.TLSRoutingConnUpgradeRequired = required
 	}
 	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
@@ -3095,7 +3094,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = alpnproxy.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
