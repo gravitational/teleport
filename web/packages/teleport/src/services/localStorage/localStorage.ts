@@ -21,7 +21,13 @@ import { KeysEnum } from './types';
 
 const storage = {
   clear() {
-    window.localStorage.clear();
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+
+      if (key !== 'show-assist') {
+        window.localStorage.setItem(key, undefined);
+      }
+    }
   },
 
   subscribe(fn) {

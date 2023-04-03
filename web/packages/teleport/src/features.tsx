@@ -99,6 +99,7 @@ const Desktops = React.lazy(
 const Discover = React.lazy(
   () => import(/* webpackChunkName: "discover" */ './Discover')
 );
+const Assist = React.lazy(() => import('./Assist'));
 
 // ****************************
 // Resource Features
@@ -538,6 +539,19 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
+export class FeatureAssist implements TeleportFeature {
+  route = {
+    title: 'Assist',
+    path: cfg.routes.assist,
+    exact: false,
+    component: Assist,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -569,5 +583,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureAssist(),
   ];
 }
