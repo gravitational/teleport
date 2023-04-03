@@ -7,12 +7,15 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/e/lib/auth"
+	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/e/lib/services"
 	"github.com/gravitational/teleport/e/lib/web"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // PluginShimURLEnvVar is the environment variable name
@@ -45,6 +48,10 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 
 	if cfg.Okta.Enabled {
 		services.InitOkta(ossProcess)
+	}
+
+	if cfg.Databases.Enabled {
+		common.RegisterEngine(oracle.NewEngine, defaults.ProtocolOracle)
 	}
 
 	// This needs to be the last thing in NewTeleport because it needs to
