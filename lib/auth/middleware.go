@@ -624,6 +624,10 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
+	clientSrcAddr, err := utils.ParseAddr(r.RemoteAddr)
+	if err == nil {
+		ctx = authz.ContextWithClientAddr(ctx, clientSrcAddr)
+	}
 	ctx = authz.ContextWithUser(ctx, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
@@ -639,20 +643,52 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn
 		}
 	}
 
-	return a.WrapContextWithUserFromTLSConnState(ctx, conn.ConnectionState())
+	return a.WrapContextWithUserFromTLSConnState(ctx, conn.ConnectionState(), conn.RemoteAddr())
 }
 
 // WrapContextWithUserFromTLSConnState enriches the provided context with the identity information
 // extracted from the provided TLS connection state.
-func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tlsState tls.ConnectionState) (context.Context, error) {
+func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tlsState tls.ConnectionState, remoteAddr net.Addr) (context.Context, error) {
 	user, err := a.GetUser(tlsState)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(&tlsState))
+	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
 	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
+}
+
+// CheckIPPinning verifies IP pinning for the identity, using the client ip taken from context.
+// Check is considered successful if no error is returned.
+func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool) error {
+	if identity.PinnedIP == "" {
+		if pinSourceIP {
+			return trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+		}
+		return nil
+	}
+
+	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return trace.BadParameter("missing observed client IP while checking IP pinning")
+	}
+
+	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if clientIP != identity.PinnedIP {
+		log.WithFields(logrus.Fields{
+			"client_ip": clientIP,
+			"pinned_ip": identity.PinnedIP,
+		}).Debug("Pinned IP and client IP mismatch")
+		return trace.AccessDenied("pinned IP doesn't match observed client IP")
+	}
+
+	return nil
 }
 
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.

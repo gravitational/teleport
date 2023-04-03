@@ -99,7 +99,7 @@ func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, 
 		defer p.IngressReporter.AuthenticatedConnectionClosed(ingress.Postgres, clientConn)
 	}
 
-	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
+	serviceConn, err := p.Service.Connect(ctx, proxyCtx, clientConn.RemoteAddr(), clientConn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}

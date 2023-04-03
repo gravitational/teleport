@@ -90,7 +90,6 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/joinserver"
-	"github.com/gravitational/teleport/lib/jwt"
 	kubegprc "github.com/gravitational/teleport/lib/kube/grpc"
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	"github.com/gravitational/teleport/lib/labels"
@@ -1688,15 +1687,18 @@ func (process *TeleportProcess) initAuthService() error {
 	// clean up unused descriptors passed for proxy, but not used by it
 	warnOnErr(process.closeImportedDescriptors(teleport.ComponentAuth), log)
 	if cfg.Auth.EnableProxyProtocol {
-		log.Infof("Starting Auth service with PROXY protocol support.")
+		log.Infof("Starting Auth service with external PROXY protocol support.")
 	}
 
+	muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return authServer.GetCertAuthority(ctx, id, loadKeys)
+	}
 	// use multiplexer to leverage support for proxy protocol.
 	mux, err := multiplexer.New(multiplexer.Config{
 		EnableExternalProxyProtocol: cfg.Auth.EnableProxyProtocol,
 		Listener:                    listener,
 		ID:                          teleport.Component(process.id),
-		CertAuthorityGetter:         authServer,
+		CertAuthorityGetter:         muxCAGetter,
 		LocalClusterName:            clusterName,
 	})
 	if err != nil {
@@ -2331,6 +2333,10 @@ func (process *TeleportProcess) initSSH() error {
 			return trace.Wrap(err)
 		}
 
+		caGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+			return authClient.GetCertAuthority(ctx, id, loadKeys)
+		}
+
 		s, err := regular.New(
 			process.ExitContext(),
 			cfg.SSH.Addr,
@@ -2367,6 +2373,7 @@ func (process *TeleportProcess) initSSH() error {
 			regular.SetInventoryControlHandle(process.inventoryHandle),
 			regular.SetTracerProvider(process.TracingProvider),
 			regular.SetSessionController(sessionController),
+			regular.SetCAGetter(caGetter),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -2386,8 +2393,6 @@ func (process *TeleportProcess) initSSH() error {
 			utils.Consolef(cfg.Console, log, teleport.ComponentNode, "Service %s:%s is starting on %v.",
 				teleport.Version, teleport.Gitref, cfg.SSH.Addr.Addr)
 
-			// Start the SSH server. This kicks off updating labels, starting the
-			// heartbeat, and accepting connections.
 			go s.Serve(limiter.WrapListener(listener))
 		} else {
 			// Start the SSH server. This kicks off updating labels and starting the
@@ -2981,8 +2986,9 @@ func (process *TeleportProcess) initProxy() error {
 }
 
 type proxyListeners struct {
-	mux *multiplexer.Mux
-	tls *multiplexer.WebListener
+	mux    *multiplexer.Mux
+	sshMux *multiplexer.Mux
+	tls    *multiplexer.WebListener
 	// ssh receives SSH traffic that is multiplexed on the Proxy SSH Port. When TLS routing
 	// is enabled only traffic with the TLS ALPN protocol common.ProtocolProxySSH is received.
 	ssh net.Listener
@@ -2994,7 +3000,7 @@ type proxyListeners struct {
 	kube          net.Listener
 	db            dbListeners
 	alpn          net.Listener
-	proxy         net.Listener
+	proxyPeer     net.Listener
 	// grpcPublic receives gRPC traffic that has the TLS ALPN protocol common.ProtocolProxyGRPCInsecure. This
 	// listener is only enabled when TLS routing is enabled and does not enforce mTLS authentication since
 	// it's used to handle cluster join requests.
@@ -3020,6 +3026,9 @@ func (l *proxyListeners) Close() {
 	if l.sshGRPC != nil {
 		l.sshGRPC.Close()
 	}
+	if l.sshMux != nil {
+		l.sshMux.Close()
+	}
 	if l.web != nil {
 		l.web.Close()
 	}
@@ -3033,8 +3042,8 @@ func (l *proxyListeners) Close() {
 	if l.alpn != nil {
 		l.alpn.Close()
 	}
-	if l.proxy != nil {
-		l.proxy.Close()
+	if l.proxyPeer != nil {
+		l.proxyPeer.Close()
 	}
 	if l.grpcPublic != nil {
 		l.grpcPublic.Close()
@@ -3084,11 +3093,15 @@ func (l *dbListeners) Close() {
 }
 
 // setupProxyListeners sets up web proxy listeners based on the configuration
-func (process *TeleportProcess) setupProxyListeners(networkingConfig types.ClusterNetworkingConfig) (*proxyListeners, error) {
+func (process *TeleportProcess) setupProxyListeners(networkingConfig types.ClusterNetworkingConfig, accessPoint auth.ProxyAccessPoint, clusterName string) (*proxyListeners, error) {
 	cfg := process.Config
 	process.log.Debugf("Setup Proxy: Web Proxy Address: %v, Reverse Tunnel Proxy Address: %v", cfg.Proxy.WebAddr.Addr, cfg.Proxy.ReverseTunnelListenAddr.Addr)
 	var err error
 	var listeners proxyListeners
+
+	muxCAGetter := func(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+		return accessPoint.GetCertAuthority(ctx, id, loadKeys)
+	}
 
 	if !cfg.Proxy.SSHAddr.IsEmpty() {
 		l, err := process.importOrCreateListener(ListenerProxySSH, cfg.Proxy.SSHAddr.Addr)
@@ -3100,11 +3113,14 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			Listener:                    l,
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			ID:                          teleport.Component(teleport.ComponentProxy, "ssh"),
+			CertAuthorityGetter:         muxCAGetter,
+			LocalClusterName:            clusterName,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
+		listeners.sshMux = mux
 		listeners.ssh = mux.SSH()
 		listeners.sshGRPC = mux.TLS()
 		go func() {
@@ -3175,7 +3191,7 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			return nil, trace.Wrap(err)
 		}
 
-		listeners.proxy = listener
+		listeners.proxyPeer = listener
 	}
 
 	switch {
@@ -3192,6 +3208,8 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "tunnel", "web", process.id),
+			CertAuthorityGetter:         muxCAGetter,
+			LocalClusterName:            clusterName,
 		})
 		if err != nil {
 			listener.Close()
@@ -3220,6 +3238,8 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 			EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 			Listener:                    listener,
 			ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
+			CertAuthorityGetter:         muxCAGetter,
+			LocalClusterName:            clusterName,
 		})
 		if err != nil {
 			listener.Close()
@@ -3271,6 +3291,8 @@ func (process *TeleportProcess) setupProxyListeners(networkingConfig types.Clust
 					EnableExternalProxyProtocol: cfg.Proxy.EnableProxyProtocol,
 					Listener:                    listener,
 					ID:                          teleport.Component(teleport.ComponentProxy, "web", process.id),
+					CertAuthorityGetter:         muxCAGetter,
+					LocalClusterName:            clusterName,
 				})
 				if err != nil {
 					listener.Close()
@@ -3345,6 +3367,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	cfg := process.Config
 	var tlsConfigWeb *tls.Config
 
+	clusterName := conn.ServerIdentity.ClusterName
+
 	proxyLimiter, err := limiter.NewLimiter(cfg.Proxy.Limiter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3371,7 +3395,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		return trace.Wrap(err)
 	}
 
-	listeners, err := process.setupProxyListeners(clusterNetworkConfig)
+	listeners, err := process.setupProxyListeners(clusterNetworkConfig, accessPoint, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3386,8 +3410,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	log := process.log.WithFields(logrus.Fields{
 		trace.Component: teleport.Component(teleport.ComponentReverseTunnelServer, process.id),
 	})
-
-	clusterName := conn.ServerIdentity.ClusterName
 
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
@@ -3464,6 +3486,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	proxySigner, err := process.getPROXYSigner(conn.ServerIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
@@ -3471,7 +3497,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
-		if listeners.proxy != nil {
+		if listeners.proxyPeer != nil {
 			peerClient, err = peer.NewClient(peer.ClientConfig{
 				Context:     process.ExitContext(),
 				ID:          process.Config.HostUUID,
@@ -3517,6 +3543,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				CircuitBreakerConfig:          process.Config.CircuitBreakerConfig,
 				LocalAuthAddresses:            utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
 				IngressReporter:               ingressReporter,
+				PROXYSigner:                   proxySigner,
 			})
 		if err != nil {
 			return trace.Wrap(err)
@@ -3646,6 +3673,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			TraceClient:      traceClt,
 			Router:           proxyRouter,
 			SessionControl:   sessionController,
+			PROXYSigner:      proxySigner,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -3679,6 +3707,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
 				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
+				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+					return utils.ClientAddrContext(ctx, c.RemoteAddr(), c.LocalAddr())
+				},
 			},
 			Handler: webHandler,
 			Log:     log,
@@ -3720,7 +3751,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var peerAddrString string
 	var proxyServer *peer.Server
-	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxy != nil {
+	if !process.Config.Proxy.DisableReverseTunnel && listeners.proxyPeer != nil {
 		peerAddr, err := process.Config.Proxy.publicPeerAddr()
 		if err != nil {
 			return trace.Wrap(err)
@@ -3728,7 +3759,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		peerAddrString = peerAddr.String()
 		proxyServer, err = peer.NewServer(peer.ServerConfig{
 			AccessCache:   accessPoint,
-			Listener:      listeners.proxy,
+			Listener:      listeners.proxyPeer,
 			TLSConfig:     serverTLSConfig,
 			ClusterDialer: clusterdial.NewClusterDialer(tsrv),
 			Log:           log,
@@ -3744,7 +3775,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				return nil
 			}
 
-			log.Infof("Peer proxy service is starting on %s", listeners.proxy.Addr().String())
+			log.Infof("Peer proxy service is starting on %s", listeners.proxyPeer.Addr().String())
 			err := proxyServer.Serve()
 			if err != nil {
 				return trace.Wrap(err)
@@ -3783,6 +3814,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetTracerProvider(process.TracingProvider),
 		regular.SetSessionController(sessionController),
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
+		regular.SetPROXYSigner(proxySigner),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3840,6 +3872,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:                process.Config.FIPS,
 		Log:                 rcWatchLog,
 		LocalAuthAddresses:  utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
+		PROXYSigner:         proxySigner,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3895,6 +3928,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				KubeServiceType:               kubeServiceType,
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
+				PROXYSigner:                   proxySigner,
 			},
 			TLS:             tlsConfig,
 			LimiterConfig:   cfg.Proxy.Limiter,
@@ -4061,16 +4095,13 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	var alpnServer *alpnproxy.Proxy
 	if !cfg.Proxy.DisableTLS && !cfg.Proxy.DisableALPNSNIListener && listeners.web != nil {
-		jwtSigner, err := process.getJWTSigner(conn.ServerIdentity)
-		if err != nil {
-			return trace.Wrap(err)
-		}
 		authDialerService := alpnproxyauth.NewAuthProxyDialerService(
 			tsrv,
 			clusterName,
 			utils.NetAddrsToStrings(process.Config.AuthServerAddresses()),
-			jwtSigner,
-			conn.ServerIdentity.XCert.Raw)
+			proxySigner,
+			process.log,
+			process.TracingProvider.Tracer(teleport.ComponentProxy))
 
 		alpnRouter.Add(alpnproxy.HandlerDecs{
 			MatchFunc:           alpnproxy.MatchByALPNPrefix(string(alpncommon.ProtocolAuth)),
@@ -4187,7 +4218,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	return nil
 }
 
-func (process *TeleportProcess) getJWTSigner(ident *auth.Identity) (*jwt.Key, error) {
+func (process *TeleportProcess) getPROXYSigner(ident *auth.Identity) (multiplexer.PROXYHeaderSigner, error) {
 	signer, err := utils.ParsePrivateKeyPEM(ident.KeyBytes)
 	if err != nil {
 		return nil, trace.Wrap(err, "could not parse identity's private key")
@@ -4198,7 +4229,11 @@ func (process *TeleportProcess) getJWTSigner(ident *auth.Identity) (*jwt.Key, er
 		return nil, trace.Wrap(err, "could not create JWT signer")
 	}
 
-	return jwtSigner, nil
+	proxySigner, err := multiplexer.NewPROXYSigner(ident.XCert, jwtSigner)
+	if err != nil {
+		return nil, trace.Wrap(err, "could not create PROXY signer")
+	}
+	return proxySigner, nil
 }
 
 func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListeners, tlsConfigWeb *tls.Config, cfg *Config, webConfig web.Config, log *logrus.Entry) (*web.Server, error) {

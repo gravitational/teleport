@@ -29,6 +29,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
@@ -149,7 +150,7 @@ func NewClientConn(ctx context.Context, conn net.Conn, addr string, config *ssh.
 	if len(hp.TracingContext) > 0 {
 		payloadJSON, err := json.Marshal(hp)
 		if err == nil {
-			payload := fmt.Sprintf("%s%s\x00", sshutils.ProxyHelloSignature, payloadJSON)
+			payload := fmt.Sprintf("%s%s\x00", constants.ProxyHelloSignature, payloadJSON)
 			if _, err := conn.Write([]byte(payload)); err != nil {
 				log.WithError(err).Warnf("Failed to pass along tracing context to proxy %v", addr)
 			}
