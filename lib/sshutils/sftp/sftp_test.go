@@ -349,7 +349,8 @@ func TestUpload(t *testing.T) {
 			},
 			tryOverwrite: true,
 			opts: Options{
-				Force: false,
+				Force:         false,
+				PreserveAttrs: true,
 			},
 			expectedOverwriteErr: "permission denied",
 		},
@@ -367,7 +368,8 @@ func TestUpload(t *testing.T) {
 			},
 			tryOverwrite: true,
 			opts: Options{
-				Force: true,
+				Force:         true,
+				PreserveAttrs: true,
 			},
 		},
 	}
@@ -385,6 +387,7 @@ func TestUpload(t *testing.T) {
 					if !ok {
 						perms = 0o644
 					}
+					perms = 0o644
 					createFile(t, tempDir, file, perms)
 				}
 			}
