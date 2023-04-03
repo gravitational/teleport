@@ -176,11 +176,11 @@ spec:
   allow:
     app_labels:  # just example labels
       label1-key: label1-value
-      env: [dev, staging] 
+      env: [dev, staging]
     db_labels:
       '*': '*'   # asteriks gives user access to everything
     kubernetes_labels:
-      '*': '*' 
+      '*': '*'
     node_labels:
       '*': '*'
     windows_desktop_labels:
@@ -545,9 +545,9 @@ Add the following to enable read access to trusted clusters
    - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
      error from tsh ssh.
 - Kubernetes access
-   - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory. 
+   - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
    - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
-   - [ ] Run `kubectl get pods` and see if the command succeeds. 
+   - [ ] Run `kubectl get pods` and see if the command succeeds.
    - Verify if the kubeconfig file is removed when the user:
       - [ ] Removes the connection
       - [ ] Logs out of the cluster
@@ -752,3 +752,24 @@ Add the following to enable read access to trusted clusters
 - [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
   Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
   the app was able to reopen the tabs without any errors.
+
+## Locks
+Checking that you can view, create, and delete locks.
+
+- [ ] Existing locks listing page.
+  - [ ] It lists all of the existing locks in the system.
+  - [ ] Locks without a `Locked By` and `Start Date` are still shown with those fields empty.
+  - [ ] Clicking the trash can deletes the lock with a spinner.
+  - [ ] Table columns are sortable.
+  - [ ] Table search field filters the results.
+- [ ] Adding a new lock. (+ Add New Lock).
+  - [ ] Target switcher shows the locks for the various target types (User, Role, Login, Node, MFA Device, Windows Desktop, Access Request).
+  - [ ] Target switcher has "Access Request" in E build but not in OSS.
+  - [ ] You can add lock targets from multiple target types.
+  - [ ] Adding a target disables that "add button".
+  - [ ] You cannot proceed if you haven't selected targets to lock.
+  - [ ] You can clear the selected targets prior to creating locks.
+  - [ ] Proceeding to lock opens an animated slide panel from the right.
+  - [ ] You can remove lock targets from the slide panel.
+  - [ ] Creating a lock with message and TTL correctly create the lock.
+  - [ ] Create a lock without message and TTL, they should be optional.

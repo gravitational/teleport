@@ -457,36 +457,6 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "non-fips client pass v11",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
-					},
-				},
-				JoinMethod: types.JoinMethodIAM,
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(awsIdentity{
-					Account: "1234",
-					Arn:     "arn:aws::1111",
-				}),
-			},
-			iamRegisterOptions: []iamRegisterOption{
-				withFips(true),
-				withAuthVersion(&semver.Version{Major: 11}),
-			},
-			challengeResponseOptions: []challengeResponseOption{
-				withHost("sts.us-east-1.amazonaws.com"),
-			},
-			assertError: require.NoError,
-		},
-		{
 			desc:             "non-fips client fail v12",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",

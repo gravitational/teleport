@@ -16,10 +16,13 @@
 
 import { DiscoverEventResource } from 'teleport/services/userEvent';
 
-import { DatabaseEngine, DatabaseLocation } from '../Database/resources';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+  ResourceSpec,
+} from '../SelectResource/types';
 
 import type { JoinRole } from 'teleport/services/joinToken';
-import type { Database } from '../Database/resources';
 
 export enum ResourceKind {
   Application,
@@ -45,12 +48,11 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
 }
 
 export function resourceKindToEventResource(
-  kind: ResourceKind,
-  resourceState: any
+  resourceSpec: ResourceSpec
 ): DiscoverEventResource {
-  switch (kind) {
+  switch (resourceSpec.kind) {
     case ResourceKind.Database:
-      const { engine, location } = resourceState as Database;
+      const { engine, location } = resourceSpec.dbMeta;
       if (location === DatabaseLocation.AWS) {
         if (engine === DatabaseEngine.PostgreSQL) {
           return DiscoverEventResource.DatabasePostgresRds;
@@ -95,7 +97,7 @@ export function resourceKindToEventResource(
           return DiscoverEventResource.DatabaseMysqlGcp;
         }
       }
-      console.error(`resource database event not defined for ${resourceState}`);
+      console.error(`resource database event not defined for ${resourceSpec}`);
       return null;
     case ResourceKind.Desktop:
       return DiscoverEventResource.WindowsDesktop;
@@ -106,6 +108,6 @@ export function resourceKindToEventResource(
     case ResourceKind.Application:
       return DiscoverEventResource.ApplicationHttp;
     default:
-      console.error(`resource event not defined for ${resourceState}`);
+      console.error(`resource event not defined for ${resourceSpec}`);
   }
 }

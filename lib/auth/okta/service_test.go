@@ -123,7 +123,7 @@ func TestOktaAssignments(t *testing.T) {
 	a1.SetExpiry(time.Now().Add(30 * time.Minute))
 	updateResp, err := svc.UpdateOktaAssignment(ctx, &oktapb.UpdateOktaAssignmentRequest{Assignment: a1})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a1, updateResp))
+	require.Empty(t, cmp.Diff(newOktaAssignment(t, "1"), updateResp))
 
 	a, err := svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
 	require.NoError(t, err)

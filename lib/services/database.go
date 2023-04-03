@@ -50,6 +50,7 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -137,6 +138,9 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 
 // ValidateDatabase validates a types.Database.
 func ValidateDatabase(db types.Database) error {
+	if err := enterprise.ProtocolValidation(db.GetProtocol()); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := db.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -183,8 +187,8 @@ func ValidateDatabase(db types.Database) error {
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
 	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
-		if db.GetAD().KeytabFile == "" {
-			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
+		if db.GetAD().KeytabFile == "" && db.GetAD().KDCHostName == "" {
+			return trace.BadParameter("either keytab file path or kdc_host_name must be provided for database %q, both are missing", db.GetName())
 		}
 		if db.GetAD().Krb5File == "" {
 			return trace.BadParameter("missing Kerberos config file path for database %q", db.GetName())
@@ -194,6 +198,11 @@ func ValidateDatabase(db types.Database) error {
 		}
 		if db.GetAD().SPN == "" {
 			return trace.BadParameter("missing service principal name for database %q", db.GetName())
+		}
+		if db.GetAD().KDCHostName != "" {
+			if db.GetAD().LDAPCert == "" {
+				return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", db.GetName())
+			}
 		}
 	}
 

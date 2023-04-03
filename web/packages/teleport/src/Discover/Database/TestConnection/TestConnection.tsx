@@ -30,7 +30,7 @@ import {
   HeaderWithBackBtn,
   ConnectionDiagnosticResult,
 } from '../../Shared';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useTestConnection, State } from './useTestConnection';
 
