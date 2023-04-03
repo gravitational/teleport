@@ -1840,10 +1840,11 @@ func (process *TeleportProcess) initAuthService() error {
 		if listener != nil {
 			warnOnErr(listener.Close(), log)
 		}
-		if ctx, _ := payload.(context.Context); ctx == nil {
+		if payload == nil {
 			log.Info("Shutting down immediately.")
 			warnOnErr(tlsServer.Close(), log)
 		} else {
+			ctx := payloadContext(payload, log)
 			log.Info("Shutting down immediately (auth service does not currently support graceful shutdown).")
 			// NOTE: Graceful shutdown of auth.TLSServer is disabled right now, because we don't
 			// have a good model for performing it.  In particular, watchers and other GRPC streams
