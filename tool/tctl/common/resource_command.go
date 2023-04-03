@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -784,7 +783,11 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	dev, err := device.UnmarshalDevice(raw.Raw)
+	res, err := types.UnmarshalDevice(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dev, err := types.DeviceFromResource(res)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -281,7 +281,7 @@ retry the command afterward.
 ```bash
 $ tsh kubectl exec/logs/edit -it <podName> -n <namespace>
 Access to pod <namespace>/<podName> denied.
-Submiting an access request.
+Submitting an access request.
 Waiting for request to be approved...
 Approved!
 # <podName>
@@ -370,7 +370,7 @@ for the roles that also match the cluster labels. For this request,
 `kubernetes_groups`: [ `kube_group1` ]. If the user tries to execute
 `kubectl logs special_pod -n default` into the same cluster, Teleport collects
 `kubernetes_groups`: [`kube_group1`, `kube_group3`] because the `role3` now matches the pod
-name. When forwarding the request to the Kubernertes Cluster, the user will
+name. When forwarding the request to the Kubernetes Cluster, the user will
 impersonate `kube_group1` and `kube_group2` instead of `kube_group1` for the previous
 request.
 
@@ -462,9 +462,9 @@ describes execution flows.
 | user1 |  `cluster1` | `role4`, `role1` |  pods in every namespace (sends `dev-admin`) | allowed by Teleport, allowed by `dev-admin` | allowed by Teleport, allowed by `dev-admin` |
 | user2 |  `cluster2` | `role1` |  pods from `default` namespace (sends `viewer`) | allowed by Teleport, denied by `viewer` | allowed by Teleport, denied by `viewer` |
 | user2 |  `cluster2` | `role2` |  pods from `default` (sends `viewer`) | allowed by Teleport, denied by `viewer` | allowed by Teleport, denied by `viewer` |
-| user3 |  `cluster2` | `role3` |  `owned_pod` from `default` (sends `system:masters`) | allowed by Teleport, alowed by `system:masters` (sends: `system:masters`) | denied by Teleport |
-| user4 |  `cluster2` | `role1`, `role3` |  leaks every pod in every namespace (sends `viewer`,`system:masters`) | allowed by Teleport, alowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
-| user5 |  `cluster2` | `role2`, `role3` | returns every pod in `default` namespace (sends: `viewer`,`system:masters`) | allowed by Teleport, alowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
+| user3 |  `cluster2` | `role3` |  `owned_pod` from `default` (sends `system:masters`) | allowed by Teleport, allowed by `system:masters` (sends: `system:masters`) | denied by Teleport |
+| user4 |  `cluster2` | `role1`, `role3` |  leaks every pod in every namespace (sends `viewer`,`system:masters`) | allowed by Teleport, allowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
+| user5 |  `cluster2` | `role2`, `role3` | returns every pod in `default` namespace (sends: `viewer`,`system:masters`) | allowed by Teleport, allowed by `system:masters` (sends: `system:masters`,`viewer`) | allowed by Teleport, denied by `viewer` (sends:  `viewer`) |
 
 ### Implementation details
 
