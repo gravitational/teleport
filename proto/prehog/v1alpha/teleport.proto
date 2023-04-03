@@ -146,6 +146,9 @@ message DiscoverMetadata {
 
   // anonymized
   string user_name = 2;
+
+  // SSO indicates whether the user is from an SSO provider.
+  bool sso = 3;
 }
 
 // DiscoverResource represents a resource type.
