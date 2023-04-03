@@ -434,6 +434,8 @@ tls:
 image: public.ecr.aws/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent
+# Optional array of imagePullSecrets, to use when pulling from a private registry
+imagePullSecrets: []
 # Teleport logging configuration
 log:
   # Log level for the Teleport process.
