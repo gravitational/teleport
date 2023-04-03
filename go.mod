@@ -157,6 +157,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.14.1
 	sigs.k8s.io/controller-tools v0.11.1
 	sigs.k8s.io/yaml v1.3.0
+	software.sslmate.com/src/go-pkcs12 v0.2.0
 )
 
 // DO NOT UPDATE any of the following dependencies until the

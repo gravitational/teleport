@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509/pkix"
 	"fmt"
 	"io"
 	"net"
@@ -35,6 +36,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/webclient"
@@ -46,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -405,10 +408,12 @@ func onProxyCommandDB(cf *CLIConf) error {
 		randomPort = false
 		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
 	}
-	listener, err := net.Listen("tcp", addr)
+
+	listener, err := createLocalProxyListener(addr, route, profile)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	defer func() {
 		if err := listener.Close(); err != nil {
 			log.WithError(err).Warnf("Failed to close listener.")
@@ -470,7 +475,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 			"randomPort": randomPort,
 		}
 
-		tmpl := chooseProxyCommandTemplate(templateArgs, commands)
+		tmpl := chooseProxyCommandTemplate(templateArgs, commands, route.Protocol)
 		err = tmpl.Execute(os.Stdout, templateArgs)
 		if err != nil {
 			return trace.Wrap(err)
@@ -516,10 +521,14 @@ type templateCommandItem struct {
 	Command     string
 }
 
-func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative) *template.Template {
+func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.CommandAlternative, protocol string) *template.Template {
 	// there is only one command, use plain template.
 	if len(commands) == 1 {
 		templateArgs["command"] = formatCommand(commands[0].Command)
+		if protocol == defaults.ProtocolOracle {
+			templateArgs["args"] = commands[0].Command.Args
+			return dbProxyOracleAuthTpl
+		}
 		return dbProxyAuthTpl
 	}
 
@@ -788,6 +797,32 @@ func isLocalProxyTunnelRequested(cf *CLIConf) bool {
 		cf.LocalProxyKeyFile != ""
 }
 
+func generateDBLocalProxyCert(key *libclient.Key, profile *libclient.ProfileStatus) error {
+	path := profile.DatabaseLocalCAPath()
+	if utils.FileExists(path) {
+		return nil
+
+	}
+	certPem, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
+		Entity: pkix.Name{
+			CommonName:   "localhost",
+			Organization: []string{"Teleport"},
+		},
+		Signer:      key,
+		DNSNames:    []string{"localhost"},
+		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
+		TTL:         defaults.CATTL,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := os.WriteFile(profile.DatabaseLocalCAPath(), certPem, teleport.FileMaskOwnerOnly); err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
+}
+
 // dbProxyTpl is the message that gets printed to a user when a database proxy is started.
 var dbProxyTpl = template.Must(template.New("").Parse(`Started DB proxy on {{.address}}
 {{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
@@ -798,6 +833,10 @@ Use following credentials to connect to the {{.database}} proxy:
   key_file={{.key}}
 `))
 
+var templateFunctions = map[string]any{
+	"contains": strings.Contains,
+}
+
 // dbProxyAuthTpl is the message that's printed for an authenticated db proxy.
 var dbProxyAuthTpl = template.Must(template.New("").Parse(
 	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
@@ -805,6 +844,22 @@ var dbProxyAuthTpl = template.Must(template.New("").Parse(
 {{end}}
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
   $ {{.command}}
+`))
+
+// dbProxyOracleAuthTpl is the message that's printed for an authenticated db proxy.
+var dbProxyOracleAuthTpl = template.Must(template.New("").Funcs(templateFunctions).Parse(
+	`Started authenticated tunnel for the {{.type}} database "{{.database}}" in cluster "{{.cluster}}" on {{.address}}.
+{{if .randomPort}}To avoid port randomization, you can choose the listening port using the --port flag.
+{{end}}
+Use the following command to connect to the Oracle database server using CLI:
+  $ {{.command}}
+
+or using following Oracle JDBC connection string in order to connect with other GUI/CLI clients:
+{{- range $val := .args}}
+  {{- if contains $val "jdbc:oracle:"}}
+  {{$val}}
+  {{- end}}
+{{- end}}
 `))
 
 // dbProxyAuthMultiTpl is the message that's printed for an authenticated db proxy if there are multiple command options.
