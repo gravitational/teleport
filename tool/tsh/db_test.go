@@ -661,6 +661,12 @@ func TestFormatDatabaseConnectArgs(t *testing.T) {
 			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolDynamoDB, ServiceName: "svc"},
 			wantFlags: []string{"--db-user=<user>", "svc"},
 		},
+		{
+			name:      "match user and db name, oracle protocol",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolOracle, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "--db-name=<name>", "svc"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

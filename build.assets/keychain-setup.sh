@@ -75,14 +75,18 @@ create_keychain() {
 }
 
 # Add a key from a file ($1) protected with a passphrase ($2) to a keychain ($3)
-# protected with a password ($4). This is to allow `/usr/bin/codesign` to access
-# the key. If the key file name is empty, add_key returns without doing anything.
+# protected with a password ($4). This is to allow `/usr/bin/codesign` and
+# `/usr/bin/productsign` to access the key.
+# If the key file name is empty, add_key returns without doing anything.
 add_key() {
 	local keyfile="$1" passphrase="$2" keychain="$3" keychain_password="$4"
 	if [[ -z "${keyfile}" ]]; then
 		return 0
 	fi
-	run security import "${keyfile}" -k "${keychain}" -P "${passphrase}" -T /usr/bin/codesign
+	run security import "${keyfile}" \
+		-k "${keychain}" -P "${passphrase}" \
+		-T /usr/bin/codesign \
+		-T /usr/bin/productsign
 	# Set ACLs so the key can be used for code signing.
 	# Note: This selects all the signing keys (-s) in the keychain to be usable
 	# for code signing. Not a problem because the keychain is just for that only
