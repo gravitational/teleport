@@ -94,8 +94,9 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// If this is not a Teleport node, execute the command on a remote
-	// host. This is used by in-memory forwarding nodes.
+	// If this is a unregistered OpenSSH node or proxy recoding mode is
+	// enabled, execute the command on a remote host. This is used by
+	// in-memory forwarding nodes.
 	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return &remoteExec{
 			ctx:     ctx,

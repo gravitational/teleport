@@ -7340,7 +7340,8 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	}, tc.Username)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// the error is ignored here to avoid failing on io.EOF
+		// ignore the error here, nodeClient is closed below if the
+		// test passes
 		_ = nodeClient.Close()
 	})
 
@@ -7349,7 +7350,8 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// the error is ignored here to avoid failing on io.EOF
+		// the SSH server will close the session to avoid a deadlock,
+		// so closing it here will result in io.EOF if the test passes
 		_ = session.Close()
 	})
 	require.NoError(t, agent.ForwardToAgent(sshClient, tc.LocalAgent()))
@@ -7362,6 +7364,9 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, nodeClient.Close())
 }
 
+// startSSHServer starts a SSH server that roughly mimics an unregistered
+// OpenSSH (agentless) server. The SSH server started only handles a small
+// subset of SSH requests necessary for testing.
 func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
 	sshCfg := ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
