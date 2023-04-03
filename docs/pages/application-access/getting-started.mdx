@@ -6,8 +6,8 @@ videoBanner: 5Uwhp3IQMHY
 
 Let's connect to Grafana using Teleport Application Access in three steps:
 
-- Launch Grafana in a Docker container.
-- Install the Teleport Application Service on a node and configure it to proxy Grafana.
+- Launch Grafana in a Docker container or Kubernetes cluster.
+- Install the Teleport Application Service and configure it to proxy Grafana.
 - Access Grafana through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -23,8 +23,20 @@ Let's connect to Grafana using Teleport Application Access in three steps:
 
 (!docs/pages/includes/tctl.mdx!)
 
+<Tabs>
+<TabItem label="Docker">
+
 - A Docker installation, which we will use to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with Application Access, you can use that instead.
 - A host where you will run the Teleport Application Service.
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+
+(!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
+
+- Administrative rights to deploy within a cluster.
+
+</TabItem>
+</Tabs>
 
 <Admonition type="tip" title="Not yet a Teleport user?">
 If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../try-out-teleport/introduction.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon). 
@@ -35,6 +47,9 @@ We will assume your Teleport cluster is accessible at `teleport.example.com` and
 <Admonition type="note" title="Application Access and DNS">
 (!docs/pages/includes/dns-app-access.mdx!)
 </Admonition>
+
+<Tabs>
+<TabItem label="Docker">
 
 ## Step 1/3. Start Grafana
 
@@ -51,10 +66,6 @@ $ docker run -d -p 3000:3000 grafana/grafana
 ## Step 2/3. Install and configure Teleport
 (!docs/pages/includes/permission-warning.mdx!)
 
-On your Application Service host, download the latest version of Teleport for
-your platform from our
-[downloads page](https://goteleport.com/download).
-
 ### Generate a token
 
 A join token is required to authorize a Teleport Application Service instance to
@@ -68,28 +79,37 @@ $ tctl tokens add \
     --app-uri=http://localhost:3000
 ```
 
-### Start Teleport
+### Configure and Start Teleport
 
 
 Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Now start Teleport and point it to the application endpoint:
+Create the Teleport Application Service configuration. Replace <Var name="teleport.example.com" /> with
+your Teleport Proxy address (`teleport.example.com:443`)
+or Teleport Cloud tenant (e.g. `mytenant.teleport.sh:443`).
 
 ```code
-$ sudo teleport app start \
-  --name=grafana \
+$ sudo teleport configure \
+  --proxy=<Var name="teleport.example.com" /> \
   --token=/tmp/token \
-  --uri=http://localhost:3000 \
-  --auth-server=https://teleport.example.com:3080
+  --roles=app \
+  --app-name=grafana \
+   --app-uri=http://localhost:3000
 ```
-
-Change `https://teleport.example.com:3080` to the address and port of your Teleport Proxy Server. If you are a Teleport Cloud customer, use port 443 of your tenant's subdomain, e.g., `mytenant.teleport.sh:443`.
-
+  
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
 
 The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
+
+</TabItem>
+<TabItem label="Kubernetes cluster">
+
+</TabItem>
+</Tabs>
 
 ### Create a user
 
