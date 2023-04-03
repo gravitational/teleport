@@ -440,10 +440,6 @@
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
-        },
-        {
-          "title": "FAQ",
-          "slug": "/access-controls/faq/"
         }
       ]
     },
@@ -2354,6 +2350,11 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/faq/",
+      "destination": "/access-controls/introduction/",
       "permanent": true
     }
   ]
