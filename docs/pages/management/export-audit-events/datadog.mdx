@@ -158,29 +158,15 @@ command.
 
 <Tabs>
 <TabItem label="Executable" scope={["oss","enterprise"]}>
-```code
-$ tctl auth sign --user=teleport-event-handler --out=identity
-```
 
-This command creates one PEM-encoded file, `identity`. The identity file
-includes both TLS and SSH credentials. The Event Handler plugin uses the SSH
-credentials to connect to the Proxy Service, which establishes a reverse tunnel
-connection to the Auth Service. The plugin uses this reverse tunnel, along with
-your TLS credentials, to connect to the Auth Service's gRPC endpoint.
+(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler"!)
 
 </TabItem>
 <TabItem label="Helm Chart" scope={["cloud"]}>
 
-If you are planning to use the Helm Chart, you'll need to generate the keys
-with the `file` format, then create a secret in Kubernetes.
+(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler"!)
 
-Create the identity using the following command:
-
-```code
-$ tctl auth sign --format=file --user=teleport-event-handler --out=identity
-```
-
-Then create the Kubernetes secret:
+Next, create a Kubernetes secret for the Teleport identity file:
 
 ```code
 $ kubectl create secret generic teleport-event-handler-identity --from-file=auth_id=identity
@@ -390,7 +376,7 @@ Teleport Cluster, ensure that:
   `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
 - Ensure that in your Teleport Event Handler configuration file
   (`teleport-event-handler.toml`), you have provided the correct host *and* port
-  for the Teleport Proxy Service or Auth Service.
+  for the Teleport Proxy Service.
 
 ## Next steps
 
