@@ -8,10 +8,11 @@ import React, {
 } from 'react';
 import useWebSocket from 'react-use-websocket';
 
+import { useParams } from 'react-router';
+
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import { Message } from '../services/messages';
-import { useParams } from 'react-router';
 
 interface MessageContextValue {
   send: (message: Message) => Promise<void>;
