@@ -372,7 +372,9 @@ func (s *S) appendDeviceRef(ctx context.Context, current *backend.Item, ref *dev
 // fields result in errors.
 // Transient fields like EnrollToken and CollectedData are ignored during
 // updates.
-func (s *S) UpdateDevice(ctx context.Context, deviceID string, updateFn func(dst *devicepb.Device)) (*devicepb.Device, error) {
+func (s *S) UpdateDevice(
+	ctx context.Context,
+	deviceID string, updateFn func(stored *devicepb.Device) *devicepb.Device) (*devicepb.Device, error) {
 	if updateFn == nil {
 		return nil, trace.BadParameter("updateFunc required")
 	}
@@ -383,8 +385,7 @@ func (s *S) UpdateDevice(ctx context.Context, deviceID string, updateFn func(dst
 	}
 
 	// Modify fields.
-	updated := proto.Clone(stored).(*devicepb.Device)
-	updateFn(updated)
+	updated := updateFn(proto.Clone(stored).(*devicepb.Device))
 
 	// Ignore transient fields.
 	updated.EnrollToken = nil   // Safe to nil, saved to deviceTokenKey.

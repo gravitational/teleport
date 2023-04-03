@@ -153,9 +153,10 @@ func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRe
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(dst *devicepb.Device) {
+	updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(stored *devicepb.Device) *devicepb.Device {
 		// err is safe to swallow if the validation above passed.
-		_ = applyDeviceUpdateMask(paths, dst, dev)
+		_ = applyDeviceUpdateMask(paths, stored, dev)
+		return stored
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -181,7 +182,6 @@ func applyDeviceUpdateMask(paths []string, dst, src *devicepb.Device) error {
 	}
 
 	for _, path := range paths {
-		// IMPORTANT: Keep in sync with UpsertDevice.
 		switch path {
 		case "enroll_status":
 			dst.EnrollStatus = src.EnrollStatus
@@ -219,24 +219,20 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 
 	// Attempt an update first, if it makes sense.
 	if dev.Id != "" {
-		updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(dst *devicepb.Device) {
-			// Skipped fields:
-			// - ApiVersion: doesn't interfere with storage.
-			// - Id: already a parameter for UpdateDevice
-			// - UpdateTime: skipped so eventual copies/backups don't have to be super
-			//   fresh, as long as other fields are accurate.
-			// - All transient fields.
+		updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(stored *devicepb.Device) *devicepb.Device {
+			// Be nice and fill in ApiVersion if it's empty.
+			if dev.ApiVersion == "" {
+				dev.ApiVersion = stored.ApiVersion
+			}
 
-			// Readonly fields.
-			// Copied so we can flag disallowed changes.
-			dst.OsType = dev.OsType
-			dst.AssetTag = dev.AssetTag
-			dst.CreateTime = dev.CreateTime
-			dst.Credential = dev.Credential
+			// Copy the "stored" UpdateTime to "dev" so storage doesn't flag changes
+			// in this field. This makes updates less finicky, as long as other fields
+			// are correct.
+			// When the update goest through, the UpdateTime is set to "now" anyway.
+			dev.UpdateTime = stored.UpdateTime
 
-			// Mutable fields.
-			// IMPORTANT: Keep in sync with applyDeviceUpdateMask.
-			dst.EnrollStatus = dev.EnrollStatus
+			// Use the request device for all else.
+			return dev
 		})
 		switch {
 		case err == nil:

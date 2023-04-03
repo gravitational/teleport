@@ -835,7 +835,7 @@ func TestS_UpdateDevice(t *testing.T) {
 	tests := []struct {
 		name         string
 		baseDev      *devicepb.Device // baseDevice is created if its ID is empty
-		update       func(*devicepb.Device)
+		update       func(stored *devicepb.Device) *devicepb.Device
 		assertUpdate func(t *testing.T, base, updated *devicepb.Device)
 	}{
 		{
@@ -844,8 +844,9 @@ func TestS_UpdateDevice(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama1",
 			},
-			update: func(dev *devicepb.Device) {
+			update: func(stored *devicepb.Device) *devicepb.Device {
 				// No changes.
+				return stored
 			},
 			assertUpdate: assertNoop,
 		},
@@ -855,27 +856,29 @@ func TestS_UpdateDevice(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama2",
 			},
-			update: func(dev *devicepb.Device) {
+			update: func(stored *devicepb.Device) *devicepb.Device {
 				now := timestamppb.Now()
-				dev.EnrollToken = &devicepb.DeviceEnrollToken{
+				stored.EnrollToken = &devicepb.DeviceEnrollToken{
 					Token: "insert enrollment token here",
 				}
-				dev.CollectedData = []*devicepb.DeviceCollectedData{
+				stored.CollectedData = []*devicepb.DeviceCollectedData{
 					{
 						CollectTime:  now,
 						RecordTime:   now,
-						OsType:       dev.OsType,
-						SerialNumber: dev.AssetTag,
+						OsType:       stored.OsType,
+						SerialNumber: stored.AssetTag,
 					},
 				}
+				return stored
 			},
 			assertUpdate: assertNoop,
 		},
 		{
 			name:    "unenroll",
 			baseDev: enrolledDev,
-			update: func(dev *devicepb.Device) {
-				dev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+				return stored
 			},
 			assertUpdate: func(t *testing.T, base, updated *devicepb.Device) {
 				if proto.Equal(base.UpdateTime, updated.UpdateTime) {
@@ -948,13 +951,13 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 	tests := []struct {
 		name      string
 		deviceID  string
-		update    func(*devicepb.Device)
+		update    func(stored *devicepb.Device) *devicepb.Device
 		assertErr func(err error) bool // defaults to trace.IsBadParameter
 		wantErr   string
 	}{
 		{
 			name:    "deviceID is empty",
-			update:  func(d *devicepb.Device) {},
+			update:  func(stored *devicepb.Device) *devicepb.Device { return stored },
 			wantErr: "device ID required",
 		},
 		{
@@ -966,7 +969,7 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 		{
 			name:      "not found",
 			deviceID:  "unknown",
-			update:    func(_ *devicepb.Device) {},
+			update:    func(stored *devicepb.Device) *devicepb.Device { return stored },
 			assertErr: trace.IsNotFound,
 			wantErr:   "not found",
 		},
@@ -974,81 +977,90 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 		{
 			name:     "ApiVersion readonly",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.ApiVersion = "v9999"
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.ApiVersion = "v9999"
+				return stored
 			},
 			wantErr: "api_version",
 		},
 		{
 			name:     "Id readonly",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.Id = "another Id"
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.Id = "another Id"
+				return stored
 			},
 			wantErr: "id is readonly",
 		},
 		{
 			name:     "OsType readonly",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.OsType = devicepb.OSType_OS_TYPE_WINDOWS
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.OsType = devicepb.OSType_OS_TYPE_WINDOWS
+				return stored
 			},
 			wantErr: "os_type",
 		},
 		{
 			name:     "AssetTag readonly",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.AssetTag = "another tag"
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.AssetTag = "another tag"
+				return stored
 			},
 			wantErr: "asset_tag",
 		},
 		{
 			name:     "CreateTime readonly",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.CreateTime = &timestamppb.Timestamp{
-					Seconds: dev.CreateTime.Seconds - 2, // move to the past, so CreateTime <= UpdateTime
-					Nanos:   dev.CreateTime.Nanos,
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.CreateTime = &timestamppb.Timestamp{
+					Seconds: stored.CreateTime.Seconds - 2, // move to the past, so CreateTime <= UpdateTime
+					Nanos:   stored.CreateTime.Nanos,
 				}
+				return stored
 			},
 			wantErr: "create_time",
 		},
 		{
 			name:     "UpdateTime readonly",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.UpdateTime = &timestamppb.Timestamp{
-					Seconds: dev.UpdateTime.Seconds + 2, // move to the future, so CreateTime <= UpdateTime
-					Nanos:   dev.UpdateTime.Nanos,
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.UpdateTime = &timestamppb.Timestamp{
+					Seconds: stored.UpdateTime.Seconds + 2, // move to the future, so CreateTime <= UpdateTime
+					Nanos:   stored.UpdateTime.Nanos,
 				}
+				return stored
 			},
 			wantErr: "update_time",
 		},
 		{
 			name:     "Credential readonly",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.Credential = &devicepb.DeviceCredential{
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.Credential = &devicepb.DeviceCredential{
 					Id:           uuid.NewString(),
 					PublicKeyDer: []byte("insert public key here"),
 				}
+				return stored
 			},
 			wantErr: "credential",
 		},
 		{
 			name:     "EnrollStatus can't transition to UNSPECIFIED",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED
+				return stored
 			},
 			wantErr: "enroll_status",
 		},
 		{
 			name:     "EnrollStatus can't transition to ENROLLED",
 			deviceID: baseDev.Id,
-			update: func(dev *devicepb.Device) {
-				dev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
+				return stored
 			},
 			wantErr: "enroll_status",
 		},
