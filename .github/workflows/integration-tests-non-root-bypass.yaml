@@ -14,18 +14,22 @@ run-name: Skip Integration Tests (Non-root) - ${{ github.run_id }} - @${{ github
 on:
   pull_request:
     paths-ignore:
+      - '.github/workflows/integration-tests-non-root.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths-ignore:
+      - '.github/workflows/integration-tests-non-root.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   test:
