@@ -393,7 +393,7 @@ The optional permissions can be included to allow Teleport to automatically conf
         "Microsoft.ContainerService/managedClusters/read",
         "Microsoft.ContainerService/managedClusters/listClusterUserCredential/action",
         
-        # optional - usefull if Teleport belongs to the admin groups or the cluster has static admin credentials
+        # optional - useful if Teleport belongs to the admin groups or the cluster has static admin credentials
         "Microsoft.ContainerService/managedClusters/listClusterAdminCredential/action", 
 
         # optional - Usefull if Teleport has the ability to create ClusterRole and ClusterRoleBindings in the target cluster.

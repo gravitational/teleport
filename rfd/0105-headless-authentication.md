@@ -170,7 +170,7 @@ If the headless authentication is approved with a valid MFA challenge, the backe
 
 #### Certificate retrieval
 
-If the headless authentication is approved/denied, the Auth server's resource watcher will unblock to complete/deny the authentication attempt. If approved, the auth server will generate certificates for the user. These certs will have a 1 minute TTL and MFA-verfied by the MFA device saved in the headless authentication resource.
+If the headless authentication is approved/denied, the Auth server's resource watcher will unblock to complete/deny the authentication attempt. If approved, the auth server will generate certificates for the user. These certs will have a 1 minute TTL and MFA-verified by the MFA device saved in the headless authentication resource.
 
 The resulting user certificates will then be returned to the Proxy and then to the client. Now the client can complete the `tsh` request initially requested, e.g. `tsh ssh user@node01`.
 
@@ -387,6 +387,6 @@ Teleport Connect will also be updated to handle the approval link `https://proxy
 
 ### Additional comments
 
-#### Utilizing the access request subsytem
+#### Utilizing the access request subsystem
 
 Headless authentication could be implemented by expanding the access request subsystem. `/webapi/login/headless` could submit a special headless authentication access request that can only be approved by the user with MFA, and could be used to assume the user's roles. I thoroughly investigated designs around this idea, but found they add too much complexity to the already heavily utilized access request subsystem.
