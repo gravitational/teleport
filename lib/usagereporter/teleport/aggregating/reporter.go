@@ -127,7 +127,6 @@ func (r *Reporter) GracefulStop(ctx context.Context) error {
 
 	select {
 	case <-r.done:
-		r.baseCancel()
 		return nil
 	case <-ctx.Done():
 	}
@@ -170,6 +169,7 @@ func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 }
 
 func (r *Reporter) run(ctx context.Context) {
+	defer r.baseCancel()
 	defer close(r.done)
 
 	ticker := time.NewTicker(time.Minute)
