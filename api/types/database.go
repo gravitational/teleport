@@ -511,6 +511,7 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 	if err := d.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
+
 	for key := range d.Spec.DynamicLabels {
 		if !IsValidLabelKey(key) {
 			return trace.BadParameter("database %q invalid label key: %q", d.GetName(), key)
