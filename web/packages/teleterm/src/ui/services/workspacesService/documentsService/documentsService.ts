@@ -111,22 +111,22 @@ export class DocumentsService {
 
   createTshNodeDocument(
     serverUri: ServerUri,
-    origin: DocumentOrigin
+    params: { origin: DocumentOrigin }
   ): DocumentTshNodeWithServerId {
-    const { params } = routing.parseServerUri(serverUri);
+    const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
 
     return {
       uri,
       kind: 'doc.terminal_tsh_node',
       status: 'connecting',
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
-      serverId: params.serverId,
+      rootClusterId: routingParams.rootClusterId,
+      leafClusterId: routingParams.leafClusterId,
+      serverId: routingParams.serverId,
       serverUri,
       title: '',
       login: '',
-      origin,
+      origin: params.origin,
     };
   }
 
@@ -138,14 +138,15 @@ export class DocumentsService {
    * the command will succeed only if the given cluster has only a single server with the hostname
    * matching `host`.
    * @param loginHost - the "user@host" pair.
-   * @param origin - where the document was opened from.
+   * @param params - additional parameters.
+   * @param params.origin - where the document was opened from.
    */
   createTshNodeDocumentFromLoginHost(
     clusterUri: ClusterUri,
     loginHost: string,
-    origin: DocumentOrigin
+    params: { origin: DocumentOrigin }
   ): DocumentTshNodeWithLoginHost {
-    const { params } = routing.parseClusterUri(clusterUri);
+    const { params: routingParams } = routing.parseClusterUri(clusterUri);
     const uri = routing.getDocUri({ docId: unique() });
 
     return {
@@ -153,10 +154,10 @@ export class DocumentsService {
       kind: 'doc.terminal_tsh_node',
       title: loginHost,
       status: 'connecting',
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
+      rootClusterId: routingParams.rootClusterId,
+      leafClusterId: routingParams.leafClusterId,
       loginHost,
-      origin,
+      origin: params.origin,
     };
   }
 

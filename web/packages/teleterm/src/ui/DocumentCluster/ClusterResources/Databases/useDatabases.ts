@@ -53,10 +53,9 @@ export function useDatabases() {
       appContext.connectionTracker.findConnectionByDocument(doc);
 
     if (connectionToReuse) {
-      appContext.connectionTracker.activateItem(
-        connectionToReuse.id,
-        'resource_table'
-      );
+      appContext.connectionTracker.activateItem(connectionToReuse.id, {
+        origin: 'resource_table',
+      });
     } else {
       documentsService.add(doc);
       documentsService.open(doc.uri);

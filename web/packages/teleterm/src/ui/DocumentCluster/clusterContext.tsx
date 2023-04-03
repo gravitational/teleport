@@ -72,10 +72,10 @@ class ClusterContext extends Store<State> {
     });
   };
 
-  connectKube = (kubeUri: KubeUri, origin: DocumentOrigin) => {
+  connectKube = (kubeUri: KubeUri, params: { origin: DocumentOrigin }) => {
     this.appCtx.commandLauncher.executeCommand('kube-connect', {
       kubeUri,
-      origin,
+      origin: params.origin,
     });
   };
 

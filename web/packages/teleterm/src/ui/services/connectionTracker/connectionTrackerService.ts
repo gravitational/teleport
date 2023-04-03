@@ -82,7 +82,10 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     });
   }
 
-  async activateItem(id: string, origin: DocumentOrigin): Promise<void> {
+  async activateItem(
+    id: string,
+    params: { origin: DocumentOrigin }
+  ): Promise<void> {
     const connection = this.state.connections.find(c => c.id === id);
     const { rootClusterUri, activate } =
       this._trackedConnectionOperationsFactory.create(connection);
@@ -90,7 +93,7 @@ export class ConnectionTrackerService extends ImmutableStore<ConnectionTrackerSt
     if (rootClusterUri !== this._workspacesService.getRootClusterUri()) {
       await this._workspacesService.setActiveWorkspace(rootClusterUri);
     }
-    activate(origin);
+    activate(params);
   }
 
   findConnectionByDocument(document: Document): TrackedConnection {
