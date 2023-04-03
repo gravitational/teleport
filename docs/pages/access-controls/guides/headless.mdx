@@ -7,7 +7,10 @@ description: Headless WebAuthn
   Headless WebAuthn is currently in Preview mode.
 </Notice>
 
-Headless WebAuthn provides a secure way to authenticate with WebAuthn from a machine without access to a WebAuthn device. This enables the use of WebAuthn features which are usually not usable in WebAuthn-incompatible environments. For example:
+Headless WebAuthn provides a secure way to authenticate with WebAuthn from a
+machine without access to a WebAuthn device. This enables the use of WebAuthn
+features which are usually not usable in WebAuthn-incompatible environments.
+For example:
 
 - Logging into Teleport with WebAuthn from a remote dev box
 - Connecting to a Teleport SSH Service from a remote dev box with per-session MFA 
@@ -35,11 +38,13 @@ Headless WebAuthn provides a secure way to authenticate with WebAuthn from a mac
 
 ## Step 1/3. Configuration
 
-A v12.2+ Teleport cluster capable of WebAuthn is automatically capable of Headless WebAuthn without any additional configuration.
+A v12.2+ Teleport cluster capable of WebAuthn is automatically capable of
+Headless WebAuthn without any additional configuration.
 
 <Details title="Optional: make Headless WebAuthn the default auth connector">
 
-To make Headless WebAuthn the default authentication method for your Teleport Cluster, add `connector_name: headless` to your cluster configuration.
+To make Headless WebAuthn the default authentication method for your Teleport
+Cluster, add `connector_name: headless` to your cluster configuration.
 
 Create a `cap.yaml` file or get the existing configuration using
 `tctl get cluster_auth_preference`:
@@ -67,7 +72,9 @@ $ tctl create -f cap.yaml
 
 <Details title="Alternative: disable Headless WebAuthn">
 
-Headless WebAuthn is enabled automatically when WebAuthn is configured. If you want to forbid Headless WebAuthn in your cluster, add `headless: false` to your configuration.
+Headless WebAuthn is enabled automatically when WebAuthn is configured. If you
+want to forbid Headless WebAuthn in your cluster, add `headless: false` to your
+configuration.
 
 Create a `cap.yaml` file or get the existing configuration using
 `tctl get cluster_auth_preference`:
@@ -96,7 +103,8 @@ $ tctl create -f cap.yaml
 
 ## Step 2/3. Initiate Headless WebAuthn
 
-Run a headless `tsh` command with the `--headless` flag. This will initiate headless authentication, printing a URL and `tsh` command.
+Run a headless `tsh` command with the `--headless` flag. This will initiate
+headless authentication, printing a URL and `tsh` command.
 
 ```code
 $ tsh ls --headless --proxy=proxy.example.com --user=alice
@@ -111,9 +119,14 @@ $ tsh ls --headless --proxy=proxy.example.com --user=alice
 
 ## Step 3/3. Approve Headless WebAuthn
 
-To approve the headless authentication, click or copy+paste the URL printed by `tsh` in your local web browser. You will be prompted to approve the log in with WebAuthn verification. Once approved, your initial `tsh --headless <command>` should continue as if you had logged in locally.
+To approve the headless authentication, click or copy+paste the URL printed by
+`tsh` in your local web browser. You will be prompted to approve the log in with
+WebAuthn verification. Once approved, your initial `tsh --headless <command>`
+should continue as if you had logged in locally.
 
-Unlike a standard login session, headless sessions are only available for the lifetime of a single `tsh` request. This means that for each `tsh --headless` command, you will need to go through the Headless WebAuthn flow:
+Unlike a standard login session, headless sessions are only available for the
+lifetime of a single `tsh` request. This means that for each `tsh --headless`
+command, you will need to go through the Headless WebAuthn flow:
 
 ```code 
 $ tsh ls --headless --proxy=proxy.example.com --user=alice
