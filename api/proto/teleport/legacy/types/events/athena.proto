@@ -22,6 +22,8 @@ option go_package = "github.com/gravitational/teleport/api/types/events";
 message AthenaS3EventPayload {
   // Path on S3.
   string path = 1;
+  // VersionID is versionID of file on s3, if versioning is enabled.
+  string version_id = 2;
   // Custom KMS key for server-side encryption.
-  string ckms = 2;
+  string ckms = 3;
 }

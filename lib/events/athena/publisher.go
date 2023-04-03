@@ -127,7 +127,7 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 
 func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []byte) error {
 	path := filepath.Join(p.payloadPrefix, uid)
-	_, err := p.uploader.Upload(ctx, &s3.PutObjectInput{
+	out, err := p.uploader.Upload(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(p.payloadBucket),
 		Key:    aws.String(path),
 		Body:   bytes.NewBuffer(marshaledEvent),
@@ -138,8 +138,13 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 		return trace.Wrap(err)
 	}
 
+	var versionID string
+	if out.VersionID != nil {
+		versionID = *out.VersionID
+	}
 	msg := &apievents.AthenaS3EventPayload{
-		Path: path,
+		Path:      path,
+		VersionId: versionID,
 	}
 	buf, err := msg.Marshal()
 	if err != nil {
