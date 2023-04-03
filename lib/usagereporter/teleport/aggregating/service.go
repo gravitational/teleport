@@ -122,7 +122,7 @@ func (r reportService) deleteUserActivityReport(ctx context.Context, report *pre
 
 func (r reportService) listUserActivityReports(ctx context.Context, count int) ([]*prehogv1.UserActivityReport, error) {
 	rangeStart := backend.ExactKey(userActivityReportsPrefix)
-	result, err := r.b.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), submitBatchSize)
+	result, err := r.b.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), count)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
