@@ -4987,7 +4987,7 @@ message PluginSlackAccessSettings {
   string fallback_channel = 1;
 }
 
-message PluginInitialCredentialsV1 {
+message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
   }

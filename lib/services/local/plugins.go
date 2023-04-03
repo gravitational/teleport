@@ -21,14 +21,13 @@ import (
 
 	"github.com/gravitational/trace"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-const (
-	pluginsPrefix = "plugins"
-)
+const pluginsPrefix = "plugins"
 
 // PluginsService manages plugin instances in the backend.
 type PluginsService struct {
@@ -74,7 +73,7 @@ func (s *PluginsService) DeletePlugin(ctx context.Context, name string) error {
 
 // DeleteAllPlugins implements service.Plugins
 func (s *PluginsService) DeleteAllPlugins(ctx context.Context) error {
-	startKey := backend.Key(pluginsPrefix)
+	startKey := backend.Key(pluginsPrefix, "")
 	err := s.backend.DeleteRange(ctx, startKey, backend.RangeEnd(startKey))
 	if err != nil {
 		return trace.Wrap(err)
@@ -105,17 +104,44 @@ func (s *PluginsService) GetPlugin(ctx context.Context, name string, withSecrets
 
 // GetPlugins implements services.Plugins
 func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
-	startKey := backend.Key(pluginsPrefix)
-	result, err := s.backend.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	const pageSize = apidefaults.DefaultChunkSize
+	var results []types.Plugin
+
+	var page []types.Plugin
+	var startKey string
+	var err error
+	for {
+		page, startKey, err = s.ListPlugins(ctx, pageSize, startKey, withSecrets)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		results = append(results, page...)
+		if startKey == "" {
+			break
+		}
+	}
+
+	return results, nil
+}
+
+// ListPlugins returns a paginated list of plugin instances.
+// StartKey is a resource name, which is the suffix of its key.
+func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	// Get at most limit+1 results to determine if there will be a next key.
+	maxLimit := limit + 1
+
+	startKeyBytes := backend.Key(pluginsPrefix, startKey)
+	endKey := backend.RangeEnd(backend.Key(pluginsPrefix, ""))
+	result, err := s.backend.GetRange(ctx, startKeyBytes, endKey, maxLimit)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	plugins := make([]types.Plugin, 0, len(result.Items))
 	for _, item := range result.Items {
 		plugin, err := services.UnmarshalPlugin(item.Value, services.WithResourceID(item.ID), services.WithExpires(item.Expires))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, "", trace.Wrap(err)
 		}
 		if !withSecrets {
 			plugin = plugin.WithoutSecrets().(types.Plugin)
@@ -123,7 +149,13 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 		plugins = append(plugins, plugin)
 	}
 
-	return plugins, nil
+	var nextKey string
+	if len(plugins) == maxLimit {
+		nextKey = backend.GetPaginationKey(plugins[len(plugins)-1])
+		plugins = plugins[:limit]
+	}
+
+	return plugins, nextKey, nil
 }
 
 // SetPluginCredentials implements services.Plugins
