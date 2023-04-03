@@ -96,8 +96,6 @@ tests:
       - equal:
           path: spec.template.metadata.annotations.kubernetes\.io/pod-different
           value: 4
-#  - it: sets the pod extra labels
-#  - it: sets the deployment extra labels
   - it: sets the affinity
     values:
       - ../.lint/updater.yaml
