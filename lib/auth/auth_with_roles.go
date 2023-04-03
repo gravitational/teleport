@@ -2209,6 +2209,9 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 
 // Ping gets basic info about the auth server.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
+	// The Ping method does not require special permissions since it only returns
+	// basic status information.  This is an intentional design choice.  Alternative
+	// methods should be used for relaying any sensitive information.
 	return a.authServer.Ping(ctx)
 }
 

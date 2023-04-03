@@ -4360,9 +4360,6 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 
 // Ping gets basic info about the auth server.
 func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
-	// The Ping method does not require special permissions since it only returns
-	// basic status information.  This is an intentional design choice.  Alternative
-	// methods should be used for relaying any sensitive information.
 	cn, err := a.GetClusterName()
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
