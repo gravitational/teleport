@@ -31,6 +31,7 @@ import (
 
 const (
 	reportGranularity = 15 * time.Minute
+	rollbackGrace     = time.Minute
 	reportTTL         = 60 * 24 * time.Hour
 )
 
@@ -61,10 +62,7 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 // NewReporter returns a new running [Reporter]. To avoid resource leaks,
 // GracefulStop must be called or the base context must be closed. The context
 // will be used for all backend operations.
-func NewReporter(
-	ctx context.Context,
-	cfg ReporterConfig,
-) (*Reporter, error) {
+func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -75,23 +73,23 @@ func NewReporter(
 	}
 
 	baseCtx, baseCancel := context.WithCancel(ctx)
-	periodicCtx, periodicCancel := context.WithCancel(baseCtx)
 
 	r := &Reporter{
 		anonymizer: anonymizer,
 		svc:        reportService{cfg.Backend},
 		log:        cfg.Log,
 
+		ingest:  make(chan usagereporter.Anonymizable),
+		closing: make(chan struct{}),
+		done:    make(chan struct{}),
+
 		clusterName:    anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
 		reporterHostID: anonymizer.AnonymizeNonEmpty(cfg.ReporterHostID),
 
-		baseCtx:        baseCtx,
-		baseCancel:     baseCancel,
-		periodicCancel: periodicCancel,
+		baseCancel: baseCancel,
 	}
 
-	r.wg.Add(1)
-	go r.runPeriodicFinalize(periodicCtx)
+	go r.run(baseCtx)
 
 	return r, nil
 }
@@ -102,74 +100,41 @@ type Reporter struct {
 	svc        reportService
 	log        logrus.FieldLogger
 
+	// ingest collects events from calls to [AnonymizeAndSubmit] to the
+	// background goroutine.
+	ingest chan usagereporter.Anonymizable
+	// closing is closed when we're not interested in collecting events anymore.
+	closing chan struct{}
+	// closingOnce closes [closing] once.
+	closingOnce sync.Once
+	// done is closed at the end of the background goroutine.
+	done chan struct{}
+
 	// clusterName is the anonymized cluster name.
 	clusterName []byte
 	// reporterHostID is the anonymized host ID of the reporter (this agent).
 	reporterHostID []byte
 
-	// wg tracks all long-lived or I/O bound goroutines, to be waited on during
-	// GracefulStop.
-	wg sync.WaitGroup
-	// baseCtx is the parent context for all operations (backend operations
-	// being the most important).
-	baseCtx context.Context
-	// baseCancel cancels baseCtx.
+	// baseCancel cancels the context used by the background goroutine.
 	baseCancel context.CancelFunc
-	// periodicCancel cancels the context used by the periodic finalizer; child
-	// of baseCtx.
-	periodicCancel context.CancelFunc
-
-	// mu protects stopped, startTime and userActivity.
-	mu sync.Mutex
-	// stopped indicates that startTime and userActivity should not be touched
-	// anymore, that all events should be dropped, and that no goroutines
-	// tracked by wg should be started.
-	stopped bool
-
-	// startTime is the start time of the currently active data collection.
-	startTime time.Time
-	// userActivity is a map of username (non-anonymized) to UserActivityRecord.
-	userActivity map[string]*prehogv1.UserActivityRecord
 }
 
 var _ usagereporter.GracefulStopper = (*Reporter)(nil)
 
-// GracefulStop implements [usagereporter.GracefulStopper]. Can only be called
-// at most once.
+// GracefulStop implements [usagereporter.GracefulStopper].
 func (r *Reporter) GracefulStop(ctx context.Context) error {
-	r.periodicCancel()
+	r.closingOnce.Do(func() { close(r.closing) })
 
-	r.mu.Lock()
-
-	r.stopped = true
-
-	startTime := r.startTime
-	userActivity := r.userActivity
-	// release memory
-	r.userActivity = nil
-
-	r.mu.Unlock()
-
-	if len(userActivity) > 0 {
-		// we're allowed to do this because we know that we'll only Wait on r.wg
-		// later on in this function's body; anywhere else we're not allowed to
-		// Add while r.stopped is true, as Wait can't be called concurrently
-		// with an Add from 0, and if we began shutting down we can't assume
-		// that the count is above 0
-		r.wg.Add(1)
-		go r.persistUserActivity(startTime, userActivity)
+	select {
+	case <-r.done:
+		r.baseCancel()
+		return nil
+	case <-ctx.Done():
 	}
 
-	go func() {
-		select {
-		case <-ctx.Done():
-			r.baseCancel()
-		case <-r.baseCtx.Done():
-		}
-	}()
-
-	r.wg.Wait()
 	r.baseCancel()
+	<-r.done
+
 	return ctx.Err()
 }
 
@@ -195,25 +160,63 @@ func (r *Reporter) AnonymizeAndSubmit(events ...usagereporter.Anonymizable) {
 }
 
 func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.stopped {
-		return
+	for _, e := range events {
+		select {
+		case r.ingest <- e:
+		case <-r.closing:
+			return
+		}
 	}
+}
 
-	r.maybeFinalizeReportsLocked()
+func (r *Reporter) run(ctx context.Context) {
+	defer close(r.done)
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	startTime := time.Now().UTC().Truncate(reportGranularity)
+	userActivity := make(map[string]*prehogv1.UserActivityRecord)
 
 	userRecord := func(userName string) *prehogv1.UserActivityRecord {
-		record := r.userActivity[userName]
+		record := userActivity[userName]
 		if record == nil {
 			record = &prehogv1.UserActivityRecord{}
-			r.userActivity[userName] = record
+			userActivity[userName] = record
 		}
 		return record
 	}
 
-	for _, ae := range events {
+	var wg sync.WaitGroup
+
+Ingest:
+	for {
+		var ae usagereporter.Anonymizable
+		select {
+		case <-ticker.C:
+		case ae = <-r.ingest:
+
+		case <-ctx.Done():
+			r.closingOnce.Do(func() { close(r.closing) })
+			break Ingest
+		case <-r.closing:
+			break Ingest
+		}
+
+		now := time.Now().UTC()
+		if !now.Before(startTime.Add(reportGranularity)) || now.Before(startTime.Add(-rollbackGrace)) {
+			if len(userActivity) > 0 {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					r.persistUserActivity(ctx, startTime, userActivity)
+				}()
+			}
+
+			startTime = now.Truncate(reportGranularity)
+			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
+		}
+
 		switch te := ae.(type) {
 		case *usagereporter.UserLoginEvent:
 			userRecord(te.UserName).Logins++
@@ -240,31 +243,15 @@ func (r *Reporter) anonymizeAndSubmit(events []usagereporter.Anonymizable) {
 			userRecord(te.UserName).SftpEvents++
 		}
 	}
-}
-
-func (r *Reporter) maybeFinalizeReportsLocked() {
-	now := time.Now().UTC()
-
-	if !r.startTime.Add(reportGranularity).Before(now) {
-		return
-	}
-
-	startTime := r.startTime
-	userActivity := r.userActivity
-	r.startTime = now.Truncate(reportGranularity)
-	// we expect the amount of users to not vary a lot between one time window
-	// and the next
-	r.userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
 
 	if len(userActivity) > 0 {
-		r.wg.Add(1)
-		go r.persistUserActivity(startTime, userActivity)
+		r.persistUserActivity(ctx, startTime, userActivity)
 	}
+
+	wg.Wait()
 }
 
-func (r *Reporter) persistUserActivity(startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
-	defer r.wg.Done()
-
+func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
 	records := make([]*prehogv1.UserActivityRecord, 0, len(userActivity))
 	for userName, record := range userActivity {
 		record.UserName = r.anonymizer.AnonymizeNonEmpty(userName)
@@ -282,35 +269,11 @@ func (r *Reporter) persistUserActivity(startTime time.Time, userActivity map[str
 		}
 		records = records[len(report.Records):]
 
-		if err := r.svc.upsertUserActivityReport(r.baseCtx, report, reportTTL); err != nil {
+		if err := r.svc.upsertUserActivityReport(ctx, report, reportTTL); err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,
 				"lost_records": len(report.Records),
 			}).Error("Failed to persist user activity report, dropping data.")
-		}
-	}
-}
-
-func (r *Reporter) runPeriodicFinalize(ctx context.Context) {
-	defer r.wg.Done()
-
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-
-		// if r.mu is locked then something has just called
-		// maybeFinalizeReportLocked anyway
-		if r.mu.TryLock() {
-			if !r.stopped {
-				r.maybeFinalizeReportsLocked()
-			}
-			r.mu.Unlock()
 		}
 	}
 }
