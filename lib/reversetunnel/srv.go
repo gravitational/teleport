@@ -729,6 +729,8 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		s.handleNewCluster(conn, sconn, nch)
 	case types.RoleWindowsDesktop:
 		s.handleNewService(role, conn, sconn, nch, types.WindowsDesktopTunnel)
+	case types.RoleOkta:
+		s.handleNewService(role, conn, sconn, nch, types.OktaTunnel)
 	// Unknown role.
 	default:
 		s.log.Errorf("Unsupported role attempting to connect: %v", val)

@@ -107,7 +107,7 @@ $ eksctl create iamserviceaccount \
     --approve
 ```
 
-The referemced parameters are:
+The referenced parameters are:
 - <Var name="teleport-kube-agent-sa"/> is the name of the Kubernetes service account.
 - <Var name="teleport-agent"/> is the namespace where the Teleport Kubernetes Service is
   running.
@@ -124,7 +124,7 @@ and a new Kubernetes service account created in the target namespace.
 <TabItem label="Using AWS CLI">
 
 Creating a new IAM role and mapping it into the Kubernetes service account in the
-target namespace using the AWS CLI requires some aditional steps.
+target namespace using the AWS CLI requires some additional steps.
 
 First, we need to create the target namespace in the Kubernetes cluster and the
 Kubernetes service account.
@@ -147,7 +147,7 @@ To extract the AWS account ID you can use the following command:
 $ account_id=$(aws sts get-caller-identity --query "Account" --output text)
 ```
 
-The OICD provider URL can be extracted from the cluster configuration:
+The OIDC provider URL can be extracted from the cluster configuration:
 
 ```code
 $ oidc_provider=$(aws eks describe-cluster --name <Var name="kube-cluster"/> --region <Var name="aws-region"/> --query "cluster.identity.oidc.issuer" --output text | sed -e "s/^https:\/\///")

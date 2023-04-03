@@ -164,6 +164,7 @@ export const ForwarderAdded = makeFontIcon(
 export const Github = makeFontIcon('Github', 'icon-github');
 export const Google = makeFontIcon('Google', 'icon-google-plus');
 export const Graph = makeFontIcon('Graph', 'icon-graph');
+export const Hashtag = makeFontIcon('Hashtag', 'icon-hashtag');
 export const Home = makeFontIcon('Home', 'icon-home3');
 export const Info = makeFontIcon('Info', 'icon-info_outline');
 export const InfoFilled = makeFontIcon('Info', 'icon-info');

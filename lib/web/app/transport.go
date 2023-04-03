@@ -296,7 +296,7 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, cluste
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
 		OriginalClientDstAddr: originalDst,
 		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
-		ConnType:              types.AppTunnel,
+		ConnType:              server.GetTunnelType(),
 		ProxyIDs:              server.GetProxyIDs(),
 	})
 	return conn, trace.Wrap(err)

@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -374,6 +375,13 @@ type Config struct {
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool
 
+	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
+	// are required for making TLS routing requests.
+	//
+	// Note that this is applicable to the Proxy's Web port regardless of
+	// whether the Proxy is in single-port or multi-port configuration.
+	TLSRoutingConnUpgradeRequired bool
+
 	// Reason is a reason attached to started sessions meant to describe their intent.
 	Reason string
 
@@ -594,6 +602,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.MySQLProxyAddr = profile.MySQLProxyAddr
 	c.MongoProxyAddr = profile.MongoProxyAddr
 	c.TLSRoutingEnabled = profile.TLSRoutingEnabled
+	c.TLSRoutingConnUpgradeRequired = profile.TLSRoutingConnUpgradeRequired
 	c.KeysDir = profile.Dir
 	c.AuthConnector = profile.AuthConnector
 	c.LoadAllCAs = profile.LoadAllCAs
@@ -613,6 +622,10 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
+	if required, ok := client.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
+		c.TLSRoutingConnUpgradeRequired = required
+	}
+	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
 	return nil
 }
 
@@ -624,20 +637,21 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 	}
 
 	p := &profile.Profile{
-		Username:          c.Username,
-		WebProxyAddr:      c.WebProxyAddr,
-		SSHProxyAddr:      c.SSHProxyAddr,
-		KubeProxyAddr:     c.KubeProxyAddr,
-		PostgresProxyAddr: c.PostgresProxyAddr,
-		MySQLProxyAddr:    c.MySQLProxyAddr,
-		MongoProxyAddr:    c.MongoProxyAddr,
-		ForwardedPorts:    c.LocalForwardPorts.String(),
-		SiteName:          c.SiteName,
-		TLSRoutingEnabled: c.TLSRoutingEnabled,
-		AuthConnector:     c.AuthConnector,
-		MFAMode:           c.AuthenticatorAttachment.String(),
-		LoadAllCAs:        c.LoadAllCAs,
-		PrivateKeyPolicy:  c.PrivateKeyPolicy,
+		Username:                      c.Username,
+		WebProxyAddr:                  c.WebProxyAddr,
+		SSHProxyAddr:                  c.SSHProxyAddr,
+		KubeProxyAddr:                 c.KubeProxyAddr,
+		PostgresProxyAddr:             c.PostgresProxyAddr,
+		MySQLProxyAddr:                c.MySQLProxyAddr,
+		MongoProxyAddr:                c.MongoProxyAddr,
+		ForwardedPorts:                c.LocalForwardPorts.String(),
+		SiteName:                      c.SiteName,
+		TLSRoutingEnabled:             c.TLSRoutingEnabled,
+		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
+		AuthConnector:                 c.AuthConnector,
+		MFAMode:                       c.AuthenticatorAttachment.String(),
+		LoadAllCAs:                    c.LoadAllCAs,
+		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 	}
 
 	if err := c.ClientStore.SaveProfile(p, makeCurrent); err != nil {
@@ -836,6 +850,16 @@ func (c *Config) DatabaseProxyHostPort(db tlsca.RouteToDatabase) (string, int) {
 		return c.MongoProxyHostPort()
 	}
 	return c.WebProxyHostPort()
+}
+
+// DoesDatabaseUseWebProxyHostPort returns true if database is using web port.
+//
+// This is useful for deciding whether local proxy is required when web port is
+// behind a load balancer.
+func (c *Config) DoesDatabaseUseWebProxyHostPort(db tlsca.RouteToDatabase) bool {
+	dbHost, dbPort := c.DatabaseProxyHostPort(db)
+	webHost, webPort := c.WebProxyHostPort()
+	return dbHost == webHost && dbPort == webPort
 }
 
 // GetKubeTLSServerName returns k8s server name used in KUBECONFIG to leverage TLS Routing.
@@ -1239,11 +1263,12 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	defer proxyClient.Close()
 
-	return proxyClient.IssueUserCertsWithMFA(
+	key, err := proxyClient.IssueUserCertsWithMFA(
 		ctx, params,
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 			return tc.PromptMFAChallenge(ctx, proxyAddr, c, applyOpts)
 		})
+	return key, trace.Wrap(err)
 }
 
 // CreateAccessRequest registers a new access request with the auth server.
@@ -1562,16 +1587,27 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, nod
 		return trace.Wrap(err)
 	}
 
-	// If no remote command execution was requested, block on the context which
-	// will unblock upon error or SIGINT.
+	// If no remote command execution was requested block on which ever comes first:
+	//  1) the context which will unblock upon error or user terminating the process
+	//  2) ssh.Client.Wait which will unblock when the connection has shut down
 	if tc.NoRemoteExec {
-		log.Debugf("Connected to node, no remote command execution was requested, blocking until context closes.")
-		<-ctx.Done()
-
-		// Only return an error if the context was canceled by something other than SIGINT.
-		if ctx.Err() != context.Canceled {
-			return ctx.Err()
+		connClosed := make(chan error, 1)
+		go func() {
+			connClosed <- nodeClient.Client.Wait()
+		}()
+		log.Debugf("Connected to node, no remote command execution was requested, blocking indefinitely.")
+		select {
+		case <-ctx.Done():
+			// Only return an error if the context was canceled by something other than SIGINT.
+			if err := ctx.Err(); !errors.Is(err, context.Canceled) {
+				return trace.Wrap(err)
+			}
+		case err := <-connClosed:
+			if !errors.Is(err, io.EOF) {
+				return trace.Wrap(err)
+			}
 		}
+
 		return nil
 	}
 
@@ -3056,6 +3092,9 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Perform the ALPN test once at login.
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)

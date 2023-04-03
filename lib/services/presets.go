@@ -84,6 +84,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
+					types.NewRule(types.KindLock, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -187,8 +188,11 @@ func NewPresetAuditorRole() types.Role {
 	return role
 }
 
-// defaultAllowRules has the Allow rules that should be set as default when they were not explicitly defined.
-// This is used to update the current cluster roles when deploying a new resource.
+// defaultAllowRules has the Allow rules that should be set as default when
+// they were not explicitly defined. This is used to update the current cluster
+// roles when deploying a new resource. It will also update all existing roles
+// on auth server restart. Rules defined in preset template should be
+// exactly the same rule when added here.
 func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetAuditorRoleName: {
@@ -203,6 +207,8 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			types.NewRule(types.KindOktaImportRule, RW()),
 			types.NewRule(types.KindOktaAssignment, RW()),
+			types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+			types.NewRule(types.KindLock, RW()),
 		},
 	}
 }

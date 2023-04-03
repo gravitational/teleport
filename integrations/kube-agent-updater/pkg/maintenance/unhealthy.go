@@ -18,7 +18,6 @@ package maintenance
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 	appsv1 "k8s.io/api/apps/v1"
@@ -26,12 +25,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
-)
 
-const (
-	podReadinessGracePeriod = 10 * time.Minute
-	deploymentKind          = "Deployment"
-	statefulSetKind         = "StatefulSet"
+	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/podutils"
 )
 
 // unhealthyWorkloadTrigger allows a maintenance to start if the workload is
@@ -79,22 +74,25 @@ func (u unhealthyWorkloadTrigger) Default() bool {
 // isWorkloadUnhealthy checks the pods selected by a workload and returns true
 // if at least one pod is unhealthy.
 func (u unhealthyWorkloadTrigger) isWorkloadUnhealthy(ctx context.Context, namespace string, selector labels.Selector) (bool, error) {
-	managedPods := &v1.PodList{}
+	managedPodsList := &v1.PodList{}
 	matchingSelector := kclient.MatchingLabelsSelector{Selector: selector}
 	inNamespace := kclient.InNamespace(namespace)
-	err := u.List(ctx, managedPods, inNamespace, matchingSelector)
+	err := u.List(ctx, managedPodsList, inNamespace, matchingSelector)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 
 	// If the deployment manages no pods, it is considered unhealthy
 	// and can be updated at any time
-	if len(managedPods.Items) == 0 {
+	if len(managedPodsList.Items) == 0 {
 		return true, nil
 	}
 
+	filters := podutils.Filters{podutils.IsUnhealthy}
+	managedPods := podutils.PodListToListOfPods(managedPodsList)
+
 	// If at least a pod is unhealthy, we consider the whole workload unhealthy
-	return len(UnhealthyPods(managedPods)) > 0, nil
+	return len(filters.Apply(ctx, managedPods)) > 0, nil
 }
 
 // NewUnhealthyWorkloadTrigger triggers a maintenance if the watched workload
@@ -104,55 +102,4 @@ func NewUnhealthyWorkloadTrigger(name string, client kclient.Client) Trigger {
 		name:   name,
 		Client: client,
 	}
-}
-
-// UnhealthyPods takes a v1.PodList of pods and returns a list of all unhealthy
-// pods.
-func UnhealthyPods(list *v1.PodList) []*v1.Pod {
-	var unhealthyPods []*v1.Pod
-	for _, pod := range list.Items {
-		if isPodUnhealthy(&pod) {
-			unhealthyPods = append(unhealthyPods, &pod)
-		}
-	}
-	return unhealthyPods
-}
-
-// A Pod is unhealthy if it is not Ready since at least X minutes
-// This heuristic also detects infrastructure issues like not enough room to
-// schedule pod. As false positives are less problematic than
-// false negatives in our case, this is not a problem. If false positives were
-// to be a frequent issue we could build a more specific heuristic by looking
-// at the container statuses
-func isPodUnhealthy(pod *v1.Pod) bool {
-	// If the pod is terminating we ignore it and consider it healthy as it
-	// should be gone soon.
-	if pod.DeletionTimestamp != nil {
-		return false
-	}
-
-	condition := getPodReadyCondition(&pod.Status)
-	// if the pod has no ready condition, something is not ok
-	// we consider it not healthy
-	if condition == nil {
-		return true
-	}
-
-	// if the pod is marked as ready it is healthy
-	if condition.Status == v1.ConditionTrue {
-		return false
-	}
-
-	// if the pod is marked unready but is still in the grace period
-	// we don't consider it unhealthy yet
-	return condition.LastTransitionTime.Add(podReadinessGracePeriod).Before(time.Now())
-}
-
-func getPodReadyCondition(status *v1.PodStatus) *v1.PodCondition {
-	for _, condition := range status.Conditions {
-		if condition.Type == v1.PodReady {
-			return &condition
-		}
-	}
-	return nil
 }

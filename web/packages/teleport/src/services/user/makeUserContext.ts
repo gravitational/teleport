@@ -16,7 +16,7 @@ limitations under the License.
 
 import { makeCluster } from '../clusters';
 
-import makeAcl from './makeAcl';
+import { makeAcl } from './makeAcl';
 import { UserContext, AccessCapabilities } from './types';
 
 export default function makeUserContext(json: any): UserContext {

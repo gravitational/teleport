@@ -26,7 +26,7 @@ export default function EmptyList({ onCreate }: Props) {
       <Icons.Github
         style={{ textAlign: 'center' }}
         fontSize="150px"
-        color="primary.lighter"
+        color="levels.elevated"
         mr={5}
       />
       <Box>
