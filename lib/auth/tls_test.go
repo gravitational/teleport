@@ -1884,6 +1884,8 @@ func TestGenerateCerts(t *testing.T) {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
+	clock := srv.Auth().GetClock()
+
 	// make sure we can parse the private and public key
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -1972,7 +1974,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = nopClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -1989,7 +1991,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -2000,10 +2002,9 @@ func TestGenerateCerts(t *testing.T) {
 		parsedCert, err := sshutils.ParseCertificate(sshCert)
 		require.NoError(t, err)
 		validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
-		return parsedCert, time.Until(validBefore)
+		return parsedCert, validBefore.Sub(clock.Now())
 	}
 
-	clock := srv.Auth().GetClock()
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
@@ -2089,7 +2090,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -2137,7 +2138,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc1.GetName(),
 		})
@@ -2150,7 +2151,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.True(t, identity.Expires.Before(time.Now().Add(testUser2.TTL)))
+		require.True(t, identity.Expires.Before(clock.Now().Add(testUser2.TTL)))
 		require.Equal(t, identity.RouteToCluster, rc1.GetName())
 	})
 
@@ -2162,7 +2163,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(40 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(40 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2187,7 +2188,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(1 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(1 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2203,7 +2204,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2217,7 +2218,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: "unknown_cluster",
 		})
@@ -2236,7 +2237,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
@@ -2250,7 +2251,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
