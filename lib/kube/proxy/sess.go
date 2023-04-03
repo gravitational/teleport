@@ -512,7 +512,7 @@ func (s *session) launch() error {
 	s.podName = request.podName
 	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
-	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
+	eventPodMeta := request.eventPodMeta(request.context, s.sess.kubeAPICreds)
 
 	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
 	if err != nil {

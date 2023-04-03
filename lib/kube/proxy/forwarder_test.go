@@ -1164,6 +1164,7 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	f := newMockForwader(ctx, t)
+
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -1194,6 +1195,10 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 		return rt
 	}
 
+	h2Transport, err := newH2Transport(&tls.Config{
+		InsecureSkipVerify: true,
+	}, nil)
+	require.NoError(t, err)
 	f.clusterDetails = map[string]*kubeDetails{
 		"local": {
 			kubeCreds: &staticKubeCreds{
@@ -1201,6 +1206,12 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 				tlsConfig:  mockKubeAPI.TLS,
 				transportConfig: &transport.Config{
 					WrapTransport: checkTransportProxy,
+				},
+				transport: httpTransport{
+					h1Transport: newH1Transport(&tls.Config{
+						InsecureSkipVerify: true,
+					}, nil),
+					h2Transport: h2Transport,
 				},
 			},
 		},
@@ -1243,7 +1254,8 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 	clientCreds, err := ttlmap.New(defaults.ClientCacheSize)
 	require.NoError(t, err)
-
+	cachedTransport, err := ttlmap.New(defaults.ClientCacheSize)
+	require.NoError(t, err)
 	csrClient, err := newMockCSRClient()
 	require.NoError(t, err)
 
@@ -1262,6 +1274,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 		clientCredentials: clientCreds,
 		activeRequests:    make(map[string]context.Context),
 		ctx:               ctx,
+		cachedTransport:   cachedTransport,
 	}
 }
 

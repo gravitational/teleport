@@ -3948,8 +3948,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 				PROXYSigner:                   proxySigner,
+				// ConnTLSConfig is used by the proxy authenticate to the upstream kubernetes
+				// services or remote clustes to be able to send the client identity
+				// using Impersonation headers. The upstream service will validate if
+				// the provided connection certificate is from a proxy server and
+				// will impersonate the identity of the user that is making the request.
+				ConnTLSConfig: tlsConfig.Clone(),
 			},
-			TLS:             tlsConfig,
+			TLS:             tlsConfig.Clone(),
 			LimiterConfig:   cfg.Proxy.Limiter,
 			AccessPoint:     accessPoint,
 			GetRotation:     process.GetRotation,
