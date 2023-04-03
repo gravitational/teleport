@@ -114,7 +114,7 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: origin => {
+      activate: params => {
         let gwDoc = documentsService
           .getDocuments()
           .find(getGatewayDocumentByConnection(connection));
@@ -128,7 +128,7 @@ export class TrackedConnectionOperationsFactory {
             title: connection.title,
             gatewayUri: connection.gatewayUri,
             port: connection.port,
-            origin,
+            origin: params.origin,
           });
 
           documentsService.add(gwDoc);
@@ -168,7 +168,7 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: origin => {
+      activate: params => {
         let kubeConn = documentsService
           .getDocuments()
           .find(getKubeDocumentByConnection(connection));
@@ -177,7 +177,7 @@ export class TrackedConnectionOperationsFactory {
           kubeConn = documentsService.createTshKubeDocument({
             kubeUri: connection.kubeUri,
             kubeConfigRelativePath: connection.kubeConfigRelativePath,
-            origin,
+            origin: params.origin,
           });
 
           documentsService.add(kubeConn);
@@ -223,7 +223,7 @@ interface TrackedConnectionOperations {
   rootClusterUri: RootClusterUri;
   leafClusterUri: LeafClusterUri;
 
-  activate(origin: DocumentOrigin): void;
+  activate(params: { origin: DocumentOrigin }): void;
 
   disconnect(): Promise<void>;
 

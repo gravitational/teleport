@@ -30,7 +30,8 @@ export function useKubes() {
   );
 
   return {
-    connect: (kubeUri: KubeUri) => ctx.connectKube(kubeUri, 'resource_table'),
+    connect: (kubeUri: KubeUri) =>
+      ctx.connectKube(kubeUri, { origin: 'resource_table' }),
     fetchAttempt,
     ...serversideResources,
   };

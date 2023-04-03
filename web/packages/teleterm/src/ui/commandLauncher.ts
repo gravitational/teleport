@@ -41,7 +41,7 @@ const commands = {
       const doc = documentsService.createTshNodeDocumentFromLoginHost(
         localClusterUri,
         loginHost,
-        origin
+        { origin }
       );
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
