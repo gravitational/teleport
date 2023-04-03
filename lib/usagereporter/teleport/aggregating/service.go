@@ -143,7 +143,7 @@ func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl ti
 	if _, err := r.b.Create(ctx, backend.Item{
 		Key:     backend.Key(userActivityReportsLock),
 		Value:   []byte("null"),
-		Expires: r.b.Clock().Now().UTC().Add(submitLockDuration),
+		Expires: r.b.Clock().Now().UTC().Add(ttl),
 	}); err != nil {
 		return trace.Wrap(err)
 	}
