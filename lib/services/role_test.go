@@ -4894,6 +4894,57 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			},
 		},
+		{
+			test:    "duplication handled",
+			sudoers: []string{"sudoers entry 2"},
+			roles: NewRoleSet(&types.RoleV6{
+				Metadata: types.Metadata{
+					Name: "a",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"sudoers entry 1"},
+					},
+				},
+			}, &types.RoleV6{ // DENY sudoers entry 1
+				Metadata: types.Metadata{
+					Name: "d",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Deny: types.RoleConditions{
+						NodeLabels:  types.Labels{"success": []string{"abc"}},
+						HostSudoers: []string{"sudoers entry 1"},
+					},
+				},
+			}, &types.RoleV6{ // duplicate sudoers entry 1 case also gets removed
+				Metadata: types.Metadata{
+					Name: "c",
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CreateHostUser: types.NewBoolOption(true),
+					},
+					Allow: types.RoleConditions{
+						NodeLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+						HostSudoers: []string{"sudoers entry 1", "sudoers entry 2"},
+					},
+				},
+			}),
+			server: &types.ServerV2{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"success": "abc",
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tc.test, func(t *testing.T) {
 
