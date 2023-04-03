@@ -296,10 +296,16 @@ becomes a liability rather than an asset?
 
 #### **Examine creating a Release Engineering repo**
 
-All of our GHA tooling currently lives in `teleport.e`. All of our Drone tooling and Go release tooling lives in `teleport`. 
+All of our GHA tooling currently lives in `teleport.e`. All of our Drone
+tooling and Go release tooling lives in `teleport`. 
 
 We chose `teleport.e` for GHA workflows because it was private, making it
-harder to leak secrets though CI/CD, but 
+harder to leak secrets though CI/CD, but those workflows exist there only
+as an accident of history, not because that's the best place for them.
+
+Even if we *don't* separate our worklws and trooling out into a separate 
+repo, we should definitely think about a common pattern we can use to make
+sure that everyone takes a consistent approach.
 
 #### Separate CI, Delivery and test resources
 
