@@ -56,6 +56,9 @@ const (
 	// local/passwordless logins.
 	PasswordlessConnector = "passwordless"
 
+	// HeadlessConnector is the authentication connector for headless logins.
+	HeadlessConnector = "headless"
+
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -196,6 +199,7 @@ const (
 var SystemConnectors = []string{
 	LocalConnector,
 	PasswordlessConnector,
+	HeadlessConnector,
 }
 
 // SecondFactorType is the type of 2FA authentication.

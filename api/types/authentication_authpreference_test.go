@@ -454,6 +454,83 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				assert.True(t, cap.GetAllowPasswordless(), "AllowPasswordless")
 			},
 		},
+		// AllowHeadless
+		{
+			name: "OK AllowHeadless defaults to false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				AllowHeadless: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name: "OK AllowHeadless=false without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				AllowHeadless: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name: "NOK AllowHeadless=true without Webauthn",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff,
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				AllowHeadless: types.NewBoolOption(true),
+			},
+			wantErr: "required Webauthn",
+		},
+		{
+			name:          "OK AllowHeadless defaults to true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				Webauthn:      minimalWeb,
+				AllowHeadless: nil, // aka unset
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name:          "OK AllowHeadless=false with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				Webauthn:      minimalWeb,
+				AllowHeadless: types.NewBoolOption(false),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.False(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
+		{
+			name:          "OK AllowHeadless=true with Webauthn",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				Webauthn:      minimalWeb,
+				AllowHeadless: types.NewBoolOption(true),
+			},
+			assertFn: func(t *testing.T, cap *types.AuthPreferenceV2) {
+				assert.True(t, cap.GetAllowHeadless(), "AllowHeadless")
+			},
+		},
 		// ConnectorName
 		{
 			name:          "OK type=local and local connector",
@@ -493,6 +570,15 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 			},
 		},
 		{
+			name:          "OK type=local and headless connector",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.HeadlessConnector,
+				Webauthn:      minimalWeb,
+			},
+		},
+		{
 			name: "NOK type=local and passwordless connector",
 			secondFactors: []constants.SecondFactorType{
 				constants.SecondFactorOff, // webauthn disabled
@@ -515,6 +601,31 @@ func TestAuthPreferenceV2_CheckAndSetDefaults_secondFactor(t *testing.T) {
 				AllowPasswordless: types.NewBoolOption(false),
 			},
 			wantErr: "passwordless not allowed",
+		},
+
+		{
+			name: "NOK type=local and headless connector",
+			secondFactors: []constants.SecondFactorType{
+				constants.SecondFactorOff, // webauthn disabled
+				constants.SecondFactorOTP,
+			},
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.HeadlessConnector,
+				Webauthn:      minimalWeb,
+			},
+			wantErr: "headless not allowed",
+		},
+		{
+			name:          "NOK type=local, allow_headless=false and headless connector",
+			secondFactors: secondFactorWebActive,
+			spec: types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				ConnectorName: constants.HeadlessConnector,
+				Webauthn:      minimalWeb,
+				AllowHeadless: types.NewBoolOption(false),
+			},
+			wantErr: "headless not allowed",
 		},
 		{
 			name:          "NOK type=local and unknown connector",

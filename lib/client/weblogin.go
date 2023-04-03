@@ -139,6 +139,8 @@ type CreateSSHCertReq struct {
 	Password string `json:"password"`
 	// OTPToken is second factor token
 	OTPToken string `json:"otp_token"`
+	// HeadlessAuthenticationID is a headless authentication resource id.
+	HeadlessAuthenticationID string `json:"headless_id"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -188,6 +190,13 @@ type AuthenticateSSHUserRequest struct {
 type AuthenticateWebUserRequest struct {
 	// User is a teleport username.
 	User string `json:"user"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+}
+
+type HeadlessRequest struct {
+	// Actions can be either accept or deny.
+	Action string `json:"action"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
@@ -279,6 +288,16 @@ type SSHLoginPasswordless struct {
 	// CustomPrompt defines a custom webauthn login prompt.
 	// It's an optional field that when nil, it will use the wancli.DefaultPrompt.
 	CustomPrompt wancli.LoginPrompt
+}
+
+type SSHLoginHeadless struct {
+	SSHLogin
+
+	// User is the login username.
+	User string
+
+	// HeadlessAuthenticationID is a headless authentication request ID.
+	HeadlessAuthenticationID string
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -402,6 +421,39 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		RouteToCluster:       login.RouteToCluster,
 		KubernetesCluster:    login.KubernetesCluster,
 		AttestationStatement: login.AttestationStatement,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var out *auth.SSHLoginResponse
+	err = json.Unmarshal(re.Bytes(), &out)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
+// SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
+func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.SSHLoginResponse, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// This request will block until the headless login is approved.
+	clt.Client.HTTPClient().Timeout = defaults.CallbackTimeout
+
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+		User:                     login.User,
+		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
+		PubKey:                   login.PubKey,
+		TTL:                      login.TTL,
+		Compatibility:            login.Compatibility,
+		RouteToCluster:           login.RouteToCluster,
+		KubernetesCluster:        login.KubernetesCluster,
+		AttestationStatement:     login.AttestationStatement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/mlock"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/tool/common"
 )
@@ -432,6 +433,12 @@ type CLIConf struct {
 
 	// tracer is the tracer used to trace tsh commands.
 	tracer oteltrace.Tracer
+
+	// Headless uses headless login for the client session.
+	Headless bool
+
+	// HeadlessAuthenticationID is the ID of a headless authentication.
+	HeadlessAuthenticationID string
 }
 
 // Stdout returns the stdout writer.
@@ -507,6 +514,7 @@ const (
 	loginEnvVar       = "TELEPORT_LOGIN"
 	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
 	proxyEnvVar       = "TELEPORT_PROXY"
+	headlessEnvVar    = "TELEPORT_HEADLESS"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar             = "TELEPORT_SITE"
@@ -619,6 +627,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
+	app.Flag("headless", "Use headless login. Shorthand for --auth=headless.").Envar(headlessEnvVar).BoolVar(&cf.Headless)
 	app.HelpFlag.Short('h')
 
 	ver := app.Command("version", "Print the tsh client and Proxy server versions for the current context.")
@@ -914,6 +923,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("kube-cluster", "Kubernetes Cluster to search for Pods").StringVar(&cf.KubernetesCluster)
 	reqSearch.Flag("kube-namespace", "Kubernetes Namespace to search for Pods").Default(corev1.NamespaceDefault).StringVar(&cf.kubeNamespace)
 	reqSearch.Flag("all-kube-namespaces", "Search Pods in every namespace").BoolVar(&cf.kubeAllNamespaces)
+
+	// Headless login approval
+	headless := app.Command("headless", "headless commands").Interspersed(true)
+	approve := headless.Command("approve", "headless approval").Interspersed(true)
+	approve.Arg("request id", "headless authentication request id").StringVar(&cf.HeadlessAuthenticationID)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1220,6 +1234,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args[idx:])
+	case approve.FullCommand():
+		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -1918,6 +1934,8 @@ func onListNodes(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	tc.AllowHeadless = true
 
 	// Get list of all nodes in backend and sort by "Node Name".
 	var nodes []types.Server
@@ -3002,6 +3020,8 @@ func onSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	tc.AllowHeadless = true
+
 	tc.Stdin = os.Stdin
 	err = retryWithAccessRequest(cf, tc, func() error {
 		err = client.RetryWithRelogin(cf.Context, tc, func() error {
@@ -3120,6 +3140,8 @@ func onSCP(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
+	tc.AllowHeadless = true
+
 	// allow the file transfer to be gracefully stopped if the user wishes
 	ctx, cancel := signal.NotifyContext(cf.Context, os.Interrupt)
 	cf.Context = ctx
@@ -3231,6 +3253,21 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			return nil, trace.Wrap(err)
 		}
 		c.JumpHosts = hosts
+	}
+
+	// --headless is shorthand for --auth=headless
+	if cf.Headless {
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.HeadlessConnector {
+			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
+		}
+		cf.AuthConnector = constants.HeadlessConnector
+	}
+
+	if cf.AuthConnector == constants.HeadlessConnector {
+		// Lock the process memory to prevent rsa keys and certificates from being exposed in a swap.
+		if err := mlock.LockMemory(); err != nil {
+			return nil, trace.Wrap(err, "failed to lock system memory for headless login")
+		}
 	}
 
 	c.ClientStore, err = initClientStore(cf, proxy)
@@ -3433,28 +3470,29 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
-	if cf.IdentityFileIn != "" {
-		keyStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
+	switch {
+	case cf.IdentityFileIn != "":
+		// Import identity file keys to in-memory client store.
+		clientStore, err := identityfile.NewClientStoreFromIdentityFile(cf.IdentityFileIn, proxy, cf.SiteName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return keyStore, nil
-	}
+		return clientStore, nil
 
-	// When logging in with an identity file output, we want to avoid writing
-	// any keys to disk, so we use a full memory client store.
-	if cf.IdentityFileOut != "" {
+	case cf.IdentityFileOut != "", cf.AuthConnector == constants.HeadlessConnector:
+		// Store client keys in memory, where they can be exported to non-standard
+		// FS formats (e.g. identity file) or used for a single client call in memory.
 		return client.NewMemClientStore(), nil
-	}
 
-	clientStore := client.NewFSClientStore(cf.HomePath)
-
-	// Store client keys in memory, but still save trusted certs and profile to disk.
-	if cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+	case cf.AddKeysToAgent == client.AddKeysToAgentOnly:
+		// Store client keys in memory, but save trusted certs and profile to disk.
+		clientStore := client.NewFSClientStore(cf.HomePath)
 		clientStore.KeyStore = client.NewMemKeyStore()
-	}
+		return clientStore, nil
 
-	return clientStore, nil
+	default:
+		return client.NewFSClientStore(cf.HomePath), nil
+	}
 }
 
 func (c *CLIConf) ProfileStatus() (*client.ProfileStatus, error) {
@@ -4545,5 +4583,19 @@ func updateKubeConfigOnLogin(cf *CLIConf, tc *client.TeleportClient, path string
 		return nil
 	}
 	err := updateKubeConfig(cf, tc, "")
+	return trace.Wrap(err)
+}
+
+// onHeadlessApprove executes 'tsh headless approve' command
+func onHeadlessApprove(cf *CLIConf) error {
+	tc, err := makeClient(cf, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.Stdin = os.Stdin
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+	})
 	return trace.Wrap(err)
 }
