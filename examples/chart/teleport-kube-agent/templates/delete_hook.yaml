@@ -82,3 +82,6 @@ spec:
         {{- end }}
         command: ["teleport"]
         args: ["kube-state", "delete"]
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}

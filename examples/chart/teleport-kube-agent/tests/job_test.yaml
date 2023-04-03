@@ -1,0 +1,33 @@
+suite: Job
+templates:
+  - delete_hook.yaml
+
+release:
+  upgrade: true
+tests:
+  - it: should set SecurityContext in post-delete hook
+    template: delete_hook.yaml
+    # first 3 items are ServiceAccount, Role, RoleBinding, 3rd (zero-indexed) is the Job
+    documentIndex: 3
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.capabilities
+          value:
+            drop:
+              - all
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsUser
+          value: 9807
+      - matchSnapshot:
+          path: spec.template.spec

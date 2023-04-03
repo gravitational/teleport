@@ -356,7 +356,7 @@ initSecurityContext:
   runAsNonRoot: true
   runAsUser: 9807
 
-# Security context to add to the container
+# Security context to add to other containers
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:

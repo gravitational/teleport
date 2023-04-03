@@ -1,0 +1,28 @@
+should set SecurityContext in post-delete hook:
+  1: |
+    containers:
+    - args:
+      - kube-state
+      - delete
+      command:
+      - teleport
+      env:
+      - name: KUBE_NAMESPACE
+        valueFrom:
+          fieldRef:
+            fieldPath: metadata.namespace
+      - name: RELEASE_NAME
+        value: RELEASE-NAME
+      image: 'public.ecr.aws/gravitational/teleport:'
+      imagePullPolicy: IfNotPresent
+      name: post-delete-job
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - all
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        runAsUser: 9807
+    restartPolicy: OnFailure
+    serviceAccountName: RELEASE-NAME-delete-hook

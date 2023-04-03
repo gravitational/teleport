@@ -87,4 +87,7 @@ spec:
               # delete deployment
               kubectl delete deployment/{{ .Release.Name }}
             EOF
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
 {{- end}}
