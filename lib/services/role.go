@@ -2712,6 +2712,7 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		return strings.Compare(a.GetName(), b.GetName()) == -1
 	})
 
+	seenSudoers := make(map[string]struct{})
 	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
 		if err != nil {
@@ -2730,8 +2731,16 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
-		sudoers = append(sudoers, role.GetHostSudoers(types.Allow)...)
+		for _, sudoer := range role.GetHostSudoers(types.Allow) {
+			if _, ok := seenSudoers[sudoer]; ok {
+				continue
+			}
+			seenSudoers[sudoer] = struct{}{}
+			sudoers = append(sudoers, sudoer)
+		}
 	}
+
+	var finalSudoers []string
 	for _, role := range roleSet {
 		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
 		if err != nil {
@@ -2744,7 +2753,6 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			delete(groups, group)
 		}
 
-		var finalSudoers []string
 	outer:
 		for _, sudoer := range sudoers {
 			for _, deniedSudoer := range role.GetHostSudoers(types.Deny) {
