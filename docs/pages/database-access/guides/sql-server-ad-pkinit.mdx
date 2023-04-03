@@ -95,7 +95,7 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Publi
 ```
 
 5. Right click on `Trusted Root Certification Authorities` and select `Import`.
-6. Click through the wizard, selecting your CA file.
+6. Click through the wizard, selecting your CA file (`db-ca.cer`).
 
 <Figure align="left" bordered caption="Import Teleport CA">
   ![Import Teleport CA](../../../img/desktop-access/ca.png)
@@ -117,6 +117,14 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 <Figure align="left" bordered caption="Enable the Smart Card Service">
   ![Enable Smartcard](../../../img/desktop-access/smartcard.png)
 </Figure>
+
+<Admonition type="note" title="gpupdate.exe">
+  You will be modifying GPOs, and sometimes GPO modifications can take some time
+  to propagate to all hosts. You can force your changes to take effect
+  immediately on your current host at any time by opening a PowerShell prompt
+  and running `gpupdate.exe /force` (though their effects may still take time to
+  propagate to other machines on the domain).
+</Admonition>
 
 ### Publish Teleport CA
 
@@ -359,6 +367,9 @@ db_service:
       tls:
         # Point it to your Database CA PEM certificate.
         ca_cert_file: "rdsca.pem"
+        # If your database certificate has an empty CN filed, you must change
+        # the TLS mode to only verify the CA.
+        mode: verify-ca
       ad:
        ...
 ```
@@ -366,7 +377,6 @@ db_service:
 If you’re unable to acquire the database CA, you can skip TLS verification by
 providing the configuration `tls.mode: "insecure"`. However, we do not recommend
 skipping TLS verification in production environments.
-
 
 ## Next steps
 
