@@ -1132,8 +1132,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.76-windows.exe'
-  - $relcliSha256 = '56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-master-e148541-20230331T1403513-windows.exe'
+  - $relcliSha256 = '6e2ba2275d5d2bdd1c29def84d2de7d11149a9044c4fdca7c8d87c8e3fb8a91c'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -19085,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: 2b86a86f984a7c738afccafe723b96d7fc197512fe3e5f6845ecaae07b041854
+hmac: 2cc74392d288ea66167865eb9b79a36ed63a86efc44c60ed8498dd8c777dd7ce
 
 ...
