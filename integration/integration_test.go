@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -7338,16 +7339,25 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 		Cluster:   helpers.Site,
 	}, tc.Username)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		// the error is ignored here to avoid failing on io.EOF
+		_ = nodeClient.Close()
+	})
 
 	// forward SSH agent
 	sshClient := nodeClient.Client.Client
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, session.Close())
+		// the error is ignored here to avoid failing on io.EOF
+		_ = session.Close()
 	})
 	require.NoError(t, agent.ForwardToAgent(sshClient, tc.LocalAgent()))
 	require.NoError(t, agent.RequestAgentForwarding(session))
+
+	// run a command
+	err = session.Run("cmd")
+	require.NoError(t, err)
 
 	require.NoError(t, nodeClient.Close())
 }
@@ -7394,6 +7404,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		go ssh.DiscardRequests(reqs)
 
 		var agentForwarded bool
+		var cmdRequested bool
 		for channelReq := range channels {
 			assert.Equal(t, "session", channelReq.ChannelType())
 			channel, reqs, err := channelReq.Accept()
@@ -7409,11 +7420,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				if req.Type == sshutils.AgentForwardRequest {
 					agentForwarded = true
+				} else if req.Type == sshutils.ExecRequest {
+					_, err = channel.SendRequest("exit-status", false, binary.BigEndian.AppendUint32(nil, 0))
+					assert.NoError(t, err)
+					err = channel.Close()
+					assert.NoError(t, err)
+
+					cmdRequested = true
 					break
 				}
 			}
 		}
 		assert.True(t, agentForwarded)
+		assert.True(t, cmdRequested)
 	}()
 
 	return lis.Addr().String()
