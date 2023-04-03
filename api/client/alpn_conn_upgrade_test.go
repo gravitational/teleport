@@ -14,13 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package alpnproxy
+package client
 
 import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"errors"
 	"net"
 	"net/http"
@@ -31,11 +30,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport"
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/fixtures"
 )
 
 func TestIsALPNConnUpgradeRequired(t *testing.T) {
@@ -55,7 +51,7 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 		},
 		{
 			name:           "upgrade not required (proto negotiated)",
-			serverProtos:   []string{string(common.ProtocolReverseTunnel)},
+			serverProtos:   []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 			insecure:       true,
 			expectedResult: false,
 		},
@@ -67,7 +63,7 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 		},
 		{
 			name:           "upgrade not required (other handshake error)",
-			serverProtos:   []string{string(common.ProtocolReverseTunnel)},
+			serverProtos:   []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 			insecure:       false, // to cause handshake error
 			expectedResult: false,
 		},
@@ -138,7 +134,7 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		pool.AddCert(server.Certificate())
 
 		tlsConfig := &tls.Config{RootCAs: pool}
-		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second, apiclient.WithTLSConfig(tlsConfig))
+		preDialer := NewDialer(ctx, 0, 5*time.Second)
 		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
 		require.NoError(t, err)
@@ -158,7 +154,7 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 		require.NoError(t, err)
 
 		tlsConfig := &tls.Config{InsecureSkipVerify: true}
-		preDialer := apiclient.NewDialer(ctx, 0, 5*time.Second, apiclient.WithTLSConfig(tlsConfig))
+		preDialer := NewDialer(ctx, 0, 5*time.Second)
 		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
 		_, err = dialer.DialContext(ctx, "tcp", addr.Host)
 		require.Error(t, err)
@@ -207,12 +203,7 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 		listener.Close()
 	})
 
-	caKey, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
-		CommonName: "localhost",
-	}, []string{"localhost"}, defaults.CATTL)
-	require.NoError(t, err)
-
-	cert, err := tls.X509KeyPair(caCert, caKey)
+	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 
 	m := &mockALPNServer{
@@ -228,8 +219,8 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 // upgrade request and sends back some data inside the tunnel.
 func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.Equal(t, teleport.WebAPIConnUpgrade, r.URL.Path)
-		require.Equal(t, upgradeType, r.Header.Get(teleport.WebAPIConnUpgradeHeader))
+		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
+		require.Equal(t, upgradeType, r.Header.Get(constants.WebAPIConnUpgradeHeader))
 
 		hj, ok := w.(http.Hijacker)
 		require.True(t, ok)
