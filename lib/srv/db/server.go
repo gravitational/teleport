@@ -996,6 +996,12 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Fetch the requested database server.
 	var database types.Database
 	registeredDatabases := s.getProxiedDatabases()
