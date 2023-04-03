@@ -65,7 +65,12 @@ func onAWS(cf *CLIConf) error {
 		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
 	}
 
-	cmd := exec.Command(awsCLIBinaryName, args...)
+	commandToRun := awsCLIBinaryName
+	if cf.Exec != "" {
+		commandToRun = cf.Exec
+	}
+
+	cmd := exec.Command(commandToRun, args...)
 	return awsApp.RunCommand(cmd)
 }
 
@@ -286,8 +291,8 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCert(appCerts),
-		alpnproxy.WithALPNConnUpgradeTest(a.cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AWSAccessMiddleware{
 			AWSCredentials: cred,
 		}),

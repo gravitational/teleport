@@ -204,6 +204,7 @@ const cfg = {
     capturePreUserEventPath: '/v1/webapi/precapture',
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+    webapiPingPath: '/v1/webapi/ping',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {

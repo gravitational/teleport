@@ -580,7 +580,7 @@ func (s *session) launch() error {
 	}()
 
 	if err = s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-		s.log.Warn("Failed to set tracker state to running")
+		s.log.WithError(err).Warn("Failed to set tracker state to running")
 	}
 
 	var executor remotecommand.Executor

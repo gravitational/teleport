@@ -567,6 +567,10 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
+              "title": "Joining Nodes via Azure",
+              "slug": "/management/guides/joining-nodes-azure/"
+            },
+            {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
             }
@@ -637,6 +641,10 @@
         {
           "title": "Using tsh",
           "slug": "/connect-your-client/tsh/"
+        },
+        {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
         },
         {
           "title": "Using Teleport Connect",
@@ -845,6 +853,10 @@
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
             },
             {
+              "title": "Register a Cluster with IAM Joining",
+              "slug": "/kubernetes-access/register-clusters/iam-joining/"
+            },
+            {
               "title": "Register Clusters Dynamically",
               "slug": "/kubernetes-access/register-clusters/dynamic-registration/"
             }
@@ -1038,7 +1050,8 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/desktop-access/getting-started/"
+          "slug": "/desktop-access/getting-started/",
+          "forScopes": ["enterprise", "cloud"]	
         },
         {
           "title": "Active Directory",
@@ -1121,6 +1134,10 @@
               "slug": "/machine-id/guides/github-actions-kubernetes/"
             },
             {
+              "title": "GitLab CI",
+              "slug": "/machine-id/guides/gitlab/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1193,7 +1210,11 @@
         {
           "title": "How to Build an Access Request Plugin",
           "slug": "/api/access-plugin/"
-        }
+        },
+	{
+	    "title": "Automatically Register Teleport Agents",
+	    "slug": "/api/automatically-register-agents/"
+	}
       ]
     },
     {
@@ -1376,7 +1397,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.1.1",
+      "version": "12.1.2",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.5%",

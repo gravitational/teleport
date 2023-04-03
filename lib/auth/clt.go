@@ -26,10 +26,10 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -65,6 +65,8 @@ type Client struct {
 	*APIClient
 	// HTTPClient is used to make http requests to the server
 	*HTTPClient
+	// oktaClient is used to make Okta resoruce requests to the server.
+	oktaClient services.Okta
 }
 
 // Make sure Client implements all the necessary methods.
@@ -119,9 +121,15 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		return nil, trace.Wrap(err)
 	}
 
+	oktaClient, err := client.NewOktaClient(cfg.Context, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Client{
 		APIClient:  apiClient,
 		HTTPClient: httpClient,
+		oktaClient: oktaClient,
 	}, nil
 }
 
@@ -154,13 +162,6 @@ func (c *Client) DeactivateCertAuthority(id types.CertAuthID) error {
 // UpdateUserCARoleMap not implemented: can only be called locally.
 func (c *Client) UpdateUserCARoleMap(ctx context.Context, name string, roleMap types.RoleMap, activated bool) error {
 	return trace.NotImplemented(notImplementedMessage)
-}
-
-// This logic has been moved to KeepAliveServer.
-//
-// KeepAliveNode updates node keep alive information.
-func (c *Client) KeepAliveNode(ctx context.Context, keepAlive types.KeepAlive) error {
-	return trace.BadParameter("not implemented, use StreamKeepAlives instead")
 }
 
 // KeepAliveServer not implemented: can only be called locally.
@@ -383,6 +384,10 @@ func (c *Client) GetLicense(ctx context.Context) (string, error) {
 
 func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 	return c.APIClient.ListReleases(ctx, &proto.ListReleasesRequest{})
+}
+
+func (c *Client) OktaClient() services.Okta {
+	return c.oktaClient
 }
 
 // WebService implements features used by Web UI clients
@@ -756,7 +761,13 @@ type ClientI interface {
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
-	OktaClient() *okta.Client
+	OktaClient() services.Okta
+
+	// PluginsClient returns a Plugins client.
+	// Clients connecting to non-Enterprise clusters, or older Teleport versions,
+	// still get a plugins client when calling this method, but all RPCs will return
+	// "not implemented" errors (as per the default gRPC behavior).
+	PluginsClient() pluginspb.PluginServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)

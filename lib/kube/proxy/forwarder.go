@@ -78,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -153,6 +154,8 @@ type ForwarderConfig struct {
 	CheckImpersonationPermissions ImpersonationPermissionsChecker
 	// PublicAddr is the address that can be used to reach the kube cluster
 	PublicAddr string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 	// log is the logger function
 	log logrus.FieldLogger
 }
@@ -182,6 +185,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
+	}
+	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
+		return trace.BadParameter("missing parameter PROXYSigner")
 	}
 	if f.Namespace == "" {
 		f.Namespace = apidefaults.Namespace
@@ -325,7 +331,18 @@ type Forwarder struct {
 	sessions map[uuid.UUID]*session
 	// upgrades connections to websockets
 	upgrader websocket.Upgrader
+	// getKubernetesServersForKubeCluster is a function that returns a list of
+	// kubernetes servers for a given kube cluster but uses different methods
+	// depending on the service type.
+	// For example, if the service type is KubeService, it will use the
+	// local kubernetes clusters. If the service type is Proxy, it will
+	// use the heartbeat clusters.
+	getKubernetesServersForKubeCluster getKubeServersByNameFunc
 }
+
+// getKubeServersByNameFunc is a function that returns a list of
+// kubernetes servers for a given kube cluster.
+type getKubeServersByNameFunc = func(ctx context.Context, name string) ([]types.KubeServer, error)
 
 // Close signals close to all outstanding or background operations
 // to complete
@@ -369,6 +386,9 @@ type authContext struct {
 	kubeResource *types.KubernetesResource
 	// httpMethod is the request HTTP Method.
 	httpMethod string
+	// kubeServers are the registered agents for the kubernetes cluster the request
+	// is targeted to.
+	kubeServers []types.KubeServer
 }
 
 func (c authContext) String() string {
@@ -636,7 +656,9 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 	}
 
 	kubeCluster := identity.KubernetesCluster
-	if !isRemoteCluster {
+	// Only set a default kube cluster if the user is not accessing a specific cluster.
+	// The check for kubeCluster != "" is happens in the next code section.
+	if !isRemoteCluster && kubeCluster == "" {
 		kc, err := kubeutils.CheckOrSetKubeCluster(req.Context(), f.cfg.CachingAuthClient, identity.KubernetesCluster, teleportClusterName)
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -653,14 +675,20 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 	var (
 		kubeUsers, kubeGroups []string
 		kubeLabels            map[string]string
+		kubeServers           []types.KubeServer
+		err                   error
 	)
 	// Only check k8s principals for local clusters.
 	//
 	// For remote clusters, everything will be remapped to new roles on the
 	// leaf and checked there.
 	if !isRemoteCluster {
+		kubeServers, err = f.getKubernetesServersForKubeCluster(req.Context(), kubeCluster)
+		if err != nil || len(kubeServers) == 0 {
+			return nil, trace.NotFound("cluster %q not found", kubeCluster)
+		}
 		// check signing TTL and return a list of allowed logins for local cluster based on Kubernetes service labels.
-		kubeAccessDetails, err := f.getKubeAccessDetails(roles, kubeCluster, sessionTTL, kubeResource)
+		kubeAccessDetails, err := f.getKubeAccessDetails(kubeServers, roles, kubeCluster, sessionTTL, kubeResource)
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 			// roles.CheckKubeGroupsAndUsers returns trace.NotFound if the user does
@@ -680,6 +708,10 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 	// the correct behavior when forwarding the request to the Kubernetes API.
 	kubeUsers, kubeGroups = fillDefaultKubePrincipalDetails(kubeUsers, kubeGroups, authCtx.User.GetName())
 
+	clientSrc, clientDst := utils.ClientAddrFromContext(req.Context())
+
+	forwarderType := f.cfg.KubeServiceType
+
 	// Get a dialer for either a k8s endpoint in current cluster or a tunneled
 	// endpoint for a leaf teleport cluster.
 	var dialFn dialFunc
@@ -698,11 +730,12 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 
 		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
 			return targetCluster.DialTCP(reversetunnel.DialParams{
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
-				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				ConnType:              types.KubeTunnel,
+				ServerID:              endpoint.serverID,
+				ProxyIDs:              endpoint.proxyIDs,
+				OriginalClientDstAddr: clientDst,
 			})
 		}
 		isRemoteClosed = targetCluster.IsClosed
@@ -717,19 +750,45 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 		}
 
 		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
+
+			// Make sure we will only send signed PROXY headers to teleport kube service node, not real kube cluster
+			if forwarderType != ProxyService && endpoint.serverID == "" {
+				clientDst = nil
+			}
 			return localCluster.DialTCP(reversetunnel.DialParams{
-				From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
-				To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
-				ConnType: types.KubeTunnel,
-				ServerID: endpoint.serverID,
-				ProxyIDs: endpoint.proxyIDs,
+				From:                  &utils.NetAddr{AddrNetwork: "tcp", Addr: req.RemoteAddr},
+				To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: endpoint.addr},
+				ConnType:              types.KubeTunnel,
+				ServerID:              endpoint.serverID,
+				ProxyIDs:              endpoint.proxyIDs,
+				OriginalClientDstAddr: clientDst,
 			})
 		}
 		isRemoteClosed = localCluster.IsClosed
 	} else {
 		// Don't have a reverse tunnel server, so we can only dial directly.
 		dialFn = func(ctx context.Context, network string, endpoint kubeClusterEndpoint) (net.Conn, error) {
-			return new(net.Dialer).DialContext(ctx, network, endpoint.addr)
+			conn, err := new(net.Dialer).DialContext(ctx, network, endpoint.addr)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// Make sure we will only send signed PROXY headers to teleport kube service node, not real kube cluster
+			if forwarderType != ProxyService && endpoint.serverID == "" {
+				clientDst = nil
+			}
+			// Teleport proxy will send signed PROXY headers to the kube service
+			if f.cfg.PROXYSigner != nil && clientSrc != nil && clientDst != nil {
+				signedHeader, err := f.cfg.PROXYSigner.SignPROXYHeader(clientSrc, clientDst)
+				if err != nil {
+					return nil, trace.Wrap(err, "could not create signed PROXY header")
+				}
+				if _, err := conn.Write(signedHeader); err != nil {
+					return nil, trace.Wrap(err, "could not write signed PROXY header into connection")
+				}
+			}
+
+			return conn, nil
 		}
 		isRemoteClosed = func() bool { return false }
 	}
@@ -767,7 +826,8 @@ func (f *Forwarder) setupContext(authCtx authz.Context, req *http.Request, isRem
 			isRemote:       isRemoteCluster,
 			isRemoteClosed: isRemoteClosed,
 		},
-		httpMethod: req.Method,
+		httpMethod:  req.Method,
+		kubeServers: kubeServers,
 	}, nil
 }
 
@@ -840,16 +900,12 @@ type kubeAccessDetails struct {
 
 // getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
 func (f *Forwarder) getKubeAccessDetails(
+	kubeServers []types.KubeServer,
 	roles services.AccessChecker,
 	kubeClusterName string,
 	sessionTTL time.Duration,
 	kubeResource *types.KubernetesResource,
 ) (kubeAccessDetails, error) {
-	kubeServers, err := f.cfg.CachingAuthClient.GetKubernetesServers(f.ctx)
-	if err != nil {
-		return kubeAccessDetails{}, trace.Wrap(err)
-	}
-
 	// Find requested kubernetes cluster name and get allowed kube users/groups names.
 	for _, s := range kubeServers {
 		c := s.GetCluster()
@@ -927,6 +983,11 @@ func getPodResourceFromRequest(requestURI string) *types.KubernetesResource {
 }
 
 func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, actx.Identity.GetIdentity(), actx.Checker.PinSourceIP()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if actx.teleportCluster.isRemote {
 		// Authorization for a remote kube cluster will happen on the remote
 		// end (by their proxy), after that cluster has remapped used roles.
@@ -939,10 +1000,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
 		return nil
 	}
-	servers, err := f.cfg.CachingAuthClient.GetKubernetesServers(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+
 	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -969,7 +1027,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	//
 	// We assume that users won't register two identically-named clusters with
 	// mis-matched labels. If they do, expect weirdness.
-	for _, s := range servers {
+	for _, s := range actx.kubeServers {
 		ks := s.GetCluster()
 		if ks.GetName() != actx.kubeClusterName {
 			continue
@@ -2049,11 +2107,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 		return sess, nil
 	}
 
-	kubeServers, err := f.cfg.CachingAuthClient.GetKubernetesServers(f.ctx)
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
-	}
-
+	kubeServers := ctx.kubeServers
 	if len(kubeServers) == 0 && ctx.kubeClusterName == ctx.teleportCluster.name {
 		return nil, trace.Wrap(localErr)
 	}
@@ -2082,12 +2136,8 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 }
 
 func (f *Forwarder) newClusterSessionLocal(ctx authContext) (*clusterSession, error) {
-	if len(f.clusterDetails) == 0 {
-		return nil, trace.NotFound("this Teleport process is not configured for direct Kubernetes access; you likely need to 'tsh login' into a leaf cluster or 'tsh kube login' into a different kubernetes cluster")
-	}
-
-	details, ok := f.clusterDetails[ctx.kubeClusterName]
-	if !ok {
+	details, err := f.findKubeDetailsByClusterName(ctx.kubeClusterName)
+	if err != nil {
 		return nil, trace.NotFound("kubernetes cluster %q not found", ctx.kubeClusterName)
 	}
 

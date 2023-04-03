@@ -50,7 +50,7 @@ func Match(ctx context.Context, authClient Getter, fn Matcher) ([]types.AppServe
 
 	var as []types.AppServer
 	for _, server := range servers {
-		if fn(server) {
+		if fn(ctx, server) {
 			as = append(as, server)
 		}
 	}
@@ -71,7 +71,7 @@ func MatchOne(ctx context.Context, authClient Getter, fn Matcher) (types.AppServ
 	}
 
 	for _, server := range servers {
-		if fn(server) {
+		if fn(ctx, server) {
 			return server, nil
 		}
 	}
@@ -80,18 +80,18 @@ func MatchOne(ctx context.Context, authClient Getter, fn Matcher) (types.AppServ
 }
 
 // Matcher allows matching on different properties of an application.
-type Matcher func(types.AppServer) bool
+type Matcher func(context.Context, types.AppServer) bool
 
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
-	return func(appServer types.AppServer) bool {
+	return func(_ context.Context, appServer types.AppServer) bool {
 		return appServer.GetApp().GetPublicAddr() == publicAddr
 	}
 }
 
 // MatchName matches on the name of an application.
 func MatchName(name string) Matcher {
-	return func(appServer types.AppServer) bool {
+	return func(_ context.Context, appServer types.AppServer) bool {
 		return appServer.GetApp().GetName() == name
 	}
 }
@@ -100,8 +100,8 @@ func MatchName(name string) Matcher {
 // `dialAppServer` function. The app server is matched if the function call
 // doesn't return any error.
 func MatchHealthy(proxyClient reversetunnel.Tunnel, clusterName string) Matcher {
-	return func(appServer types.AppServer) bool {
-		conn, err := dialAppServer(proxyClient, clusterName, appServer)
+	return func(ctx context.Context, appServer types.AppServer) bool {
+		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
 		if err != nil {
 			return false
 		}
@@ -113,9 +113,9 @@ func MatchHealthy(proxyClient reversetunnel.Tunnel, clusterName string) Matcher 
 
 // MatchAll matches if all the Matcher functions return true.
 func MatchAll(matchers ...Matcher) Matcher {
-	return func(appServer types.AppServer) bool {
+	return func(ctx context.Context, appServer types.AppServer) bool {
 		for _, fn := range matchers {
-			if !fn(appServer) {
+			if !fn(ctx, appServer) {
 				return false
 			}
 		}

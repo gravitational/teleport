@@ -20,9 +20,11 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
@@ -40,12 +42,27 @@ type GetClusterCACertPoolFunc func(ctx context.Context) (*x509.CertPool, error)
 func WithALPNConnUpgradeTest(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.ALPNConnUpgradeRequired = IsALPNConnUpgradeRequired(config.RemoteProxyAddr, config.InsecureSkipVerify)
+		return trace.Wrap(WithClusterCAsIfConnUpgrade(ctx, getClusterCertPool)(config))
+	}
+}
+
+// WithClusterCAsIfConnUpgrade is a LocalProxyConfigOpt that fetches the
+// cluster CAs when ALPN connection upgrades are required.
+func WithClusterCAsIfConnUpgrade(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
 		if !config.ALPNConnUpgradeRequired {
 			return nil
 		}
 
 		// If ALPN connection upgrade is required, explicitly use the cluster
 		// CAs since the tunneled TLS routing connection serves the Host cert.
+		return trace.Wrap(WithClusterCAs(ctx, getClusterCertPool)(config))
+	}
+}
+
+// WithClusterCAs is a LocalProxyConfigOpt that fetches the cluster CAs.
+func WithClusterCAs(ctx context.Context, getClusterCertPool GetClusterCACertPoolFunc) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
 		clusterCAs, err := getClusterCertPool(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -55,11 +72,11 @@ func WithALPNConnUpgradeTest(ctx context.Context, getClusterCertPool GetClusterC
 	}
 }
 
-// WithClientCert is a LocalProxyConfigOpt that sets the client certs used to
+// WithClientCerts is a LocalProxyConfigOpt that sets the client certs used to
 // connect to the remote Teleport Proxy.
-func WithClientCert(certs tls.Certificate) LocalProxyConfigOpt {
+func WithClientCerts(certs ...tls.Certificate) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
-		config.Certs = []tls.Certificate{certs}
+		config.Certs = certs
 		return nil
 	}
 }
@@ -70,6 +87,18 @@ func WithALPNProtocol(protocol common.Protocol) LocalProxyConfigOpt {
 	return func(config *LocalProxyConfig) error {
 		config.Protocols = []common.Protocol{protocol}
 		return nil
+	}
+}
+
+// WithDatabaseProtocol is a LocalProxyConfigOpt that sets the ALPN protocol
+// based on the provided database protocol.
+func WithDatabaseProtocol(dbProtocol string) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		alpnProtocol, err := common.ToALPNProtocol(dbProtocol)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(WithALPNProtocol(alpnProtocol)(config))
 	}
 }
 
@@ -84,4 +113,47 @@ func WithHTTPMiddleware(middleware LocalProxyHTTPMiddleware) LocalProxyConfigOpt
 		}
 		return nil
 	}
+}
+
+// WithMiddleware is a LocalProxyConfigOpt that sets Middleware.
+func WithMiddleware(middleware LocalProxyMiddleware) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		config.Middleware = middleware
+		return nil
+	}
+}
+
+// WithCheckCertsNeeded is a LocalProxyConfigOpt that enables check certs on
+// demand.
+func WithCheckCertsNeeded() LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		config.CheckCertsNeeded = true
+		return nil
+	}
+}
+
+// WithMySQLVersionProto is a LocalProxyConfigOpt that encodes MySQL version in
+// the ALPN protocol.
+func WithMySQLVersionProto(db types.Database) LocalProxyConfigOpt {
+	return func(config *LocalProxyConfig) error {
+		mysqlServerVersionProto := mySQLVersionToProto(db)
+		if mysqlServerVersionProto != "" {
+			config.Protocols = append(config.Protocols, common.Protocol(mysqlServerVersionProto))
+		}
+		return nil
+	}
+}
+
+// mySQLVersionToProto returns base64 encoded MySQL server version with MySQL protocol prefix.
+// If version is not set in the past database an empty string is returned.
+func mySQLVersionToProto(database types.Database) string {
+	version := database.GetMySQLServerVersion()
+	if version == "" {
+		return ""
+	}
+
+	versionBase64 := base64.StdEncoding.EncodeToString([]byte(version))
+
+	// Include MySQL server version
+	return string(common.ProtocolMySQLWithVerPrefix) + versionBase64
 }

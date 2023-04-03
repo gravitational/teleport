@@ -336,12 +336,16 @@ type CLIConf struct {
 	// LocalProxyPort is a port used by local proxy listener.
 	LocalProxyPort string
 	// LocalProxyCertFile is the client certificate used by local proxy.
+	// DEPRECATED DELETE IN 14.0
 	LocalProxyCertFile string
 	// LocalProxyKeyFile is the client key used by local proxy.
+	// DEPRECATED DELETE IN 14.0
 	LocalProxyKeyFile string
 	// LocalProxyTunnel specifies whether local proxy will open auth'd tunnel.
 	LocalProxyTunnel bool
 
+	// Exec is the command to run via tsh aws.
+	Exec string
 	// AWSRole is Amazon Role ARN or role name that will be used for AWS CLI access.
 	AWSRole string
 	// AWSCommandArgs contains arguments that will be forwarded to AWS CLI binary.
@@ -668,6 +672,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	aws.Flag("app", "Optional Name of the AWS application to use if logged into multiple.").StringVar(&cf.AppName)
 	aws.Flag("endpoint-url", "Run local proxy to serve as an AWS endpoint URL. If not specified, local proxy serves as an HTTPS proxy.").
 		Short('e').Hidden().BoolVar(&cf.AWSEndpointURLMode)
+	aws.Flag("exec", "Execute different commands (e.g. terraform) under Teleport credentials").StringVar(&cf.Exec)
 
 	azure := app.Command("az", "Access Azure API.").Interspersed(false)
 	azure.Arg("command", "`az` command and subcommands arguments that are going to be forwarded to Azure CLI.").StringsVar(&cf.AzureCommandArgs)
@@ -1714,11 +1719,6 @@ func onLogin(cf *CLIConf) error {
 		}
 	}
 
-	pingResp, err := tc.Ping(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Regular login without -i flag.
 	if err := tc.SaveProfile(true); err != nil {
 		return trace.Wrap(err)
@@ -1783,11 +1783,6 @@ func onLogin(cf *CLIConf) error {
 	// Print status to show information of the logged in user.
 	if err := onStatus(cf); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Display any license compliance warnings
-	for _, warning := range pingResp.LicenseWarnings {
-		fmt.Fprintf(os.Stderr, "%s\n\n", warning)
 	}
 
 	// Show on-login alerts, all high severity alerts are shown by onStatus
@@ -3742,7 +3737,9 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 			count = count + 1
 		}
 	}
-	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	if len(p.Logins) > 0 {
+		fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	}
 	if p.KubernetesEnabled {
 		fmt.Printf("  Kubernetes:         enabled\n")
 		if kubeCluster != "" {
@@ -3875,6 +3872,22 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	if p == nil {
 		return nil
 	}
+
+	// Filter out login names that were added internally.
+	// These are for internal use and are not valid UNIX login names
+	// because they start with a hyphen.
+	var logins []string
+	for _, login := range p.Logins {
+		// Specifically filters out these:
+		//   - api/constants.NoLoginPrefix
+		//   - teleport/constants.SSHSessionJoinPrincipal
+		isTeleportDefinedLogin := strings.HasPrefix(login, "-teleport-")
+
+		if !isTeleportDefinedLogin {
+			logins = append(logins, login)
+		}
+	}
+
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
@@ -3882,7 +3895,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
-		Logins:             p.Logins,
+		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
 		KubernetesCluster:  selectedKubeCluster(p.Cluster),
 		KubernetesUsers:    p.KubeUsers,

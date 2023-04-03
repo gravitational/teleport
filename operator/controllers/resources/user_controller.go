@@ -91,14 +91,19 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	exists := !trace.IsNotFound(err)
 
-	newOwnershipCondition, isOwned := checkOwnership(existingResource)
-	meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
-	if !isOwned {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
+	if exists {
+		newOwnershipCondition, isOwned := checkOwnership(existingResource)
+		meta.SetStatusCondition(&k8sResource.Status.Conditions, newOwnershipCondition)
+		if !isOwned {
+			silentUpdateStatus(ctx, r.Client, k8sResource)
+			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
+		}
+	} else {
+		// The resource does not yet exist
+		meta.SetStatusCondition(&k8sResource.Status.Conditions, newResourceCondition)
 	}
 
-	r.addTeleportResourceOrigin(teleportResource)
+	r.AddTeleportResourceOrigin(teleportResource)
 
 	if !exists {
 		err = teleportClient.CreateUser(ctx, teleportResource)
@@ -119,7 +124,7 @@ func (r *UserReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	return trace.Wrap(r.Status().Update(ctx, k8sResource))
 }
 
-func (r *UserReconciler) addTeleportResourceOrigin(resource types.User) {
+func (r *UserReconciler) AddTeleportResourceOrigin(resource types.User) {
 	metadata := resource.GetMetadata()
 	if metadata.Labels == nil {
 		metadata.Labels = make(map[string]string)

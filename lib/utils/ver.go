@@ -21,6 +21,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var MinIPPropagationVersion = semver.New(VersionBeforeAlpha("12.2.0")).String()
+
 // CheckVersion compares a version with a minimum version supported.
 func CheckVersion(currentVersion, minVersion string) error {
 	currentSemver, minSemver, err := versionStringToSemver(currentVersion, minVersion)

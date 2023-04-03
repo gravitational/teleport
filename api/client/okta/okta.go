@@ -152,6 +152,17 @@ func (c *Client) UpdateOktaAssignment(ctx context.Context, assignment types.Okta
 	return resp, trail.FromGRPC(err)
 }
 
+// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
+// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
+// will be updated if possible.
+func (c *Client) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
+	resp, err := c.grpcClient.UpdateOktaAssignmentActionStatuses(ctx, &oktapb.UpdateOktaAssignmentActionStatusesRequest{
+		Name:   name,
+		Status: types.OktaAssignmentActionStatusToProto(status),
+	})
+	return resp, trail.FromGRPC(err)
+}
+
 // DeleteOktaAssignmentremoves the specified Okta assignment resource.
 func (c *Client) DeleteOktaAssignment(ctx context.Context, name string) error {
 	_, err := c.grpcClient.DeleteOktaAssignment(ctx, &oktapb.DeleteOktaAssignmentRequest{

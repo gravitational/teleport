@@ -2385,7 +2385,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	app2, err := types.NewAppV3(types.Metadata{
 		Name:   "app2",
-		Labels: map[string]string{types.OriginLabel: types.OriginDynamic},
+		Labels: map[string]string{types.OriginLabel: types.OriginOkta}, // This should be overwritten
 	}, types.AppSpecV3{
 		URI: "localhost2",
 	})
@@ -2403,6 +2403,7 @@ func TestAppsCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch all apps.
+	app2.SetOrigin(types.OriginDynamic)
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.Application{app1, app2}, out,
@@ -2453,6 +2454,104 @@ func TestAppsCRUD(t *testing.T) {
 	out, err = clt.GetApps(ctx)
 	require.NoError(t, err)
 	require.Len(t, out, 0)
+}
+
+// TestAppServersCRUD tests application server resource operations.
+func TestAppServersCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	// Create an app server, expected origin dynamic.
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	app1, err := types.NewAppV3(types.Metadata{
+		Name: "app-dynamic",
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+
+	appServer1, err := types.NewAppServerV3FromApp(app1, "app-dynamic", "hostID")
+	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer1)
+	require.NoError(t, err)
+
+	resources, err := clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources.Resources, 1)
+
+	appServer := resources.Resources[0].(types.AppServer)
+	require.Empty(t, cmp.Diff(appServer, appServer1,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer1.GetName()))
+
+	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Empty(t, resources.Resources)
+
+	// Try to create app servers with Okta labels as a non-Okta role.
+	app2, err := types.NewAppV3(types.Metadata{
+		Name:   "app-okta",
+		Labels: map[string]string{types.OriginLabel: types.OriginOkta},
+	}, types.AppSpecV3{
+		URI: "localhost1",
+	})
+	require.NoError(t, err)
+
+	appServer2, err := types.NewAppServerV3FromApp(app2, "app-okta", "hostID")
+	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"))
+
+	delete(app2.Metadata.Labels, types.OriginLabel)
+	appServer2.SetOrigin(types.OriginOkta)
+
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create app servers and apps with an Okta origin"))
+
+	// Create an app server with Okta labels using the Okta role.
+	clt, err = srv.NewClient(TestBuiltin(types.RoleOkta))
+	require.NoError(t, err)
+
+	app2.SetOrigin(types.OriginOkta)
+	appServer2.SetOrigin(types.OriginOkta)
+	_, err = clt.UpsertApplicationServer(ctx, appServer2)
+	require.NoError(t, err)
+
+	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources.Resources, 1)
+
+	appServer2.SetOrigin(types.OriginOkta)
+	app2.SetOrigin(types.OriginOkta)
+	appServer = resources.Resources[0].(types.AppServer)
+	require.Empty(t, cmp.Diff(appServer, appServer2,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
+
+	require.NoError(t, clt.DeleteApplicationServer(ctx, apidefaults.Namespace, "hostID", appServer2.GetName()))
+
+	resources, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		ResourceType: types.KindAppServer,
+		Limit:        apidefaults.DefaultChunkSize,
+	})
+	require.NoError(t, err)
+	require.Empty(t, resources.Resources)
 }
 
 // TestDatabasesCRUD tests database resource operations.

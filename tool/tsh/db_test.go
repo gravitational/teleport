@@ -62,40 +62,41 @@ func TestDatabaseLogin(t *testing.T) {
 		withAuthConfig(func(cfg *service.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}))
-	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
-		Name:     "postgres",
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-	}, service.Database{
-		Name:     "mysql",
-		Protocol: defaults.ProtocolMySQL,
-		URI:      "localhost:3306",
-	}, service.Database{
-		Name:     "cassandra",
-		Protocol: defaults.ProtocolCassandra,
-		URI:      "localhost:9042",
-	}, service.Database{
-		Name:     "snowflake",
-		Protocol: defaults.ProtocolSnowflake,
-		URI:      "localhost.snowflakecomputing.com",
-	}, service.Database{
-		Name:     "mongo",
-		Protocol: defaults.ProtocolMongoDB,
-		URI:      "localhost:27017",
-	}, service.Database{
-		Name:     "mssql",
-		Protocol: defaults.ProtocolSQLServer,
-		URI:      "localhost:1433",
-	}, service.Database{
-		Name:     "dynamodb",
-		Protocol: defaults.ProtocolDynamoDB,
-		URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
-		AWS: service.DatabaseAWS{
-			AccountID:  "12345",
-			ExternalID: "123123123",
-			Region:     "us-west-1",
-		},
-	})
+	makeTestDatabaseServer(t, authProcess, proxyProcess,
+		service.Database{
+			Name:     "postgres",
+			Protocol: defaults.ProtocolPostgres,
+			URI:      "localhost:5432",
+		}, service.Database{
+			Name:     "mysql",
+			Protocol: defaults.ProtocolMySQL,
+			URI:      "localhost:3306",
+		}, service.Database{
+			Name:     "cassandra",
+			Protocol: defaults.ProtocolCassandra,
+			URI:      "localhost:9042",
+		}, service.Database{
+			Name:     "snowflake",
+			Protocol: defaults.ProtocolSnowflake,
+			URI:      "localhost.snowflakecomputing.com",
+		}, service.Database{
+			Name:     "mongo",
+			Protocol: defaults.ProtocolMongoDB,
+			URI:      "localhost:27017",
+		}, service.Database{
+			Name:     "mssql",
+			Protocol: defaults.ProtocolSQLServer,
+			URI:      "localhost:1433",
+		}, service.Database{
+			Name:     "dynamodb",
+			Protocol: defaults.ProtocolDynamoDB,
+			URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
+			AWS: service.DatabaseAWS{
+				AccountID:  "123456789012",
+				ExternalID: "123123123",
+				Region:     "us-west-1",
+			},
+		})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -253,6 +254,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 	tests := map[string]struct {
 		clusterAuthPref types.AuthPreference
 		route           *tlsca.RouteToDatabase
+		setupTC         func(*client.TeleportClient)
 		wantLocalProxy  bool
 		wantTunnel      bool
 	}{
@@ -275,6 +277,25 @@ func TestLocalProxyRequirement(t *testing.T) {
 			wantLocalProxy: true,
 			wantTunnel:     true,
 		},
+		"local proxy not required for separate port": {
+			clusterAuthPref: defaultAuthPref,
+			setupTC: func(tc *client.TeleportClient) {
+				tc.TLSRoutingEnabled = false
+				tc.TLSRoutingConnUpgradeRequired = true
+				tc.PostgresProxyAddr = "separate.postgres.hostport:8888"
+			},
+			wantLocalProxy: false,
+			wantTunnel:     false,
+		},
+		"local proxy required if behind lb": {
+			clusterAuthPref: defaultAuthPref,
+			setupTC: func(tc *client.TeleportClient) {
+				tc.TLSRoutingEnabled = true
+				tc.TLSRoutingConnUpgradeRequired = true
+			},
+			wantLocalProxy: true,
+			wantTunnel:     false,
+		},
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -289,6 +310,9 @@ func TestLocalProxyRequirement(t *testing.T) {
 			}
 			tc, err := makeClient(cf, false)
 			require.NoError(t, err)
+			if tt.setupTC != nil {
+				tt.setupTC(tc)
+			}
 			route := &tlsca.RouteToDatabase{
 				ServiceName: "foo-db",
 				Protocol:    "postgres",
@@ -635,6 +659,12 @@ func TestFormatDatabaseConnectArgs(t *testing.T) {
 			cluster:   "",
 			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolDynamoDB, ServiceName: "svc"},
 			wantFlags: []string{"--db-user=<user>", "svc"},
+		},
+		{
+			name:      "match user and db name, oracle protocol",
+			cluster:   "",
+			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolOracle, ServiceName: "svc"},
+			wantFlags: []string{"--db-user=<user>", "--db-name=<name>", "svc"},
 		},
 	}
 	for _, tt := range tests {

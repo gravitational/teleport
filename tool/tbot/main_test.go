@@ -65,6 +65,7 @@ func TestRun_Configure(t *testing.T) {
 				"--oneshot",
 				"--certificate-ttl", "42m",
 				"--renewal-interval", "21m",
+				"--fips",
 			}...),
 		},
 	}

@@ -75,12 +75,12 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	tlsConfig, err := id.TLSConfig(nil /* cipherSuites */)
+	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig, err := id.SSHClientConfig()
+	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -473,7 +473,15 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Expires:            &expires,
+		FIPS:               b.cfg.FIPS,
+		CipherSuites:       b.cfg.CipherSuites(),
 	}
+	if params.JoinMethod == types.JoinMethodAzure {
+		params.AzureParams = auth.AzureParams{
+			ClientID: b.cfg.Onboarding.Azure.ClientID,
+		}
+	}
+
 	certs, err := auth.Register(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -500,10 +508,11 @@ func (b *Bot) renewIdentityViaAuth(
 	switch joinMethod {
 	// When using join methods that are repeatable - renew fully rather than
 	// renewing using existing credentials.
-	case types.JoinMethodIAM,
+	case types.JoinMethodAzure,
+		types.JoinMethodCircleCI,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
-		types.JoinMethodCircleCI:
+		types.JoinMethodIAM:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
