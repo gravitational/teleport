@@ -781,7 +781,7 @@ steps:
     /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe'
   - rm -r windows-signing-cert.pfx
   environment:
-    CSC_LINK:
+    WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
@@ -1032,7 +1032,7 @@ steps:
     /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-$TeleportVersion-amd64.exe'
   - rm -r windows-signing-cert.pfx
   environment:
-    CSC_LINK:
+    WINDOWS_SIGNING_CERT:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
@@ -19085,6 +19085,6 @@ volumes:
   temp: {}
 ---
 kind: signature
-hmac: a965b98d3408d3197ddc903e6fdd2fca0b85bc5863af6d5c6fbcab908f8eeb6f
+hmac: 7e2eecc2f9c8b267c639d45882ec08cf14aa32dbe1144f2d649822de3aa831e5
 
 ...

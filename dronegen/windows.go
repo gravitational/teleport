@@ -284,8 +284,8 @@ func buildWindowsAuthenticationPackageStep(workspace string) step {
 	return step{
 		Name: "Build Windows Authentication Package",
 		Environment: map[string]value{
-			"WORKSPACE_DIR": {raw: workspace},
-			"CSC_LINK":      {fromSecret: "WINDOWS_SIGNING_CERT"},
+			"WORKSPACE_DIR":        {raw: workspace},
+			"WINDOWS_SIGNING_CERT": {fromSecret: "WINDOWS_SIGNING_CERT"},
 		},
 		Commands: []string{
 			`$ErrorActionPreference = 'Stop'`,
