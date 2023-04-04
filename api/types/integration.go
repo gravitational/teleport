@@ -102,7 +102,7 @@ func (ig *IntegrationV1) CheckAndSetDefaults() error {
 // CheckAndSetDefaults validates and sets default values for a integration.
 func (s *IntegrationSpecV1) CheckAndSetDefaults() error {
 	if s.SubKindSpec == nil {
-		return trace.BadParameter("invalid subkind_spec")
+		return trace.BadParameter("missing required subkind spec")
 	}
 
 	switch integrationSubKind := s.SubKindSpec.(type) {
@@ -261,5 +261,6 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d.Spec.Status = ig.Spec.Status
 	d.Spec.SubKindSpec = ig.Spec.SubKindSpec
 
-	return json.Marshal(d)
+	out, err := json.Marshal(d)
+	return out, trace.Wrap(err)
 }
