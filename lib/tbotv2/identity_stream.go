@@ -53,15 +53,26 @@ func (ism *IdentityStreamManager) fetchIdentity(ctx context.Context, req Identit
 	return certs, nil
 }
 
-// TODO: What repercussion does this have? How can we ensure we don't
-// stampeding herd an auth server?
-// Can we limit number of concurrent renewals as a sane option?
 func (ism *IdentityStreamManager) RenewAll() {
 	ism.mu.Lock()
 	defer ism.mu.Unlock()
 	for is := range ism.identityStreams {
 		is.ForceRenew()
 	}
+}
+
+func (ism *IdentityStreamManager) registerStream(is *IdentityStream) {
+	ism.mu.Lock()
+	defer ism.mu.Unlock()
+	ism.wg.Add(1)
+	ism.identityStreams[is] = struct{}{}
+}
+
+func (ism *IdentityStreamManager) deregisterStream(is *IdentityStream) {
+	ism.mu.Lock()
+	defer ism.mu.Unlock()
+	ism.wg.Done()
+	delete(ism.identityStreams, is)
 }
 
 func (ism *IdentityStreamManager) Run() {
@@ -94,7 +105,7 @@ type IdentityStream struct {
 	closeCh        chan struct{}
 	forceRenewalCh chan struct{}
 
-	Identity chan Identity
+	Identity chan *Identity
 }
 
 func (is *IdentityStream) ForceRenew() {
@@ -119,9 +130,12 @@ func (is *IdentityStream) Close() {
 
 func (is *IdentityStream) run() {
 	defer func() {
+		// Indicate to consumer that no more identities are coming and that the
+		// IS has shutdown.
 		close(is.Identity)
-		is.Close()
-		is.owner.wg.Done()
+		// Deregister last to indicate all shut down is complete and goroutine
+		// is exiting.
+		is.owner.deregisterStream(is)
 	}()
 	ctx := context.Background()
 
@@ -129,7 +143,7 @@ func (is *IdentityStream) run() {
 	if err != nil {
 		panic(err) // TODO: Requeue after X
 	}
-	is.Identity <- Identity{certs: certs}
+	is.Identity <- &Identity{certs: certs}
 
 	// If refresh is disabled, all work is complete.
 	if is.req.Refresh == 0 {
@@ -149,11 +163,12 @@ func (is *IdentityStream) run() {
 			case <-is.forceRenewalCh:
 			case <-timer.Chan():
 				// TODO: Timeout context
+				// TODO: Identity renewal should be constrained globally to a certain concurrency count
 				certs, err := is.owner.fetchIdentity(ctx, is.req)
 				if err != nil {
 					panic(err) // TODO: Requeue after X
 				}
-				is.Identity <- Identity{certs: certs}
+				is.Identity <- &Identity{certs: certs}
 			}
 		}()
 	}
@@ -167,12 +182,12 @@ func (ism *IdentityStreamManager) StreamIdentity(req IdentityRequest) (*Identity
 	is := &IdentityStream{
 		owner:          ism,
 		req:            req,
-		Identity:       make(chan Identity),
+		Identity:       make(chan *Identity),
 		forceRenewalCh: make(chan struct{}),
 		closeCh:        make(chan struct{}),
 	}
 
-	ism.wg.Add(1)
+	ism.registerStream(is)
 	go is.run()
 
 	return is, nil
@@ -190,6 +205,9 @@ func (ism *IdentityStreamManager) Identity(ctx context.Context, req IdentityRequ
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case id := <-ids.Identity:
-		return &id, nil
+		if id == nil {
+			return nil, trace.Errorf("IdentityStream closed before issuing first identity")
+		}
+		return id, nil
 	}
 }
