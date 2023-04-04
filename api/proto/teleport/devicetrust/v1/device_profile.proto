@@ -1,4 +1,4 @@
-// Copyright 2022 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,51 +17,33 @@ syntax = "proto3";
 package teleport.devicetrust.v1;
 
 import "google/protobuf/timestamp.proto";
-import "teleport/devicetrust/v1/os_type.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
 
-// DeviceCollectedData contains information gathered from the device during
-// various ceremonies.
-// Gathered information must match, within reason, the original registration
-// data and previous instances of collected data.
-message DeviceCollectedData {
-  // Time of data collection, set by the client.
-  // Required.
-  google.protobuf.Timestamp collect_time = 1;
-
-  // Time of data collection, as received by the server.
+// Device profile information acquired from an external source.
+// If present, it's used to further validate collected data.
+message DeviceProfile {
+  // Latest profile update time.
   // System managed.
-  google.protobuf.Timestamp record_time = 2;
-
-  // Device operating system.
-  // Required.
-  OSType os_type = 3;
-
-  // Device serial number.
-  // Required for macOS devices.
-  string serial_number = 4;
+  google.protobuf.Timestamp update_time = 1;
 
   // Non-descriptive model identifier.
   // Example: "MacBookPro9,2".
-  string model_identifier = 5;
+  string model_identifier = 2;
 
   // OS version number, without the leading 'v'.
+  // See the Device's os_type for the general OS category.
   // Example: "13.2.1".
-  string os_version = 6;
+  string os_version = 3;
 
   // OS build identifier. Augments the os_version.
   // Example: "22D68".
-  string os_build = 7;
+  string os_build = 4;
 
-  // OS username (distinct from the Teleport user).
-  string os_username = 8;
+  // Known OS users (distinct from the Teleport user).
+  repeated string os_usernames = 5;
 
   // Jamf binary version, without the leading 'v'.
   // Example: "9.27" or "10.44.1-t1677509507".
-  string jamf_binary_version = 9;
-
-  // Unmodified output of `/usr/bin/profiles status -type enrollment`.
-  // Used to verify the presence of an enrollment profile.
-  string macos_enrollment_profiles = 10;
+  string jamf_binary_version = 6;
 }
