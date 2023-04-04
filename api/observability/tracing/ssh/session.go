@@ -204,6 +204,26 @@ func (s *Session) WindowChange(ctx context.Context, h, w int) error {
 	return trace.Wrap(s.Session.WindowChange(h, w))
 }
 
+func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferReq, cmd string) error {
+	const request = "file-transfer-request"
+	config := tracing.NewConfig(s.wrapper.opts)
+	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
+		ctx,
+		fmt.Sprintf("ssh.FileTransferRequest/%s", cmd),
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String("ssh.Session"),
+			semconv.RPCMethodKey.String("SendRequest"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
+	s.wrapper.addContext(ctx, request)
+	_, err := s.Session.SendRequest(request, true, ssh.Marshal(req))
+	return err
+}
+
 // Signal sends the given signal to the remote process.
 // sig is one of the SIG* constants.
 func (s *Session) Signal(ctx context.Context, sig ssh.Signal) error {

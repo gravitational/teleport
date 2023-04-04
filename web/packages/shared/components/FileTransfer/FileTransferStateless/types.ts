@@ -15,6 +15,7 @@
  */
 
 export type TransferState =
+  | { type: 'pending' }
   | { type: 'processing'; progress: number }
   | { type: 'error'; error: Error; progress: number }
   | { type: 'completed' };

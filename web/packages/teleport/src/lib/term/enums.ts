@@ -20,6 +20,7 @@ export enum EventType {
   END = 'session.end',
   PRINT = 'print',
   RESIZE = 'resize',
+  FILE_TRANSFER = 'file_transfer_request',
 }
 
 export enum TermEvent {

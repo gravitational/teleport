@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -387,7 +388,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
 	resizeC := make(chan *session.TerminalParams, 1)
-	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC))
+	fileTransferC := make(chan *session.FileTransferParams)
+	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandler((fileTransferC)))
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -426,6 +428,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// process window resizing
 	go t.handleWindowResize(resizeC)
+	go t.handleFileTransfer(fileTransferC)
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
@@ -798,6 +801,49 @@ func (t *TerminalHandler) handleWindowResize(resizeC <-chan *session.TerminalPar
 	}
 }
 
+func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileTransferParams) {
+	for {
+		select {
+		case <-t.terminalContext.Done():
+			return
+		case transferRequest := <-fileTransferC:
+			shellCmd, err := t.getRemoteShellCmd(transferRequest)
+			if err != nil {
+				t.log.Error(err)
+				return
+			}
+			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
+				Direction: transferRequest.Direction,
+				Location:  transferRequest.Location,
+				ShellCmd:  shellCmd,
+			}, shellCmd)
+		}
+	}
+}
+
+// getRemoteShellCmd will create an scp command and return it's remote shell command
+func (t *TerminalHandler) getRemoteShellCmd(req *session.FileTransferParams) (string, error) {
+	if req.Direction == "download" {
+		cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
+			RemoteLocation: req.Location,
+			User:           t.ctx.GetUser(),
+		})
+		if err != nil {
+			return "", err
+		}
+		return cmd.GetRemoteShellCmd()
+	} else {
+		cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
+			RemoteLocation: req.Location,
+			User:           t.ctx.GetUser(),
+		})
+		if err != nil {
+			return "", err
+		}
+		return cmd.GetRemoteShellCmd()
+	}
+}
+
 // writeError displays an error in the terminal window.
 func (t *TerminalHandler) windowChange(ctx context.Context, params *session.TerminalParams) {
 	if t.sshSession == nil {
@@ -880,6 +926,12 @@ func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) fun
 	}
 }
 
+func WithTerminalStreamFileTransferHandler(fileTransferC chan<- *session.FileTransferParams) func(stream *TerminalStream) {
+	return func(stream *TerminalStream) {
+		stream.fileTransferC = fileTransferC
+	}
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
 func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
@@ -918,6 +970,10 @@ type TerminalStream struct {
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
 	resizeC chan<- *session.TerminalParams
+
+	// fileTransferC is a channel to facilitate requesting a file transfer
+	// as well as approving/denying file transfer requests
+	fileTransferC chan<- *session.FileTransferParams
 
 	// mu protects writes to ws
 	mu sync.Mutex
@@ -1072,6 +1128,21 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 			t.buffer = data[n:]
 		}
 		return n, nil
+	case defaults.WebsocketFileTransferRequest:
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		params, err := session.UnmarshalFileTransferParams(e.GetString("location"), e.GetString("direction"))
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		select {
+		case t.fileTransferC <- params:
+		default:
+		}
+		return 0, nil
 	case defaults.WebsocketResize:
 		if t.resizeC == nil {
 			return n, nil
@@ -1107,6 +1178,12 @@ func (t *TerminalStream) Close() error {
 	if t.resizeC != nil {
 		t.once.Do(func() {
 			close(t.resizeC)
+		})
+	}
+
+	if t.fileTransferC != nil {
+		t.once.Do(func() {
+			close(t.fileTransferC)
 		})
 	}
 

@@ -17,6 +17,12 @@
 import React from 'react';
 
 import {
+  FileTransferRequest,
+  FileTransferRequests,
+} from '../FileTransferRequests/FileTransferRequests';
+import { FileTransferContainer } from '../FileTransferContainer';
+
+import {
   FileTransferStateless,
   FileTransferStatelessProps,
 } from './FileTransferStateless';
@@ -49,14 +55,17 @@ function GetFileTransfer(
   props: Pick<FileTransferStatelessProps, 'openedDialog' | 'files'>
 ) {
   return (
-    <FileTransferStateless
-      openedDialog={props.openedDialog}
-      files={props.files}
-      onClose={() => undefined}
-      onAddDownload={() => undefined}
-      onAddUpload={() => undefined}
-      onCancel={() => undefined}
-    />
+    <FileTransferContainer>
+      <FileTransferRequests requests={fileTransferRequests} />
+      <FileTransferStateless
+        openedDialog={props.openedDialog}
+        files={props.files}
+        onClose={() => undefined}
+        onAddDownload={() => undefined}
+        onAddUpload={() => undefined}
+        onCancel={() => undefined}
+      />
+    </FileTransferContainer>
   );
 }
 
@@ -182,3 +191,30 @@ export const UploadCompleted = () => (
     openedDialog={FileTransferDialogDirection.Upload}
   ></GetFileTransfer>
 );
+
+const fileTransferRequests: FileTransferRequest[] = [
+  {
+    id: '123',
+    requester: 'michael',
+    direction: 'download',
+    shellCmd: '/usr/bin/scp -f ~/logs.txt',
+    location: '~/logs.txt',
+    approvers: [],
+  },
+  {
+    id: '234',
+    requester: 'michael',
+    direction: 'download',
+    shellCmd: '/usr/bin/scp -f ~/long/path/to/download/the/logs.txt',
+    location: '~/path/to/download/the/logs.txt',
+    approvers: [],
+  },
+];
+
+export const PendingFileTransferRequest = () => {
+  return (
+    <FileTransferContainer>
+      <FileTransferRequests requests={fileTransferRequests} />
+    </FileTransferContainer>
+  );
+};

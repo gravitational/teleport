@@ -129,6 +129,28 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	return nil
 }
 
+// HandleFileTransferRequest handles requests of type "file-transfer-request" which will
+// create a FileTransferRequest that will be sent to other members in the party to be
+// reviewed and approved/denied.
+func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	params, err := parseFileTransferRequest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	params.Requester = scx.Identity.TeleportUser
+
+	session := scx.getSession()
+	if session == nil {
+		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		return nil
+	}
+
+	ftReq := session.addFileTransferRequest(params, scx)
+	t.SessionRegistry.NotifyFileTransferRequest(ctx, ftReq, scx)
+
+	return nil
+}
+
 // HandleWinChange handles requests of type "window-change" which update the
 // size of the PTY running on the server and update any other members in the
 // party.
@@ -211,4 +233,18 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 
 	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
 	return params, trace.Wrap(err)
+}
+
+func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferParams, error) {
+	var r sshutils.FileTransferReqParams
+	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	params := &rsession.FileTransferParams{
+		Location:  r.Location,
+		Direction: r.Direction,
+		ShellCmd:  r.ShellCmd,
+	}
+	return params, nil
 }

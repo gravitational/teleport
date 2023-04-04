@@ -39,6 +39,12 @@ type WinChangeReqParams struct {
 	Hpx uint32
 }
 
+type FileTransferReqParams struct {
+	Direction string
+	Location  string
+	ShellCmd  string
+}
+
 // PTYReqParams specifies parameters for pty change window
 type PTYReqParams struct {
 	Env   string
@@ -149,6 +155,9 @@ const (
 
 	// WindowChangeRequest is a request to change window.
 	WindowChangeRequest = "window-change"
+
+	// FileTransferRequest is a request to approve a file transfer
+	FileTransferRequest = "file-transfer-request"
 
 	// PTYRequest is a request for PTY.
 	PTYRequest = "pty-req"

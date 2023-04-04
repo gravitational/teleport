@@ -74,6 +74,9 @@ type Session struct {
 	ID ID `json:"id"`
 	// Namespace is a session namespace, separating sessions from each other
 	Namespace string `json:"namespace"`
+	// FileTransferRequests is a list of file transfer requests either waiting for
+	// approval, or approved and waiting to be executed
+	FileTransferRequests []FileTransferParams `json:"fileTransferRequests"`
 	// Parties is a list of session parties.
 	Parties []Party `json:"parties"`
 	// TerminalParams sets terminal properties
@@ -178,6 +181,29 @@ func UnmarshalTerminalParams(s string) (*TerminalParams, error) {
 	return &TerminalParams{
 		W: w,
 		H: h,
+	}, nil
+}
+
+// FileTransferParams contain parameters for requesting a file transfer
+type FileTransferParams struct {
+	// Direction is either upload or download
+	Direction string `json:"direction"`
+	// Location is location of file to download, or where to put an upload
+	Location string `json:"location"`
+	// ShellCmd is the string representation of the requested remote shell command
+	ShellCmd string `json:"shellCmd"`
+	// Requster is the authenticated Teleport user who requested the file transfer
+	Requester string `json:"requester"`
+	// Approvers is a list of teleport users who have approved the file transfer request
+	Approvers []Party `json:"approvers"`
+}
+
+// UnmarshalFileTransferParams takes a serialized string that contains the
+// file transfer parameters and returns a *FileTransferParams.
+func UnmarshalFileTransferParams(location string, direction string) (*FileTransferParams, error) {
+	return &FileTransferParams{
+		Location:  location,
+		Direction: direction,
 	}, nil
 }
 

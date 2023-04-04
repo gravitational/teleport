@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { FileTransferRequest } from 'shared/components/FileTransfer/FileTransfer';
+
 export interface Participant {
   user: string;
 }
@@ -27,6 +29,7 @@ export interface Session {
   durationText: string;
   serverId: string;
   clusterId: string;
+  fileTransferRequests: FileTransferRequest[];
   parties: Participant[];
   addr: string;
   // resourceName depending on the "kind" field, is the name

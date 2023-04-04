@@ -282,6 +282,10 @@ const (
 	SFTPEvent = "sftp"
 	SFTPPath  = "path"
 
+	// FileTransferRequestEvent means someone has requested a file transfer
+	// during a moderated session
+	FileTransferRequestEvent = "file_transfer_request"
+
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"
 	TerminalSize = "size" // expressed as 'W:H'

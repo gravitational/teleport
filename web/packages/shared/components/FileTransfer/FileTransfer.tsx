@@ -40,6 +40,15 @@ interface FileTransferProps {
   afterClose?(): void;
 }
 
+export interface FileTransferRequest {
+  id: string;
+  requester: string;
+  shellCmd: string;
+  direction: string;
+  location: string;
+  approvers: string[];
+}
+
 /**
  * Both `getDownloader` and `getUploader` can return a promise containing `FileTransferListeners` function or nothing.
  * In the latter case, the file will not be added to the list and the download will not start.

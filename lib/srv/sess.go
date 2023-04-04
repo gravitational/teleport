@@ -387,6 +387,57 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	return sess.checkIfFileTransferApproved(req)
 }
 
+func (s *SessionRegistry) NotifyFileTransferRequest(ctx context.Context, req *fileTransferRequest, scx *ServerContext) error {
+	session := scx.getSession()
+	if session == nil {
+		s.log.Debug("Unable to create file transfer Request, no session found in context.")
+		return nil
+	}
+
+	fileTransferRequestEvent := &apievents.FileTransferRequest{
+		Metadata: apievents.Metadata{
+			Type: events.FileTransferRequestEvent,
+			// Code:        events.TerminalResizeCode,
+			ClusterName: scx.ClusterName,
+		},
+		ServerMetadata: session.serverMeta,
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: session.ID(),
+		},
+		UserMetadata: scx.Identity.GetUserMetadata(),
+		Requester:    req.requester,
+		Location:     req.location,
+		Direction:    req.direction,
+		ShellCmd:     req.shellCmd,
+		Approvers:    make([]string, 0),
+	}
+
+	// audit event
+
+	for _, p := range session.getParties() {
+		// Don't send the file transfer request back to the originator.
+		// if p.ctx.ID() == scx.ID() {
+		// 	continue
+		// }
+
+		eventPayload, err := json.Marshal(fileTransferRequestEvent)
+		if err != nil {
+			s.log.Warnf("Unable to marshal file transfer request event for %v: %v.", p.sconn.RemoteAddr(), err)
+			continue
+		}
+
+		// Send the message as a global request.
+		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
+		if err != nil {
+			s.log.Warnf("Unable to send file transfer request event to %v: %v.", p.sconn.RemoteAddr(), err)
+			continue
+		}
+		s.log.Debugf("Sent file transfer request event to %v.", p.sconn.RemoteAddr())
+	}
+
+	return nil
+}
+
 // NotifyWinChange is called to notify all members in the party that the PTY
 // size has changed. The notification is sent as a global SSH request and it
 // is the responsibility of the client to update it's window size upon receipt.
@@ -602,6 +653,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		id:                             id,
 		registry:                       r,
 		parties:                        make(map[rsession.ID]*party),
+		fileTransferRequests:           make(map[string]*fileTransferRequest),
 		participants:                   make(map[rsession.ID]*party),
 		login:                          scx.Identity.Login,
 		stopC:                          make(chan struct{}),
@@ -1464,6 +1516,10 @@ type fileTransferRequest struct {
 	requester string
 	// shellCmd is the requested scp command to run
 	shellCmd string
+
+	direction string
+
+	location string
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
 }
@@ -1512,6 +1568,28 @@ func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 	}
 
 	return shouldStart, policyOptions, nil
+}
+
+func (s *session) addFileTransferRequest(params *rsession.FileTransferParams, scx *ServerContext) *fileTransferRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	reqId := uuid.New().String()
+	req := s.newFileTransferRequest(params)
+	s.fileTransferRequests[reqId] = req
+	s.BroadcastMessage("User %s is requesting %s for file: %s", params.Requester, params.Direction, params.Location)
+
+	return req
+}
+
+func (s *session) newFileTransferRequest(params *rsession.FileTransferParams) *fileTransferRequest {
+	return &fileTransferRequest{
+		requester: params.Requester,
+		location:  params.Location,
+		shellCmd:  params.ShellCmd,
+		direction: params.Direction,
+		approvers: make(map[string]*party),
+	}
 }
 
 // addParty is called when a new party joins the session.
