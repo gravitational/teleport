@@ -62,6 +62,51 @@ When configuring the provider, we'll need an AWS Role which Teleport uses to iss
 To store the configuration above, we'll create a new resource Kind: `Integration`.
 It'll leverage the `subkind` prop to distinguish future integrations.
 
+```proto
+// IntegrationV1 represents a connection between Teleport and some other 3rd party system.
+// This connection allows API access to that service from Teleport.
+// Each Integration instance must have a SubKind defined which identifies the external system.
+message IntegrationV1 {
+  // Header is the resource header.
+  ResourceHeader Header = 1;
+
+  // Spec is an Integration specification.
+  IntegrationSpecV1 Spec = 2 ;
+}
+
+// IntegrationSpecV1 contains properties of all the supported integrations.
+message IntegrationSpecV1 {
+  oneof SubKindSpec {
+    // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
+    AWSOIDCIntegrationSpecV1 AWSOIDC = 1;
+  }
+
+  // IntegrationStatus contains the current integration status.
+  enum IntegrationStatus {
+    INTEGRATION_STATUS_UNSPECIFIED = 0;
+
+    // Integration is not running because it was just created or was disabled by the user.
+    INTEGRATION_STATUS_PAUSED = 1;
+
+    // Integration is running.
+    INTEGRATION_STATUS_RUNNING = 2;
+
+    // Integration has an error and that should be fixed before receiving requests.
+    INTEGRATION_STATUS_ERROR = 3;
+  }
+
+  // Status contains the current Integration Status
+  IntegrationStatus status = 2;
+}
+
+// AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
+message AWSOIDCIntegrationSpecV1 {
+  // RoleARN contains the Role ARN used to set up the Integration.
+  // This is the AWS Role that Teleport will use to issue tokens for API Calls.
+  string RoleARN = 1;
+}
+```
+
 Multiple AWS Integrations might exist in the same cluster.
 
 For security reasons, AWS stores a thumbprint associated with the CA that issued the HTTPS cert for Teleport.
@@ -217,12 +262,12 @@ This must respect the RFC7517 (eg of a key can be found at https://www.rfc-edito
 Obtaining this key should be possible using
 ```golang
 GetCertAuthority(
-	ctx,
-	types.CertAuthID{
-		Type:       types.OIDCSigner, // new key type
-		DomainName: clusterName,
-	},
-	false /*loadKeys*/,
+    ctx,
+    types.CertAuthID{
+        Type:       types.OIDCSigner, // new key type
+        DomainName: clusterName,
+    },
+    false /*loadKeys*/,
 )
 ```
 
@@ -238,9 +283,9 @@ As an example, we the following is the required policy to list RDS DBs (includin
         {
             "Effect": "Allow",
             "Actions": [
-				"rds:DescribeDBClusters",
-				"rds:DescribeDBInstances"
-	        ],
+                "rds:DescribeDBClusters",
+                "rds:DescribeDBInstances"
+            ],
             "Resource": "*"
         }
     ]
@@ -280,8 +325,8 @@ Integration resource will have the usual CRUD operations via Web API.
 The user can only update two fields:
 - awsOIDC.roleARN: to set the AWS Role that should be used for this Integration
 - status:
-	- Paused: when the Integration should not be used, to support a disable operation
-	- Running: when the Integration is running
+    - Paused: when the Integration should not be used, to support a disable operation
+    - Running: when the Integration is running
 
 HTTP API:
 ```
@@ -295,12 +340,12 @@ DELETE .../integration/:id
 JSON representation:
 ```json
 {
-	"name": "myaws",
-	"subkind": "aws-oidc",
-	"awsOIDC": {
-		"roleARN": "arn:aws:123:TeleportOIDC"
-	},
-	"status": "IntegrationStatusRunning"
+    "name": "myaws",
+    "subkind": "aws-oidc",
+    "awsOIDC": {
+        "roleARN": "arn:aws:123:TeleportOIDC"
+    },
+    "status": "IntegrationStatusRunning"
 }
 ```
 
@@ -355,22 +400,23 @@ kind: integration
 subkind: aws-oidc
 version: v1
 metadata:
-	name: some-name
+  name: some-name
 spec:
-	subkind_spec:
-		aws_oidc:
-			role_arn: arn:aws:123:TeleportOIDC
+  subkind_spec:
+    aws_oidc:
+      role_arn: arn:aws:123:TeleportOIDC
 
 $ tctl get integration/myaws
 kind: integration
 subkind: aws-oidc
 version: v1
 metadata:
-	name: some-name
+  name: some-name
 spec:
-	subkind_spec:
-		aws_oidc:
-			role_arn: arn:aws:123:TeleportOIDC
+  subkind_spec:
+    aws_oidc:
+      role_arn: arn:aws:123:TeleportOIDC
+  status: INTEGRATION_STATUS_RUNNING
 
 $ tctl create aws-integration.yaml
 ```
@@ -381,11 +427,11 @@ kind: integration
 subkind: aws-oidc
 version: v1
 metadata:
-	name: myaws
+  name: myaws
 spec:
-	subkind_spec:
-		aws_oidc:
-			role_arn: arn:aws:123:TeleportOIDC
+  subkind_spec:
+    aws_oidc:
+      role_arn: arn:aws:123:TeleportOIDC
 ```
 
 #### IaC - Terraform
@@ -446,50 +492,50 @@ Check the `TODO`s within the source code.
 package main
 
 import (
-	"crypto/rsa"
-	"crypto/x509"
-	_ "embed"
-	"encoding/pem"
-	"fmt"
-	"net/http"
-	"os"
-	"time"
+    "crypto/rsa"
+    "crypto/x509"
+    _ "embed"
+    "encoding/pem"
+    "fmt"
+    "net/http"
+    "os"
+    "time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
-	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/sts"
-	"github.com/go-jose/go-jose/v3"
-	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/gravitational/trace"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/olekukonko/tablewriter"
+    "github.com/aws/aws-sdk-go-v2/config"
+    "github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+    "github.com/aws/aws-sdk-go-v2/service/rds"
+    "github.com/aws/aws-sdk-go-v2/service/s3"
+    "github.com/aws/aws-sdk-go-v2/service/sts"
+    "github.com/go-jose/go-jose/v3"
+    "github.com/go-jose/go-jose/v3/jwt"
+    "github.com/gravitational/trace"
+    "github.com/labstack/echo/v4"
+    "github.com/labstack/echo/v4/middleware"
+    "github.com/olekukonko/tablewriter"
 )
 
 type DiscoveryConfiguration struct {
-	// Issuer is the identifier of the OP and is used in the tokens as `iss` claim.
-	Issuer string `json:"issuer,omitempty"`
+    // Issuer is the identifier of the OP and is used in the tokens as `iss` claim.
+    Issuer string `json:"issuer,omitempty"`
 
-	// JwksURI is the URL of the JSON Web Key Set. This site contains the signing keys that RPs can use to validate the signature.
-	// It may also contain the OP's encryption keys that RPs can use to encrypt request to the OP.
-	JwksURI string `json:"jwks_uri,omitempty"`
+    // JwksURI is the URL of the JSON Web Key Set. This site contains the signing keys that RPs can use to validate the signature.
+    // It may also contain the OP's encryption keys that RPs can use to encrypt request to the OP.
+    JwksURI string `json:"jwks_uri,omitempty"`
 
-	// ClaimsSupported contains a list of Claim Names the OP may be able to supply values for. This list might not be exhaustive.
-	ClaimsSupported []string `json:"claims_supported,omitempty"`
+    // ClaimsSupported contains a list of Claim Names the OP may be able to supply values for. This list might not be exhaustive.
+    ClaimsSupported []string `json:"claims_supported,omitempty"`
 
-	// IDTokenSigningAlgValuesSupported contains a list of JWS signing algorithms (alg values) supported by the OP for the ID Token.
-	IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported,omitempty"`
+    // IDTokenSigningAlgValuesSupported contains a list of JWS signing algorithms (alg values) supported by the OP for the ID Token.
+    IDTokenSigningAlgValuesSupported []string `json:"id_token_signing_alg_values_supported,omitempty"`
 
-	// ResponseTypesSupported contains a list of the OAuth 2.0 response_type values that the OP supports (code, id_token, token id_token, ...).
-	ResponseTypesSupported []string `json:"response_types_supported,omitempty"`
+    // ResponseTypesSupported contains a list of the OAuth 2.0 response_type values that the OP supports (code, id_token, token id_token, ...).
+    ResponseTypesSupported []string `json:"response_types_supported,omitempty"`
 
-	// ScopesSupported lists an array of supported scopes. This list must not include every supported scope by the OP.
-	ScopesSupported []string `json:"scopes_supported,omitempty"`
+    // ScopesSupported lists an array of supported scopes. This list must not include every supported scope by the OP.
+    ScopesSupported []string `json:"scopes_supported,omitempty"`
 
-	// SubjectTypesSupported contains a list of Subject Identifier types that the OP supports (pairwise, public).
-	SubjectTypesSupported []string `json:"subject_types_supported,omitempty"`
+    // SubjectTypesSupported contains a list of Subject Identifier types that the OP supports (pairwise, public).
+    SubjectTypesSupported []string `json:"subject_types_supported,omitempty"`
 }
 
 // $ openssl genrsa -out keypair.pem 2048
@@ -506,135 +552,135 @@ type IdentityToken string
 
 // GetIdentityToken retrieves the JWT token from the file and returns the contents as a []byte
 func (j IdentityToken) GetIdentityToken() ([]byte, error) {
-	return []byte(j), nil
+    return []byte(j), nil
 }
 
 func main() {
-	e := echo.New()
-	e.Debug = true
-	e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
-		Format: "method=${method}, uri=${uri}, status=${status}\n",
-	}))
+    e := echo.New()
+    e.Debug = true
+    e.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+        Format: "method=${method}, uri=${uri}, status=${status}\n",
+    }))
 
-	block, _ := pem.Decode([]byte(privateKey))
-	parseResult, _ := x509.ParsePKCS8PrivateKey(block.Bytes)
-	key := parseResult.(*rsa.PrivateKey)
+    block, _ := pem.Decode([]byte(privateKey))
+    parseResult, _ := x509.ParsePKCS8PrivateKey(block.Bytes)
+    key := parseResult.(*rsa.PrivateKey)
 
-	e.GET("/v1/.well-known/openid-configuration", func(c echo.Context) error {
-		discovery := &DiscoveryConfiguration{
-			Issuer:                           "https://" + URL,
-			JwksURI:                          "https://" + URL + "/.well-known/jwks",
-			ClaimsSupported:                  []string{"sub", "aud", "exp", "iat", "iss", "jti", "nbf", "ref"},
-			IDTokenSigningAlgValuesSupported: []string{"RS256"},
-			ResponseTypesSupported:           []string{"id_token"},
-			ScopesSupported:                  []string{"openid"},
-			SubjectTypesSupported:            []string{"public", "pairwise"},
-		}
+    e.GET("/v1/.well-known/openid-configuration", func(c echo.Context) error {
+        discovery := &DiscoveryConfiguration{
+            Issuer:                           "https://" + URL,
+            JwksURI:                          "https://" + URL + "/.well-known/jwks",
+            ClaimsSupported:                  []string{"sub", "aud", "exp", "iat", "iss", "jti", "nbf", "ref"},
+            IDTokenSigningAlgValuesSupported: []string{"RS256"},
+            ResponseTypesSupported:           []string{"id_token"},
+            ScopesSupported:                  []string{"openid"},
+            SubjectTypesSupported:            []string{"public", "pairwise"},
+        }
 
-		return c.JSON(http.StatusOK, discovery)
-	})
+        return c.JSON(http.StatusOK, discovery)
+    })
 
-	e.GET("/v1/.well-known/jwks", func(c echo.Context) error {
-		keyset := &jose.JSONWebKeySet{
-			Keys: []jose.JSONWebKey{
-				{
-					KeyID:     "id",
-					Algorithm: "RS256",
-					Use:       "sig",
-					Key:       &key.PublicKey,
-				},
-			},
-		}
+    e.GET("/v1/.well-known/jwks", func(c echo.Context) error {
+        keyset := &jose.JSONWebKeySet{
+            Keys: []jose.JSONWebKey{
+                {
+                    KeyID:     "id",
+                    Algorithm: "RS256",
+                    Use:       "sig",
+                    Key:       &key.PublicKey,
+                },
+            },
+        }
 
-		return c.JSON(http.StatusOK, keyset)
-	})
+        return c.JSON(http.StatusOK, keyset)
+    })
 
-	e.GET("/aws", func(c echo.Context) error {
-		ctx := c.Request().Context()
+    e.GET("/aws", func(c echo.Context) error {
+        ctx := c.Request().Context()
 
-		key := jose.SigningKey{Algorithm: jose.RS256, Key: key}
+        key := jose.SigningKey{Algorithm: jose.RS256, Key: key}
 
-		// create a Square.jose RSA signer, used to sign the JWT
-		var signerOpts = jose.SignerOptions{}
-		signerOpts.WithType("JWT")
-		rsaSigner, err := jose.NewSigner(key, &signerOpts)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+        // create a Square.jose RSA signer, used to sign the JWT
+        var signerOpts = jose.SignerOptions{}
+        signerOpts.WithType("JWT")
+        rsaSigner, err := jose.NewSigner(key, &signerOpts)
+        if err != nil {
+            return trace.Wrap(err)
+        }
 
-		builder := jwt.Signed(rsaSigner)
+        builder := jwt.Signed(rsaSigner)
 
-		pubClaims := jwt.Claims{
-			Issuer:   "https://" + URL,
-			Subject:  "some-subject",
-			ID:       "id1",
-			Audience: jwt.Audience{"discover.teleport"},
-			IssuedAt: jwt.NewNumericDate(time.Now()),
-			Expiry:   jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
-		}
+        pubClaims := jwt.Claims{
+            Issuer:   "https://" + URL,
+            Subject:  "some-subject",
+            ID:       "id1",
+            Audience: jwt.Audience{"discover.teleport"},
+            IssuedAt: jwt.NewNumericDate(time.Now()),
+            Expiry:   jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+        }
 
-		builder = builder.Claims(pubClaims)
-		rawJWT, err := builder.CompactSerialize()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+        builder = builder.Claims(pubClaims)
+        rawJWT, err := builder.CompactSerialize()
+        if err != nil {
+            return trace.Wrap(err)
+        }
 
-		cfg, err := config.LoadDefaultConfig(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Region = "us-east-1"
+        cfg, err := config.LoadDefaultConfig(ctx)
+        if err != nil {
+            return trace.Wrap(err)
+        }
+        cfg.Region = "us-east-1"
 
-		p := stscreds.NewWebIdentityRoleProvider(
-			sts.NewFromConfig(cfg),
-			roleARN,
-			IdentityToken(rawJWT),
-		)
+        p := stscreds.NewWebIdentityRoleProvider(
+            sts.NewFromConfig(cfg),
+            roleARN,
+            IdentityToken(rawJWT),
+        )
 
-		cfg2, err := config.LoadDefaultConfig(ctx, config.WithCredentialsProvider(p))
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg2.Region = "us-east-1"
+        cfg2, err := config.LoadDefaultConfig(ctx, config.WithCredentialsProvider(p))
+        if err != nil {
+            return trace.Wrap(err)
+        }
+        cfg2.Region = "us-east-1"
 
-		// RDS List DBs
-		rdsClient := rds.NewFromConfig(cfg2)
-		rdsDBs, err := rdsClient.DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{})
-		if err != nil {
-			return trace.Wrap(err)
-		}
+        // RDS List DBs
+        rdsClient := rds.NewFromConfig(cfg2)
+        rdsDBs, err := rdsClient.DescribeDBInstances(ctx, &rds.DescribeDBInstancesInput{})
+        if err != nil {
+            return trace.Wrap(err)
+        }
 
-		table := tablewriter.NewWriter(os.Stdout)
-		table.SetHeader([]string{"Status", "Name", "IAMAuth", "Engine", "EngineVersion", "MasterUserName", "DBName", "Tags", "ARN", "Addr", "Port"})
+        table := tablewriter.NewWriter(os.Stdout)
+        table.SetHeader([]string{"Status", "Name", "IAMAuth", "Engine", "EngineVersion", "MasterUserName", "DBName", "Tags", "ARN", "Addr", "Port"})
 
-		for _, db := range rdsDBs.DBInstances {
-			table.Append([]string{
-				*db.DBInstanceStatus,
-				*db.DBInstanceIdentifier,
-				fmt.Sprintf("%t", db.IAMDatabaseAuthenticationEnabled),
-				*db.Engine,
-				*db.EngineVersion,
-				*db.MasterUsername,
-				stringOrNil(db.DBName),
-				fmt.Sprintf("%v", db.TagList),
-				*db.DBInstanceArn,
-				*db.Endpoint.Address,
-				fmt.Sprintf("%d", db.Endpoint.Port),
-			})
-		}
-		table.Render() // Send output
+        for _, db := range rdsDBs.DBInstances {
+            table.Append([]string{
+                *db.DBInstanceStatus,
+                *db.DBInstanceIdentifier,
+                fmt.Sprintf("%t", db.IAMDatabaseAuthenticationEnabled),
+                *db.Engine,
+                *db.EngineVersion,
+                *db.MasterUsername,
+                stringOrNil(db.DBName),
+                fmt.Sprintf("%v", db.TagList),
+                *db.DBInstanceArn,
+                *db.Endpoint.Address,
+                fmt.Sprintf("%d", db.Endpoint.Port),
+            })
+        }
+        table.Render() // Send output
 
-		return c.String(http.StatusOK, "hello!")
-	})
+        return c.String(http.StatusOK, "hello!")
+    })
 
-	e.Logger.Fatal(e.Start(":1323"))
+    e.Logger.Fatal(e.Start(":1323"))
 }
 
 func stringOrNil(s *string) string {
-	if s == nil {
-		return "<nil>"
-	}
-	return *s
+    if s == nil {
+        return "<nil>"
+    }
+    return *s
 }
 ```
 </details>
