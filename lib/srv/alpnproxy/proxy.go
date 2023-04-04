@@ -33,6 +33,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -410,7 +411,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 
 // handlePingConnection starts the server ping routine and returns `pingConn`.
 func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) net.Conn {
-	pingConn := NewPingConn(conn)
+	pingConn := pingconn.New(conn)
 
 	// Start ping routine. It will continuously send pings in a defined
 	// interval.

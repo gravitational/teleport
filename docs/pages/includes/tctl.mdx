@@ -1,9 +1,4 @@
-<Details 
-title="Make sure you can connect to Teleport" 
-scope={["oss", "enterprise"]} 
-scopeOnly={true}
-opened={true}
->
+<ScopedBlock scope={["oss", "enterprise"]}>
 
 To connect to Teleport, log in to your cluster using `tsh`, then use `tctl`
 remotely:
@@ -20,13 +15,8 @@ You can run subsequent `tctl` commands in this guide on your local machine.
 
 For full privileges, you can also run `tctl` commands on your Auth Service host.
 
-</Details>
-<Details 
-title="Make sure you can connect to Teleport" 
-scope={["cloud"]}
-scopeOnly={true}
-opened={true}
->
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
 
 To connect to Teleport, log in to your cluster using `tsh`, then use `tctl`
 remotely:
@@ -41,4 +31,4 @@ $ tctl status
 
 You must run subsequent `tctl` commands in this guide on your local machine.
 
-</Details>
+</ScopedBlock>

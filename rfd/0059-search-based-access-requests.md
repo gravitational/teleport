@@ -24,7 +24,7 @@ about roles, just the resource(s) which they need access to.
 Teleport admins would like to avoid having to create many different custom roles
 for different levels of access to different sets of resources.
 
-Requesting access to a "blanket" role violates the principle of least priviledge.
+Requesting access to a "blanket" role violates the principle of least privilege.
 Most of the time incident responders only need access to 1 or 2 nodes,
 search-based access requests will allow them to request access to only the nodes
 they need.
@@ -211,7 +211,7 @@ root@db-1:~$
 ### Which roles will be requested
 
 When creating a search-based access request the underlying roles being requested
-will be determined automaticially. For simplicity, all roles which the user has
+will be determined automatically. For simplicity, all roles which the user has
 permission to search as (included in `search_as_roles` on any of the roles the
 user has) will be requested. This request will be limited to only the exact
 resources found in the search, and (if approved) the user will have access to
