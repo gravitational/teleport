@@ -80,10 +80,7 @@ export function Chat() {
 
   const handleSubmit = useCallback(
     (message: string) => {
-      send({
-        author: Author.User,
-        content: [{ type: Type.Message, value: message }],
-      });
+      send(message);
     },
     [messages]
   );

@@ -15,7 +15,7 @@ import { getAccessToken, getHostName } from 'teleport/services/api';
 import { Author, Message, Type } from '../services/messages';
 
 interface MessageContextValue {
-  send: (message: Message) => Promise<void>;
+  send: (message: string) => Promise<void>;
   messages: Message[];
 }
 
@@ -63,12 +63,15 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
   }, [lastMessage, setMessages]);
 
   const send = useCallback(
-    async (message: Message) => {
-      const newMessages = [...messages, message];
+    async (message: string) => {
+      const newMessages = [...messages, {
+        author: Author.User,
+        content: [{ type: Type.Message, value: message }],
+      }];
 
       setMessages(newMessages);
 
-      sendMessage(JSON.stringify(newMessages));
+      sendMessage(message);
     },
     [messages]
   );
