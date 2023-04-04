@@ -36,6 +36,15 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver/protocol"
 )
 
+const (
+	// ResourceIDDSNKey represents the resource ID DSN parameter key. This value
+	// is defined by the go-mssqldb library.
+	ResourceIDDSNKey = "resource id"
+	// FederatedAuthDSNKey represents the federated auth DSN parameter key. This
+	// value is defined by the go-mssqldb library.
+	FederatedAuthDSNKey = "fedauth"
+)
+
 // Connector defines an interface for connecting to a SQL Server so it can be
 // swapped out in tests.
 type Connector interface {
@@ -163,8 +172,8 @@ func (c *connector) getAzureConnector(ctx context.Context, sessionCtx *common.Se
 	}
 
 	dsnConfig.Parameters = map[string]string{
-		"fedauth":     azuread.ActiveDirectoryManagedIdentity,
-		"resource id": managedIdentityID,
+		FederatedAuthDSNKey: azuread.ActiveDirectoryManagedIdentity,
+		ResourceIDDSNKey:    managedIdentityID,
 	}
 
 	connector, err := azuread.NewConnectorFromConfig(dsnConfig)
