@@ -80,7 +80,7 @@ const LoadingContainer = styled.div`
 export function Actions(props: PropsWithChildren<ActionsProps>) {
   const children: ReactNode[] = [];
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ExecOutput | null>(null);
+  const [result] = useState<ExecOutput | null>(null);
 
   Children.forEach(props.children, (child, index) => {
     children.push(child);

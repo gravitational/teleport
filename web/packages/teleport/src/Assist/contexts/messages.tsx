@@ -36,7 +36,7 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
     socketUrl += `&conversation_id=${chatId}`;
   }
 
-  const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl);
+  const { sendMessage, lastMessage } = useWebSocket(socketUrl);
 
   useEffect(() => {
     if (lastMessage !== null) {
