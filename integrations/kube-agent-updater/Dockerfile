@@ -1,4 +1,5 @@
 ARG BUILDBOX
+ARG BASE_IMAGE=gcr.io/distroless/static-debian11
 # BUILDPLATFORM is provided by Docker/buildx
 FROM --platform=$BUILDPLATFORM $BUILDBOX as builder
 
@@ -16,20 +17,17 @@ RUN go mod download
 COPY cmd/ cmd/
 COPY pkg/ pkg/
 
-# Compiler package should use host-triplet-agnostic name (i.e. "x86-64-linux-gnu-gcc" instead of "gcc")
-#  in most cases, to avoid issues on systems with multiple versions of gcc (i.e. buildboxes)
-# TARGETOS and TARGETARCH are provided by Docker/buildx, but must be explicitly listed here
-ARG COMPILER_NAME TARGETOS TARGETARCH
+ARG TARGETOS
+ARG TARGETARCH
 
-# Build the program
-# CGO is required for github.com/gravitational/teleport/lib/system
-RUN echo "Targeting $TARGETOS/$TARGETARCH with CC=$COMPILER_NAME" && \
-    CGO_ENABLED=1 CC=$COMPILER_NAME GOOS=$TARGETOS GOARCH=$TARGETARCH \
+# Build the program. We rely on golang's cross-compilation capabilities for multiarch building.
+RUN echo "Targeting $TARGETOS/$TARGETARCH" && \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH \
     go build -a -o /go/bin/teleport-kube-agent-updater github.com/gravitational/teleport/integrations/kube-agent-updater/cmd/teleport-kube-agent-updater
 
 # Create the image with the build operator on the $TARGETPLATFORM
 # TARGETPLATFORM is provided by Docker/buildx
-FROM --platform=$TARGETPLATFORM gcr.io/distroless/cc
+FROM --platform=$TARGETPLATFORM $BASE_IMAGE
 WORKDIR /
 COPY --from=builder /go/bin/teleport-kube-agent-updater .
 

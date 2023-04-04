@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"math"
 	"net"
 	"net/http"
@@ -49,6 +50,14 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	// TeleportImpersonateUserHeader is a header that specifies teleport user identity
+	// that the proxy is impersonating.
+	TeleportImpersonateUserHeader = "Teleport-Impersonate-User"
+	// TeleportImpersonateIPHeader is a header that specifies the real user IP address.
+	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -344,6 +353,11 @@ type Middleware struct {
 	Limiter *limiter.Limiter
 	// GRPCMetrics is the configured grpc metrics for the interceptors
 	GRPCMetrics *om.ServerMetrics
+	// EnableCredentialsForwarding allows the middleware to receive impersonation
+	// identity from the client if it presents a valid proxy certificate.
+	// This is used by the proxy to forward the identity of the user who
+	// connected to the proxy to the next hop.
+	EnableCredentialsForwarding bool
 }
 
 // Wrap sets next handler in chain
@@ -420,7 +434,6 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	return ctx, nil
-
 }
 
 func certFromConnState(state *tls.ConnectionState) *x509.Certificate {
@@ -578,17 +591,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 				Identity:    *identity,
 			}, nil
 		}
-		return authz.RemoteUser{
-			ClusterName:      certClusterName,
-			Username:         identity.Username,
-			Principals:       identity.Principals,
-			KubernetesGroups: identity.KubernetesGroups,
-			KubernetesUsers:  identity.KubernetesUsers,
-			DatabaseNames:    identity.DatabaseNames,
-			DatabaseUsers:    identity.DatabaseUsers,
-			RemoteRoles:      identity.Groups,
-			Identity:         *identity,
-		}, nil
+		return newRemoteUserFromIdentity(*identity, certClusterName), nil
 	}
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
@@ -607,10 +610,7 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGette
 	}
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
-	return authz.LocalUser{
-		Username: identity.Username,
-		Identity: *identity,
-	}, nil
+	return newLocalUserFromIdentity(*identity), nil
 }
 
 func findPrimarySystemRole(roles []string) *types.SystemRole {
@@ -652,10 +652,43 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	remoteAddr := r.RemoteAddr
+	// If the request is coming from a trusted proxy and the proxy is sending a
+	// TeleportImpersonateHeader, we will impersonate the user in the header
+	// instead of the user in the TLS certificate.
+	// This is used by the proxy to impersonate the end user when making requests
+	// without re-signing the client certificate.
+	impersonateUser := r.Header.Get(TeleportImpersonateUserHeader)
+	if impersonateUser != "" {
+		if !isProxyRole(user) {
+			trace.WriteError(w, trace.AccessDenied("Credentials forwarding is only permitted for Proxy"))
+			return
+		}
+		// If the service is not configured to allow credentials forwarding, reject the request.
+		if !a.EnableCredentialsForwarding {
+			trace.WriteError(w, trace.AccessDenied("Credentials forwarding is not permitted by this service"))
+			return
+		}
+
+		if user, err = a.extractIdentityFromImpersonationHeader(impersonateUser); err != nil {
+			trace.WriteError(w, err)
+			return
+		}
+		remoteAddr = r.Header.Get(TeleportImpersonateIPHeader)
+	}
+
+	// If the request is coming from a trusted proxy, we already know the user
+	// and we will impersonate him. At this point, we need to remove the
+	// TeleportImpersonateHeader from the request, otherwise the proxy will
+	// attempt sending the request to upstream servers with the impersonation
+	// header from a fake user.
+	r.Header.Del(TeleportImpersonateUserHeader)
+	r.Header.Del(TeleportImpersonateIPHeader)
+
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
 	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
-	clientSrcAddr, err := utils.ParseAddr(r.RemoteAddr)
+	clientSrcAddr, err := utils.ParseAddr(remoteAddr)
 	if err == nil {
 		ctx = authz.ContextWithClientAddr(ctx, clientSrcAddr)
 	}
@@ -777,4 +810,114 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 // DefaultClientCertPool returns default trusted x509 certificate authority pool.
 func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
 	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
+}
+
+// isProxyRole returns true if the certificate role is a proxy role.
+func isProxyRole(identity authz.IdentityGetter) bool {
+	switch id := identity.(type) {
+	case authz.RemoteBuiltinRole:
+		return id.Role == types.RoleProxy
+	case authz.BuiltinRole:
+		return id.Role == types.RoleProxy
+	default:
+		return false
+	}
+}
+
+// extractIdentityFromImpersonationHeader extracts the identity from the impersonation
+// header and returns it. If the impersonation header holds an identity of a
+// system role, an error is returned.
+func (a *Middleware) extractIdentityFromImpersonationHeader(impersonate string) (authz.IdentityGetter, error) {
+	// Unmarshal the impersonated user from the header.
+	var impersonatedIdentity tlsca.Identity
+	if err := json.Unmarshal([]byte(impersonate), &impersonatedIdentity); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case findPrimarySystemRole(impersonatedIdentity.Groups) != nil:
+		// make sure that this user does not have system role
+		// since system roles are not allowed to be impersonated.
+		return nil, trace.AccessDenied("can not impersonate a system role")
+	case impersonatedIdentity.TeleportCluster != a.ClusterName:
+		// if the impersonated user is from a different cluster, we need to
+		// use him as remote user.
+		return newRemoteUserFromIdentity(impersonatedIdentity, impersonatedIdentity.TeleportCluster), nil
+	default:
+		// otherwise assume that is a local role, no need to pass the roles
+		// as it will be fetched from the local database
+		return newLocalUserFromIdentity(impersonatedIdentity), nil
+	}
+}
+
+// newRemoteUserFromIdentity creates a new remote user from the identity.
+func newRemoteUserFromIdentity(identity tlsca.Identity, clusterName string) authz.RemoteUser {
+	return authz.RemoteUser{
+		ClusterName:      clusterName,
+		Username:         identity.Username,
+		Principals:       identity.Principals,
+		KubernetesGroups: identity.KubernetesGroups,
+		KubernetesUsers:  identity.KubernetesUsers,
+		DatabaseNames:    identity.DatabaseNames,
+		DatabaseUsers:    identity.DatabaseUsers,
+		RemoteRoles:      identity.Groups,
+		Identity:         identity,
+	}
+}
+
+// newLocalUserFromIdentity creates a new local user from the identity.
+func newLocalUserFromIdentity(identity tlsca.Identity) authz.LocalUser {
+	return authz.LocalUser{
+		Username: identity.Username,
+		Identity: identity,
+	}
+}
+
+// ImpersonatorRoundTripper is a round tripper that impersonates a user with
+// the identity provided.
+type ImpersonatorRoundTripper struct {
+	http.RoundTripper
+}
+
+// NewImpersonatorRoundTripper returns a new impersonator round tripper.
+func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper {
+	return &ImpersonatorRoundTripper{
+		RoundTripper: rt,
+	}
+}
+
+// RoundTrip implements http.RoundTripper interface to include the identity
+// in the request header.
+func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	identity, err := authz.UserFromContext(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b, err := json.Marshal(identity.GetIdentity())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header.Set(TeleportImpersonateUserHeader, string(b))
+	defer req.Header.Del(TeleportImpersonateUserHeader)
+
+	clientSrcAddr, err := authz.ClientAddrFromContext(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.Header.Set(TeleportImpersonateIPHeader, clientSrcAddr.String())
+	defer req.Header.Del(TeleportImpersonateIPHeader)
+
+	return r.RoundTripper.RoundTrip(req)
+}
+
+// CloseIdleConnections ensures that the returned [net.RoundTripper]
+// has a CloseIdleConnections method.
+func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if c, ok := r.RoundTripper.(closeIdler); ok {
+		c.CloseIdleConnections()
+	}
 }

@@ -21,7 +21,6 @@ import { NavLink } from 'react-router-dom';
 
 import { ExternalLinkIcon } from 'design/SVGIcon';
 
-import { useTeleport } from 'teleport';
 import { getIcon } from 'teleport/Navigation/utils';
 import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
 import {
@@ -29,6 +28,8 @@ import {
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
+
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import type { TeleportFeature } from 'teleport/types';
 
@@ -74,8 +75,7 @@ const ExternalLinkIndicator = styled.div`
 `;
 
 export function NavigationItem(props: NavigationItemProps) {
-  const ctx = useTeleport();
-  const clusterId = ctx.storeUser.getClusterId();
+  const { clusterId } = useStickyClusterId();
 
   const { navigationItem, route } = props.feature;
 
