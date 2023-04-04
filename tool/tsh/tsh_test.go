@@ -2771,7 +2771,7 @@ func TestSerializeDatabases(t *testing.T) {
 	    "redis": {}
 	  },
       "tls": {
-        "mode": "verify-full"
+        "mode": 0
       },
       "ad": {
         "domain": "",
