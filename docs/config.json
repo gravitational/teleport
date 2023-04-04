@@ -1218,6 +1218,10 @@
 	{
 	    "title": "Automatically Register Teleport Agents",
 	    "slug": "/api/automatically-register-agents/"
+	},
+	{
+	    "title": "Automatically Generate Roles",
+	    "slug": "/api/rbac/"
 	}
       ]
     },
