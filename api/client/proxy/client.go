@@ -243,7 +243,7 @@ func (c *clusterName) set(name string) {
 // clusterCredentials is a [credentials.TransportCredentials] implementation
 // that obtains the name of the cluster being connected to from the certificate
 // presented by the server. This allows the client to determine the cluster name when
-// connecting via using jump hosts.
+// connecting via jump hosts.
 type clusterCredentials struct {
 	credentials.TransportCredentials
 	clusterName *clusterName

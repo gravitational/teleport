@@ -1432,7 +1432,8 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		"teleportClient/SSH",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
-			attribute.String("proxy", tc.Config.WebProxyAddr),
+			attribute.String("proxy_web", tc.Config.WebProxyAddr),
+			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
 	defer span.End()
@@ -4528,7 +4529,8 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		"teleportClient/HeadlessApprove",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
-			attribute.String("proxy", tc.Config.WebProxyAddr),
+			attribute.String("proxy_web", tc.Config.WebProxyAddr),
+			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
 		),
 	)
 	defer span.End()

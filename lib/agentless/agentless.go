@@ -32,7 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// CertGenerator generates cetificates from a certificate request.
+// CertGenerator generates certificates from a certificate request.
 type CertGenerator interface {
 	GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error)
 }
@@ -54,7 +54,7 @@ func SignerFromSSHCertificate(certificate *ssh.Certificate, generator CertGenera
 }
 
 // SignerFromAuthzContext returns a function that attempts to
-// create a [ssh.Signer] for the Identity in the provided [ssh.Certificate]
+// create a [ssh.Signer] for the [tlsca.Identity] in the provided [authz.Context]
 // that is signed with the OpenSSH CA and can be used to authenticate to agentless nodes.
 func SignerFromAuthzContext(authzCtx *authz.Context, generator CertGenerator) func(context.Context) (ssh.Signer, error) {
 	return func(ctx context.Context) (ssh.Signer, error) {

@@ -203,7 +203,7 @@ func (r *Router) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.
 		oteltrace.WithAttributes(
 			attribute.String("host", host),
 			attribute.String("port", port),
-			attribute.String("site", clusterName),
+			attribute.String("cluster", clusterName),
 		),
 	)
 	defer func() {
@@ -312,7 +312,7 @@ func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, check
 		ctx,
 		"router/getRemoteCluster",
 		oteltrace.WithAttributes(
-			attribute.String("site", clusterName),
+			attribute.String("cluster", clusterName),
 		),
 	)
 	defer span.End()
@@ -454,7 +454,7 @@ func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr
 		ctx,
 		"router/DialSite",
 		oteltrace.WithAttributes(
-			attribute.String("site", clusterName),
+			attribute.String("cluster", clusterName),
 		),
 	)
 	defer span.End()
