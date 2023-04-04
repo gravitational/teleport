@@ -120,7 +120,7 @@ func (is *IdentityStream) Close() {
 func (is *IdentityStream) run() {
 	defer func() {
 		close(is.Identity)
-		close(is.closeCh)
+		is.Close()
 		is.owner.wg.Done()
 	}()
 	ctx := context.Background()
