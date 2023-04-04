@@ -25,7 +25,7 @@ const storage = {
       const key = window.localStorage.key(i);
 
       if (key !== 'show-assist') {
-        window.localStorage.setItem(key, undefined);
+        window.localStorage.removeItem(key);
       }
     }
   },
