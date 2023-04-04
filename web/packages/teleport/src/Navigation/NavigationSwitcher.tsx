@@ -19,7 +19,14 @@ import styled from 'styled-components';
 
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
+import { ChatGPTIcon } from 'design/SVGIcon/ChatGPT';
+
+import { useHistory } from 'react-router';
+
 import { NavigationCategory } from 'teleport/Navigation/categories';
+
+import icon from './teleport-icon.png';
 
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;
@@ -104,8 +111,22 @@ const Arrow = styled.div<OpenProps>`
   }
 `;
 
+const Background = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.6);
+`;
+
 export function NavigationSwitcher(props: NavigationSwitcherProps) {
-  const [open, setOpen] = useState(false);
+  const [showAssist, setShowAssist] = useLocalStorage('show-assist', true);
+
+  const [open, setOpen] = useState(showAssist);
+
+  const history = useHistory();
 
   const ref = useRef<HTMLDivElement>();
   const activeValueRef = useRef<HTMLDivElement>();
@@ -198,6 +219,8 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const handleChange = useCallback(
     (value: NavigationCategory) => {
+      setShowAssist(false);
+
       if (props.value !== value) {
         props.onChange(value);
       }
@@ -206,6 +229,13 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     },
     [props.value]
   );
+
+  const handleOpenAssist = useCallback(() => {
+    setShowAssist(false);
+    setOpen(false);
+
+    history.push('/web/assist');
+  }, []);
 
   const items = [];
 
@@ -225,8 +255,37 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     );
   }
 
+  items.push(
+    <DropdownItem key="assist" open={open} onClick={() => handleOpenAssist()}>
+      Assist
+    </DropdownItem>
+  );
+
   return (
     <Container ref={ref}>
+      {showAssist && (
+        <>
+          <Background />
+          <Tooltip>
+            <TooltipTitle>
+              <TooltipTitleBackground>New!</TooltipTitleBackground>
+            </TooltipTitle>{' '}
+            Connect Teleport to ChatGPT and try out our new Assist integration
+            <TooltipFooter>
+              <TooltipLogos>
+                <ChatGPTIcon size={30} />
+                <TooltipLogosSpacer>+</TooltipLogosSpacer>
+                <TeleportIcon />
+              </TooltipLogos>
+
+              <TooltipButton onClick={() => setShowAssist(false)}>
+                Close
+              </TooltipButton>
+            </TooltipFooter>
+          </Tooltip>
+        </>
+      )}
+
       <ActiveValue
         ref={activeValueRef}
         onClick={() => setOpen(!open)}
@@ -245,3 +304,73 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
     </Container>
   );
 }
+
+const TooltipLogosSpacer = styled.div`
+  padding: 0 8px;
+`;
+
+const TeleportIcon = styled.div`
+  background: url(${icon}) no-repeat;
+  width: 30px;
+  height: 30px;
+  background-size: contain;
+`;
+
+const TooltipLogos = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+const TooltipFooter = styled.div`
+  margin-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+
+const Tooltip = styled.div`
+  position: absolute;
+  z-index: 100;
+  top: 150px;
+  left: 210px;
+  background: #3e4b7e;
+  border-radius: 5px;
+  width: 270px;
+  font-size: 15px;
+  padding: 20px 20px 15px;
+  display: flex;
+  flex-direction: column;
+
+  &:after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 10px 10px 10px 0;
+    border-color: transparent #3e4b7e transparent transparent;
+    left: -10px;
+    top: 20px;
+  }
+`;
+
+const TooltipTitle = styled.div`
+  font-size: 18px;
+  font-weight: bold;
+  border-radius: 5px;
+  margin-bottom: 15px;
+`;
+
+const TooltipTitleBackground = styled.span`
+  background: linear-gradient(-45deg, #ee7752, #e73c7e);
+  padding: 5px;
+  border-radius: 5px;
+`;
+
+const TooltipButton = styled.div`
+  cursor: pointer;
+  display: inline-flex;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-radius: 5px;
+  padding: 8px 15px;
+`;

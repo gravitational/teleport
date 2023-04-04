@@ -74,6 +74,7 @@ const cfg = {
   routes: {
     root: '/web',
     discover: '/web/discover',
+    assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
     appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
     support: '/web/support',
