@@ -100,11 +100,12 @@ The table below documents the behavior of each option if multiple roles are assi
 | `forward_agent` | Allow SSH agent forwarding | Logical "OR" i.e. if any role allows agent forwarding, it's allowed |
 | `port_forwarding` | Allow TCP port forwarding | Logical "OR" i.e. if any role allows port forwarding, it's allowed |
 | `ssh_file_copy` | Allow SCP/SFTP | Logical "AND" i.e. if all roles allows file copying, it's allowed |
-| `client_idle_timeout` | Forcefully terminate active SSH sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
-| `disconnect_expired_cert` | Forcefully terminate active SSH sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
+| `client_idle_timeout` | Forcefully terminate active sessions after an idle interval | The shortest timeout value wins, i.e. the most restrictive value is selected |
+| `disconnect_expired_cert` | Forcefully terminate active sessions when a client certificate expires | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
+| `device_trust_mode` | Enforce authenticated device access for the owner of this role (`required`, `optional`, `off`) | |
 | `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
 | `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
@@ -129,17 +130,24 @@ Teleport provides several pre-defined roles out-of-the-box:
 
 ### Role versions
 
-There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` and `v5` roles are
+There are currently four supported role versions: `v3`, `v4`, `v5` and `v6`. `v4`, `v5` and `v6` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
-default allow labels which will be applied to the role if they are not
-explicitly set. Additionally, `v5` is required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
+default values which will be applied to the role if they are not
+explicitly set. Additionally, roles `v5` or `v6` are required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
 
-Label              | `v3` Default   | `v4` and `v5` Default
+Label              | `v3` Default   | `v4`, `v5` and `v6` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `database_labels`   | `[{"*": "*"}]` | `[]`
+
+Role `v6` introduced a new field `kubernetes_resources` that allows
+fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../kubernetes-access/manage-access/rbac.mdx) for more details.
+
+Label              | `v3`, `v4` and `v5` Default   | `v6` Default
+------------------ | -------------- | ---------------
+`kubernetes_resources` | `[{"kind":"pod", "name":"*", "namespace":"*"}]` | `[]`
 
 ## RBAC for hosts
 

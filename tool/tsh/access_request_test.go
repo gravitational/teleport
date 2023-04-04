@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -52,7 +52,7 @@ func TestAccessRequestSearch(t *testing.T) {
 		leafKubeCluster = "second-cluster"
 	)
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *service.Config) {
+		withRootConfigFunc(func(cfg *servicecfg.Config) {
 			cfg.Auth.ClusterName.SetClusterName(rootClusterName)
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
@@ -61,7 +61,7 @@ func TestAccessRequestSearch(t *testing.T) {
 		}),
 		withLeafCluster(),
 		withLeafConfigFunc(
-			func(cfg *service.Config) {
+			func(cfg *servicecfg.Config) {
 				cfg.Auth.ClusterName.SetClusterName(leafClusterName)
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.Kube.Enabled = true

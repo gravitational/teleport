@@ -26,6 +26,8 @@ message UserLoginEvent {
   string user_name = 1;
   // local/github/saml/oidc
   string connector_type = 2;
+  // The anonymized device ID, for logins where device trust is enabled.
+  string device_id = 3;
 }
 
 message SSOCreateEvent {
@@ -39,6 +41,27 @@ message ResourceCreateEvent {
   string resource_type = 1;
 
   // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+}
+
+// the kind of a "resource" as intended by ResourceHeartbeatEvent
+enum ResourceKind {
+  RESOURCE_KIND_UNSPECIFIED = 0;
+  RESOURCE_KIND_NODE = 1;
+  RESOURCE_KIND_APP_SERVER = 2;
+  RESOURCE_KIND_KUBE_SERVER = 3;
+  RESOURCE_KIND_DB_SERVER = 4;
+  RESOURCE_KIND_WINDOWS_DESKTOP = 5;
+  RESOURCE_KIND_NODE_OPENSSH = 6;
+}
+
+// a heartbeat for a resource served by a Teleport instance outside of the
+// control plane (i.e. not auth, not proxy)
+message ResourceHeartbeatEvent {
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes resource_name = 1;
+  ResourceKind resource_kind = 2;
+  // true if the heartbeat has no expiration
+  bool static = 3;
 }
 
 message SessionStartEvent {
@@ -123,6 +146,9 @@ message DiscoverMetadata {
 
   // anonymized
   string user_name = 2;
+
+  // SSO indicates whether the user is from an SSO provider.
+  bool sso = 3;
 }
 
 // DiscoverResource represents a resource type.
@@ -309,6 +335,20 @@ message SFTPEvent {
   int32 action = 2;
 }
 
+message AgentMetadataEvent {
+  string version = 1;
+  string host_id = 2;
+  repeated string services = 3;
+  string os = 4;
+  string os_version = 5;
+  string host_architecture = 6;
+  string glibc_version = 7;
+  repeated string install_methods = 8;
+  string container_runtime = 9;
+  string container_orchestrator = 10;
+  string cloud_environment = 11;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -365,16 +405,27 @@ message SubmitEventRequest {
 
     KubeRequestEvent kube_request = 36;
     SFTPEvent sftp = 37;
+    AgentMetadataEvent agent_metadata_event = 38;
+    ResourceHeartbeatEvent resource_heartbeat = 39;
   }
+
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
 }
 message SubmitEventResponse {}
 
+message SubmitEventsRequest {
+  repeated SubmitEventRequest events = 1;
+}
+message SubmitEventsResponse {}
+
 message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
-  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {
+    option deprecated = true;
+  }
+  rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }

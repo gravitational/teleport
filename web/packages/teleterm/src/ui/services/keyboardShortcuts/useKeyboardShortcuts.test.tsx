@@ -30,9 +30,9 @@ import { KeyboardShortcutEventSubscriber } from './types';
 test('call handler on its event type', () => {
   const { handler, getEventEmitter, wrapper } = getTestSetup();
 
-  renderHook(() => useKeyboardShortcuts({ 'tab-1': handler }), { wrapper });
+  renderHook(() => useKeyboardShortcuts({ tab1: handler }), { wrapper });
   const emitEvent = getEventEmitter();
-  emitEvent({ type: 'tab-1' });
+  emitEvent({ action: 'tab1' });
 
   expect(handler).toHaveBeenCalled();
 });
@@ -40,9 +40,9 @@ test('call handler on its event type', () => {
 test('do not call handler on other event type', () => {
   const { handler, getEventEmitter, wrapper } = getTestSetup();
 
-  renderHook(() => useKeyboardShortcuts({ 'tab-1': handler }), { wrapper });
+  renderHook(() => useKeyboardShortcuts({ tab1: handler }), { wrapper });
   const emitEvent = getEventEmitter();
-  emitEvent({ type: 'tab-2' });
+  emitEvent({ action: 'tab2' });
 
   expect(handler).not.toHaveBeenCalled();
 });

@@ -211,6 +211,10 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) (*user.User, err
 	if userCloser != nil {
 		ctx.AddCloser(userCloser)
 	}
+
+	// Indicate that the user was created by Teleport.
+	ctx.UserCreatedByTeleport = true
+
 	return tempUser, nil
 }
 
@@ -630,22 +634,42 @@ func (s *session) Stop() {
 	s.BroadcastMessage("Stopping session...")
 	s.log.Info("Stopping session")
 
-	// close io copy loops
+	// Close io copy loops
 	s.io.Close()
 
-	// Close and kill terminal
-	if s.term != nil {
-		if err := s.term.Close(); err != nil {
-			s.log.WithError(err).Debug("Failed to close the shell")
-		}
-		if err := s.term.Kill(context.TODO()); err != nil {
-			s.log.WithError(err).Debug("Failed to kill the shell")
-		}
-	}
+	// Make sure that the terminal has been closed
+	s.haltTerminal()
 
 	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
 		s.log.WithError(err).Debug("Failed to close session tracker")
+	}
+}
+
+// haltTerminal closes the terminal. Then is tried to terminate the terminal in a graceful way
+// and kill by sending SIGKILL if the graceful termination fails.
+func (s *session) haltTerminal() {
+	if s.term == nil {
+		return
+	}
+
+	if err := s.term.Close(); err != nil {
+		s.log.WithError(err).Debug("Failed to close the shell")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.term.KillUnderlyingShell(ctx); err != nil {
+		s.log.WithError(err).Debug("Failed to terminate the shell")
+	} else {
+		// Return before we send SIGKILL to the child process, as doing that
+		// could interrupt the "graceful shutdown" process.
+		return
+	}
+
+	if err := s.term.Kill(context.TODO()); err != nil {
+		s.log.WithError(err).Debug("Failed to kill the shell")
 	}
 }
 
@@ -1462,8 +1486,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session.", p.user)
-	s.log.Infof("New party %v joined session", p.String())
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {
 		s.term.AddParty(1)

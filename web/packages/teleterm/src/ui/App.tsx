@@ -26,7 +26,7 @@ import { AppInitializer } from 'teleterm/ui/AppInitializer';
 import CatchError from './components/CatchError';
 import AppContextProvider from './appContextProvider';
 import AppContext from './appContext';
-import ThemeProvider from './ThemeProvider';
+import { ThemeProvider } from './ThemeProvider';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
   return (
@@ -34,16 +34,7 @@ export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
       <CatchError>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
-            <ThemeProvider
-              fonts={{
-                mono: ctx.mainProcessClient.configService.get(
-                  'fonts.monoFamily'
-                ).value,
-                sansSerif: ctx.mainProcessClient.configService.get(
-                  'fonts.sansSerifFamily'
-                ).value,
-              }}
-            >
+            <ThemeProvider>
               <AppInitializer />
             </ThemeProvider>
           </AppContextProvider>

@@ -34,7 +34,7 @@ export const Loaded = () => (
 
 export const Empty = () => (
   <MemoryRouter>
-    <Databases {...props} results={{ databases: [] }} isSearchEmpty={true} />
+    <Databases {...props} fetchedData={{ agents: [] }} isSearchEmpty={true} />
   </MemoryRouter>
 );
 
@@ -42,7 +42,7 @@ export const EmptyReadOnly = () => (
   <MemoryRouter>
     <Databases
       {...props}
-      results={{ databases: [] }}
+      fetchedData={{ agents: [] }}
       canCreate={false}
       isSearchEmpty={true}
     />
@@ -65,8 +65,8 @@ export const Failed = () => (
 );
 
 export const props: State = {
-  results: {
-    databases,
+  fetchedData: {
+    agents: databases,
     totalCount: databases.length,
   },
   fetchStatus: '',
@@ -79,8 +79,15 @@ export const props: State = {
   fetchNext: () => null,
   fetchPrev: () => null,
   pageSize: databases.length,
-  from: 1,
-  to: databases.length,
+  pageIndicators: {
+    from: 1,
+    to: databases.length,
+    totalCount: databases.length,
+  },
+  page: {
+    index: 0,
+    keys: [],
+  },
   params: {
     search: '',
     query: '',
@@ -88,7 +95,6 @@ export const props: State = {
   },
   setParams: () => null,
   setSort: () => null,
-  startKeys: [''],
   pathname: '',
   replaceHistory: () => null,
   isSearchEmpty: false,

@@ -44,7 +44,7 @@ the `ssh_server` yaml config to control whether scp and sftp will be enabled or 
 for per node.
 
 2. Adding SFTP protocol support to `tsh scp` sub command, and
-ensuring SFTP trasfers work on the web UI. `tsh scp` will continue to use the scp/rcp
+ensuring SFTP transfers work on the web UI. `tsh scp` will continue to use the scp/rcp
 protocol by default for backwards compatibility, but the SFTP protocol can be
 optionally enabled with the `-s` flag.
 

@@ -223,7 +223,7 @@ have users be automatically created.
 
 ### Teleport user has multiple roles but not all of them enable `create_host_user`
 
-In the situtation where a user has roles as below, the user would not
+In the situation where a user has roles as below, the user would not
 be able to make use of automatically provisioning users as both roles
 do not enable `create_host_user`.
 

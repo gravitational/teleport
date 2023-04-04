@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -53,7 +53,7 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 	}
 
 	// Start Teleport Database Service
-	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, resMatchers, service.Database{
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, resMatchers, servicecfg.Database{
 		Name:     "dummydb",
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "127.0.0.1:0",

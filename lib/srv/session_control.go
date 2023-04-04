@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -186,25 +187,43 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(err)
 	}
 
-	maxConnections := identity.AccessChecker.MaxConnections()
+	ctx, err = s.EnforceConnectionLimits(
+		ctx,
+		auth.ConnectionIdentity{
+			Username:       identity.TeleportUser,
+			MaxConnections: identity.AccessChecker.MaxConnections(),
+			LocalAddr:      localAddr,
+			RemoteAddr:     remoteAddr,
+			UserMetadata:   identity.GetUserMetadata(),
+		},
+		closers...,
+	)
+	return ctx, trace.Wrap(err)
+}
+
+// EnforceConnectionLimits retrieves a semaphore lock to ensure that connection limits
+// for the identity are enforced. If the lock is closed for any reason prior to the connection
+// being terminated any of the provided closers will be closed.
+func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identity auth.ConnectionIdentity, closers ...io.Closer) (context.Context, error) {
+	maxConnections := identity.MaxConnections
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing
 		// else needs to be done here.
 		return ctx, nil
 	}
 
-	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(spanCtx)
+	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
-	semLock, err := services.AcquireSemaphoreLock(spanCtx, services.SemaphoreLockConfig{
+	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
 		Service: s.cfg.Semaphores,
 		Clock:   s.cfg.Clock,
 		Expiry:  netConfig.GetSessionControlTimeout(),
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindConnection,
-			SemaphoreName: identity.TeleportUser,
+			SemaphoreName: identity.Username,
 			MaxLeases:     maxConnections,
 			Holder:        s.cfg.ServerID,
 		},
@@ -213,9 +232,9 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
 			userSessionLimitHitCount.Inc()
-			s.emitRejection(spanCtx, identity.GetUserMetadata(), localAddr, remoteAddr, events.SessionRejectedEvent, maxConnections)
+			s.emitRejection(ctx, identity.UserMetadata, identity.LocalAddr, identity.RemoteAddr, events.SessionRejectedEvent, maxConnections)
 
-			return ctx, trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)", identity.TeleportUser, maxConnections)
+			return ctx, trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)", identity.Username, maxConnections)
 		}
 
 		return ctx, trace.Wrap(err)

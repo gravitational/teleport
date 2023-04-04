@@ -27,7 +27,7 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
 type Options = {
   el: HTMLElement;
-  fontFamily?: string;
+  fontSize: number;
 };
 
 export default class TtyTerminal {
@@ -51,10 +51,17 @@ export default class TtyTerminal {
   open(): void {
     this.term = new Terminal({
       cursorBlink: false,
-      fontFamily: this.options.fontFamily,
+      /**
+       * `fontFamily` can be provided by the user and is unsanitized. This means that it cannot be directly used in CSS,
+       * as it may inject malicious CSS code.
+       * To sanitize the value, we set it as a style on the HTML element and then read it from it.
+       * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
+       */
+      fontFamily: this.el.style.fontFamily,
+      fontSize: this.options.fontSize,
       scrollback: 5000,
       theme: {
-        background: theme.colors.primary.darker,
+        background: theme.colors.levels.sunken,
       },
       windowOptions: {
         setWinSizeChars: true,

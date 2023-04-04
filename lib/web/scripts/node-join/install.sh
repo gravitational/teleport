@@ -848,7 +848,7 @@ install_from_file() {
 install_from_repo() {
     if [[ "${REPO_CHANNEL}" == "" ]]; then
         # By default, use the current version's channel.
-        REPO_CHANNEL=v"${TELEPORT_VERSION//.*/}"
+        REPO_CHANNEL=stable/v"${TELEPORT_VERSION//.*/}"
     fi
 
     # Populate $ID, $VERSION_ID, $VERSION_CODENAME and other env vars identifying the OS.
@@ -864,12 +864,12 @@ install_from_repo() {
         ]]; then
             apt install apt-transport-https gnupg -y
             curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc | apt-key add -
-            echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
+            echo "deb https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         else
             curl -fsSL https://deb.releases.teleport.dev/teleport-pubkey.asc \
                 -o /usr/share/keyrings/teleport-archive-keyring.asc
             echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-            https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} stable/${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
+            https://apt.releases.teleport.dev/${ID} ${VERSION_CODENAME} ${REPO_CHANNEL}" > /etc/apt/sources.list.d/teleport.list
         fi
         apt-get update
         apt-get install -y ${TELEPORT_PACKAGE_NAME}
@@ -879,7 +879,12 @@ install_from_repo() {
         fi
         yum install -y yum-utils
         yum-config-manager --add-repo \
-        "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/${REPO_CHANNEL}/teleport.repo")"
+        "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/${REPO_CHANNEL}/teleport.repo")"
+
+        # Remove metadata cache to prevent cache from other channel (eg, prior version)
+        # See: https://github.com/gravitational/teleport/issues/22581
+        yum --disablerepo="*" --enablerepo="teleport" clean metadata
+        
         yum install -y ${TELEPORT_PACKAGE_NAME}
     else
         echo "Unsupported distro: $ID"
@@ -935,6 +940,10 @@ elif [[ "${DB_INSTALL_MODE}" == "true" ]]; then
 else
     install_teleport_node_config
 fi
+
+
+# Used to track whether a Teleport agent was installed using this method.
+export TELEPORT_INSTALL_METHOD_NODE_SCRIPT="true"
 
 # install systemd unit if applicable (linux hosts)
 if is_using_systemd; then

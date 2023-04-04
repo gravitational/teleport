@@ -29,7 +29,7 @@ import {
 } from 'teleterm/ui/services/workspacesService';
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
-import DocumentTerminal from 'teleterm/ui/DocumentTerminal';
+import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri } from 'teleterm/ui/uri';

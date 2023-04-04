@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/require"
 
@@ -137,4 +138,81 @@ func TestUpsertServer(t *testing.T) {
 			require.Empty(t, cmp.Diff(allServers, []types.Server{tt.wantServer}, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 		})
 	}
+}
+
+func TestUpsertUser(t *testing.T) {
+	t.Parallel()
+	const remoteAddr = "request-remote-addr"
+
+	tests := []struct {
+		desc      string
+		role      string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			desc:      "existing role",
+			role:      "test-role",
+			assertErr: require.NoError,
+		}, {
+			desc: "role that doesn't exist",
+			role: "some-other-role",
+			assertErr: func(t require.TestingT, err error, args ...interface{}) {
+				require.True(t, trace.IsNotFound(err))
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+
+			// Create a fake HTTP request.
+			inUsr, err := services.MarshalUser(&types.UserV2{
+				Metadata: types.Metadata{Name: "test-user", Namespace: apidefaults.Namespace},
+				Version:  types.V2,
+				Kind:     types.KindUser,
+				Spec: types.UserSpecV2{
+					Roles: []string{tt.role},
+				},
+			})
+			require.NoError(t, err)
+
+			body, err := json.Marshal(upsertUserRawReq{User: inUsr})
+			require.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "http://localhost", bytes.NewReader(body))
+			req.RemoteAddr = remoteAddr
+			req.Header.Add("Content-Type", "application/json")
+
+			respWriter := httptest.NewRecorder()
+			srv := new(APIServer)
+
+			mockClt := &mockClientI{
+				existingRole: "test-role",
+			}
+
+			_, err = srv.upsertUser(mockClt, respWriter, req, httprouter.Params{
+				httprouter.Param{Key: "namespace", Value: apidefaults.Namespace},
+			}, "")
+			tt.assertErr(t, err)
+			if err != nil {
+				return
+			}
+		})
+	}
+}
+
+type mockClientI struct {
+	ClientI
+	existingRole string
+}
+
+func (c *mockClientI) UpsertUser(user types.User) error {
+	return nil
+}
+func (c *mockClientI) GetRole(_ context.Context, name string) (types.Role, error) {
+	if c.existingRole != name {
+		return nil, trace.NotFound("role not found: %q", name)
+	}
+	return nil, nil
 }

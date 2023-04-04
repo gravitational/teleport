@@ -22,6 +22,7 @@ import Select, { Option } from 'shared/components/Select';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import {
   ActionButtons,
@@ -29,7 +30,7 @@ import {
   HeaderWithBackBtn,
   ConnectionDiagnosticResult,
 } from '../../Shared';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -53,6 +54,8 @@ export function TestConnectionView({
   username,
   clusterId,
   dbEngine,
+  showMfaDialog,
+  cancelMfaDialog,
 }: State) {
   const userOpts = db.users.map(l => ({ value: l, label: l }));
   const nameOpts = db.names.map(l => ({ value: l, label: l }));
@@ -67,8 +70,21 @@ export function TestConnectionView({
     tshDbCmd += ` --db-name=${selectedName.value}`;
   }
 
+  function makeTestConnRequest() {
+    return {
+      name: selectedName?.value,
+      user: selectedUser?.value,
+    };
+  }
+
   return (
     <Box>
+      {showMfaDialog && (
+        <ReAuthenticate
+          onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
+          onClose={cancelMfaDialog}
+        />
+      )}
       <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the Database you
@@ -121,12 +137,7 @@ export function TestConnectionView({
         attempt={attempt}
         diagnosis={diagnosis}
         canTestConnection={canTestConnection}
-        testConnection={() =>
-          testConnection({
-            name: selectedName?.value,
-            user: selectedUser?.value,
-          })
-        }
+        testConnection={() => testConnection(makeTestConnRequest())}
         stepNumber={2}
         stepDescription="Verify that your database is accessible"
       />

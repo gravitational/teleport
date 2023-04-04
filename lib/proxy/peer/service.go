@@ -95,7 +95,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
-	streamConn := utils.NewTrackingConn(newStreamConn(streamRW, source, destination))
+	streamConn := utils.NewTrackingConn(streamutils.NewConn(streamRW, source, destination))
 
 	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
 	sent, received := streamConn.Stat()

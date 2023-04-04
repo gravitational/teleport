@@ -51,7 +51,6 @@ export interface Acl {
   directorySharingEnabled: boolean;
   desktopSessionRecordingEnabled: boolean;
   clipboardSharingEnabled: boolean;
-  windowsLogins: string[];
   authConnectors: Access;
   trustedClusters: Access;
   roles: Access;
@@ -71,6 +70,8 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
+  plugins: Access;
+  deviceTrust: Access;
 }
 
 export interface User {

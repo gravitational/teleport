@@ -23,7 +23,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -41,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -90,15 +90,7 @@ func validateSTSHost(stsHost string, cfg *iamRegisterConfig) error {
 	}
 
 	if cfg.fips && !slices.Contains(fipsSTSEndpoints, stsHost) {
-		if cfg.authVersion.LessThan(semver.Version{Major: 12}) {
-			log.Warnf("Non-FIPS STS endpoint (%s) was used by a node joining "+
-				"the cluster with the IAM join method. "+
-				"Ensure that all nodes joining the cluster are up to date and also run in FIPS mode. "+
-				"This will be an error in Teleport 12.0.0.",
-				stsHost)
-		} else {
-			return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
-		}
+		return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
 	}
 
 	return nil
@@ -376,9 +368,9 @@ func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse c
 		opt(cfg)
 	}
 
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
-		return nil, trace.BadParameter("logic error: client address was not set")
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	challenge, err := generateIAMChallenge()

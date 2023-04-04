@@ -38,59 +38,6 @@ type Kube struct {
 	KubernetesCluster types.KubeCluster
 }
 
-// GetAllKubes returns kube services
-func (c *Cluster) GetAllKubes(ctx context.Context) ([]Kube, error) {
-	var authClient auth.ClientI
-	var proxyClient *client.ProxyClient
-	var err error
-
-	err = addMetadataToRetryableError(ctx, func() error {
-		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer proxyClient.Close()
-
-	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	defer authClient.Close()
-
-	servers, err := authClient.GetKubernetesServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kubeMap := map[string]Kube{}
-	for _, server := range servers {
-		kube := server.GetCluster()
-		if kube == nil {
-			continue
-		}
-
-		kubeMap[kube.GetName()] = Kube{
-			URI:               c.URI.AppendKube(kube.GetName()),
-			KubernetesCluster: kube,
-		}
-
-	}
-
-	kubes := make([]Kube, 0, len(kubeMap))
-	for _, value := range kubeMap {
-		kubes = append(kubes, value)
-	}
-
-	return kubes, nil
-}
-
 // GetKubes returns a paginated kubes list
 func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKubesResponse, error) {
 	var (

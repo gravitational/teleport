@@ -13,11 +13,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import { Server, ServerSideParams } from 'teleterm/services/tshd/types';
+import { Server, GetResourcesParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { makeServer } from 'teleterm/ui/services/clusters';
 
 import { useServerSideResources } from '../useServerSideResources';
+
+import type * as uri from 'teleterm/ui/uri';
 
 export function useServers() {
   const appContext = useAppContext();
@@ -25,11 +27,11 @@ export function useServers() {
   const { fetchAttempt, ...serversideResources } =
     useServerSideResources<Server>(
       { fieldName: 'hostname', dir: 'ASC' }, // default sort
-      (params: ServerSideParams) =>
+      (params: GetResourcesParams) =>
         appContext.resourcesService.fetchServers(params)
     );
 
-  function getSshLogins(serverUri: string): string[] {
+  function getSshLogins(serverUri: uri.ServerUri): string[] {
     const cluster = appContext.clustersService.findClusterByResource(serverUri);
     return cluster?.loggedInUser?.sshLoginsList || [];
   }
@@ -40,7 +42,9 @@ export function useServers() {
     );
     const documentsService =
       appContext.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
-    const doc = documentsService.createTshNodeDocument(server.uri);
+    const doc = documentsService.createTshNodeDocument(server.uri, {
+      origin: 'resource_table',
+    });
     doc.title = `${login}@${server.hostname}`;
     doc.login = login;
 

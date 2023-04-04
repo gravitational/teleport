@@ -109,7 +109,7 @@ func getGithubToken() (string, error) {
 		return "", trace.Wrap(err)
 	}
 	if config.Host.Token == "" {
-		return "", trace.BadParameter("missing Github token.")
+		return "", trace.BadParameter("missing GitHub token.")
 	}
 	return config.Host.Token, nil
 }

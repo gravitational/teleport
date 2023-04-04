@@ -117,7 +117,7 @@ const Separator = styled.div`
 `;
 
 const StyledTabs = styled(Box)`
-  background-color: ${props => props.theme.colors.primary.main};
+  background-color: ${props => props.theme.colors.levels.surfaceSecondary};
   min-height: 32px;
   border-radius: 4px;
   display: flex;

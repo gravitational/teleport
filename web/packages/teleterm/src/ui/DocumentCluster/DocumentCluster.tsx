@@ -117,6 +117,8 @@ function RequiresLogin(props: { clusterUri: string; onLogin(): void }) {
   );
 }
 
+// TODO(ravicious): Add a button for syncing the leaf clusters list.
+// https://github.com/gravitational/teleport.e/issues/863
 function LeafDisconnected(props: { clusterUri: string }) {
   return (
     <Flex flexDirection="column" mx="auto" alignItems="center">

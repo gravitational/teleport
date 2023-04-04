@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/windows"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -146,7 +147,7 @@ type WindowsServiceConfig struct {
 	Clock   clockwork.Clock
 	DataDir string
 	// Authorizer is used to authorize requests.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// LockWatcher is used to monitor for new locks.
 	LockWatcher *services.LockWatcher
 	// Emitter emits audit log events.
@@ -325,11 +326,16 @@ func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 		}
 	}
 
+	clustername, err := cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	ctx, close := context.WithCancel(context.Background())
 	s := &WindowsService{
 		cfg: cfg,
 		middleware: &auth.Middleware{
-			AccessPoint:   cfg.AccessPoint,
+			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageWindowsDesktopOnly},
 		},
 		dnsResolver: resolver,
@@ -777,7 +783,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *auth.Context) error {
+func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -1146,6 +1152,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID string, createUser bool, groups []string) (certDER, keyDER []byte, err error) {
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+		CAType:             types.UserCA,
 		Username:           username,
 		Domain:             domain,
 		TTL:                ttl,

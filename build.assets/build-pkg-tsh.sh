@@ -5,9 +5,10 @@ set -eu
 TELEPORT_TYPE=''     # -t, oss or ent
 TELEPORT_VERSION=''  # -v, version, without leading 'v'
 TARBALL_DIRECTORY='' # -s
+BUNDLEID="${TSH_BUNDLEID}"
 
 usage() {
-  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-n]"
+  log "Usage: $0 -t oss|eng -v version [-s tarball_directory] [-b bundle_id] [-n]"
 }
 
 # make_non_relocatable_plist changes the default component plist of the $root
@@ -34,7 +35,7 @@ main() {
   . "$buildassets/build-common.sh"
 
   local opt=''
-  while getopts "t:v:s:n" opt; do
+  while getopts "t:v:s:b:n" opt; do
     case "$opt" in
       t)
         if [[ "$OPTARG" != "oss" && "$OPTARG" != "ent" ]]; then
@@ -53,6 +54,9 @@ main() {
           OPTARG="$PWD/$OPTARG"
         fi
         TARBALL_DIRECTORY="$OPTARG"
+        ;;
+      b)
+        BUNDLEID="$OPTARG"
         ;;
       n)
         DRY_RUN_PREFIX='echo + '  # declared by build-common.sh
@@ -75,6 +79,12 @@ main() {
     exit 1
   fi
 
+  if [[ -z "${BUNDLEID}" ]]; then
+    echo "No bundle ID specified. Either set TSH_BUNDLEID or use -b bundle_id"
+    usage
+    exit 1
+  fi
+
   # Verify environment varibles.
   if [[ "${APPLE_USERNAME:-}" == "" ]]; then
     echo "\
@@ -86,6 +96,20 @@ for notarization requests"
     echo "\
 The APPLE_PASSWORD environment variable needs to be set to an app-specific\
 password created by APPLE_USERNAME"
+    exit 1
+  fi
+
+  if [[ -z "${DEVELOPER_ID_APPLICATION}" ]]; then
+    echo "\
+The DEVELOPER_ID_APPLICATION environment variable needs to be set to the hash\
+of the key to sign applications"
+    exit 1
+  fi
+
+  if [[ -z "${DEVELOPER_ID_INSTALLER}" ]]; then
+    echo "\
+The DEVELOPER_ID_INSTALLER environment variable needs to be set to the hash\
+of the key to sign packages"
     exit 1
   fi
 
@@ -134,7 +158,7 @@ password created by APPLE_USERNAME"
   $DRY_RUN_PREFIX codesign -f \
     -o kill,hard,runtime \
     -s "$DEVELOPER_ID_APPLICATION" \
-    -i "$TSH_BUNDLEID" \
+    -i "$BUNDLEID" \
     --entitlements "$skel"/tsh*.entitlements \
     --timestamp \
     "$target"
@@ -149,7 +173,7 @@ password created by APPLE_USERNAME"
   pkgbuild \
     --root "$pkg_root" \
     --component-plist "$pkg_component_plist" \
-    --identifier "$TSH_BUNDLEID" \
+    --identifier "$BUNDLEID" \
     --version "v$TELEPORT_VERSION" \
     --install-location /Applications \
     --scripts "$pkg_scripts" \
@@ -166,7 +190,7 @@ password created by APPLE_USERNAME"
   fi
 
   # Notarize.
-  notarize "$target" "$TEAMID" "$TSH_BUNDLEID"
+  notarize "$target" "$TEAMID" "$BUNDLEID"
 
   # Copy resulting package to $PWD, generate hashes.
   mv "$target" .

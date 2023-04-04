@@ -26,7 +26,7 @@ import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
-import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
+import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
@@ -35,8 +35,6 @@ import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_reque
 import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
 import * as uri from 'teleterm/ui/uri';
-
-export type Application = apiApp.App.AsObject;
 
 export interface Kube extends apiKube.Kube.AsObject {
   uri: uri.KubeUri;
@@ -99,6 +97,16 @@ export interface Database extends apiDb.Database.AsObject {
 }
 
 export interface Cluster extends apiCluster.Cluster.AsObject {
+  /**
+   * The URI of the cluster.
+   *
+   * For root clusters, it has the form of `/clusters/:rootClusterId` where `rootClusterId` is the
+   * name of the profile, that is the hostname of the proxy used to connect to the root cluster.
+   * `rootClusterId` is not equal to the name of the root cluster.
+   *
+   * For leaf clusters, it has the form of `/clusters/:rootClusterId/leaves/:leafClusterId` where
+   * `leafClusterId` is equal to the `name` property of the cluster.
+   */
   uri: uri.ClusterUri;
   loggedInUser?: LoggedInUser;
 }
@@ -137,13 +145,9 @@ export type LoginPasswordlessRequest =
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
-  listApps: (clusterUri: uri.ClusterUri) => Promise<Application[]>;
-  getAllKubes: (clusterUri: uri.ClusterUri) => Promise<Kube[]>;
-  getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getAllDatabases: (clusterUri: uri.ClusterUri) => Promise<Database[]>;
-  getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
+  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
-  getAllServers: (clusterUri: uri.ClusterUri) => Promise<Server[]>;
   assumeRole: (
     clusterUri: uri.RootClusterUri,
     requestIds: string[],
@@ -152,7 +156,7 @@ export type TshClient = {
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
+  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
   getAccessRequests: (
     clusterUri: uri.RootClusterUri
   ) => Promise<AccessRequest[]>;
@@ -245,15 +249,24 @@ export type CreateGatewayParams = {
   subresource_name?: string;
 };
 
-export type ServerSideParams = {
+export type GetResourcesParams = {
   clusterUri: uri.ClusterUri;
+  // sort is a required field because it has direct implications on performance of ListResources.
+  sort: SortType | null;
+  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
+  // return an error.
+  limit: number;
+  // search is used for regular search.
   search?: string;
   searchAsRoles?: string;
-  sort?: SortType;
   startKey?: string;
-  limit?: number;
+  // query is used for advanced search.
   query?: string;
 };
+
+// Compatibility type to make sure teleport.e doesn't break.
+// TODO(ravicious): Remove after teleterm.e is updated to use GetResourcesParams.
+export type ServerSideParams = GetResourcesParams;
 
 export type ReviewAccessRequestParams = {
   state: RequestState;
@@ -282,6 +295,8 @@ export type AssumedRequest = {
 };
 
 export { FileTransferDirection };
+
+export type Label = apiLabel.Label.AsObject;
 
 // Replaces object property with a new type
 type Modify<T, R> = Omit<T, keyof R> & R;

@@ -23,11 +23,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -35,11 +37,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
+	caCertFilePath := filepath.Join(t.TempDir(), "ca-cert.pem")
+	require.NoError(t, os.WriteFile(caCertFilePath, []byte(fixtures.TLSCACertPEM), 0644))
 
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -61,6 +66,11 @@ func TestDatabaseServerResource(t *testing.T) {
 					Description: "Example2 MySQL",
 					Protocol:    "mysql",
 					URI:         "localhost:33307",
+					TLS: config.DatabaseTLS{
+						Mode:       "verify-ca",
+						ServerName: "db.example.com",
+						CACertFile: caCertFilePath,
+					},
 				},
 			},
 		},
@@ -79,41 +89,56 @@ func TestDatabaseServerResource(t *testing.T) {
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	wantDB, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "example2",
+		Description: "Example2 MySQL",
+		Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:33307",
+		CACert:   fixtures.TLSCACertPEM,
+		TLS: types.DatabaseTLS{
+			Mode:       types.DatabaseTLSMode_VERIFY_CA,
+			ServerName: "db.example.com",
+			CACert:     fixtures.TLSCACertPEM,
+		},
+	})
+	require.NoError(t, err)
 
-	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
+	_ = makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	var out []*types.DatabaseServerV3
 
-	t.Run("get all database servers", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 2)
-	})
+	// get all database servers
+	buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 2)
 
-	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
+	wantServer := fmt.Sprintf("%v/%v", types.KindDatabaseServer, wantDB.GetName())
 
-	t.Run("get specific database server", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 1)
-	})
+	// get specific database server
+	buff, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 1)
+	gotDB := out[0].GetDatabase()
+	require.Empty(t, cmp.Diff([]types.Database{wantDB}, []types.Database{gotDB},
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
+	))
 
-	t.Run("remove database server", func(t *testing.T) {
-		_, err := runResourceCommand(t, fileConfig, []string{"rm", server})
-		require.NoError(t, err)
+	// remove database server
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServer})
+	require.NoError(t, err)
 
-		_, err = runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
-		require.Error(t, err)
-		require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
+	_, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	require.Error(t, err)
+	require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 0)
-	})
+	buff, err = runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 0)
 }
 
 // TestDatabaseResource tests tctl commands that manage database resources.
@@ -161,6 +186,9 @@ func TestDatabaseResource(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",
+		TLS: types.DatabaseTLS{
+			Mode: types.DatabaseTLSMode_VERIFY_CA,
+		},
 	})
 	require.NoError(t, err)
 
@@ -182,6 +210,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 2)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbA, dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -190,6 +219,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -202,6 +232,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -378,6 +409,74 @@ func TestAppResource(t *testing.T) {
 	))
 }
 
+func TestCreateLock(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	timeNow := time.Now().UTC()
+	fakeClock := clockwork.NewFakeClockAt(timeNow)
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(fakeClock))
+
+	_, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "I am a message",
+	})
+	require.NoError(t, err)
+
+	var locks []*types.LockV2
+
+	// Ensure there are no locks to start
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Empty(t, locks)
+
+	// Create the locks
+	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
+	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", lockYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the locks
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Len(t, locks, 1)
+
+	expected, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "Come see me",
+	})
+	require.NoError(t, err)
+	expected.SetCreatedBy(string(types.RoleAdmin))
+
+	expected.SetCreatedAt(timeNow)
+
+	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
+		cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
+}
+
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
@@ -436,7 +535,9 @@ metadata:
   name: db-b
 spec:
   protocol: "mysql"
-  uri: "localhost:3306"`
+  uri: "localhost:3306"
+  tls:
+    mode: "verify-ca"`
 
 	appYAML = `kind: app
 version: v3
@@ -451,9 +552,18 @@ metadata:
   name: appB
 spec:
   uri: "localhost2"`
+
+	lockYAML = `kind: lock
+version: v2
+metadata:
+  name: "test-lock"
+spec:
+  target:
+    user: "bad@actor"
+  message: "Come see me"`
 )
 
-func TestCreateClusterAuthPreferencet_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
+func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -533,6 +643,108 @@ version: v2`,
 				mustDecodeJSON(t, buf, &authPreferences)
 				require.NotZero(t, len(authPreferences))
 				tt.expectSecondFactor(t, authPreferences[0].Spec.SecondFactor)
+			}
+		})
+	}
+}
+
+func TestCreateSAMLIdPServiceProvider(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	tests := []struct {
+		desc           string
+		input          string
+		name           string
+		expectError    require.ErrorAssertionFunc
+		expectEntityID require.ValueAssertionFunc
+	}{
+		{
+			desc: "handle no supplied entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+`,
+			name:           "test1",
+			expectError:    require.NoError,
+			expectEntityID: requireEqual("IAMShowcase"),
+		},
+		{
+			desc: "handle overwrite entity ID",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+       <md:SPSSODescriptor AuthnRequestsSigned="false" WantAssertionsSigned="true" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol">
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat>
+          <md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat>
+          <md:AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://sptest.iamshowcase.com/acs" index="0" isDefault="true"/>
+       </md:SPSSODescriptor>
+    </md:EntityDescriptor>
+  entity_id: never-seen-entity-id
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+		{
+			desc: "handle invalid entity descriptor",
+			input: `
+kind: saml_idp_service_provider
+version: v1
+metadata:
+  name: test1
+spec:
+  entity_descriptor: |
+    <?xml version="1.0" encoding="UTF-8"?>
+    <md:EntityDescriptor xmlns:md="urn:oasis:names:tc:SAML:2.0:metadata" xmlns:ds="http://www.w3.org/2000/09/xmldsig#" entityID="IAMShowcase" validUntil="2025-12-09T09:13:31.006Z">
+`,
+			name:        "test1",
+			expectError: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.desc, func(t *testing.T) {
+			spYAMLPath := filepath.Join(t.TempDir(), "sp.yaml")
+			require.NoError(t, os.WriteFile(spYAMLPath, []byte(tt.input), 0644))
+
+			_, err := runResourceCommand(t, fileConfig, []string{"create", "-f", spYAMLPath})
+			tt.expectError(t, err)
+
+			if tt.expectEntityID != nil {
+				buf, err := runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
+				require.NoError(t, err)
+				sps := []*types.SAMLIdPServiceProviderV1{}
+				mustDecodeJSON(t, buf, &sps)
+				tt.expectEntityID(t, sps[0].GetEntityID())
 			}
 		})
 	}

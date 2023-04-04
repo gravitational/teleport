@@ -171,6 +171,7 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.DEVICE_ENROLL]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: Icons.Info,
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
+  [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
@@ -200,6 +201,15 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.LOGIN_RULE_CREATE]: Icons.Info,
   [eventCodes.LOGIN_RULE_DELETE]: Icons.Info,
+  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: Icons.Info,
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
@@ -256,7 +266,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
 const StyledCliIcon = styled(Icons.Cli)(
   props => `
   background: ${props.theme.colors.dark};
-  border: 2px solid ${props.theme.colors.accent};
+  border: 2px solid ${props.theme.colors.brand.accent};
   color: ${props.theme.colors.text.primary};
   cursor: pointer;
   display: flex;

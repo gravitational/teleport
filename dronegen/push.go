@@ -14,7 +14,10 @@
 
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // pushCheckoutCommands builds a list of commands for Drone to check out a git commit on a push build
 func pushCheckoutCommands(b buildType) []string {
@@ -72,13 +75,15 @@ func pushPipelines() []pipeline {
 	}
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:       buildType{os: "linux", arch: "arm64"},
-		trigger:         triggerPush,
-		namePrefix:      "push-",
-		uploadArtifacts: false,
-		slackOnError:    true,
-		srcRefVar:       "DRONE_COMMIT",
-		workflowRefVar:  "DRONE_BRANCH",
+		buildType:    buildType{os: "linux", arch: "arm64"},
+		trigger:      triggerPush,
+		pipelineName: "push-build-linux-arm64",
+		ghaWorkflow:  "release-linux-arm64.yml",
+		timeout:      60 * time.Minute,
+		slackOnError: true,
+		srcRefVar:    "DRONE_COMMIT",
+		workflowRef:  "${DRONE_BRANCH}",
+		inputs:       map[string]string{"upload-artifacts": "false"},
 	}))
 
 	// Only amd64 Windows is supported for now.
@@ -121,7 +126,7 @@ func pushPipeline(b buildType) pipeline {
 	}
 	p.Trigger = triggerPush
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeDocker}
+	p.Volumes = []volume{volumeDocker, volumeDockerConfig}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -129,6 +134,7 @@ func pushPipeline(b buildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -138,8 +144,9 @@ func pushPipeline(b buildType) pipeline {
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
+			Pull:        "if-not-exists",
 			Environment: pushEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    pushBuildCommands(b),
 		},
 		sendErrorToSlackStep(),

@@ -16,10 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
+import { PageIndicatorText } from 'shared/components/Search';
 import { Text, Box, Flex } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
-import { PageIndicatorText } from 'design/DataTable/Pager/Pager';
 import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
 
 import Toggle from 'teleport/components/Toggle';
@@ -41,9 +41,8 @@ export function ServersideSearchPanel({
   isAdvancedSearch,
   setIsAdvancedSearch,
   onSubmitSearch,
-  from,
-  to,
-  count,
+  pageIndicators,
+  disabled = false,
 }: State) {
   function onToggle() {
     setIsAdvancedSearch(!isAdvancedSearch);
@@ -55,6 +54,7 @@ export function ServersideSearchPanel({
       onSubmit={onSubmitSearch}
       borderTopLeftRadius={3}
       borderTopRightRadius={3}
+      style={disabled ? { pointerEvents: 'none', opacity: '0.5' } : {}}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
         <Flex style={{ width: '70%' }} alignItems="center">
@@ -74,7 +74,11 @@ export function ServersideSearchPanel({
           </Tooltip>
         </Flex>
         <Flex>
-          <PageIndicatorText from={from} to={to} count={count} />
+          <PageIndicatorText
+            from={pageIndicators.from}
+            to={pageIndicators.to}
+            count={pageIndicators.totalCount}
+          />
         </Flex>
       </Flex>
     </StyledPanel>

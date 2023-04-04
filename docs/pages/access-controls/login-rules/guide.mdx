@@ -14,16 +14,44 @@ first Login Rule to your Teleport cluster.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 Before you get started you’ll need a running Teleport Enterprise or Cloud
-cluster on version 11.3.0 or greater.
+cluster on version `11.3.1` or greater.
 
 Login Rules only operate on SSO logins, so make sure you have
 configured an OIDC, SAML, or GitHub connector before you begin.
 Check the [Single Sign-On](../sso/) docs to learn how to set this up.
 
-## Step 1/4. Draft your Login Rule resource
+## Step 1/5. Configure RBAC
+
+First, ensure you are logged into Teleport as a user that has permissions
+to read and modify `login_rule` resources. The preset `editor` role
+has access to this already, but in case you are using a more customized configuration,
+create a role called `loginrule-manager.yaml` with the following contents:
+
+```yaml
+kind: role
+metadata:
+  name: loginrule-manager
+spec:
+  allow:
+    rules:
+      - resources: [login_rule]
+        verbs: [list, create, read, update, delete]
+version: v6
+```
+
+Create the role with `tctl`:
+
+```code
+$ tctl create loginrule-manager.yaml 
+role 'loginrule-manager' has been created
+```
+
+(!docs/pages/includes/add-role-to-user.mdx role="loginrule-manager" !)
+
+## Step 2/5. Draft your Login Rule resource
 
 The following example will give all users a new `logins` trait set to the value
 of their current `username` trait converted to lowercase.
@@ -68,7 +96,7 @@ variable.
 The `external` variable is a dictionary which maps trait keys to sets of values
 for that trait.
 
-## Step 2/4. Test the Login Rule
+## Step 3/5. Test the Login Rule
 
 The `tctl login_rule test` command can be used to experiment with new Login
 Rules to check their syntax and see exactly how they will operate on example
@@ -92,18 +120,7 @@ logins:
 This script will catch any syntax errors in your expressions.
 Make sure that all expected traits are present in the output.
 
-## Step 3/4. Create the Login Rule
-
-In order to run `tctl` commands for Login Rule resources, your user must have
-the built-in `editor` role or the appropriate allow rules in one of your roles:
-
-```yaml
-spec:
-  allow:
-    rules:
-      - resources: [login_rule]
-        verbs: [list, create, read, update, delete]
-```
+## Step 4/5. Create the Login Rule
 
 Use the following command to create the Login Rule in your cluster:
 
@@ -111,7 +128,7 @@ Use the following command to create the Login Rule in your cluster:
 $ tctl create my_rule.yaml
 ```
 
-## Step 4/4. Try it out
+## Step 5/5. Try it out
 
 As a final step, log out of your cluster, then log in again and make sure your user received the
 expected traits and roles.

@@ -17,7 +17,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { TestConnectionView } from './TestConnection';
 
@@ -63,4 +63,6 @@ const props: State = {
     hostname: 'db-hostname',
   },
   dbEngine: DatabaseEngine.MySQL,
+  showMfaDialog: false,
+  cancelMfaDialog: () => null,
 };

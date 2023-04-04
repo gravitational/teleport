@@ -4,6 +4,7 @@
 #include <bpf/bpf_core_read.h>     /* for BPF CO-RE helpers */
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
+#include "./common.h"
 #include "../helpers.h"
 
 // Maximum number of in-flight open syscalls supported
@@ -14,8 +15,6 @@
 // the userspace can adjust this value based on config.
 #define EVENTS_BUF_SIZE (4096*128)
 
-// Maximum monitored sessions.
-#define MAX_MONITORED_SESSIONS 1024
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
@@ -73,7 +72,7 @@ static int exit_open(int ret) {
     // Check if the cgroup should be monitored.
     is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
     if (is_monitored == NULL) {
-        // Missed entry.
+        // cgroup has not been marked for monitoring, ignore.
         return 0;
     }
 
@@ -111,6 +110,9 @@ int tracepoint__syscalls__sys_exit_creat(struct trace_event_raw_sys_exit *tp)
     return exit_open(tp->ret);
 }
 
+// ARM64 does not implement sys_enter_open only sys_enter_openat. x86 implements it for legacy reasons.
+#ifndef __TARGET_ARCH_arm64
+
 SEC("tp/syscalls/sys_enter_open")
 int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
 {
@@ -119,6 +121,8 @@ int tracepoint__syscalls__sys_enter_open(struct trace_event_raw_sys_enter *tp)
 
     return enter_open(filename, flags);
 };
+
+#endif // __aarch64__
 
 SEC("tp/syscalls/sys_exit_open")
 int tracepoint__syscalls__sys_exit_open(struct trace_event_raw_sys_exit *tp)

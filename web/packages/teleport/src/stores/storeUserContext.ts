@@ -13,6 +13,8 @@ limitations under the License.
 
 import { Store } from 'shared/libs/stores';
 
+import cfg from 'teleport/config';
+
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {
@@ -40,10 +42,6 @@ export default class StoreUserContext extends Store<UserContext> {
 
   getRoleAccess() {
     return this.state.acl.roles;
-  }
-
-  getWindowsLogins() {
-    return this.state.acl.windowsLogins;
   }
 
   getTrustedClusterAccess() {
@@ -146,8 +144,12 @@ export default class StoreUserContext extends Store<UserContext> {
   // has access to download either teleport binaries or the license.
   // Since the page is used to download both of them, having access to one
   // is enough to show access this page.
+  // This page is only available for `dashboards`.
   hasDownloadCenterListAccess() {
-    return this.state.acl.license.read || this.state.acl.download.list;
+    return (
+      cfg.isDashboard &&
+      (this.state.acl.license.read || this.state.acl.download.list)
+    );
   }
 
   // hasAccessToAgentQuery checks for at least one valid query permission.
@@ -168,5 +170,13 @@ export default class StoreUserContext extends Store<UserContext> {
 
   hasDiscoverAccess() {
     return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
+  }
+
+  hasPluginsAccess() {
+    return this.state.acl.plugins.list || this.state.acl.plugins.create;
+  }
+
+  getDeviceTrustAccess() {
+    return this.state.acl.deviceTrust;
   }
 }

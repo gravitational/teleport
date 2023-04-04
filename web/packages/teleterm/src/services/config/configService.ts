@@ -14,209 +14,161 @@
  * limitations under the License.
  */
 
-import { z } from 'zod';
+import path from 'path';
+
+import { z, ZodIssue } from 'zod';
+import zodToJsonSchema from 'zod-to-json-schema';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
+import Logger from 'teleterm/logger';
 import { Platform } from 'teleterm/mainProcess/types';
 
-import { createConfigStore } from './configStore';
+import {
+  createAppConfigSchema,
+  AppConfigSchema,
+  AppConfig,
+} from './appConfigSchema';
 
-const createAppConfigSchema = (platform: Platform) => {
-  const defaultKeymap = getDefaultKeymap(platform);
-  const defaultFonts = getDefaultFonts(platform);
+const logger = new Logger('ConfigService');
 
-  // Important: all keys except 'usageReporting.enabled' are currently not
-  // configurable by the user. Before we let the user configure them,
-  // we need to set up some actual validation, so that for example
-  // arbitrary CSS cannot be injected into the app through font settings.
-  //
-  // However, we want them to be in the config schema, so we included
-  // them here, but we do not read their value from the stored config.
-  return z.object({
-    'usageReporting.enabled': z.boolean().default(false),
-    'keymap.tab1': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-1'])
-    ),
-    'keymap.tab2': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-2'])
-    ),
-    'keymap.tab3': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-3'])
-    ),
-    'keymap.tab4': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-4'])
-    ),
-    'keymap.tab5': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-5'])
-    ),
-    'keymap.tab6': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-6'])
-    ),
-    'keymap.tab7': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-7'])
-    ),
-    'keymap.tab8': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-8'])
-    ),
-    'keymap.tab9': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-9'])
-    ),
-    'keymap.tabClose': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-close'])
-    ),
-    'keymap.tabNew': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-new'])
-    ),
-    'keymap.tabPrevious': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-previous'])
-    ),
-    'keymap.tabNext': omitStoredConfigValue(
-      z.string().default(defaultKeymap['tab-next'])
-    ),
-    'keymap.toggleConnections': omitStoredConfigValue(
-      z.string().default(defaultKeymap['toggle-connections'])
-    ),
-    'keymap.toggleClusters': omitStoredConfigValue(
-      z.string().default(defaultKeymap['toggle-clusters'])
-    ),
-    'keymap.toggleIdentity': omitStoredConfigValue(
-      z.string().default(defaultKeymap['toggle-identity'])
-    ),
-    'keymap.openQuickInput': omitStoredConfigValue(
-      z.string().default(defaultKeymap['open-quick-input'])
-    ),
-    'fonts.sansSerifFamily': omitStoredConfigValue(
-      z.string().default(defaultFonts['sansSerif'])
-    ),
-    'fonts.monoFamily': omitStoredConfigValue(
-      z.string().default(defaultFonts['mono'])
-    ),
-  });
+type FileLoadingError = {
+  source: 'file-loading';
+  error: Error;
 };
 
-const omitStoredConfigValue = <T>(schema: z.ZodType<T>) =>
-  z.preprocess(() => undefined, schema);
-
-export type AppConfig = z.infer<ReturnType<typeof createAppConfigSchema>>;
-
-/**
- * Modifier keys must be defined in the following order:
- * Command-Control-Option-Shift for macOS
- * Ctrl-Alt-Shift for other platforms
- */
-export type KeyboardShortcutType =
-  | 'tab-1'
-  | 'tab-2'
-  | 'tab-3'
-  | 'tab-4'
-  | 'tab-5'
-  | 'tab-6'
-  | 'tab-7'
-  | 'tab-8'
-  | 'tab-9'
-  | 'tab-close'
-  | 'tab-new'
-  | 'tab-previous'
-  | 'tab-next'
-  | 'open-quick-input'
-  | 'toggle-connections'
-  | 'toggle-clusters'
-  | 'toggle-identity';
-
-export type KeyboardShortcutsConfig = Record<KeyboardShortcutType, string>;
-const getDefaultKeymap = (platform: Platform) => {
-  switch (platform) {
-    case 'win32':
-      return {
-        'tab-1': 'Ctrl-1',
-        'tab-2': 'Ctrl-2',
-        'tab-3': 'Ctrl-3',
-        'tab-4': 'Ctrl-4',
-        'tab-5': 'Ctrl-5',
-        'tab-6': 'Ctrl-6',
-        'tab-7': 'Ctrl-7',
-        'tab-8': 'Ctrl-8',
-        'tab-9': 'Ctrl-9',
-        'tab-close': 'Ctrl-W',
-        'tab-new': 'Ctrl-T',
-        'tab-previous': 'Ctrl-Shift-Tab',
-        'tab-next': 'Ctrl-Tab',
-        'open-quick-input': 'Ctrl-K',
-        'toggle-connections': 'Ctrl-P',
-        'toggle-clusters': 'Ctrl-E',
-        'toggle-identity': 'Ctrl-I',
-      };
-    case 'linux':
-      return {
-        'tab-1': 'Alt-1',
-        'tab-2': 'Alt-2',
-        'tab-3': 'Alt-3',
-        'tab-4': 'Alt-4',
-        'tab-5': 'Alt-5',
-        'tab-6': 'Alt-6',
-        'tab-7': 'Alt-7',
-        'tab-8': 'Alt-8',
-        'tab-9': 'Alt-9',
-        'tab-close': 'Ctrl-W',
-        'tab-new': 'Ctrl-T',
-        'tab-previous': 'Ctrl-Shift-Tab',
-        'tab-next': 'Ctrl-Tab',
-        'open-quick-input': 'Ctrl-K',
-        'toggle-connections': 'Ctrl-P',
-        'toggle-clusters': 'Ctrl-E',
-        'toggle-identity': 'Ctrl-I',
-      };
-    case 'darwin':
-      return {
-        'tab-1': 'Command-1',
-        'tab-2': 'Command-2',
-        'tab-3': 'Command-3',
-        'tab-4': 'Command-4',
-        'tab-5': 'Command-5',
-        'tab-6': 'Command-6',
-        'tab-7': 'Command-7',
-        'tab-8': 'Command-8',
-        'tab-9': 'Command-9',
-        'tab-close': 'Command-W',
-        'tab-new': 'Command-T',
-        'tab-previous': 'Control-Shift-Tab',
-        'tab-next': 'Control-Tab',
-        'open-quick-input': 'Command-K',
-        'toggle-connections': 'Command-P',
-        'toggle-clusters': 'Command-E',
-        'toggle-identity': 'Command-I',
-      };
-  }
+type ValidationError = {
+  source: 'validation';
+  errors: ZodIssue[];
 };
 
-function getDefaultFonts(platform: Platform) {
-  switch (platform) {
-    case 'win32':
-      return {
-        sansSerif: "system-ui, 'Segoe WPC', 'Segoe UI', sans-serif",
-        mono: "'Consolas', 'Courier New', monospace",
-      };
-    case 'linux':
-      return {
-        sansSerif: "system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
-        mono: "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'",
-      };
-    case 'darwin':
-      return {
-        sansSerif: '-apple-system, BlinkMacSystemFont, sans-serif',
-        mono: "Menlo, Monaco, 'Courier New', monospace",
-      };
-  }
+type ConfigError = FileLoadingError | ValidationError;
+
+export interface ConfigService {
+  get<K extends keyof AppConfig>(
+    key: K
+  ): { value: AppConfig[K]; metadata: { isStored: boolean } };
+
+  set<K extends keyof AppConfig>(key: K, value: AppConfig[K]): void;
+
+  /**
+   * Returns validation errors or an error that occurred during loading the config file (this means IO and syntax errors).
+   * This error has to be checked during the initialization of the app.
+   *
+   * The reason we have a getter for this error instead of making `createConfigService` fail with an error
+   * is that in the presence of this error we want to notify about it and then continue with default values:
+   * - If validation errors occur, the incorrect values are replaced with the defaults.
+   * - In case of an error coming from loading the file, all values are replaced with the defaults.
+   * */
+  getConfigError(): ConfigError | undefined;
 }
 
-export function createConfigService(
-  appConfigFileStorage: FileStorage,
-  platform: Platform
-) {
-  return createConfigStore(
-    createAppConfigSchema(platform),
-    appConfigFileStorage
+export function createConfigService({
+  configFile,
+  jsonSchemaFile,
+  platform,
+}: {
+  configFile: FileStorage;
+  jsonSchemaFile: FileStorage;
+  platform: Platform;
+}): ConfigService {
+  const schema = createAppConfigSchema(platform);
+  updateJsonSchema({ schema, configFile, jsonSchemaFile });
+
+  const {
+    storedConfig,
+    configWithDefaults,
+    errors: validationErrors,
+  } = validateStoredConfig(schema, configFile);
+
+  return {
+    get: key => ({
+      value: configWithDefaults[key],
+      metadata: { isStored: storedConfig[key] !== undefined },
+    }),
+    set: (key, value) => {
+      configFile.put(key as string, value);
+      configWithDefaults[key] = value;
+      storedConfig[key] = value;
+    },
+    getConfigError: () => {
+      const fileLoadingError = configFile.getFileLoadingError();
+      if (fileLoadingError) {
+        return {
+          source: 'file-loading',
+          error: fileLoadingError,
+        };
+      }
+      if (validationErrors) {
+        return {
+          source: 'validation',
+          errors: validationErrors,
+        };
+      }
+    },
+  };
+}
+
+function updateJsonSchema({
+  schema,
+  configFile,
+  jsonSchemaFile,
+}: {
+  schema: AppConfigSchema;
+  configFile: FileStorage;
+  jsonSchemaFile: FileStorage;
+}): void {
+  const jsonSchema = zodToJsonSchema(
+    // Add $schema field to prevent marking it as a not allowed property.
+    schema.extend({ $schema: z.string() }),
+    { $refStrategy: 'none' }
   );
+  const jsonSchemaFileName = path.basename(jsonSchemaFile.getFilePath());
+  const jsonSchemaFileNameInConfig = configFile.get('$schema');
+
+  jsonSchemaFile.replace(jsonSchema);
+
+  if (jsonSchemaFileNameInConfig !== jsonSchemaFileName) {
+    configFile.put('$schema', jsonSchemaFileName);
+  }
 }
 
-export type ConfigService = ReturnType<typeof createConfigService>;
+function validateStoredConfig(
+  schema: AppConfigSchema,
+  configFile: FileStorage
+): {
+  storedConfig: Partial<AppConfig>;
+  configWithDefaults: AppConfig;
+  errors: ZodIssue[] | undefined;
+} {
+  const parse = (data: Partial<AppConfig>) => schema.safeParse(data);
+
+  const storedConfig = configFile.get() as Partial<AppConfig>;
+  const parsed = parse(storedConfig);
+  if (parsed.success === true) {
+    return {
+      storedConfig,
+      configWithDefaults: parsed.data,
+      errors: undefined,
+    };
+  }
+  const withoutInvalidKeys = { ...storedConfig };
+  parsed.error.issues.forEach(error => {
+    // remove only top-level keys
+    delete withoutInvalidKeys[error.path[0]];
+    logger.info(
+      `Invalid config key, error: ${error.message} at ${error.path.join('.')}`
+    );
+  });
+  const reParsed = parse(withoutInvalidKeys);
+  if (reParsed.success === false) {
+    // it can happen when a default value does not pass validation
+    throw new Error(
+      `Re-parsing config file failed \n${reParsed.error.message}`
+    );
+  }
+  return {
+    storedConfig: withoutInvalidKeys,
+    configWithDefaults: reParsed.data,
+    errors: parsed.error.issues,
+  };
+}

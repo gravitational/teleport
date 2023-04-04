@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 )
 
 // Features provides supported and unsupported features
@@ -61,6 +62,10 @@ type Features struct {
 	Desktop bool
 	// RecoveryCodes enables account recovery codes
 	RecoveryCodes bool
+	// Plugins enables hosted plugins
+	Plugins bool
+	// AutomaticUpgrades enables automatic upgrades of agents/services.
+	AutomaticUpgrades bool
 }
 
 // ToProto converts Features into proto.Features
@@ -77,6 +82,8 @@ func (f Features) ToProto() *proto.Features {
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
 		RecoveryCodes:           f.RecoveryCodes,
+		Plugins:                 f.Plugins,
+		AutomaticUpgrades:       f.AutomaticUpgrades,
 	}
 }
 
@@ -95,6 +102,8 @@ type Modules interface {
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
+	// EnablePlugins enables the hosted plugins runtime
+	EnablePlugins()
 }
 
 const (
@@ -143,7 +152,10 @@ func ValidateResource(res types.Resource) error {
 	return nil
 }
 
-type defaultModules struct{}
+type defaultModules struct {
+	automaticUpgrades bool
+	loadDynamicValues sync.Once
+}
 
 // BuildType returns build type (OSS or Enterprise)
 func (p *defaultModules) BuildType() string {
@@ -157,11 +169,16 @@ func (p *defaultModules) PrintVersion() {
 
 // Features returns supported features
 func (p *defaultModules) Features() Features {
+	p.loadDynamicValues.Do(func() {
+		p.automaticUpgrades = automaticupgrades.IsEnabled()
+	})
+
 	return Features{
-		Kubernetes: true,
-		DB:         true,
-		App:        true,
-		Desktop:    true,
+		Kubernetes:        true,
+		DB:                true,
+		App:               true,
+		Desktop:           true,
+		AutomaticUpgrades: p.automaticUpgrades,
 	}
 }
 
@@ -182,6 +199,11 @@ func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ k
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not
 // support recovery codes
 func (p *defaultModules) EnableRecoveryCodes() {
+}
+
+// EnablePlugins enables hosted plugins runtime.
+// This is a noop since OSS teleport does not support hosted plugins
+func (p *defaultModules) EnablePlugins() {
 }
 
 var (

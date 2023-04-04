@@ -38,16 +38,26 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     make install && \
     make clean
 
+# Install openssl.
+# install_sw install only binaries, skips docs.
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
+    cd openssl && \
+    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
+    ./config --release --libdir=/usr/local/lib && \
+    make && \
+    make install_sw
+
 # Install libfido2.
-# Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
+# Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
+    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
+    grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
     make && \
     make install && \
     make clean
@@ -64,7 +74,7 @@ RUN apt-get update -y --fix-missing && \
 
 ARG LIBBPF_VERSION
 RUN mkdir -p /opt && cd /opt &&  \
-    curl -L https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
     cd /opt/libbpf-${LIBBPF_VERSION}/src && \
     make &&  \
     BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
@@ -156,12 +166,12 @@ RUN apt-get -y update && \
 
 # Install gcloud SDK and Firestore emulator.
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -sSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
+RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
     gcloud components install cloud-firestore-emulator beta && \
     rm -rf /opt/google-cloud-sdk/.install/.backup
 
 # Install etcd.
-RUN curl -L https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
+RUN curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
     rm -rf etcd-v3.3.9-linux-${BUILDARCH}
 
@@ -185,7 +195,7 @@ RUN mkdir -p $RUSTUP_HOME && chmod a+w $RUSTUP_HOME && \
 # Cross-compilation targets are only installed on amd64, as
 # this image doesn't contain gcc-multilib.
 USER ci
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
+RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain $RUST_VERSION && \
     rustup --version && \
     cargo --version && \
     rustc --version && \
@@ -197,19 +207,18 @@ USER root
 
 # Install Node.js.
 ARG NODE_VERSION
-ENV NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${BUILDARCH}.tar.xz"
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
 ENV PATH="$PATH:${NODE_PATH}/bin"
 RUN export NODE_ARCH=$(if [ "$BUILDARCH" = "amd64" ]; then echo "x64"; else echo "arm64"; fi) && \
     export NODE_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" && \
     mkdir -p ${NODE_PATH} && \
-    curl -o /tmp/nodejs.tar.xz -L ${NODE_URL} && \
+    curl -o /tmp/nodejs.tar.xz -fsSL ${NODE_URL} && \
     tar -xJf /tmp/nodejs.tar.xz -C /usr/local/lib/nodejs-linux --strip-components=1
 RUN corepack enable yarn
 
 # Install Go.
 ARG GOLANG_VERSION
-RUN mkdir -p /opt && cd /opt && curl https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://storage.googleapis.com/golang/$GOLANG_VERSION.linux-${BUILDARCH}.tar.gz | tar xz && \
     mkdir -p /go/src/github.com/gravitational/teleport && \
     chmod a+w /go && \
     chmod a+w /var/lib && \
@@ -224,20 +233,20 @@ RUN make -C /opt/pam_teleport install
 ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
-RUN curl -L https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
+RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | tar -xz && \
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
 # Install shellcheck.
 RUN scversion='v0.9.0' && \
-    curl -sSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
+    curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
         tar -xJv && \
     cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
     shellcheck --version
 
 # Install helm.
 RUN mkdir -p helm-tarball && \
-    curl -L https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
+    curl -fsSL https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
 # TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
@@ -262,7 +271,7 @@ ARG GOGO_PROTO_TAG
 ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -L -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
+     curl -fsSL -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
      cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
      chmod -R a+r /usr/local/include/google/protobuf && \
      chmod -R a+xr /usr/local/bin/protoc && \
@@ -271,23 +280,23 @@ RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} -
      cd ${GOPATH}/src/github.com/gogo/protobuf && \
      make install && \
      make clean)
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
 ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.8.2
+RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.1
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.14.0" && \
-      curl -sSL \
+    VERSION="1.16.0" && \
+      curl -fsSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
@@ -299,16 +308,24 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 /usr/local/lib/engines-3/ /usr/local/lib/engines-3/
+COPY --from=libfido2 /usr/local/lib/ossl-modules/ /usr/local/lib/ossl-modules/
 COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
+    /usr/local/lib/libcrypto.a \
+    /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.12.0 \
+    /usr/local/lib/libfido2.so.1.13.0 \
+    /usr/local/lib/libssl.a \
+    /usr/local/lib/libssl.so.3 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
-    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
+    ln -s libcrypto.so.3 libcrypto.so && \
+    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
+    ln -s libssl.so.3 libssl.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
 

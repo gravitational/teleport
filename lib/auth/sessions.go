@@ -340,6 +340,7 @@ func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLI
 	// Create services.WebSession for this session.
 	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
 		User:        req.Username,
+		Expires:     req.SAMLSession.ExpireTime,
 		SAMLSession: req.SAMLSession,
 	})
 	if err != nil {

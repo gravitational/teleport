@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -127,7 +128,27 @@ func SliceMatchesRegex(input string, expressions []string) (bool, error) {
 	return false, nil
 }
 
+// mustCache initializes a new [lru.Cache] with the provided size.
+// A panic will be triggered if the creation of the cache fails.
+func mustCache[K comparable, V any](size int) *lru.Cache[K, V] {
+	cache, err := lru.New[K, V](size)
+	if err != nil {
+		panic(err)
+	}
+
+	return cache
+}
+
+// exprCache interns compiled regular expressions created in matchString
+// to improve performance.
+var exprCache = mustCache[string, *regexp.Regexp](1000)
+
 func matchString(input, expression string) (bool, error) {
+	if expr, ok := exprCache.Get(expression); ok {
+		return expr.MatchString(input), nil
+	}
+
+	original := expression
 	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
 		// replace glob-style wildcards with regexp wildcards
 		// for plain strings, and quote all characters that could
@@ -140,8 +161,10 @@ func matchString(input, expression string) (bool, error) {
 		return false, trace.BadParameter(err.Error())
 	}
 
+	exprCache.Add(original, expr)
+
 	// Since the expression is always surrounded by ^ and $ this is an exact
-	// match for either a a plain string (for example ^hello$) or for a regexp
+	// match for either a plain string (for example ^hello$) or for a regexp
 	// (for example ^hel*o$).
 	return expr.MatchString(input), nil
 }

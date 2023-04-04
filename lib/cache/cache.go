@@ -78,6 +78,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUIConfig},
 		{Kind: types.KindStaticTokens},
 		{Kind: types.KindToken},
 		{Kind: types.KindUser},
@@ -98,7 +99,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
@@ -110,6 +110,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
+		{Kind: types.KindOktaImportRule},
+		{Kind: types.KindOktaAssignment},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -125,6 +128,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindClusterAuthPreference},
 		{Kind: types.KindSessionRecordingConfig},
+		{Kind: types.KindUIConfig},
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace},
@@ -142,7 +146,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession},
 		{Kind: types.KindWebToken},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindDatabase},
@@ -152,6 +155,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
+		{Kind: types.KindUserGroup},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -189,7 +193,6 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
@@ -223,7 +226,6 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
 		{Kind: types.KindKubeServer},
@@ -277,7 +279,6 @@ func ForKubernetes(cfg Config) Config {
 		{Kind: types.KindUser},
 		{Kind: types.KindRole},
 		{Kind: types.KindNamespace, Name: apidefaults.Namespace},
-		{Kind: types.KindKubeService},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 	}
@@ -364,6 +365,22 @@ func ForDiscovery(cfg Config) Config {
 	return cfg
 }
 
+// ForOkta sets up watch configuration for Okta servers.
+func ForOkta(cfg Config) Config {
+	cfg.target = "okta"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindUser},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindClusterNetworkingConfig},
+		{Kind: types.KindUserGroup},
+		{Kind: types.KindOktaImportRule},
+		{Kind: types.KindOktaAssignment},
+		{Kind: types.KindProxy},
+	}
+	cfg.QueueSize = defaults.DiscoveryQueueSize
+	return cfg
+}
+
 // SetupConfigFn is a function that sets up configuration
 // for cache
 type SetupConfigFn func(c Config) Config
@@ -437,7 +454,9 @@ type Cache struct {
 	webSessionCache              types.WebSessionInterface
 	webTokenCache                types.WebTokenInterface
 	windowsDesktopsCache         services.WindowsDesktops
-	samlIdpServiceProvidersCache services.SAMLIdPServiceProviders
+	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
+	userGroupsCache              services.UserGroups
+	oktaCache                    services.Okta
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -502,7 +521,9 @@ func (c *Cache) read() (readGuard, error) {
 			webToken:                c.webTokenCache,
 			release:                 c.rw.RUnlock,
 			windowsDesktops:         c.windowsDesktopsCache,
-			samlIdpServiceProviders: c.samlIdpServiceProvidersCache,
+			samlIdPServiceProviders: c.samlIdPServiceProvidersCache,
+			userGroups:              c.userGroupsCache,
+			okta:                    c.oktaCache,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -525,7 +546,9 @@ func (c *Cache) read() (readGuard, error) {
 		webSession:              c.Config.WebSession,
 		webToken:                c.Config.WebToken,
 		windowsDesktops:         c.Config.WindowsDesktops,
-		samlIdpServiceProviders: c.Config.SAMLIdPServiceProviders,
+		samlIdPServiceProviders: c.Config.SAMLIdPServiceProviders,
+		userGroups:              c.Config.UserGroups,
+		okta:                    c.Config.Okta,
 		release:                 nil,
 	}, nil
 }
@@ -544,7 +567,7 @@ type readGuard struct {
 	presence                services.Presence
 	appSession              services.AppSession
 	snowflakeSession        services.SnowflakeSession
-	samlIdPSession          services.SAMLIdPSession //nolint: revive // Because we want this to be IdP.
+	samlIdPSession          services.SAMLIdPSession //nolint:revive // Because we want this to be IdP.
 	restrictions            services.Restrictions
 	apps                    services.Apps
 	kubernetes              services.Kubernetes
@@ -553,7 +576,9 @@ type readGuard struct {
 	webSession              types.WebSessionInterface
 	webToken                types.WebTokenInterface
 	windowsDesktops         services.WindowsDesktops
-	samlIdpServiceProviders services.SAMLIdPServiceProviders
+	samlIdPServiceProviders services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
+	userGroups              services.UserGroups
+	okta                    services.Okta
 	release                 func()
 	released                bool
 }
@@ -623,6 +648,10 @@ type Config struct {
 	WindowsDesktops services.WindowsDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
+	// UserGroups is a user groups service.
+	UserGroups services.UserGroups
+	// Okta is an Okta service.
+	Okta services.Okta
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -679,9 +708,22 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.MaxRetryPeriod == 0 {
 		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
+
+		// non-control-plane caches should use a longer backoff in order to limit
+		// thundering herd effects upon restart of control-plane elements.
+		if !isControlPlane(c.target) {
+			c.MaxRetryPeriod = defaults.MaxLongWatcherBackoff
+		}
 	}
 	if c.WatcherInitTimeout == 0 {
-		c.WatcherInitTimeout = time.Minute
+		c.WatcherInitTimeout = defaults.MaxWatcherBackoff
+
+		// permit non-control-plane watchers to take a while to start up. slow receipt of
+		// init events is a common symptom of the thundering herd effect caused by restarting
+		// control plane elements.
+		if !isControlPlane(c.target) {
+			c.WatcherInitTimeout = defaults.MaxLongWatcherBackoff
+		}
 	}
 	if c.CacheInitTimeout == 0 {
 		c.CacheInitTimeout = time.Second * 20
@@ -750,6 +792,25 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	//nolint:revive // Because we want this to be IdP.
+	samlIdPServiceProvidersCache, err := local.NewSAMLIdPServiceProviderService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	userGroupsCache, err := local.NewUserGroupService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	oktaCache, err := local.NewOktaService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -774,7 +835,9 @@ func New(config Config) (*Cache, error) {
 		webSessionCache:              local.NewIdentityService(config.Backend).WebSessions(),
 		webTokenCache:                local.NewIdentityService(config.Backend).WebTokens(),
 		windowsDesktopsCache:         local.NewWindowsDesktopService(config.Backend),
-		samlIdpServiceProvidersCache: local.NewSAMLIdPServiceProviderService(config.Backend),
+		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
+		userGroupsCache:              userGroupsCache,
+		oktaCache:                    oktaCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -801,13 +864,14 @@ func New(config Config) (*Cache, error) {
 
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(c.MaxRetryPeriod / 10),
-		Step:   c.MaxRetryPeriod / 5,
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  utils.FullJitter(c.MaxRetryPeriod / 16),
+		Driver: retryutils.NewExponentialDriver(c.MaxRetryPeriod / 16),
 		Max:    c.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
+
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -1259,12 +1323,21 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 // throttled to limit load spiking during a mass
 // restart of nodes
 func fetchLimit(target string) int {
-	switch target {
-	case "auth", "proxy":
+	if isControlPlane(target) {
 		return 5
 	}
 
 	return 1
+}
+
+// isControlPlane checks if the cache target is a control-plane element.
+func isControlPlane(target string) bool {
+	switch target {
+	case "auth", "proxy":
+		return true
+	}
+
+	return false
 }
 
 func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
@@ -1353,7 +1426,7 @@ var _ map[getCertAuthorityCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthority returns certificate authority by given id. Parameter loadSigningKeys
 // controls if signing keys are loaded
-func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
 	defer span.End()
 
@@ -1365,7 +1438,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		cachedCA, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthorityCacheKey{id}, func(ctx context.Context) (types.CertAuthority, error) {
-			ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
+			ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys)
 			return ca, err
 		})
 		if err != nil {
@@ -1374,13 +1447,13 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 		return cachedCA.Clone(), nil
 	}
 
-	ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...)
+	ca, err := rg.trust.GetCertAuthority(ctx, id, loadSigningKeys)
 	if trace.IsNotFound(err) && rg.IsCacheRead() {
 		// release read lock early
 		rg.Release()
 		// fallback is sane because method is never used
 		// in construction of derivative caches.
-		if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys, opts...); err == nil {
+		if ca, err := c.Config.Trust.GetCertAuthority(ctx, id, loadSigningKeys); err == nil {
 			return ca, nil
 		}
 	}
@@ -1395,7 +1468,7 @@ var _ map[getCertAuthoritiesCacheKey]struct{} // compile-time hashability check
 
 // GetCertAuthorities returns a list of authorities of a given type
 // loadSigningKeys controls whether signing keys should be loaded or not
-func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadSigningKeys bool) ([]types.CertAuthority, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
@@ -1406,7 +1479,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	defer rg.Release()
 	if !rg.IsCacheRead() && !loadSigningKeys {
 		cachedCAs, err := utils.FnCacheGet(ctx, c.fnCache, getCertAuthoritiesCacheKey{caType}, func(ctx context.Context) ([]types.CertAuthority, error) {
-			cas, err := rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
+			cas, err := rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys)
 			return cas, trace.Wrap(err)
 		})
 		if err != nil || cachedCAs == nil {
@@ -1418,7 +1491,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 		}
 		return cas, nil
 	}
-	return rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys, opts...)
+	return rg.trust.GetCertAuthorities(ctx, caType, loadSigningKeys)
 }
 
 // GetStaticTokens gets the list of static tokens used to provision nodes.
@@ -1544,6 +1617,20 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 		return cachedName.Clone(), nil
 	}
 	return rg.clusterConfig.GetClusterName(opts...)
+}
+
+func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+
+	uiconfig, err := rg.clusterConfig.GetUIConfig(ctx)
+	return uiconfig, trace.Wrap(err)
 }
 
 // GetInstaller gets the installer script resource for the cluster
@@ -1868,21 +1955,6 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	}
 	defer rg.Release()
 	return rg.presence.GetAllTunnelConnections(opts...)
-}
-
-// GetKubeServices is a part of auth.Cache implementation
-//
-// DELETE IN 13.0.0 Deprecated, use GetKubernetesServers.
-func (c *Cache) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/GetKubeServices")
-	defer span.End()
-
-	rg, err := c.read()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer rg.Release()
-	return rg.presence.GetKubeServices(ctx)
 }
 
 // GetKubernetesServers is a part of auth.Cache implementation
@@ -2220,7 +2292,7 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, n
 		return nil, "", trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.samlIdpServiceProviders.ListSAMLIdPServiceProviders(ctx, pageSize, nextKey)
+	return rg.samlIdPServiceProviders.ListSAMLIdPServiceProviders(ctx, pageSize, nextKey)
 }
 
 // GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
@@ -2233,7 +2305,85 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 		return nil, trace.Wrap(err)
 	}
 	defer rg.Release()
-	return rg.samlIdpServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+	return rg.samlIdPServiceProviders.GetSAMLIdPServiceProvider(ctx, name)
+}
+
+// ListUserGroups returns a paginated list of user group resources.
+func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string) ([]types.UserGroup, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.ListUserGroups(ctx, pageSize, nextKey)
+}
+
+// GetUserGroup returns the specified user group resources.
+func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.userGroups.GetUserGroup(ctx, name)
+}
+
+// ListOktaImportRules returns a paginated list of all Okta import rule resources.
+func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey string) ([]types.OktaImportRule, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaImportRules")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.ListOktaImportRules(ctx, pageSize, nextKey)
+}
+
+// GetOktaImportRule returns the specified Okta import rule resources.
+func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaImportRule")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.GetOktaImportRule(ctx, name)
+}
+
+// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey string) ([]types.OktaAssignment, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaAssignments")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.ListOktaAssignments(ctx, pageSize, nextKey)
+}
+
+// GetOktaAssignment returns the specified Okta assignment resources.
+func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaAssignment")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.okta.GetOktaAssignment(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

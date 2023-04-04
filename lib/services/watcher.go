@@ -98,7 +98,7 @@ func (cfg *ResourceWatcherConfig) CheckAndSetDefaults() error {
 // incl. cfg.CheckAndSetDefaults.
 func newResourceWatcher(ctx context.Context, collector resourceCollector, cfg ResourceWatcherConfig) (*resourceWatcher, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
+		First:  utils.FullJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
@@ -1016,7 +1016,7 @@ type KubeClusterWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
 	// KubernetesGetter is responsible for fetching kube_cluster resources.
-	KubernetesGetter
+	KubernetesClusterGetter
 	// KubeClustersC receives up-to-date list of all kube_cluster resources.
 	KubeClustersC chan types.KubeClusters
 }
@@ -1026,12 +1026,12 @@ func (cfg *KubeClusterWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.KubernetesGetter == nil {
-		getter, ok := cfg.Client.(KubernetesGetter)
+	if cfg.KubernetesClusterGetter == nil {
+		getter, ok := cfg.Client.(KubernetesClusterGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter KubernetesGetter and Client not usable as KubernetesGetter")
 		}
-		cfg.KubernetesGetter = getter
+		cfg.KubernetesClusterGetter = getter
 	}
 	if cfg.KubeClustersC == nil {
 		cfg.KubeClustersC = make(chan types.KubeClusters)
@@ -1087,7 +1087,7 @@ func (k *kubeCollector) resourceKind() string {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	clusters, err := k.KubernetesGetter.GetKubernetesClusters(ctx)
+	clusters, err := k.KubernetesClusterGetter.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1380,16 +1380,30 @@ func NewNodeWatcher(ctx context.Context, cfg NodeWatcherConfig) (*NodeWatcher, e
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		Context: ctx,
+		TTL:     3 * time.Second,
+		Clock:   cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	collector := &nodeCollector{
 		NodeWatcherConfig: cfg,
 		current:           map[string]types.Server{},
 		initializationC:   make(chan struct{}),
+		cache:             cache,
+		stale:             true,
 	}
+
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &NodeWatcher{watcher, collector}, nil
+
+	return &NodeWatcher{resourceWatcher: watcher, nodeCollector: collector}, nil
 }
 
 // NodeWatcher is built on top of resourceWatcher to monitor additions
@@ -1402,13 +1416,17 @@ type NodeWatcher struct {
 // nodeCollector accompanies resourceWatcher when monitoring nodes.
 type nodeCollector struct {
 	NodeWatcherConfig
-	// current holds a map of the currently known nodes (keyed by server name,
-	// RWMutex protected).
-	current map[string]types.Server
-	rw      sync.RWMutex
+
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+
+	cache *utils.FnCache
+
+	rw sync.RWMutex
+	// current holds a map of the currently known nodes keyed by server name
+	current map[string]types.Server
+	stale   bool
 }
 
 // Node is a readonly subset of the types.Server interface which
@@ -1440,7 +1458,10 @@ type Node interface {
 // returned servers are a copy and can be safely modified. It is intentionally hard to retrieve
 // the full set of nodes to reduce the number of copies needed since the number of nodes can get
 // quite large and doing so can be expensive.
-func (n *nodeCollector) GetNodes(fn func(n Node) bool) []types.Server {
+func (n *nodeCollector) GetNodes(ctx context.Context, fn func(n Node) bool) []types.Server {
+	// Attempt to freshen our data first.
+	n.refreshStaleNodes(ctx)
+
 	n.rw.RLock()
 	defer n.rw.RUnlock()
 
@@ -1452,6 +1473,42 @@ func (n *nodeCollector) GetNodes(fn func(n Node) bool) []types.Server {
 	}
 
 	return matched
+}
+
+// refreshStaleNodes attempts to reload nodes from the NodeGetter if
+// the collecter is stale. This ensures that no matter the health of
+// the collecter callers will be returned the most up to date node
+// set as possible.
+func (n *nodeCollector) refreshStaleNodes(ctx context.Context) error {
+	n.rw.RLock()
+	if !n.stale {
+		n.rw.RUnlock()
+		return nil
+	}
+	n.rw.RUnlock()
+
+	_, err := utils.FnCacheGet(ctx, n.cache, "nodes", func(ctx context.Context) (any, error) {
+		current, err := n.getNodes(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		n.rw.Lock()
+		defer n.rw.Unlock()
+
+		// There is a chance that the watcher reinitialized while
+		// getting nodes happened above. Check if we are still stale
+		// now that the lock is held to ensure that the refresh is
+		// still necessary.
+		if !n.stale {
+			return nil, nil
+		}
+
+		n.current = current
+		return nil, trace.Wrap(err)
+	})
+
+	return trace.Wrap(err)
 }
 
 func (n *nodeCollector) NodeCount() int {
@@ -1468,23 +1525,39 @@ func (n *nodeCollector) resourceKind() string {
 // getResourcesAndUpdateCurrent is called when the resources should be
 // (re-)fetched directly.
 func (n *nodeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	nodes, err := n.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	newCurrent, err := n.getNodes(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer n.defineCollectorAsInitialized()
 
-	if len(nodes) == 0 {
+	if len(newCurrent) == 0 {
 		return nil
 	}
-	newCurrent := make(map[string]types.Server, len(nodes))
-	for _, node := range nodes {
-		newCurrent[node.GetName()] = node
-	}
+
 	n.rw.Lock()
 	defer n.rw.Unlock()
 	n.current = newCurrent
+	n.stale = false
 	return nil
+}
+
+func (n *nodeCollector) getNodes(ctx context.Context) (map[string]types.Server, error) {
+	nodes, err := n.NodesGetter.GetNodes(ctx, apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(nodes) == 0 {
+		return map[string]types.Server{}, nil
+	}
+
+	current := make(map[string]types.Server, len(nodes))
+	for _, node := range nodes {
+		current[node.GetName()] = node
+	}
+
+	return current, nil
 }
 
 func (n *nodeCollector) defineCollectorAsInitialized() {
@@ -1501,19 +1574,21 @@ func (n *nodeCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 		return
 	}
 
-	n.rw.Lock()
-	defer n.rw.Unlock()
-
 	switch event.Type {
 	case types.OpDelete:
+		n.rw.Lock()
 		delete(n.current, event.Resource.GetName())
+		n.rw.Unlock()
 	case types.OpPut:
 		server, ok := event.Resource.(types.Server)
 		if !ok {
 			n.Log.Warningf("Unexpected type %T.", event.Resource)
 			return
 		}
+
+		n.rw.Lock()
 		n.current[server.GetName()] = server
+		n.rw.Unlock()
 	default:
 		n.Log.Warningf("Skipping unsupported event type %s.", event.Type)
 	}
@@ -1523,7 +1598,11 @@ func (n *nodeCollector) initializationChan() <-chan struct{} {
 	return n.initializationC
 }
 
-func (n *nodeCollector) notifyStale() {}
+func (n *nodeCollector) notifyStale() {
+	n.rw.Lock()
+	defer n.rw.Unlock()
+	n.stale = true
+}
 
 // AccessRequestWatcherConfig is a AccessRequestWatcher configuration.
 type AccessRequestWatcherConfig struct {
@@ -1666,3 +1745,182 @@ func (p *accessRequestCollector) processEventAndUpdateCurrent(ctx context.Contex
 }
 
 func (*accessRequestCollector) notifyStale() {}
+
+// OktaAssignmentWatcherConfig is a OktaAssignmentWatcher configuration.
+type OktaAssignmentWatcherConfig struct {
+	// RWCfg is the resource watcher configuration.
+	RWCfg ResourceWatcherConfig
+	// OktaAssignments is responsible for fetching Okta assignments.
+	OktaAssignments OktaAssignments
+	// PageSize is the number of Okta assignments to list at a time.
+	PageSize int
+	// OktaAssignmentsC receives up-to-date list of all Okta assignment resources.
+	OktaAssignmentsC chan types.OktaAssignments
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *OktaAssignmentWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.RWCfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.OktaAssignments == nil {
+		assignments, ok := cfg.RWCfg.Client.(OktaAssignments)
+		if !ok {
+			return trace.BadParameter("missing parameter OktaAssignments and Client not usable as OktaAssignments")
+		}
+		cfg.OktaAssignments = assignments
+	}
+	if cfg.OktaAssignmentsC == nil {
+		cfg.OktaAssignmentsC = make(chan types.OktaAssignments)
+	}
+	return nil
+}
+
+// NewOktaAssignmentWatcher returns a new instance of OktaAssignmentWatcher. The context here will be used to
+// exit early from the resource watcher if needed.
+func NewOktaAssignmentWatcher(ctx context.Context, cfg OktaAssignmentWatcherConfig) (*OktaAssignmentWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &oktaAssignmentCollector{
+		log:             cfg.RWCfg.Log,
+		cfg:             cfg,
+		initializationC: make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.RWCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &OktaAssignmentWatcher{
+		resourceWatcher: watcher,
+		collector:       collector,
+	}, nil
+}
+
+// OktaAssignmentWatcher is built on top of resourceWatcher to monitor Okta assignment resources.
+type OktaAssignmentWatcher struct {
+	resourceWatcher *resourceWatcher
+	collector       *oktaAssignmentCollector
+}
+
+// CollectorChan is the channel that collects the Okta assignments.
+func (o *OktaAssignmentWatcher) CollectorChan() chan types.OktaAssignments {
+	return o.collector.cfg.OktaAssignmentsC
+}
+
+// Close closes the underlying resource watcher
+func (o *OktaAssignmentWatcher) Close() {
+	o.resourceWatcher.Close()
+}
+
+// Done returns the channel that signals watcher closer.
+func (o *OktaAssignmentWatcher) Done() <-chan struct{} {
+	return o.resourceWatcher.Done()
+}
+
+// oktaAssignmentCollector accompanies resourceWatcher when monitoring Okta assignment resources.
+type oktaAssignmentCollector struct {
+	log logrus.FieldLogger
+	// OktaAssignmentWatcherConfig is the watcher configuration.
+	cfg OktaAssignmentWatcherConfig
+	// mu guards "current"
+	mu sync.RWMutex
+	// current holds a map of the currently known Okta assignment resources.
+	current map[string]types.OktaAssignment
+	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKind specifies the resource kind to watch.
+func (*oktaAssignmentCollector) resourceKind() string {
+	return types.KindOktaAssignment
+}
+
+// initializationChan is used to check if the initial state sync has been completed.
+func (c *oktaAssignmentCollector) initializationChan() <-chan struct{} {
+	return c.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *oktaAssignmentCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	var oktaAssignments []types.OktaAssignment
+	var nextToken string
+	for {
+		var oktaAssignmentsPage []types.OktaAssignment
+		var err error
+		oktaAssignmentsPage, nextToken, err = c.cfg.OktaAssignments.ListOktaAssignments(ctx, c.cfg.PageSize, nextToken)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		oktaAssignments = append(oktaAssignments, oktaAssignmentsPage...)
+		if nextToken == "" {
+			break
+		}
+	}
+
+	newCurrent := make(map[string]types.OktaAssignment, len(oktaAssignments))
+	for _, oktaAssignment := range oktaAssignments {
+		newCurrent[oktaAssignment.GetName()] = oktaAssignment
+	}
+	c.mu.Lock()
+	c.current = newCurrent
+	c.defineCollectorAsInitialized()
+	c.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case c.cfg.OktaAssignmentsC <- oktaAssignments:
+	}
+
+	return nil
+}
+
+func (c *oktaAssignmentCollector) defineCollectorAsInitialized() {
+	c.once.Do(func() {
+		close(c.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (c *oktaAssignmentCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindOktaAssignment {
+		c.log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	switch event.Type {
+	case types.OpDelete:
+		c.mu.Lock()
+		delete(c.current, event.Resource.GetName())
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.OktaAssignmentsC <- resources:
+		}
+	case types.OpPut:
+		oktaAssignment, ok := event.Resource.(types.OktaAssignment)
+		if !ok {
+			c.log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		c.mu.Lock()
+		c.current[oktaAssignment.GetName()] = oktaAssignment
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.OktaAssignmentsC <- resources:
+		}
+
+	default:
+		c.log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*oktaAssignmentCollector) notifyStale() {}

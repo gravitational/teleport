@@ -118,10 +118,10 @@ func (s3c *S3Config) validateMaxConcurrentSyncs() error {
 type Config struct {
 	*LoggerConfig
 	*S3Config
-	artifactPath    string
-	artifactVersion string
-	printHelp       bool
-	releaseChannel  string
+	artifactPath   string
+	printHelp      bool
+	releaseChannel string
+	versionChannel string
 }
 
 func NewConfigWithFlagset(fs *flag.FlagSet) *Config {
@@ -130,13 +130,13 @@ func NewConfigWithFlagset(fs *flag.FlagSet) *Config {
 	c.S3Config = NewS3ConfigWithFlagset(fs)
 
 	fs.StringVar(&c.artifactPath, "artifact-path", "/artifacts", "Path to the filesystem tree containing the *.deb or *.rpm files to add to the repos")
-	fs.StringVar(&c.artifactVersion, "artifact-version", "", "The version of the artifacts that will be added to the repos")
 	fs.Visit(func(f *flag.Flag) {
 		if f.Name == "-h" || f.Name == "--help" {
 			c.printHelp = true
 		}
 	})
 	fs.StringVar(&c.releaseChannel, "release-channel", "", "The release channel of the repos that the artifacts should be added to")
+	fs.StringVar(&c.versionChannel, "version-channel", "", "The version channel of the repos that the artifacts should be added to. Semver values will be truncated to major version. Examples: \"v1.2.3\" (truncated to \"v1\"), \"cloud\".")
 
 	return c
 }
@@ -153,8 +153,8 @@ func (c *Config) Check() error {
 	if err := c.validateArtifactPath(); err != nil {
 		return trace.Wrap(err, "failed to validate the artifact path flag")
 	}
-	if err := c.validateArtifactVersion(); err != nil {
-		return trace.Wrap(err, "failed to validate the artifact version flag")
+	if err := c.validateVersionChannel(); err != nil {
+		return trace.Wrap(err, "failed to validate the version channel flag")
 	}
 	if err := c.validateReleaseChannel(); err != nil {
 		return trace.Wrap(err, "failed to validate the release channel flag")
@@ -177,13 +177,13 @@ func (c *Config) validateArtifactPath() error {
 	return nil
 }
 
-func (c *Config) validateArtifactVersion() error {
-	if c.artifactVersion == "" {
-		return trace.BadParameter("the artifact-version flag should not be empty")
+func (c *Config) validateVersionChannel() error {
+	if c.versionChannel == "" {
+		return trace.BadParameter("the version-channel flag should not be empty")
 	}
 
-	if !semver.IsValid(c.artifactVersion) {
-		return trace.BadParameter("the artifact-version flag does not contain a valid semver version string")
+	if semver.IsValid(c.versionChannel) {
+		c.versionChannel = semver.Major(c.versionChannel)
 	}
 
 	return nil

@@ -31,7 +31,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/mod/semver"
 )
 
 type YumRepoTool struct {
@@ -274,7 +273,7 @@ func (yrt *YumRepoTool) addArtifacts(bucketArtifactPaths []string, relativeGpgPu
 					"Teleport",
 					arch,
 					yrt.config.releaseChannel,
-					semver.Major(yrt.config.artifactVersion),
+					yrt.config.versionChannel,
 				)
 				repoPath := path.Join(osPath, relativeRepoPath)
 
@@ -421,7 +420,7 @@ func (yrt *YumRepoTool) createRepoFile(filePath, osName, osVersion, arch, relati
 					"Teleport",
 					arch,
 					yrt.config.releaseChannel,
-					semver.Major(yrt.config.artifactVersion),
+					yrt.config.versionChannel,
 				},
 				"/",
 			),

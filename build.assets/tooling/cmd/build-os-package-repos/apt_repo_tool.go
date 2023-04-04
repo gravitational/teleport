@@ -25,7 +25,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/mod/semver"
 )
 
 type AptRepoTool struct {
@@ -185,7 +184,7 @@ func (art *AptRepoTool) getArtifactRepos() ([]*Repo, error) {
 	logrus.Infoln("Creating or getting Aptly repos for artifact requirements...")
 
 	artifactRepos, err := art.aptly.CreateReposFromArtifactRequirements(art.supportedOSs,
-		art.config.releaseChannel, semver.Major(art.config.artifactVersion))
+		art.config.releaseChannel, art.config.versionChannel)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to create or get repos from artifact requirements")
 	}
@@ -227,7 +226,7 @@ func (art *AptRepoTool) importNewDebsWalker(debPath string, d fs.DirEntry, err e
 	for _, repo := range repos {
 		// Other checks could be added here to ensure that a given deb gets added to the correct repo
 		// such as name or parent directory, facilitating os-specific artifacts
-		if repo.majorVersion != semver.Major(art.config.artifactVersion) || repo.releaseChannel != art.config.releaseChannel {
+		if repo.versionChannel != art.config.versionChannel || repo.releaseChannel != art.config.releaseChannel {
 			continue
 		}
 

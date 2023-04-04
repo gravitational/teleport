@@ -32,7 +32,7 @@ export const Loading = () => (
 export const Loaded = () => <Desktops {...props} />;
 
 export const Empty = () => (
-  <Desktops {...props} results={{ desktops: [] }} isSearchEmpty={true} />
+  <Desktops {...props} fetchedData={{ agents: [] }} isSearchEmpty={true} />
 );
 
 export const Failed = () => (
@@ -43,8 +43,8 @@ export const Failed = () => (
 );
 
 export const props: State = {
-  results: {
-    desktops,
+  fetchedData: {
+    agents: desktops,
     totalCount: desktops.length,
   },
   fetchStatus: '',
@@ -58,8 +58,15 @@ export const props: State = {
   fetchNext: () => null,
   fetchPrev: () => null,
   pageSize: desktops.length,
-  from: 1,
-  to: desktops.length,
+  pageIndicators: {
+    from: 1,
+    to: desktops.length,
+    totalCount: desktops.length,
+  },
+  page: {
+    index: 0,
+    keys: [],
+  },
   params: {
     search: '',
     query: '',
@@ -67,7 +74,6 @@ export const props: State = {
   },
   setParams: () => null,
   setSort: () => null,
-  startKeys: [''],
   pathname: '',
   replaceHistory: () => null,
   isSearchEmpty: false,
