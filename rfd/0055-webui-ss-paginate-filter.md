@@ -146,7 +146,7 @@ type Sort struct {
 
 ### Filter: Fuzzy Search
 
-The fields we allow for searching should be mostly the same as sorting. Search values will be stored as simple list of strings that will be iterated through select resource fields to look for a fuzzy match, ignoring case and order. If a user wants to search a phrase, they must supply the phrase within paranthesis.
+The fields we allow for searching should be mostly the same as sorting. Search values will be stored as simple list of strings that will be iterated through select resource fields to look for a fuzzy match, ignoring case and order. If a user wants to search a phrase, they must supply the phrase within parentheses.
 
 | Search Examples | Interpretation     |
 |-----------------|--------------------|

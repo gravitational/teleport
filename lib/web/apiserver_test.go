@@ -1924,6 +1924,9 @@ func TestActiveSessions(t *testing.T) {
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
 
+	// Use enterprise license (required for moderated sessions).
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	start := time.Now()
 	kinds := []types.SessionKind{
 		types.SSHSessionKind,
@@ -1950,6 +1953,17 @@ func TestActiveSessions(t *testing.T) {
 			Login:        pack.login,
 			Participants: []types.Participant{
 				{ID: "id", User: "user-1", LastActive: start},
+			},
+			HostPolicies: []*types.SessionTrackerPolicySet{
+				{
+					Name:    "foo",
+					Version: "5",
+					RequireSessionJoin: []*types.SessionRequirePolicy{
+						{
+							Name: "foo",
+						},
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -2301,7 +2315,6 @@ func TestMotD(t *testing.T) {
 
 // TestPingAutomaticUpgrades ensures /webapi/ping returns whether AutomaticUpgrades are enabled.
 func TestPingAutomaticUpgrades(t *testing.T) {
-
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
 		// Enable Automatic Upgrades
 		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
@@ -8204,12 +8217,10 @@ func TestForwardingTraces(t *testing.T) {
 	}
 }
 
-type mockPROXYSigner struct {
-}
+type mockPROXYSigner struct{}
 
 func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
 	return nil, nil
-
 }
 
 type mockTraceClient struct {

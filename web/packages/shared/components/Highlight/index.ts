@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { NavigationMenu } from './NavigationMenu';
+export { Highlight } from './Highlight';

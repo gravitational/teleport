@@ -14,6 +14,7 @@ run-name: Skip Build on Mac OS
 on:
   pull_request:
     paths-ignore:
+      - '.github/workflows/build-macos.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
@@ -22,8 +23,10 @@ on:
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths-ignore:
+      - '.github/workflows/build-macos.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
@@ -32,6 +35,7 @@ on:
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   build:
