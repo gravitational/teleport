@@ -88,11 +88,12 @@ Install Teleport on the host where you will run the Teleport Application Service
 
 <Tabs>
 <TabItem label="Using a config file">
-Create the Teleport Application Service configuration. Replace <Var name="teleport.example.com" /> with
+Create the Teleport Application Service configuration at `/etc/teleport.yaml`. Replace <Var name="teleport.example.com" /> with
 your Teleport Proxy address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
 
 ```code
 $ sudo teleport configure \
+  -o file \
   --proxy=<Var name="teleport.example.com" />:443 \
   --token=/tmp/token \
   --roles=app \
