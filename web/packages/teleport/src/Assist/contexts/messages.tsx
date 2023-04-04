@@ -80,10 +80,13 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
 
   const send = useCallback(
     async (message: string) => {
-      const newMessages = [...messages, {
-        author: Author.User,
-        content: [{ type: Type.Message, value: message }],
-      }];
+      const newMessages = [
+        ...messages,
+        {
+          author: Author.User,
+          content: [{ type: Type.Message, value: message }],
+        },
+      ];
 
       setMessages(newMessages);
 
