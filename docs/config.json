@@ -444,10 +444,6 @@
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
-        },
-        {
-          "title": "FAQ",
-          "slug": "/access-controls/faq/"
         }
       ]
     },
@@ -1417,8 +1413,8 @@
       "version": "12.2.0",
       "major_version": "12",
       "sla": {
-        "monthly_percentage": "99.5%",
-        "monthly_downtime": "3 hours 40 minutes"
+        "monthly_percentage": "99.9%",
+        "monthly_downtime": "44 minutes"
       }
     },
     "devicetrust": {
@@ -2358,6 +2354,11 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/faq/",
+      "destination": "/access-controls/introduction/",
       "permanent": true
     }
   ]

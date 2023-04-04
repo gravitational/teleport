@@ -16,13 +16,13 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { space, fontSize, width, color } from 'styled-system';
+import { space, fontSize, width, color, lineHeight } from 'styled-system';
 import '../assets/icomoon/style.css';
 
 const Icon = styled.span`
   display: inline-block;
   transition: color 0.3s;
-  ${space} ${width} ${color} ${fontSize}
+  ${space} ${width} ${color} ${fontSize} ${lineHeight}
 `;
 
 Icon.displayName = `Icon`;

@@ -16,7 +16,10 @@
 
 import { LeafClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
+import {
+  DocumentOrigin,
+  WorkspacesService,
+} from 'teleterm/ui/services/workspacesService';
 
 import {
   getGatewayDocumentByConnection,
@@ -64,13 +67,16 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: () => {
+      activate: params => {
         let srvDoc = documentsService
           .getDocuments()
           .find(getServerDocumentByConnection(connection));
 
         if (!srvDoc) {
-          srvDoc = documentsService.createTshNodeDocument(connection.serverUri);
+          srvDoc = documentsService.createTshNodeDocument(
+            connection.serverUri,
+            params
+          );
           srvDoc.status = 'connecting';
           srvDoc.login = connection.login;
           srvDoc.title = connection.title;
@@ -108,7 +114,7 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: () => {
+      activate: params => {
         let gwDoc = documentsService
           .getDocuments()
           .find(getGatewayDocumentByConnection(connection));
@@ -122,6 +128,7 @@ export class TrackedConnectionOperationsFactory {
             title: connection.title,
             gatewayUri: connection.gatewayUri,
             port: connection.port,
+            origin: params.origin,
           });
 
           documentsService.add(gwDoc);
@@ -161,7 +168,7 @@ export class TrackedConnectionOperationsFactory {
     return {
       rootClusterUri,
       leafClusterUri,
-      activate: () => {
+      activate: params => {
         let kubeConn = documentsService
           .getDocuments()
           .find(getKubeDocumentByConnection(connection));
@@ -170,6 +177,7 @@ export class TrackedConnectionOperationsFactory {
           kubeConn = documentsService.createTshKubeDocument({
             kubeUri: connection.kubeUri,
             kubeConfigRelativePath: connection.kubeConfigRelativePath,
+            origin: params.origin,
           });
 
           documentsService.add(kubeConn);
@@ -215,7 +223,7 @@ interface TrackedConnectionOperations {
   rootClusterUri: RootClusterUri;
   leafClusterUri: LeafClusterUri;
 
-  activate(): void;
+  activate(params: { origin: DocumentOrigin }): void;
 
   disconnect(): Promise<void>;
 
