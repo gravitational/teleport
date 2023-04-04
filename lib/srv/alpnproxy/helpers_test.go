@@ -32,7 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -214,13 +213,6 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 	require.NoError(t, err)
 	cert.Leaf = leaf
 	return cert
-}
-
-func mustSendPostgresMsg(t *testing.T, conn net.Conn, msg pgproto3.FrontendMessage) {
-	payload := msg.Encode(nil)
-	nWritten, err := conn.Write(payload)
-	require.NoError(t, err)
-	require.Equal(t, len(payload), nWritten, "failed to fully write payload")
 }
 
 func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {

@@ -112,6 +112,7 @@ export const eventCodes = {
   DEVICE_ENROLL_TOKEN_SPENT: 'TV004I',
   DEVICE_ENROLL: 'TV005I',
   DEVICE_AUTHENTICATE: 'TV006I',
+  DEVICE_UPDATE: 'TV007I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -1051,6 +1052,7 @@ export type RawEvents = {
   [eventCodes.DEVICE_AUTHENTICATE]: RawDeviceEvent<
     typeof eventCodes.DEVICE_AUTHENTICATE
   >;
+  [eventCodes.DEVICE_UPDATE]: RawDeviceEvent<typeof eventCodes.DEVICE_UPDATE>;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {

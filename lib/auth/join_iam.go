@@ -90,15 +90,7 @@ func validateSTSHost(stsHost string, cfg *iamRegisterConfig) error {
 	}
 
 	if cfg.fips && !slices.Contains(fipsSTSEndpoints, stsHost) {
-		if cfg.authVersion.LessThan(semver.Version{Major: 12}) {
-			log.Warnf("Non-FIPS STS endpoint (%s) was used by a node joining "+
-				"the cluster with the IAM join method. "+
-				"Ensure that all nodes joining the cluster are up to date and also run in FIPS mode. "+
-				"This will be an error in Teleport 12.0.0.",
-				stsHost)
-		} else {
-			return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
-		}
+		return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
 	}
 
 	return nil

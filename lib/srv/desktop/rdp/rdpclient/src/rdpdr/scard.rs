@@ -1156,6 +1156,7 @@ impl ReaderState_Common_Call {
 }
 
 bitflags! {
+    #[derive(Debug, PartialEq, Clone, Copy)]
     struct CardStateFlags: u32 {
         const SCARD_STATE_UNAWARE = 0x0000;
         const SCARD_STATE_IGNORE = 0x0001;
@@ -1309,6 +1310,7 @@ impl Encode for Connect_Call {
 }
 
 bitflags! {
+    #[derive(Debug, Clone)]
     struct CardProtocol: u32 {
         const SCARD_PROTOCOL_UNDEFINED = 0x00000000;
         const SCARD_PROTOCOL_T0 = 0x00000001;

@@ -375,7 +375,7 @@ func (optpb *OsPackageToolPipelineBuilder) getVersionSteps(codePath, version str
 			// Conditionally match ONLY enterprise and fips binaries based off of file name,
 			// if running in the context of a private repo (teleport-private)
 			"if [ \"${DRONE_REPO_PRIVATE}\" = true ]; then ENT_FILTER=\"*ent\"; fi",
-			fmt.Sprintf("FILTER=\"${ENT_FILTER}*.%s*\"", optpb.packageType),
+			fmt.Sprintf("FILTER=\"$${ENT_FILTER}*.%s*\"", optpb.packageType),
 			strings.Join(
 				[]string{
 					"aws s3 sync",

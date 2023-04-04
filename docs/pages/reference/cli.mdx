@@ -147,6 +147,7 @@ information about the cluster.
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
+| `--headless` | none | none | Use Headless WebAuthn for authentication |
 
 ### tsh help
 
@@ -1270,6 +1271,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 | TELEPORT_ADD_KEYS_TO_AGENT | Specifies if the user certificate should be stored on the running SSH agent | yes, no, auto, only |
 | TELEPORT_USE_LOCAL_SSH_AGENT | Disable or enable local SSH agent integration | true, false |
 | TELEPORT_GLOBAL_TSH_CONFIG | Override location of global `tsh` config file from default `/etc/tsh.yaml` | /opt/teleport/tsh.yaml |
+| TELEPORT_HEADLESS | Use headless authentication | true, false, 1, 0 |
 
 ### tsh configuration files
 

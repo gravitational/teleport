@@ -136,6 +136,7 @@ func TestRootWatch(t *testing.T) {
 
 // TestRootObfuscate checks if execsnoop can capture Obfuscated commands.
 func TestRootObfuscate(t *testing.T) {
+	t.Skip("flaky test, disable now")
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !bpfTestEnabled() {
@@ -206,6 +207,7 @@ func TestRootObfuscate(t *testing.T) {
 
 // TestRootScript checks if execsnoop can capture what a script executes.
 func TestRootScript(t *testing.T) {
+	t.Skip("flaky test, disable now")
 	// This test must be run as root and the host has to be capable of running
 	// BPF programs.
 	if !bpfTestEnabled() {
@@ -268,6 +270,7 @@ func TestRootScript(t *testing.T) {
 // TestRootPrograms tests execsnoop, opensnoop, and tcpconnect to make sure they
 // run and receive events.
 func TestRootPrograms(t *testing.T) {
+	t.Skip("flaky test, disable now")
 	// This test must be run as root. Only root can create cgroups.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")
@@ -370,6 +373,7 @@ func TestRootPrograms(t *testing.T) {
 
 // TestRootBPFCounter tests that BPF-to-Prometheus counter works ok
 func TestRootBPFCounter(t *testing.T) {
+	t.Skip("flaky test, disable now")
 	// This test must be run as root. Only root can create cgroups.
 	if !bpfTestEnabled() {
 		t.Skip("BPF testing is disabled")

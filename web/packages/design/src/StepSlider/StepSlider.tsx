@@ -17,7 +17,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import styled from 'styled-components';
 
-import { Box } from 'design';
+import Box from 'design/Box';
 
 export function StepSlider<T>(props: Props<T>) {
   const {
@@ -110,7 +110,6 @@ export function StepSlider<T>(props: Props<T>) {
     return (
       <View
         key={step}
-        currFlow={currFlow}
         refCallback={requirePreMount ? setHeightOnPreMount : null}
         next={() => {
           preMountState.current.step = step + 1;

@@ -1924,6 +1924,9 @@ func TestActiveSessions(t *testing.T) {
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
 
+	// Use enterprise license (required for moderated sessions).
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	start := time.Now()
 	kinds := []types.SessionKind{
 		types.SSHSessionKind,
@@ -1950,6 +1953,17 @@ func TestActiveSessions(t *testing.T) {
 			Login:        pack.login,
 			Participants: []types.Participant{
 				{ID: "id", User: "user-1", LastActive: start},
+			},
+			HostPolicies: []*types.SessionTrackerPolicySet{
+				{
+					Name:    "foo",
+					Version: "5",
+					RequireSessionJoin: []*types.SessionRequirePolicy{
+						{
+							Name: "foo",
+						},
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -2297,6 +2311,122 @@ func TestMotD(t *testing.T) {
 	var motdResponse *webclient.MotD
 	require.NoError(t, json.Unmarshal(re.Bytes(), &motdResponse))
 	require.Equal(t, motd, motdResponse.Text)
+}
+
+// TestPingAutomaticUpgrades ensures /webapi/ping returns whether AutomaticUpgrades are enabled.
+func TestPingAutomaticUpgrades(t *testing.T) {
+	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
+		// Enable Automatic Upgrades
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			AutomaticUpgrades: true,
+		}})
+
+		// Set up
+		s := newWebSuite(t)
+		wc := s.client(t)
+		var pingResponse *webclient.PingResponse
+
+		// Get Ping response
+		re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+		require.NoError(t, err)
+
+		require.NoError(t, json.Unmarshal(re.Bytes(), &pingResponse))
+		require.True(t, pingResponse.AutomaticUpgrades, "expected automatic upgrades to be enabled")
+	})
+	t.Run("Automatic Upgrades are disabled", func(t *testing.T) {
+		// Disable Automatic Upgrades
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			AutomaticUpgrades: false,
+		}})
+
+		// Set up
+		s := newWebSuite(t)
+		wc := s.client(t)
+		var pingResponse *webclient.PingResponse
+
+		// Get Ping response
+		re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "ping"), url.Values{})
+		require.NoError(t, err)
+
+		require.NoError(t, json.Unmarshal(re.Bytes(), &pingResponse))
+		require.False(t, pingResponse.AutomaticUpgrades, "expected automatic upgrades to be disabled")
+	})
+}
+
+// TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
+func TestInstallerRepoChannel(t *testing.T) {
+	t.Run("cloud with automatic upgrades", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			Cloud:             true,
+			AutomaticUpgrades: true,
+		}})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
+
+		t.Run("default-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/cloud
+			require.Contains(t, responseString, "stable/cloud")
+			require.NotContains(t, responseString, "stable/v")
+		})
+		t.Run("default-agentless-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/cloud
+			require.Contains(t, responseString, "stable/cloud")
+			require.NotContains(t, responseString, "stable/v")
+		})
+	})
+	t.Run("cloud without automatic upgrades", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+			Cloud:             true,
+			AutomaticUpgrades: false,
+		}})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
+
+		t.Run("default-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/v<majorVersion>
+			require.Contains(t, responseString, "stable/v")
+			require.NotContains(t, responseString, "stable/cloud")
+		})
+		t.Run("default-agentless-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/v<majorVersion>
+			require.Contains(t, responseString, "stable/v")
+			require.NotContains(t, responseString, "stable/cloud")
+		})
+	})
 }
 
 func TestMultipleConnectors(t *testing.T) {
@@ -5580,7 +5710,8 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				ResourceName: tt.resourceName,
 				SSHPrincipal: tt.nodeUser,
 				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-				DialTimeout: time.Second,
+				// A value too low (eg 1s) will introduce test flakiness on some systems.
+				DialTimeout: 5 * time.Second,
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
@@ -5651,7 +5782,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		ResourceName: nodeName,
 		SSHPrincipal: osUsername,
 		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-		DialTimeout: time.Second,
+		DialTimeout: 5 * time.Second,
 		MFAResponse: client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
@@ -8086,12 +8217,10 @@ func TestForwardingTraces(t *testing.T) {
 	}
 }
 
-type mockPROXYSigner struct {
-}
+type mockPROXYSigner struct{}
 
 func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
 	return nil, nil
-
 }
 
 type mockTraceClient struct {
@@ -8321,4 +8450,79 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 		},
 		TotalCount: 2,
 	}, nil
+}
+
+// TestSimultaneousAuthenticateRequest ensures that multiple authenticated
+// requests do not race to create a SessionContext. This would happen when
+// Proxies were deployed behind a round-robin load balancer. Only the Proxy
+// that handled the login will have initially created a SessionContext for
+// the particular user+session. All subsequent requests to the other Proxies
+// in the load balancer pool attempt to create a SessionContext in
+// [Handler.AuthenticateRequest] if one didn't already exist. If the web UI
+// makes enough requests fast enough it can result in the Proxy trying to
+// create multiple SessionContext for a user+session. Since only one SessionContext
+// is stored in the sessionCache all previous SessionContext and their underlying
+// auth client get closed, which results in an ugly and unfriendly
+// `grpc: the client connection is closing` error banner on the web UI.
+func TestSimultaneousAuthenticateRequest(t *testing.T) {
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+
+	// Authenticate to get a session token and cookies.
+	pack := proxy.authPack(t, "test-user@example.com", nil)
+
+	// Reset the sessions so that all future requests will race to create
+	// a new SessionContext for the user + session pair to simulate multiple
+	// proxies behind a load balancer.
+	proxy.handler.handler.auth.sessions = map[string]*SessionContext{}
+
+	// Create a request with the auth header and cookies for the session.
+	endpoint := pack.clt.Endpoint("webapi", "sites")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	require.NoError(t, err)
+
+	req.Header.Set("Authorization", "Bearer "+pack.session.Token)
+	for _, cookie := range pack.cookies {
+		req.AddCookie(cookie)
+	}
+
+	// Spawn several requests in parallel and attempt to use the auth client.
+	type res struct {
+		domain string
+		err    error
+	}
+	const requests = 10
+	respC := make(chan res, requests)
+	for i := 0; i < requests; i++ {
+		go func() {
+			sctx, err := proxy.handler.handler.AuthenticateRequest(httptest.NewRecorder(), req.Clone(ctx), false)
+			if err != nil {
+				respC <- res{err: err}
+				return
+			}
+
+			clt, err := sctx.GetClient()
+			if err != nil {
+				respC <- res{err: err}
+				return
+			}
+
+			domain, err := clt.GetDomainName(ctx)
+			respC <- res{domain: domain, err: err}
+		}()
+	}
+
+	// Assert that all requests were successful and each one was able to
+	// get the domain name without its auth client being closed.
+	for i := 0; i < requests; i++ {
+		select {
+		case res := <-respC:
+			require.NoError(t, res.err)
+			require.Equal(t, "localhost", res.domain)
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for responses")
+		}
+	}
 }

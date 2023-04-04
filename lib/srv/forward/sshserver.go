@@ -18,6 +18,7 @@ package forward
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -514,7 +515,10 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 }
 
 func (s *Server) Serve() {
-	config := &ssh.ServerConfig{}
+	var (
+		succeeded bool
+		config    = &ssh.ServerConfig{}
+	)
 
 	// Configure callback for user certificate authentication.
 	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
@@ -538,15 +542,22 @@ func (s *Server) Serve() {
 	s.log.Debugf("Supported KEX algorithms: %q.", s.kexAlgorithms)
 	s.log.Debugf("Supported MAC algorithms: %q.", s.macAlgorithms)
 
-	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
-	if err != nil {
+	// close
+	defer func() {
+		if succeeded {
+			return
+		}
+
 		if s.userAgent != nil {
 			s.userAgent.Close()
 		}
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
+	}()
 
+	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
+	if err != nil {
 		s.log.Errorf("Unable to create server connection: %v.", err)
 		return
 	}
@@ -558,13 +569,6 @@ func (s *Server) Serve() {
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
-		if s.userAgent != nil {
-			s.userAgent.Close()
-		}
-		s.targetConn.Close()
-		s.clientConn.Close()
-		s.serverConn.Close()
-
 		s.log.Errorf("Unable to create server connection: %v.", err)
 		return
 	}
@@ -578,16 +582,11 @@ func (s *Server) Serve() {
 		s.rejectChannel(chans, err.Error())
 		sconn.Close()
 
-		if s.userAgent != nil {
-			s.userAgent.Close()
-		}
-		s.targetConn.Close()
-		s.clientConn.Close()
-		s.serverConn.Close()
-
 		s.log.Errorf("Unable to create remote connection: %v", err)
 		return
 	}
+
+	succeeded = true
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
@@ -646,12 +645,12 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*trac
 	var signers []ssh.Signer
 	if s.agentlessSigner != nil {
 		signers = []ssh.Signer{s.agentlessSigner}
-	} else if s.userAgent != nil {
-		s, err := s.userAgent.Signers()
+	} else {
+		var err error
+		signers, err = s.userAgent.Signers()
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		signers = s
 	}
 	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
@@ -1082,7 +1081,7 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 			return s.termHandlers.HandleWinChange(ctx, ch, req, scx)
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, scx)
-		case sshutils.EnvRequest:
+		case sshutils.EnvRequest, tracessh.EnvsRequest:
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
@@ -1118,6 +1117,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleForceTerminate(ch, req, scx)
 	case sshutils.EnvRequest:
 		return s.handleEnv(ctx, ch, req, scx)
+	case tracessh.EnvsRequest:
+		return s.handleEnvs(ctx, ch, req, scx)
 	case sshutils.SubsystemRequest:
 		return s.handleSubsystem(ctx, ch, req, scx)
 	case sshutils.X11ForwardRequest:
@@ -1134,17 +1135,17 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	case sshutils.PuTTYWinadjRequest:
 		return s.handlePuTTYWinadj(ch, req)
 	default:
-		return trace.BadParameter(
-			"%v doesn't support request type '%v'", s.Component(), req.Type)
+		s.log.Warnf("%v doesn't support request type '%v'", s.Component(), req.Type)
+		if req.WantReply {
+			if err := req.Reply(false, nil); err != nil {
+				s.log.Errorf("sending error reply on SSH channel: %v", err)
+			}
+		}
+		return nil
 	}
 }
 
 func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.ServerContext) error {
-	// TODO(capnspacehook): remove once SSH agent forwarding issue is fixed
-	if s.userAgent == nil {
-		return trace.BadParameter("SSH agent is not set")
-	}
-
 	// Check if the user's RBAC role allows agent forwarding.
 	err := s.authHandlers.CheckAgentForward(ctx)
 	if err != nil {
@@ -1152,7 +1153,17 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	}
 
 	// Route authentication requests to the agent that was forwarded to the proxy.
-	err = agent.ForwardToAgent(ctx.RemoteClient.Client, s.userAgent)
+	// If no agent was forwarded to the proxy, create one now.
+	userAgent := s.userAgent
+	if userAgent == nil {
+		ctx.ConnectionContext.SetForwardAgent(true)
+		userAgent, err = ctx.StartAgentChannel()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1310,6 +1321,27 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
+	}
+
+	return nil
+}
+
+// handleEnvs accepts environment variables sent by the client and forwards them
+// to the remote session.
+func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+	var raw tracessh.EnvsReq
+	if err := ssh.Unmarshal(req.Payload, &raw); err != nil {
+		scx.Error(err)
+		return trace.Wrap(err, "failed to parse envs request")
+	}
+
+	var envs map[string]string
+	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
+		return trace.Wrap(err, "failed to unmarshal envs")
+	}
+
+	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
+		s.log.WithError(err).Debug("Unable to set environment variables")
 	}
 
 	return nil

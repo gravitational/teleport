@@ -41,12 +41,12 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
-  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
+  HeaderWithBackBtn,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
@@ -64,13 +64,13 @@ export default function Container(props: AgentStepProps) {
     // join token api fetch error and loading states.
     <CatchError
       onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
-      fallbackFn={props => (
+      fallbackFn={fallbackProps => (
         <Box>
-          <Heading />
+          <Heading prevStep={props.prevStep} />
           <StepOne />
           <StepTwo
             onEdit={() => setShowHelmChart(false)}
-            error={props.error}
+            error={fallbackProps.error}
             namespace={namespace}
             setNamespace={setNamespace}
             clusterName={clusterName}
@@ -83,7 +83,7 @@ export default function Container(props: AgentStepProps) {
       <Suspense
         fallback={
           <Box>
-            <Heading />
+            <Heading prevStep={props.prevStep} />
             <StepOne />
             <StepTwo
               onEdit={() => setShowHelmChart(false)}
@@ -98,7 +98,7 @@ export default function Container(props: AgentStepProps) {
       >
         {!showHelmChart && (
           <Box>
-            <Heading />
+            <Heading prevStep={props.prevStep} />
             <StepOne />
             <StepTwo
               onEdit={() => setShowHelmChart(false)}
@@ -141,7 +141,7 @@ export function HelmChart(
 
   return (
     <Box>
-      <Heading />
+      <Heading prevStep={props.prevStep} />
       <StepOne />
       <StepTwo
         disabled={true}
@@ -163,10 +163,12 @@ export function HelmChart(
   );
 }
 
-const Heading = () => {
+const Heading = ({ prevStep }: { prevStep(): void }) => {
   return (
     <>
-      <Header>Configure Resource</Header>
+      <HeaderWithBackBtn onPrev={prevStep}>
+        Configure Resource
+      </HeaderWithBackBtn>
       <HeaderSubtitle>
         Install Teleport Service in your cluster via Helm to easily connect your
         Kubernetes cluster with Teleport.
@@ -303,19 +305,36 @@ const generateCmd = (data: {
   clusterVersion: string;
   resourceId: string;
   isEnterprise: boolean;
+  isCloud: boolean;
+  automaticUpgradesEnabled: boolean;
 }) => {
+  let extraYAMLConfig = '';
+
+  if (data.isEnterprise) {
+    extraYAMLConfig += 'enterprise: true\n';
+  }
+
+  if (data.isCloud && data.automaticUpgradesEnabled) {
+    extraYAMLConfig += 'updater:\n';
+    extraYAMLConfig += '    enabled: true\n';
+    extraYAMLConfig += '    releaseChannel: "stable/cloud"\n';
+    extraYAMLConfig += 'highAvailability:\n';
+    extraYAMLConfig += '    replicaCount: 2\n';
+    extraYAMLConfig += '    podDisruptionBudget:\n';
+    extraYAMLConfig += '        enabled: true\n';
+    extraYAMLConfig += '        minAvailable: 1\n';
+  }
+
   return `cat << EOF > prod-cluster-values.yaml
 roles: kube
 authToken: ${data.tokenId}
 proxyAddr: ${data.proxyAddr}
 kubeClusterName: ${data.clusterName}
-teleportVersionOverride: ${data.clusterVersion}
-enterprise: ${data.isEnterprise}
 labels:
     teleport.internal/resource-id: ${data.resourceId}
-EOF
+${extraYAMLConfig}EOF
  
-helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --create-namespace --namespace ${data.namespace}`;
+helm install teleport-agent teleport/teleport-kube-agent -f prod-cluster-values.yaml --version ${data.clusterVersion} --create-namespace --namespace ${data.namespace}`;
 };
 
 const InstallHelmChart = ({
@@ -406,6 +425,8 @@ const InstallHelmChart = ({
     clusterVersion: version,
     resourceId: joinToken.internalResourceId,
     isEnterprise: ctx.isEnterprise,
+    isCloud: ctx.isCloud,
+    automaticUpgradesEnabled: ctx.automaticUpgradesEnabled,
   });
 
   return (
