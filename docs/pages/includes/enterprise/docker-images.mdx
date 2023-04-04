@@ -9,12 +9,18 @@ These images are hosted on our [Amazon ECR Public repository](https://gallery.ec
 FIPS images are still posted to our [Legacy Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent).
 You can specify the architecture of a Teleport FIPS Docker image by adding a postfix to the image tag, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)-arm64`. Versions without an architecture postfix use the `amd64` architecture, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`. 
 
-| Image name | Open Source or Enterprise? | Teleport version | Image automatically updated? | Image base |
+| Image name | Open Source or Enterprise? | Teleport version | Image automatically updated? | Includes troubleshooting tools | Image base |
 | - | - | - | - | - |
-| `public.ecr.aws/gravitational/teleport-ent-distroless:(=teleport.major_version=)` | Enterprise | The latest version of Teleport Enterprise (=teleport.major_version=) | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
-| `public.ecr.aws/gravitational/teleport-ent:(=teleport.major_version=)-fips` | Enterprise FIPS | The latest version of Teleport Enterprise (=teleport.major_version=) FIPS | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
-| `(=teleport.latest_ent_docker_image=)` | Enterprise | The version specified in the image's tag (i.e. (=teleport.version=)) | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
-| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=teleport.version=)` | Enterprise | The version specified in the image's tag (i.e. (=teleport.version=)) | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
-| `(=teleport.latest_ent_docker_image=)-fips` | Enterprise FIPS | The version specified in the image's tag (i.e. (=teleport.version=)) | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `public.ecr.aws/gravitational/teleport-ent-distroless:(=teleport.major_version=)` | Enterprise | The latest version of Teleport Enterprise (=teleport.major_version=) | Yes | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent-distroless-debug:(=teleport.major_version=)` | Enterprise | The latest version of Teleport Enterprise (=teleport.major_version=) | Yes | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
+| `public.ecr.aws/gravitational/teleport-ent:(=teleport.major_version=)-fips` | Enterprise FIPS | The latest version of Teleport Enterprise (=teleport.major_version=) FIPS | Yes | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `(=teleport.latest_ent_docker_image=)` | Enterprise | The version specified in the image's tag (i.e. (=teleport.version=)) | No | No | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
+| `(=teleport.latest_ent_debug_docker_image=)` | Enterprise | The version specified in the image's tag (i.e. (=teleport.version=)) | No | Yes | [Distroless Debian 11](https://github.com/GoogleContainerTools/distroless) |
+| `(=teleport.latest_ent_docker_image=)-fips` | Enterprise FIPS | The version specified in the image's tag (i.e. (=teleport.version=)) | No | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
+
+[Ubuntu 20.04](https://hub.docker.com/\_/ubuntu)-based images for non-FIPS 
+Teleport are available from our [Legacy Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent).
+
+The `*-debug` images are intended for troubleshooting deployments, and are not indended for production use. 
