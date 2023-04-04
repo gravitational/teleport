@@ -81,6 +81,10 @@ type UsageReporter interface {
 type GracefulStopper interface {
 	UsageReporter
 
+	// GracefulStop gracefully closes and runs any finalization needed by the
+	// UsageReporter; operations can run as long as the context is alive, but
+	// must terminate quickly (even losing data) if the context is closed.
+	// Returns nil if operations have completed cleanly.
 	GracefulStop(context.Context) error
 }
 
