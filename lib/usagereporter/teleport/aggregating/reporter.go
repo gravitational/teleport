@@ -295,6 +295,13 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 				"start_time":   startTime,
 				"lost_records": len(report.Records),
 			}).Error("Failed to persist user activity report, dropping data.")
+			continue
 		}
+
+		r.log.WithFields(logrus.Fields{
+			"report_uuid": report.ReportUuid,
+			"start_time":  startTime,
+			"records":     len(report.Records),
+		}).Debug("Persisted user activity report.")
 	}
 }
