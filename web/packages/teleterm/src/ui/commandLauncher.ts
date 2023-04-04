@@ -25,7 +25,7 @@ const commands = {
   'tsh-ssh': {
     displayName: '',
     description: '',
-    run(
+    async run(
       ctx: IAppContext,
       args: {
         loginHost: string;
@@ -43,6 +43,9 @@ const commands = {
         loginHost,
         { origin }
       );
+
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
     },
@@ -95,9 +98,13 @@ const commands = {
   'kube-connect': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { kubeUri: KubeUri; origin: DocumentOrigin }) {
+    async run(
+      ctx: IAppContext,
+      args: { kubeUri: KubeUri; origin: DocumentOrigin }
+    ) {
+      const rootClusterUri = routing.ensureRootClusterUri(args.kubeUri);
       const documentsService =
-        ctx.workspacesService.getActiveWorkspaceDocumentService();
+        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
       const kubeDoc = documentsService.createTshKubeDocument({
         kubeUri: args.kubeUri,
         origin: args.origin,
@@ -105,6 +112,9 @@ const commands = {
       const connection = ctx.connectionTracker.findConnectionByDocument(
         kubeDoc
       ) as TrackedKubeConnection;
+
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+
       documentsService.add({
         ...kubeDoc,
         kubeConfigRelativePath:
@@ -201,6 +211,7 @@ export class CommandLauncher {
 
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
+    return undefined;
   }
 
   getAutocompleteCommands() {
