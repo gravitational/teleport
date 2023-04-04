@@ -1609,7 +1609,9 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 
-	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn, nodeAddress.ProxyFormat(), proxy.teleportClient, details.FIPSEnabled)
+	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn,
+		nodeAddress.ProxyFormat(), nodeAddress.Addr,
+		proxy.teleportClient, details.FIPSEnabled)
 	return nc, trace.Wrap(err)
 }
 
@@ -1655,12 +1657,13 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 
-	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, proxy.teleportClient, details.FIPSEnabled)
+	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, "", proxy.teleportClient, details.FIPSEnabled)
 	return nc, trace.Wrap(err)
 }
 
-// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress
-func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
+// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress.
+// The nodeName field is optional and is used only to present better error messages.
+func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"NewNodeClient",
@@ -1675,8 +1678,12 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
-			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
+			if nodeName == "" {
+				nodeName = nodeAddress
+			}
+
+			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeName)
 		}
 		return nil, trace.Wrap(err)
 	}
