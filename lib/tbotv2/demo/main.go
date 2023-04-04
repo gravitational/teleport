@@ -37,4 +37,6 @@ func run() error {
 	teleport.New(ctx, teleport.Config{
 		Credentials: []teleport.Credentials{},
 	})
+
+	return nil
 }
