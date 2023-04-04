@@ -1276,6 +1276,8 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 func applyPluginsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	cfg.Plugins.Enabled = fc.Plugins.Enabled()
+	cfg.Plugins.OpsgenieAPIKeyFile = fc.Plugins.Opsgenie.APIKeyFile
+	cfg.Plugins.Plugins = fc.Plugins.Plugins
 	return nil
 }
 
