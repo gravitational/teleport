@@ -165,6 +165,10 @@ const (
 	// DiscoveryIdentityEvent is generated when the identity of the
 	DiscoveryIdentityEvent = "DiscoveryIdentityEvent"
 
+	// PluginsIdentityEvent is generated when the identity of the identity
+	// of the plugin service has been registered with the Auth Server.
+	PluginsIdentityEvent = "PluginsIdentityEvent"
+
 	// AuthTLSReady is generated when the Auth Server has initialized the
 	// TLS Mutual Auth endpoint and is ready to start accepting connections.
 	AuthTLSReady = "AuthTLSReady"
@@ -224,6 +228,10 @@ const (
 	// DiscoveryReady is generated when the Teleport database proxy service
 	// is ready to start accepting connections.
 	DiscoveryReady = "DiscoveryReady"
+
+	// PluginsReady is generated when the Teleport plugins service
+	// is ready to start accepting connections.
+	PluginsReady = "PluginsReady"
 
 	// TeleportExitEvent is generated when the Teleport process begins closing
 	// all listening sockets and exiting.
@@ -1056,6 +1064,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if cfg.Discovery.Enabled {
 		eventMapping.In = append(eventMapping.In, DiscoveryReady)
 	}
+	if cfg.Plugins.Enabled {
+		eventMapping.In = append(eventMapping.In, PluginsReady)
+	}
 	process.RegisterEventMapping(eventMapping)
 
 	if cfg.Auth.Enabled {
@@ -1126,6 +1137,12 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		serviceStarted = true
 	} else {
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
+	}
+	if process.shouldInitPlugins() {
+		process.initPlugins()
+		serviceStarted = true
+	} else {
+		warnOnErr(process.closeImportedDescriptors(teleport.ComponentPlugins), process.log)
 	}
 
 	// Enterprise services will be handled by the enterprise binary. We'll let these set serviceStarted
@@ -2089,6 +2106,19 @@ func (process *TeleportProcess) newLocalCacheForDiscovery(clt auth.ClientI, cach
 		return nil, trace.Wrap(err)
 	}
 	return auth.NewDiscoveryWrapper(clt, cache), nil
+}
+
+// newLocalCacheForPlugins returns a new instance of access point for a plugins service.
+func (process *TeleportProcess) newLocalCacheForPlugins(clt auth.ClientI, cacheName []string) (auth.PluginsAccessPoint, error) {
+	// if caching is disabled, return access point
+	if !process.Config.CachePolicy.Enabled {
+		return clt, nil
+	}
+	cache, err := process.NewLocalCache(clt, cache.ForPlugins, cacheName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return auth.NewPluginsWrapper(clt, cache), nil
 }
 
 // newLocalCacheForProxy returns new instance of access point configured for a local proxy.
@@ -4699,6 +4729,10 @@ func (process *TeleportProcess) registerExpectedServices(cfg *servicecfg.Config)
 
 	if cfg.Discovery.Enabled {
 		process.SetExpectedInstanceRole(types.RoleDiscovery, DiscoveryIdentityEvent)
+	}
+
+	if cfg.Plugins.Enabled {
+		process.SetExpectedInstanceRole(types.RolePlugins, PluginsIdentityEvent)
 	}
 }
 

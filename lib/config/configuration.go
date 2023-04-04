@@ -459,6 +459,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	if fc.Plugins.Enabled() {
+		if err := applyPluginsConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	if fc.Okta.Enabled() {
 		if err := applyOktaConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
@@ -1265,6 +1271,11 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		)
 	}
 
+	return nil
+}
+
+func applyPluginsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	cfg.Plugins.Enabled = fc.Plugins.Enabled()
 	return nil
 }
 

@@ -1014,7 +1014,8 @@ type Auth struct {
 
 // PluginService represents the configuration for the plugin service.
 type PluginService struct {
-	Enabled bool `yaml:"enabled"`
+	Service `yaml:",inline"`
+
 	// Plugins is a map of matchers for enabled plugin resources.
 	Plugins map[string]string `yaml:"plugins,omitempty"`
 }

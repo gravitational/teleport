@@ -722,6 +722,27 @@ type DiscoveryAccessPoint interface {
 	DeleteDatabase(ctx context.Context, name string) error
 }
 
+// ReadPluginsAccessPoint is a read only API interface to be
+// used by a teleport.ComponentPlugins.
+//
+// NOTE: This interface must match the resources replicated in cache.ForPlugins.
+type ReadPluginsAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+}
+
+// PluginsAccessPoint is an API interface implemented by a certificate authority (CA) to be
+// used by a teleport.ComponentPlugins
+type PluginsAccessPoint interface {
+	// ReadPluginsAccessPoint provides methods to read data
+	ReadPluginsAccessPoint
+	// accessPoint provides common access point functionality
+	accessPoint
+}
+
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
@@ -1216,6 +1237,27 @@ func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) erro
 func (w *DiscoveryWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadDiscoveryAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type PluginsWrapper struct {
+	ReadPluginsAccessPoint
+	accessPoint
+	NoCache PluginsAccessPoint
+}
+
+func NewPluginsWrapper(base PluginsAccessPoint, cache ReadPluginsAccessPoint) PluginsAccessPoint {
+	return &PluginsWrapper{
+		NoCache:                base,
+		accessPoint:            base,
+		ReadPluginsAccessPoint: cache,
+	}
+}
+
+// Close closes all associated resources
+func (w *PluginsWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadPluginsAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

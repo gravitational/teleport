@@ -338,6 +338,9 @@ const (
 
 	// DiscoveryQueueSize is discovery service queue size.
 	DiscoveryQueueSize = 128
+
+	// PluginsQueueSize is plugins service queue size.
+	PluginsQueueSize = 128
 )
 
 var (
@@ -421,6 +424,8 @@ const (
 	RoleWindowsDesktop = "windowsdesktop"
 	// RoleDiscovery is a discovery service
 	RoleDiscovery = "discovery"
+	// RolePlugins is a plugins service
+	RolePlugins = "plugins"
 )
 
 const (

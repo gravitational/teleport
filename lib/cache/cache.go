@@ -366,6 +366,16 @@ func ForDiscovery(cfg Config) Config {
 	return cfg
 }
 
+// ForPlugins sets up watch configuration for plugins servers.
+func ForPlugins(cfg Config) Config {
+	cfg.target = "plugins"
+	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindAccessRequest},
+	}
+	cfg.QueueSize = defaults.PluginsQueueSize
+	return cfg
+}
+
 // ForOkta sets up watch configuration for Okta servers.
 func ForOkta(cfg Config) Config {
 	cfg.target = "okta"

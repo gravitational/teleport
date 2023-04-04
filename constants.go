@@ -128,6 +128,9 @@ const (
 	// ComponentDiscovery is the Discovery service.
 	ComponentDiscovery = "discovery:service"
 
+	// ComponentPlugins is the Plugins service.
+	ComponentPlugins = "plugins:service"
+
 	// ComponentAppProxy is the application handler within the web proxy service.
 	ComponentAppProxy = "app:web"
 
