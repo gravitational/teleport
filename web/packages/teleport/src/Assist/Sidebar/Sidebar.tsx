@@ -14,8 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import styled from 'styled-components';
+
+import { useHistory } from 'react-router';
 
 import { useTeleport } from 'teleport';
 
@@ -102,11 +104,16 @@ const NewChatButton = styled.div`
   font-weight: bold;
   display: flex;
   justify-content: center;
+  cursor: pointer;
 
   svg {
     position: relative;
     top: 2px;
     margin-right: 12px;
+  }
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
 `;
 
@@ -148,11 +155,17 @@ const UserInfoContent = styled.div`
 export function Sidebar() {
   const ctx = useTeleport();
 
+  const history = useHistory();
+
+  const handleNewChat = useCallback(() => {
+    history.push(`/web/assist`);
+  }, []);
+
   return (
     <Container>
       <Logo />
 
-      <NewChatButton>
+      <NewChatButton onClick={() => handleNewChat()}>
         <PlusIcon size={22} />
         New Chat
       </NewChatButton>

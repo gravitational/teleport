@@ -41,15 +41,15 @@ const MessagesContext = createContext<MessageContextValue>({
 });
 
 export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
-  const { chatId } = useParams<{ chatId: string }>();
+  const { conversationId } = useParams<{ conversationId: string }>();
 
   const history = useHistory();
 
   const [messages, setMessages] = useState<Message[]>([]);
 
   let socketUrl = `wss://${getHostName()}/v1/webapi/assistant?access_token=${getAccessToken()}`;
-  if (chatId) {
-    socketUrl += `&conversation_id=${chatId}`;
+  if (conversationId) {
+    socketUrl += `&conversation_id=${conversationId}`;
   }
 
   const { sendMessage, lastMessage } = useWebSocket(socketUrl);
@@ -58,25 +58,29 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data);
 
-      if (value.conversation_id) {
+      if (value.conversation_id && !conversationId && !value.type) {
+        setMessages([]);
+
         history.replace(`/web/assist/${value.conversation_id}`);
 
         return;
       }
 
-      setMessages(prev =>
-        prev.concat({
-          author: Author.Teleport,
-          content: [
-            {
-              type: Type.Message,
-              value: value.content,
-            },
-          ],
-        })
-      );
+      if (value.type === 'CHAT_RESPONSE') {
+        setMessages(prev =>
+          prev.concat({
+            author: Author.User,
+            content: [
+              {
+                type: Type.Message,
+                value: atob(value.payload),
+              },
+            ],
+          })
+        );
+      }
     }
-  }, [lastMessage, setMessages]);
+  }, [lastMessage, setMessages, conversationId]);
 
   const send = useCallback(
     async (message: string) => {
