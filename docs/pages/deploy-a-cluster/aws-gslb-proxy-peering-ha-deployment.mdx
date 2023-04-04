@@ -58,7 +58,7 @@ access and need reduced latency when accessing resources.
 
 
 ![Diagram of a high-availability Teleport
-architecture](../../img/deploy-a-cluster/teleport-ha-architecture.png)
+architecture](../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment.png)
 
 
 ## AWS Network load balancer(NLB)
@@ -277,82 +277,3 @@ proxy_service:
 ```
 Refrence the [Proxy Service configuration](https://goteleport.com/docs/reference/config/#proxy-service) reference page 
 for additional settings.
-
-## Teleport instances
-
-Run the Teleport Auth Service and Proxy Service as a scalable group of compute
-resources, for example, a Kubernetes `Deployment` or AWS Auto Scaling group.
-This requires running the `teleport` binary on each Kubernetes pod or virtual
-machine or in your group. 
-
-You should deploy your Teleport instances across multiple zones (if using a
-cloud provider) or data centers (if using an on-premise solution) to ensure
-availability.
-
-In the [Configuration](#configuration) section, we will show you how to
-configure each binary for high availability.
-
-### Open ports
-
-Ensure that, on each Teleport instance, the following ports allow traffic from
-the load balancer. The Proxy Service uses these ports to communicate with
-Teleport users and services.
-
-
-| Port | Description |
-| - | - |
-| `443` | ALPN port for TLS Routing. |
-
-
-
-### License file
-
-If you are deploying Teleport Enterprise, you need to download a license file
-and make it available to your Teleport Auth Service instances.
-
-To obtain your license file, visit the [Teleport customer
-dashboard](https://dashboard.gravitational.com/web/login) and log in. Click
-"DOWNLOAD LICENSE KEY". You will see your current Teleport Enterprise account
-permissions and the option to download your license file:
-
-![License File modal](../../img/enterprise/license.png)
-
-The license file must be available to each Teleport Auth Service instance at
-`/var/lib/teleport/license.pem`. 
-
-
-## Next steps
-
-### Refine your plan
-
-Now that you know the general principles behind a high-availability Teleport
-deployment, read about how to design your own deployment on Kubernetes or a
-cluster of virtual machines in your cloud of choice:
-
-- [High-availability Teleport Deployments on Kubernetes with
-  Helm](helm-deployments.mdx)
-- [Reference Deployments](deployments.mdx) for running Teleport on a cluster of
-  virtual machines
-
-### Ensure high performance
-
-You should also get familiar with how to ensure that your Teleport deployment is
-performing as expected:
-
-- [Scaling a Teleport cluster](../management/operations/scaling.mdx)
-- [Monitoring a Teleport cluster](../management/diagnostics.mdx)
-
-### Deploy Teleport services
-
-Once your high-availability Teleport deployment is up and running, you can add
-resources by launching Teleport services. You can run these services in a
-separate network from your Teleport cluster. 
-
-To get started, read about registering:
-
-- [Applications](../application-access/getting-started.mdx)
-- [Servers](../server-access/getting-started.mdx)
-- [Kubernetes clusters](../kubernetes-access/getting-started.mdx)
-- [Databases](../database-access/getting-started.mdx)
-- [Windows desktops](../desktop-access/getting-started.mdx)
-- [Bot users](../machine-id/getting-started.mdx)
