@@ -30,6 +30,7 @@ import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { ConfigService } from 'teleterm/services/config';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -49,6 +50,7 @@ export interface IAppContext {
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   usageService: UsageService;
+  configService: ConfigService;
 
   init(): Promise<void>;
 }
