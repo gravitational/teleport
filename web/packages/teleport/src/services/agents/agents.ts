@@ -38,6 +38,7 @@ export const agentService = {
           kubernetes_user: req.kubeImpersonation?.user,
           kubernetes_groups: req.kubeImpersonation?.groups,
         },
+        mfa_response: req.mfaAuthnResponse,
       })
       .then(makeConnectionDiagnostic);
   },
