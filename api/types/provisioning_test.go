@@ -598,6 +598,66 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 			expectedErr: &trace.BadParameterError{},
 		},
+		{
+			desc: "gcp method",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "gcp",
+					GCP: &ProvisionTokenSpecV2GCP{
+						Allow: []*ProvisionTokenSpecV2GCP_Rule{
+							{
+								ProjectIDs: []string{"p1"},
+								Locations:  []string{"us-west1-b"},
+							},
+						},
+					},
+				},
+			},
+			expected: &ProvisionTokenV2{
+				Kind:    "token",
+				Version: "v2",
+				Metadata: Metadata{
+					Name:      "test",
+					Namespace: "default",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "gcp",
+					GCP: &ProvisionTokenSpecV2GCP{
+						Allow: []*ProvisionTokenSpecV2GCP_Rule{
+							{
+								ProjectIDs: []string{"p1"},
+								Locations:  []string{"us-west1-b"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "gcp method no project ids",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "gcp",
+					GCP: &ProvisionTokenSpecV2GCP{
+						Allow: []*ProvisionTokenSpecV2GCP_Rule{
+							{
+								Locations: []string{"us-west1-b"},
+							},
+						},
+					},
+				},
+			},
+			expectedErr: &trace.BadParameterError{},
+		},
 	}
 
 	for _, tc := range testcases {
