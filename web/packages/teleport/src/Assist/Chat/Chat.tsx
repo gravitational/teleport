@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useRef } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
 
 import { useMessages } from '../contexts/messages';
 
@@ -58,25 +58,6 @@ const Padding = styled.div`
   box-sizing: border-box;
 `;
 
-const appear = keyframes`
-  0% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 1;
-  }
-`;
-
-const LoadingContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  opacity: 0;
-  margin-top: 50px;
-  animation: ${appear} 0.6s linear forwards;
-  animation-delay: 1s;
-`;
-
 export function Chat() {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -114,7 +95,7 @@ export function Chat() {
 
       <Content>
         <Padding>
-          <ExampleChatItem />
+          {!items.length && <ExampleChatItem />}
 
           {items}
 
