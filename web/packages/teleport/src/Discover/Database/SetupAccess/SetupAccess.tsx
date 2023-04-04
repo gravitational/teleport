@@ -30,11 +30,10 @@ import {
 import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
-import { DatabaseEngine, DatabaseLocation } from '../resources';
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
 import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
-import type { Database } from '../resources';
 
 export default function Container(props: AgentStepProps) {
   const state = useUserTraits(props);
@@ -47,7 +46,7 @@ export function SetupAccess(props: State) {
     initSelectedOptions,
     getFixedOptions,
     getSelectableOptions,
-    resourceState,
+    resourceSpec,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -95,7 +94,7 @@ export function SetupAccess(props: State) {
     onProceed({ databaseNames: selectedNames, databaseUsers: selectedUsers });
   }
 
-  const { engine, location } = resourceState as Database;
+  const { engine, location } = resourceSpec.dbMeta;
   let hasTraits = selectedUsers.length > 0;
   // Postgres connection testing requires both db user and a db name.
   if (engine === DatabaseEngine.PostgreSQL) {

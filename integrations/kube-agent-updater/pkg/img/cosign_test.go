@@ -65,6 +65,7 @@ func Test_cosignKeyValidator_ValidateAndResolveDigest(t *testing.T) {
 		resp, err := testRegistry.Client().Do(req)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
 	}
 	for manifest, contents := range manifests {
 		u, err := url.Parse(testRegistry.URL + "/v2/testrepo/manifests/" + manifest)
@@ -77,10 +78,11 @@ func Test_cosignKeyValidator_ValidateAndResolveDigest(t *testing.T) {
 		resp, err := testRegistry.Client().Do(req)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusCreated, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
 	}
 
 	// Build a validator
-	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey([]byte(publicKey))
+	pubKey, err := cryptoutils.UnmarshalPEMToPublicKey(publicKey)
 	require.NoError(t, err)
 	skid, err := cryptoutils.SKID(pubKey)
 	require.NoError(t, err)

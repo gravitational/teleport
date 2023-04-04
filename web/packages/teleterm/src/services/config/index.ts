@@ -16,4 +16,4 @@
 
 export * from './configService';
 export * from './configServiceClient';
-export { AppConfig, KeyboardShortcutAction } from './appConfigSchema';
+export type { AppConfig, KeyboardShortcutAction } from './appConfigSchema';

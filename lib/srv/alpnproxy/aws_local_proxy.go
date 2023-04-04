@@ -32,6 +32,8 @@ import (
 
 // AWSAccessMiddleware verifies the requests to AWS proxy are properly signed.
 type AWSAccessMiddleware struct {
+	DefaultLocalProxyHTTPMiddleware
+
 	// AWSCredentials are AWS Credentials used by LocalProxy for request's signature verification.
 	AWSCredentials *credentials.Credentials
 

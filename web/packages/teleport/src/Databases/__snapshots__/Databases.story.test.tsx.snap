@@ -133,15 +133,6 @@ exports[`empty state for enterprise, can create 1`] = `
   color: #FFFFFF;
 }
 
-.c7 {
-  display: block;
-  outline: none;
-  margin-bottom: 24px;
-  margin-left: auto;
-  margin-right: auto;
-  height: 160px;
-}
-
 .c8 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -160,6 +151,15 @@ exports[`empty state for enterprise, can create 1`] = `
   font-size: 14px;
   margin: 0px;
   font-weight: 400;
+}
+
+.c7 {
+  display: block;
+  outline: none;
+  margin-bottom: 24px;
+  margin-left: auto;
+  margin-right: auto;
+  height: 160px;
 }
 
 .c3 {
@@ -806,7 +806,7 @@ exports[`failed 1`] = `
       >
         <div
           class="c20"
-          color="primary.contrastText"
+          color="text.contrast"
           style="text-transform: uppercase;"
         >
           Showing 
@@ -1571,7 +1571,7 @@ exports[`open source loaded 1`] = `
       >
         <div
           class="c20"
-          color="primary.contrastText"
+          color="text.contrast"
           style="text-transform: uppercase;"
         >
           Showing 

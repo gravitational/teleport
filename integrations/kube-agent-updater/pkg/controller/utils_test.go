@@ -19,8 +19,13 @@ package controller
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
+)
+
+const (
+	nonSemverTag = "my-custom-tag"
 )
 
 func Test_getContainerImageFromPod(t *testing.T) {
@@ -246,6 +251,97 @@ func Test_setContainerImageFromPod(t *testing.T) {
 			err := setContainerImageFromPodSpec(tt.args.spec, tt.args.container, tt.args.image)
 			tt.assertErr(t, err)
 			require.Equal(t, tt.expected, tt.args.spec)
+		})
+	}
+}
+func newPodSpecWithImage(image string) v1.PodSpec {
+	return v1.PodSpec{
+		Containers: []v1.Container{{
+			Name:  teleportContainerName,
+			Image: image,
+		}},
+	}
+}
+
+func Test_getWorkloadVersion(t *testing.T) {
+	tests := []struct {
+		name      string
+		podSpec   v1.PodSpec
+		expected  string
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:      "OK regular podSpec, semver tag no digest",
+			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + versionMid),
+			expected:  "v" + versionMid,
+			assertErr: require.NoError,
+		},
+		{
+			name:      "OK regular podSpec, semver tag with digest",
+			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + versionMid + "@" + defaultImageDigest.String()),
+			expected:  "v" + versionMid,
+			assertErr: require.NoError,
+		},
+		{
+			name:      "KO regular podSpec, non-semver tag no digest",
+			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + nonSemverTag),
+			expected:  "",
+			assertErr: errorIsType(&trace.BadParameterError{}),
+		},
+		{
+			name:      "KO regular podSpec, non-semver tag with digest",
+			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + ":" + nonSemverTag + "@" + defaultImageDigest.String()),
+			expected:  "",
+			assertErr: errorIsType(&trace.BadParameterError{}),
+		},
+		{
+			name:      "KO regular podSpec, no tag, only digest",
+			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath + "@" + defaultImageDigest.String()),
+			expected:  "",
+			assertErr: errorIsType(&trace.BadParameterError{}),
+		},
+		{
+			name:      "KO regular podSpec, no tag, no digest",
+			podSpec:   newPodSpecWithImage(defaultTestRegistry + "/" + defaultTestPath),
+			expected:  "",
+			assertErr: errorIsType(&trace.BadParameterError{}),
+		},
+		{
+			name: "OK regular podSpec multi-container",
+			podSpec: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Image: "foo",
+						Name:  "bar",
+					},
+					{
+						Image: defaultTestRegistry + "/" + defaultTestPath + ":" + versionMid,
+						Name:  teleportContainerName,
+					},
+				},
+			},
+			expected:  "v" + versionMid,
+			assertErr: require.NoError,
+		},
+		{
+			name: "KO no teleport container",
+			podSpec: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Image: "foo",
+						Name:  "bar",
+					},
+				},
+			},
+			expected:  "",
+			assertErr: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getWorkloadVersion(tt.podSpec)
+			tt.assertErr(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

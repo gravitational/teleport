@@ -418,6 +418,9 @@ func renderFixtures(keys *cosign.KeysBytes, layers []v1.Layer, manifests map[str
 			return "", trace.Wrap(err)
 		}
 		contentReader, err := layer.Uncompressed()
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
 		content, err := io.ReadAll(contentReader)
 		if err != nil {
 			return "", trace.Wrap(err)
@@ -472,7 +475,7 @@ func generateSignedManifest(scenario string, signer digestedRefSigner, keys ...*
 		Layers:        []v1.Descriptor{layerDesc},
 	}
 
-	// Generatin a manifest referencing the test layers
+	// Generating a manifest referencing the test layers
 	_, _, manifestDigest, err := contentSizeAndHash(manifest)
 	if err != nil {
 		return nil, nil, v1.Hash{}, trace.Wrap(err)
@@ -531,6 +534,9 @@ func generateSignedIndex(scenario string, signer digestedRefSigner, keys ...*cos
 		Architecture: "amd64",
 		OS:           "linux",
 	})
+	if err != nil {
+		return nil, nil, v1.Hash{}, trace.Wrap(err)
+	}
 
 	// Referencing both manifests in an index
 	index := v1.IndexManifest{

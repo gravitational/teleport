@@ -18,17 +18,8 @@ following situations:
 
 ## Can Machine ID be used with Trusted Clusters ?
 
-Partially. We currently support SSH access to leaf clusters when using `tsh` to
-make the connection. To do this, you will need to provide `tsh` with the generated identity file
-output in the destination directory to `tsh`, for example:
-
-```code
-$ tsh -i /opt/machine-id/identity --proxy root-cluster.example.com ssh --cluster leaf-cluster.example.com root@node.leaf-cluster.example.com
-```
-
-We hope to introduce support for generating a `ssh_config` that is compatible
-with leaf clusters for use with OpenSSH. You can track support for this on the 
-[GitHub Machine ID Trusted Cluster Support issue](https://github.com/gravitational/teleport/issues/13792).
+From Teleport 12.2, Trusted Cluster support for SSH Access has been included in
+Machine ID.
 
 We currently do not support Application Access, Database Access or Kubernetes
 Access to resources in leaf clusters.

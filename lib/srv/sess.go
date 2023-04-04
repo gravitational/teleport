@@ -1486,8 +1486,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session.", p.user)
-	s.log.Infof("New party %v joined session", p.String())
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {
 		s.term.AddParty(1)

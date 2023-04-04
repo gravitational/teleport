@@ -15,7 +15,7 @@ resources:
   page in your Azure portal and click *Create* to create a new user-assigned
   managed identity:
 
-  ![Managed identities](../../../img/database-access/guides/azure/managed-identities@2x.png)
+  ![Managed identities](../../../img/azure/managed-identities@2x.png)
 
   Pick a name and resource group for the new identity and create it:
 
@@ -44,7 +44,7 @@ resources:
   Go the the [App registrations](https://portal.azure.com/#blade/Microsoft_AAD_IAM/ActiveDirectoryMenuBlade/RegisteredApps)
   page of your Azure Active Directory and click on *New registration*:
 
-  ![App registrations](../../../img/database-access/guides/azure/app-registrations@2x.png)
+  ![App registrations](../../../img/azure/app-registrations@2x.png)
 
   Pick a name (e.g. *DatabaseService*) and register a new application. Once the
   app has been created, take note of its *Application (client) ID* and click on
@@ -55,7 +55,7 @@ resources:
   Create a new client secret that the Database Service agent will use to
   authenticate with the Azure API:
 
-  ![Registered app secrets](../../../img/database-access/guides/azure/registered-app-secrets@2x.png)
+  ![Registered app secrets](../../../img/azure/registered-app-secrets@2x.png)
 
   The Teleport Database Service uses Azure SDK's default credential provider chain to
   look for credentials. Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)

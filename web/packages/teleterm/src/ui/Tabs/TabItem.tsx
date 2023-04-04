@@ -105,15 +105,15 @@ const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
     border: 'none',
     borderRadius: '8px 8px 0 0',
     '&:hover, &:focus': {
-      color: theme.colors.primary.contrastText,
+      color: theme.colors.text.contrast,
       transition: 'color .3s',
     },
     position: 'relative',
   };
 
   if (active) {
-    styles['backgroundColor'] = theme.colors.primary.darker;
-    styles['color'] = theme.colors.secondary.contrastText;
+    styles['backgroundColor'] = theme.colors.levels.sunken;
+    styles['color'] = theme.colors.text.contrast;
     styles['transition'] = 'none';
   }
 

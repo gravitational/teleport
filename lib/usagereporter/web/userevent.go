@@ -87,10 +87,10 @@ type CreatePreUserEventRequest struct {
 	Alert string `json:"alert"`
 	// MfaType is the type of MFA used
 	// MfaType is only set for registerChallenge events
-	MfaType string `json:"mfa_type"`
+	MfaType string `json:"mfaType"`
 	// LoginFlow is the login flow used
 	// LoginFlow is only set for registerChallenge events
-	LoginFlow string `json:"login_flow"`
+	LoginFlow string `json:"loginFlow"`
 }
 
 // CheckAndSetDefaults validates the Request has the required fields.
