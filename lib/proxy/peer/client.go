@@ -60,6 +60,8 @@ type ClientConfig struct {
 	// GracefulShutdownTimout is used set the graceful shutdown
 	// duration limit.
 	GracefulShutdownTimeout time.Duration
+	// ClusterName is the name of the cluster.
+	ClusterName string
 
 	// getConfigForServer updates the client tls config.
 	// configurable for testing purposes.
@@ -125,6 +127,10 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("missing access cache")
 	}
 
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing tls config")
 	}
@@ -138,7 +144,7 @@ func (c *ClientConfig) checkAndSetDefaults() error {
 	}
 
 	if c.getConfigForServer == nil {
-		c.getConfigForServer = getConfigForServer(c.TLSConfig, c.AccessPoint, c.Log)
+		c.getConfigForServer = getConfigForServer(c.TLSConfig, c.AccessPoint, c.Log, c.ClusterName)
 	}
 
 	return nil
@@ -394,6 +400,14 @@ func (s frameStream) Recv() ([]byte, error) {
 	return frame.GetData().Bytes, nil
 }
 
+func (s frameStream) Close() error {
+	if cs, ok := s.stream.(grpc.ClientStream); ok {
+		return trace.Wrap(cs.CloseSend())
+	}
+
+	return nil
+}
+
 // Shutdown gracefully shuts down all existing client connections.
 func (c *Client) Shutdown() {
 	c.Lock()
@@ -587,7 +601,7 @@ func (c *Client) getConnections(proxyIDs []string) ([]*clientConn, bool, error) 
 }
 
 // connect dials a new connection to proxyAddr.
-func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
+func (c *Client) connect(peerID string, peerAddr string) (*clientConn, error) {
 	tlsConfig, err := c.config.getConfigForServer()
 	if err != nil {
 		return nil, trace.Wrap(err, "Error updating client tls config")
@@ -596,11 +610,12 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 	connCtx, cancel := context.WithCancel(c.ctx)
 	wg := new(sync.WaitGroup)
 
-	transportCreds := newProxyCredentials(credentials.NewTLS(tlsConfig))
+	expectedPeer := auth.HostFQDN(peerID, c.config.ClusterName)
+
 	conn, err := grpc.DialContext(
 		connCtx,
-		proxyPeerAddr,
-		grpc.WithTransportCredentials(transportCreds),
+		peerAddr,
+		grpc.WithTransportCredentials(newClientCredentials(expectedPeer, peerAddr, c.config.Log, credentials.NewTLS(tlsConfig))),
 		grpc.WithStatsHandler(newStatsHandler(c.reporter)),
 		grpc.WithChainStreamInterceptor(metadata.StreamClientInterceptor, utils.GRPCClientStreamErrorInterceptor, streamCounterInterceptor(wg)),
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
@@ -612,7 +627,7 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 	)
 	if err != nil {
 		cancel()
-		return nil, trace.Wrap(err, "Error dialing proxy %+v", id)
+		return nil, trace.Wrap(err, "Error dialing proxy %q", peerID)
 	}
 
 	return &clientConn{
@@ -620,8 +635,8 @@ func (c *Client) connect(id string, proxyPeerAddr string) (*clientConn, error) {
 		ctx:        connCtx,
 		cancel:     cancel,
 		wg:         wg,
-		id:         id,
-		addr:       proxyPeerAddr,
+		id:         peerID,
+		addr:       peerAddr,
 	}, nil
 }
 

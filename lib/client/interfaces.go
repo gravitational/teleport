@@ -367,7 +367,7 @@ func isTeleportAgentKey(key *agent.Key) bool {
 	return strings.HasPrefix(key.Comment, agentKeyCommentPrefix+agentKeyCommentSeparator)
 }
 
-// AsAgentKeys converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
+// AsAgentKey converts client.Key struct to an agent.AddedKey. Any agent.AddedKey
 // can be added to a local agent (keyring), nut non-standard keys cannot be added
 // to an SSH system agent through the ssh agent protocol. Check canAddToSystemAgent
 // before adding this key to an SSH system agent.
@@ -403,14 +403,32 @@ func (k *Key) TeleportTLSCertificate() (*x509.Certificate, error) {
 	return tlsca.ParseCertificatePEM(k.TLSCert)
 }
 
-// KubeTLSCertificate returns the parsed x509 certificate for
-// authentication against a named kubernetes cluster.
-func (k *Key) KubeTLSCertificate(kubeClusterName string) (*x509.Certificate, error) {
+// KubeX509Cert returns the parsed x509 certificate for authentication against
+// a named kubernetes cluster.
+func (k *Key) KubeX509Cert(kubeClusterName string) (*x509.Certificate, error) {
 	tlsCert, ok := k.KubeTLSCerts[kubeClusterName]
 	if !ok {
 		return nil, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
 	}
 	return tlsca.ParseCertificatePEM(tlsCert)
+}
+
+// KubeTLSCert returns the tls.Certificate for authentication against a named
+// kubernetes cluster.
+func (k *Key) KubeTLSCert(kubeClusterName string) (tls.Certificate, error) {
+	certPem, ok := k.KubeTLSCerts[kubeClusterName]
+	if !ok {
+		return tls.Certificate{}, trace.NotFound("TLS certificate for kubernetes cluster %q not found", kubeClusterName)
+	}
+	keyPem, err := k.PrivateKey.RSAPrivateKeyPEM()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	tlsCert, err := keys.X509KeyPair(certPem, keyPem)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return tlsCert, nil
 }
 
 // DBTLSCertificates returns all parsed x509 database access certificates.

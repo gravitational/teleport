@@ -47,10 +47,6 @@ const (
 	// SAMLIDPCA identifies the certificate authority that will be used by the
 	// SAML identity provider.
 	SAMLIDPCA CertAuthType = "saml_idp"
-	// CertAuthTypeAll is a special type that represents all CertAuthTypes.
-	// DEPRECATED, DELETE IN 13.0.0. For more information see:
-	// https://github.com/gravitational/teleport/issues/17493
-	CertAuthTypeAll CertAuthType = "all"
 )
 
 // CertAuthTypes lists all certificate authority types.

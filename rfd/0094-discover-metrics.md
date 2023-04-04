@@ -136,7 +136,7 @@ message DiscoverStepStatus {
   // Indicates the step outcome.
   DiscoverStatus status = 1;
   // Contains error details in case of Error Status.
-  // We have to be careful to not include any identifyable infomation like server addresses here.
+  // We have to be careful to not include any identifyable information like server addresses here.
   string error = 2;
 }
 

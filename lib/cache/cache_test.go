@@ -212,7 +212,10 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.userGroups = local.NewUserGroupService(p.backend)
+	p.userGroups, err = local.NewUserGroupService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	oktaSvc, err := local.NewOktaService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1615,6 +1618,34 @@ func TestApplicationServers(t *testing.T) {
 		update: withKeepalive(p.presenceS.UpsertApplicationServer),
 		deleteAll: func(ctx context.Context) error {
 			return p.presenceS.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
+		},
+	})
+}
+
+// TestKubernetesServers tests that CRUD operations on kube servers are
+// replicated from the backend to the cache.
+func TestKubernetesServers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.KubeServer]{
+		newResource: func(name string) (types.KubeServer, error) {
+			app, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+			require.NoError(t, err)
+			return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
+		},
+		create: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		list: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.presenceS.GetKubernetesServers(ctx)
+		},
+		cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.cache.GetKubernetesServers(ctx)
+		},
+		update: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllKubernetesServers(ctx)
 		},
 	})
 }

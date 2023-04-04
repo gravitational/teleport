@@ -161,23 +161,22 @@ const StyledItem = styled.div(({ theme, $active }) => {
   return {
     '&:hover, &:focus': {
       cursor: 'pointer',
-      background: theme.colors.primary.lighter,
+      background: theme.colors.levels.elevated,
     },
 
-    borderBottom: `2px solid ${theme.colors.primary.placeholder}`,
     padding: '2px 8px',
-    color: theme.colors.primary.contrastText,
+    color: theme.colors.text.contrast,
     background: $active
-      ? theme.colors.primary.main
-      : theme.colors.primary.darker,
+      ? theme.colors.levels.surfaceSecondary
+      : theme.colors.levels.sunken,
   };
 });
 
 const StyledGlobalSearchResults = styled.div(({ theme, position }) => {
   return {
     boxShadow: '8px 8px 18px rgb(0 0 0)',
-    color: theme.colors.primary.contrastText,
-    background: theme.colors.primary.light,
+    color: theme.colors.text.contrast,
+    background: theme.colors.levels.surface,
     boxSizing: 'border-box',
     marginTop: '42px',
     left: position ? position + 'px' : 0,
