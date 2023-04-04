@@ -541,11 +541,12 @@ func (s *remoteSite) updateCertAuthorities(retry retryutils.Retry, remoteWatcher
 }
 
 func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityWatcher, remoteVersion string) error {
-	filter, err := s.getLocalWatchedCerts(remoteVersion)
-	if err != nil {
-		return trace.Wrap(err)
+	filter := types.CertAuthorityFilter{
+		types.HostCA:     s.srv.ClusterName,
+		types.UserCA:     s.srv.ClusterName,
+		types.DatabaseCA: s.srv.ClusterName,
+		types.OpenSSHCA:  s.srv.ClusterName,
 	}
-
 	localWatch, err := s.srv.CertAuthorityWatcher.Subscribe(s.ctx, filter)
 	if err != nil {
 		return trace.Wrap(err)
@@ -611,7 +612,7 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 		// if CA is changed or does not exist, update backend
 		if err != nil || !services.CertAuthoritiesEquivalent(oldRemoteCA, remoteCA) {
 			s.logger.Debugf("Ingesting remote cert authority %v", remoteCA.GetID())
-			if err := s.localClient.UpsertCertAuthority(remoteCA); err != nil {
+			if err := s.localClient.UpsertCertAuthority(s.ctx, remoteCA); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -681,43 +682,6 @@ func (s *remoteSite) watchCertAuthorities(remoteWatcher *services.CertAuthorityW
 			}
 		}
 	}
-}
-
-// getLocalWatchedCerts returns local certificates types that should be watched by the cert authority watcher.
-func (s *remoteSite) getLocalWatchedCerts(remoteClusterVersion string) (types.CertAuthorityFilter, error) {
-	// Delete in 11.0.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.DatabaseCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !ver10orAbove {
-		s.logger.Debugf("Connected to remote cluster of version %s. Database CA won't be propagated.", remoteClusterVersion)
-		return types.CertAuthorityFilter{
-			types.HostCA: s.srv.ClusterName,
-			types.UserCA: s.srv.ClusterName,
-		}, nil
-	}
-
-	// DELETE IN 13.0.0.
-	ver12orAbove, err := utils.MinVerWithoutPreRelease(remoteClusterVersion, constants.OpenSSHCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if !ver12orAbove {
-		s.logger.Debugf("Connected to remote cluster of version %s. OpenSSH CA won't be propagated.", remoteClusterVersion)
-		return types.CertAuthorityFilter{
-			types.HostCA:     s.srv.ClusterName,
-			types.UserCA:     s.srv.ClusterName,
-			types.DatabaseCA: s.srv.ClusterName,
-		}, nil
-	}
-
-	return types.CertAuthorityFilter{
-		types.HostCA:     s.srv.ClusterName,
-		types.UserCA:     s.srv.ClusterName,
-		types.DatabaseCA: s.srv.ClusterName,
-		types.OpenSSHCA:  s.srv.ClusterName,
-	}, nil
 }
 
 func (s *remoteSite) updateLocks(retry retryutils.Retry) {

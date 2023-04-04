@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Acl } from './types';
 
-export default function makeAcl(json): Acl {
+export function makeAcl(json): Acl {
   json = json || {};
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
@@ -54,6 +54,8 @@ export default function makeAcl(json): Acl {
   const license = json.license || defaultAccess;
   const download = json.download || defaultAccess;
 
+  const deviceTrust = json.deviceTrust || defaultAccess;
+
   return {
     authConnectors,
     trustedClusters,
@@ -78,6 +80,7 @@ export default function makeAcl(json): Acl {
     connectionDiagnostic,
     license,
     download,
+    deviceTrust,
   };
 }
 

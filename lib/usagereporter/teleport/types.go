@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
+	"github.com/gravitational/teleport/api/types"
 	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -362,10 +363,62 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventR
 	}
 }
 
+type ResourceKind = prehogv1.ResourceKind
+
+const (
+	ResourceKindNode           = prehogv1.ResourceKind_RESOURCE_KIND_NODE
+	ResourceKindAppServer      = prehogv1.ResourceKind_RESOURCE_KIND_APP_SERVER
+	ResourceKindKubeServer     = prehogv1.ResourceKind_RESOURCE_KIND_KUBE_SERVER
+	ResourceKindDBServer       = prehogv1.ResourceKind_RESOURCE_KIND_DB_SERVER
+	ResourceKindWindowsDesktop = prehogv1.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindNodeOpenSSH    = prehogv1.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
+)
+
+func ResourceKindFromKeepAliveType(t types.KeepAlive_KeepAliveType) ResourceKind {
+	switch t {
+	case types.KeepAlive_NODE:
+		return ResourceKindNode
+	case types.KeepAlive_APP:
+		return ResourceKindAppServer
+	case types.KeepAlive_KUBERNETES:
+		return ResourceKindKubeServer
+	case types.KeepAlive_DATABASE:
+		return ResourceKindDBServer
+	default:
+		return 0
+	}
+}
+
+type ResourceHeartbeatEvent struct {
+	Name   string
+	Kind   prehogv1.ResourceKind
+	Static bool
+}
+
+func (u *ResourceHeartbeatEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+	return prehogv1.SubmitEventRequest{
+		Event: &prehogv1.SubmitEventRequest_ResourceHeartbeat{
+			ResourceHeartbeat: &prehogv1.ResourceHeartbeatEvent{
+				ResourceName: a.AnonymizeNonEmpty(u.Name),
+				ResourceKind: u.Kind,
+				Static:       u.Static,
+			},
+		},
+	}
+}
+
+// UserMetadata contains user metadata information which is used to contextualize events with user information.
+type UserMetadata struct {
+	// Username contains the user's name.
+	Username string
+	// IsSSO indicates if the user was created by an SSO provider.
+	IsSSO bool
+}
+
 // ConvertUsageEvent converts a usage event from an API object into an
 // anonymizable event. All events that can be submitted externally via the Auth
 // API need to be defined here.
-func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername string) (Anonymizable, error) {
+func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata) (Anonymizable, error) {
 	// Note: events (especially pre-registration) that embed a username of their
 	// own should generally pass that through rather than using the identity
 	// username provided to the function. It may be the username of a Teleport
@@ -374,16 +427,16 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 	switch e := event.GetEvent().(type) {
 	case *usageeventsv1.UsageEventOneOf_UiBannerClick:
 		return &UIBannerClickEvent{
-			UserName: identityUsername,
+			UserName: userMD.Username,
 			Alert:    e.UiBannerClick.Alert,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiOnboardAddFirstResourceClick:
 		return &UIOnboardAddFirstResourceClickEvent{
-			UserName: identityUsername,
+			UserName: userMD.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiOnboardAddFirstResourceLaterClick:
 		return &UIOnboardAddFirstResourceLaterClickEvent{
-			UserName: identityUsername,
+			UserName: userMD.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiOnboardCompleteGoToDashboardClick:
 		return &UIOnboardCompleteGoToDashboardClickEvent{
@@ -413,23 +466,23 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleClick:
 		return &UICreateNewRoleClickEvent{
-			UserName: identityUsername,
+			UserName: userMD.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleSaveClick:
 		return &UICreateNewRoleSaveClickEvent{
-			UserName: identityUsername,
+			UserName: userMD.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleCancelClick:
 		return &UICreateNewRoleCancelClickEvent{
-			UserName: identityUsername,
+			UserName: userMD.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiCreateNewRoleViewDocumentationClick:
 		return &UICreateNewRoleViewDocumentationClickEvent{
-			UserName: identityUsername,
+			UserName: userMD.Username,
 		}, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent:
 		ret := &UIDiscoverStartedEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverStartedEvent.Metadata, userMD),
 			Status:   discoverStatusToPrehog(e.UiDiscoverStartedEvent.Status),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
@@ -439,7 +492,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent:
 		ret := &UIDiscoverResourceSelectionEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverResourceSelectionEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverResourceSelectionEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverResourceSelectionEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverResourceSelectionEvent.Status),
 		}
@@ -450,7 +503,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
 		}
@@ -461,7 +514,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRegisterEvent:
 		ret := &UIDiscoverDatabaseRegisterEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseRegisterEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseRegisterEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseRegisterEvent.Status),
 		}
@@ -472,7 +525,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureMtlsEvent:
 		ret := &UIDiscoverDatabaseConfigureMTLSEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureMtlsEvent.Status),
 		}
@@ -483,7 +536,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryToolsInstallEvent:
 		ret := &UIDiscoverDesktopActiveDirectoryToolsInstallEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryToolsInstallEvent.Status),
 		}
@@ -494,7 +547,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDesktopActiveDirectoryConfigureEvent:
 		ret := &UIDiscoverDesktopActiveDirectoryConfigureEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDesktopActiveDirectoryConfigureEvent.Status),
 		}
@@ -505,7 +558,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverAutoDiscoveredResourcesEvent:
 		ret := &UIDiscoverAutoDiscoveredResourcesEvent{
-			Metadata:       discoverMetadataToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Metadata, identityUsername),
+			Metadata:       discoverMetadataToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Metadata, userMD),
 			Resource:       discoverResourceToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Resource),
 			Status:         discoverStatusToPrehog(e.UiDiscoverAutoDiscoveredResourcesEvent.Status),
 			ResourcesCount: e.UiDiscoverAutoDiscoveredResourcesEvent.ResourcesCount,
@@ -517,7 +570,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseConfigureIamPolicyEvent:
 		ret := &UIDiscoverDatabaseConfigureIAMPolicyEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverDatabaseConfigureIamPolicyEvent.Status),
 		}
@@ -528,7 +581,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverPrincipalsConfigureEvent:
 		ret := &UIDiscoverPrincipalsConfigureEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverPrincipalsConfigureEvent.Status),
 		}
@@ -539,7 +592,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverTestConnectionEvent:
 		ret := &UIDiscoverTestConnectionEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverTestConnectionEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverTestConnectionEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverTestConnectionEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverTestConnectionEvent.Status),
 		}
@@ -550,7 +603,7 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, identityUsername st
 		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverCompletedEvent:
 		ret := &UIDiscoverCompletedEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverCompletedEvent.Metadata, identityUsername),
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverCompletedEvent.Metadata, userMD),
 			Resource: discoverResourceToPrehog(e.UiDiscoverCompletedEvent.Resource),
 			Status:   discoverStatusToPrehog(e.UiDiscoverCompletedEvent.Status),
 		}

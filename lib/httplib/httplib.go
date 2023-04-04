@@ -139,15 +139,18 @@ func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) htt
 
 // WithCSRFProtection ensures that request to unauthenticated API is checked against CSRF attacks
 func WithCSRFProtection(fn HandlerFunc) httprouter.Handle {
-	hanlderFn := MakeHandler(fn)
+	handlerFn := MakeHandler(fn)
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		err := csrf.VerifyHTTPHeader(r)
-		if err != nil {
-			log.Warningf("unable to validate CSRF token %v", err)
-			trace.WriteError(w, trace.AccessDenied("access denied"))
-			return
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			errHeader := csrf.VerifyHTTPHeader(r)
+			errForm := csrf.VerifyFormField(r)
+			if errForm != nil && errHeader != nil {
+				log.Warningf("unable to validate CSRF token: %v, %v", errHeader, errForm)
+				trace.WriteError(w, trace.AccessDenied("access denied"))
+				return
+			}
 		}
-		hanlderFn(w, r, p)
+		handlerFn(w, r, p)
 	}
 }
 

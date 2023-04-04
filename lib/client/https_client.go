@@ -28,7 +28,6 @@ import (
 	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
-	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -41,7 +40,7 @@ func NewInsecureWebClient() *http.Client {
 
 func newClient(insecure bool, pool *x509.CertPool, extraHeaders map[string]string) *http.Client {
 	return &http.Client{
-		Transport: tracehttp.NewTransport(apiproxy.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders)),
+		Transport: tracehttp.NewTransport(apiutils.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders)),
 	}
 }
 

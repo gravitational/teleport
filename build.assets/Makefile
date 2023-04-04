@@ -24,7 +24,7 @@ GOLANG_VERSION ?= go1.20.2
 NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.67.0
+RUST_VERSION ?= 1.68.0
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
@@ -628,6 +628,7 @@ build-multiarch:
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg UID=$(shell id -u) \
 		--build-arg GID=$(shell id -g) \
 		--tag $(BUILDBOX) \

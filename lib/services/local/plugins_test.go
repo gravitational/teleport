@@ -29,7 +29,6 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -44,7 +43,7 @@ func TestPluginsCRUD(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(func() backend.Backend { return mem })
+	service := NewPluginsService(mem)
 
 	// Define two plugins
 	plugin1 := types.NewPluginV1(types.Metadata{Name: "p1"}, types.PluginSpecV1{
@@ -143,7 +142,7 @@ func TestListPlugins(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { mem.Close() })
 
-	service := NewPluginsService(func() backend.Backend { return mem })
+	service := NewPluginsService(mem)
 
 	var insertedPlugins []types.Plugin
 	for i := 0; i < numPlugins; i++ {

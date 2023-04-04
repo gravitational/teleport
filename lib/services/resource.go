@@ -169,6 +169,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindDatabase, nil
 	case types.KindApp, "apps":
 		return types.KindApp, nil
+	case types.KindAppServer, "app_servers":
+		return types.KindAppServer, nil
 	case types.KindWindowsDesktopService, "windows_service", "win_desktop_service", "win_service":
 		return types.KindWindowsDesktopService, nil
 	case types.KindWindowsDesktop, "win_desktop":
@@ -187,6 +189,10 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindUserGroup, nil
 	case types.KindDevice, types.KindDevice + "s":
 		return types.KindDevice, nil
+	case types.KindOktaImportRule, types.KindOktaImportRule + "s", "oktaimportrule", "oktaimportrules":
+		return types.KindOktaImportRule, nil
+	case types.KindOktaAssignment, types.KindOktaAssignment + "s", "oktaassignment", "oktaassignments":
+		return types.KindOktaAssignment, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -394,6 +400,10 @@ func GetResourceMarshalerKinds() []string {
 }
 
 // RegisterResourceMarshaler registers a marshaler for resources of a specific kind.
+// WARNING!!
+// Registering a resource Marshaler requires lib/services/local.CreateResources
+// supports the resource kind or the standard backup/restore procedure of using
+// `tctl get all` and then BootstrapResources in Teleport will fail.
 func RegisterResourceMarshaler(kind string, marshaler ResourceMarshaler) {
 	marshalerMutex.Lock()
 	defer marshalerMutex.Unlock()

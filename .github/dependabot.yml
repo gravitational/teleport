@@ -40,8 +40,6 @@ updates:
       day: "sunday"
       time: "09:00" # 9am UTC
     ignore:
-      # TODO(tross): Update after Firestore is updated
-      - dependency-name: google.golang.org/genproto
       # Forked/replaced dependencies
       - dependency-name: golang.org/x/crypto
     open-pull-requests-limit: 10

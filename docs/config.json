@@ -262,6 +262,15 @@
               "title": "Device Trust (Preview)",
               "slug": "/access-controls/guides/device-trust/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Headless WebAuthn (Preview)",
+              "slug": "/access-controls/guides/headless/"
+            },
+            {
+              "title": "IP Pinning (Preview)",
+              "slug": "/access-controls/guides/ip-pinning/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -486,6 +495,10 @@
             {
               "title": "Run Teleport with Self-Signed Certificates",
               "slug": "/management/admin/self-signed-certs/"
+            },
+            {
+              "title": "Uninstall Teleport",
+              "slug": "/management/admin/uninstall-teleport/"
             }
           ]
         },
@@ -563,6 +576,10 @@
               "forScopes": ["oss", "enterprise"]
             },
             {
+              "title": "Joining Nodes via Azure",
+              "slug": "/management/guides/joining-nodes-azure/"
+            },
+            {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
             }
@@ -635,6 +652,10 @@
           "slug": "/connect-your-client/tsh/"
         },
         {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
+        },
+        {
           "title": "Using Teleport Connect",
           "slug": "/connect-your-client/teleport-connect/"
         },
@@ -698,6 +719,10 @@
             {
               "title": "AWS DynamoDB",
               "slug": "/application-access/guides/dynamodb/"
+            },
+            {
+              "title": "High Availability",
+              "slug": "/application-access/guides/ha/"
             }
           ]
         },
@@ -783,6 +808,10 @@
               "slug": "/server-access/guides/ec2-discovery/"
             },
             {
+              "title": "Azure Instance Discovery (Preview)",
+              "slug": "/server-access/guides/azure-discovery/"
+            },
+            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }
@@ -835,6 +864,10 @@
             {
               "title": "Register a Cluster with Static kubeconfigs",
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
+            },
+            {
+              "title": "Register a Cluster with IAM Joining",
+              "slug": "/kubernetes-access/register-clusters/iam-joining/"
             },
             {
               "title": "Register Clusters Dynamically",
@@ -1030,7 +1063,8 @@
         },
         {
           "title": "Getting Started",
-          "slug": "/desktop-access/getting-started/"
+          "slug": "/desktop-access/getting-started/",
+          "forScopes": ["enterprise", "cloud"]	
         },
         {
           "title": "Active Directory",
@@ -1113,6 +1147,10 @@
               "slug": "/machine-id/guides/github-actions-kubernetes/"
             },
             {
+              "title": "GitLab CI",
+              "slug": "/machine-id/guides/gitlab/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1185,7 +1223,15 @@
         {
           "title": "How to Build an Access Request Plugin",
           "slug": "/api/access-plugin/"
-        }
+        },
+	{
+	    "title": "Automatically Register Teleport Agents",
+	    "slug": "/api/automatically-register-agents/"
+	},
+	{
+	    "title": "Automatically Generate Roles",
+	    "slug": "/api/rbac/"
+	}
       ]
     },
     {
@@ -1368,8 +1414,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "11.3.5",
-      "major_version": "11",
+      "version": "12.1.2",
+      "major_version": "12",
       "sla": {
         "monthly_percentage": "99.5%",
         "monthly_downtime": "3 hours 40 minutes"
@@ -1414,15 +1460,15 @@
       "last_report": "August 9th, 2022"
     },
     "teleport": {
-      "major_version": "11",
-      "version": "11.0.3",
+      "major_version": "12",
+      "version": "12.1.1",
       "golang": "1.19",
       "plugin": {
-        "version": "11.0.3"
+        "version": "12.1.1"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.0.3",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.0.3"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:12.1.1",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:12.1.1"
     },
     "terraform": {
       "version": "1.0.0"

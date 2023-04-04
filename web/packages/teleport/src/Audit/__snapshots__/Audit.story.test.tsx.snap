@@ -289,7 +289,7 @@ exports[`list of all events 1`] = `
 }
 
 .c17 {
-  background: #000;
+  background: #000000;
   border: 2px solid #651FFF;
   color: rgba(255,255,255,0.87);
   cursor: pointer;
@@ -350,7 +350,7 @@ exports[`list of all events 1`] = `
       >
         <div
           class="c6"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 
@@ -359,12 +359,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            178
+            179
           </strong>
            of
            
           <strong>
-            178
+            179
           </strong>
         </div>
         <button
@@ -905,6 +905,43 @@ exports[`list of all events 1`] = `
           style="min-width: 120px;"
         >
           2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Update
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [lisa] has updated a device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T21:31:29.191Z
         </td>
         <td
           align="right"
@@ -4828,7 +4865,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [unimplemented] deleted Github connector [new_github_connector]
+          User [unimplemented] deleted GitHub connector [new_github_connector]
         </td>
         <td
           style="min-width: 120px;"
@@ -4865,7 +4902,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [unimplemented] created Github connector [new_github_connector] has been created
+          User [unimplemented] created GitHub connector [new_github_connector] has been created
         </td>
         <td
           style="min-width: 120px;"
@@ -7693,7 +7730,7 @@ exports[`loaded audit log screen 1`] = `
       >
         <div
           class="c11"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 

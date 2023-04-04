@@ -271,22 +271,6 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 	}, nil
 }
 
-// DELETE IN: 5.1.0.
-//
-// This logic has been moved to KeepAliveServer.
-//
-// KeepAliveNode updates node expiry
-func (s *PresenceService) KeepAliveNode(ctx context.Context, h types.KeepAlive) error {
-	if err := h.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-	err := s.KeepAlive(ctx, backend.Lease{
-		ID:  h.LeaseID,
-		Key: backend.Key(nodesPrefix, h.Namespace, h.Name),
-	}, h.Expires)
-	return trace.Wrap(err)
-}
-
 // GetAuthServers returns a list of registered servers
 func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 	return s.getServers(context.TODO(), types.KindAuthServer, authServersPrefix)
@@ -678,11 +662,11 @@ func (s *PresenceService) GetRemoteCluster(clusterName string) (types.RemoteClus
 }
 
 // DeleteRemoteCluster deletes remote cluster by name
-func (s *PresenceService) DeleteRemoteCluster(clusterName string) error {
+func (s *PresenceService) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if clusterName == "" {
 		return trace.BadParameter("missing parameter cluster name")
 	}
-	return s.Delete(context.TODO(), backend.Key(remoteClustersPrefix, clusterName))
+	return s.Delete(ctx, backend.Key(remoteClustersPrefix, clusterName))
 }
 
 // DeleteAllRemoteClusters deletes all remote clusters

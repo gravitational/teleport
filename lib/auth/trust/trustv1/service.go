@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -139,4 +140,39 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 	}
 
 	return resp, nil
+}
+
+// DeleteCertAuthority deletes the matching cert authority.
+func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCertAuthorityRequest) (*emptypb.Empty, error) {
+	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, false, types.KindCertAuthority, types.VerbDelete)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.DeleteCertAuthority(ctx, types.CertAuthID{DomainName: req.Domain, Type: types.CertAuthType(req.Type)}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// UpsertCertAuthority creates or updates the provided cert authority.
+func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error) {
+	if req.CertAuthority == nil {
+		return nil, trace.BadParameter("missing certificate authority")
+	}
+
+	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err := authz.AuthorizeResourceWithVerbs(ctx, s.logger, s.authorizer, false, req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.backend.UpsertCertAuthority(ctx, req.CertAuthority); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return req.CertAuthority, nil
 }

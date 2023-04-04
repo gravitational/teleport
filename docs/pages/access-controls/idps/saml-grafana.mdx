@@ -34,14 +34,8 @@ metadata:
 spec:
   allow:
     rules:
-    - resources:
-      - saml_idp_service_provider
-      verbs:
-      - list
-      - create
-      - read
-      - update
-      - delete
+    - resources: [saml_idp_service_provider]
+      verbs: [list, create, read, update, delete]
 ```
 
 Create it with `tctl`:
@@ -51,14 +45,7 @@ $ tctl create sp-manager.yaml
 role 'saml-idp-service-provider-manager' has been created
 ```
 
-And then add the role to your user. Replace `teleport-admin` with your user name:
-
-```code
-$ tctl users update --set-roles $(tctl get users/<Var name="teleport-admin"/> --format=json | \
-jq -r '.[].spec.roles | join(",")'), sp-manager <Var name="teleport-admin"/>
-User teleport-admin has been updated:
-	New roles: auditor,editor,access,sp-manager
-```
+(!docs/pages/includes/add-role-to-user.mdx role="saml_idp_service_provider" !)
 
 ## Step 2/3. Configure Grafana to recognize Teleport's identity provider
 

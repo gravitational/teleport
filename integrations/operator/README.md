@@ -4,8 +4,6 @@ This package implements [an operator for Kubernetes](https://kubernetes.io/docs/
 The Teleport Kubernetes Operator allows users deploying Teleport on Kubernetes to manage Teleport resources through
 [Kubernetes custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
 
-Currently supported resources are `users` and `roles`.
-
 For more details, read the corresponding [RFD](https://github.com/gravitational/teleport-plugins/blob/master/rfd/0001-kubernetes-manager.md).
 
 ## Architecture
@@ -153,3 +151,82 @@ And now check if the role was created in Teleport and K8S (`teleport-cluster` na
 PROXY_POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 kubectl exec $PROXY_POD teleport -- tctl get roles/myrole
 ```
+
+## Contributing
+
+### Adding support for new Teleport types
+
+The steps to add support for new Teleport types to the operator are as follows:
+
+#### Make sure the existing CRDs are up to date
+
+In a clean repo before making any changes:
+
+1. Run `make manifests`.
+2. Run `make -C crdgen update-protos`.
+3. Run `make -C crdgen update-snapshot`.
+
+Make sure everything looks sane and commit any changes (there will be some if
+other .proto files used to generate the CRDs have changed).
+
+#### Generate the new CRD
+
+1. Add the type name to the `resources` list in `crdgen/main.go`.
+2. Add the proto file to the `PROTOS` list in `Makefile` if it is not
+   already present. Also add it to the `PROTOS` list in `crdgen/Makefile`.
+3. Run `make manifests` to generate the CRD.
+4. Run `make crdgen-test`. This will should fail if your new CRD is generated.
+   Update the test snapshots with `make -C crdgen update-snapshots`
+
+#### Create a "scheme" defining Go types to match the CRD
+
+Add a type for your resource under `apis/resources/<version>`.
+Follow the same patterns of existing types in those packages.
+If there is no existing directory for the current version of your resource,
+create one, and don't forget to in include a `groupversion_info.go` file copied
+from one of the existing version directories (with the correct version).
+Do not forget to include the //+kubebuilder comments in these files.
+
+#### Create a reconciler for the new resource type
+
+Create a reconciler under the `controllers/resources` path.
+Follow the same patterns of existing reconcilers in those packages.
+Use the generic TeleportResourceReconciler if possible, that way you only have
+to implement CRUD methods for your resource.
+
+Write unit tests for your reconciler. Use the generic `testResourceCreation`,
+`testResourceDeletionDrift`, and `testResourceUpdate` helpers to get baseline
+coverage.
+
+#### Register your reconciler and scheme
+
+In `main.go`, instantiate your reconciler and register it with the
+controller-runtime manager.
+Follow the pattern of existing resources which instantiate the reconciler and
+call the `SetupWithManager(mgr)` method.
+
+If you added a new version under `apis/resources/`, make sure the scheme for
+your resource version is added to the root `scheme` with a call like
+`resourcesvX.AddToScheme(scheme)` in the `init()` function.
+
+#### Add RBAC permissions for the new resource type
+
+Add Kubernetes RBAC permissions to allow the operator to work with the resources
+on the Kubernetes side.
+The cluster role spec is found in  `../../examples/chart/teleport-cluster/templates/auth/clusterrole.yaml`.
+
+Add Teleport RBAC permissions for to allow the operator to work with the
+resources on the Teleport side.
+These should be added to the sidecar role in `sidecar/sidecar.go`.
+
+### Debugging tips
+
+Usually the best way to debug reconciler issues is with a unit test, rather than
+trying to debug the operator live in a kubernetes cluster.
+Try writing a short, temporary test to run your controller through a resource
+single reconciliation.
+
+You can set the `OPERATOR_TEST_TELEPORT_ADDR` environment variable to run the
+controller tests against a live teleport cluster instead of a temporary one
+created in the test. It will use your local `tsh` credentials to authenticate,
+so make sure the role of your logged in user has sufficient permissions.

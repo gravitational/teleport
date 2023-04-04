@@ -53,3 +53,37 @@ tests:
     asserts:
       - hasDocuments:
           count: 0
+  - it: should set resources on auth predeploy job when set in values
+    template: auth/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi
+  - it: should set resources on proxy predeploy job when set in values
+    template: proxy/predeploy_job.yaml
+    values:
+      - ../.lint/resources.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 2Gi

@@ -1,0 +1,84 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package types;
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/types";
+option (gogoproto.goproto_getters_all) = false;
+option (gogoproto.marshaler_all) = true;
+option (gogoproto.unmarshaler_all) = true;
+
+// DeviceV1 is the resource representation of teleport.devicetrust.v1.Device.
+message DeviceV1 {
+  // Header is the common resource header.
+  //
+  // - Kind is always "device".
+  // - SubKind is unused.
+  // - Version is equivalent to teleport.devicetrust.v1.Device.api_version.
+  // - Metadata.Name is equivalent to teleport.devicetrust.v1.Device.Id.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+  // Specification of the device.
+  DeviceSpec spec = 5 [(gogoproto.jsontag) = "spec"];
+}
+
+// DeviceSpec is a device specification.
+// Roughly matches teleport.devicetrust.v1.Device, with some fields changed for
+// better UX.
+message DeviceSpec {
+  string os_type = 1 [(gogoproto.jsontag) = "os_type"];
+  string asset_tag = 2 [(gogoproto.jsontag) = "asset_tag"];
+  google.protobuf.Timestamp create_time = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "create_time"
+  ];
+  google.protobuf.Timestamp update_time = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "update_time"
+  ];
+  string enroll_status = 5 [(gogoproto.jsontag) = "enroll_status"];
+  DeviceCredential credential = 6 [(gogoproto.jsontag) = "credential,omitempty"];
+  repeated DeviceCollectedData collected_data = 7 [(gogoproto.jsontag) = "collected_data,omitempty"];
+}
+
+// DeviceCredential is the resource representation of
+// teleport.devicetrust.v1.DeviceCredential.
+message DeviceCredential {
+  string id = 1 [(gogoproto.jsontag) = "id"];
+  bytes public_key_der = 2 [(gogoproto.jsontag) = "public_key_der"];
+}
+
+// DeviceCollectedData is the resource representation of
+// teleport.devicetrust.v1.DeviceCollectedData.
+message DeviceCollectedData {
+  google.protobuf.Timestamp collect_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "collect_time"
+  ];
+  google.protobuf.Timestamp record_time = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.jsontag) = "record_time"
+  ];
+  string os_type = 3 [(gogoproto.jsontag) = "os_type"];
+  string serial_number = 4 [(gogoproto.jsontag) = "serial_number,omitempty"];
+}

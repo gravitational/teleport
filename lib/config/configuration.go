@@ -25,6 +25,7 @@ import (
 	"io"
 	stdlog "log"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -144,6 +145,8 @@ type CommandLineFlags struct {
 	DatabaseAWSRegion string
 	// DatabaseAWSAccountID is an optional AWS account ID e.g. when using Keyspaces.
 	DatabaseAWSAccountID string
+	// DatabaseAWSAssumeRoleARN is an optional AWS IAM role ARN to assume when accessing the database.
+	DatabaseAWSAssumeRoleARN string
 	// DatabaseAWSExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	DatabaseAWSExternalID string
 	// DatabaseAWSRedshiftClusterID is Redshift cluster identifier.
@@ -452,6 +455,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	if fc.Discovery.Enabled() {
 		if err := applyDiscoveryConfig(fc, cfg); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if fc.Okta.Enabled() {
+		if err := applyOktaConfig(fc, cfg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -1208,9 +1217,13 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			services.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
-				Tags:    matcher.Tags,
-				Params:  installParams,
-				SSM:     &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+				AssumeRole: services.AssumeRole{
+					RoleARN:    matcher.AssumeRoleARN,
+					ExternalID: matcher.ExternalID,
+				},
+				Tags:   matcher.Tags,
+				Params: installParams,
+				SSM:    &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
@@ -1314,6 +1327,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
+				AssumeRole: services.AssumeRole{
+					RoleARN:    matcher.AssumeRoleARN,
+					ExternalID: matcher.ExternalID,
+				},
 			})
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
@@ -1363,9 +1380,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Mode:       servicecfg.TLSMode(database.TLS.Mode),
 			},
 			AWS: servicecfg.DatabaseAWS{
-				AccountID:  database.AWS.AccountID,
-				ExternalID: database.AWS.ExternalID,
-				Region:     database.AWS.Region,
+				AccountID:     database.AWS.AccountID,
+				AssumeRoleARN: database.AWS.AssumeRoleARN,
+				ExternalID:    database.AWS.ExternalID,
+				Region:        database.AWS.Region,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: database.AWS.Redshift.ClusterID,
 				},
@@ -1393,10 +1411,12 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				InstanceID: database.GCP.InstanceID,
 			},
 			AD: servicecfg.DatabaseAD{
-				KeytabFile: database.AD.KeytabFile,
-				Krb5File:   database.AD.Krb5File,
-				Domain:     database.AD.Domain,
-				SPN:        database.AD.SPN,
+				KeytabFile:  database.AD.KeytabFile,
+				Krb5File:    database.AD.Krb5File,
+				Domain:      database.AD.Domain,
+				SPN:         database.AD.SPN,
+				LDAPCert:    database.AD.LDAPCert,
+				KDCHostName: database.AD.KDCHostName,
 			},
 			Azure: servicecfg.DatabaseAzure{
 				ResourceID:    database.Azure.ResourceID,
@@ -1898,9 +1918,10 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				CACert: caBytes,
 			},
 			AWS: servicecfg.DatabaseAWS{
-				Region:     clf.DatabaseAWSRegion,
-				AccountID:  clf.DatabaseAWSAccountID,
-				ExternalID: clf.DatabaseAWSExternalID,
+				Region:        clf.DatabaseAWSRegion,
+				AccountID:     clf.DatabaseAWSAccountID,
+				AssumeRoleARN: clf.DatabaseAWSAssumeRoleARN,
+				ExternalID:    clf.DatabaseAWSExternalID,
 				Redshift: servicecfg.DatabaseAWSRedshift{
 					ClusterID: clf.DatabaseAWSRedshiftClusterID,
 				},
@@ -2265,5 +2286,36 @@ func applyTokenConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 	}
 
+	return nil
+}
+
+func applyOktaConfig(fc *FileConfig, cfg *servicecfg.Config) error {
+	if fc.Okta.APIEndpoint == "" {
+		return trace.BadParameter("okta_service is enabled but no api_endpoint is specified")
+	}
+	if fc.Okta.APITokenPath == "" {
+		return trace.BadParameter("okta_service is enabled but no api_token_path is specified")
+	}
+
+	// Make sure the URL is valid
+	url, err := url.Parse(fc.Okta.APIEndpoint)
+	if err != nil {
+		return trace.NewAggregate(trace.BadParameter("malformed URL %s", fc.Okta.APIEndpoint), err)
+	}
+
+	if url.Host == "" {
+		return trace.BadParameter("api_endpoint has no host")
+	} else if url.Scheme == "" {
+		return trace.BadParameter("api_endpoint has no scheme")
+	}
+
+	// Make sure the API token exists.
+	if _, err := utils.StatFile(fc.Okta.APITokenPath); err != nil {
+		return trace.NewAggregate(trace.BadParameter("error trying to find file %s", fc.Okta.APITokenPath), err)
+	}
+
+	cfg.Okta.Enabled = fc.Okta.Enabled()
+	cfg.Okta.APIEndpoint = fc.Okta.APIEndpoint
+	cfg.Okta.APITokenPath = fc.Okta.APITokenPath
 	return nil
 }

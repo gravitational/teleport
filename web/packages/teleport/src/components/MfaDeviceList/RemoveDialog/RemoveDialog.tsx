@@ -40,7 +40,7 @@ export default function RemoveDialog(props: Props) {
         )}
         <Text typography="paragraph" mb="6">
           Are you sure you want to remove device{' '}
-          <Text as="span" bold color="primary.contrastText">
+          <Text as="span" bold color="text.contrast">
             {name}
           </Text>{' '}
           ?

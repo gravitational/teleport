@@ -35,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/redshiftserverless"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -52,21 +53,45 @@ import (
 
 // TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
 func TestDatabaseUnmarshal(t *testing.T) {
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "test-database",
-		Description: "Test description",
-		Labels:      map[string]string{"env": "dev"},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		CACert:   fixtures.TLSCACertPEM,
-	})
-	require.NoError(t, err)
-	data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, indent(fixtures.TLSCACertPEM, 4))))
-	require.NoError(t, err)
-	actual, err := UnmarshalDatabase(data)
-	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	t.Parallel()
+	tlsModes := map[string]types.DatabaseTLSMode{
+		"":            types.DatabaseTLSMode_VERIFY_FULL,
+		"verify-full": types.DatabaseTLSMode_VERIFY_FULL,
+		"verify-ca":   types.DatabaseTLSMode_VERIFY_CA,
+		"insecure":    types.DatabaseTLSMode_INSECURE,
+	}
+	for tlsModeName, tlsModeValue := range tlsModes {
+		t.Run("tls mode "+tlsModeName, func(t *testing.T) {
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "test-database",
+				Description: "Test description",
+				Labels:      map[string]string{"env": "dev"},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				CACert:   fixtures.TLSCACertPEM,
+				TLS: types.DatabaseTLS{
+					Mode: tlsModeValue,
+				},
+			})
+			require.NoError(t, err)
+			caCert := indent(fixtures.TLSCACertPEM, 4)
+
+			// verify it works with string tls mode.
+			data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, tlsModeName, caCert)))
+			require.NoError(t, err)
+			actual, err := UnmarshalDatabase(data)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+
+			// verify it works with integer tls mode.
+			data, err = utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, int32(tlsModeValue), caCert)))
+			require.NoError(t, err)
+			actual, err = UnmarshalDatabase(data)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+		})
+	}
 }
 
 // TestDatabaseMarshal verifies a marshaled database resource can be unmarshaled back.
@@ -85,7 +110,7 @@ func TestDatabaseMarshal(t *testing.T) {
 	require.NoError(t, err)
 	actual, err := UnmarshalDatabase(data)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestValidateDatabase(t *testing.T) {
@@ -122,6 +147,42 @@ func TestValidateDatabase(t *testing.T) {
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "missing-port",
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-assume-role-arn",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
+				AWS: types.AWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "foobar",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-assume-role-arn-resource-type",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
+				AWS: types.AWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:sts::123456789012:federated-user/Alice",
+				},
+			},
+			expectError: true,
+		},
+		{
+			inputName: "invalid-database-assume-role-arn-account-id-mismatch",
+			inputSpec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolDynamoDB,
+				AWS: types.AWS{
+					Region:        "us-east-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::111222333444:federated-user/Alice",
+				},
 			},
 			expectError: true,
 		},
@@ -217,7 +278,7 @@ func TestValidateDatabase(t *testing.T) {
 				Protocol: defaults.ProtocolDynamoDB,
 				AWS: types.AWS{
 					Region:    "us-east-1",
-					AccountID: "1234567890",
+					AccountID: "123456789012",
 				},
 			},
 			expectError: false,
@@ -252,7 +313,8 @@ func indent(s string, spaces int) string {
 	return strings.Join(lines, "\n")
 }
 
-var databaseYAML = `kind: db
+var databaseYAML = `---
+kind: db
 version: v3
 metadata:
   name: test-database
@@ -262,7 +324,9 @@ metadata:
 spec:
   protocol: "postgres"
   uri: "localhost:5432"
-  ca_cert: |
+  tls:
+    mode: %v
+  ca_cert: |-
 %v`
 
 // TestDatabaseFromAzureDBServer tests converting an Azure DB Server to a database resource.
@@ -318,7 +382,7 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 
 	actual, err := NewDatabaseFromAzureServer(&server)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestDatabaseFromAzureRedis(t *testing.T) {
@@ -366,7 +430,7 @@ func TestDatabaseFromAzureRedis(t *testing.T) {
 
 	actual, err := NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
@@ -428,7 +492,7 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 
 	actual, err := NewDatabaseFromAzureRedisEnterprise(armCluster, armDatabase)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
@@ -479,7 +543,7 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 	require.NoError(t, err)
 	actual, err := NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
@@ -531,7 +595,7 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 	require.NoError(t, err)
 	actual, err := NewDatabaseFromRDSInstance(instance)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 // TestDatabaseFromRDSCluster tests converting an RDS cluster to a database resource.
@@ -587,7 +651,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		require.NoError(t, err)
 		actual, err := NewDatabaseFromRDSCluster(cluster)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
 	t.Run("reader", func(t *testing.T) {
@@ -611,7 +675,7 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 		require.NoError(t, err)
 		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
 	t.Run("custom endpoints", func(t *testing.T) {
@@ -723,7 +787,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 		require.NoError(t, err)
 		actual, err := NewDatabaseFromRDSCluster(cluster)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
 	t.Run("reader", func(t *testing.T) {
@@ -748,7 +812,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 		require.NoError(t, err)
 		actual, err := NewDatabaseFromRDSClusterReaderEndpoint(cluster)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
 	t.Run("custom endpoints", func(t *testing.T) {
@@ -858,7 +922,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 
 		actual, err := NewDatabaseFromRDSProxy(dbProxy, port, tags)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
 	t.Run("custom endpoint", func(t *testing.T) {
@@ -894,7 +958,7 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 
 		actual, err := NewDatabaseFromRDSProxyCustomEndpoint(dbProxy, dbProxyEndpoint, port, tags)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 }
 
@@ -1080,7 +1144,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 
 		actual, err := NewDatabaseFromRedshiftCluster(cluster)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
 	t.Run("success with name override", func(t *testing.T) {
@@ -1133,7 +1197,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 
 		actual, err := NewDatabaseFromRedshiftCluster(cluster)
 		require.NoError(t, err)
-		require.Equal(t, expected, actual)
+		require.Empty(t, cmp.Diff(expected, actual))
 	})
 
 	t.Run("missing endpoint", func(t *testing.T) {
@@ -1212,7 +1276,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 
 	actual, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) {
@@ -1286,7 +1350,7 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 
 	actual, err := NewDatabaseFromElastiCacheConfigurationEndpoint(cluster, extraLabels)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
@@ -1498,7 +1562,7 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 
 	actual, err := NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
@@ -1532,7 +1596,7 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 
 	actual, err := NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
@@ -1572,7 +1636,7 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 
 	actual, err := NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
@@ -1621,7 +1685,7 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 
 	actual, err := NewDatabaseFromMemoryDBCluster(cluster, extraLabels)
 	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestExtraElastiCacheLabels(t *testing.T) {
@@ -1750,7 +1814,7 @@ func TestExtraMemoryDBLabels(t *testing.T) {
 	}
 
 	actual := ExtraMemoryDBLabels(cluster, resourceTags, allSubnetGroups)
-	require.Equal(t, expected, actual)
+	require.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestGetLabelEngineVersion(t *testing.T) {

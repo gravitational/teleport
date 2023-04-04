@@ -76,15 +76,15 @@ export const createAppConfigSchema = (platform: Platform) => {
       .describe(getShortcutDesc('go to the next tab')),
     'keymap.openConnections': shortcutSchema
       .default(defaultKeymap['openConnections'])
-      .describe(getShortcutDesc('open the connection panel')),
+      .describe(getShortcutDesc('open the connection list')),
     'keymap.openClusters': shortcutSchema
       .default(defaultKeymap['openClusters'])
-      .describe(getShortcutDesc('open the clusters panel')),
+      .describe(getShortcutDesc('open the cluster selector')),
     'keymap.openProfiles': shortcutSchema
       .default(defaultKeymap['openProfiles'])
-      .describe(getShortcutDesc('open the profiles panel')),
-    'keymap.openQuickInput': shortcutSchema
-      .default(defaultKeymap['openQuickInput'])
+      .describe(getShortcutDesc('open the profile selector')),
+    'keymap.openCommandBar': shortcutSchema
+      .default(defaultKeymap['openCommandBar'])
       .describe(getShortcutDesc('open the command bar')),
     /**
      * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
@@ -120,7 +120,7 @@ export type KeyboardShortcutAction =
   | 'newTab'
   | 'previousTab'
   | 'nextTab'
-  | 'openQuickInput'
+  | 'openCommandBar'
   | 'openConnections'
   | 'openClusters'
   | 'openProfiles';
@@ -142,7 +142,7 @@ const getDefaultKeymap = (platform: Platform) => {
         newTab: 'Ctrl+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openQuickInput: 'Ctrl+K',
+        openCommandBar: 'Ctrl+K',
         openConnections: 'Ctrl+P',
         openClusters: 'Ctrl+E',
         openProfiles: 'Ctrl+I',
@@ -162,7 +162,7 @@ const getDefaultKeymap = (platform: Platform) => {
         newTab: 'Ctrl+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
-        openQuickInput: 'Ctrl+K',
+        openCommandBar: 'Ctrl+K',
         openConnections: 'Ctrl+P',
         openClusters: 'Ctrl+E',
         openProfiles: 'Ctrl+I',
@@ -182,7 +182,7 @@ const getDefaultKeymap = (platform: Platform) => {
         newTab: 'Command+T',
         previousTab: 'Control+Shift+Tab',
         nextTab: 'Control+Tab',
-        openQuickInput: 'Command+K',
+        openCommandBar: 'Command+K',
         openConnections: 'Command+P',
         openClusters: 'Command+E',
         openProfiles: 'Command+I',
@@ -193,11 +193,11 @@ const getDefaultKeymap = (platform: Platform) => {
 function getDefaultTerminalFont(platform: Platform) {
   switch (platform) {
     case 'win32':
-      return "'Consolas', 'Courier New', monospace";
+      return 'Consolas, monospace';
     case 'linux':
-      return "'Droid Sans Mono', 'Courier New', monospace, 'Droid Sans Fallback'";
+      return "'Droid Sans Mono', monospace";
     case 'darwin':
-      return "Menlo, Monaco, 'Courier New', monospace";
+      return 'Menlo, Monaco, monospace';
   }
 }
 
