@@ -1,5 +1,16 @@
 # Changelog
 
+## 12.2.0 (04/04/23)
+
+This release of Teleport contains several new features and improvements.
+
+* Server Access
+  * Added support for headless SSO to `tsh ls`, `tsh ssh` and `tsh scp`. [#23360](https://github.com/gravitational/teleport/pull/23360)
+* Database Access
+  * Added support for connecting to Oracle databases. [#23892](https://github.com/gravitational/teleport/pull/23892)
+* Security
+  * Added IP pinning support to Kubernetes and Database Access. [#23418](https://github.com/gravitational/teleport/pull/23418)
+
 ## 12.1.5 (03/30/23)
 
 This release of Teleport contains 2 security fixes as well as multiple improvements and bug fixes.
