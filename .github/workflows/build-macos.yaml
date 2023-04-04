@@ -4,6 +4,7 @@ run-name: Build on Mac OS
 on:
   pull_request:
     paths:
+      - '.github/workflows/build-macos.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
@@ -12,8 +13,10 @@ on:
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths:
+      - '.github/workflows/build-macos.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
@@ -22,6 +25,7 @@ on:
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   build:
