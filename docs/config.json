@@ -580,8 +580,8 @@
               "slug": "/management/guides/joining-nodes-azure/"
             },
             {
-              "title": "Joining Nodes via Kubernetes ServiceAccount Tokens",
-              "slug": "/management/guides/joining-nodes-kubernetes-serviceaccount/",
+              "title": "Joining Services via Kubernetes ServiceAccount",
+              "slug": "/management/guides/joining-services-kubernetes-serviceaccount/",
               "forScopes": ["oss", "enterprise"]
             },
             {
