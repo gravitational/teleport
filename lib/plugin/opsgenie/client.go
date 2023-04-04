@@ -88,7 +88,7 @@ func NewOpsgenieClient(conf OpsgenieClientConfig) (*OpsgenieClient, error) {
 
 // CreateAlert creates an opsgenie alert.
 func (og OpsgenieClient) CreateAlert(ctx context.Context, reqID string, reqData RequestData) (OpsgenieData, error) {
-	bodyDetails, err := buildAlertBody(reqID, reqData)
+	bodyDetails, err := buildAlertBody(og.WebProxyURL, reqID, reqData)
 	if err != nil {
 		return OpsgenieData{}, trace.Wrap(err)
 	}
