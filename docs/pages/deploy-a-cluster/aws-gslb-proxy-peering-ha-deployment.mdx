@@ -191,7 +191,7 @@ Example Hosted Zone using AWS Route53 Latency Routing to create GSLB:
 |---|---|---|
 |```*teleport.example.com```|CNAME|AWS Route 53 nameservers|
 
-### Teleport Proxy DNS records:
+### Teleport Proxy DNS records for GSLB:
 |Record name|Type|Routing Policy|Region|Value|
 |---|---|---|---|---|
 |```proxy.teleport.example.com```|CNAME|Latency|us-west-1| ```elb.us-west-1.amazonaws.com``` |
@@ -206,6 +206,77 @@ instances, the TLS credential system we mentioned earlier needs permissions to
 manage Route53 DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. 
 
 </Admonition>
+
+### Teleport resource agent configuration for GSLB
+To facilitate latency routing, resource agents  must be configured to point ```proxy_server:``` to 
+the GSLB domain configured in Route 53 _not the specific proxy NLB address_.
+
+For example:
+
+```
+teleport:
+    nodename: ssh-node
+    ...
+    proxy_server: teleport.example.com:443
+    ...
+    ssh_service:
+        enabled: yes
+    ...
+```
+Review the [configuration refrence](https://goteleport.com/docs/reference/config/) page for 
+additional settings.       
+
+## Configure Proxy Peering
+
+In this deployment architecure, Proxy Peering is used to restrict the number of connections made from 
+resources to proxies in the Teleport Cluster. Full Proxy Peering explination and configuration details
+can be reviewed in the [Proxy Peering RFD](https://github.com/gravitational/teleport/blob/master/rfd/0069-proxy-peering.md).
+
+This guide covers the necessary Proxy Peering settings for deploying an HA Teleport Cluster routing resource
+traffic with GSLB. 
+
+### Auth Service Proxy Peering configuration 
+
+The Teleport Auth Service must be configured to use the proxy_peering tunnel strategy as shown in the example below:
+
+```
+auth_service:
+ ...
+ tunnel_strategy:
+  type: proxy_peering
+```
+Refrence the [Auth Server configuration](https://goteleport.com/docs/reference/config/#auth-service) reference page 
+for additional settings.
+
+### Proxy Service Proxy Peering configuration 
+
+Proxies must advertise a peer address which can be configured to use one of the two options listed below:
+
+**Option 1:** You can set peer_public_addr: to the specific name of that proxy. This is the recommended 
+method for lowest latency and most reliable connection.
+
+```
+proxy_service:
+  ...
+  peer_public_addr: teleport.example.com:3021
+  ...
+```
+
+**Option 2:** Proxies can use peer_public_addr: to advertise the proxy NLB. When using this method 
+you could incur additional latency because peer proxies must continually dial through the NLB until 
+they establish connection to the correct peer target.
+
+When using an NLB for peer_public_addr, be sure to set agent_connection_count to a value >=2.
+
+```
+proxy_service:
+  ...
+  peer_public_addr: teleport-example-nlb-us-east-1.amazonaws.com:3021
+  agent_connection_count: 2
+  ...
+```
+Refrence the [Proxy Service configuration](https://goteleport.com/docs/reference/config/#proxy-service) reference page 
+for additional settings.
 
 ## Teleport instances
 
@@ -249,132 +320,6 @@ permissions and the option to download your license file:
 The license file must be available to each Teleport Auth Service instance at
 `/var/lib/teleport/license.pem`. 
 
-### Configuration
-
-Create a configuration file and provide it to each of your Teleport instances at
-`/etc/teleport.yaml`. We will explain the required configuration fields for a
-high-availability Teleport deployment below. These are the minimum requirements,
-and when planning your high-availability deployment, you will want to follow a
-more specific [deployment guide](introduction.mdx) for your environment. 
-
-#### `storage` 
-
-The first configuration section to write is the `storage` section, which
-configures the cluster state backend and session recording backend for the
-Teleport Auth Service:
-
-```yaml
-version: v3
-teleport:
-  storage:
-    # ...
-```
-
-Consult our [Backends Reference](../reference/backends.mdx) for the configuration
-fields you should set in the `storage` section.
-
-#### `auth_service` and `proxy_service` 
-
-The `auth_service` and `proxy_service` sections configure the Auth Service and
-Proxy Service, which we will run together on each Teleport instance. The
-configuration will depend on whether you are enabling TLS Routing in your
-cluster:
-
-<Tabs>
-<TabItem label="TLS Routing">
-
-To enable TLS Routing in your Teleport cluster, add the following to your
-Teleport configuration:
-
-```yaml
-version: v3
-teleport:
-  storage:
-  # ...
-auth_service:
-  enabled: true
-  cluster_name: "mycluster.example.com"
-  # Remove this if not using Teleport Enterprise
-  license_file: "/var/lib/license/license.pem"
-proxy_service:
-  enabled: true
-  public_addr: "mycluster.example.com:443"
-  https_keypairs:
-  - key_file: /etc/teleport-tls/tls.key
-    cert_file: /etc/teleport-tls/tls.crt
-```
-
-This configuration has no fields specific to TLS Routing. In `v2`, the
-configuration version we are using here, TLS Routing is enabled by default.
-
-</TabItem>
-<TabItem label="Separate Listeners">
-
-To disable TLS Routing in your Teleport cluster, add the following to your
-Teleport configuration:
-
-```yaml
-version: v3
-teleport:
-  storage:
-  # ...
-auth_service:
-  proxy_listener_mode: separate
-  enabled: true
-  cluster_name: "mycluster.example.com"
-  # Remove this if not using Teleport Enterprise
-  license_file: "/var/lib/license/license.pem"
-proxy_service:
-  enabled: true
-  listen_addr: 0.0.0.0:3023
-  tunnel_listen_addr: 0.0.0.0:3024
-  public_addr: "mycluster.example.com:443"
-  https_keypairs:
-  - key_file: /etc/teleport-tls/tls.key
-    cert_file: /etc/teleport-tls/tls.crt
-```
-
-This configuration assigns `auth_service.proxy_listener_mode` to `separate` to
-disable TLS Routing. It also explicitly assigns an SSH port (`listen_addr`) and
-reverse tunnel port (`tunnel_listen_addr`) for the Proxy Service.
-
-</TabItem>
-</Tabs>
-
-The `auth_service` and `proxy_service` configurations above have the following
-required settings for a high-availability Teleport deployment:
-
-- In the `auth_service` section, we have enabled the Teleport Auth Service
-  (`enabled`) and instructed it to find an Enterprise license file at
-  `/var/lib/license/license.pem` (`license_file`). Remove the `license_file`
-  field if you are deploying the open source edition of Teleport. 
-- In the `proxy_service` section, we have enabled the Teleport Proxy Service
-  (`enabled`) and instructed it to find its TLS credentials in the
-  `/etc/teleport-tls` directory (`https_keypairs`).
-
-#### `ssh_service`
-
-You can disable the SSH Service on each Teleport instance by adding the
-following to each instance's configuration file: 
-
-```yaml
-version: v3
-teleport:
-  storage:
-  # ...
-auth_service:
-# ...
-proxy_service:
-# ...
-ssh_service:
-  enabled: false
-```
-
-This is suitable for deploying Teleport on Kubernetes, where the `teleport` pod
-should not have direct access to the underlying node. 
-
-If you are deploying Teleport on a cluster of virtual machines, remove this line
-to run the SSH Service and enable secure access to the host.
 
 ## Next steps
 
