@@ -32,7 +32,7 @@ import {
 import { useAppContext } from '../appContextProvider';
 
 const OPEN_COMMAND_BAR_SHORTCUT_ACTION: KeyboardShortcutAction =
-  'openCommandBar';
+  'openSearchBar';
 
 export function SearchBarConnected() {
   const { workspacesService } = useAppContext();
