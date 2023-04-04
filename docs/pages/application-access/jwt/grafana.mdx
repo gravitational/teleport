@@ -47,13 +47,13 @@ Let's take a closer look at the parameters and their values:
 - Set `username_claim` to the claim within the JWT that contains the username.
 - Set `jwk_set_url` to the address where the JSON Web Key Set (JWKS) are
   available. Replace `proxy.example.com:3080` with the host:port where the
-  Teleport Proxy is available.
+  Teleport Proxy Service is available.
 - Set `auto_sign_up` to `true` to allow automatic creation of users upon first
   login via Teleport.
 
 <Admonition type="tip">
 If you are not ready to connect your production Grafana cluster to Teleport,
-you can use the below command to to launch an instance of Grafana configured
+you can use the command below to to launch an instance of Grafana configured
 with JWT authentication in Docker to connect to Teleport and experiment with.
 
 ```code
@@ -66,12 +66,12 @@ $ docker run \
   -p 3000:3000 grafana/grafana-oss
 ```
 
-If your proxy is using self-signed certificates, you will also need to add your
+If your Teleport Proxy Service is using self-signed certificates, you will also need to add your
 self-signed public key to `/etc/ssl/certs/ca-certificates.crt` within the
 container.
 </Admonition>
 
-## Step 2/3. Register with Grafana in Teleport
+## Step 2/3. Register Grafana with Teleport
 
 In your Teleport App Service configuration file, `teleport.yaml`, register an
 entry for Grafana:
