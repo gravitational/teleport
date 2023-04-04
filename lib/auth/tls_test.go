@@ -2055,7 +2055,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(iUser.TTL))
+		require.LessOrEqual(t, diff, maxSessionTTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
@@ -2063,8 +2063,8 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Because the original request has maxed out the possible max
-		// session TTL, it will be adjusted to exactly the value
-		require.Equal(t, identity.Expires.Sub(clock.Now()), maxSessionTTL)
+		// session TTL, it will be adjusted to exactly the value (within rounding errors)
+		require.WithinDuration(t, clock.Now().Add(maxSessionTTL), identity.Expires, time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 
@@ -2116,7 +2116,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 		identity, err = tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.Equal(t, identity.Expires.Sub(clock.Now()), time.Hour)
+		require.WithinDuration(t, identity.Expires, clock.Now().Add(time.Hour), time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 	})
@@ -2145,7 +2145,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(testUser2.TTL))
+		require.LessOrEqual(t, diff, testUser2.TTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
@@ -2169,7 +2169,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		parsedCert, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(apidefaults.MaxCertDuration), int64(diff))
+		require.Less(t, apidefaults.MaxCertDuration, diff)
 
 		// user should have agent forwarding (default setting)
 		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
