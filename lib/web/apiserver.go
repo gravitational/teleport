@@ -434,7 +434,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			httplib.SetNoCacheHeaders(w.Header())
 
 			// app access needs to make a CORS fetch request, so we only set the default CSP on that page
-			if strings.HasPrefix(r.URL.Path, "/web/launch") {
+			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
 				parts := strings.Split(r.URL.Path, "/")
 				// grab the FQDN from the URL to allow in the connect-src CSP
 				applicationURL := "https://" + parts[3] + ":*"
