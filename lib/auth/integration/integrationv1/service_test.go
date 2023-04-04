@@ -34,6 +34,7 @@ import (
 )
 
 func TestIntegrationCRUD(t *testing.T) {
+	t.Parallel()
 	ctx, localClient, resourceSvc := initSvc(t, types.KindIntegration)
 
 	noError := func(err error) bool {
@@ -113,7 +114,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{
 				Allow: types.RoleConditions{Rules: []types.Rule{{
 					Resources: []string{types.KindIntegration},
-					Verbs:     []string{types.VerbList},
+					Verbs:     []string{types.VerbList, types.VerbRead},
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {

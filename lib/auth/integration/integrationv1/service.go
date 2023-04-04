@@ -72,7 +72,7 @@ var _ integrationpb.IntegrationServiceServer = (*Service)(nil)
 
 // ListIntegrations returns a paginated list of all Integration resources.
 func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListIntegrationsRequest) (*integrationpb.ListIntegrationsResponse, error) {
-	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbList)
+	_, err := authz.AuthorizeWithVerbs(ctx, s.logger, s.authorizer, true, types.KindIntegration, types.VerbRead, types.VerbList)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

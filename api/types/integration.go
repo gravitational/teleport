@@ -34,9 +34,6 @@ const (
 type Integration interface {
 	ResourceWithLabels
 
-	// GetStatusCode returns the current integration status as a code.
-	GetStatusCode() IntegrationSpecV1_IntegrationStatus
-
 	// GetStatus returns the integration status as string.
 	GetStatus() string
 
@@ -207,15 +204,13 @@ func (igs Integrations) Swap(i, j int) { igs[i], igs[j] = igs[j], igs[i] }
 // So, we create a local type that has the expected json tag (`sub_kind_spec`) and use it to unmarshal and then copy
 // to the proper type.
 func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
-	if ig == nil {
-		ig = &IntegrationV1{}
-	}
+	var integration IntegrationV1
 
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			Status      IntegrationSpecV1_IntegrationStatus `json:"status"`
-			SubKindSpec json.RawMessage                     `json:"subkind_spec"`
+			Status         IntegrationSpecV1_IntegrationStatus `json:"status"`
+			RawSubKindSpec json.RawMessage                     `json:"subkind_spec"`
 		} `json:"spec"`
 	}{}
 
@@ -224,28 +219,32 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 		return trace.Wrap(err)
 	}
 
-	ig.ResourceHeader = d.ResourceHeader
-	ig.Spec.Status = d.Spec.Status
+	integration.ResourceHeader = d.ResourceHeader
+	integration.Spec.Status = d.Spec.Status
 
-	switch ig.ResourceHeader.SubKind {
+	var subkindSpec isIntegrationSpecV1_SubKindSpec
+	switch integration.SubKind {
 	case IntegrationSubKindAWSOIDC:
-		ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{}
+		subkindSpec = &IntegrationSpecV1_AWSOIDC{}
 	default:
-		return trace.BadParameter("invalid subkind %q", ig.ResourceHeader.SubKind)
+		return trace.BadParameter("invalid subkind %q", integration.ResourceHeader.SubKind)
 	}
 
-	if err := json.Unmarshal(d.Spec.SubKindSpec, &ig.Spec.SubKindSpec); err != nil {
+	if err := json.Unmarshal(d.Spec.RawSubKindSpec, subkindSpec); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := ig.CheckAndSetDefaults(); err != nil {
+	integration.Spec.SubKindSpec = subkindSpec
+
+	if err := integration.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
 
+	*ig = integration
 	return nil
 }
 
-// MarshalJSON is a custom unmarshaller for JSON format.
+// MarshalJSON is a custom marshaller for JSON format.
 // gogoproto doesn't allow for oneof json tags [https://github.com/gogo/protobuf/issues/623]
 // So, this is required to correctly use snake_case for every field.
 // Please see [IntegrationV1.UnmarshalJSON] for more information.

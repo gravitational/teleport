@@ -78,7 +78,7 @@ func UnmarshalIntegration(data []byte, opts ...MarshalOption) (types.Integration
 
 	var ig types.IntegrationV1
 
-	err := ig.UnmarshalJSON(data)
+	err := utils.FastUnmarshal(data, &ig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
