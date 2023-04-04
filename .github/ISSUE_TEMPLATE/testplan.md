@@ -30,7 +30,7 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] RBAC
 
-  Make sure that invalid and valid attempts are reflected in audit log.
+  Make sure that invalid and valid attempts are reflected in audit log. Do this with both Teleport and [Agentless nodes](https://goteleport.com/docs/server-access/guides/openssh/).
 
   - [ ] Successfully connect to node with correct role
   - [ ] Unsuccessfully connect to a node in a role restricting access by label
@@ -166,18 +166,32 @@ as well as an upgrade of the previous version of Teleport.
 
   - [ ] tsh ssh \<regular-node\>
   - [ ] tsh ssh \<node-remote-cluster\>
+  - [ ] tsh ssh \<agentless-node\>
+  - [ ] tsh ssh \<agentless-node-remote-cluster\>
   - [ ] tsh ssh -A \<regular-node\>
   - [ ] tsh ssh -A \<node-remote-cluster\>
+  - [ ] tsh ssh -A \<agentless-node\>
+  - [ ] tsh ssh -A \<agentless-node-remote-cluster\>
   - [ ] tsh ssh \<regular-node\> ls
   - [ ] tsh ssh \<node-remote-cluster\> ls
+  - [ ] tsh ssh \<agentless-node\> ls
+  - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
   - [ ] tsh join \<regular-node\>
   - [ ] tsh join \<node-remote-cluster\>
+  - [ ] tsh join \<agentless-node\>
+  - [ ] tsh join \<agentless-node-remote-cluster\>
   - [ ] tsh play \<regular-node\>
   - [ ] tsh play \<node-remote-cluster\>
+  - [ ] tsh play \<agentless-node\>
+  - [ ] tsh play \<agentless-node-remote-cluster\>
   - [ ] tsh scp \<regular-node\>
   - [ ] tsh scp \<node-remote-cluster\>
+  - [ ] tsh scp \<agentless-node\>
+  - [ ] tsh scp \<agentless-node-remote-cluster\>
   - [ ] tsh ssh -L \<regular-node\>
   - [ ] tsh ssh -L \<node-remote-cluster\>
+  - [ ] tsh ssh -L \<agentless-node\>
+  - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
   - [ ] tsh ls
   - [ ] tsh clusters
 
@@ -185,14 +199,24 @@ as well as an upgrade of the previous version of Teleport.
    Make sure to test both recording and regular proxy modes.
   - [ ] ssh \<regular-node\>
   - [ ] ssh \<node-remote-cluster\>
+  - [ ] ssh \<agentless-node\>
+  - [ ] ssh \<agentless-node-remote-cluster\>
   - [ ] ssh -A \<regular-node\>
   - [ ] ssh -A \<node-remote-cluster\>
+  - [ ] ssh -A \<agentless-node\>
+  - [ ] ssh -A \<agentless-node-remote-cluster\>
   - [ ] ssh \<regular-node\> ls
   - [ ] ssh \<node-remote-cluster\> ls
+  - [ ] ssh \<agentless-node\> ls
+  - [ ] ssh \<agentless-node-remote-cluster\> ls
   - [ ] scp \<regular-node\>
   - [ ] scp \<node-remote-cluster\>
+  - [ ] scp \<agentless-node\>
+  - [ ] scp \<agentless-node-remote-cluster\>
   - [ ] ssh -L \<regular-node\>
   - [ ] ssh -L \<node-remote-cluster\>
+  - [ ] ssh -L \<agentless-node\>
+  - [ ] ssh -L \<agentless-node-remote-cluster\>
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -206,6 +230,7 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Interact with a cluster using the Web UI
   - [ ] Connect to a Teleport node
   - [ ] Connect to a OpenSSH node
+  - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
 - [ ] `tsh` CA loading
@@ -241,12 +266,18 @@ interactive sessions the 12 combinations are below.
 - [ ] Connect to a OpenSSH node in a local cluster using OpenSSH.
 - [ ] Connect to a OpenSSH node in a local cluster using Teleport.
 - [ ] Connect to a OpenSSH node in a local cluster using the Web UI.
+- [ ] Connect to an Agentless node in a local cluster using OpenSSH.
+- [ ] Connect to an Agentless node in a local cluster using Teleport.
+- [ ] Connect to an Agentless node in a local cluster using the Web UI.
 - [ ] Connect to a Teleport node in a local cluster using OpenSSH.
 - [ ] Connect to a Teleport node in a local cluster using Teleport.
 - [ ] Connect to a Teleport node in a local cluster using the Web UI.
 - [ ] Connect to a OpenSSH node in a remote cluster using OpenSSH.
 - [ ] Connect to a OpenSSH node in a remote cluster using Teleport.
 - [ ] Connect to a OpenSSH node in a remote cluster using the Web UI.
+- [ ] Connect to an Agentless node in a remote cluster using OpenSSH.
+- [ ] Connect to an Agentless node in a remote cluster using Teleport.
+- [ ] Connect to an Agentless node in a remote cluster using the Web UI.
 - [ ] Connect to a Teleport node in a remote cluster using OpenSSH.
 - [ ] Connect to a Teleport node in a remote cluster using Teleport.
 - [ ] Connect to a Teleport node in a remote cluster using the Web UI.

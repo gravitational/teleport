@@ -148,7 +148,7 @@ SSM commands[3] for example:
             "Resource": [
                 # Allow running commands on all us-west-2 instances
                 "arn:aws:ssm:us-west-2:*:instance/*",
-                 # Allows running the installTeleport docuemnt on the allowed instances
+                 # Allows running the installTeleport document on the allowed instances
                 "arn:aws:ssm:us-east-2:aws-account-ID:document/installTeleport"
             ]
         },
@@ -168,8 +168,8 @@ SSM commands[3] for example:
 }
 ```
 
-The machines being discovered will need to allow recieving `ec2messages` in
-order to recieve the SSM commands:
+The machines being discovered will need to allow receiving `ec2messages` in
+order to receive the SSM commands:
 
 ```js
 {
@@ -190,7 +190,7 @@ instances a new system role will be added -- `RoleNodeDiscovery`, that will have
 permissions to create tokens.
 
 Each EC2 instance that is to be discovered will also require that they have an IAM
-role attached, in order to be able to send and recieve messages for the SSM agent.
+role attached, in order to be able to send and receive messages for the SSM agent.
 
 Example:
 
@@ -459,7 +459,7 @@ The SSH discovery node should have permission to call `ec2:DescribeInstances`
             ],
             "Effect": "Allow",
             "Resource": [
-                "*", # for example, allow on all ec2 instance with SSM availablea
+                "*", # for example, allow on all ec2 instance with SSM available
             ]
         }
     ]
