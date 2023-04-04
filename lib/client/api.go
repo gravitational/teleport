@@ -1502,7 +1502,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		return nil, trace.Wrap(err)
 	}
 
-	nodeClient, connectErr := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), tc, details.FIPS)
+	nodeClient, connectErr := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
 	switch {
 	case connectErr == nil: // no error return client
 		return nodeClient, nil
@@ -1543,7 +1543,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		return nil, trace.Wrap(err)
 	}
 
-	nodeClient, err = NewNodeClient(ctx, cfg, conn, nodeDetails.ProxyFormat(), tc, details.FIPS)
+	nodeClient, err = NewNodeClient(ctx, cfg, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
 	return nodeClient, trace.Wrap(err)
 }
 
