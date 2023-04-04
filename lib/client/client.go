@@ -1597,6 +1597,49 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	return nc, nil
 }
 
+func (c *NodeClient) RunCommand(ctx context.Context, cmd []string, sessToJoin types.SessionTracker) error {
+	ctx, span := c.Tracer.Start(
+		ctx,
+		"nodeClient/RunCommand",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	env := c.TC.newSessionEnv()
+	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
+	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
+	encoded, err := json.Marshal(&c.TC.Config.Invited)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	env[teleport.EnvSSHSessionInvited] = string(encoded)
+
+	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err = nodeSession.runCommand(ctx, types.SessionPeerMode, cmd, c.TC.OnShellCreated, false); err != nil {
+		switch e := trace.Unwrap(err).(type) {
+		case *ssh.ExitError:
+			c.TC.ExitStatus = e.ExitStatus()
+		case *ssh.ExitMissingError:
+			c.TC.ExitStatus = 1
+		}
+
+		return trace.Wrap(err)
+	}
+
+	if nodeSession.ExitMsg == "" {
+		fmt.Fprintln(c.TC.Stderr, "the connection was closed on the remote side at ", time.Now().Format(time.RFC822))
+	} else {
+		fmt.Fprintln(c.TC.Stderr, nodeSession.ExitMsg)
+	}
+
+	return nil
+}
+
 // RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
 // to and from the node and local shell. This will block until the interactive shell on the node
 // is terminated.
