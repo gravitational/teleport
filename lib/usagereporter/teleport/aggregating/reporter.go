@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -33,11 +34,14 @@ const (
 	reportGranularity = 15 * time.Minute
 	rollbackGrace     = time.Minute
 	reportTTL         = 60 * 24 * time.Hour
+
+	checkInterval = time.Minute
 )
 
 type ReporterConfig struct {
 	Backend backend.Backend
 	Log     logrus.FieldLogger
+	Clock   clockwork.Clock
 
 	ClusterName    types.ClusterName
 	ReporterHostID string
@@ -49,6 +53,9 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Log == nil {
 		return trace.BadParameter("missing Log")
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
 	if cfg.ClusterName == nil {
 		return trace.BadParameter("missing ClusterName")
@@ -78,6 +85,7 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		anonymizer: anonymizer,
 		svc:        reportService{cfg.Backend},
 		log:        cfg.Log,
+		clock:      cfg.Clock,
 
 		ingest:  make(chan usagereporter.Anonymizable),
 		closing: make(chan struct{}),
@@ -99,6 +107,7 @@ type Reporter struct {
 	anonymizer utils.Anonymizer
 	svc        reportService
 	log        logrus.FieldLogger
+	clock      clockwork.Clock
 
 	// ingest collects events from calls to [AnonymizeAndSubmit] to the
 	// background goroutine.
@@ -117,6 +126,10 @@ type Reporter struct {
 
 	// baseCancel cancels the context used by the background goroutine.
 	baseCancel context.CancelFunc
+
+	// ingested, if non-nil, received events after being added to the aggregated
+	// data. Used in tests.
+	ingested chan usagereporter.Anonymizable
 }
 
 var _ usagereporter.GracefulStopper = (*Reporter)(nil)
@@ -172,10 +185,13 @@ func (r *Reporter) run(ctx context.Context) {
 	defer r.baseCancel()
 	defer close(r.done)
 
-	ticker := time.NewTicker(time.Minute)
+	ticker := r.clock.NewTicker(checkInterval)
 	defer ticker.Stop()
 
-	startTime := time.Now().UTC().Truncate(reportGranularity)
+	startTime := r.clock.Now().UTC().Truncate(reportGranularity)
+	windowStart := startTime.Add(-rollbackGrace)
+	windowEnd := startTime.Add(reportGranularity)
+
 	userActivity := make(map[string]*prehogv1.UserActivityRecord)
 
 	userRecord := func(userName string) *prehogv1.UserActivityRecord {
@@ -193,7 +209,7 @@ Ingest:
 	for {
 		var ae usagereporter.Anonymizable
 		select {
-		case <-ticker.C:
+		case <-ticker.Chan():
 		case ae = <-r.ingest:
 
 		case <-ctx.Done():
@@ -203,17 +219,18 @@ Ingest:
 			break Ingest
 		}
 
-		now := time.Now().UTC()
-		if !now.Before(startTime.Add(reportGranularity)) || now.Before(startTime.Add(-rollbackGrace)) {
+		if now := r.clock.Now().UTC(); now.Before(windowStart) || !now.Before(windowEnd) {
 			if len(userActivity) > 0 {
 				wg.Add(1)
-				go func() {
+				go func(ctx context.Context, startTime time.Time, userActivity map[string]*prehogv1.UserActivityRecord) {
 					defer wg.Done()
 					r.persistUserActivity(ctx, startTime, userActivity)
-				}()
+				}(ctx, startTime, userActivity)
 			}
 
 			startTime = now.Truncate(reportGranularity)
+			windowStart = startTime.Add(-rollbackGrace)
+			windowEnd = startTime.Add(reportGranularity)
 			userActivity = make(map[string]*prehogv1.UserActivityRecord, len(userActivity))
 		}
 
@@ -241,6 +258,10 @@ Ingest:
 			userRecord(te.UserName).KubeRequests++
 		case *usagereporter.SFTPEvent:
 			userRecord(te.UserName).SftpEvents++
+		}
+
+		if r.ingested != nil {
+			r.ingested <- ae
 		}
 	}
 
