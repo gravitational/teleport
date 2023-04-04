@@ -264,6 +264,10 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Headless WebAuthn (Preview)",
+              "slug": "/access-controls/guides/headless/"
+            },
+            {
               "title": "IP Pinning (Preview)",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]

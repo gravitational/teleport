@@ -85,7 +85,8 @@ db_service:
   - name: "mongodb-atlas"
     protocol: "mongodb"
     uri: "mongodb+srv://cluster0.abcde.mongodb.net"
-    ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
+    tls:
+      ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
     static_labels:
       env: "dev"
 
@@ -133,7 +134,8 @@ db_service:
   - name: "mongodb-atlas"
     protocol: "mongodb"
     uri: "mongodb+srv://cluster0.abcde.mongodb.net"
-    ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
+    tls:
+      ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
     static_labels:
       env: "dev"
 ```
