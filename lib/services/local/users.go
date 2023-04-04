@@ -37,6 +37,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1384,6 +1385,51 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	return trace.Wrap(err)
 }
 
+// GetAssistantMessages returns all messages with given conversation ID.
+func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
+	startKey := backend.Key(assistantPrefix, username, conversationId)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	out := make([]*proto.AssistantMessage, len(result.Items))
+	for i, item := range result.Items {
+		var a proto.AssistantMessage
+		if err := json.Unmarshal(item.Value, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out[i] = &a
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		// Sort by created time.
+		return out[i].CreatedTime.Before(out[j].GetCreatedTime())
+	})
+
+	return &proto.GetAssistantMessagesResponse{
+		Messages: out,
+	}, nil
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (s *IdentityService) CreateAssistantMessage(ctx context.Context, user string, msg *proto.AssistantMessage) error {
+	value, err := json.Marshal(msg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	messageID := uuid.New().String()
+
+	item := backend.Item{
+		Key:   backend.Key(assistantPrefix, user, msg.ConversationId, messageID),
+		Value: value,
+	}
+
+	_, err = s.Create(ctx, item)
+	return trace.Wrap(err)
+}
+
 // GetUserRecoveryAttempts returns users recovery attempts.
 func (s *IdentityService) GetUserRecoveryAttempts(ctx context.Context, user string) ([]*types.RecoveryAttempt, error) {
 	if user == "" {
@@ -1538,4 +1584,5 @@ const (
 	recoveryCodesPrefix       = "recoverycodes"
 	recoveryAttemptsPrefix    = "recoveryattempts"
 	attestationsPrefix        = "key_attestations"
+	assistantPrefix           = "assistant"
 )

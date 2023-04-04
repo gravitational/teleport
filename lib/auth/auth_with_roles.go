@@ -29,6 +29,7 @@ import (
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"golang.org/x/exp/slices"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -5810,6 +5811,18 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
 	return trace.Wrap(err)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return a.authServer.GetAssistantMessages(ctx, id)
+}
+
+// InsertAssistantMessage adds the message to the backend.
+func (a *ServerWithRoles) InsertAssistantMessage(ctx context.Context, msg *proto.AssistantMessage) (*emptypb.Empty, error) {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return &emptypb.Empty{}, a.authServer.InsertAssistantMessage(ctx, msg)
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.

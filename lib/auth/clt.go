@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -656,6 +657,11 @@ type IdentityService interface {
 	UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
 	// GetHeadlessAuthentication retrieves a headless authentication by id.
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
+
+	// GetAssistantMessages returns all messages with given conversation ID.
+	GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error)
+	// InsertAssistantMessage adds the message to the backend.
+	InsertAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error)
 }
 
 // ProvisioningService is a service in control

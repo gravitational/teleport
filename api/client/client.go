@@ -3329,3 +3329,23 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	}
 	return headlessAuthn, nil
 }
+
+// GetAssistantMessages retrieves assistant messages with given conversation ID.
+func (c *Client) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
+	messages, err := c.grpc.GetAssistantMessages(ctx, &proto.AssistantRequest{
+		ConversationId: id,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return messages, nil
+}
+
+// InsertAssistantMessage saves a new conversation message.
+func (c *Client) InsertAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error) {
+	resp, err := c.grpc.InsertAssistantMessage(ctx, in, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
