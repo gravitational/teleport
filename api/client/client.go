@@ -596,14 +596,6 @@ func (c *Client) setClosed() bool {
 	return atomic.CompareAndSwapInt32(c.closedFlag, 0, 1)
 }
 
-// WithCallOptions returns a copy of the client with the given call options set.
-// This function should be used for chaining - client.WithCallOptions().Ping()
-func (c *Client) WithCallOptions(opts ...grpc.CallOption) *Client {
-	clt := *c
-	clt.callOpts = append(clt.callOpts, opts...)
-	return &clt
-}
-
 // DevicesClient returns an unadorned Device Trust client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
