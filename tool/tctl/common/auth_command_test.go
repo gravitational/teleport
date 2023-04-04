@@ -97,7 +97,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 					Name: "proxy",
 				},
 				Spec: types.ServerSpecV2{
-					PublicAddr: "proxy-from-api.example.com:3080",
+					PublicAddrs: []string{"proxy-from-api.example.com:3080"},
 				},
 			},
 		},

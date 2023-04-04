@@ -34,7 +34,6 @@ import (
 	"math"
 	"math/big"
 	insecurerand "math/rand"
-	"net"
 	"os"
 	"sort"
 	"strings"
@@ -4358,13 +4357,10 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			if !ok {
 				continue
 			}
-			// Get the server address without port number.
-			addr, _, err := net.SplitHostPort(srv.GetAddr())
-			if err != nil {
-				addr = srv.GetAddr()
-			}
+
 			// Filter out any matches on labels before checking access
-			if n.GetName() != t.Node.Node && srv.GetHostname() != t.Node.Node && addr != t.Node.Node {
+			fieldVals := append(srv.GetPublicAddrs(), srv.GetName(), srv.GetHostname(), srv.GetAddr())
+			if !types.MatchSearch(fieldVals, []string{t.Node.Node}, nil) {
 				continue
 			}
 

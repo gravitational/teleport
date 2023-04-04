@@ -700,9 +700,10 @@ message ServerV2List {
 message ServerSpecV2 {
   reserved 8;
 
-  // Addr is server host:port address
+  // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
-  // PublicAddr is the public address this cluster can be reached at.
+  // PublicAddr is the public address where this server can be reached.
+  // DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
   string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
   // Hostname is server hostname
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
@@ -740,6 +741,8 @@ message ServerSpecV2 {
   string PeerAddr = 11 [(gogoproto.jsontag) = "peer_addr,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // PublicAddrs is a list of public addresses where this server can be reached.
+  repeated string public_addrs = 13;
 }
 
 // AppServerV3 represents a single proxied web app.

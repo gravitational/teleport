@@ -1444,8 +1444,6 @@ type Node interface {
 	GetNamespace() string
 	// GetCmdLabels gets command labels
 	GetCmdLabels() map[string]types.CommandLabel
-	// GetPublicAddr is an optional field that returns the public address this cluster can be reached at.
-	GetPublicAddr() string
 	// GetRotation gets the state of certificate authority rotation.
 	GetRotation() types.Rotation
 	// GetUseTunnel gets if a reverse tunnel should be used to connect to this node.
