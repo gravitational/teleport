@@ -12,12 +12,12 @@ Teleport.
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Overview
-In deployment architecture, the Teleport cluster is deployed as a single cluster across multiple regions
-using exclusively AWS ecosystem infrastructure. 
-This is a complex deployment architecture. This deployment architecture deploys Auth servers in 
-a single region and Proxy servers in many regions. This is accomplished using AWS Route 53 
-to create Global Server Load Balancing (GSLB) for the Teleport Cluster and Teleport Proxy 
-Peering to reduce the number of connections created through the cluster.
+This deployment architecure makes all connected resources accessible through a single Teleport cluster 
+across multiple regions using exclusively AWS ecosystem infrastructure. 
+
+This is accomplished using AWS Route 53 to create Global Server Load Balancing (GSLB) 
+for the Teleport Cluster and Teleport Proxy Peering to reduce the number of connections 
+created through the cluster.
 
 This deployment architecture isn’t recommended for use cases where your users or resources are 
 clustered in a single region or for Managed Service Providers needing to provide separate clusters 
@@ -29,6 +29,8 @@ access and need reduced latency when accessing resources.
 
 ### Key deployment components
 - High Availability Teleport Cluster
+- Auth Servers must remain in a single region
+- Proxies are deployed across multiple regions
 - [AWS Route 53 latency based routing]([Latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
        to create [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
 - [Teleport TLS Routing](https://goteleport.com/docs/architecture/tls-routing/) to reduce the number of ports needed to use Teleport
@@ -67,7 +69,7 @@ terminate TLS, and must transparently forward the TCP traffic it receives.
 In other words, this must be a Layer 4 load balancer, not a Layer 7 
 (e.g., HTTP) load balancer. 
 
-### Configure the NLB
+### Configure the NLBs
 Configure the load balancer to forward traffic from the following ports on the
 load balancer to the corresponding port on an available Teleport instance. The
 configuration depends on whether you route Proxy Peering GRPC traffic over 
@@ -95,27 +97,6 @@ These ports are required:
 
 We recommend enabling cross-zone load balancing in your NLB configuration to route traffic across multiple zones.
 
-### TLS Routing
-
-Your load balancer configuration depends on whether you will enable [TLS
-Routing](../management/operations/tls-routing.mdx) in your Teleport cluster.
-
-With TLS Routing, the Teleport Proxy Service uses application-layer protocol
-negotiation (ALPN) to handle all communication with users and services via the
-HTTPS port, regardless of protocol. Without TLS Routing, the Proxy Service
-listens on separate ports for each protocol.
-
-The advantage of TLS Routing is its simplicity: you can expose only a single
-port on the load balancer to the public internet.
-
-The disadvantage of TLS Routing is that it is impossible to implement Layer 7
-load balancing for HTTPS traffic, since traffic that reaches the HTTPS port can
-use any supported protocol. 
-
-The approach we describe in this guide uses only a Layer 4 load balancer to
-minimize the infrastructure you will deploy, but users that require a separate
-load balancer for HTTPS traffic should disable TLS Routing.
-
 ## Cluster state backend
 
 The Teleport Auth Service stores cluster state (such as dynamic configuration
@@ -123,58 +104,36 @@ resources) and audit events as key/value pairs. In high-availability
 deployments, you must configure the Auth Service to manage this data in a
 key-value store that runs outside of your cluster of Teleport instances.
 
-The Auth Service supports the following backends for cluster state and audit
-events:
-
-- Amazon DynamoDB
-- Google Cloud Firestore
-- etcd (cluster state only)
-
-For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration (which
+For Amazon DynamoDB, your Teleport configuration (which
 we will describe in more detail in the [Configuration](#configuration) section)
 names a table or collection where Teleport stores cluster state and audit
 events. 
 
-The Teleport Auth Service manages the creation of any required DynamoDB tables
-or Firestore collections itself, and does not require them to exist in advance.
-
-The Auth Service can also store cluster state in self-hosted
-[etcd](https://etcd.io/) deployments. In this case, Teleport uses namespaces
-within item keys to identify cluster state data.
+The Teleport Auth Service manages the creation of any required DynamoDB tables itself, 
+and does not require them to exist in advance.
 
 <Admonition title="Required permissions">
 
-In your cloud provider's RBAC solution (e.g., AWS or Google Cloud IAM), your
-Auth Service instances need permissions to read from and write to your chosen
-key/value store, as well as to create tables and collections (if your key/value
-store supports them).
+The Auth Service instances needs permissions to read from and write to DynamoDB, as well as 
+to create tables.
 
 </Admonition>
 
 ## Session recording backend
 
 High-availability Teleport deployments use an object storage service for
-persisting session recordings. The Teleport Auth Service supports two object
-storage services:
-
-- Amazon S3 (or an S3-compatible object store)
-- Google Cloud Storage
+persisting session recordings.
 
 In your Teleport configuration (described in the [Configuration](#configuration)
-section), you must name a bucket within Google Cloud Storage or an Amazon
-S3-compatible service to use for managing session recordings. The Teleport Auth
+section), you must name an S3 bucket to use for managing session recordings. The Teleport Auth
 Service creates this bucket, so to prevent unexpected behavior, you should not
 create it in advance. 
 
 <Admonition title="Required permissions">
 
-In your cloud provider's RBAC solution, your Auth Service instances need
-permissions to get buckets as well as to create, get, list, and update objects.
-Since this setup lets Teleport create buckets for you, you should also assign
+The Auth Service instances need permissions to get S3 buckets as well as to create, get, list, 
+and update objects. Since this setup lets Teleport create buckets for you, you should also assign
 Auth Service instances permissions to create buckets
-
-In Google Cloud Storage, Auth Service instances also need permissions to delete
-objects. 
 
 </Admonition>
 
@@ -216,57 +175,35 @@ resources are routed to the closest or lowest latency path Proxy NLB based on th
 the VPC the resource is connecting from.
 
 To create GSLB routing, create a CNAME record for each region you have VPCs containing Teleport connected resources.
+It is recommeded to add a wildcard record for every region if you plan to use Teleport Appplication Access.
 
 The following CNAME record values need to be set:
-- Value: The domain name of the NLB where example-region-1 located Teleport resource traffic should be routed
-- Routing policy: Latency
-- Location: The region from which traffic should be routed to the NLB listed in Value
-- Health Check ID: It is recommended that you set this so that traffic is always routed to a healthy NLB
+- **Value:** The domain name of the NLB where example-region-1 located Teleport resource traffic should be routed
+- **Routing policy:** Latency
+- **Region:** The AWS region from which traffic should be routed to the NLB listed in **Value**
+- **Health Check ID:** It is recommended that you set this so that traffic is always routed to a healthy NLB
 
-Teleport resource agents must be configured to point ```proxy_server:``` to the GSLB domain configured in Route 53
+Example Hosted Zone using AWS Route53 Latency Routing to create GSLB:
 
-### Teleport Proxy Service records
+### Root GSLB record for Teleport:
 
-Users and services must be able to reach the Teleport Proxy Service in order to
-connect to your Teleport cluster. Since a high availability setup runs Teleport
-instances behind a load balancer, you must create a DNS record that points to
-the load balancer. 
-
-Depending on how your infrastructure's DNS is organized, this will be one of the
-following, assuming your domain is `example.com`:
-
-|Record Type|Domain Name|Value|
+|Record name|Type|Value|
 |---|---|---|
-|A|teleport.example.com|The IP address of your load balancer|
-|CNAME|teleport.example.com|The domain name of your load balancer|
+|```*teleport.example.com```|CNAME|AWS Route 53 nameservers|
 
-### Registering applications with Teleport 
-
-Teleport assigns a subdomain to each application you have connected to Teleport
-(e.g., `grafana.teleport.example.com`), so you will need to ensure that a DNS
-record exists for each application-specific subdomain so clients can access your
-applications via Teleport. 
-
-You should create either a separate DNS record for each subdomain or a single
-record with a wildcard subdomain such as `*.teleport.example.com`. 
-
-Create one of the following wildcard DNS records so you can register any
-application with Teleport:
-
-|Record Type|Domain Name|Value|
-|---|---|---|
-|A|*.teleport.example.com|The IP address of your load balancer|
-|CNAME|*.teleport.example.com|The domain name of your load balancer|
+### Teleport Proxy DNS records:
+|Record name|Type|Routing Policy|Region|Value|
+|---|---|---|---|---|
+|```proxy.teleport.example.com```|CNAME|Latency|us-west-1| ```elb.us-west-1.amazonaws.com``` |
+|```*.proxy.teleport.example.com```|CNAME|Latency|us-west-1| ```elb.us-west-1.amazonaws.com``` |
+|```proxy.teleport.example.com```|CNAME|Latency|eu-central-1| ```elb.eu_central-1.amazonaws.com```|
+|```*.proxy.teleport.example.com```|CNAME|Latency|eu-central-1| ```elb.eu_central-1.amazonaws.com```|
 
 <Admonition title="Required permissions">
 
 If you are using Let's Encrypt to provide TLS credentials to your Teleport
 instances, the TLS credential system we mentioned earlier needs permissions to
-manage DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. 
-
-If you are using cloud-managed solutions, you should use your cloud provider's
-RBAC system (e.g., AWS IAM) to grant a role to the Proxy Service to manage DNS
-records. 
+manage Route53 DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. 
 
 </Admonition>
 
@@ -290,40 +227,12 @@ Ensure that, on each Teleport instance, the following ports allow traffic from
 the load balancer. The Proxy Service uses these ports to communicate with
 Teleport users and services.
 
-As with your load balancer configuration, the ports you should open on your
-Teleport instances depend on whether you will enable TLS Routing: 
-
-<Tabs>
-<TabItem label="TLS Routing">
 
 | Port | Description |
 | - | - |
 | `443` | ALPN port for TLS Routing. |
 
-</TabItem>
-<TabItem label="Separate Ports">
 
-These ports are required:
-
-| Port | Description |
-| - | - |
-| `3023` | SSH port for clients connect to. |
-| `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
-| `443` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
-
-You can leave these ports closed if you are not using their corresponding
-services:
-
-| Port | Description |
-| - | - |
-| `3026` | HTTPS Kubernetes proxy |
-| `3036` | MySQL port |
-| `5432` | Postgres port |
-
-</TabItem>
-</Tabs>
-
-*This is the same table of ports you used to configure the load balancer.*
 
 ### License file
 
