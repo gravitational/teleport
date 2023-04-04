@@ -613,6 +613,66 @@ func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
 	return devicepb.NewDeviceTrustServiceClient(c.conn)
 }
 
+// CreateDeviceResource creates a device using its resource representation.
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) CreateDeviceResource(ctx context.Context, res *types.DeviceV1) (*types.DeviceV1, error) {
+	dev, err := types.DeviceFromResource(res)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := c.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device:           dev,
+		CreateAsResource: true,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return types.DeviceToResource(created), nil
+}
+
+// DeleteDeviceResource deletes a device using its ID (either devicepb.Device.Id
+// or its Metadata.Name).
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) DeleteDeviceResource(ctx context.Context, id string) error {
+	_, err := c.DevicesClient().DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+		DeviceId: id,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetDeviceResource reads a device using its ID (either devicepb.Device.Id
+// or its Metadata.Name).
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) GetDeviceResource(ctx context.Context, id string) (*types.DeviceV1, error) {
+	dev, err := c.DevicesClient().GetDevice(ctx, &devicepb.GetDeviceRequest{
+		DeviceId: id,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return types.DeviceToResource(dev), nil
+}
+
+// UpsertDeviceResource creates or updates a device using its resource
+// representation.
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) (*types.DeviceV1, error) {
+	dev, err := types.DeviceFromResource(res)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := c.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
+		Device:           dev,
+		CreateAsResource: true,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return types.DeviceToResource(upserted), nil
+}
+
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
@@ -716,9 +776,6 @@ func (c *Client) GetCurrentUserRoles(ctx context.Context) ([]types.Role, error) 
 		if err != nil {
 			return nil, trail.FromGRPC(err)
 		}
-		// An old server would send RequireSessionMFA instead of RequireMFAType
-		// DELETE IN 13.0.0
-		role.CheckSetRequireSessionMFA()
 		roles = append(roles, role)
 	}
 	return roles, nil
@@ -1439,9 +1496,6 @@ func (c *Client) GetRole(ctx context.Context, name string) (types.Role, error) {
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	role.CheckSetRequireSessionMFA()
 	return role, nil
 }
 
@@ -1453,9 +1507,6 @@ func (c *Client) GetRoles(ctx context.Context) ([]types.Role, error) {
 	}
 	roles := make([]types.Role, 0, len(resp.GetRoles()))
 	for _, role := range resp.GetRoles() {
-		// An old server would send RequireSessionMFA instead of RequireMFAType
-		// DELETE IN 13.0.0
-		role.CheckSetRequireSessionMFA()
 		roles = append(roles, role)
 	}
 	return roles, nil
@@ -1467,10 +1518,6 @@ func (c *Client) UpsertRole(ctx context.Context, role types.Role) error {
 	if !ok {
 		return trace.BadParameter("invalid type %T", role)
 	}
-
-	// An old server would expect RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	r.CheckSetRequireSessionMFA()
 
 	_, err := c.grpc.UpsertRole(ctx, r, c.callOpts...)
 	return trail.FromGRPC(err)
@@ -2106,9 +2153,6 @@ func (c *Client) GetAuthPreference(ctx context.Context) (types.AuthPreference, e
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
-	// An old server would send RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	pref.CheckSetRequireSessionMFA()
 	return pref, nil
 }
 
@@ -2118,9 +2162,6 @@ func (c *Client) SetAuthPreference(ctx context.Context, authPref types.AuthPrefe
 	if !ok {
 		return trace.BadParameter("invalid type %T", authPref)
 	}
-	// An old server would send RequireSessionMFA instead of RequireMFAType
-	// DELETE IN 13.0.0
-	authPrefV2.CheckSetRequireSessionMFA()
 	_, err := c.grpc.SetAuthPreference(ctx, authPrefV2, c.callOpts...)
 	return trail.FromGRPC(err)
 }

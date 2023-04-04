@@ -531,6 +531,7 @@ const (
 	awsRegionEnvVar          = "TELEPORT_AWS_REGION"
 	awsKeystoreEnvVar        = "TELEPORT_AWS_KEYSTORE"
 	awsWorkgroupEnvVar       = "TELEPORT_AWS_WORKGROUP"
+	proxyKubeConfigEnvVar    = "TELEPORT_KUBECONFIG"
 
 	clusterHelp = "Specify the Teleport cluster to connect"
 	browserHelp = "Set to 'none' to suppress browser opening on login"
@@ -762,6 +763,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyGcloud.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&cf.Format, envVarFormats...)
 	proxyGcloud.Alias("gcp")
 
+	proxyKube := newProxyKubeCommand(proxy)
+
 	// Databases.
 	db := app.Command("db", "View and control proxied databases.")
 	db.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
@@ -797,7 +800,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	join.Flag("mode", "Mode of joining the session, valid modes are observer and moderator").Short('m').Default("peer").StringVar(&cf.JoinMode)
+	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
 	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
@@ -1184,6 +1187,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onProxyCommandAzure(&cf)
 	case proxyGcloud.FullCommand():
 		err = onProxyCommandGCloud(&cf)
+	case proxyKube.FullCommand():
+		err = proxyKube.run(&cf)
 
 	case dbList.FullCommand():
 		err = onListDatabases(&cf)

@@ -51,6 +51,8 @@ type AppServer interface {
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
+	// GetTunnelType returns the tunnel type associated with the app server.
+	GetTunnelType() TunnelType
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -176,6 +178,16 @@ func (s *AppServerV3) SetApp(app Application) error {
 	}
 	s.Spec.App = appV3
 	return nil
+}
+
+// GetTunnelType returns the tunnel type associated with the app server.
+func (s *AppServerV3) GetTunnelType() TunnelType {
+	switch {
+	case s.Origin() == OriginOkta:
+		return OktaTunnel
+	default:
+		return AppTunnel
+	}
 }
 
 // String returns the server string representation.

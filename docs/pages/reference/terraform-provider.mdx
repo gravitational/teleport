@@ -213,7 +213,6 @@ Spec is an AuthPreference specification
 | locking_mode            | string |          | LockingMode is the cluster-wide locking mode default.                                                                              |
 | message_of_the_day      | string |          |                                                                                                                                    |
 | require_mfa_type        | number |          | RequireMFAType is the type of MFA requirement enforced for this cluster.                                                           |
-| require_session_mfa     | bool   |          | RequireSessionMFA causes all sessions in this cluster to require MFA checks.  DELETE IN 13.0.0 in favor of RequireMFAType          |
 | second_factor           | string |          | SecondFactor is the type of second factor.                                                                                         |
 | type                    | string |          | Type is the type of authentication.                                                                                                |
 | u2f                     | object |          | U2F are the settings for the U2F device.                                                                                           |
@@ -1380,7 +1379,6 @@ Options is for OpenSSH options like agent forwarding.
 | request_access             | string           |          | RequestAccess defines the access request stategy (optional|note|always) where optional is the default.                                                                     |
 | request_prompt             | string           |          | RequestPrompt is an optional message which tells users what they aught to                                                                                                  |
 | require_mfa_type           | number           |          | RequireMFAType is the type of MFA requirement enforced for this user.                                                                                                      |
-| require_session_mfa        | bool             |          | RequireSessionMFA specifies whether a user is required to do an MFA check for every session.  DELETE IN 13.0.0 in favor of RequireMFAType                                  |
 | ssh_file_copy              | bool             |          |                                                                                                                                                                            |
 
 

@@ -1370,8 +1370,36 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+const (
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	kubeService = "kube_service"
+)
+
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	if req.ResourceType == kubeService {
+		return &types.ListResourcesResponse{}, nil
+	}
+
+	// Check if auth server has a license for this resource type but only return an
+	// error if the user is not a builtin proxy or kube role.
+	// Builtin proxy and kube roles are allowed to list resources to avoid crashes
+	// even if the license is missing.
+	// Users with other roles will get an error if the license is missing so they
+	// can request a license with the correct features.
+	if err := enforceLicense(req.ResourceType); err != nil && !a.hasBuiltinRole(types.RoleProxy, types.RoleKube) {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -2590,7 +2618,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
+	if req.Username != a.context.User.GetName() && user.GetUserType() == types.UserTypeSSO {
 		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
 		return nil, trace.AccessDenied("access denied")
 	}

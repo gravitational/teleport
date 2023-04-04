@@ -161,11 +161,20 @@ const (
 	// OktaAssignmentActionStatusPending is represents a pending status for an Okta action.
 	OktaAssignmentActionStatusPending = "pending"
 
+	// OktaAssignmentActionStatusProcessing is represents an Okta action which is currently being acted on.
+	OktaAssignmentActionStatusProcessing = "processing"
+
 	// OktaAssignmentActionStatusSuccessful is represents a successfully applied Okta action.
 	OktaAssignmentActionStatusSuccessful = "successful"
 
 	// OktaAssignmentActionStatusFailed is represents an Okta action which failed to apply. It will be retried.
 	OktaAssignmentActionStatusFailed = "failed"
+
+	// OktaAssignmentActionStatusCleanupPending is represents an Okta action which needs to be cleaned up.
+	OktaAssignmentActionStatusCleanupPending = "cleanup_pending"
+
+	// OktaAssignmentActionStatusCleanupProcessing is represents an Okta action which is currently being cleaned up.
+	OktaAssignmentActionStatusCleanupProcessing = "cleanup_processing"
 
 	// OktaAssignmentActionStatusCleanedUp is represents an Okta action which was cleaned up successfully.
 	OktaAssignmentActionStatusCleanedUp = "cleaned_up"
@@ -392,4 +401,16 @@ const (
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
 	TimeoutGetClusterAlerts = time.Millisecond * 500
+)
+
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
 )

@@ -1,9 +1,6 @@
 name: Lint (Docs)
 run-name: Lint (Docs)
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths:
       - 'docs/**'
