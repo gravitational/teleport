@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -74,7 +75,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/shell"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
@@ -622,7 +622,7 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
 	}
 
-	if required, ok := alpnproxy.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
+	if required, ok := client.OverwriteALPNConnUpgradeRequirementByEnv(c.WebProxyAddr); ok {
 		c.TLSRoutingConnUpgradeRequired = required
 	}
 	log.Infof("ALPN connection upgrade required for %q: %v.", c.WebProxyAddr, c.TLSRoutingConnUpgradeRequired)
@@ -1587,16 +1587,27 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, nod
 		return trace.Wrap(err)
 	}
 
-	// If no remote command execution was requested, block on the context which
-	// will unblock upon error or SIGINT.
+	// If no remote command execution was requested block on which ever comes first:
+	//  1) the context which will unblock upon error or user terminating the process
+	//  2) ssh.Client.Wait which will unblock when the connection has shut down
 	if tc.NoRemoteExec {
-		log.Debugf("Connected to node, no remote command execution was requested, blocking until context closes.")
-		<-ctx.Done()
-
-		// Only return an error if the context was canceled by something other than SIGINT.
-		if ctx.Err() != context.Canceled {
-			return ctx.Err()
+		connClosed := make(chan error, 1)
+		go func() {
+			connClosed <- nodeClient.Client.Wait()
+		}()
+		log.Debugf("Connected to node, no remote command execution was requested, blocking indefinitely.")
+		select {
+		case <-ctx.Done():
+			// Only return an error if the context was canceled by something other than SIGINT.
+			if err := ctx.Err(); !errors.Is(err, context.Canceled) {
+				return trace.Wrap(err)
+			}
+		case err := <-connClosed:
+			if !errors.Is(err, io.EOF) {
+				return trace.Wrap(err)
+			}
 		}
+
 		return nil
 	}
 
@@ -1751,6 +1762,8 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 			}
 		}
 	}
+
+	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	// running shell with a given session means "join" it:
 	err = tc.runShell(ctx, nc, mode, session, beforeStart)
@@ -3083,7 +3096,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = alpnproxy.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)

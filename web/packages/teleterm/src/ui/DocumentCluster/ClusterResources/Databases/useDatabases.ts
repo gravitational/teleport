@@ -46,13 +46,16 @@ export function useDatabases() {
       targetUri: db.uri,
       targetName: db.name,
       targetUser: getTargetUser(db.protocol as GatewayProtocol, dbUser),
+      origin: 'resource_table',
     });
 
     const connectionToReuse =
       appContext.connectionTracker.findConnectionByDocument(doc);
 
     if (connectionToReuse) {
-      appContext.connectionTracker.activateItem(connectionToReuse.id);
+      appContext.connectionTracker.activateItem(connectionToReuse.id, {
+        origin: 'resource_table',
+      });
     } else {
       documentsService.add(doc);
       documentsService.open(doc.uri);

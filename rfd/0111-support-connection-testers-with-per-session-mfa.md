@@ -15,7 +15,7 @@ Add a [MFAAuthenticateResponse](https://github.com/gravitational/teleport/blob/d
 
 ## Why
 
-As mentioned in the related issue, when a role or config has enabled the [require_sesion_mfa](https://goteleport.com/docs/access-controls/guides/per-session-mfa) field, users were not able to proceed testing connections to their newly added resource in the web UI, because we didn't implement a way for users to provide and authenticate their MFA device.
+As mentioned in the related issue, when a role or config has enabled the [require_session_mfa](https://goteleport.com/docs/access-controls/guides/per-session-mfa) field, users were not able to proceed testing connections to their newly added resource in the web UI, because we didn't implement a way for users to provide and authenticate their MFA device.
 
 ## Details
 

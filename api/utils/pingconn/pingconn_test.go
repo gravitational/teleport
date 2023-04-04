@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package alpnproxy
+package pingconn
 
 import (
 	"bytes"
@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/fixtures"
 )
 
 func TestPingConnection(t *testing.T) {
@@ -273,7 +275,7 @@ func makePingConn(t *testing.T) (*PingConn, *PingConn) {
 	writer, reader := net.Pipe()
 	tlsWriter, tlsReader := makeTLSConn(t, writer, reader)
 
-	return NewPingConn(tlsWriter), NewPingConn(tlsReader)
+	return New(tlsWriter), New(tlsReader)
 }
 
 // makeBufferedPingConn creates connections to have asynchronous writes.
@@ -321,7 +323,7 @@ func makeBufferedPingConn(t *testing.T) (*PingConn, *PingConn) {
 	}
 
 	tlsConnA, tlsConnB := makeTLSConn(t, connSlice[0], connSlice[1])
-	return NewPingConn(tlsConnA), NewPingConn(tlsConnB)
+	return New(tlsConnA), New(tlsConnB)
 }
 
 // makeTLSConn take two connections (client and server) and wrap them into TLS
@@ -334,10 +336,13 @@ func makeTLSConn(t *testing.T, server, client net.Conn) (*tls.Conn, *tls.Conn) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	cert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+
 	// Server
 	go func() {
 		tlsConn := tls.Server(server, &tls.Config{
-			Certificates: []tls.Certificate{mustGenCertSignedWithCA(t, mustGenSelfSignedCert(t))},
+			Certificates: []tls.Certificate{cert},
 		})
 		tlsConnChan <- struct {
 			*tls.Conn

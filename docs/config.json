@@ -264,6 +264,10 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Headless WebAuthn (Preview)",
+              "slug": "/access-controls/guides/headless/"
+            },
+            {
               "title": "IP Pinning (Preview)",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
@@ -804,6 +808,10 @@
               "slug": "/server-access/guides/ec2-discovery/"
             },
             {
+              "title": "Azure Instance Discovery (Preview)",
+              "slug": "/server-access/guides/azure-discovery/"
+            },
+            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }
@@ -1139,6 +1147,10 @@
               "slug": "/machine-id/guides/github-actions-kubernetes/"
             },
             {
+              "title": "GitLab CI",
+              "slug": "/machine-id/guides/gitlab/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1215,6 +1227,10 @@
 	{
 	    "title": "Automatically Register Teleport Agents",
 	    "slug": "/api/automatically-register-agents/"
+	},
+	{
+	    "title": "Automatically Generate Roles",
+	    "slug": "/api/rbac/"
 	}
       ]
     },
