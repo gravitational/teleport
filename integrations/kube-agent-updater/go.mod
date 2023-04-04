@@ -7,6 +7,7 @@ require (
 	github.com/docker/distribution v2.8.1+incompatible
 	github.com/google/go-containerregistry v0.13.1-0.20230203223142-b3c23b4c3f28
 	github.com/gravitational/trace v1.2.1
+	github.com/jonboulle/clockwork v0.3.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/sigstore/cosign/v2 v2.0.1-0.20230228132138-2f1ec646de33
 	github.com/sigstore/sigstore v1.6.0
@@ -15,7 +16,6 @@ require (
 	golang.org/x/mod v0.8.0
 	k8s.io/api v0.26.1
 	k8s.io/apimachinery v0.26.1
-	k8s.io/client-go v0.26.1
 	sigs.k8s.io/controller-runtime v0.14.4
 )
 
@@ -32,7 +32,7 @@ require (
 	github.com/digitorus/pkcs7 v0.0.0-20221212123742-001c36b64ec3 // indirect
 	github.com/digitorus/timestamp v0.0.0-20221019182153-ef3b63b79b31 // indirect
 	github.com/docker/cli v20.10.21+incompatible // indirect
-	github.com/docker/docker v20.10.21+incompatible // indirect
+	github.com/docker/docker v20.10.24+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
@@ -70,7 +70,6 @@ require (
 	github.com/in-toto/in-toto-golang v0.7.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.1 // indirect
 	github.com/jedisct1/go-minisign v0.0.0-20211028175153-1c139d1cc84b // indirect
-	github.com/jonboulle/clockwork v0.3.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.15.11 // indirect
@@ -141,6 +140,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.26.1 // indirect
+	k8s.io/client-go v0.26.1 // indirect
 	k8s.io/component-base v0.26.1 // indirect
 	k8s.io/klog/v2 v2.90.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
