@@ -260,7 +260,7 @@ Ingest:
 			userRecord(te.UserName).SftpEvents++
 		}
 
-		if r.ingested != nil {
+		if ae != nil && r.ingested != nil {
 			r.ingested <- ae
 		}
 	}
