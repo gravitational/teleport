@@ -38,13 +38,11 @@ their on-disk Teleport certificates.
   Per-session MFA for Desktop Access was introduced in Teleport 9.
 </Details>
 
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-
 - [WebAuthn configured](webauthn.mdx) on this cluster
 - Second factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
@@ -64,6 +62,7 @@ teleport:
     webauthn:
       rp_id: teleport.example.com
 ```
+
 </Admonition>
 
 ## Configure per-session MFA
