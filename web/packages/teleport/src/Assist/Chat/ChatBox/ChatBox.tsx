@@ -4,7 +4,7 @@ import styled from 'styled-components';
 import { ChangeEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 
 interface ChatBoxProps {
-  disabled: boolean;
+  disabled?: boolean;
   onSubmit: (value: string) => void;
 }
 

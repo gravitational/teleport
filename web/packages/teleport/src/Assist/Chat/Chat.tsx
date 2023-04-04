@@ -68,7 +68,7 @@ const LoadingContainer = styled.div`
 export function Chat() {
   const ref = useRef<HTMLDivElement>(null);
 
-  const { send, messages, streaming } = useMessages();
+  const { send, messages } = useMessages();
 
   const scrollTextarea = useCallback(() => {
     ref.current?.scrollIntoView({ behavior: 'smooth' });
@@ -106,17 +106,11 @@ export function Chat() {
 
           {items}
 
-          {streaming && (
-            <LoadingContainer>
-              <Dots />
-            </LoadingContainer>
-          )}
-
           <div ref={ref} />
         </Padding>
       </Content>
 
-      <ChatBox disabled={streaming} onSubmit={handleSubmit} />
+      <ChatBox onSubmit={handleSubmit} />
     </Container>
   );
 }
