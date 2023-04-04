@@ -3,7 +3,7 @@
 package api
 
 const (
-	Version = "11.3.9-walt.docker.3"
+	Version = "11.3.9-walt.docker.4"
 )
 
 // Gitref variable is automatically set to the output of git-describe

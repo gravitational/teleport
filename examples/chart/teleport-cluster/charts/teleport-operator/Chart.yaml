@@ -1,4 +1,4 @@
-.version: &version "11.3.9-walt.docker.3"
+.version: &version "11.3.9-walt.docker.4"
 
 name: teleport-operator
 apiVersion: v2
