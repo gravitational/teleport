@@ -781,11 +781,11 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocke
 		},
 	})
 	if err != nil {
-		return nil, client.MFARequiredUnknown(trace.Wrap(err))
+		return nil, trace.Wrap(client.MFARequiredUnknown(err))
 	}
 
 	if !mfaRequiredResp.Required {
-		return nil, client.MFARequiredUnknown(trace.AccessDenied("no access to %s", t.sessionData.ServerHostname))
+		return nil, trace.Wrap(client.MFARequiredUnknown(trace.AccessDenied("no access to %s", t.sessionData.ServerHostname)))
 	}
 
 	// perform mfa ceremony and retrieve new certs
