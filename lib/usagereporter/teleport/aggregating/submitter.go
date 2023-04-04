@@ -110,7 +110,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 
 	reports, err := svc.listUserActivityReports(ctx, submitBatchSize)
 	if err != nil {
-		c.Log.WithError(err).Errorf("Failed to load usage reports for submission.")
+		c.Log.WithError(err).Error("Failed to load usage reports for submission.")
 		return
 	}
 
@@ -152,7 +152,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			"reports":       len(reports),
 			"oldest_report": reports[0].GetStartTime().AsTime(),
 			"newest_report": reports[len(reports)-1].GetStartTime().AsTime(),
-		}).Errorf("Failed to send usage reports.")
+		}).Error("Failed to send usage reports.")
 
 		if time.Since(reports[0].StartTime.AsTime()) <= alertGraceDuration {
 			return
