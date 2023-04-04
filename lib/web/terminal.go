@@ -290,13 +290,6 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If the displayLogin is set then use it instead of the login name used in
-	// the SSH connection. This is specifically for the use case when joining
-	// a session to avoid displaying "-teleport-internal-join" as the username.
-	if t.displayLogin != "" {
-		t.sessionData.Login = t.displayLogin
-	}
-
 	sendError := func(errMsg string, err error, ws *websocket.Conn) {
 		envelope := &Envelope{
 			Version: defaults.WebsocketVersion,
@@ -308,7 +301,19 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	}
 
-	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	var sessionMetadataResponse []byte
+
+	// If the displayLogin is set then use it in the session metadata instead of the
+	// login name used in the SSH connection. This is specifically for the use case
+	// when joining a session to avoid displaying "-teleport-internal-join" as the username.
+	if t.displayLogin != "" {
+		sessionDataTemp := t.sessionData
+		sessionDataTemp.Login = t.displayLogin
+		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+	} else {
+		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	}
+
 	if err != nil {
 		sendError("unable to marshal session response", err, ws)
 		return
