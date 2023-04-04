@@ -3,7 +3,7 @@ authors: Trent Clarke (trent@goteleport.com)
 state: draft
 ---
 
-# RFD 45 - Buidlbox image Handling 
+# RFD XXXX - Buidlbox image Handling 
 
 ## What
 
@@ -76,6 +76,9 @@ On the other hand:
    buildbox to accept the new changes. This has recently caused issues where 
    updating the buildbox `go1.17.2` image to build Teleport 9 broke CI for 
    Teleport 8, as there is no way to differentiate the images they require.
+ * We are at the mercy of all of our upstream suppliers every time we do a
+   build. If one of our suppliers has a transient error, it's very likely to
+   impact our builds and our team.
 
 ### Suggested changes
 
