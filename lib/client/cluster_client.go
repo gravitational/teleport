@@ -134,9 +134,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 		jumpHosts := c.tc.JumpHosts
 		// In case of MFA connect to root teleport proxy instead of JumpHost to request
 		// MFA certificates.
-		if jumpHosts != nil {
-			c.tc.JumpHosts = nil
-		}
+		c.tc.JumpHosts = nil
 		clt, err := c.tc.ConnectToCluster(ctx)
 		c.tc.JumpHosts = jumpHosts
 		if err != nil {
