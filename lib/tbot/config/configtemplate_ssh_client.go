@@ -109,13 +109,26 @@ func getClusterNames(client auth.ClientI) ([]string, error) {
 	return allClusterNames, nil
 }
 
-func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(
+	ctx context.Context,
+	bot Bot,
+	currentIdentity *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
+	// We must use the impersonated identities client in order to ensure that
+	// the client can see the clusters that identity has access to, rather
+	// than the clusters that bot user has access to.
+	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, currentIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer authClient.Close()
+
 	ping, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)

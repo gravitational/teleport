@@ -218,8 +218,13 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
-	clusterName, err := authClient.GetClusterName()
+	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, currentIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer authClient.Close()
+
+	clusterName, err := authClient.GetDomainName(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -233,7 +238,7 @@ func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentit
 		clusterAddr:           kubeAddr,
 		proxyAddr:             authPong.ProxyPublicAddr,
 		credentials:           key,
-		teleportClusterName:   clusterName.GetClusterName(),
+		teleportClusterName:   clusterName,
 		kubernetesClusterName: destination.KubernetesCluster.ClusterName,
 	}
 

@@ -362,18 +362,9 @@ func (b *Bot) generateImpersonatedIdentity(
 	expires time.Time,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
-) (*identity.Identity, error) {
+) (routedImpIdentity *identity.Identity, impIdentity *identity.Identity, err error) {
 	ident, err := b.generateIdentity(
-		ctx, b.ident(), expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
-			// For now this is mutually exclusive to the other options, but
-			// eventually will be combinable with them.
-			// When this occurs, this may need to be integrated with the
-			// certificate creation process for app,db,k8s etc so that resources
-			// are searched for in the correct cluster.
-			if destCfg.Cluster != "" {
-				req.RouteToCluster = destCfg.Cluster
-			}
-		},
+		ctx, b.ident(), expires, destCfg, defaultRoles, nil,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -438,6 +429,16 @@ func (b *Bot) generateImpersonatedIdentity(
 
 		b.log.Infof("Generated identity for app %q", *destCfg.App)
 
+		return newIdent, nil
+	} else if destCfg.Cluster != "" {
+		newIdent, err := b.generateIdentity(
+			ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+				req.RouteToCluster = destCfg.Cluster
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		return newIdent, nil
 	}
 
