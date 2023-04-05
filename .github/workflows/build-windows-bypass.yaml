@@ -28,7 +28,7 @@ on:
 jobs:
   build:
     name: Build on Windows
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     permissions:
       contents: none

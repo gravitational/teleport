@@ -29,7 +29,7 @@ on:
 jobs:
   build:
     name: Build on Mac OS
-    runs-on: macos-12
+    runs-on: ubuntu-latest
 
     permissions:
       contents: none
