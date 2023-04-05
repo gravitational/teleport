@@ -23,17 +23,22 @@ import (
 	openai "github.com/sashabaranov/go-openai"
 )
 
+// Message represents a message within a live conversation.
+// Indexed by ID for frontend ordering and future partial message streaming.
 type Message struct {
 	Role    string
 	Content string
 	Idx     int
 }
 
+// Chat represents a conversation between a user and an assistant with context memory.
 type Chat struct {
 	client   *Client
 	messages []openai.ChatCompletionMessage
 }
 
+// Insert inserts a message into the conversation. This is commonly in the
+// form of a user's input but may also take the form of a system messages used for instructions.
 func (chat *Chat) Insert(role string, content string) Message {
 	chat.messages = append(chat.messages, openai.ChatCompletionMessage{
 		Role:    role,
@@ -47,9 +52,10 @@ func (chat *Chat) Insert(role string, content string) Message {
 	}
 }
 
+// Complete completes the conversation with a message from the assistant based on the current context.
 func (chat *Chat) Complete(ctx context.Context, maxTokens int) (Message, error) {
 	request := openai.ChatCompletionRequest{
-		Model:     openai.GPT3Dot5Turbo,
+		Model:     openai.GPT4,
 		MaxTokens: maxTokens,
 		Messages:  chat.messages,
 	}
@@ -59,6 +65,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (Message, error) 
 		return Message{}, trace.Wrap(err)
 	}
 
+	// there's always one choice but the API happens to model it as a list
 	content := response.Choices[0].Message.Content
 	chat.messages = append(chat.messages, openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleAssistant,

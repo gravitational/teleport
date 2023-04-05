@@ -41,15 +41,17 @@ const (
 )
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	// moved into a seperate function for error management/debug purposes
 	err := runAssistant(h, w, r, sctx)
 	if err != nil {
-		h.log.Error(trace.DebugReport(err))
+		h.log.Warn(trace.DebugReport(err))
 		return nil, trace.Wrap(err)
 	}
 
 	return nil, nil
 }
 
+// runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext) error {
 	authClient, err := sctx.GetClient()
 	if err != nil {
@@ -70,7 +72,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	}
 
-	keepAliveInterval := time.Minute * 5 // TODO(jakule)
+	keepAliveInterval := time.Minute // TODO(jakule)
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
@@ -132,6 +134,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			return trace.Wrap(err)
 		}
 
+		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Content)
 		msgJson, err := json.Marshal(chatMessage{Role: openai.ChatMessageRoleUser, Content: wsIncoming.Content})
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
@@ -143,11 +146,13 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			return trace.Wrap(err)
 		}
 
+		// query the assistant and fetch an answer
 		message, err := chat.Complete(r.Context(), 500)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
+		// write assistant message to both in-memory chain and persistent storage
 		msgJson, err = json.Marshal(chatMessage{Role: message.Role, Content: message.Content})
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,
