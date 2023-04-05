@@ -1,0 +1,306 @@
+---
+title: "AWS Route 53 GSLB Multi-Region Proxy Peering High Availability Deployment Guide"
+description: "Deploying a Proxy-peered High Availability Teleport Cluster using Route 53 to create Global Server Load Balancing"
+---
+
+When deploying Teleport in production, you should design your deployment to
+ensure that users can continue to access infrastructure should an outage or 
+incident affect the availability of your Teleport cluster. 
+
+In order to maintain optimal end-user 
+experience with minimal latency and maximum performance, it is imperative to ensure the scalability 
+of your Auth Service and Proxy Service to accommodate increasing numbers of users and connected resources.
+
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
+## Overview
+This deployment architecure makes all connected resources accessible through a single Teleport cluster 
+across multiple regions using exclusively AWS ecosystem infrastructure. 
+
+This is accomplished using AWS Route 53 to create Global Server Load Balancing (GSLB) 
+for the Teleport Cluster and Teleport Proxy Peering to reduce the number of connections 
+created through the cluster.
+
+This deployment architecture isn’t recommended for use cases where your users or resources are 
+clustered in a single region or for Managed Service Providers needing to provide separate clusters 
+to customers. Additionally, this architecture is not a solution for increasing the scalability of 
+a single cluster.
+
+We recommend this for globally distributed resources and end-users that prefer a single point of
+entry while also ensuring minimal latency when accessing connected resources.
+
+### Key deployment components
+- High Availability Teleport Cluster
+- Auth Servers must remain in a single region
+- Proxies are deployed across multiple regions
+- [AWS Route 53 latency based routing]([Latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
+       to create [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
+- [Teleport TLS Routing](https://goteleport.com/docs/architecture/tls-routing/) to reduce the number of ports needed to use Teleport
+- [Teleport Proxy Peering](https://goteleport.com/docs/architecture/proxy-peering/) for reducing the number of resource connections
+- [AWS Network Load Balancing](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
+- [AWS DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Introduction.html) for cluster state storage
+- [AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for session recording storage
+
+## Advantages of this deployment architecture
+- Eliminates the complexity maintaining multiple Teleport clusters across multiple regions
+- Uses the lowest latency path to connect users to resources
+- Provides a highly-resilient, redundant HA architecture for Teleport that can quickly 
+  scale with an organization’s needs.
+- All required Teleport components can be provisioned within the AWS ecosystem.
+- Using load balancers for the Proxy and Auth services allows for increased availability 
+  during Teleport Cluster upgrades. Instances can easily be removed and added while 
+  limiting impact to active users.
+
+## Disadvantages of this deployment architecture
+- When Teleport Auth servers are limited to a single region, there is a higher likelihood 
+  of decreased availability during an AWS regional outage.
+- Technically complex to deploy
+- Long-term cost may be a prohibitive factor for some organizations and can increase total 
+  cost of ownership (TCO) throughout the system’s lifetime cycle.
+
+
+![Diagram of a high-availability Teleport
+architecture](../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment.png)
+
+
+## AWS Network load balancer(NLB)
+For this deployment architecture we recommend using AWS NLBs if you plan 
+to use Teleport TLS routing and Proxy Peering. The NLB forwards traffic 
+from users and services to an available Teleport instance. This must not 
+terminate TLS, and must transparently forward the TCP traffic it receives. 
+In other words, this must be a Layer 4 load balancer, not a Layer 7 
+(e.g., HTTP) load balancer. 
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+We recommend enabling cross-zone load balancing for the Auth and Proxy service NLB configurations to route 
+traffic across multiple zones.Doing this improves resiliency against localized AWS zone outages.
+</Admonition>
+
+### Configure the Proxy Service NLBs
+Configure the load balancer to forward traffic from the following ports on the
+load balancer to the corresponding port on an available Teleport instance. The
+configuration depends on whether you route Proxy Peering GRPC traffic over 
+the public internet:
+
+<Tabs>
+<TabItem label="Public NLB Proxy ports">
+
+| Port | Description |
+| - | - |
+| `443` | ALPN port for TLS Routing,  HTTPS connections to authenticate `tsh` users into the cluster, and to serve a Web UI |
+| `3021`| Proxy Peering GRPC Stream  |
+
+</TabItem>
+<TabItem label="VPC peering Proxy NLB ports">
+
+These ports are required:
+
+| Port | Description |
+| - | - |
+| `443` | ALPN port for TLS Routing,  HTTPS connections to authenticate `tsh` users into the cluster, and to serve a Web UI  |
+
+</TabItem>
+</Tabs>
+
+### Configure the Auth Service NLB
+Configure the load balancer to forward traffic from the following ports on the
+load balancer to the corresponding port on an available Teleport instance.
+
+<Admonition
+  type="warning"
+  title="Note"
+>
+Proxies must have network access to the Auth Service NLB. You can accomplish this
+in the Route53 GSLB architecure using [VPC Peering](https://docs.aws.amazon.com/vpc/latest/peering/what-is-vpc-peering.html) 
+or [Transit Gateways](https://docs.aws.amazon.com/vpc/latest/tgw/what-is-transit-gateway.html).
+</Admonition>
+
+Internal NLB Auth Service ports
+
+| Port | Description |
+| - | - |
+| `3025` | TLS port used by the Auth Service to serve its API to other Nodes in a cluster |
+
+## Cluster state backend
+
+The Teleport Auth Service stores cluster state (such as dynamic configuration
+resources) and audit events as key/value pairs. In high-availability
+deployments, you must configure the Auth Service to manage this data in a
+key-value store that runs outside of your cluster of Teleport instances.
+
+For Amazon DynamoDB, your Teleport configuration (which
+we will describe in more detail in the [Configuration](#configuration) section)
+names a table or collection where Teleport stores cluster state and audit
+events. 
+
+The Teleport Auth Service manages the creation of any required DynamoDB tables itself, 
+and does not require them to exist in advance.
+
+<Admonition title="Required permissions">
+
+The Auth Service instances needs permissions to read from and write to DynamoDB, as well as 
+to create tables.
+
+</Admonition>
+
+## Session recording backend
+
+Highly available Teleport deployments use an object storage service for
+persisting session recordings.
+
+In your Teleport configuration (described in the [Configuration](#configuration)
+section), you must name an S3 bucket to use for managing session recordings. The Teleport Auth
+Service creates this bucket, so to prevent unexpected behavior, you should not
+create it in advance. 
+
+<Admonition title="Required permissions">
+
+The Auth Service instances need permissions to get S3 buckets as well as to create, get, list, 
+and update objects. Since this setup lets Teleport create buckets for you, you should also assign
+Auth Service instances permissions to create buckets
+
+</Admonition>
+
+## TLS credential provisioning 
+
+High-availability Teleport deployments require a  system to fetch TLS
+credentials from a certificate authority like Let's Encrypt, AWS Certificate
+Manager, Digicert, or a trusted internal authority. The system must then
+provision Teleport Proxy Service instances with these credentials and renew them
+periodically. 
+
+If you are running a single instance of the Teleport Auth Service and Proxy
+Service, you can configure this instance to fetch credentials for itself from
+Let's Encrypt using the [ACME ALPN-01
+challenge](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01), where
+Teleport demonstrates that it controls the ALPN server at the HTTPS address of
+your Teleport Proxy Service. Teleport also fetches a separate certificate for
+each application you have registered with Teleport, e.g.,
+`grafana.teleport.example.com`. 
+
+For high-availability deployments that use Let's Encrypt to supply TLS
+credentials to Teleport instances running behind a load balancer, you will need
+to use the [ACME
+DNS-01](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge)
+challenge to demonstrate domain name ownership to Let's Encrypt. In this
+challenge, your TLS credential provisioning system creates a DNS TXT record with
+a value expected by Let's Encrypt.
+
+In the configuration we are demonstrating in this guide, each Teleport Proxy
+Service instance expects TLS credentials for HTTPS to be available at the file
+paths `/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
+(certificate).
+
+## Global Server Load Balancing with Route 53
+
+[Latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
+in a private hosted zone must be used to ensure traffic from Teleport 
+resources are routed to the closest or lowest latency path Proxy NLB based on the region of 
+the VPC the resource is connecting from.
+
+To create GSLB routing, create a CNAME record for each region you have VPCs containing Teleport connected resources.
+It is recommeded to add a wildcard record for every region if you plan to use Teleport Appplication Access.
+
+The following CNAME record values need to be set:
+- **Value:** The domain name of the NLB where example-region-1 located Teleport resource traffic should be routed
+- **Routing policy:** Latency
+- **Region:** The AWS region from which traffic should be routed to the NLB listed in **Value**
+- **Health Check ID:** It is recommended that you set this so that traffic is always routed to a healthy NLB
+
+Example Hosted Zone using AWS Route53 Latency Routing to create GSLB:
+
+### Root GSLB record for Teleport:
+
+|Record name|Type|Value|
+|---|---|---|
+|```*teleport.example.com```|CNAME|AWS Route 53 nameservers|
+
+### Teleport Proxy DNS records for GSLB:
+|Record name|Type|Routing Policy|Region|Value|
+|---|---|---|---|---|
+|```teleport.example.com```|CNAME|Latency|us-west-1| ```elb.us-west-1.amazonaws.com``` |
+|```*.teleport.example.com```|CNAME|Latency|us-west-1| ```elb.us-west-1.amazonaws.com``` |
+|```teleport.example.com```|CNAME|Latency|eu-central-1| ```elb.eu_central-1.amazonaws.com```|
+|```*.teleport.example.com```|CNAME|Latency|eu-central-1| ```elb.eu_central-1.amazonaws.com```|
+
+<Admonition title="Required permissions">
+
+If you are using Let's Encrypt to provide TLS credentials to your Teleport
+instances, the TLS credential system we mentioned earlier needs permissions to
+manage Route53 DNS records in order to satisfy Let's Encrypt's DNS-01 challenge. 
+
+</Admonition>
+
+### Teleport resource agent configuration for GSLB
+To facilitate latency routing, resource agents  must be configured to point ```proxy_server:``` to 
+the GSLB domain configured in Route53 _not the specific proxy NLB address_.
+
+For example:
+
+```
+teleport:
+    nodename: ssh-node
+    ...
+    proxy_server: teleport.example.com:443
+    ...
+    ssh_service:
+        enabled: yes
+    ...
+```
+Review the [configuration reference](https://goteleport.com/docs/reference/config/) page for 
+additional settings.       
+
+## Configure Proxy Peering
+
+In this deployment architecure, Proxy Peering is used to restrict the number of connections made from 
+resources to proxies in the Teleport Cluster. Full Proxy Peering explanation and configuration details
+can be reviewed in the [Proxy Peering RFD](https://github.com/gravitational/teleport/blob/master/rfd/0069-proxy-peering.md).
+
+This guide covers the necessary Proxy Peering settings for deploying an HA Teleport Cluster routing resource
+traffic with GSLB. 
+
+### Auth Service Proxy Peering configuration 
+
+The Teleport Auth Service must be configured to use the proxy_peering tunnel strategy as shown in the example below:
+
+```
+auth_service:
+ ...
+ tunnel_strategy:
+  type: proxy_peering
+```
+Reference the [Auth Server configuration](https://goteleport.com/docs/reference/config/#auth-service) reference page 
+for additional settings.
+
+### Proxy Service Proxy Peering configuration 
+
+Proxies must advertise a peer address which can be configured to use one of the two options listed below:
+
+**Option 1:** You can set peer_public_addr: to the specific name of that proxy. This is the recommended 
+method for lowest latency and most reliable connection.
+
+```
+proxy_service:
+  ...
+  peer_public_addr: teleport.example.com:3021
+  ...
+```
+
+**Option 2:** Proxies can use peer_public_addr: to advertise the proxy NLB. When using this method 
+you could incur additional latency because peer proxies must continually dial through the NLB until 
+they establish connection to the correct peer target.
+
+When using an NLB for peer_public_addr, be sure to set agent_connection_count to a value >=2.
+
+```
+proxy_service:
+  ...
+  peer_public_addr: teleport-example-nlb-us-east-1.amazonaws.com:3021
+  agent_connection_count: 2
+  ...
+```
+Refrence the [Proxy Service configuration](https://goteleport.com/docs/reference/config/#proxy-service) reference page 
+for additional settings.
