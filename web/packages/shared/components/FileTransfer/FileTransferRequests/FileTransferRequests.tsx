@@ -1,9 +1,11 @@
 import React from 'react';
 import styled from 'styled-components';
-import { ButtonPrimary, ButtonSecondary, Box, Flex, Text } from 'design';
+import { ButtonBorder, Box, Flex, Text } from 'design';
+import * as Icons from 'design/Icon';
 
 export const FileTransferRequests = (props: FileTransferRequestsProps) => {
   const { requests } = props;
+
   return (
     <Container>
       <Flex justifyContent="space-between" alignItems="baseline">
@@ -12,7 +14,7 @@ export const FileTransferRequests = (props: FileTransferRequestsProps) => {
         </Text>
       </Flex>
       {requests.map(request => (
-        <Box mt={3} key={request.id}>
+        <Box mt={3} key={request.requestId}>
           <Text
             style={{
               wordBreak: 'break-word',
@@ -20,12 +22,20 @@ export const FileTransferRequests = (props: FileTransferRequestsProps) => {
             mb={2}
           >{`${request.requester} is requesting ${request.direction} of file ${request.location}`}</Text>
           <Flex gap={2}>
-            <ButtonPrimary block onClick={() => console.log('approve')}>
+            <ButtonBorder
+              block
+              onClick={() => props.onApprove(request.requestId, true)}
+            >
+              <Icons.Check fontSize="16px" mr={2} />
               Approve
-            </ButtonPrimary>
-            <ButtonSecondary block onClick={() => console.log('deny')}>
+            </ButtonBorder>
+            <ButtonBorder
+              block
+              onClick={() => props.onDeny(request.requestId, false)}
+            >
+              <Icons.Cross fontSize="16px" mr={2} />
               Deny
-            </ButtonSecondary>
+            </ButtonBorder>
           </Flex>
         </Box>
       ))}
@@ -34,7 +44,7 @@ export const FileTransferRequests = (props: FileTransferRequestsProps) => {
 };
 
 export type FileTransferRequest = {
-  id: string;
+  requestId: string;
   requester: string;
   approvers: string[];
   shellCmd: string;
@@ -44,6 +54,8 @@ export type FileTransferRequest = {
 
 type FileTransferRequestsProps = {
   requests: FileTransferRequest[];
+  onApprove: (string, boolean) => void;
+  onDeny: (string, boolean) => void;
 };
 
 const Container = styled.div`

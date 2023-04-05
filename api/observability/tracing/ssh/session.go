@@ -204,6 +204,26 @@ func (s *Session) WindowChange(ctx context.Context, h, w int) error {
 	return trace.Wrap(s.Session.WindowChange(h, w))
 }
 
+func (s *Session) ApproveFileTransfer(ctx context.Context, req FileTransferResponseReq) error {
+	const request = "file-transfer-request-response"
+	config := tracing.NewConfig(s.wrapper.opts)
+	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
+		ctx,
+		fmt.Sprintf("ssh.FileTransferRequestResponse/%t/%s", req.Approved, req.RequestID),
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String("ssh.Session"),
+			semconv.RPCMethodKey.String("SendRequest"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
+	s.wrapper.addContext(ctx, request)
+	_, err := s.Session.SendRequest(request, true, ssh.Marshal(req))
+	return err
+}
+
 func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferReq, cmd string) error {
 	const request = "file-transfer-request"
 	config := tracing.NewConfig(s.wrapper.opts)

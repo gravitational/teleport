@@ -41,7 +41,13 @@ import useGetScpUrl from './useGetScpUrl';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
-  const { tty, status, closeDocument } = useSshSession(doc);
+  const {
+    tty,
+    status,
+    closeDocument,
+    fileTransferRequests,
+    approveFileTransferRequest,
+  } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
   const { getScpUrl, attempt: getMfaResponseAttempt } = useGetScpUrl(
     webauthn.addMfaToScpUrls
@@ -76,7 +82,13 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
         )}
         {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
         <FileTransferContainer>
-          <FileTransferRequests requests={[]} />
+          {fileTransferRequests.length > 0 && (
+            <FileTransferRequests
+              onDeny={approveFileTransferRequest}
+              onApprove={approveFileTransferRequest}
+              requests={fileTransferRequests}
+            />
+          )}
           <FileTransfer
             beforeClose={() =>
               window.confirm('Are you sure you want to cancel file transfers?')

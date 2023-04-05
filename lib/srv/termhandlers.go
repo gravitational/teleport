@@ -129,6 +129,22 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	return nil
 }
 
+func (t *TermHandlers) HandleFileTransferResponseRequest(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	params, err := parseFileTransferResponseRequest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session := scx.getSession()
+	if session == nil {
+		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		return nil
+	}
+
+	session.approveFileTransferRequest(params, scx)
+	return nil
+}
+
 // HandleFileTransferRequest handles requests of type "file-transfer-request" which will
 // create a FileTransferRequest that will be sent to other members in the party to be
 // reviewed and approved/denied.
@@ -245,6 +261,19 @@ func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferParams, e
 		Location:  r.Location,
 		Direction: r.Direction,
 		ShellCmd:  r.ShellCmd,
+	}
+	return params, nil
+}
+
+func parseFileTransferResponseRequest(req *ssh.Request) (*rsession.FileTransferParams, error) {
+	var r sshutils.FileTransferResponseParams
+	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	params := &rsession.FileTransferParams{
+		RequestID: r.RequestID,
+		Approved:  r.Approved,
 	}
 	return params, nil
 }

@@ -18,6 +18,8 @@ import React from 'react';
 
 import { context, trace } from '@opentelemetry/api';
 
+import { FileTransferRequest } from 'shared/components/FileTransfer/FileTransferRequests/FileTransferRequests';
+
 import cfg from 'teleport/config';
 import { TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
@@ -40,9 +42,38 @@ export default function useSshSession(doc: DocumentSsh) {
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
   const [session, setSession] = React.useState<Session>(null);
   const [status, setStatus] = React.useState<Status>('loading');
+  const [fileTransferRequests, setFileTransferRequests] = React.useState<
+    FileTransferRequest[]
+  >([]);
 
   function closeDocument() {
     ctx.closeTab(doc);
+  }
+
+  function updateFileTransferRequests(data: FileTransferRequest) {
+    // We receive the same data type when a file transfer request is created and
+    // when an approve event happens. Check if we already have this request in our list. If not
+    // in our list, we add it
+    const foundRequest = fileTransferRequests.find(
+      ft => ft.requestId === data.requestId
+    );
+    if (!foundRequest) {
+      return setFileTransferRequests([...fileTransferRequests, data]);
+    }
+
+    // otherwise, we update it
+    const updatedFileTransferRequests = fileTransferRequests.map(ft => {
+      if (ft.requestId === data.requestId) {
+        return data;
+      }
+      return ft;
+    });
+
+    setFileTransferRequests(updatedFileTransferRequests);
+  }
+
+  function approveFileTransferRequest(requestId: string, approve: boolean) {
+    tty.approveFileTransferRequest(requestId, approve);
   }
 
   React.useEffect(() => {
@@ -68,6 +99,8 @@ export default function useSshSession(doc: DocumentSsh) {
             data.session.resourceName = data.session.server_hostname;
             handleTtyConnect(ctx, data.session, doc.id);
           });
+
+          tty.on(TermEvent.FILE_TRANSFER_REQUEST, updateFileTransferRequests);
 
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
@@ -103,6 +136,8 @@ export default function useSshSession(doc: DocumentSsh) {
     tty,
     status,
     session,
+    fileTransferRequests,
+    approveFileTransferRequest,
     closeDocument,
   };
 }

@@ -630,15 +630,17 @@ message FileTransferRequest {
     (gogoproto.jsontag) = ""
   ];
 
-  repeated string Approvers = 6 [(gogoproto.jsontag) = "approvers"];
+  string RequestID = 6 [(gogoproto.jsontag) = "requestId"];
 
-  string Requester = 7 [(gogoproto.jsontag) = "requester"];
+  repeated string Approvers = 7 [(gogoproto.jsontag) = "approvers"];
 
-  string Location = 8 [(gogoproto.jsontag) = "location"];
+  string Requester = 8 [(gogoproto.jsontag) = "requester"];
 
-  string Direction = 9 [(gogoproto.jsontag) = "direction"];
+  string Location = 9 [(gogoproto.jsontag) = "location"];
 
-  string ShellCmd = 10 [(gogoproto.jsontag) = "shellCmd"];
+  string Direction = 10 [(gogoproto.jsontag) = "direction"];
+
+  string ShellCmd = 11 [(gogoproto.jsontag) = "shellCmd"];
 }
 
 // Resize means that some user resized PTY on the client

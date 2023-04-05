@@ -186,6 +186,11 @@ func UnmarshalTerminalParams(s string) (*TerminalParams, error) {
 
 // FileTransferParams contain parameters for requesting a file transfer
 type FileTransferParams struct {
+	RequestID string `json:"requestId"`
+	Approved  bool   `json:"approved"`
+	// Response denotes if this is a response to a file transfer request.
+	// If true, the Approved field will be set. True = approved
+	Response bool `json:"response"`
 	// Direction is either upload or download
 	Direction string `json:"direction"`
 	// Location is location of file to download, or where to put an upload
@@ -196,6 +201,14 @@ type FileTransferParams struct {
 	Requester string `json:"requester"`
 	// Approvers is a list of teleport users who have approved the file transfer request
 	Approvers []Party `json:"approvers"`
+}
+
+func UnmarshalFileTransferResponseParams(requestId string, approved bool) (*FileTransferParams, error) {
+	return &FileTransferParams{
+		RequestID: requestId,
+		Approved:  approved,
+		Response:  true,
+	}, nil
 }
 
 // UnmarshalFileTransferParams takes a serialized string that contains the

@@ -45,6 +45,11 @@ type FileTransferReqParams struct {
 	ShellCmd  string
 }
 
+type FileTransferResponseParams struct {
+	RequestID string
+	Approved  bool
+}
+
 // PTYReqParams specifies parameters for pty change window
 type PTYReqParams struct {
 	Env   string
@@ -158,6 +163,8 @@ const (
 
 	// FileTransferRequest is a request to approve a file transfer
 	FileTransferRequest = "file-transfer-request"
+
+	FileTransferRequestResponse = "file-transfer-request-response"
 
 	// PTYRequest is a request for PTY.
 	PTYRequest = "pty-req"

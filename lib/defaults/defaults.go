@@ -657,7 +657,9 @@ const (
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
 
-	WebsocketFileTransferRequest = "t"
+	WebsocketFileTransferRequest = "f"
+
+	WebsocketFileTransferRequestResponse = "t"
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"

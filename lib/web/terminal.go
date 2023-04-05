@@ -812,16 +812,24 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileT
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferC:
-			shellCmd, err := t.getRemoteShellCmd(transferRequest)
-			if err != nil {
-				t.log.Error(err)
-				return
+			if transferRequest.Response {
+				t.sshSession.ApproveFileTransfer(t.terminalContext, tracessh.FileTransferResponseReq{
+					RequestID: transferRequest.RequestID,
+					Approved:  transferRequest.Approved,
+				})
+			} else {
+				shellCmd, err := t.getRemoteShellCmd(transferRequest)
+				if err != nil {
+					t.log.Error(err)
+					return
+				}
+				t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
+					Direction: transferRequest.Direction,
+					Location:  transferRequest.Location,
+					ShellCmd:  shellCmd,
+				}, shellCmd)
+
 			}
-			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
-				Direction: transferRequest.Direction,
-				Location:  transferRequest.Location,
-				ShellCmd:  shellCmd,
-			}, shellCmd)
 		}
 	}
 }
@@ -1133,6 +1141,25 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 			t.buffer = data[n:]
 		}
 		return n, nil
+	case defaults.WebsocketFileTransferRequestResponse:
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		approved, ok := e["approved"].(bool)
+		if !ok {
+			return 0, trace.BadParameter("Unable to find approved status on response")
+		}
+		params, err := session.UnmarshalFileTransferResponseParams(e.GetString("requestId"), approved)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		select {
+		case t.fileTransferC <- params:
+		default:
+		}
+		return 0, nil
 	case defaults.WebsocketFileTransferRequest:
 		var e events.EventFields
 		err := json.Unmarshal(data, &e)

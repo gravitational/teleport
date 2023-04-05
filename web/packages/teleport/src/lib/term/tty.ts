@@ -82,11 +82,22 @@ class Tty extends EventEmitterWebAuthnSender {
 
   sendFileTransferRequest(location: string, direction: 'upload' | 'download') {
     const message = JSON.stringify({
-      event: EventType.FILE_TRANSFER,
+      event: EventType.FILE_TRANSFER_REQUEST,
       direction,
       location,
     });
     const encoded = this._proto.encodeFileTransferRequest(message);
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  approveFileTransferRequest(requestId: string, approved: boolean) {
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_REQUEST_RESPONSE,
+      requestId,
+      approved,
+    });
+    const encoded = this._proto.encodeFileTransferRequestResponse(message);
     const bytearray = new Uint8Array(encoded);
     this.socket.send(bytearray);
   }
@@ -179,8 +190,9 @@ class Tty extends EventEmitterWebAuthnSender {
 
   _processAuditPayload(payload) {
     const event = JSON.parse(payload);
-    if (event.event === EventType.FILE_TRANSFER) {
-      console.log(event);
+    console.log('event', event);
+    if (event.event === EventType.FILE_TRANSFER_REQUEST) {
+      this.emit(TermEvent.FILE_TRANSFER_REQUEST, event);
     }
     if (event.event === EventType.RESIZE) {
       let [w, h] = event.size.split(':');

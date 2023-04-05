@@ -405,6 +405,7 @@ func (s *SessionRegistry) NotifyFileTransferRequest(ctx context.Context, req *fi
 			SessionID: session.ID(),
 		},
 		UserMetadata: scx.Identity.GetUserMetadata(),
+		RequestID:    req.id,
 		Requester:    req.requester,
 		Location:     req.location,
 		Direction:    req.direction,
@@ -412,13 +413,15 @@ func (s *SessionRegistry) NotifyFileTransferRequest(ctx context.Context, req *fi
 		Approvers:    make([]string, 0),
 	}
 
-	// audit event
+	for _, approver := range req.approvers {
+		fileTransferRequestEvent.Approvers = append(fileTransferRequestEvent.Approvers, approver.user)
+	}
 
 	for _, p := range session.getParties() {
 		// Don't send the file transfer request back to the originator.
-		// if p.ctx.ID() == scx.ID() {
-		// 	continue
-		// }
+		if p.ctx.ID() == scx.ID() {
+			continue
+		}
 
 		eventPayload, err := json.Marshal(fileTransferRequestEvent)
 		if err != nil {
@@ -1512,6 +1515,7 @@ func (s *session) checkPresence() error {
 }
 
 type fileTransferRequest struct {
+	id string
 	// requester is the Teleport User that requested the file transfer
 	requester string
 	// shellCmd is the requested scp command to run
@@ -1574,9 +1578,8 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferParams, sc
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	reqId := uuid.New().String()
 	req := s.newFileTransferRequest(params)
-	s.fileTransferRequests[reqId] = req
+	s.fileTransferRequests[req.id] = req
 	s.BroadcastMessage("User %s is requesting %s for file: %s", params.Requester, params.Direction, params.Location)
 
 	return req
@@ -1584,12 +1587,39 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferParams, sc
 
 func (s *session) newFileTransferRequest(params *rsession.FileTransferParams) *fileTransferRequest {
 	return &fileTransferRequest{
+		id:        uuid.New().String(),
 		requester: params.Requester,
 		location:  params.Location,
 		shellCmd:  params.ShellCmd,
 		direction: params.Direction,
 		approvers: make(map[string]*party),
 	}
+}
+
+func (s *session) approveFileTransferRequest(params *rsession.FileTransferParams, scx *ServerContext) (*fileTransferRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	fileTransferReq := s.fileTransferRequests[params.RequestID]
+	if fileTransferReq == nil {
+		return nil, trace.NotFound("File Transfer Request %s not found", params.RequestID)
+	}
+
+	var approver *party
+	for _, p := range s.getParties() {
+		if p.ctx.ID() == scx.ID() {
+			approver = p
+		}
+	}
+	if approver == nil {
+		return nil, trace.AccessDenied("Cannot approve file transfer requests if not in the current moderated session")
+	}
+
+	fileTransferReq.approvers[approver.user] = approver
+
+	// checkIfPolicyFulfilled
+
+	return fileTransferReq, nil
 }
 
 // addParty is called when a new party joins the session.
