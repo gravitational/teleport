@@ -1671,6 +1671,14 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_headless,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // Assist is a set of options related to the Teleport Assist feature.
+  AssistOptions Assist = 16 [(gogoproto.jsontag) = "assist,omitempty"];
+}
+
+// AssistOptions is a set of options related to the Teleport Assist feature.
+message AssistOptions {
+  string ApiKey = 1 [(gogoproto.jsontag) = "api_key,omitempty"];
 }
 
 // U2F defines settings for U2F device.
