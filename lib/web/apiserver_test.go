@@ -1920,12 +1920,11 @@ func TestWebAgentForward(t *testing.T) {
 }
 
 func TestActiveSessions(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
-	pack := s.authPack(t, "foo")
-
 	// Use enterprise license (required for moderated sessions).
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo")
 
 	start := time.Now()
 	kinds := []types.SessionKind{
@@ -6738,6 +6737,10 @@ func (mock authProviderMock) IsMFARequired(ctx context.Context, req *authproto.I
 }
 
 func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error) {
+	return nil, nil
+}
+
+func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
 	return nil, nil
 }
 
