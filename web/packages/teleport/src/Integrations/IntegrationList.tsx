@@ -27,14 +27,14 @@ import { IntegrationCode } from 'teleport/services/integrations';
 
 import type { Integration, Plugin } from 'teleport/services/integrations';
 
-type Props<Integrations> = {
-  list: Integrations[];
-  onDelete(i: Integrations): void;
+type Props<IntegrationLike> = {
+  list: IntegrationLike[];
+  onDelete(i: IntegrationLike): void;
 };
 
-type Integrations = Integration | Plugin;
+type IntegrationLike = Integration | Plugin;
 
-export function IntegrationList(props: Props<Integrations>) {
+export function IntegrationList(props: Props<IntegrationLike>) {
   return (
     <Table
       pagination={{ pageSize: 20 }}
@@ -71,39 +71,13 @@ export function IntegrationList(props: Props<Integrations>) {
   );
 }
 
-const StatusCell = ({ item }: { item: Integrations }) => {
-  let success;
-  let warning;
-  let error;
-
-  if (item.resourceType === 'plugin') {
-    if (item.statusCode === 'Running') {
-      success = true;
-    } else if (
-      item.statusCode === 'Unauthorized' ||
-      item.statusCode === 'Unknown error'
-    ) {
-      error = true;
-    } else if (item.statusCode === 'Bot not invited to channel') {
-      warning = true;
-    }
-  } else {
-    // default to integration resource type.
-    if (item.statusCode === IntegrationCode.Running) {
-      success = true;
-    } else if (item.statusCode === IntegrationCode.Paused) {
-      warning = true;
-    } else if (item.statusCode === IntegrationCode.Error) {
-      error = true;
-    }
-  }
-
-  // If no status code were matched, defaults to unknown.
+const StatusCell = ({ item }: { item: IntegrationLike }) => {
+  const status = getStatus(item);
 
   return (
     <Cell>
       <Flex alignItems="center">
-        <StatusLight success={success} warning={warning} error={error} />
+        <StatusLight status={status} />
         {item.statusCodeText}
       </Flex>
     </Cell>
@@ -124,26 +98,60 @@ const ActionCell = ({ onDelete }: { onDelete: () => void }) => {
   );
 };
 
+enum Status {
+  Success,
+  Warning,
+  Error,
+}
+
+function getStatus(item: IntegrationLike) {
+  if (item.resourceType === 'plugin') {
+    switch (item.statusCode) {
+      case 'Running':
+        return Status.Success;
+
+      case 'Unauthorized':
+      case 'Unknown error':
+        return Status.Error;
+
+      case 'Bot not invited to channel':
+        return Status.Warning;
+    }
+    return;
+  }
+
+  switch (item.statusCode) {
+    case IntegrationCode.Running:
+      return Status.Success;
+
+    case IntegrationCode.Paused:
+      return Status.Warning;
+
+    case IntegrationCode.Error:
+      return Status.Error;
+  }
+}
+
 const StatusLight = styled(Box)`
   border-radius: 50%;
   margin-right: 4px;
   width: 8px;
   height: 8px;
-  background-color: ${({ success, error, warning, theme }) => {
-    if (success) {
+  background-color: ${({ status, theme }) => {
+    if (status === Status.Success) {
       return theme.colors.success;
     }
-    if (error) {
+    if (status === Status.Error) {
       return theme.colors.error.light;
     }
-    if (warning) {
+    if (status === Status.Warning) {
       return theme.colors.warning;
     }
     return theme.colors.grey[300]; // Unknown
   }};
 `;
 
-const IconCell = ({ item }: { item: Integrations }) => {
+const IconCell = ({ item }: { item: IntegrationLike }) => {
   let formattedText;
   let icon;
   if (item.resourceType === 'plugin') {

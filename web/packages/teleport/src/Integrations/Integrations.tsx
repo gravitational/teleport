@@ -23,10 +23,10 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-// import useTeleport from 'teleport/useTeleport';
+import useTeleport from 'teleport/useTeleport';
 import { integrationService } from 'teleport/services/integrations';
 
-// import { IntegrationsAddButton } from './IntegrationsAddButton';
+import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationList } from './IntegrationList';
 
 import type { Integration } from 'teleport/services/integrations';
@@ -35,8 +35,8 @@ export function Integrations() {
   const [items, setItems] = useState<Integration[]>([]);
   const { attempt, run } = useAttempt('processing');
 
-  // const ctx = useTeleport();
-  // const canCreateIntegrations = ctx.storeUser.getIntegrationsAccess().create;
+  const ctx = useTeleport();
+  const canCreateIntegrations = ctx.storeUser.getIntegrationsAccess().create;
 
   useEffect(() => {
     run(() => integrationService.fetchIntegrations().then(setItems));
@@ -46,8 +46,7 @@ export function Integrations() {
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
-        {/* TODO(lisa): enable once enroll screen is moved to OS */}
-        {/* <IntegrationsAddButton canCreate={canCreateIntegrations} /> */}
+        <IntegrationsAddButton canCreate={canCreateIntegrations} />
       </FeatureHeader>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
       {attempt.status === 'processing' && (

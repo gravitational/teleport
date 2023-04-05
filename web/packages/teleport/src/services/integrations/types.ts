@@ -29,9 +29,9 @@
  * into one list.
  */
 export type Integration<
-  T = 'integration',
-  S = IntegrationCode,
-  K = IntegrationKind
+  T extends string = 'integration',
+  S extends string | number = IntegrationCode,
+  K extends string = IntegrationKind
 > = {
   name: string;
   details: string;
