@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	ogAlertKeyPrefix = "teleport-access-request"
+	alertKeyPrefix = "teleport-access-request"
 )
 
 var alertBodyTemplate = template.Must(template.New("alert body").Parse(
@@ -95,7 +95,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 
 	body := AlertBody{
 		Message:     fmt.Sprintf("Access request from %s", reqData.User),
-		Alias:       fmt.Sprintf("%s/%s", ogAlertKeyPrefix, reqID),
+		Alias:       fmt.Sprintf("%s/%s", alertKeyPrefix, reqID),
 		Description: bodyDetails,
 		Responders:  og.getResponders(reqData),
 		Priority:    og.Priority,
@@ -178,7 +178,7 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 		SetPathParams(map[string]string{"scheduleName": scheduleName}).
 		SetQueryParams(map[string]string{
 			"scheduleIdentifierType": "name",
-			// When flat is enabled it returns user names of on-call participants.
+			// When flat is enabled it returns the email addresses of on-call participants.
 			"flat": "true",
 		}).
 		SetResult(&result).

@@ -40,6 +40,7 @@ const ResolvedApproved = ResolutionTag("approved")
 const ResolvedDenied = ResolutionTag("denied")
 const ResolvedExpired = ResolutionTag("expired")
 
+// ReqAnnotationRespondersKey is the key in access requests where on-call shedule names are stored.
 const ReqAnnotationRespondersKey = "teleport.dev/opsgenie-responder"
 
 // RequestData stores a slice of some request fields in a convenient format.
