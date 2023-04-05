@@ -30,12 +30,12 @@ export default function Index() {
   });
 
   React.useEffect(() => {
-    async function fetchUserContext() {
+    async function initUserContext() {
       const user = await userService.fetchUserContext();
       ctx.setStoreUser(user);
     }
 
-    fetchUserContext();
+    initUserContext();
   }, []);
 
   return (
