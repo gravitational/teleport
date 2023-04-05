@@ -44,3 +44,22 @@ func TestStatusFromStatusCode(t *testing.T) {
 		})
 	}
 }
+
+func TestStatusFromResponse(t *testing.T) {
+	testCases := []struct {
+		name               string
+		response           *APIResponse
+		expectedStatusCode types.PluginStatusCode
+	}{
+		{"ok", &APIResponse{Ok: true}, types.PluginStatusCode_RUNNING},
+		{"not_in_channel", &APIResponse{Error: "not_in_channel"}, types.PluginStatusCode_SLACK_NOT_IN_CHANNEL},
+		{"unauthorized", &APIResponse{Error: "token_revoked"}, types.PluginStatusCode_UNAUTHORIZED},
+		{"other", &APIResponse{Error: "some_error"}, types.PluginStatusCode_OTHER_ERROR},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expectedStatusCode, statusFromResponse(tc.response).GetCode())
+		})
+	}
+}
