@@ -30,7 +30,7 @@ type ghaBuildType struct {
 	timeout      time.Duration
 	slackOnError bool
 	dependsOn    []string
-	inputs       map[string]string
+	inputs       []string
 }
 
 func ghaBuildPipeline(b ghaBuildType) pipeline {
@@ -54,8 +54,8 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 		fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
 	}
 
-	for k, v := range b.inputs {
-		fmt.Fprintf(&cmd, `-input "%s=%s" `, k, v)
+	for _, input := range b.inputs {
+		fmt.Fprintf(&cmd, `-input "%s" `, input)
 	}
 
 	p.Steps = []step{

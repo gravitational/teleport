@@ -198,7 +198,7 @@ func tagPipelines() []pipeline {
 		workflowRef:  "${DRONE_TAG}",
 		timeout:      60 * time.Minute,
 		dependsOn:    []string{tagCleanupPipelineName},
-		inputs:       map[string]string{"upload-artifacts": "true"},
+		inputs:       []string{"upload-artifacts=true"},
 	}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
