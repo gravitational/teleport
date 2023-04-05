@@ -142,10 +142,13 @@ func (r reportService) listUserActivityReports(ctx context.Context, count int) (
 	return reports, nil
 }
 
-func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl time.Duration) error {
+func (r reportService) createUserActivityReportsLock(ctx context.Context, ttl time.Duration, payload []byte) error {
+	if len(payload) == 0 {
+		payload = []byte("null")
+	}
 	if _, err := r.b.Create(ctx, backend.Item{
 		Key:     backend.Key(userActivityReportsLock),
-		Value:   []byte("null"),
+		Value:   payload,
 		Expires: r.b.Clock().Now().UTC().Add(ttl),
 	}); err != nil {
 		return trace.Wrap(err)

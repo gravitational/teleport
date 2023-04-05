@@ -69,6 +69,10 @@ type SubmitterConfig struct {
 	Status services.StatusInternal
 	// Submitter is used to submit usage reports. Required.
 	Submitter UsageReportsSubmitter
+
+	// HostID is the host ID of the current Teleport instance, used in the lock
+	// payload and cluster alert description to help debugging. Optional.
+	HostID string
 }
 
 // CheckAndSetDefaults checks the [SubmitterConfig] for validity, returning nil
@@ -140,7 +144,8 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 		return
 	}
 
-	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration); err != nil {
+	debugPayload := fmt.Sprintf("%v %q", time.Now().Round(0), c.HostID)
+	if err := svc.createUserActivityReportsLock(ctx, submitLockDuration, []byte(debugPayload)); err != nil {
 		if trace.IsAlreadyExists(err) {
 			c.Log.Debugf("Failed to acquire lock %v, already held.", userActivityReportsLock)
 		} else {
@@ -176,6 +181,7 @@ func submitOnce(ctx context.Context, c SubmitterConfig) {
 			c.Log.WithError(err).Errorf("Failed to create cluster alert %v.", alertName)
 			return
 		}
+		alert.Metadata.Description = debugPayload
 		if err := c.Status.UpsertClusterAlert(ctx, alert); err != nil {
 			c.Log.WithError(err).Errorf("Failed to upsert cluster alert %v.", alertName)
 		}
