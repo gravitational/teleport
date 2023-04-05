@@ -1169,6 +1169,8 @@ should set environment when extraEnv set in values if action is Upgrade:
       env:
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
+      - name: KUBE_CLUSTER
+        value: helm-lint.example.com
       image: public.ecr.aws/gravitational/teleport:13.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
