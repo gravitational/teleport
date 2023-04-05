@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -33,6 +34,7 @@ import (
 
 const slackMaxConns = 100
 const slackHTTPTimeout = 10 * time.Second
+const statusEmitTimeout = 10 * time.Second
 
 // Bot is a slack client that works with AccessRequest.
 // It's responsible for formatting and posting a message on Slack when an
@@ -47,11 +49,19 @@ type Bot struct {
 // onAfterResponseSlack resty error function for Slack
 func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *resty.Response) error {
 	return func(_ *resty.Client, resp *resty.Response) error {
-		var status types.PluginStatus
+		status := statusFromStatusCode(resp.StatusCode())
 		defer func() {
-			common.TryEmitStatus(context.TODO(), sink, status)
+			if sink == nil {
+				return
+			}
+
+			// No context in scope, use background with a reasonable timeout
+			ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
+			defer cancel()
+			if err := sink.Emit(ctx, status); err != nil {
+				log.Errorf("Error while emitting plugin status: %v", err)
+			}
 		}()
-		status = statusFromStatusCode(resp.StatusCode())
 
 		if !resp.IsSuccess() {
 			return trace.Errorf("slack api returned unexpected code %v", resp.StatusCode())

@@ -19,24 +19,10 @@ package common
 import (
 	"context"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/gravitational/teleport/api/types"
 )
 
 // StatusSink defines a destination for PluginStatus
 type StatusSink interface {
 	Emit(ctx context.Context, s types.PluginStatus) error
-}
-
-// TryEmitStatus tries to emit status (if the sink set).
-// It logs an error, but does not fail if emitting the status fails.
-func TryEmitStatus(ctx context.Context, sink StatusSink, s types.PluginStatus) {
-	if sink == nil {
-		return
-	}
-
-	if err := sink.Emit(ctx, s); err != nil {
-		log.Errorf("Error while emitting plugin status: %v", err)
-	}
 }
