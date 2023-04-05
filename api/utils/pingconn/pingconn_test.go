@@ -299,7 +299,7 @@ func makePingConn(t *testing.T) (pingConn, pingConn) {
 	return New(writer), New(reader)
 }
 
-// makePingTLSConn creates a piped ping connection.
+// makePingTLSConn creates a piped TLS ping connection.
 func makePingTLSConn(t *testing.T) (pingConn, pingConn) {
 	t.Helper()
 
