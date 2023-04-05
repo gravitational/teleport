@@ -113,6 +113,9 @@ const cfg = {
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
+    integrations: '/web/integrations',
+    integrationEnroll: '/web/integrations/new/:type?',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -211,6 +214,9 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
+    // TODO(lisa): requires backend change
+    integrationsPath: '/v1/webapi/integrations',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -284,6 +290,10 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getIntegrationEnrollRoute(type?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getNodesRoute(clusterId: string) {
@@ -604,6 +614,10 @@ const cfg = {
     return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
       tokenId,
     });
+  },
+
+  getIntegrationsUrl() {
+    return cfg.api.integrationsPath;
   },
 
   getUIConfig() {
