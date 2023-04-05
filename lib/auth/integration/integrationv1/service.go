@@ -38,6 +38,29 @@ type ServiceConfig struct {
 	Logger     *logrus.Entry
 }
 
+// CheckAndSetDefaults checks the ServiceConfig fields and returns an error if
+// a required param is not provided.
+// Authorizer, Cache and Backend are required params
+func (s *ServiceConfig) CheckAndSetDefaults() error {
+	if s.Cache == nil {
+		return trace.BadParameter("cache is required")
+	}
+
+	if s.Backend == nil {
+		return trace.BadParameter("backend is required")
+	}
+
+	if s.Authorizer == nil {
+		return trace.BadParameter("authorizer is required")
+	}
+
+	if s.Logger == nil {
+		s.Logger = logrus.WithField(trace.Component, "integrations.service")
+	}
+
+	return nil
+}
+
 // Service implements the teleport.integration.v1.IntegrationService RPC service.
 type Service struct {
 	integrationpb.UnimplementedIntegrationServiceServer
@@ -49,15 +72,8 @@ type Service struct {
 
 // NewService returns a new Integrations gRPC service.
 func NewService(cfg *ServiceConfig) (*Service, error) {
-	switch {
-	case cfg.Cache == nil:
-		return nil, trace.BadParameter("cache is required")
-	case cfg.Backend == nil:
-		return nil, trace.BadParameter("backend is required")
-	case cfg.Authorizer == nil:
-		return nil, trace.BadParameter("authorizer is required")
-	case cfg.Logger == nil:
-		cfg.Logger = logrus.WithField(trace.Component, "integrations.service")
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &Service{

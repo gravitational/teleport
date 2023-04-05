@@ -147,7 +147,7 @@ func (ig *IntegrationV1) SetAWSOIDCIntegrationSpec(awsOIDCSpec *AWSOIDCIntegrati
 // It can be one of:
 // - paused: integration was just configured or was disabled by the user
 // - running: integration is ready to do requests
-// - error: integration has an error and should
+// - error: integration has an error and should be fixed to enable the integration
 func (ig *IntegrationV1) GetStatusCode() IntegrationSpecV1_IntegrationStatus {
 	return ig.Spec.Status
 }
@@ -156,7 +156,7 @@ func (ig *IntegrationV1) GetStatusCode() IntegrationSpecV1_IntegrationStatus {
 // It can be one of:
 // - paused: integration was just configured or was disabled by the user
 // - running: integration is ready to do requests
-// - error: integration has an error and should
+// - error: integration has an error and should be fixed to enable the integration
 func (ig *IntegrationV1) GetStatus() string {
 	return ig.Spec.Status.String()
 }
