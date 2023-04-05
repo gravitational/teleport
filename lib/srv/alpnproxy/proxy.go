@@ -411,7 +411,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 
 // handlePingConnection starts the server ping routine and returns `pingConn`.
 func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) net.Conn {
-	pingConn := pingconn.New(conn)
+	pingConn := pingconn.NewTLS(conn)
 
 	// Start ping routine. It will continuously send pings in a defined
 	// interval.
