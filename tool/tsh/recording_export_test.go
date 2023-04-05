@@ -87,7 +87,7 @@ func TestWriteMovieMultipleScreenSpecs(t *testing.T) {
 }
 
 func TestWriteMovieWritesOneFrame(t *testing.T) {
-	oneFrame := float64(frameDelayMillis)
+	oneFrame := float64(frameDelayMs)
 	// need a PNG that will actually decode
 	events := []apievents.AuditEvent{
 		tdpEventMillis(t, tdp.ClientScreenSpec{Width: 128, Height: 128}, 0),

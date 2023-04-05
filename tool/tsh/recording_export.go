@@ -25,6 +25,7 @@ import (
 	"image/jpeg"
 	"image/png"
 	"os"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/icza/mjpeg"
@@ -36,8 +37,8 @@ import (
 )
 
 const (
-	framesPerSecond  = 30
-	frameDelayMillis = float64(1000) / framesPerSecond
+	framesPerSecond = 30
+	frameDelayMs    = float64(1000) / framesPerSecond
 )
 
 func onExportRecording(cf *CLIConf) error {
@@ -75,10 +76,35 @@ func onExportRecording(cf *CLIConf) error {
 func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, fname string) (int, error) {
 	var screen *image.NRGBA
 	var movie mjpeg.AviWriter
-
-	lastEmitted := int64(-1)
 	buf := new(bytes.Buffer)
+
+	// Bookeeping variables
+	var previousFrameEventTime time.Time
+	var previousFrameDelayMs int64
 	frameCount := 0
+
+	writeFrames := func(timeSinceLastFrameMs int64, evt *apievents.DesktopRecording) error {
+		framesToEmit := int64(float64(timeSinceLastFrameMs) / frameDelayMs)
+		if framesToEmit > 0 {
+			log.Debugf("%dms since last frame, emitting %d frames", timeSinceLastFrameMs, framesToEmit)
+			buf.Reset()
+			if err := jpeg.Encode(buf, screen, nil); err != nil {
+				return trace.Wrap(err)
+			}
+			for i := 0; i < int(framesToEmit); i++ {
+				if err := movie.AddFrame(buf.Bytes()); err != nil {
+					return trace.Wrap(err)
+				}
+				frameCount++
+			}
+			if evt != nil {
+				previousFrameDelayMs = evt.DelayMilliseconds
+				previousFrameEventTime = evt.Time
+			}
+		}
+
+		return nil
+	}
 
 	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
 loop:
@@ -104,7 +130,23 @@ loop:
 			switch evt := evt.(type) {
 			case *apievents.SessionStart:
 				return frameCount, trace.BadParameter("only desktop recordings can be exported")
+			case *apievents.WindowsDesktopSessionStart:
+				log.Debug("beginnning desktop recording export")
 			case *apievents.WindowsDesktopSessionEnd:
+				// We've reached the last event in the session, but there
+				// still be more time to play in the recording. This can happen
+				// for example if the user sits on an unchanging screen for a time
+				// before the session times out.
+				//
+				// Because WindowsDesktopSessionEnd doesn't have a DelayMilliseconds field,
+				// we need to calculate the time since last frame using the evt.Time fields.
+				endEventTime := evt.Time
+				timeSinceLastFrameMs := int64(endEventTime.Sub(previousFrameEventTime)) / 1_000_000
+				err := writeFrames(timeSinceLastFrameMs, nil)
+				if err != nil {
+					return frameCount, trace.Wrap(err)
+				}
+				log.Debugf("made up for an additional [%d] seconds between last DesktopRecording and WindowsDesktopSessionEnd event", timeSinceLastFrameMs/1000)
 				break loop
 			case *apievents.DesktopRecording:
 				msg, err := tdp.Decode(evt.Message)
@@ -152,29 +194,19 @@ loop:
 						fragment.Bounds().Min,
 						draw.Src,
 					)
+				}
 
-					// emit a frame if there's been enough of a time lapse between last event
-					delta := evt.DelayMilliseconds - lastEmitted
-					framesToEmit := int64(float64(delta) / frameDelayMillis)
-					log.Debugf("%dms since last frame, emitting %d frames", delta, framesToEmit)
-					if framesToEmit > 0 {
-						buf.Reset()
-						if err := jpeg.Encode(buf, screen, nil); err != nil {
-							return frameCount, trace.Wrap(err)
-						}
-						for i := 0; i < int(framesToEmit); i++ {
-							if err := movie.AddFrame(buf.Bytes()); err != nil {
-								return frameCount, trace.Wrap(err)
-							}
-							frameCount++
-						}
-						lastEmitted = evt.DelayMilliseconds
-					}
-
+				// emit a frame if there's been enough of a time lapse between
+				// the last frame and this event DesktopRecording event
+				timeSinceLastFrameMs := evt.DelayMilliseconds - previousFrameDelayMs
+				err = writeFrames(timeSinceLastFrameMs, evt)
+				if err != nil {
+					return frameCount, trace.Wrap(err)
 				}
 			default:
 				log.Debugf("got unexpected audit event %T", evt)
 			}
+
 		}
 	}
 
