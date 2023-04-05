@@ -19,6 +19,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -104,8 +105,13 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
+	bs, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(bs))
+
 	var clusters []ui.Cluster
-	require.NoError(t, json.NewDecoder(resp.Body).Decode(&clusters))
+	require.NoError(t, json.Unmarshal(bs, &clusters), string(bs))
 	require.NotEmpty(t, clusters)
 
 	webClient.clusterName = clusters[0].Name
@@ -116,11 +122,11 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Returns the http.Response.
 func (w *WebClientPack) DoRequest(method, endpoint string, payload any) (*http.Response, error) {
+	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
 	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
-	u := url.URL{
-		Scheme: "https",
-		Host:   w.host,
-		Path:   fmt.Sprintf("/v1/webapi/%s", endpoint),
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	bs, err := json.Marshal(payload)
