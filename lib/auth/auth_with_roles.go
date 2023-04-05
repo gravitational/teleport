@@ -5824,6 +5824,21 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	return trace.Wrap(err)
 }
 
+func (a *ServerWithRoles) GetAssistantConversation(ctx context.Context, id string) (*proto.GetAssistantConversationResponse, error) {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return a.authServer.GetAssistantConversation(ctx, &proto.GetAssistantConversationRequest{Id: id})
+}
+
+func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return a.authServer.CreateAssistantConversation(ctx, req)
+}
+
+func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return a.authServer.GetAssistantConversations(ctx, request)
+}
+
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
 	// TODO(jakule): Check if user has access to given conversation ID

@@ -714,7 +714,22 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
+	// POST /webapi/assist/conversations to create a new conversation - the frontend will get the conversation ID in the response
+	// POST /webapi/assist/title with the conversation ID to create the title - frontend will get the title in the response. In the background the title will be also updated in the backend.
+	// GET /webapi/assist/conversations - to get all conversations IDs with titles
+	// GET /webapi/assist/conversations/UUID with conversation ID - returns conversation title and all messages
+	// WS - Joel is working on it, but we can remove the messages
+
 	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
+
+	h.POST("/webapi/assistant/title", h.WithAuth(h.generateAssistantTitle))
+
+	// POST /webapi/assist/conversations to create a new conversation - the frontend will get the conversation ID in the response
+	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
+
+	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
+
+	h.GET("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.getAssistantConversationByID))
 
 	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
 }

@@ -4942,6 +4942,36 @@ func (a *Server) InsertAssistantMessage(ctx context.Context, msg *proto.Assistan
 	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, username, msg))
 }
 
+func (a *Server) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := a.Services.CreateAssistantConversation(ctx, username, req)
+	return resp, trace.Wrap(err)
+}
+
+func (a *Server) GetAssistantConversation(ctx context.Context, request *proto.GetAssistantConversationRequest) (*proto.GetAssistantConversationResponse, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := a.Services.GetAssistantConversation(ctx, username, request)
+	return resp, trace.Wrap(err)
+}
+
+func (a *Server) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	username, err := authz.GetClientUsername(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := a.Services.GetAssistantConversations(ctx, username, request)
+	return resp, trace.Wrap(err)
+}
+
 // CompareAndSwapHeadlessAuthentication performs a compare
 // and swap replacement on a headless authentication resource.
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {

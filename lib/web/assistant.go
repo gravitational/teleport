@@ -40,6 +40,61 @@ const (
 	kindChatTextMessage = "CHAT_TEXT_MESSAGE"
 )
 
+func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req := &proto.CreateAssistantConversationRequest{}
+
+	resp, err := authClient.CreateAssistantConversation(r.Context(), req)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+func (h *Handler) getAssistantConversationByID(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	q := r.URL.Query()
+	conversationID := q.Get("conversation_id")
+
+	resp, err := authClient.GetAssistantMessages(r.Context(), conversationID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.GetAssistantConversationResponse{ // TODO(jakule): think about it.
+		Id:       conversationID,
+		Title:    "",
+		Messages: resp.Messages,
+	}, err
+}
+
+func (h *Handler) getAssistantConversations(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := authClient.GetAssistantConversations(r.Context(), &proto.GetAssistantConversationsRequest{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, err
+}
+
+func (h *Handler) generateAssistantTitle(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	return nil, trace.NotImplemented("handler is not implemented")
+}
+
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
 	// moved into a separate function for error management/debug purposes
 	err := runAssistant(h, w, r, sctx)

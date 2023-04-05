@@ -273,6 +273,11 @@ type Identity interface {
 	// CreateAssistantMessage adds the message to the backend.
 	CreateAssistantMessage(ctx context.Context, username string, msg *proto.AssistantMessage) error
 
+	CreateAssistantConversation(ctx context.Context, username string, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
+
+	GetAssistantConversations(ctx context.Context, username string, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
+	GetAssistantConversation(ctx context.Context, username string, request *proto.GetAssistantConversationRequest) (*proto.GetAssistantConversationResponse, error)
+
 	types.WebSessionsGetter
 	types.WebTokensGetter
 
