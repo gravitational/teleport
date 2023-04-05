@@ -65,7 +65,7 @@ func TestGetKubeCredentialData(t *testing.T) {
 		},
 	}
 
-	data, err := getCredentialData(idFile, clock)
+	data, err := getCredentialData(idFile, clock.Now())
 	require.NoError(t, err)
 
 	var parsed map[string]interface{}
