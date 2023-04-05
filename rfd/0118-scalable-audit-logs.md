@@ -3,7 +3,7 @@ authors: Tobiasz Heller (tobiasz.heller@goteleport.com)
 state: draft
 ---
 
-# RFD XXXXE - Scalable audit logs
+# RFD 0118 - Scalable audit logs
 
 ## Required Approvers
 
