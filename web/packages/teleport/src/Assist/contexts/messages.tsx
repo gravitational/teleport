@@ -45,7 +45,26 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
 
   const history = useHistory();
 
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      author: Author.Teleport,
+      content: [
+        {
+          type: Type.Connect,
+          value: ['lb001-production', 'lb002-production', 'lb003-production'],
+        },
+        {
+          type: Type.Exec,
+          value: 'free -m | awk \'NR==2{printf "RAM in use: %sMB", $3}\'',
+        },
+        {
+          type: Type.Message,
+          value:
+            "Oh, you must be psychic to think I can tell you the RAM usage on multiple servers at once. I'm connecting to the production load balancers and you'll have to run my command to get the info. Good luck!",
+        },
+      ],
+    },
+  ]);
 
   let socketUrl = `wss://${getHostName()}/v1/webapi/assistant?access_token=${getAccessToken()}`;
   if (conversationId) {
@@ -59,8 +78,6 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
       const value = JSON.parse(lastMessage.data);
 
       if (value.conversation_id && !conversationId && !value.type) {
-        setMessages([]);
-
         history.replace(`/web/assist/${value.conversation_id}`);
 
         return;

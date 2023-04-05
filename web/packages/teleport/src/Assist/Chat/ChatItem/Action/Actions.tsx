@@ -24,12 +24,14 @@ import React, {
 } from 'react';
 import styled from 'styled-components';
 
-import { Dots } from 'teleport/Assist/Dots';
+import useWebSocket from 'react-use-websocket';
 
 import { RunIcon } from '../../../Icons/RunIcon';
 import { ExecOutput, MessageContent } from '../../../services/messages';
 
 import { ExecResult } from './ExecResult';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+import { getAccessToken, getHostName } from 'teleport/services/api';
 
 interface ActionsProps {
   contents: MessageContent[];
@@ -95,7 +97,7 @@ const LoadingContainer = styled.div`
 
 export function Actions(props: PropsWithChildren<ActionsProps>) {
   const children: ReactNode[] = [];
-  const [loading, setLoading] = useState(false);
+  const [running, setRunning] = useState(false);
   const [result] = useState<ExecOutput | null>(null);
 
   Children.forEach(props.children, (child, index) => {
@@ -105,15 +107,15 @@ export function Actions(props: PropsWithChildren<ActionsProps>) {
 
   useEffect(() => {
     props.scrollTextarea();
-  }, [loading, props.scrollTextarea]);
+  }, [running, props.scrollTextarea]);
 
   const run = useCallback(async () => {
-    if (loading) {
+    if (running) {
       return;
     }
 
-    setLoading(true);
-  }, [props.contents, loading]);
+    setRunning(true);
+  }, [props.contents, running]);
 
   return (
     <Container>
@@ -123,21 +125,52 @@ export function Actions(props: PropsWithChildren<ActionsProps>) {
 
       {!result && (
         <Buttons>
-          {!loading && <ButtonCancel>Cancel</ButtonCancel>}
-          <ButtonRun onClick={() => run()} disabled={loading}>
+          {!running && <ButtonCancel>Cancel</ButtonCancel>}
+          <ButtonRun onClick={() => run()} disabled={running}>
             <RunIcon size={30} />
-            {loading ? 'Running' : 'Run'}
+            {running ? 'Running' : 'Run'}
           </ButtonRun>
         </Buttons>
       )}
 
-      {loading && (
-        <LoadingContainer>
-          <Dots />
-        </LoadingContainer>
+      {running && (
+        <RunCommand />
       )}
-
-      {result && <ExecResult result={result} />}
     </Container>
+  );
+}
+
+interface RunCommandProps {
+  command?: string;
+  login?: string;
+  nodeIds?: string[];
+}
+
+function RunCommand(props: RunCommandProps) {
+  const { clusterId } = useStickyClusterId();
+
+  const search = new URLSearchParams();
+
+  const params = {
+    command: 'ls -al',
+    login: 'root',
+    node_id: ['fbc3a404-32ac-408c-bc72-174f895a2fe6'],
+  };
+
+  search.set('access_token', getAccessToken());
+  search.set('params', JSON.stringify(params));
+
+  console.log(search.toString());
+
+  const url = `wss://${getHostName()}/v1/webapi/command/${clusterId}/execute?${search.toString()}`;
+
+  const { lastMessage } = useWebSocket(url);
+
+  console.log(lastMessage);
+
+  return (
+    <div>
+      hello!
+    </div>
   );
 }
