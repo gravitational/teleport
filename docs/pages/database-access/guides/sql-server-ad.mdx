@@ -391,7 +391,7 @@ Error message: TLS Handshake failed: x509: certificate signed by unknown authori
 To solve this, you can add the CA configuration to the database like the
 following:
 
-```yaml
+```diff
   databases:
   - name: sqlserver
     protocol: sqlserver
@@ -402,12 +402,12 @@ following:
       spn: MSSQLSvc/sqlserver.example.com:1433
     static_labels:
       "env": "dev"
-    tls:
-      # Point it to your Database CA PEM certificate.
-      ca_cert_file: "rdsca.pem"
-      # If your database certificate has an empty CN filed, you must change
-      # the TLS mode to only verify the CA.
-      mode: verify-ca
++   tls:
++     # Point it to your Database CA PEM certificate.
++     ca_cert_file: "rdsca.pem"
++     # If your database certificate has an empty CN filed, you must change
++     # the TLS mode to only verify the CA.
++     mode: verify-ca
 ```
 
 If you’re unable to acquire the database CA, you can skip TLS verification by
