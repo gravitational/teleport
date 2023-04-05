@@ -18,9 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"net/url"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -52,13 +50,13 @@ const (
 // if payload is too large for SNS.
 type publisher struct {
 	topicARN      string
-	snsCli        snsCli
+	snsPublisher  snsPublisher
 	uploader      s3uploader
 	payloadBucket string
 	payloadPrefix string
 }
 
-type snsCli interface {
+type snsPublisher interface {
 	Publish(ctx context.Context, params *sns.PublishInput, optFns ...func(*sns.Options)) (*sns.PublishOutput, error)
 }
 
@@ -67,19 +65,15 @@ type s3uploader interface {
 }
 
 // newPublisher returns new instance of publisher.
-func newPublisher(cfg Config, awsCfg aws.Config, log *log.Entry) (*publisher, error) {
-	url, err := url.Parse(cfg.LargeEventsS3)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func newPublisher(cfg Config, awsCfg aws.Config, log *log.Entry) *publisher {
 	// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
 	return &publisher{
 		topicARN:      cfg.TopicARN,
-		snsCli:        sns.NewFromConfig(awsCfg),
+		snsPublisher:  sns.NewFromConfig(awsCfg),
 		uploader:      manager.NewUploader(s3.NewFromConfig(awsCfg)),
-		payloadBucket: url.Host,
-		payloadPrefix: strings.TrimSuffix(strings.TrimPrefix(url.Path, "/"), "/"),
-	}, nil
+		payloadBucket: cfg.largeEventsBucket,
+		payloadPrefix: cfg.largeEventsPrefix,
+	}
 }
 
 // EmitAuditEvent emits audit event.
@@ -151,7 +145,7 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 		return trace.Wrap(err)
 	}
 
-	_, err = p.snsCli.Publish(ctx, &sns.PublishInput{
+	_, err = p.snsPublisher.Publish(ctx, &sns.PublishInput{
 		TopicArn: aws.String(p.topicARN),
 		Message:  aws.String(string(buf)),
 		MessageAttributes: map[string]snsTypes.MessageAttributeValue{
@@ -164,7 +158,7 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 }
 
 func (p *publisher) emitViaSNS(ctx context.Context, uid string, b64Encoded string) error {
-	_, err := p.snsCli.Publish(ctx, &sns.PublishInput{
+	_, err := p.snsPublisher.Publish(ctx, &sns.PublishInput{
 		TopicArn: aws.String(p.topicARN),
 		Message:  aws.String(b64Encoded),
 		MessageAttributes: map[string]snsTypes.MessageAttributeValue{

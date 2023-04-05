@@ -57,7 +57,9 @@ type Config struct {
 	// LargeEventsS3 is location on S3 where temporary large events (>256KB)
 	// are stored before converting it to Parquet and moving to long term
 	// storage (required).
-	LargeEventsS3 string
+	LargeEventsS3     string
+	largeEventsBucket string
+	largeEventsPrefix string
 
 	// Query settings.
 
@@ -141,9 +143,16 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.LargeEventsS3 == "" {
 		return trace.BadParameter("LargeEventsS3 is not specified")
 	}
-	if scheme, ok := isValidUrlWithScheme(cfg.LargeEventsS3); !ok || scheme != "s3" {
-		return trace.BadParameter("LargeEventsS3 must be valid url and start with s3")
+
+	largeEventsS3URL, err := url.Parse(cfg.LargeEventsS3)
+	if err != nil {
+		return trace.BadParameter("LargeEventsS3 must be valid url")
 	}
+	if largeEventsS3URL.Scheme != "s3" {
+		return trace.BadParameter("LargeEventsS3 must starts with s3://")
+	}
+	cfg.largeEventsBucket = largeEventsS3URL.Host
+	cfg.largeEventsPrefix = strings.TrimSuffix(strings.TrimPrefix(largeEventsS3URL.Path, "/"), "/")
 
 	if cfg.QueueURL == "" {
 		return trace.BadParameter("QueueURL is not specified")
@@ -319,10 +328,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 		l.awsConfig.Region = cfg.Region
 	}
 
-	l.publisher, err = newPublisher(cfg, l.awsConfig, logEntry)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	l.publisher = newPublisher(cfg, l.awsConfig, logEntry)
 
 	// TODO(tobiaszheller): initialize batcher
 	// TODO(tobiaszheller): initialize querier

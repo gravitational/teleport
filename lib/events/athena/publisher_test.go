@@ -88,8 +88,8 @@ func Test_EmitAuditEvent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fq := newFakeQueue()
 			p := &publisher{
-				snsCli:   fq,
-				uploader: tt.uploader,
+				snsPublisher: fq,
+				uploader:     tt.uploader,
 			}
 			err := p.EmitAuditEvent(context.Background(), tt.in)
 			require.NoError(t, err)
@@ -102,5 +102,5 @@ func Test_EmitAuditEvent(t *testing.T) {
 type mockUploader struct{}
 
 func (m mockUploader) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) {
-	return nil, nil
+	return &manager.UploadOutput{}, nil
 }
