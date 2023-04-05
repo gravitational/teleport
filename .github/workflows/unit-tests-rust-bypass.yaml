@@ -14,18 +14,22 @@ run-name: Skip Unit Tests (Rust) - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
     paths-ignore:
+      - '.github/workflows/unit-tests-rust.yaml'
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths-ignore:
+      - '.github/workflows/unit-tests-rust.yaml'
       - '**.rs'
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   test:
