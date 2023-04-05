@@ -16,7 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import { useTeleport } from '..';
+import userService from 'teleport/services/user';
 
 import Console from './Console';
 import ConsoleContext from './consoleContext';
@@ -25,14 +25,13 @@ import ConsoleContextProvider from './consoleContextProvider';
 // Main entry point to Console where it initializes ContextProvider with the
 // instance of ConsoleContext.
 export default function Index() {
-  const teleportCtx = useTeleport();
   const [ctx] = React.useState(() => {
     return new ConsoleContext();
   });
 
   React.useEffect(() => {
     async function fetchUserContext() {
-      const user = await teleportCtx.userService.fetchUserContext();
+      const user = await userService.fetchUserContext();
       ctx.setStoreUser(user);
     }
 
