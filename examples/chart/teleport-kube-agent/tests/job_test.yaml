@@ -5,7 +5,7 @@ templates:
 release:
   upgrade: true
 tests:
-  - it: should set SecurityContext in post-delete hook
+  - it: should set securityContext in post-delete hook
     template: delete_hook.yaml
     # first 3 items are ServiceAccount, Role, RoleBinding, 3rd (zero-indexed) is the Job
     documentIndex: 3
@@ -29,5 +29,19 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext.runAsUser
           value: 9807
+      - matchSnapshot:
+          path: spec.template.spec
+
+  - it: should set nodeSelector in post-delete hook
+    template: delete_hook.yaml
+    # first 3 items are ServiceAccount, Role, RoleBinding, 3rd (zero-indexed) is the Job
+    documentIndex: 3
+    values:
+      - ../.lint/node-selector.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector
+          value:
+            gravitational.io/k8s-role: node
       - matchSnapshot:
           path: spec.template.spec
