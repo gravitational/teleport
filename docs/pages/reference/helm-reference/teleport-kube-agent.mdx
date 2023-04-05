@@ -139,14 +139,21 @@ below:
 
 ### `updater.enabled`
 
+| Type   | Default value | Required? |
+|--------|---------------|-----------|
+| `bool` | false         | No        |
+
 Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
-You must enable this when:
+You can enable this when:
+
 - using Teleport Cloud and your tenant is enrolled into automatic updates.
-  (You can check this through the web UI, choose "add a new node" of type
-  Kubernetes, and check if the value is turned on.)
+  (You can check this through the web UI, choose `Add Kubernetes` and
+  `Enroll New Resource of type Kubernetes`, and check if the value is turned
+  on.)
 - using self-hosted Teleport and you maintain your own version server.
 
 You must not enable this if:
+
 - you are a Teleport Cloud customer not enrolled in automatic updates.
 - you are a self-hosted Teleport user and have not set up your Teleport cluster to 
   support automatic updates.
@@ -158,7 +165,9 @@ You must not enable this if:
 | `string` | "https://update.gravitational.io/v1/" | Yes if not using Teleport Cloud |
 
 `updater.versionServer` is the URL of the version server the agent fetches the
-target version from.
+target version from. The complete version endpoint is built by concatenating
+[`versionServer`](#updaterversionserver) and
+[`releaseChannel`](#updaterreleasechannel).
 
 You must set this if the updater is enabled, and you are not a Teleport Cloud user.
 
@@ -171,7 +180,9 @@ You must not change the default values if you are a Teleport Cloud user.
 | `string` | "stable/cloud"  | No        |
 
 `updater.releaseChannel` is the release channel the updater subscribes to.
-
+The complete version endpoint is built by concatenating
+[`versionServer`](#updaterversionserver) and
+[`releaseChannel`](#updaterreleasechannel).
 You must not change the default value if you are a Teleport Cloud user unless
 instructed by Teleport support.
 

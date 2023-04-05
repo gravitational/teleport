@@ -70,7 +70,7 @@ tests:
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--release-channel=cloud/preview"
+          content: "--release-channel=custom/preview"
   #
   # Kubernetes-related tests
   #

@@ -139,7 +139,8 @@ tls:
 updater:
   enabled: false
   # `updater.versionServer` is the URL of the version server the agent fetches
-  # the target version from.
+  # the target version from. The complete version endpoint is built by
+  # concatenating `versionServer` and `releaseChannel`.
   versionServer: "https://update.gravitational.io/v1/"
   # Release channel the agent subscribes to.
   releaseChannel: "stable/cloud"
