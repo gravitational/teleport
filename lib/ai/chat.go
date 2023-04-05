@@ -18,7 +18,6 @@ package ai
 
 import (
 	"context"
-	"sync"
 
 	"github.com/gravitational/trace"
 	openai "github.com/sashabaranov/go-openai"
@@ -33,13 +32,9 @@ type Message struct {
 type Chat struct {
 	client   *Client
 	messages []openai.ChatCompletionMessage
-	mu       sync.Mutex
 }
 
 func (chat *Chat) Insert(role string, content string) Message {
-	chat.mu.Lock()
-	defer chat.mu.Unlock()
-
 	chat.messages = append(chat.messages, openai.ChatCompletionMessage{
 		Role:    role,
 		Content: content,
@@ -53,7 +48,6 @@ func (chat *Chat) Insert(role string, content string) Message {
 }
 
 func (chat *Chat) Complete(ctx context.Context, maxTokens int) (Message, error) {
-	chat.mu.Lock()
 	request := openai.ChatCompletionRequest{
 		Model:     openai.GPT3Dot5Turbo,
 		MaxTokens: maxTokens,

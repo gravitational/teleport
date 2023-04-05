@@ -29,20 +29,31 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sashabaranov/go-openai"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 )
 
 const (
-	kindChatUserMessage      = "CHAT_USER_MESSAGE"
-	kindChatAssistantMessage = "CHAT_ASSISTANT_MESSAGE"
+	kindChatTextMessage = "CHAT_TEXT_MESSAGE"
 )
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	err := runAssistant(h, w, r, sctx)
+	if err != nil {
+		h.log.Error(trace.DebugReport(err))
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext) error {
 	authClient, err := sctx.GetClient()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	upgrader := websocket.Upgrader{
@@ -56,20 +67,20 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 		errMsg := "Error upgrading to websocket"
 		h.log.WithError(err).Error(errMsg)
 		http.Error(w, errMsg, http.StatusInternalServerError)
-		return nil, nil
+		return nil
 	}
 
-	keepAliveInterval := time.Minute // TODO(jakule)
+	keepAliveInterval := time.Minute * 5 // TODO(jakule)
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
-		return nil, nil
+		return nil
 	}
 	defer ws.Close()
 
 	prefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	client := ai.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.ApiKey)
@@ -86,17 +97,23 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 		}{
 			ConversationID: conversationID,
 		}); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	} else {
 		// existing conversation, retrieve old messages
 		messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		for _, msg := range messages.GetMessages() {
+			var chatMsg chatMessage
+			if err := json.Unmarshal(msg.Payload, &chatMsg); err != nil {
+				return trace.Wrap(err)
+			}
+
+			msg := chat.Insert(chatMsg.Role, chatMsg.Content)
 			if err := ws.WriteJSON(msg); err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		}
 	}
@@ -107,44 +124,50 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 			if err == io.EOF {
 				break
 			}
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		var wsIncoming wsMessage
+		var wsIncoming inboundWsMessage
 		if err := json.Unmarshal(payload, &wsIncoming); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		chat.Insert(wsIncoming.Chat.Role, wsIncoming.Chat.Content)
+		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Content)
+		msgJson, err := json.Marshal(chatMessage{Role: openai.ChatMessageRoleUser, Content: wsIncoming.Content})
+		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           kindChatTextMessage,
+			Payload:        msgJson,
+			CreatedTime:    h.clock.Now().UTC(),
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
 		message, err := chat.Complete(r.Context(), 500)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		out := wsMessage{
-			Chat: &chatMessage{
-				Role:    message.Role,
-				Content: message.Content,
-			},
-			Idx: message.Idx,
+		msgJson, err = json.Marshal(chatMessage{Role: message.Role, Content: message.Content})
+		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           kindChatTextMessage,
+			Payload:        msgJson,
+			CreatedTime:    h.clock.Now().UTC(),
+		}); err != nil {
+			return trace.Wrap(err)
 		}
 
-		payload, err = json.Marshal(out)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := ws.WriteJSON(payload); err != nil {
-			return nil, trace.Wrap(err)
+		if err := ws.WriteJSON(message); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
-	return nil, nil
+	return nil
 }
 
-type wsMessage struct {
-	Chat *chatMessage `json:"chat,omitempty"`
-	Idx  int          `json:"idx,omitempty"`
+type inboundWsMessage struct {
+	Content string `json:"content"`
 }
 
 type chatMessage struct {
