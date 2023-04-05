@@ -174,6 +174,7 @@ func (is *IdentityStream) run() {
 	}
 }
 
+// TODO: I should be able to craft a teleport.Credential from Identity
 type Identity struct {
 	certs *proto.Certs
 }
