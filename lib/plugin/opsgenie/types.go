@@ -27,7 +27,7 @@ type Alert struct {
 
 // AlertBody represents and Opsgenie alert body
 type AlertBody struct {
-	Message     string      `json:"Message,omitempty"`
+	Message     string      `json:"message,omitempty"`
 	Alias       string      `json:"alias,omitempty"`
 	Description string      `json:"description,omitempty"`
 	Responders  []Responder `json:"responders,omitempty"`
