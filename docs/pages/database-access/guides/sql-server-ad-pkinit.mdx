@@ -187,25 +187,23 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<Admonition type="note">
-  Teleport Database Service must run on a Linux server with the `kinit` command
-  installed with PKINIT extensions.
+Teleport Database Service must run on a Linux server with the `kinit` command
+installed with PKINIT extensions.
 
-  <Tabs>
-    <TabItem label="Ubuntu">
-      ```code
-      $ sudo apt-get update
-      $ sudo apt-get -y install krb5-user krb5-pkinit
-      ```
-    </TabItem>
-    <TabItem label="RHEL / CentOS 7">
-      ```code
-      $ sudo yum -y update
-      $ sudo yum -y install krb5-workstation krb5-pkinit
-      ```
-    </TabItem>
-  </Tabs>
-</Admonition>
+<Tabs>
+  <TabItem label="Ubuntu">
+    ```code
+    $ sudo apt-get update
+    $ sudo apt-get -y install krb5-user krb5-pkinit
+    ```
+  </TabItem>
+  <TabItem label="RHEL / CentOS 7">
+    ```code
+    $ sudo yum -y update
+    $ sudo yum -y install krb5-workstation krb5-pkinit
+    ```
+  </TabItem>
+</Tabs>
 
 Copy the join token to a file on the instance where you will run the Database
 Service, and then use the following configuration, replacing the fields on the
