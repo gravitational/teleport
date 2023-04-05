@@ -205,6 +205,11 @@ type Role interface {
 	// SetHostGroups sets the list of groups this role is put in when users are provisioned
 	SetHostGroups(RoleConditionType, []string)
 
+	// GetDesktopGroups gets the list of groups this role is put in when desktop users are provisioned
+	GetDesktopGroups(RoleConditionType) []string
+	// SetDesktopGroups sets the list of groups this role is put in when desktop users are provisioned
+	SetDesktopGroups(RoleConditionType, []string)
+
 	// GetHostSudoers gets the list of sudoers entries for the role
 	GetHostSudoers(RoleConditionType) []string
 	// SetHostSudoers sets the list of sudoers entries for the role
@@ -215,7 +220,7 @@ type Role interface {
 
 	// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
 	GetDatabaseServiceLabels(RoleConditionType) Labels
-	// SetDatabaseLabels sets the map of db service labels this role is allowed or denied access to.
+	// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
 	SetDatabaseServiceLabels(RoleConditionType, Labels)
 }
 
@@ -714,7 +719,7 @@ func (r *RoleV6) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
-// GetGroups gets all groups for provisioned user
+// GetHostGroups gets all groups for provisioned user
 func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.HostGroups
@@ -724,6 +729,24 @@ func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 
 // SetHostGroups sets all groups for provisioned user
 func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
+	ncopy := utils.CopyStrings(groups)
+	if rct == Allow {
+		r.Spec.Allow.DesktopGroups = ncopy
+	} else {
+		r.Spec.Deny.DesktopGroups = ncopy
+	}
+}
+
+// GetDesktopGroups gets all groups for provisioned user
+func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DesktopGroups
+	}
+	return r.Spec.Deny.DesktopGroups
+}
+
+// SetDesktopGroups sets all groups for provisioned user
+func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
 	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.HostGroups = ncopy
@@ -807,6 +830,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	}
 	if r.Spec.Options.CreateHostUser == nil {
 		r.Spec.Options.CreateHostUser = NewBoolOption(false)
+	}
+	if r.Spec.Options.CreateDesktopUser == nil {
+		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
 	}
 	if r.Spec.Options.SSHFileCopy == nil {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)

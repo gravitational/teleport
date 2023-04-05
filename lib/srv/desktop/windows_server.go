@@ -857,18 +857,15 @@ func (s *WindowsService) connectRDP(ctx context.Context, log logrus.FieldLogger,
 	tdpConn.OnRecv = s.makeTDPReceiveHandler(ctx, sw, delay, &identity, string(sessionID), desktop.GetAddr(), tdpConn)
 
 	sessionStartTime := s.cfg.Clock.Now().UTC().Round(time.Millisecond)
-	hostUsers, err := authCtx.Checker.HostUsers(desktop)
+	groups, err := authCtx.Checker.DesktopGroups(desktop)
 	if err != nil && !trace.IsAccessDenied(err) {
 		s.onSessionStart(ctx, sw, &identity, sessionStartTime, windowsUser, string(sessionID), desktop, err)
 		return trace.Wrap(err)
 	}
 	var createUsers bool
-	var groups []string
 	if err == nil {
 		createUsers = true
-		groups = hostUsers.Groups
 	}
-	log.Debugf("crreateUser: %v %v", createUsers, groups)
 	rdpc, err := rdpclient.New(rdpclient.Config{
 		Log: log,
 		GenerateUserCert: func(ctx context.Context, username string, ttl time.Duration) (certDER, keyDER []byte, err error) {

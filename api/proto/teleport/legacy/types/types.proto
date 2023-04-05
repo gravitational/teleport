@@ -2368,6 +2368,13 @@ message RoleOptions {
   // IDP is a set of options related to accessing IdPs within Teleport.
   // Requires Teleport Enterprise.
   IdPOptions IDP = 25 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // CreateDesktopUser allows users to be automatically created on a Windows desktop
+  BoolValue CreateDesktopUser = 26 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "create_desktop_user",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 message RecordSession {
@@ -2536,6 +2543,9 @@ message RoleConditions {
     (gogoproto.jsontag) = "db_service_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+
+  // DesktopGroups is a list of groups for created desktop users to be added to
+  repeated string DesktopGroups = 27 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.

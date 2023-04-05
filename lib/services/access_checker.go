@@ -190,7 +190,10 @@ type AccessChecker interface {
 
 	// HostUsers returns host user information matching a server or nil if
 	// a role disallows host user creation
-	HostUsers(types.ResourceWithLabels) (*HostUsersInfo, error)
+	HostUsers(types.Server) (*HostUsersInfo, error)
+
+	// DesktopGroups returns desktop groups matching a desktop or nil if a role disallows desktop user creation
+	DesktopGroups(types.WindowsDesktop) ([]string, error)
 
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
