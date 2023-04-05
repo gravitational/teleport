@@ -28,38 +28,66 @@ import (
 
 func TestStatusFromStatusCode(t *testing.T) {
 	testCases := []struct {
-		httpCode           int
-		expectedStatusCode types.PluginStatusCode
+		httpCode int
+		want     types.PluginStatusCode
 	}{
-		{http.StatusOK, types.PluginStatusCode_RUNNING},
-		{http.StatusNoContent, types.PluginStatusCode_RUNNING},
+		{
+			httpCode: http.StatusOK,
+			want:     types.PluginStatusCode_RUNNING,
+		},
+		{
+			httpCode: http.StatusNoContent,
+			want:     types.PluginStatusCode_RUNNING,
+		},
 
-		{http.StatusUnauthorized, types.PluginStatusCode_UNAUTHORIZED},
-		{http.StatusInternalServerError, types.PluginStatusCode_OTHER_ERROR},
+		{
+			httpCode: http.StatusUnauthorized,
+			want:     types.PluginStatusCode_UNAUTHORIZED,
+		},
+		{
+			httpCode: http.StatusInternalServerError,
+			want:     types.PluginStatusCode_OTHER_ERROR,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("%d", tc.httpCode), func(t *testing.T) {
-			require.Equal(t, tc.expectedStatusCode, statusFromStatusCode(tc.httpCode).GetCode())
+			require.Equal(t, tc.want, statusFromStatusCode(tc.httpCode).GetCode())
 		})
 	}
 }
 
 func TestStatusFromResponse(t *testing.T) {
 	testCases := []struct {
-		name               string
-		response           *APIResponse
-		expectedStatusCode types.PluginStatusCode
+		name     string
+		response *APIResponse
+		want     types.PluginStatusCode
 	}{
-		{"ok", &APIResponse{Ok: true}, types.PluginStatusCode_RUNNING},
-		{"not_in_channel", &APIResponse{Error: "not_in_channel"}, types.PluginStatusCode_SLACK_NOT_IN_CHANNEL},
-		{"unauthorized", &APIResponse{Error: "token_revoked"}, types.PluginStatusCode_UNAUTHORIZED},
-		{"other", &APIResponse{Error: "some_error"}, types.PluginStatusCode_OTHER_ERROR},
+		{
+			name:     "ok",
+			response: &APIResponse{Ok: true},
+			want:     types.PluginStatusCode_RUNNING,
+		},
+		{
+			name:     "not_in_channel",
+			response: &APIResponse{Error: "not_in_channel"},
+			want:     types.PluginStatusCode_SLACK_NOT_IN_CHANNEL,
+		},
+		{
+			name:     "unauthorized",
+			response: &APIResponse{Error: "token_revoked"},
+			want:     types.PluginStatusCode_UNAUTHORIZED,
+		},
+		{
+			name:     "other",
+			response: &APIResponse{Error: "some_error"},
+			want:     types.PluginStatusCode_OTHER_ERROR,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expectedStatusCode, statusFromResponse(tc.response).GetCode())
+			require.Equal(t, tc.want, statusFromResponse(tc.response).GetCode())
 		})
 	}
 }
