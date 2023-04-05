@@ -219,6 +219,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Integrations == nil {
+		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -267,6 +273,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
+		Integrations:            cfg.Integrations,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 
@@ -370,6 +377,7 @@ type Services struct {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.StatusInternal
+	services.Integrations
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer

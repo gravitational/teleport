@@ -995,6 +995,9 @@ type Cache interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+
+	// IntegrationsGetter defines read/list methods for integrations.
+	services.IntegrationsGetter
 }
 
 type NodeWrapper struct {

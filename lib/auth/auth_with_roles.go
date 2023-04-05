@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -47,6 +48,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -303,6 +305,120 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// integrationsService returns an Integrations Service.
+func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) {
+	igSvc, err := integrationv1.NewService(&integrationv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return igSvc, nil
+}
+
+// CreateIntegration creates an Integration.
+func (a *ServerWithRoles) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	igv1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected integration type %T", ig)
+	}
+
+	ig, err = igSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igv1})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// GetIntegration returns an Integration by its name.
+func (a *ServerWithRoles) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := igSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{Name: name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// ListIntegrations returns a list of Integrations.
+// A next page can be retreived by calling ListIntegrations again and passing the nextKey from the previous response.
+func (a *ServerWithRoles) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	resp, err := igSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+		Limit:   int32(pageSize),
+		NextKey: nextKey,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	integrations := make([]types.Integration, 0, len(resp.GetIntegrations()))
+	for _, ig := range resp.GetIntegrations() {
+		integrations = append(integrations, ig)
+	}
+
+	return integrations, resp.GetNextKey(), nil
+}
+
+// UpdateIntegration updates an Integration.
+func (a *ServerWithRoles) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	igv1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected integration type %T", ig)
+	}
+
+	ig, err = igSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igv1})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// DeleteAllIntegrations deletes all integrations.
+func (a *ServerWithRoles) DeleteAllIntegrations(ctx context.Context) error {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = igSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
+	return trace.Wrap(err)
+}
+
+// DeleteIntegration deletes an integration integrations.
+func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) error {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = igSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: name})
+	return trace.Wrap(err)
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
