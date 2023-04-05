@@ -19,6 +19,7 @@ package opsgenie
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strings"
 	"text/template"
@@ -87,6 +88,16 @@ func NewClient(conf ClientConfig) (*Client, error) {
 	}, nil
 }
 
+func errWrapper(statusCode int, err error) error {
+	switch statusCode {
+	case http.StatusForbidden:
+		return trace.AccessDenied("opsgenie API access denied: %v", err)
+	case http.StatusRequestTimeout:
+		return trace.ConnectionProblem(err, "connecting to opsgenie API")
+	}
+	return trace.Wrap(err)
+}
+
 // CreateAlert creates an opsgenie alert.
 func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestData) (OpsgenieData, error) {
 	bodyDetails, err := buildAlertBody(og.WebProxyURL, reqID, reqData)
@@ -103,12 +114,12 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	}
 
 	var result AlertResult
-	if _, err = og.client.NewRequest().
+	if resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetResult(&result).
 		Post("alerts"); err != nil {
-		return OpsgenieData{}, trace.Wrap(err)
+		return OpsgenieData{}, errWrapper(resp.StatusCode(), err)
 	}
 
 	return OpsgenieData{
@@ -140,13 +151,13 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 	body := AlertNote{
 		Note: note,
 	}
-	if _, err := og.client.NewRequest().
+	if resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
 		Post("alerts/{alertID}/notes"); err != nil {
-		return trace.Wrap(err)
+		return errWrapper(resp.StatusCode(), err)
 	}
 	return nil
 }
@@ -160,13 +171,13 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 	body := AlertNote{
 		Note: note,
 	}
-	if _, err := og.client.NewRequest().
+	if resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
 		Post("alerts/{alertID}/close"); err != nil {
-		return trace.Wrap(err)
+		return errWrapper(resp.StatusCode(), err)
 	}
 	return nil
 }
@@ -174,7 +185,7 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 // GetOnCall returns the list of responders on-call for a schedule.
 func (og Client) GetOnCall(ctx context.Context, scheduleName string) (RespondersResult, error) {
 	var result RespondersResult
-	if _, err := og.client.NewRequest().
+	if resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetPathParams(map[string]string{"scheduleName": scheduleName}).
 		SetQueryParams(map[string]string{
@@ -184,7 +195,7 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 		}).
 		SetResult(&result).
 		Post("schedules/{scheduleName}/on-calls"); err != nil {
-		return RespondersResult{}, trace.Wrap(err)
+		return RespondersResult{}, errWrapper(resp.StatusCode(), err)
 	}
 	return result, nil
 }
