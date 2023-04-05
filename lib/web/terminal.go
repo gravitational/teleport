@@ -1090,14 +1090,10 @@ func (t *WsStream) readMessage(out []byte) (string, []byte, int, error) {
 // performs an action on the connection (sending window-change request).
 func (t *WsStream) Read(out []byte) (n int, err error) {
 	messageType, data, n, err := t.readMessage(out)
-	if err != nil {
-		return n, nil
+	if err != nil || n > 0 {
+		return n, err
 	}
 
-	return t.processMessage(out, messageType, data)
-}
-
-func (t *WsStream) processMessage(out []byte, messageType string, data []byte) (int, error) {
 	switch messageType {
 	// the session was closed
 	case defaults.WebsocketClose:
@@ -1117,16 +1113,49 @@ func (t *WsStream) processMessage(out []byte, messageType string, data []byte) (
 
 func (t *TerminalStream) Read(out []byte) (n int, err error) {
 	messageType, data, n, err := t.readMessage(out)
-	if err != nil {
-		return n, nil
-	}
-
-	n, err = t.WsStream.processMessage(out, messageType, data)
-	if err != nil && !strings.Contains(err.Error(), "unknown prefix type") {
+	if err != nil || n > 0 {
 		return n, err
 	}
 
-	return t.processMessage(messageType, data)
+	switch messageType {
+	// the session was closed
+	case defaults.WebsocketClose:
+		return 0, io.EOF
+	case defaults.WebsocketRaw:
+		n := copy(out, data)
+		// if payload size is greater than [out], store the remaining
+		// part in the buffer to be processed on the next Read call
+		if len(data) > n {
+			t.buffer = data[n:]
+		}
+		return n, nil
+	case defaults.WebsocketResize:
+		if t.resizeC == nil {
+			return n, nil
+		}
+
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+
+		params, err := session.UnmarshalTerminalParams(e.GetString("size"))
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+
+		// Send the window change request in a goroutine so reads are not blocked
+		// by network connectivity issues.
+		select {
+		case t.resizeC <- params:
+		default:
+		}
+
+		return 0, nil
+	default:
+		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
+	}
 }
 
 func (t *TerminalStream) processMessage(messageType string, data []byte) (int, error) {
