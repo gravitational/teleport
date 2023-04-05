@@ -3849,6 +3849,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	tlscfg := serverTLSConfig.Clone()
+	setupTLSConfigClientCAsForCluster(tlscfg, accessPoint, clusterName)
 	tlscfg.ClientAuth = tls.RequireAndVerifyClientCert
 	if lib.IsInsecureDevMode() {
 		tlscfg.InsecureSkipVerify = true

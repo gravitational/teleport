@@ -1501,15 +1501,26 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	directCtx, directCancel := context.WithCancel(ctx)
 	mfaCtx, mfaCancel := context.WithCancel(ctx)
 	go func() {
+		ctx, span := tc.Tracer.Start(
+			directCtx,
+			"teleportClient/connectToNode",
+			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+			oteltrace.WithAttributes(
+				attribute.String("cluster", nodeDetails.Cluster),
+				attribute.String("node", node),
+			),
+		)
+		defer span.End()
+
 		// try connecting to the node with the certs we already have
-		// try connecting to the node
-		conn, details, err := clt.ProxyClient.DialHost(directCtx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
 			directResultC <- clientRes{err: err}
+			return
 		}
 
 		sshConfig := clt.ProxyClient.SSHConfig(user)
-		clt, err := NewNodeClient(directCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
+		clt, err := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
 		directResultC <- clientRes{clt: clt, err: err}
 	}()
 
@@ -1614,24 +1625,6 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	defer span.End()
 
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
-		return nil, trace.Wrap(MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr)))
-	}
-
-	check, err := clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-		Target: &proto.IsMFARequiredRequest_Node{
-			Node: &proto.NodeLogin{
-				Node:  node,
-				Login: tc.HostLogin,
-			},
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(MFARequiredUnknown(err))
-	}
-
-	// per-session mfa isn't required, the user simply does not
-	// have access to the provided node
-	if !check.Required {
 		return nil, trace.Wrap(MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr)))
 	}
 
