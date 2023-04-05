@@ -62,9 +62,12 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -116,6 +119,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/regular"
+	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/system"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -3852,11 +3856,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		ClusterName: clusterName,
 	}
 
+	tlscfg := serverTLSConfig.Clone()
+	tlscfg.ClientAuth = tls.RequireAndVerifyClientCert
+	if lib.IsInsecureDevMode() {
+		tlscfg.InsecureSkipVerify = true
+		tlscfg.ClientAuth = tls.RequireAnyClientCert
+	}
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
-		TransportCredentials: credentials.NewTLS(serverTLSConfig),
+		TransportCredentials: credentials.NewTLS(tlscfg),
 		UserGetter:           authMiddleware,
 		Authorizer:           authorizer,
-		Enforcer:             sessionController,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3873,6 +3882,33 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		),
 		grpc.Creds(creds),
 	)
+
+	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		Clock:       process.Clock,
+		ServerID:    serverID,
+		Emitter:     streamEmitter,
+		Logger:      process.log,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	transportService, err := transportv1.NewService(transportv1.ServerConfig{
+		FIPS:   cfg.FIPS,
+		Logger: process.log.WithField(trace.Component, "transport"),
+		Dialer: proxyRouter,
+		SignerFn: func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
+			return agentless.SignerFromAuthzContext(authzCtx, conn.Client)
+		},
+		ConnectionMonitor: connMonitor,
+		LocalAddr:         listeners.sshGRPC.Addr(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	transportpb.RegisterTransportServiceServer(sshGRPCServer, transportService)
 
 	process.RegisterCriticalFunc("proxy.ssh", func() error {
 		utils.Consolef(cfg.Console, log, teleport.ComponentProxy, "SSH proxy service %s:%s is starting on %v.",

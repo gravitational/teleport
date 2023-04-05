@@ -35,6 +35,10 @@ export const createAppConfigSchema = (platform: Platform) => {
       .boolean()
       .default(false)
       .describe('Enables collecting of anonymous usage data.'),
+    'feature.searchBar': z
+      .boolean()
+      .default(false)
+      .describe('Replaces the command bar with the new search bar'),
     'keymap.tab1': shortcutSchema
       .default(defaultKeymap['tab1'])
       .describe(getShortcutDesc('open tab 1')),
@@ -68,6 +72,9 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.newTab': shortcutSchema
       .default(defaultKeymap['newTab'])
       .describe(getShortcutDesc('open a new tab')),
+    'keymap.newTerminalTab': shortcutSchema
+      .default(defaultKeymap['newTerminalTab'])
+      .describe(getShortcutDesc('open a new terminal tab')),
     'keymap.previousTab': shortcutSchema
       .default(defaultKeymap['previousTab'])
       .describe(getShortcutDesc('go to the previous tab')),
@@ -118,6 +125,7 @@ export type KeyboardShortcutAction =
   | 'tab9'
   | 'closeTab'
   | 'newTab'
+  | 'newTerminalTab'
   | 'previousTab'
   | 'nextTab'
   | 'openCommandBar'
@@ -125,7 +133,9 @@ export type KeyboardShortcutAction =
   | 'openClusters'
   | 'openProfiles';
 
-const getDefaultKeymap = (platform: Platform) => {
+const getDefaultKeymap = (
+  platform: Platform
+): Record<KeyboardShortcutAction, string> => {
   switch (platform) {
     case 'win32':
       return {
@@ -140,6 +150,7 @@ const getDefaultKeymap = (platform: Platform) => {
         tab9: 'Ctrl+9',
         closeTab: 'Ctrl+W',
         newTab: 'Ctrl+T',
+        newTerminalTab: 'Ctrl+Shift+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
         openCommandBar: 'Ctrl+K',
@@ -160,6 +171,7 @@ const getDefaultKeymap = (platform: Platform) => {
         tab9: 'Alt+9',
         closeTab: 'Ctrl+W',
         newTab: 'Ctrl+T',
+        newTerminalTab: 'Ctrl+Shift+T',
         previousTab: 'Ctrl+Shift+Tab',
         nextTab: 'Ctrl+Tab',
         openCommandBar: 'Ctrl+K',
@@ -180,6 +192,7 @@ const getDefaultKeymap = (platform: Platform) => {
         tab9: 'Command+9',
         closeTab: 'Command+W',
         newTab: 'Command+T',
+        newTerminalTab: 'Shift+Command+T',
         previousTab: 'Control+Shift+Tab',
         nextTab: 'Control+Tab',
         openCommandBar: 'Command+K',

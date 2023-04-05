@@ -40,6 +40,8 @@ message ConnectProtocolUseEvent {
   string user_name = 2;
   // one of ssh/db/kube
   string protocol = 3;
+  // one of resource_table/search_bar/connection_list/reopened_session (optional)
+  string origin = 4;
 }
 
 message ConnectAccessRequestCreateEvent {
