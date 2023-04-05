@@ -1,5 +1,5 @@
 proxyAddr: proxy.example.com:3080
-roles: ""
+roles: "custom"
 updater:
   enabled: true
   versionServer: https://my-custom-version-server/v1
