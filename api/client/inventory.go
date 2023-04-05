@@ -197,7 +197,7 @@ func (d downstreamPipeControlStream) Recv() <-chan proto.DownstreamInventoryMess
 // UpstreamInventoryHello, and the first message received must be a DownstreamInventoryHello.
 func (c *Client) InventoryControlStream(ctx context.Context) (DownstreamInventoryControlStream, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
-	stream, err := c.grpc.InventoryControlStream(cancelCtx, c.callOpts...)
+	stream, err := c.grpc.InventoryControlStream(cancelCtx)
 	if err != nil {
 		cancel()
 		return nil, trail.FromGRPC(err)
@@ -206,7 +206,7 @@ func (c *Client) InventoryControlStream(ctx context.Context) (DownstreamInventor
 }
 
 func (c *Client) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	rsp, err := c.grpc.GetInventoryStatus(ctx, &req, c.callOpts...)
+	rsp, err := c.grpc.GetInventoryStatus(ctx, &req)
 	if err != nil {
 		return proto.InventoryStatusSummary{}, trail.FromGRPC(err)
 	}
@@ -215,7 +215,7 @@ func (c *Client) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 }
 
 func (c *Client) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	rsp, err := c.grpc.PingInventory(ctx, &req, c.callOpts...)
+	rsp, err := c.grpc.PingInventory(ctx, &req)
 	if err != nil {
 		return proto.InventoryPingResponse{}, trail.FromGRPC(err)
 	}
@@ -228,7 +228,7 @@ func (c *Client) GetInstances(ctx context.Context, filter types.InstanceFilter) 
 	// halts early.
 	ctx, cancel := context.WithCancel(ctx)
 
-	instances, err := c.grpc.GetInstances(ctx, &filter, c.callOpts...)
+	instances, err := c.grpc.GetInstances(ctx, &filter)
 	if err != nil {
 		cancel()
 		return stream.Fail[types.Instance](trail.FromGRPC(err))
