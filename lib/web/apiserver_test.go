@@ -1920,7 +1920,6 @@ func TestWebAgentForward(t *testing.T) {
 }
 
 func TestActiveSessions(t *testing.T) {
-	t.Parallel()
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
 
