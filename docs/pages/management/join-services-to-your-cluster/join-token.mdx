@@ -163,6 +163,14 @@ $ sudo teleport configure \
    -o file
 ```
 
+<Notice type="tip">
+
+For SSH Service instances, you can also run `teleport node configure` instead of
+`teleport configure`. This way, you can exclude the `--roles=node` flag from the
+command.
+
+</Notice>
+
 <Details title="Connecting directly to the Auth Service">
 
 So far, this guide has assumed that you are joining your new Teleport process to
@@ -239,7 +247,7 @@ $ sudo sed -i 's|  ca_pin: ""|  ca_pin: "<Var name="ca-pin"> />"|' /etc/teleport
 
 (!docs/pages/includes/start-teleport.mdx!)
 
-<Admonition type="tip">
+<Details title="Using a local Docker container?">
 
 If you followed this guide with a local Docker container, execute the following
 command within your container to run your new Teleport process in the foreground:
@@ -248,7 +256,7 @@ command within your container to run your new Teleport process in the foreground
 $ teleport start
 ```
 
-</Admonition>
+</Details>
 
 As new services come online, they start sending heartbeat requests every few
 seconds to the Auth Service. This allows users to explore cluster membership and
