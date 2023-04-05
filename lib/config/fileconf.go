@@ -1194,6 +1194,9 @@ type AuthenticationConfig struct {
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1224,6 +1227,14 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		}
 	}
 
+	var assist *types.AssistOptions
+	if a.Assist != nil {
+		assist, err = a.Assist.Parse()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return types.NewAuthPreferenceFromConfigFile(types.AuthPreferenceSpecV2{
 		Type:              a.Type,
 		SecondFactor:      a.SecondFactor,
@@ -1236,6 +1247,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowPasswordless: a.Passwordless,
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
+		Assist:            assist,
 	})
 }
 
@@ -1334,6 +1346,18 @@ type DeviceTrust struct {
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	return &types.DeviceTrust{
 		Mode: dt.Mode,
+	}, nil
+}
+
+// AssistOptions is a set of options related to the Teleport Assist feature.
+type AssistOptions struct {
+	// APIKey is the API key used to authenticate requests to the Teleport Assist API.
+	ApiKey string `yaml:"api_key,omitempty"`
+}
+
+func (ao *AssistOptions) Parse() (*types.AssistOptions, error) {
+	return &types.AssistOptions{
+		ApiKey: ao.ApiKey,
 	}, nil
 }
 
