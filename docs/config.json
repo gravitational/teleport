@@ -1003,6 +1003,11 @@
                "slug": "/database-access/guides/redis-cluster/"
             },
             {
+              "title": "Self-Hosted Oracle (Preview)",
+              "forScopes": ["enterprise", "cloud"],
+              "slug": "/database-access/guides/oracle-self-hosted/"
+            },
+            {
                "title": "Snowflake (Preview)",
                "slug": "/database-access/guides/snowflake/"
             }
