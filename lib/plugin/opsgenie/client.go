@@ -24,9 +24,10 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/gravitational/teleport/integrations/lib"
+
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
-	"github.com/gravitational/teleport-plugins/lib"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 )

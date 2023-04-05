@@ -16,6 +16,7 @@ limitations under the License.
 
 package opsgenie
 
+// Alert represents an Opsgenie alert
 type Alert struct {
 	ID       string  `json:"id"`
 	Title    string  `json:"title"`
@@ -24,6 +25,7 @@ type Alert struct {
 	Body     Details `json:"body"`
 }
 
+// AlertBody represents and Opsgenie alert body
 type AlertBody struct {
 	Message     string      `json:"Message,omitempty"`
 	Alias       string      `json:"alias,omitempty"`
@@ -32,6 +34,7 @@ type AlertBody struct {
 	Priority    string      `json:"priority,omitempty"`
 }
 
+// Responder represents an Opsgenie responder
 type Responder struct {
 	Name     string `json:"name,omitempty"`
 	Username string `json:"username,omitempty"`
@@ -39,22 +42,26 @@ type Responder struct {
 	ID       string `json:"id,omitempty"`
 }
 
+// RespondersResult represents a group of Opsgenie responders
 type RespondersResult struct {
 	Data struct {
 		OnCallRecipients []string `json:"onCallRecipients,omitempty"`
 	} `json:"data,omitempty"`
 }
 
+// AlertResult is a wrapper around Alert
 type AlertResult struct {
 	Alert Alert `json:"alert"`
 }
 
+// AlertNote represents an Opsgenie alert note
 type AlertNote struct {
 	User   string `json:"user"`
 	Source string `json:"source"`
 	Note   string `json:"note"`
 }
 
+// Details represents the details field of an Opsgenie alert
 type Details struct {
 	Type    string `json:"type,omitempty"`
 	Details string `json:"details,omitempty"`

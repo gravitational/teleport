@@ -172,8 +172,6 @@ require (
 	github.com/mailgun/minheap v0.0.0-20170619185613-3dbe6c6bf55f // indirect
 )
 
-require github.com/gravitational/teleport-plugins v0.0.0-20230403182233-8e802fc9a5b4
-
 require (
 	cloud.google.com/go v0.110.0 // indirect
 	cloud.google.com/go/compute v1.19.0 // indirect
