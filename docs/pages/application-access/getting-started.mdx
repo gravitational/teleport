@@ -81,13 +81,10 @@ $ tctl tokens add \
 
 ### Configure and Start Teleport
 
-
 Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<Tabs>
-<TabItem label="Using a config file">
 Create the Teleport Application Service configuration at `/etc/teleport.yaml`. Replace <Var name="teleport.example.com" /> with
 your Teleport Proxy address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
 
@@ -106,28 +103,6 @@ Make sure to update `--app-name` and `--app-uri` accordingly if you're using you
 The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
-</TabItem>
-<TabItem label="With CLI flags">
-
-You can start the Teleport Application Service without configuration file using a
-CLI command.  Replace <Var name="teleport.example.com" /> with
-your Teleport Proxy address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
-
-```code
-$ sudo teleport app start \
-  --name=grafana \
-  --token=/tmp/token \
-  --uri=http://localhost:3000 \
-  --auth-server=https://<Var name="teleport.example.com" />:443 \
-  --labels=env=dev
-```
-
-Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
-
-The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
-
-</TabItem>
-</Tabs>
 
 </TabItem>
 <TabItem label="Kubernetes cluster">
