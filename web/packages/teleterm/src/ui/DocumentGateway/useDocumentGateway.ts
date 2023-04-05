@@ -62,6 +62,7 @@ export default function useGateway(doc: types.DocumentGateway) {
       // same port number.
       port: gw.localPort,
     });
+    ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
   });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {

@@ -188,3 +188,23 @@ export function makeErrorAttempt<T>(statusText: string): Attempt<T> {
     statusText,
   };
 }
+
+/**
+ * mapAttempt maps attempt data but only if the attempt is successful.
+ */
+export function mapAttempt<A, B>(
+  attempt: Attempt<A>,
+  mapFunction: (attemptData: A) => B
+): Attempt<B> {
+  if (attempt.status !== 'success') {
+    return {
+      ...attempt,
+      data: null,
+    };
+  }
+
+  return {
+    ...attempt,
+    data: mapFunction(attempt.data),
+  };
+}

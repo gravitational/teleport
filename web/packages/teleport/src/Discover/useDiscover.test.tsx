@@ -111,7 +111,6 @@ describe('emitting events', () => {
       expect.objectContaining({
         id: expect.any(String),
         currEventName: DiscoverEvent.DeployService,
-        eventResourceName: DiscoverEventResource.Server,
       })
     );
 
@@ -162,7 +161,6 @@ describe('emitting events', () => {
     expect(result.current.eventState).toEqual({
       id,
       currEventName: DiscoverEvent.PrincipalsConfigure,
-      eventResourceName: DiscoverEventResource.Server,
     });
     jest.resetAllMocks();
 

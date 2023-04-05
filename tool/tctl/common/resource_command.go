@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -784,25 +783,42 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag\n")
+	res, err := types.UnmarshalDevice(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	dev, err := device.UnmarshalDevice(raw.Raw)
+	dev, err := types.DeviceFromResource(res)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO(codingllama): Figure out a way to call BulkCreateDevices here?
-	_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device:           dev,
-		CreateAsResource: true,
-	})
+	if rc.IsForced() {
+		_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
+			Device:           dev,
+			CreateAsResource: true,
+		})
+		// err checked below
+	} else {
+		_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device:           dev,
+			CreateAsResource: true,
+		})
+		// err checked below
+	}
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 
-	fmt.Printf("Device %v/%v added to the inventory\n", dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType))
+	verb := "created"
+	if rc.IsForced() {
+		verb = "updated"
+	}
+
+	fmt.Printf("Device %v/%v %v\n",
+		dev.AssetTag,
+		devicetrust.FriendlyOSType(dev.OsType),
+		verb,
+	)
 	return nil
 }
 
