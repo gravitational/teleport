@@ -24,7 +24,7 @@ import (
 
 func statusFromStatusCode(httpCode int) types.PluginStatus {
 	code := types.PluginStatusCode_OTHER_ERROR
-	switch code {
+	switch httpCode {
 	case http.StatusUnauthorized:
 		code = types.PluginStatusCode_UNAUTHORIZED
 	default:
