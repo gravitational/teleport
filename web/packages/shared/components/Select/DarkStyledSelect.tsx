@@ -38,11 +38,11 @@ const StyledDarkSelect = styled(StyledSelect)(
     border-color: rgba(255, 255, 255, 0.24);
     color: ${theme.colors.text.secondary};
     &:focus, &:active {
-      background-color: ${theme.colors.primary.lighter};
+      background-color: ${theme.colors.levels.elevated};
     }
     &:hover {
       border-color: rgba(255, 255, 255, 0.24);
-      background-color: ${theme.colors.primary.lighter};
+      background-color: ${theme.colors.levels.elevated};
       .react-select__dropdown-indicator {
         color: #666;
       }
@@ -57,7 +57,7 @@ const StyledDarkSelect = styled(StyledSelect)(
     }
   }
   .react-select__control--menu-is-open {
-    background-color: ${theme.colors.primary.lighter};
+    background-color: ${theme.colors.levels.elevated};
     border-color: transparent;
     border-radius: 4px;
     border-style: solid;
@@ -86,7 +86,7 @@ const StyledDarkSelect = styled(StyledSelect)(
     border-top-right-radius: 0;
   }
   .react-select__multi-value {
-    background-color: ${theme.colors.primary.dark};
+    background-color: ${theme.colors.levels.sunkenSecondary};
     border: 1px solid ${theme.colors.text.placeholder};
   }
   .react-select__multi-value__label {

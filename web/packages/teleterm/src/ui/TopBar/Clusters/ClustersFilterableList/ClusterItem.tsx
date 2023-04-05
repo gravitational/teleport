@@ -80,16 +80,16 @@ const StyledListItem = styled(ListItem)`
 `;
 
 const InvertedLabel = styled(Label)`
-  color: ${props => props.theme.colors.secondary.main};
-  background-color: ${props => props.theme.colors.secondary.contrastText};
+  color: ${props => props.theme.colors.brand.main};
+  background-color: ${props => props.theme.colors.text.contrast};
 `;
 
 function getBackgroundColor(props) {
   if (props.isSelected) {
     if (props.isActive) {
-      return props.theme.colors.secondary.light;
+      return props.theme.colors.brand.accent;
     }
-    return props.theme.colors.secondary.main;
+    return props.theme.colors.brand.main;
   }
   if (props.isActive) {
     return props.theme.colors.secondary.lighter;
@@ -98,7 +98,7 @@ function getBackgroundColor(props) {
 
 function getHoverBackgroundColor(props) {
   if (props.isSelected) {
-    return props.theme.colors.secondary.light;
+    return props.theme.colors.brand.accent;
   }
   if (props.isActive) {
     return props.theme.colors.secondary.lighter;
