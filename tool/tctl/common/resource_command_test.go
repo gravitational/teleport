@@ -348,6 +348,8 @@ func TestAppResource(t *testing.T) {
 		},
 	}
 
+	// modifying this test to trigger flaky tests detector
+
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	appA, err := types.NewAppV3(types.Metadata{
