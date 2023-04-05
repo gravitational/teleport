@@ -1,13 +1,5 @@
-package slack
-
-import (
-	"net/http"
-
-	"github.com/gravitational/teleport/api/types"
-)
-
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+package slack
+
+import (
+	"net/http"
+
+	"github.com/gravitational/teleport/api/types"
+)
 
 func statusFromStatusCode(httpCode int) types.PluginStatus {
 	code := types.PluginStatusCode_OTHER_ERROR
