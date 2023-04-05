@@ -4,10 +4,12 @@ description: "Deploying a Proxy-peered High Availability Teleport Cluster using 
 ---
 
 When deploying Teleport in production, you should design your deployment to
-ensure that users can continue to access infrastructure during an incident in
-your Teleport cluster. You should also make it possible to scale your Auth
-Service and Proxy Service as you register more users and resources with
-Teleport. 
+ensure that users can continue to access infrastructure should an outage or 
+incident affect the availability of your Teleport cluster. 
+
+In order to maintain optimal end-user 
+experience with minimal latency and maximum performance, it is imperative to ensure the scalability 
+of your Auth Service and Proxy Service to accommodate increasing numbers of users and connected resources.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -24,8 +26,8 @@ clustered in a single region or for Managed Service Providers needing to provide
 to customers. Additionally, this architecture is not a solution for increasing the scalability of 
 a single cluster.
 
-We recommend this for globally distributed resources and employees that need a single point of 
-access and need reduced latency when accessing resources. 
+We recommend this for globally distributed resources and end-users that prefer a single point of
+entry while also ensuring minimal latency when accessing connected resources.
 
 ### Key deployment components
 - High Availability Teleport Cluster
@@ -40,18 +42,18 @@ access and need reduced latency when accessing resources.
 - [AWS S3](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html) for session recording storage
 
 ## Advantages of this deployment architecture
-- Eliminates the complexity of using and maintaining multiple clusters
+- Eliminates the complexity maintaining multiple Teleport clusters across multiple regions
 - Uses the lowest latency path to connect users to resources
 - Provides a highly-resilient, redundant HA architecture for Teleport that can quickly 
   scale with an organization’s needs.
 - All required Teleport components can be provisioned within the AWS ecosystem.
-- Using load balancers for the Proxy and Auth services allows for increased resilience during 
-  Teleport upgrades as instances can be removed and added to the backend set within software 
-  compatibility without impacting the user experience.
+- Using load balancers for the Proxy and Auth services allows for increased availability 
+  during Teleport Cluster upgrades. Instances can easily be removed and added while 
+  limiting impact to active users.
 
 ## Disadvantages of this deployment architecture
-- Teleport Auth servers located in a single region can cause an outage of the cluster if 
-  there is a failure of that region
+- When Teleport Auth servers are limited to a single region, there is a higher likelihood 
+  of decreased availability during an AWS regional outage.
 - Technically complex to deploy
 - Long-term cost may be a prohibitive factor for some organizations and can increase total 
   cost of ownership (TCO) throughout the system’s lifetime cycle.
@@ -76,7 +78,7 @@ configuration depends on whether you route Proxy Peering GRPC traffic over
 the public internet:
 
 <Tabs>
-<TabItem label="Public Internet">
+<TabItem label="Public Internet Proxy NLB ports">
 
 | Port | Description |
 | - | - |
@@ -84,7 +86,7 @@ the public internet:
 | `3021`| Proxy Peering GRPC Stream  |
 
 </TabItem>
-<TabItem label="VPC peering">
+<TabItem label="VPC peering Proxy NLB ports">
 
 These ports are required:
 
@@ -95,7 +97,8 @@ These ports are required:
 </TabItem>
 </Tabs>
 
-We recommend enabling cross-zone load balancing in your NLB configuration to route traffic across multiple zones.
+We recommend enabling cross-zone load balancing for the Auth and Proxy service NLB configurations to route 
+traffic across multiple zones.Doing this improves resiliency against localized AWS zone outages.
 
 ## Cluster state backend
 
