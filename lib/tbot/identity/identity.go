@@ -17,9 +17,11 @@ limitations under the License.
 package identity
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/gravitational/teleport/lib/tbotv2"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -433,7 +435,7 @@ func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error 
 }
 
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(d tbotv2.Store, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 
@@ -443,7 +445,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 			continue
 		}
 
-		data, err := d.Read(artifact.Key)
+		data, err := d.Read(context.TODO(), artifact.Key)
 		if err != nil {
 			return nil, trace.Wrap(err, "could not read artifact %q from destination %s", artifact.Key, d)
 		}
@@ -458,7 +460,7 @@ func LoadIdentity(d bot.Destination, kinds ...ArtifactKind) (*Identity, error) {
 				artifact.Key,
 				artifact.OldKey,
 			)
-			data, err = d.Read(artifact.OldKey)
+			data, err = d.Read(context.TODO(), artifact.OldKey)
 			if err != nil {
 				return nil, trace.Wrap(
 					err,

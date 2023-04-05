@@ -2,41 +2,26 @@ package main
 
 import (
 	"context"
-	teleport "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/lib/tbotv2"
 	"github.com/gravitational/teleport/lib/utils"
-	"time"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
 	log := utils.NewLogger()
-	err := run()
+	err := run(log)
 	if err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
+func run(log logrus.FieldLogger) error {
+	log.Info("Running")
 	ctx := context.Background()
-	b := &tbotv2.IdentityStreamManager{}
-
-	go func() {
-		b.Run()
-	}()
-
-	ids, err := b.StreamIdentity(tbotv2.IdentityRequest{
-		Roles:   []string{"access"},
-		TTL:     time.Minute * 5,
-		Refresh: time.Minute,
-	})
-	if err != nil {
-		return err
-	}
-	defer ids.Close()
-
-	teleport.New(ctx, teleport.Config{
-		Credentials: []teleport.Credentials{},
-	})
-
-	return nil
+	bot := tbotv2.NewBot(tbotv2.Config{
+		AuthServer: "root.tele.ottr.sh",
+		Oneshot:    true,
+	}, log)
+	log.Info("Bot created, starting")
+	return bot.Run(ctx)
 }
