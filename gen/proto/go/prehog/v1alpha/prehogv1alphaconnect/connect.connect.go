@@ -2,7 +2,7 @@
 //
 // Source: prehog/v1alpha/connect.proto
 
-package v1alphaconnect
+package prehogv1alphaconnect
 
 import (
 	context "context"
