@@ -80,23 +80,6 @@ message IntegrationSpecV1 {
     // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
     AWSOIDCIntegrationSpecV1 AWSOIDC = 1;
   }
-
-  // IntegrationStatus contains the current integration status.
-  enum IntegrationStatus {
-    INTEGRATION_STATUS_UNSPECIFIED = 0;
-
-    // Integration is not running because it was just created or was disabled by the user.
-    INTEGRATION_STATUS_PAUSED = 1;
-
-    // Integration is running.
-    INTEGRATION_STATUS_RUNNING = 2;
-
-    // Integration has an error and that should be fixed before receiving requests.
-    INTEGRATION_STATUS_ERROR = 3;
-  }
-
-  // Status contains the current Integration Status
-  IntegrationStatus status = 2;
 }
 
 // AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
@@ -322,11 +305,8 @@ Described [above](#user_s-point-of-view).
 #### Web API
 Integration resource will have the usual CRUD operations via Web API.
 
-The user can only update two fields:
+The user can only update one field:
 - awsOIDC.roleARN: to set the AWS Role that should be used for this Integration
-- status:
-    - Paused: when the Integration should not be used, to support a disable operation
-    - Running: when the Integration is running
 
 HTTP API:
 ```
@@ -344,8 +324,7 @@ JSON representation:
     "subkind": "aws-oidc",
     "awsOIDC": {
         "roleARN": "arn:aws:123:TeleportOIDC"
-    },
-    "status": "IntegrationStatusRunning"
+    }
 }
 ```
 
@@ -416,7 +395,6 @@ spec:
   subkind_spec:
     aws_oidc:
       role_arn: arn:aws:123:TeleportOIDC
-  status: INTEGRATION_STATUS_RUNNING
 
 $ tctl create aws-integration.yaml
 ```
