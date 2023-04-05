@@ -605,8 +605,6 @@ func (s *server) Close() error {
 func (s *server) DrainConnections(ctx context.Context) error {
 	// Ensure listener is closed before sending reconnects.
 	err := s.srv.Close()
-	s.srv.Wait(ctx)
-
 	s.RLock()
 	s.log.Debugf("Advising reconnect to local site: %s", s.localSite.GetName())
 	go s.localSite.adviseReconnect(ctx)
@@ -617,6 +615,7 @@ func (s *server) DrainConnections(ctx context.Context) error {
 	}
 	s.RUnlock()
 
+	s.srv.Wait(ctx)
 	return trace.Wrap(err)
 }
 
