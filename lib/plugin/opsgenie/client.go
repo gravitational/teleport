@@ -52,43 +52,42 @@ var resolutionNoteTemplate = template.Must(template.New("resolution note").Parse
 {{if .ResolveReason}}Reason: {{.ResolveReason}}{{end}}`,
 ))
 
-// OpsgenieClient is a wrapper around resty.Client.
-type OpsgenieClient struct {
-	OpsgenieClientConfig
+// Client is a wrapper around resty.Client.
+type Client struct {
+	ClientConfig
 
 	client *resty.Client
 }
 
-type OpsgenieClientConfig struct {
+type ClientConfig struct {
 	// APIKey is the API key for Opsgenie
 	APIKey string
-	// APIEndpoint is the endpoitn for the Opsgenie API
+	// APIEndpoint is the endpoint for the Opsgenie API
 	APIEndpoint string
 	// DefaultSchedules are the default on-call schedules to check for auto approval
 	DefaultSchedules []string
 	// Priority is the priority alerts are to be created with
 	Priority string
 
-	// webProxyURL is the address used when building the bodies of the alerts
+	// WebProxyURL is the Teleport address used when building the bodies of the alerts
 	// allowing links to the access requests to be built
 	WebProxyURL *url.URL
 	// ClusterName is the name of the Teleport cluster
 	ClusterName string
 }
 
-// NewOpsgenieClient creates a new Opsgenie client for managing alerts.
-func NewOpsgenieClient(conf OpsgenieClientConfig) (*OpsgenieClient, error) {
-
+// NewClient creates a new Opsgenie client for managing alerts.
+func NewClient(conf ClientConfig) (*Client, error) {
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
 	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
-	return &OpsgenieClient{
-		client:               client,
-		OpsgenieClientConfig: conf,
+	return &Client{
+		client:       client,
+		ClientConfig: conf,
 	}, nil
 }
 
 // CreateAlert creates an opsgenie alert.
-func (og OpsgenieClient) CreateAlert(ctx context.Context, reqID string, reqData RequestData) (OpsgenieData, error) {
+func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestData) (OpsgenieData, error) {
 	bodyDetails, err := buildAlertBody(og.WebProxyURL, reqID, reqData)
 	if err != nil {
 		return OpsgenieData{}, trace.Wrap(err)
@@ -116,12 +115,12 @@ func (og OpsgenieClient) CreateAlert(ctx context.Context, reqID string, reqData 
 	}, nil
 }
 
-func (og OpsgenieClient) getResponders(reqData RequestData) []Responder {
+func (og Client) getResponders(reqData RequestData) []Responder {
 	schedules := og.DefaultSchedules
 	if reqSchedules, ok := reqData.RequestAnnotations[ReqAnnotationRespondersKey]; ok {
 		schedules = reqSchedules
 	}
-	responders := []Responder{}
+	responders := make([]Responder, 0, len(schedules))
 	for _, s := range schedules {
 		responders = append(responders, Responder{
 			Type: "schedule",
@@ -132,7 +131,7 @@ func (og OpsgenieClient) getResponders(reqData RequestData) []Responder {
 }
 
 // PostReviewNote posts a note once a new request review appears.
-func (og OpsgenieClient) PostReviewNote(ctx context.Context, alertID string, review types.AccessReview) error {
+func (og Client) PostReviewNote(ctx context.Context, alertID string, review types.AccessReview) error {
 	note, err := buildReviewNoteBody(review)
 	if err != nil {
 		return trace.Wrap(err)
@@ -152,7 +151,7 @@ func (og OpsgenieClient) PostReviewNote(ctx context.Context, alertID string, rev
 }
 
 // ResolveAlert resolves an alert and posts a note with resolution details.
-func (og OpsgenieClient) ResolveAlert(ctx context.Context, alertID string, resolution Resolution) error {
+func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Resolution) error {
 	note, err := buildResolutionNoteBody(resolution)
 	if err != nil {
 		return trace.Wrap(err)
@@ -172,9 +171,7 @@ func (og OpsgenieClient) ResolveAlert(ctx context.Context, alertID string, resol
 }
 
 // GetOnCall returns the list of responders on-call for a schedule.
-func (og OpsgenieClient) GetOnCall(ctx context.Context, scheduleName string) (RespondersResult, error) {
-	// v2/schedules/ScheduleName/on-calls?scheduleIdentifierType=name&flat=true'
-
+func (og Client) GetOnCall(ctx context.Context, scheduleName string) (RespondersResult, error) {
 	var result RespondersResult
 	if _, err := og.client.NewRequest().
 		SetContext(ctx).
@@ -206,10 +203,10 @@ func buildAlertBody(webProxyURL *url.URL, reqID string, reqData RequestData) (st
 		RequestLink string
 		RequestData
 	}{
-		reqID,
-		time.RFC822,
-		requestLink,
-		reqData,
+		ID:          reqID,
+		TimeFormat:  time.RFC822,
+		RequestLink: requestLink,
+		RequestData: reqData,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
