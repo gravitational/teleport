@@ -45,6 +45,7 @@ const (
 	DeviceTrustService_CreateDeviceEnrollToken_FullMethodName = "/teleport.devicetrust.v1.DeviceTrustService/CreateDeviceEnrollToken"
 	DeviceTrustService_EnrollDevice_FullMethodName            = "/teleport.devicetrust.v1.DeviceTrustService/EnrollDevice"
 	DeviceTrustService_AuthenticateDevice_FullMethodName      = "/teleport.devicetrust.v1.DeviceTrustService/AuthenticateDevice"
+	DeviceTrustService_SyncInventory_FullMethodName           = "/teleport.devicetrust.v1.DeviceTrustService/SyncInventory"
 )
 
 // DeviceTrustServiceClient is the client API for DeviceTrustService service.
@@ -113,6 +114,13 @@ type DeviceTrustServiceClient interface {
 	//
 	// Only registered and enrolled devices may perform device authentication.
 	AuthenticateDevice(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_AuthenticateDeviceClient, error)
+	// Syncs device inventory from a source exterior to Teleport, for example an
+	// MDM.
+	// Allows both partial and full syncs; for the latter, devices missing from
+	// the external inventory are handled as specified.
+	// Authorized either by a valid MDM service certificate or the appropriate
+	// "device" permissions (create/update/delete).
+	SyncInventory(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_SyncInventoryClient, error)
 }
 
 type deviceTrustServiceClient struct {
@@ -266,6 +274,37 @@ func (x *deviceTrustServiceAuthenticateDeviceClient) Recv() (*AuthenticateDevice
 	return m, nil
 }
 
+func (c *deviceTrustServiceClient) SyncInventory(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_SyncInventoryClient, error) {
+	stream, err := c.cc.NewStream(ctx, &DeviceTrustService_ServiceDesc.Streams[2], DeviceTrustService_SyncInventory_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &deviceTrustServiceSyncInventoryClient{stream}
+	return x, nil
+}
+
+type DeviceTrustService_SyncInventoryClient interface {
+	Send(*SyncInventoryRequest) error
+	Recv() (*SyncInventoryResponse, error)
+	grpc.ClientStream
+}
+
+type deviceTrustServiceSyncInventoryClient struct {
+	grpc.ClientStream
+}
+
+func (x *deviceTrustServiceSyncInventoryClient) Send(m *SyncInventoryRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *deviceTrustServiceSyncInventoryClient) Recv() (*SyncInventoryResponse, error) {
+	m := new(SyncInventoryResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // DeviceTrustServiceServer is the server API for DeviceTrustService service.
 // All implementations must embed UnimplementedDeviceTrustServiceServer
 // for forward compatibility
@@ -332,6 +371,13 @@ type DeviceTrustServiceServer interface {
 	//
 	// Only registered and enrolled devices may perform device authentication.
 	AuthenticateDevice(DeviceTrustService_AuthenticateDeviceServer) error
+	// Syncs device inventory from a source exterior to Teleport, for example an
+	// MDM.
+	// Allows both partial and full syncs; for the latter, devices missing from
+	// the external inventory are handled as specified.
+	// Authorized either by a valid MDM service certificate or the appropriate
+	// "device" permissions (create/update/delete).
+	SyncInventory(DeviceTrustService_SyncInventoryServer) error
 	mustEmbedUnimplementedDeviceTrustServiceServer()
 }
 
@@ -371,6 +417,9 @@ func (UnimplementedDeviceTrustServiceServer) EnrollDevice(DeviceTrustService_Enr
 }
 func (UnimplementedDeviceTrustServiceServer) AuthenticateDevice(DeviceTrustService_AuthenticateDeviceServer) error {
 	return status.Errorf(codes.Unimplemented, "method AuthenticateDevice not implemented")
+}
+func (UnimplementedDeviceTrustServiceServer) SyncInventory(DeviceTrustService_SyncInventoryServer) error {
+	return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
 }
 func (UnimplementedDeviceTrustServiceServer) mustEmbedUnimplementedDeviceTrustServiceServer() {}
 
@@ -599,6 +648,32 @@ func (x *deviceTrustServiceAuthenticateDeviceServer) Recv() (*AuthenticateDevice
 	return m, nil
 }
 
+func _DeviceTrustService_SyncInventory_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DeviceTrustServiceServer).SyncInventory(&deviceTrustServiceSyncInventoryServer{stream})
+}
+
+type DeviceTrustService_SyncInventoryServer interface {
+	Send(*SyncInventoryResponse) error
+	Recv() (*SyncInventoryRequest, error)
+	grpc.ServerStream
+}
+
+type deviceTrustServiceSyncInventoryServer struct {
+	grpc.ServerStream
+}
+
+func (x *deviceTrustServiceSyncInventoryServer) Send(m *SyncInventoryResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *deviceTrustServiceSyncInventoryServer) Recv() (*SyncInventoryRequest, error) {
+	m := new(SyncInventoryRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // DeviceTrustService_ServiceDesc is the grpc.ServiceDesc for DeviceTrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -653,6 +728,12 @@ var DeviceTrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "AuthenticateDevice",
 			Handler:       _DeviceTrustService_AuthenticateDevice_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "SyncInventory",
+			Handler:       _DeviceTrustService_SyncInventory_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

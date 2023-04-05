@@ -360,7 +360,7 @@ func TestRouter_DialHost(t *testing.T) {
 	agentGetter := func() (teleagent.Agent, error) {
 		return nil, nil
 	}
-	createSigner := func() (ssh.Signer, error) {
+	createSigner := func(context.Context) (ssh.Signer, error) {
 		key, err := native.GeneratePrivateKey()
 		if err != nil {
 			return nil, err

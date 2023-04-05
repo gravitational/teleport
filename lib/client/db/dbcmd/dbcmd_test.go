@@ -585,6 +585,24 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			cmd:          []string{"aws", "--endpoint", "http://localhost:12345/", "[dynamodb|dynamodbstreams|dax]", "<command>"},
 			wantErr:      false,
 		},
+		{
+			name:         "oracle",
+			dbProtocol:   defaults.ProtocolOracle,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, "")},
+			execer:       &fakeExec{},
+			databaseName: "oracle01",
+			cmd:          []string{"sql", "-L", "jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/mysql-wallet"},
+			wantErr:      false,
+		},
+		{
+			name:         "Oracle with print format",
+			dbProtocol:   defaults.ProtocolOracle,
+			opts:         []ConnectCommandFunc{WithLocalProxy("localhost", 12345, ""), WithPrintFormat()},
+			execer:       &fakeExec{},
+			databaseName: "oracle01",
+			cmd:          []string{"sql", "-L", "'jdbc:oracle:thin:@tcps://localhost:12345/oracle01?TNS_ADMIN=/tmp/keys/example.com/bob-db/mysql-wallet'"},
+			wantErr:      false,
+		},
 	}
 
 	for _, tt := range tests {
