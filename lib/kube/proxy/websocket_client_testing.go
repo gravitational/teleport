@@ -336,10 +336,9 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 			if err != nil {
 				// check the connection was properly closed by server, and if true ignore the error.
 				var websocketErr *gwebsocket.CloseError
-				if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseNormalClosure {
-					err = nil
+				if errors.As(err, &websocketErr) && websocketErr.Code != gwebsocket.CloseNormalClosure {
+					errChan <- err
 				}
-				errChan <- err
 				return
 			}
 			e.mu.Lock()
@@ -350,7 +349,11 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 	}()
 
 	wg.Wait()
-	close(errChan)
+	// always expect an error from the errChan since it means that the connection was closed
+	// by the server by sending a streamErr with the error.
+	// If no error happened during the remote execution, the server sends a streamErr with
+	// status = Success field.
+	// If the server didn't send any error, this call will block forever.
 	err := <-errChan
 	return err
 }
