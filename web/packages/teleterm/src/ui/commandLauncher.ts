@@ -18,25 +18,34 @@ import { IAppContext } from 'teleterm/ui/types';
 import { ClusterUri, KubeUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 import { Platform } from 'teleterm/mainProcess/types';
+import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
   'tsh-ssh': {
     displayName: '',
     description: '',
-    run(
+    async run(
       ctx: IAppContext,
-      args: { loginHost: string; localClusterUri: ClusterUri }
+      args: {
+        loginHost: string;
+        localClusterUri: ClusterUri;
+        origin: DocumentOrigin;
+      }
     ) {
-      const { loginHost, localClusterUri } = args;
+      const { loginHost, localClusterUri, origin } = args;
       const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
       const documentsService =
         ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
       const doc = documentsService.createTshNodeDocumentFromLoginHost(
         localClusterUri,
-        loginHost
+        loginHost,
+        { origin }
       );
+
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
     },
@@ -89,15 +98,23 @@ const commands = {
   'kube-connect': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { kubeUri: KubeUri }) {
+    async run(
+      ctx: IAppContext,
+      args: { kubeUri: KubeUri; origin: DocumentOrigin }
+    ) {
+      const rootClusterUri = routing.ensureRootClusterUri(args.kubeUri);
       const documentsService =
-        ctx.workspacesService.getActiveWorkspaceDocumentService();
+        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
       const kubeDoc = documentsService.createTshKubeDocument({
         kubeUri: args.kubeUri,
+        origin: args.origin,
       });
       const connection = ctx.connectionTracker.findConnectionByDocument(
         kubeDoc
       ) as TrackedKubeConnection;
+
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+
       documentsService.add({
         ...kubeDoc,
         kubeConfigRelativePath:
@@ -194,6 +211,7 @@ export class CommandLauncher {
 
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
+    return undefined;
   }
 
   getAutocompleteCommands() {

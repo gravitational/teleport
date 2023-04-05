@@ -64,10 +64,10 @@ connecting directly to the Auth Service.
 
 - An AWS EC2 instance to act as a Teleport Node, with the Teleport binary
   installed.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up AWS IAM credentials
+
 Every Node or Proxy using the IAM method to join your Teleport cluster needs AWS
 IAM credentials in order to call the `sts:GetCallerIdentity` API. No specific
 IAM policy or permissions are needed. Any IAM user or role can call this API.

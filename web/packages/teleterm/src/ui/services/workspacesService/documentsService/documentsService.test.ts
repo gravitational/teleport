@@ -77,6 +77,7 @@ describe('document should be added', () => {
     targetUri: '/clusters/bar/dbs/quux',
     targetName: 'quux',
     targetUser: 'foo',
+    origin: 'resource_table',
   };
 
   test('at the specific position', () => {
@@ -131,6 +132,7 @@ test('only TSH node documents should be returned', () => {
     status: 'connecting',
     rootClusterId: '',
     leafClusterId: undefined,
+    origin: 'resource_table',
   };
 
   service.add(tshNodeDocument);
@@ -150,6 +152,7 @@ test('only gateway documents should be returned', () => {
     targetUri: '/clusters/bar/dbs/quux',
     targetName: 'quux',
     targetUser: 'foo',
+    origin: 'resource_table',
   };
 
   service.add(gatewayDocument);

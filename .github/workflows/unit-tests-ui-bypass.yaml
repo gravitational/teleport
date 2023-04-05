@@ -14,9 +14,11 @@ run-name: Unit Tests UI - ${{ github.run_id }} - @${{ github.actor }}
 on:
   pull_request:
     paths-ignore:
+      - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
   merge_group:
     paths-ignore:
+      - '.github/workflows/unit-tests-ui.yaml'
       - 'web/**'
 
 jobs:
