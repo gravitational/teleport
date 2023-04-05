@@ -25,6 +25,7 @@ import { ConfigService } from 'teleterm/services/config';
 import Logger from 'teleterm/logger';
 import { staticConfig } from 'teleterm/staticConfig';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
+import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 type PrehogEventReq = Omit<
   ReportUsageEventRequest['prehogReq'],
@@ -70,7 +71,8 @@ export class UsageService {
 
   captureProtocolUse(
     uri: ClusterOrResourceUri,
-    protocol: 'ssh' | 'kube' | 'db'
+    protocol: 'ssh' | 'kube' | 'db',
+    origin: DocumentOrigin
   ): void {
     const clusterProperties = this.getClusterProperties(uri);
     if (!clusterProperties) {
@@ -84,6 +86,7 @@ export class UsageService {
         clusterName: clusterProperties.clusterName,
         userName: clusterProperties.userName,
         protocol,
+        origin,
       },
     });
   }

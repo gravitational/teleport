@@ -39,7 +39,7 @@ name: push-build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
   UID: "1000"
 trigger:
   event:
@@ -161,7 +161,7 @@ name: push-build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
   UID: "1000"
 trigger:
   event:
@@ -281,7 +281,7 @@ name: push-build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
   UID: "1000"
 trigger:
   event:
@@ -405,7 +405,7 @@ name: push-build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
   UID: "1000"
 trigger:
   event:
@@ -580,7 +580,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.20.2
+    RUNTIME: go1.20.3
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -830,28 +830,6 @@ steps:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
-- name: Build Windows Authentication Package
-  commands:
-  - $ErrorActionPreference = 'Stop'
-  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $Env:GOCACHE = "$Workspace/gocache"
-  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Go -ToolchainDir "$Workspace/toolchains"
-  - cd $TeleportSrc
-  - $TeleportVersion=$(make print-version).Trim()
-  - cd "$TeleportSrc\e\windowsauth"
-  - make VERSION=v$TeleportVersion  all
-  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
-    windows-signing-cert.pfx -Encoding Byte
-  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
-    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
-  - rm -r windows-signing-cert.pfx
-  environment:
-    WINDOWS_SIGNING_CERT:
-      from_secret: WINDOWS_SIGNING_CERT
-    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -1095,28 +1073,6 @@ steps:
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-- name: Build Windows Authentication Package
-  commands:
-  - $ErrorActionPreference = 'Stop'
-  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $Env:GOCACHE = "$Workspace/gocache"
-  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Go -ToolchainDir "$Workspace/toolchains"
-  - cd $TeleportSrc
-  - $TeleportVersion=$(make print-version).Trim()
-  - cd "$TeleportSrc\e\windowsauth"
-  - make VERSION=v$TeleportVersion  all
-  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
-    windows-signing-cert.pfx -Encoding Byte
-  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
-    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
-  - rm -r windows-signing-cert.pfx
-  environment:
-    WINDOWS_SIGNING_CERT:
-      from_secret: WINDOWS_SIGNING_CERT
-    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -1196,8 +1152,6 @@ steps:
   - Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release
   - Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect
     Setup*.exe" -Destination $OutputsDir
-  - Copy-Item -Path "$TeleportSrc/e/windowsauth/build/teleport-windows-auth-setup-*.exe"
-    -Destination $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
   - Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket
@@ -1214,8 +1168,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-master-e148541-20230331T1403513-windows.exe'
-  - $relcliSha256 = '6e2ba2275d5d2bdd1c29def84d2de7d11149a9044c4fdca7c8d87c8e3fb8a91c'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.76-windows.exe'
+  - $relcliSha256 = '56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -1250,7 +1204,7 @@ name: push-build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
   GID: "1000"
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
   UID: "1000"
 trigger:
   event:
@@ -1787,7 +1741,7 @@ type: kubernetes
 name: build-linux-amd64-centos7
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
 trigger:
   event:
     include:
@@ -1996,7 +1950,7 @@ type: kubernetes
 name: build-linux-amd64-centos7-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
 trigger:
   event:
     include:
@@ -2204,7 +2158,7 @@ type: kubernetes
 name: build-linux-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
 trigger:
   event:
     include:
@@ -2419,7 +2373,7 @@ type: kubernetes
 name: build-linux-amd64-fips
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
 trigger:
   event:
     include:
@@ -3719,7 +3673,7 @@ type: kubernetes
 name: build-linux-386
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
 trigger:
   event:
     include:
@@ -4533,7 +4487,7 @@ steps:
   - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
   - rm -rf $RUNTIME.darwin-amd64.tar.gz
   environment:
-    RUNTIME: go1.20.2
+    RUNTIME: go1.20.3
 - name: Install Rust Toolchain
   commands:
   - set -u
@@ -5125,7 +5079,7 @@ type: kubernetes
 name: build-linux-arm
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
 trigger:
   event:
     include:
@@ -6454,7 +6408,7 @@ type: kubernetes
 name: build-windows-amd64
 environment:
   BUILDBOX_VERSION: teleport13
-  RUNTIME: go1.20.2
+  RUNTIME: go1.20.3
 trigger:
   event:
     include:
@@ -21191,6 +21145,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 7bc49f6704c6e69be556a26c2c221ac7f84e12c01b2d3d04a305c7300ebe064d
+hmac: 3a2e1dfd7cd5045cb27658233858cb21a861d6595ef5c807321e0d8af0f65bdb
 
 ...

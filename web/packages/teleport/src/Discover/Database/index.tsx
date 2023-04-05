@@ -41,7 +41,7 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
     let configureResourceViews;
     if (resource && resource.dbMeta) {
       switch (resource.dbMeta.location) {
-        case DatabaseLocation.AWS:
+        case DatabaseLocation.Aws:
           configureResourceViews = [
             {
               title: 'Register a Database',
