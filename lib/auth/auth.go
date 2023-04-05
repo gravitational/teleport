@@ -4945,7 +4945,8 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 	return headlessAuthn, trace.Wrap(err)
 }
 
-// getProxyPublicAddr gets the server's public proxy address.
+// getProxyPublicAddr returns the first valid, non-empty proxy public address it
+// finds, or empty otherwise.
 func (a *Server) getProxyPublicAddr() string {
 	if proxies, err := a.GetProxies(); err == nil {
 		for _, p := range proxies {
