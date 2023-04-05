@@ -1,6 +1,7 @@
 <ScopedBlock scope={["oss", "enterprise"]}>
 Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
+
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
 $ helm install teleport-kube-agent teleport/teleport-kube-agent \
@@ -15,10 +16,12 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set "labels.env=dev" \
   --version (=teleport.version=)
 ```
+
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 Install the Teleport Kube Agent into your Kubernetes Cluster
 with the Teleport Database Service configuration.
+
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
 $ helm install teleport-kube-agent teleport/teleport-kube-agent \
@@ -33,4 +36,5 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set "labels.env=dev" \
   --version (=cloud.version=)
 ```
+
 </ScopedBlock>
