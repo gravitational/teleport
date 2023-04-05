@@ -1605,7 +1605,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, nod
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
 		}
-		return runLocalCommand(command)
+		return runLocalCommand(tc.Config.HostLogin, command)
 	}
 
 	if len(command) > 0 {
@@ -4171,18 +4171,22 @@ func ParseSearchKeywords(spec string, customDelimiter rune) []string {
 
 // Executes the given command on the client machine (localhost). If no command is given,
 // executes shell
-func runLocalCommand(command []string) error {
+func runLocalCommand(hostLogin string, command []string) error {
 	if len(command) == 0 {
-		user, err := user.Current()
-		if err != nil {
-			return trace.Wrap(err)
+		if hostLogin == "" {
+			user, err := user.Current()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			hostLogin = user.Username
 		}
-		shell, err := shell.GetLoginShell(user.Username)
+		shell, err := shell.GetLoginShell(hostLogin)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		command = []string{shell}
 	}
+
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
