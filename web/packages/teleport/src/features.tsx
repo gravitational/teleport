@@ -25,6 +25,7 @@ import {
   LockIcon,
   DatabasesIcon,
   DesktopsIcon,
+  IntegrationsIcon,
   KubernetesIcon,
   ManageClustersIcon,
   RolesIcon,
@@ -98,6 +99,9 @@ const Desktops = React.lazy(
 );
 const Discover = React.lazy(
   () => import(/* webpackChunkName: "discover" */ './Discover')
+);
+const Integrations = React.lazy(
+  () => import(/* webpackChunkName: "integrations" */ './Integrations')
 );
 
 // ****************************
@@ -392,6 +396,35 @@ export class FeatureDiscover implements TeleportFeature {
   }
 }
 
+export class FeatureIntegrations implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.integrations;
+  }
+
+  route = {
+    title: 'Manage Integrations',
+    path: cfg.routes.integrations,
+    exact: true,
+    component: () => <Integrations />,
+  };
+
+  navigationItem = {
+    title: 'Integrations',
+    icon: <IntegrationsIcon />,
+    exact: true,
+    getLink() {
+      return cfg.routes.integrations;
+    },
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
@@ -556,6 +589,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAuthConnectors(),
     new FeatureLocks(),
     new FeatureNewLock(),
+    new FeatureIntegrations(),
     new FeatureDiscover(),
 
     // - Activity
