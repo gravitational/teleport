@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -35,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func getCredentialData(idFile *identityfile.IdentityFile) ([]byte, error) {
+func getCredentialData(idFile *identityfile.IdentityFile, clock clockwork.Clock) ([]byte, error) {
 	cert, err := tlsca.ParseCertificatePEM(idFile.Certs.TLS)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -44,7 +45,7 @@ func getCredentialData(idFile *identityfile.IdentityFile) ([]byte, error) {
 	// Indicate slightly earlier expiration to avoid the cert expiring
 	// mid-request, if possible.
 	expiry := cert.NotAfter
-	if time.Until(expiry) > time.Minute {
+	if expiry.Sub(clock.Now()) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 	resp := &clientauthentication.ExecCredential{
@@ -88,7 +89,7 @@ func onKubeCredentialsCommand(cfg *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	data, err := getCredentialData(idFile)
+	data, err := getCredentialData(idFile, clockwork.NewRealClock())
 	if err != nil {
 		return trace.Wrap(err)
 	}
