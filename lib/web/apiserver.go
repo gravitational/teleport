@@ -3652,17 +3652,17 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		ClearSession(w)
 		return nil, trace.AccessDenied("need auth")
 	}
-	//if checkBearerToken {
-	//	creds, err := roundtrip.ParseAuthHeaders(r)
-	//	if err != nil {
-	//		logger.WithError(err).Warn("No auth headers.")
-	//		return nil, trace.AccessDenied("need auth")
-	//	}
-	//	if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
-	//		logger.WithError(err).Warn("Request failed: bad bearer token.")
-	//		return nil, trace.AccessDenied("bad bearer token")
-	//	}
-	//}
+	if checkBearerToken {
+		creds, err := roundtrip.ParseAuthHeaders(r)
+		if err != nil {
+			logger.WithError(err).Warn("No auth headers.")
+			return nil, trace.AccessDenied("need auth")
+		}
+		if err := ctx.validateBearerToken(r.Context(), creds.Password); err != nil {
+			logger.WithError(err).Warn("Request failed: bad bearer token.")
+			return nil, trace.AccessDenied("bad bearer token")
+		}
+	}
 	return ctx, nil
 }
 
