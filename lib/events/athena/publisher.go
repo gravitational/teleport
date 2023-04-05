@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sns"
@@ -30,7 +31,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 )
 
 const (
@@ -66,10 +66,17 @@ type s3uploader interface {
 
 // newPublisher returns new instance of publisher.
 func newPublisher(cfg Config, awsCfg aws.Config, log *log.Entry) *publisher {
+	r := retry.NewStandard(func(so *retry.StandardOptions) {
+		so.MaxAttempts = 20
+		so.MaxBackoff = 1 * time.Minute
+	})
+
 	// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
 	return &publisher{
-		topicARN:      cfg.TopicARN,
-		snsPublisher:  sns.NewFromConfig(awsCfg),
+		topicARN: cfg.TopicARN,
+		snsPublisher: sns.NewFromConfig(awsCfg, func(o *sns.Options) {
+			o.Retryer = r
+		}),
 		uploader:      manager.NewUploader(s3.NewFromConfig(awsCfg)),
 		payloadBucket: cfg.largeEventsBucket,
 		payloadPrefix: cfg.largeEventsPrefix,
@@ -95,28 +102,15 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// TODO(tobiaszheller): verify if those limits and retry is valid.
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: 100 * time.Millisecond,
-		Max:  1 * time.Minute,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	b64Encoded := base64.StdEncoding.EncodeToString(marshaledProto)
 	if len(b64Encoded) > maxSNSMessageSize {
 		if len(b64Encoded) > maxS3BasedSize {
 			return trace.BadParameter("message too large to publish, size %d", len(b64Encoded))
 		}
-		return retry.For(ctx, func() error {
-			return p.emitViaS3(ctx, in.GetID(), marshaledProto)
-		})
+		return p.emitViaS3(ctx, in.GetID(), marshaledProto)
 	}
-
-	return retry.For(ctx, func() error {
-		return p.emitViaSNS(ctx, in.GetID(), b64Encoded)
-	})
+	return p.emitViaSNS(ctx, in.GetID(), b64Encoded)
 }
 
 func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []byte) error {
@@ -127,8 +121,6 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 		Body:   bytes.NewBuffer(marshaledEvent),
 	})
 	if err != nil {
-		// TODO(tobiaszheller): come back at some point and check which non retryable errors
-		// can return aws.
 		return trace.Wrap(err)
 	}
 
@@ -152,8 +144,6 @@ func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []
 			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeS3Based)},
 		},
 	})
-	// TODO(tobiaszheller): come back at some point and check which non retryable errors
-	// can return aws.
 	return trace.Wrap(err)
 }
 
@@ -165,7 +155,5 @@ func (p *publisher) emitViaSNS(ctx context.Context, uid string, b64Encoded strin
 			payloadTypeAttr: {DataType: aws.String("String"), StringValue: aws.String(payloadTypeRawProtoEvent)},
 		},
 	})
-	// TODO(tobiaszheller): come back at some point and check which non retryable errors
-	// can return aws.
 	return trace.Wrap(err)
 }
