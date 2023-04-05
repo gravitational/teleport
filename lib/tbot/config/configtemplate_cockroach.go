@@ -57,7 +57,7 @@ func (t *TemplateCockroach) Describe(destination bot.Destination) []FileDescript
 	}
 }
 
-func (t *TemplateCockroach) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateCockroach) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, _ *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
