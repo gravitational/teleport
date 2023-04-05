@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/gravitational/teleport/lib/tbotv2"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -434,8 +433,12 @@ func SaveIdentity(id *Identity, d bot.Destination, kinds ...ArtifactKind) error 
 	return nil
 }
 
+type reader interface {
+	Read(ctx context.Context, name string) ([]byte, error)
+}
+
 // LoadIdentity loads a bot identity from a destination.
-func LoadIdentity(d tbotv2.Store, kinds ...ArtifactKind) (*Identity, error) {
+func LoadIdentity(d reader, kinds ...ArtifactKind) (*Identity, error) {
 	var certs proto.Certs
 	var params LoadIdentityParams
 

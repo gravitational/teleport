@@ -11,7 +11,7 @@ func main() {
 	log := utils.NewLogger()
 	err := run(log)
 	if err != nil {
-		log.Fatal(err)
+		log.WithError(err).Fatal("bot died")
 	}
 }
 
@@ -19,7 +19,8 @@ func run(log logrus.FieldLogger) error {
 	log.Info("Running")
 	ctx := context.Background()
 	bot := tbotv2.NewBot(tbotv2.Config{
-		AuthServer: "root.tele.ottr.sh",
+		AuthServer: "root.tele.ottr.sh:443",
+		Dir:        "/Users/noahstride/code/gravitational/teleports/tbot-leaf-cluster/data",
 		Oneshot:    true,
 	}, log)
 	log.Info("Bot created, starting")

@@ -37,6 +37,7 @@ func (d *ApplicationDestination) Generate(ctx context.Context, bot BotI, store S
 	}
 
 	routedIdentity, err := bot.GenerateIdentity(ctx, IdentityRequest{
+		ttl:        ttl,
 		roles:      roles,
 		routeToApp: routeToApp,
 	})

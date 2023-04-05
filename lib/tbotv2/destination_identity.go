@@ -11,6 +11,7 @@ type IdentityDestination struct {
 
 func (d *IdentityDestination) Generate(ctx context.Context, bot BotI, store Store, roles []string, ttl time.Duration) error {
 	id, err := bot.GenerateIdentity(ctx, IdentityRequest{
+		ttl:   ttl,
 		roles: roles,
 	})
 	if err != nil {
@@ -19,5 +20,5 @@ func (d *IdentityDestination) Generate(ctx context.Context, bot BotI, store Stor
 
 	// Persist to store
 	// TODO: Write the whole shebang
-	return trace.Wrap(store.Write(ctx, "identity", id.CertBytes))
+	return trace.Wrap(store.Write(ctx, "identity", []byte(id.String())))
 }

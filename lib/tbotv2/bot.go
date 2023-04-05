@@ -2,14 +2,13 @@ package tbotv2
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	teleport "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -24,6 +23,7 @@ type Destination struct {
 type Config struct {
 	AuthServer string
 	Oneshot    bool
+	Dir        string
 
 	// For the bots own identity rather than produced certs
 	TTL   time.Duration
@@ -47,32 +47,19 @@ type Bot struct {
 
 func (b *Bot) Run(ctx context.Context) error {
 	b.logger.Info("Bot starting")
-	// TODO: Set up bots own identity
 
-	identPath := "./identity"
-	var err error
-
-	// Ugly current hack to load identity
-	sha := sha256.Sum256([]byte("foo"))
-	tokenHash := hex.EncodeToString(sha[:])
-	b.currentIdentity, err = identity.ReadIdentityFromStore(&identity.LoadIdentityParams{
-		PrivateKeyBytes: tlsConf,
-		PublicKeyBytes:  sshPublicKey,
-		TokenHashBytes:  []byte(tokenHash),
-	}, certs, identity.BotKinds()...)
-
-	b.auth, err = auth.NewClient(
-		teleport.Config{
-			Addrs: []string{"root.tele.ottr.sh:443"},
-			Credentials: []teleport.Credentials{
-				teleport.LoadIdentityFile(identPath),
-			},
-		},
-		nil,
-	)
-	if err != nil {
-		return trace.Wrap(err)
+	// TODO: Joining/bot identity renewal.
+	// Ugly current hack to steal identity from another bot for now.
+	botStore := &DirectoryStore{
+		Dir: b.cfg.Dir,
 	}
+	ident, err := identity.LoadIdentity(botStore, identity.BotKinds()...)
+	if err != nil {
+		return err
+	}
+	client, err := b.ClientForIdentity(ctx, ident)
+	b.auth = client
+	b.currentIdentity = ident
 
 	// Set up CA watcher
 	if !b.cfg.Oneshot {
@@ -215,6 +202,32 @@ func (b *Bot) ListenForRotation(ctx context.Context) (chan struct{}, func(), err
 }
 
 func (b *Bot) ClientForIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
-	// TODO: Actually spawn a client.
-	return nil, nil
+	if id.SSHCert == nil || id.X509Cert == nil {
+		return nil, trace.BadParameter("auth client requires a fully formed identity")
+	}
+
+	tlsConfig, err := id.TLSConfig(utils.DefaultCipherSuites())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig, err := id.SSHClientConfig(false)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClientConfig := &authclient.Config{
+		TLS:         tlsConfig,
+		SSH:         sshConfig,
+		AuthServers: []utils.NetAddr{*authAddr},
+		Log:         b.logger,
+	}
+
+	c, err := authclient.Connect(ctx, authClientConfig)
+	return c, trace.Wrap(err)
 }
