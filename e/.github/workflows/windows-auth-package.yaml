@@ -1,0 +1,30 @@
+name: "Windows Authentication Package Build"
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    paths:
+      - 'windowsauth/**'
+jobs:
+  Build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          go-version-file: 'windowsauth/go.mod'
+      - name: Build all
+        run: make -C windowsauth VERSION=${env:VERSION} all
+        env:
+          VERSION: ${{ inputs.version }}
+      - name: Test
+        run: make -C windowsauth test
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: artifacts
+          path: build/
