@@ -1,5 +1,74 @@
 # Changelog
 
+## 11.3.10 (03/30/23)
+
+This release of Teleport contains 2 security fixes as well as multiple improvements and bug fixes.
+
+### [High] OS authorization bypass in SSH tunneling
+
+When establishing an SSH port forwarding connection, Teleport did not
+sufficiently validate the specified OS principal.
+
+This could allow an attacker in possession of valid cluster credentials to
+establish a TCP tunnel to a node using a non-existent Linux user.
+
+The connection attempt would show up in the audit log as a "port" audit event
+(code T3003I) and include a Teleport username in the "user" field.
+
+### [High] Teleport authorization bypass in Kubernetes Access
+
+When authorizing a Kubernetes Access request, Teleport did not adequately
+validate the target Kubernetes cluster.
+
+This could allow an attacker in possession of valid Kubernetes agent credentials
+or a join token to trick Teleport into forwarding requests to a different
+Kubernetes cluster.
+
+Every Kubernetes request would show up in the audit log as a "kube.request"
+audit event (code T3009I) and include the Kubernetes cluster metadata.
+
+### Other improvements and fixes
+
+* Application Access
+  * Reduced log noise. [#23366](https://github.com/gravitational/teleport/pull/23366)
+  * Fixed app access requests being redirected to leaf's public address in some cases. [#23221](https://github.com/gravitational/teleport/pull/23221)
+* AMIs
+  * Added support for configuring TLS routing mode in AMIs. [#23677](https://github.com/gravitational/teleport/pull/23677)
+* CLI
+  * Updated `tsh status` to not display internal logins. [#23412](https://github.com/gravitational/teleport/pull/23412)
+  * Display year in `tctl` commands output. [#23372](https://github.com/gravitational/teleport/pull/23372)
+  * Fixed issue with `tsh` reporting errors about missing webauthn.dll on Windows. [#23162](https://github.com/gravitational/teleport/pull/23162)
+  * Added `app_server` support to `tctl` resource commands. [#23137](https://github.com/gravitational/teleport/pull/23137)
+  * Added `--cluster` flag to `tsh kube sessions` command. [#23826](https://github.com/gravitational/teleport/pull/23826)
+* Database Access
+  * Fixed issue with query audit events always having `success: false` status. [#23275](https://github.com/gravitational/teleport/pull/23275)
+* Desktop Access
+  * Updated setup script to be idempotent. [#23175](https://github.com/gravitational/teleport/pull/23175)
+* Kubernetes Access
+  * Fixed issue with `tsh kube credentials` loading incorrect profile. [#23718](https://github.com/gravitational/teleport/pull/23718)
+  * Fixed issue with `tsh kube credentials` failing on remote clusters. [#23353](https://github.com/gravitational/teleport/pull/23353)
+* Machine ID
+  * Added ability to specify memory backend using CLI parameters. [#23497](https://github.com/gravitational/teleport/pull/23497)
+* Moderated Sessions
+  * Fixed issue with joining moderated sessions via Web UI. [#24019](https://github.com/gravitational/teleport/pull/24019)
+  * Fixed issue with join button sometimes not appearing for moderated session in Web UI. [#24028](https://github.com/gravitational/teleport/pull/24028)
+* Proxy Peering
+  * Fixed proxy peering issues when running behind a load balancer. [#23507](https://github.com/gravitational/teleport/pull/23507)
+* Reverse Tunnels
+  * Fixed issue when joining leaf cluster over tunnel port with enabled proxy protocol. [#23486](https://github.com/gravitational/teleport/pull/23486)
+  * Fixed issue with joining agents over reverse tunnel port. [#23333](https://github.com/gravitational/teleport/pull/23333)
+* Performance & scalability
+  * Improved `tsh ls -R` performance in large clusters. [#23597](https://github.com/gravitational/teleport/pull/23597)
+  * Improved performance when setting environment for user session. [#23833](https://github.com/gravitational/teleport/pull/23833)
+  * Reduced cache retry thundering herd effect in large clusters. [#23947](https://github.com/gravitational/teleport/pull/23947)
+* Tooling
+  * Updated Go to `1.20.3`. [#24064](https://github.com/gravitational/teleport/pull/24064)
+  * Updated Rust to `1.68.0`. [#23102](https://github.com/gravitational/teleport/pull/23102)
+* Web UI
+  * Fixed intermittent "client connection is closing" errors in web UI after logging in. [#23735](https://github.com/gravitational/teleport/pull/23735)
+  * Added MFA support when copying files. [#23196](https://github.com/gravitational/teleport/pull/23196)
+  * Fixed "ambiguous node" error when downloading files. [#23153](https://github.com/gravitational/teleport/pull/23153)
+
 ## 11.3.8
 
 This release of Teleport contains multiple improvements and bug fixes.
