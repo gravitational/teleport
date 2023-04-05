@@ -59,13 +59,21 @@ var alertMessage = fmt.Sprintf("Teleport has failed to contact the usage reporti
 	"Otherwise, contact Teleport Support at (%v).",
 	alertGraceHours, defaultEndpointHostname, alertLink)
 
+// SubmitterConfig contains the configuration for a [Submitter].
 type SubmitterConfig struct {
-	Backend   backend.Backend
-	Log       logrus.FieldLogger
-	Status    services.StatusInternal
+	// Backend is the backend to use to read reports and apply locks. Required.
+	Backend backend.Backend
+	// Log is the [logrus.FieldLogger] used for logging. Required.
+	Log logrus.FieldLogger
+	// Status is used to create or clear cluster alerts on a failure. Required.
+	Status services.StatusInternal
+	// Submitter is used to submit usage reports. Required.
 	Submitter UsageReportsSubmitter
 }
 
+// CheckAndSetDefaults checks the [SubmitterConfig] for validity, returning nil
+// if there's no error. Idempotent but not concurrent safe, as it might need to
+// write to the config to apply defaults.
 func (cfg *SubmitterConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")

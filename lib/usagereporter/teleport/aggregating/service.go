@@ -120,6 +120,9 @@ func (r reportService) deleteUserActivityReport(ctx context.Context, report *pre
 	return nil
 }
 
+// listUserActivityReports returns the first `count` user activity reports
+// according to the key order; as we store them with time and uuid in the key,
+// this results in returning earlier reports first.
 func (r reportService) listUserActivityReports(ctx context.Context, count int) ([]*prehogv1.UserActivityReport, error) {
 	rangeStart := backend.ExactKey(userActivityReportsPrefix)
 	result, err := r.b.GetRange(ctx, rangeStart, backend.RangeEnd(rangeStart), count)

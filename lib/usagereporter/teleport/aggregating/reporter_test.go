@@ -63,11 +63,11 @@ func TestReporter(t *testing.T) {
 	require.NoError(t, err)
 
 	r, err := NewReporter(ctx, ReporterConfig{
-		Backend:        bk,
-		Log:            logrus.StandardLogger(),
-		Clock:          clk,
-		ClusterName:    clusterName,
-		ReporterHostID: uuid.NewString(),
+		Backend:     bk,
+		Log:         logrus.StandardLogger(),
+		Clock:       clk,
+		ClusterName: clusterName,
+		HostID:      uuid.NewString(),
 	})
 	require.NoError(t, err)
 

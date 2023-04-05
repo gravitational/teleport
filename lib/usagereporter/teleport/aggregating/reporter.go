@@ -38,15 +38,27 @@ const (
 	checkInterval = time.Minute
 )
 
+// ReporterConfig contains the configuration for a [Reporter].
 type ReporterConfig struct {
+	// Backend is the backend used to store reports. Required
 	Backend backend.Backend
-	Log     logrus.FieldLogger
-	Clock   clockwork.Clock
+	// Log is the logger used for logging. Required.
+	Log logrus.FieldLogger
+	// Clock is the clock used for timestamping reports and deciding when to
+	// persist them to the backend. Optional, defaults to the real clock.
+	Clock clockwork.Clock
 
-	ClusterName    types.ClusterName
-	ReporterHostID string
+	// ClusterName is the ClusterName resource for the current cluster, used for
+	// anonymization and to report the cluster name itself. Required.
+	ClusterName types.ClusterName
+	// HostID is the host ID of the current Teleport instance, added to reports
+	// for auditing purposes. Required.
+	HostID string
 }
 
+// CheckAndSetDefaults checks the [ReporterConfig] for validity, returning nil
+// if there's no error. Idempotent but not concurrent safe, as it might need to
+// write to the config to apply defaults.
 func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing Backend")
@@ -60,8 +72,8 @@ func (cfg *ReporterConfig) CheckAndSetDefaults() error {
 	if cfg.ClusterName == nil {
 		return trace.BadParameter("missing ClusterName")
 	}
-	if cfg.ReporterHostID == "" {
-		return trace.BadParameter("missing ReporterHostID")
+	if cfg.HostID == "" {
+		return trace.BadParameter("missing HostID")
 	}
 	return nil
 }
@@ -91,8 +103,8 @@ func NewReporter(ctx context.Context, cfg ReporterConfig) (*Reporter, error) {
 		closing: make(chan struct{}),
 		done:    make(chan struct{}),
 
-		clusterName:    anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
-		reporterHostID: anonymizer.AnonymizeNonEmpty(cfg.ReporterHostID),
+		clusterName: anonymizer.AnonymizeNonEmpty(cfg.ClusterName.GetClusterName()),
+		hostID:      anonymizer.AnonymizeNonEmpty(cfg.HostID),
 
 		baseCancel: baseCancel,
 	}
@@ -121,8 +133,8 @@ type Reporter struct {
 
 	// clusterName is the anonymized cluster name.
 	clusterName []byte
-	// reporterHostID is the anonymized host ID of the reporter (this agent).
-	reporterHostID []byte
+	// hostID is the anonymized host ID of the reporter (this instance).
+	hostID []byte
 
 	// baseCancel cancels the context used by the background goroutine.
 	baseCancel context.CancelFunc
@@ -280,7 +292,7 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 	}
 
 	for len(records) > 0 {
-		report, err := prepareUserActivityReport(r.clusterName, r.reporterHostID, startTime, records)
+		report, err := prepareUserActivityReport(r.clusterName, r.hostID, startTime, records)
 		if err != nil {
 			r.log.WithError(err).WithFields(logrus.Fields{
 				"start_time":   startTime,
