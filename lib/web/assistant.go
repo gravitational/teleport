@@ -20,23 +20,29 @@
 package web
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/llmchain"
+)
+
+const (
+	kindChatUserMessage      = "CHAT_USER_MESSAGE"
+	kindChatAssistantMessage = "CHAT_ASSISTANT_MESSAGE"
 )
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
-	authClient, err := sctx.GetClient()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	//authClient, err := sctx.GetClient()
+	//if err != nil {
+	//	return nil, trace.Wrap(err)
+	//}
 
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -60,34 +66,21 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 	}
 	defer ws.Close()
 
-	q := r.URL.Query()
-	conversationID := q.Get("conversation_id")
-	if conversationID == "" {
-		// new conversation, create a new ID
-		conversationID = uuid.New().String()
-
-		if err := ws.WriteJSON(struct {
-			ConversationID string `json:"conversation_id"`
-		}{
-			ConversationID: conversationID,
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		// existing conversation, retrieve old messages
-		messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		for _, msg := range messages.GetMessages() {
-			if err := ws.WriteJSON(msg); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
+	prefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
+	client := llmchain.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.ApiKey)
+	chain := client.NewChain()
+
+	//q := r.URL.Query()
+	//conversationID := q.Get("conversation_id")
+	// TODO(joel): impl persistance
+	//conversationID := uuid.New().String()
+
 	for {
-		_, msg, err := ws.ReadMessage()
+		_, payload, err := ws.ReadMessage()
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -95,17 +88,46 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 			return nil, trace.Wrap(err)
 		}
 
-		// TODO: implement ChatGPT communication
-
-		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
-			ConversationId: conversationID,
-			Type:           "CHAT_RESPONSE", // Set the message type
-			Payload:        msg,
-			CreatedTime:    h.clock.Now().UTC(),
-		}); err != nil {
+		var wsIncoming wsMessage
+		if err := json.Unmarshal(payload, &wsIncoming); err != nil {
 			return nil, trace.Wrap(err)
+		}
+
+		chain.Insert(wsIncoming.Chat.Role, wsIncoming.Chat.Content)
+		stream, err := chain.Complete(r.Context(), 500)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		for partial := range stream {
+			out := wsMessage{
+				Chat: &chatMessage{
+					Role:    partial.Role,
+					Content: partial.Content,
+				},
+				Idx: partial.Idx,
+			}
+
+			payload, err := json.Marshal(out)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if err := ws.WriteJSON(payload); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 
 	return nil, nil
+}
+
+type wsMessage struct {
+	Chat *chatMessage `json:"chat,omitempty"`
+	Idx  int          `json:"idx,omitempty"`
+}
+
+type chatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
