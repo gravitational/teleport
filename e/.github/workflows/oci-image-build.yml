@@ -60,15 +60,18 @@ on:
       dronestorage-access-role-arn:
         description: |
           ARN of the role used to access the dronestorage bucket, for retreiving 
-          artefacts built by Drone.
-        required: true
+          artefacts built by Drone. This is required only when
+          inputs.dronestorage-bucket-name is set.
+        required: false
         type: string
 
       dronestorage-bucket-name:
         description: |
           Name of the dronestorage bucket holding the debian package artifacts
-          built by Drone
-        required: true
+          built by Drone. This is required only when building the main teleport
+          image because it fetches build artifacts from drone. The workflow will
+          skip the package download steps when the input is not provided.
+        required: false
         type: string
 
       build-role-arn:
@@ -91,6 +94,25 @@ on:
           per https://github.com/marketplace/actions/docker-setup-buildx#inputs
         type: string
         required: false
+
+      image-build-context:
+        description:
+          Newline-separated list of paths containing the files that
+          must be copied into the build directory. When not specified, defaults
+          to './teleport/build.assets/charts/.'. This is used to build images
+          for Teleport integrations. Wildcards are not supported. To copy a the
+          content of a directory, use the `./dir/.` notation.
+        type: string
+        required: true
+        default: "./teleport/build.assets/charts/."
+
+      image-build-dockerfile:
+        description:
+          An optional file path pointing to the Dockerfile to use. The path is
+          relative to the build context specified in inputs.
+        type: string
+        required: true
+        default: "Dockerfile-distroless"
 
       scan-image:
         description: 
@@ -205,11 +227,12 @@ jobs:
       - name: Copy Docker Image context
         run: |
           mkdir ./build
-          cp -r ./teleport/build.assets/charts/* ./build
+          echo "${{ inputs.image-build-context }}" | xargs -I '{}' cp -r '{}' ./build
           tree ./build
 
       - name: Assume Legacy Drone storage AWS role
         uses: aws-actions/configure-aws-credentials@v1
+        if: inputs.dronestorage-bucket-name != ''
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.dronestorage-access-role-arn }}
@@ -217,6 +240,7 @@ jobs:
           role-duration-seconds: 3600
 
       - name: Download Teleport Debian packages
+        if: inputs.dronestorage-bucket-name != ''
         run: |
           for arch in amd64 arm64; do
             export TELEPORT_DEB_FILE_NAME=teleport${{ env.DEB_RELEASE_INFIX }}_${{ inputs.teleport-version }}_$arch.deb          
@@ -224,7 +248,7 @@ jobs:
           done
           tree ./build
 
-      - name: Verify base image 
+      - name: Verify base image
         run: |
           cosign verify --key ./distroless-key.pub ${{ inputs.base-image }} > validated-image.json
           BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
@@ -260,7 +284,7 @@ jobs:
         uses: docker/build-push-action@v3
         id: build
         with:
-          file: ./build/Dockerfile-distroless
+          file: "./build/${{ inputs.image-build-dockerfile }}"
           context: ./build
           platforms: linux/arm64,linux/amd64
           push: true
