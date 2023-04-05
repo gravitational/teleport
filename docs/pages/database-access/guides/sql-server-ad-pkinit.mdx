@@ -4,7 +4,7 @@ description: How to configure Teleport Database Access with Microsoft SQL Server
 ---
 
 <Admonition type="warning" title="Preview">
-  Database Access for Microsoft SQL Server is currently in Preview mode.
+  Database access for Microsoft SQL Server is currently in Preview mode.
 </Admonition>
 
 This guide will help you to:
@@ -28,11 +28,10 @@ authentication.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A SQL Server database with Active Directory authentication enabled.
-- A SQL Server network listener configured with a Certificate using Subject Alternative Names
+- A SQL Server network listener configured with a certificate using Subject Alternative Names.
 - A Windows machine joined to the same Active Directory domain as the database.
 - A Linux node with network access to the Active Directory.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Create a Teleport user
 
@@ -44,15 +43,11 @@ We need to configure a GPO to allow Teleport database sessions. This includes
 telling your computers to trust Teleport's CA and allowing certificate-based
 smart card authentication.
 
-### Export Teleport CA and CRL.
+### Export Teleport CA and CRL
 
-The following step requires an existing cluster. If you don't already have a
-Teleport cluster up and running, see our general [Getting
-Started](../../try-out-teleport/introduction.mdx) guide.
 
 <Admonition type="note" title="Database CA Rotation">
-  These steps will need to be repeated if Teleport's database certificate
-  authority is rotated.
+You will need to repeat these steps if you rotate Teleport's database certificate authority.
 </Admonition>
 
 1. Get the Teleport database CA certificate by running:
@@ -69,13 +64,13 @@ $ tctl auth crl --type=db > db-ca.crl
 
 3. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.
 
-### Create a GPO and import the Teleport CA.
+### Create a GPO and import the Teleport CA
 
 <Admonition type="note" title="Domain Wide Policy">
   For the purposes of this guide, we apply the GPO we are about to create to our
   entire AD domain. In the case where you wish for only a subset of computers
   within your AD domain to be accessible via Teleport, you should apply the GPO
-  to an OU that includes only such computers.
+  to an OU that includes only these computers.
 </Admonition>
 
 1. Create a GPO with name like `Teleport DB Access`.
@@ -85,7 +80,7 @@ $GPOName="Teleport DB Access"
 New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
 ```
 
-2. Again open the `Group Policy Management` program, and on the left pane,
+2. Open the `Group Policy Management` program, and on the left pane,
    navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
 3. Right click on the GPO you just made (`Teleport DB Access`), and select `Edit...`.
 4. In the group policy editor, select:
@@ -101,9 +96,9 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Publi
   ![Import Teleport CA](../../../img/desktop-access/ca.png)
 </Figure>
 
-### Enable smart card service.
+### Enable smart card service
 
-Teleport performs certificate based authentication by emulating a smart card.
+Teleport performs certificate-based authentication by emulating a smart card.
 
 1. Still editing your `Teleport DB Access`, select:
 
@@ -114,7 +109,7 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
 2. Double click on `Smart Card`, select `Define this policy setting` and switch
    to `Automatic` then click `OK`.
 
-<Figure align="left" bordered caption="Enable the Smart Card Service">
+<Figure align="left" bordered caption="Enable the Smart Card service">
   ![Enable Smartcard](../../../img/desktop-access/smartcard.png)
 </Figure>
 
@@ -126,12 +121,12 @@ Computer Configuration > Policies > Windows Settings > Security Settings > Syste
   propagate to other machines on the domain).
 </Admonition>
 
-### Publish Teleport CA
+### Publish the Teleport CA
 
 This step enables the domain controllers to trust the Teleport CA, which will
-allow smart card logons via Teleport to succeed.
+allow smart card logins via Teleport to succeed.
 
-On a machine which is joined to your domain and logged in as an account in the
+On a machine that is joined to your domain and logged in as an account in the
 `Domain Administrators` group, run the two commands below at a PowerShell prompt
 to publish the Teleport CA to your Active Directory domain (using the path
 to the exported Teleport `db-ca.cer` file that you copied above):
@@ -141,7 +136,7 @@ certutil –dspublish –f <PathToCertFile.cer> RootCA
 certutil -dspublish -f <PathToCertFile.cert> NTAuthCA
 ```
 
-### Publish Teleport CRL
+### Publish the Teleport CRL
 
 On the same machine, run the command below at a PowerShell promt to publish the
 Teleport CRL to your Active Directory domain (using the path to the exported
@@ -152,7 +147,7 @@ certutil -dspublish -f <PathToCRLFile.crl> TeleportDB
 ```
 
 <Admonition type="tip">
-  To avoid waiting until the certificate propagation, you can force the CA
+  To avoid waiting until the certificate propagates, you can force the CA
   retrieval from LDAP after importing the CA and CRL with the command:
 
   ```powershell
@@ -160,7 +155,7 @@ certutil -dspublish -f <PathToCRLFile.crl> TeleportDB
   ```
 </Admonition>
 
-## Step 3/7. Export LDAP CA certificate
+## Step 3/7. Export the LDAP CA certificate
 
 To authenticate users, Teleport uses LDAPS. This means that Teleport needs to
 know that the certificate sent by the server during the initial SSL connection
@@ -252,7 +247,7 @@ db_service:
   You can look SPNs up in the Attribute Editor of the Active Directory Users and
   Computers dialog on your AD-joined Windows machine.
 
-  If you don't see Attribute Editor tab, make sure that "View > Advanced Features"
+  If you don't see the Attribute Editor tab, make sure that the "View > Advanced Features"
   toggle is enabled.
 </Admonition>
 
@@ -330,7 +325,7 @@ $ tsh db logout sqlserver
 ### Teleport CA and CRL not imported correctly.
 
 When connecting to your database, you get an error `Error message: authentication
-failed` and Teleport database service logs have the error message `Failed to
+failed` and Teleport Database Service logs have the error message `Failed to
 authenticate with KDC: kinit: Client not trusted while getting initial
 credentials`. This happens when the Teleport Database CA is not imported
 correctly or propagated yet. You can force the propagation by running
@@ -339,7 +334,7 @@ correctly or propagated yet. You can force the propagation by running
 ### Invalid KDC hostname.
 
 If you’re connecting to your database and receive the error `Error message:
-authentication failed` and on Teleport database service logs, there is the error
+authentication failed` and on Teleport Database Service logs, there is the error
 entry `Failed to authenticate with KDC: Password for user@AD.TELEPORT.DEV:
 \nkinit: Cannot read password while getting initial credentials`, which means
 that the KDC hostname is wrong. You can verify your domain controller’s SPN to
@@ -355,8 +350,7 @@ invalid signature: parent certificate cannot sign this kind of certificate"
 while trying to verify candidate authority certificate
 "SSL_Self_Signed_Fallback")`.
 
-To solve this, you can add the CA configuration to the database like the
-following:
+To solve this, you can add the following configuration to your Teleport Database Service instance:
 
 ```yaml
 ...
