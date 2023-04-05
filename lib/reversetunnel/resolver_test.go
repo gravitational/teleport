@@ -84,30 +84,30 @@ func TestResolveViaWebClient(t *testing.T) {
 
 	cases := []struct {
 		name             string
-		addrs            []utils.NetAddr
+		proxyAddr        utils.NetAddr
 		address          string
 		errorAssertionFn require.ErrorAssertionFunc
 		expected         *utils.NetAddr
 	}{
 		{
-			name:             "no addrs yields no results",
-			errorAssertionFn: require.NoError,
+			name:             "no addrs yields errors",
+			errorAssertionFn: require.Error,
 		},
 		{
 			name:             "unreachable proxy yields errors",
-			addrs:            []utils.NetAddr{fakeAddr},
+			proxyAddr:        fakeAddr,
 			address:          "",
 			errorAssertionFn: require.Error,
 		},
 		{
 			name:             "invalid address yields errors",
-			addrs:            []utils.NetAddr{fakeAddr},
+			proxyAddr:        fakeAddr,
 			address:          "fake://test",
 			errorAssertionFn: require.Error,
 		},
 		{
 			name:             "valid address yields NetAddr",
-			addrs:            []utils.NetAddr{{Addr: srv.Listener.Addr().String()}},
+			proxyAddr:        utils.NetAddr{Addr: srv.Listener.Addr().String()},
 			address:          "localhost:80",
 			errorAssertionFn: require.NoError,
 			expected: &utils.NetAddr{
@@ -121,7 +121,14 @@ func TestResolveViaWebClient(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(defaults.TunnelPublicAddrEnvar, tt.address)
-			addr, _, err := WebClientResolver(tt.addrs, true)(context.Background())
+			resolver := WebClientResolver(&webclient.Config{
+				Context:   context.Background(),
+				ProxyAddr: tt.proxyAddr.String(),
+				Insecure:  true,
+				Timeout:   time.Second,
+			})
+
+			addr, _, err := resolver(context.Background())
 			tt.errorAssertionFn(t, err)
 			if err != nil {
 				return
