@@ -47,7 +47,7 @@ const (
 	maxS3BasedSize = 2 * 1024 * 1024 * 1024
 )
 
-// publisher is a SNS basesd events publisher.
+// publisher is a SNS based events publisher.
 // It publishes proto events directly to SNS topic, or use S3 bucket
 // if payload is too large for SNS.
 type publisher struct {
