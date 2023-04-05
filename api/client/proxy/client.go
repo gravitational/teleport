@@ -212,8 +212,10 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 	}
 
 	clt, sshErr := newSSHClient(ctx, &cfg)
-	if sshErr == nil {
-		return clt, nil
+	// Only aggregate errors if there was an issue dialing the grpc server so
+	// that helpers like trace.IsAccessDenied will still work.
+	if grpcErr == nil {
+		return clt, trace.Wrap(sshErr)
 	}
 
 	return nil, trace.NewAggregate(grpcErr, sshErr)
@@ -241,7 +243,7 @@ func (c *clusterName) set(name string) {
 // clusterCredentials is a [credentials.TransportCredentials] implementation
 // that obtains the name of the cluster being connected to from the certificate
 // presented by the server. This allows the client to determine the cluster name when
-// connecting via using jump hosts.
+// connecting via jump hosts.
 type clusterCredentials struct {
 	credentials.TransportCredentials
 	clusterName *clusterName

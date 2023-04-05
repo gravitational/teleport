@@ -908,7 +908,7 @@ func (s *session) join(p *party) error {
 	}
 
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	if p.Mode == types.SessionModeratorMode {
 		s.eventsWaiter.Add(1)
