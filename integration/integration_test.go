@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -7478,20 +7479,34 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 		tc.Username,
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		// ignore the error here, nodeClient is closed below if the
+		// test passes
+		_ = nodeClient.Close()
+	})
 
 	// forward SSH agent
 	sshClient := nodeClient.Client.Client
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, session.Close())
+		// the SSH server will close the session to avoid a deadlock,
+		// so closing it here will result in io.EOF if the test passes
+		_ = session.Close()
 	})
 	require.NoError(t, agent.ForwardToAgent(sshClient, tc.LocalAgent()))
 	require.NoError(t, agent.RequestAgentForwarding(session))
 
+	// run a command
+	err = session.Run("cmd")
+	require.NoError(t, err)
+
 	require.NoError(t, nodeClient.Close())
 }
 
+// startSSHServer starts a SSH server that roughly mimics an unregistered
+// OpenSSH (agentless) server. The SSH server started only handles a small
+// subset of SSH requests necessary for testing.
 func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
 	sshCfg := ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -7534,6 +7549,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		go ssh.DiscardRequests(reqs)
 
 		var agentForwarded bool
+		var cmdRequested bool
 		for channelReq := range channels {
 			assert.Equal(t, "session", channelReq.ChannelType())
 			channel, reqs, err := channelReq.Accept()
@@ -7549,11 +7565,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				if req.Type == sshutils.AgentForwardRequest {
 					agentForwarded = true
+				} else if req.Type == sshutils.ExecRequest {
+					_, err = channel.SendRequest("exit-status", false, binary.BigEndian.AppendUint32(nil, 0))
+					assert.NoError(t, err)
+					err = channel.Close()
+					assert.NoError(t, err)
+
+					cmdRequested = true
 					break
 				}
 			}
 		}
 		assert.True(t, agentForwarded)
+		assert.True(t, cmdRequested)
 	}()
 
 	return lis.Addr().String()
