@@ -33,11 +33,20 @@ type Resolution struct {
 	Tag    ResolutionTag
 	Reason string
 }
+
+// ResolutionTag represents if and in which state an access request was resolved.
 type ResolutionTag string
 
+// Unresolved is added to alerts that are yet to be resolved.
 const Unresolved = ResolutionTag("")
+
+// ReolvedApproved is added to alerts that are approved.
 const ResolvedApproved = ResolutionTag("approved")
+
+// ResolvedDenied is added to alerts that are denied.
 const ResolvedDenied = ResolutionTag("denied")
+
+// ResolvedExpired is added to alerts that are expired.
 const ResolvedExpired = ResolutionTag("expired")
 
 // ReqAnnotationRespondersKey is the key in access requests where on-call shedule names are stored.

@@ -80,6 +80,7 @@ type ClientConfig struct {
 func NewClient(conf ClientConfig) (*Client, error) {
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
 	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
+	client.SetHostURL(conf.APIEndpoint)
 	return &Client{
 		client:       client,
 		ClientConfig: conf,
@@ -237,8 +238,8 @@ func buildResolutionNoteBody(resolution Resolution) (string, error) {
 		Resolution    string
 		ResolveReason string
 	}{
-		string(resolution.Tag),
-		resolution.Reason,
+		Resolution:    string(resolution.Tag),
+		ResolveReason: resolution.Reason,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
