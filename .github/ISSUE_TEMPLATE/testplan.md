@@ -708,11 +708,8 @@ Using `tsh` join an SSH session as two moderators (two separate terminals, role 
 
 ## Performance
 
+### Scaling Test
 Perform all tests on the following configurations:
-
-- [ ] With default networking configuration
-- [ ] With Proxy Peering Enabled
-- [ ] With TLS Routing Enabled
 
 * Cluster with 10K direct dial nodes:
  - [ ] etcd
@@ -731,19 +728,13 @@ Perform all tests on the following configurations:
 
 ### Soak Test
 
-Run 30 minute soak test with a mix of interactive/non-interactive sessions for both direct and reverse tunnel nodes:
+Run 30 minute soak test for both direct and reverse tunnel nodes:
 
 ```shell
 tsh bench --duration=30m user@direct-dial-node ls
-tsh bench -i --duration=30m user@direct-dial-node ps uax
 
 tsh bench --duration=30m user@reverse-tunnel-node ls
-tsh bench -i --duration=30m user@reverse-tunnel-node ps uax
 ```
-
-Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
-
-- [ ] Verify that prometheus metrics are accurate.
 
 ### Concurrent Session Test
 
