@@ -50,10 +50,7 @@ func TestIntegrationUnmarshal(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Update status to validate we are using using the correct status json tag.
-	ig.Spec.Status = types.IntegrationSpecV1_INTEGRATION_STATUS_RUNNING // status = 2
-
-	storedBlob := []byte(`{"kind":"integration","sub_kind":"aws-oidc","version":"v1","metadata":{"name":"some-integration"},"spec":{"status":2, "subkind_spec":{"aws_oidc":{"role_arn":"arn:aws:iam::123456789012:role/DevTeams"}}}}`)
+	storedBlob := []byte(`{"kind":"integration","sub_kind":"aws-oidc","version":"v1","metadata":{"name":"some-integration"},"spec":{"subkind_spec":{"aws_oidc":{"role_arn":"arn:aws:iam::123456789012:role/DevTeams"}}}}`)
 
 	ig2, err := UnmarshalIntegration(storedBlob)
 	require.NoError(t, err)

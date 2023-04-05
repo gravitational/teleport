@@ -34,12 +34,6 @@ const (
 type Integration interface {
 	ResourceWithLabels
 
-	// GetStatus returns the integration status as string.
-	GetStatus() string
-
-	// SetStatusCode sets the integration status as code.
-	SetStatusCode(IntegrationSpecV1_IntegrationStatus)
-
 	// GetAWSOIDCIntegrationSpec returns the `aws-oidc` spec fields.
 	GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1
 	// SetAWSOIDCIntegrationSpec sets the `aws-oidc` spec fields.
@@ -61,7 +55,6 @@ func NewIntegrationAWSOIDC(md Metadata, spec *AWSOIDCIntegrationSpecV1) (*Integr
 			SubKindSpec: &IntegrationSpecV1_AWSOIDC{
 				AWSOIDC: spec,
 			},
-			Status: IntegrationSpecV1_INTEGRATION_STATUS_PAUSED,
 		},
 	}
 	if err := ig.CheckAndSetDefaults(); err != nil {
@@ -72,8 +65,8 @@ func NewIntegrationAWSOIDC(md Metadata, spec *AWSOIDCIntegrationSpecV1) (*Integr
 
 // String returns the integration string representation.
 func (ig *IntegrationV1) String() string {
-	return fmt.Sprintf("IntegrationV1(Name=%v, SubKind=%s, Status=%s, Labels=%v)",
-		ig.GetName(), ig.GetSubKind(), ig.GetStatus(), ig.GetAllLabels())
+	return fmt.Sprintf("IntegrationV1(Name=%v, SubKind=%s, Labels=%v)",
+		ig.GetName(), ig.GetSubKind(), ig.GetAllLabels())
 }
 
 // MatchSearch goes through select field values and tries to
@@ -143,29 +136,6 @@ func (ig *IntegrationV1) SetAWSOIDCIntegrationSpec(awsOIDCSpec *AWSOIDCIntegrati
 	}
 }
 
-// GetStatusCode returns the integration status as a code.
-// It can be one of:
-// - paused: integration was just configured or was disabled by the user
-// - running: integration is ready to do requests
-// - error: integration has an error and should be fixed to enable the integration
-func (ig *IntegrationV1) GetStatusCode() IntegrationSpecV1_IntegrationStatus {
-	return ig.Spec.Status
-}
-
-// GetStatus returns the integration status.
-// It can be one of:
-// - paused: integration was just configured or was disabled by the user
-// - running: integration is ready to do requests
-// - error: integration has an error and should be fixed to enable the integration
-func (ig *IntegrationV1) GetStatus() string {
-	return ig.Spec.Status.String()
-}
-
-// SetStatusCode sets the integration status.
-func (ig *IntegrationV1) SetStatusCode(st IntegrationSpecV1_IntegrationStatus) {
-	ig.Spec.Status = st
-}
-
 // Integrations is a list of Integration resources.
 type Integrations []Integration
 
@@ -209,8 +179,7 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			Status         IntegrationSpecV1_IntegrationStatus `json:"status"`
-			RawSubKindSpec json.RawMessage                     `json:"subkind_spec"`
+			RawSubKindSpec json.RawMessage `json:"subkind_spec"`
 		} `json:"spec"`
 	}{}
 
@@ -220,7 +189,6 @@ func (ig *IntegrationV1) UnmarshalJSON(data []byte) error {
 	}
 
 	integration.ResourceHeader = d.ResourceHeader
-	integration.Spec.Status = d.Spec.Status
 
 	var subkindSpec isIntegrationSpecV1_SubKindSpec
 	switch integration.SubKind {
@@ -252,13 +220,11 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 	d := struct {
 		ResourceHeader `json:""`
 		Spec           struct {
-			Status      IntegrationSpecV1_IntegrationStatus `json:"status"`
-			SubKindSpec isIntegrationSpecV1_SubKindSpec     `json:"subkind_spec"`
+			SubKindSpec isIntegrationSpecV1_SubKindSpec `json:"subkind_spec"`
 		} `json:"spec"`
 	}{}
 
 	d.ResourceHeader = ig.ResourceHeader
-	d.Spec.Status = ig.Spec.Status
 	d.Spec.SubKindSpec = ig.Spec.SubKindSpec
 
 	out, err := json.Marshal(d)

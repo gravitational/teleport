@@ -86,7 +86,6 @@ func TestIntegrationCheckAndSetDefaults(t *testing.T) {
 								RoleARN: "some arn role",
 							},
 						},
-						Status: IntegrationSpecV1_INTEGRATION_STATUS_PAUSED,
 					},
 				}
 			},
