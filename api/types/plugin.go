@@ -216,13 +216,8 @@ func (p *PluginV1) SetStatus(status PluginStatus) error {
 		p.Status = PluginStatusV1{}
 		return nil
 	}
-	switch status := status.(type) {
-	case *PluginStatusV1:
-		p.Status = *status
-	case PluginStatusV1:
-		p.Status = status
-	default:
-		return trace.BadParameter("unsupported plugin status type %T", status)
+	p.Status = PluginStatusV1{
+		Code: status.GetCode(),
 	}
 	return nil
 }
