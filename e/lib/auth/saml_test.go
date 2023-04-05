@@ -163,8 +163,6 @@ func TestEncryptedSAML(t *testing.T) {
 // parameters for Ping backends (PingOne, PingFederate, etc) when
 // `provider: ping` is set.
 func TestPingSAMLWorkaround(t *testing.T) {
-	t.Parallel()
-
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{SAML: true},
 	})
@@ -268,8 +266,6 @@ func TestPingSAMLWorkaround(t *testing.T) {
 }
 
 func TestServer_getConnectorAndProvider(t *testing.T) {
-	t.Parallel()
-
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{SAML: true},
 	})
@@ -395,8 +391,6 @@ func TestServer_getConnectorAndProvider(t *testing.T) {
 }
 
 func TestServer_ValidateSAMLResponse(t *testing.T) {
-	t.Parallel()
-
 	modules.SetTestModules(t, &modules.TestModules{
 		TestFeatures: modules.Features{SAML: true},
 	})
