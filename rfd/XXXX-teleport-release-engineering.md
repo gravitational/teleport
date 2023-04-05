@@ -122,6 +122,8 @@ flowchart LR
     oss_amd64_deb --> oss_multiarch_distroless_debug_oci
     oss_arm64_deb --> oss_multiarch_distroless_oci
     oss_arm64_deb --> oss_multiarch_distroless_debug_oci
+    oss_arm32_deb --> oss_multiarch_distroless_oci
+    oss_arm32_deb --> oss_multiarch_distroless_debug_oci
 
     oss_src --> oss_binaries_linux_i386
         oss_binaries_linux_i386 --> oss_i386_deb
@@ -133,6 +135,8 @@ flowchart LR
     oss_src --> oss_amd64_centos7
     oss_src --> oss_binaries_linux_arm32
         oss_binaries_linux_arm32 --> oss_arm32_deb
+            oss_arm32_deb --> oss_arm32_oci
+            oss_arm32_deb --> oss_multiarch_oci
         oss_binaries_linux_arm32 --> oss_arm32_rpm
     oss_src --> oss_darwin_amd64
         oss_darwin_amd64 --> darwin_oss_pkg_installer
@@ -146,6 +150,7 @@ flowchart LR
 
     oss_amd64_oci --> oss_multiarch_oci
     oss_arm64_oci --> oss_multiarch_oci
+    oss_arm32_oci --> oss_multiarch_oci
 ```
 
 Every single solid-line box in the above diagram is a release artefact
