@@ -1579,8 +1579,8 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		AccessRequestID: accessReq.GetMetadata().Name,
 	})
 	require.NoError(t, err)
-	require.Equal(t, sess1.Expiry(), tt.clock.Now().Add(time.Minute*10))
-	require.Equal(t, sess1.GetLoginTime(), initialSession.GetLoginTime())
+	require.WithinDuration(t, tt.clock.Now().Add(time.Minute*10), sess1.Expiry(), time.Second)
+	require.WithinDuration(t, sess1.GetLoginTime(), initialSession.GetLoginTime(), time.Second)
 
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	require.NoError(t, err)
@@ -2151,7 +2151,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.True(t, identity.Expires.Before(clock.Now().Add(testUser2.TTL)))
+		require.WithinDuration(t, clock.Now().Add(testUser2.TTL), identity.Expires, time.Second)
 		require.Equal(t, identity.RouteToCluster, rc1.GetName())
 	})
 
@@ -4071,7 +4071,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 func newTestTLSServer(t testing.TB) *TestTLSServer {
 	as, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 

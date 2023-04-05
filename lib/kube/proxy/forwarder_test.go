@@ -971,7 +971,8 @@ func mockAuthCtx(ctx context.Context, t *testing.T, kubeCluster string, isRemote
 			isRemote: isRemote,
 		},
 		kubeClusterName: "kube-cluster",
-		sessionTTL:      time.Minute,
+		// getClientCreds requires sessions to be valid for at least 1 minute
+		sessionTTL: 2 * time.Minute,
 	}
 }
 
@@ -1300,8 +1301,9 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 		Clock:     clockwork.NewFakeClock(),
 		PublicKey: x509CSR.PublicKey.(crypto.PublicKey),
 		Subject:   x509CSR.Subject,
-		NotAfter:  time.Now().Add(time.Minute),
-		DNSNames:  x509CSR.DNSNames,
+		// getClientCreds requires sessions to be valid for at least 1 minute
+		NotAfter: time.Now().Add(2 * time.Minute),
+		DNSNames: x509CSR.DNSNames,
 	}
 	cert, err := c.ca.GenerateCertificate(caCSR)
 	if err != nil {
