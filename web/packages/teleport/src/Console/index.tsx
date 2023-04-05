@@ -16,6 +16,8 @@ limitations under the License.
 
 import React from 'react';
 
+import userService from 'teleport/services/user';
+
 import Console from './Console';
 import ConsoleContext from './consoleContext';
 import ConsoleContextProvider from './consoleContextProvider';
@@ -26,6 +28,15 @@ export default function Index() {
   const [ctx] = React.useState(() => {
     return new ConsoleContext();
   });
+
+  React.useEffect(() => {
+    async function initUserContext() {
+      const user = await userService.fetchUserContext();
+      ctx.setStoreUser(user);
+    }
+
+    initUserContext();
+  }, []);
 
   return (
     <ConsoleContextProvider value={ctx}>
