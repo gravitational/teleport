@@ -545,12 +545,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// App sessions
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 
-	// DELETE IN 13, deprecated/unused web sessions routes (avatus)
-	// https://github.com/gravitational/teleport/pull/19892
-	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
-	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteWebSession))
-	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewWebSession))
-
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
 	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteWebSession))
