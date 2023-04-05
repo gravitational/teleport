@@ -141,14 +141,14 @@ below:
 
 Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
 You must enable this when:
-- using Teleport Cloud and you tenant is enrolled into automatic updates.
+- using Teleport Cloud and your tenant is enrolled into automatic updates.
   (You can check this through the web UI, choose "add a new node" of type
   Kubernetes, and check if the value is turned on.)
-- using Teleport on-prem and you maintain your own version server.
+- using self-hosted Teleport and you maintain your own version server.
 
 You must not enable this if:
 - you are a Teleport Cloud customer not enrolled in automatic updates.
-  you are a Teleport on-prem user and have not set up your Teleport cluster to 
+- you are a self-hosted Teleport user and have not set up your Teleport cluster to 
   support automatic updates.
 
 ### `updater.versionServer`
