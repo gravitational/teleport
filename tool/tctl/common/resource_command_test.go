@@ -348,8 +348,6 @@ func TestAppResource(t *testing.T) {
 		},
 	}
 
-	// modifying this test to trigger flaky tests detector
-
 	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	appA, err := types.NewAppV3(types.Metadata{
@@ -375,6 +373,9 @@ func TestAppResource(t *testing.T) {
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
 	require.Len(t, out, 0)
+
+	// modifying this test to trigger flaky tests detector
+	runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
 
 	// Create the apps.
 	appYAMLPath := filepath.Join(t.TempDir(), "app.yaml")
