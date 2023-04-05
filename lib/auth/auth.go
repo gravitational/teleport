@@ -4359,6 +4359,8 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 }
 
 // Ping gets basic info about the auth server.
+// Please note that Ping is publicly accessible (not protected by any RBAC) by design,
+// and thus PingResponse must never contain any sensitive information.
 func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	cn, err := a.GetClusterName()
 	if err != nil {
