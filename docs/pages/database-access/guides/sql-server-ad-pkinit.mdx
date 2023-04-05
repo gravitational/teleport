@@ -1,5 +1,5 @@
 ---
-title: Database Access with Microsoft SQL Server with Active Directory PKINIT authentication (Preview)
+title: Database Access for Microsoft SQL Server with PKINIT (Preview)
 description: How to configure Teleport Database Access with Microsoft SQL Server with Active Directory PKINIT authentication.
 ---
 
@@ -52,15 +52,15 @@ You will need to repeat these steps if you rotate Teleport's database certificat
 
 1. Get the Teleport database CA certificate by running:
 
-```code
-$ tctl auth export --type=db-der > db-ca.cer
-```
+   ```code
+   $ tctl auth export --type=db-der > db-ca.cer
+   ```
 
 2. Get the Teleport database CRL by running:
 
-```code
-$ tctl auth crl --type=db > db-ca.crl
-```
+   ```code
+   $ tctl auth crl --type=db > db-ca.crl
+   ```
 
 3. Transfer the `db-ca.cer` and `db-ca.crl` files to a Windows machine where you can manage your group policy.
 
@@ -73,21 +73,21 @@ $ tctl auth crl --type=db > db-ca.crl
   to an OU that includes only these computers.
 </Admonition>
 
-1. Create a GPO with name like `Teleport DB Access`.
+1. Create a GPO named `Teleport DB Access`.
 
-```powershell
-$GPOName="Teleport DB Access"
-New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
-```
+   ```powershell
+   $GPOName="Teleport DB Access"
+   New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
+   ```
 
 2. Open the `Group Policy Management` program, and on the left pane,
    navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
 3. Right click on the GPO you just made (`Teleport DB Access`), and select `Edit...`.
 4. In the group policy editor, select:
 
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
-```
+   ```text
+   Computer Configuration > Policies > Windows Settings > Security Settings > Public Key Policies
+   ```
 
 5. Right click on `Trusted Root Certification Authorities` and select `Import`.
 6. Click through the wizard, selecting your CA file (`db-ca.cer`).
@@ -102,9 +102,9 @@ Teleport performs certificate-based authentication by emulating a smart card.
 
 1. Still editing your `Teleport DB Access`, select:
 
-```text
-Computer Configuration > Policies > Windows Settings > Security Settings > System Services
-```
+   ```text
+   Computer Configuration > Policies > Windows Settings > Security Settings > System Services
+   ```
 
 2. Double click on `Smart Card`, select `Define this policy setting` and switch
    to `Automatic` then click `OK`.
@@ -157,11 +157,11 @@ certutil -dspublish -f <PathToCRLFile.crl> TeleportDB
 
 ## Step 3/7. Export the LDAP CA certificate
 
-To authenticate users, Teleport uses LDAPS. This means that Teleport needs to
-know that the certificate sent by the server during the initial SSL connection
-is trusted. This is done by specifying the LDAP CA certificate on the database
-configuration, but first, we need to export it from your AD. It can be done by
-running the following PowerShell script on your Windows instance:
+Teleport uses LDAPS to authenticate users, which requires specifying the LDAP CA
+certificate on the database configuration. To ensure that Teleport trusts the
+certificate sent by the server during the initial SSL connection, you must export
+the certificate from your AD. You can export the certificate by running the
+following PowerShell script on your Windows instance:
 
 ```powershell
 $WindowsDERFile = $env:TEMP + "\windows.der"
@@ -208,7 +208,14 @@ Install Teleport on the host where you will run the Teleport Database Service:
 </Admonition>
 
 Copy the join token to a file on the instance where you will run the Database
-Service, and then use the following configuration:
+Service, and then use the following configuration, replacing the fields on the
+database section below as appropriate:
+
+* `uri`: The server address, including the port.
+* `domain`: The Active Directory domain (Kerberos realm) DNS/Address to which SQL Server is joined.
+* `spn`: Service Principal Name (SPN) for SQL Server to fetch Kerberos tickets.
+* `kdc_host_name`: SPN of the domain controller responsible for providing the LDAP CA.
+* `ldap_cert`: The contents of the LDAP CA previously exported.
 
 ```yaml
 version: v3
@@ -230,13 +237,9 @@ db_service:
       protocol: sqlserver
       uri: SQL-SERVER-INSTANCE.ad.teleport.dev:1433
       ad:
-        # Active Directory domain (Kerberos realm) that SQL Server is joined.
         domain: ad.teleport.dev
-        # Service Principal Name for SQL Server to fetch Kerberos tickets for.
         spn: MSSQLSvc/SQL-SERVER-INSTANCE.ad.teleport.dev:1433
-        # The SPN of the domain controller responsible for providing the LDAP CA.
         kdc_host_name: DOMAIN-CONTROLLER.ad.teleport.dev
-        # Place the LDAP CA contents generated above.
         ldap_cert: |
           -----BEGIN CERTIFICATE-----
           ...
@@ -322,7 +325,7 @@ $ tsh db logout sqlserver
 
 ## Troubleshooting
 
-### Teleport CA and CRL not imported correctly.
+### Teleport CA and CRL not imported correctly
 
 When connecting to your database, you get an error `Error message: authentication
 failed` and Teleport Database Service logs have the error message `Failed to
@@ -331,7 +334,7 @@ credentials`. This happens when the Teleport Database CA is not imported
 correctly or propagated yet. You can force the propagation by running
 `certutil -pulse` and trying to connect to your database.
 
-### Invalid KDC hostname.
+### Invalid KDC hostname
 
 If you’re connecting to your database and receive the error `Error message:
 authentication failed` and on Teleport Database Service logs, there is the error
@@ -341,7 +344,7 @@ that the KDC hostname is wrong. You can verify your domain controller’s SPN to
 see if they’re set correctly and update the value on the field `kdc_hostname` on
 your database's configuration.
 
-### Teleport cannot verify database CA.
+### Teleport cannot verify database CA
 
 If your database has a CA that Teleport doesn’t know about, it will return the
 following error when connecting to it: `Error message: TLS Handshake failed:
@@ -352,18 +355,18 @@ while trying to verify candidate authority certificate
 
 To solve this, you can add the following configuration to your Teleport Database Service instance:
 
-```yaml
+```diff
 ...
 db_service:
   databases:
     - name: sqlserver
       protocol: sqlserver
-      tls:
-        # Point it to your Database CA PEM certificate.
-        ca_cert_file: "rdsca.pem"
-        # If your database certificate has an empty CN filed, you must change
-        # the TLS mode to only verify the CA.
-        mode: verify-ca
++     tls:
++       # Point it to your Database CA PEM certificate.
++       ca_cert_file: "rdsca.pem"
++       # If your database certificate has an empty CN filed, you must change
++       # the TLS mode to only verify the CA.
++       mode: verify-ca
       ad:
        ...
 ```
