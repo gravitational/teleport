@@ -25,12 +25,13 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/llmchain"
+	"github.com/gravitational/teleport/lib/ai"
 )
 
 const (
@@ -39,10 +40,10 @@ const (
 )
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
-	//authClient, err := sctx.GetClient()
-	//if err != nil {
-	//	return nil, trace.Wrap(err)
-	//}
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -71,13 +72,34 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 		return nil, trace.Wrap(err)
 	}
 
-	client := llmchain.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.ApiKey)
-	chain := client.NewChain()
+	client := ai.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.ApiKey)
+	chat := client.NewChat()
 
-	//q := r.URL.Query()
-	//conversationID := q.Get("conversation_id")
-	// TODO(joel): impl persistance
-	//conversationID := uuid.New().String()
+	q := r.URL.Query()
+	conversationID := q.Get("conversation_id")
+	if conversationID == "" {
+		// new conversation, create a new ID
+		conversationID = uuid.New().String()
+
+		if err := ws.WriteJSON(struct {
+			ConversationID string `json:"conversation_id"`
+		}{
+			ConversationID: conversationID,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		// existing conversation, retrieve old messages
+		messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		for _, msg := range messages.GetMessages() {
+			if err := ws.WriteJSON(msg); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
 
 	for {
 		_, payload, err := ws.ReadMessage()
@@ -93,29 +115,27 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 			return nil, trace.Wrap(err)
 		}
 
-		chain.Insert(wsIncoming.Chat.Role, wsIncoming.Chat.Content)
-		stream, err := chain.Complete(r.Context(), 500)
+		chat.Insert(wsIncoming.Chat.Role, wsIncoming.Chat.Content)
+		message, err := chat.Complete(r.Context(), 500)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for partial := range stream {
-			out := wsMessage{
-				Chat: &chatMessage{
-					Role:    partial.Role,
-					Content: partial.Content,
-				},
-				Idx: partial.Idx,
-			}
+		out := wsMessage{
+			Chat: &chatMessage{
+				Role:    message.Role,
+				Content: message.Content,
+			},
+			Idx: message.Idx,
+		}
 
-			payload, err := json.Marshal(out)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+		payload, err = json.Marshal(out)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-			if err := ws.WriteJSON(payload); err != nil {
-				return nil, trace.Wrap(err)
-			}
+		if err := ws.WriteJSON(payload); err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
