@@ -23,14 +23,14 @@ import (
 )
 
 func statusFromStatusCode(httpCode int) types.PluginStatus {
-	code := types.PluginStatusCode_OTHER_ERROR
-	switch httpCode {
-	case http.StatusUnauthorized:
+	var code types.PluginStatusCode
+	switch {
+	case httpCode == http.StatusUnauthorized:
 		code = types.PluginStatusCode_UNAUTHORIZED
+	case httpCode >= 200 && httpCode < 400:
+		code = types.PluginStatusCode_RUNNING
 	default:
-		if httpCode >= 200 && httpCode < 400 {
-			code = types.PluginStatusCode_RUNNING
-		}
+		code = types.PluginStatusCode_OTHER_ERROR
 	}
 	return &types.PluginStatusV1{Code: code}
 }
