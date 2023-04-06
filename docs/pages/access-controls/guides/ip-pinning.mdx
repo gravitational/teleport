@@ -62,7 +62,6 @@ spec:
     ...
 ```
 
-
 ## Role example
 
 Let's walk through an example of setting up IP pinning for a role.
@@ -79,6 +78,7 @@ spec:
   options:
     pin_source_ip: true
 ```
+
 The admin assigns this role to the user Alice, who then logs into Teleport using the 'tsh' command and tries 
 to access a node from the same IP address she logged in with:
 
