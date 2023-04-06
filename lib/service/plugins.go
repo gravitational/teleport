@@ -78,7 +78,7 @@ func (process *TeleportProcess) initPluginsService() error {
 
 	process.BroadcastEvent(Event{Name: PluginsReady, Payload: nil})
 
-	if err := pluginsService.Start(); err != nil {
+	if err := pluginsService.Start(process.ExitContext()); err != nil {
 		return trace.Wrap(err)
 	}
 	log.Infof("Plugins service has successfully started")

@@ -1922,3 +1922,151 @@ func (c *oktaAssignmentCollector) processEventAndUpdateCurrent(ctx context.Conte
 }
 
 func (*oktaAssignmentCollector) notifyStale() {}
+
+// PluginGetter defines interface for fetching plugin resources.
+type PluginGetter interface {
+	// GetPlugins returns all plugin resources.
+	GetPlugins(context.Context) ([]types.Plugin, error)
+	// GetPlugin returns the specified plugin resource.
+	GetPlugin(ctx context.Context, name string) (types.Plugin, error)
+}
+
+// PluginWatcherConfig is a PluginWatcher configuration.
+type PluginWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// PluginGetter is responsible for fetching plugin resources.
+	PluginGetter
+	// PluginsC receives up-to-date list of all plugin resources.
+	PluginsC chan types.Plugins
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *PluginWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.PluginGetter == nil {
+		getter, ok := cfg.Client.(PluginGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter PluginGetter and Client not usable as PluginGetter")
+		}
+		cfg.PluginGetter = getter
+	}
+	if cfg.PluginsC == nil {
+		cfg.PluginsC = make(chan types.Plugins)
+	}
+	return nil
+}
+
+// NewPluginWatcher returns a new instance of PluginWatcher.
+func NewPluginWatcher(ctx context.Context, cfg PluginWatcherConfig) (*PluginWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &pluginCollector{
+		PluginWatcherConfig: cfg,
+		initializationC:     make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &PluginWatcher{watcher, collector}, nil
+}
+
+// PluginWatcher is built on top of resourceWatcher to monitor plugin resources.
+type PluginWatcher struct {
+	*resourceWatcher
+	*pluginCollector
+}
+
+// pluginCollector accompanies resourceWatcher when monitoring plugin resources.
+type pluginCollector struct {
+	// PluginWatcherConfig is the watcher configuration.
+	PluginWatcherConfig
+	// current holds a map of the currently known plugin resources.
+	current map[string]types.Plugin
+	// lock protects the "current" map.
+	lock sync.RWMutex
+	// initializationC is used to check that the
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKind specifies the resource kind to watch.
+func (p *pluginCollector) resourceKind() string {
+	return types.KindPlugin
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (p *pluginCollector) initializationChan() <-chan struct{} {
+	return p.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (p *pluginCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	plugins, err := p.PluginGetter.GetPlugins(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[string]types.Plugin, len(plugins))
+	for _, plugin := range plugins {
+		newCurrent[plugin.GetName()] = plugin
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	p.current = newCurrent
+	p.defineCollectorAsInitialized()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case p.PluginsC <- plugins:
+	}
+
+	return nil
+}
+
+func (p *pluginCollector) defineCollectorAsInitialized() {
+	p.once.Do(func() {
+		// mark watcher as initialized.
+		close(p.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (p *pluginCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindPlugin {
+		p.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	switch event.Type {
+	case types.OpDelete:
+		delete(p.current, event.Resource.GetName())
+		select {
+		case <-ctx.Done():
+		case p.PluginsC <- resourcesToSlice(p.current):
+		}
+	case types.OpPut:
+		plugin, ok := event.Resource.(types.Plugin)
+		if !ok {
+			p.Log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		p.current[plugin.GetName()] = plugin
+		select {
+		case <-ctx.Done():
+		case p.PluginsC <- resourcesToSlice(p.current):
+		}
+
+	default:
+		p.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*pluginCollector) notifyStale() {}
