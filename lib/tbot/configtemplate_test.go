@@ -109,7 +109,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 	b._ident = ident
 	b._client = botClient
 
-	err = b.renew(context.Background(), storage)
+	err = b.renewDestinations(context.Background(), storage)
 	require.NoError(t, err)
 
 	dest := botConfig.Destinations[0]

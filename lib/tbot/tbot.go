@@ -247,11 +247,14 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(b.caRotationLoop(egCtx))
 	})
 	eg.Go(func() error {
-		err := b.renewLoop(egCtx)
+		return trace.Wrap(b.renewBotIdentityLoop(egCtx))
+	})
+	eg.Go(func() error {
+		err := b.renewDestinationsLoop(egCtx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		// If `renewLoop` exits with nil, the bot is running in "one-shot", so
+		// If `renewDestinationsLoop` exits with nil, the bot is running in "one-shot", so
 		// we should indicate to other long-running processes that they can
 		// finish up.
 		cancel()
