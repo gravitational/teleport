@@ -37,7 +37,7 @@ type PingTLSConn struct {
 	ping *PingConn
 }
 
-// Read reads content from the underlaying connection, discarding any ping
+// Read reads content from the underlying connection, discarding any ping
 // messages it finds.
 func (c *PingTLSConn) Read(p []byte) (int, error) {
 	n, err := c.ping.Read(p)

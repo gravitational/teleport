@@ -49,7 +49,7 @@ type PingConn struct {
 	currentSize uint32
 }
 
-// Read reads content from the underlaying connection, discarding any ping
+// Read reads content from the underlying connection, discarding any ping
 // messages it finds.
 func (c *PingConn) Read(p []byte) (int, error) {
 	c.muRead.Lock()
