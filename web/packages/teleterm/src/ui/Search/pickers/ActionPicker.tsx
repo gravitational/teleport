@@ -99,8 +99,6 @@ export function ActionPicker(props: { input: ReactElement }) {
   const excludedClustersCopy = getExcludedClustersCopy(
     clustersService.getRootClusters()
   );
-  // If the input is empty, we don't want to say "No matching results found" if the user is yet to
-  // type anything. This can happen e.g. after selecting two filters.
   const NoResultsComponent =
     inputValue.length > 0 ? (
       <EmptyListCopy>
@@ -120,7 +118,13 @@ export function ActionPicker(props: { input: ReactElement }) {
           </Text>
         )}
       </EmptyListCopy>
-    ) : null;
+    ) : (
+      <EmptyListCopy>
+        <Text typography="subtitle1" color="text.primary">
+          Type something to search.
+        </Text>
+      </EmptyListCopy>
+    );
 
   const filterButtons = filters.map(s => {
     if (s.filter === 'resource-type') {
