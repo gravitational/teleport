@@ -139,6 +139,7 @@ function SearchBar() {
 const Input = styled.input`
   height: 38px;
   width: 100%;
+  min-width: calc(${props => props.theme.space[9]}px * 2);
   background: inherit;
   color: inherit;
   box-sizing: border-box;

@@ -157,10 +157,10 @@ export function ActionPicker(props: { input: ReactElement }) {
 
   return (
     <PickerContainer>
-      <Flex alignItems="center" onKeyDown={handleKeyDown}>
+      <InputWrapper onKeyDown={handleKeyDown}>
         {filterButtons}
         {props.input}
-      </Flex>
+      </InputWrapper>
       <ResultList<SearchAction>
         attempts={attempts}
         onPick={onPick}
@@ -185,6 +185,18 @@ export function ActionPicker(props: { input: ReactElement }) {
     </PickerContainer>
   );
 }
+
+export const InputWrapper = styled(Flex).attrs({ px: 2 })`
+  row-gap: ${props => props.theme.space[1]}px;
+  column-gap: ${props => props.theme.space[2]}px;
+  align-items: center;
+  flex-wrap: wrap;
+
+  & > input {
+    padding-inline: 0;
+    flex: 1;
+  }
+`;
 
 export const ComponentMap: Record<
   SearchResult['kind'],
@@ -519,7 +531,6 @@ function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
 function FilterButton(props: { text: string; onClick(): void }) {
   return (
     <ButtonPrimary
-      ml={2}
       px={2}
       size="small"
       title={props.text}
@@ -528,7 +539,7 @@ function FilterButton(props: { text: string; onClick(): void }) {
     >
       <span
         css={`
-          max-width: 130px;
+          max-width: calc(${props => props.theme.space[9]}px * 2);
           text-overflow: ellipsis;
           white-space: nowrap;
           overflow: hidden;
