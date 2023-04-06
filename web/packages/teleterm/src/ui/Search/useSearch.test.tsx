@@ -142,7 +142,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue(servers);
+      .mockResolvedValue([{ status: 'fulfilled', value: servers }]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (

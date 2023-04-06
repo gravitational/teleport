@@ -38,7 +38,7 @@ import * as uri from 'teleterm/ui/uri';
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
 
-import { useSearchAttempts } from './useSearchAttempts';
+import { useActionAttempts } from './useActionAttempts';
 import { getParameterPicker } from './pickers';
 import { ResultList, NonInteractiveItem } from './ResultList';
 import { PickerContainer } from './PickerContainer';
@@ -57,7 +57,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     filters,
     removeFilter,
   } = useSearchContext();
-  const { filterActionsAttempt, resourceActionsAttempt } = useSearchAttempts();
+  const { filterActionsAttempt, resourceActionsAttempt } = useActionAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
 
   const getClusterName = useCallback(
@@ -130,8 +130,8 @@ export function ActionPicker(props: { input: ReactElement }) {
 
   let ExtraComponent = null;
   // The order of attempts is important. Filter actions should be displayed before resource actions.
-  const attempts = [filterActionsAttempt, resourceActionsAttempt];
-  const attemptsHaveFinishedWithoutActions = attempts.every(
+  const actionAttempts = [filterActionsAttempt, resourceActionsAttempt];
+  const attemptsHaveFinishedWithoutActions = actionAttempts.every(
     a => hasFinished(a) && a.data.length === 0
   );
   const noRemainingFilters =
@@ -155,7 +155,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         {props.input}
       </InputWrapper>
       <ResultList<SearchAction>
-        attempts={attempts}
+        attempts={actionAttempts}
         onPick={onPick}
         onBack={close}
         render={item => {

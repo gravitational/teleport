@@ -73,29 +73,37 @@ export class ResourcesService {
     clusterUri: uri.ClusterUri,
     search: string,
     searchFilter: ResourceTypeSearchFilter | undefined
-  ): Promise<SearchResult[]> {
+  ): Promise<PromiseSettledResult<SearchResult[]>[]> {
     const params = { search, clusterUri, sort: null, limit: 100 };
 
     const getServers = () =>
-      this.fetchServers(params).then(res =>
-        res.agentsList.map(resource => ({
-          kind: 'server' as const,
-          resource,
-        }))
+      this.fetchServers(params).then(
+        res =>
+          res.agentsList.map(resource => ({
+            kind: 'server' as const,
+            resource,
+          })),
+        err =>
+          Promise.reject(new ResourceSearchError(clusterUri, 'server', err))
       );
     const getDatabases = () =>
-      this.fetchDatabases(params).then(res =>
-        res.agentsList.map(resource => ({
-          kind: 'database' as const,
-          resource,
-        }))
+      this.fetchDatabases(params).then(
+        res =>
+          res.agentsList.map(resource => ({
+            kind: 'database' as const,
+            resource,
+          })),
+        err =>
+          Promise.reject(new ResourceSearchError(clusterUri, 'database', err))
       );
     const getKubes = () =>
-      this.fetchKubes(params).then(res =>
-        res.agentsList.map(resource => ({
-          kind: 'kube' as const,
-          resource,
-        }))
+      this.fetchKubes(params).then(
+        res =>
+          res.agentsList.map(resource => ({
+            kind: 'kube' as const,
+            resource,
+          })),
+        err => Promise.reject(new ResourceSearchError(clusterUri, 'kube', err))
       );
 
     const promises = searchFilter
@@ -106,7 +114,7 @@ export class ResourcesService {
         ].filter(Boolean)
       : [getServers(), getDatabases(), getKubes()];
 
-    return (await Promise.all(promises)).flat();
+    return Promise.allSettled(promises);
   }
 }
 
@@ -114,6 +122,25 @@ export class AmbiguousHostnameError extends Error {
   constructor(hostname: string) {
     super(`Ambiguous hostname "${hostname}"`);
     this.name = 'AmbiguousHostname';
+  }
+}
+
+export class ResourceSearchError extends Error {
+  clusterUri: uri.ClusterUri;
+  resourceKind: SearchResult['kind'];
+
+  constructor(
+    clusterUri: uri.ClusterUri,
+    resourceKind: SearchResult['kind'],
+    cause: Error
+  ) {
+    super(
+      `Error while fetching resources of type ${resourceKind} from a cluster`,
+      { cause }
+    );
+    this.name = 'ResourceSearchError';
+    this.clusterUri = clusterUri;
+    this.resourceKind = resourceKind;
   }
 }
 
