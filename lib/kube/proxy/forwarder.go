@@ -1470,14 +1470,18 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	streamOptions := proxy.options()
-	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
+	err = executor.StreamWithContext(req.Context(), streamOptions)
+	// send the status back to the client when forwarding mode is enabled
+	// sendStatus sends a payload even if the error is nil to make sure the client
+	// receives the status and can close the connection.
+	if sendErr := proxy.sendStatus(err); sendErr != nil {
+		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
+	}
+	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		if err := proxy.sendStatus(err); err != nil {
-			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		}
 		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
 		return nil, nil
 	}
@@ -1607,12 +1611,15 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
+	err = executor.StreamWithContext(req.Context(), streamOptions)
+	// send the status back to the client when forwarding mode is enabled
+	// sendStatus sends a payload even if the error is nil to make sure the client
+	// receives the status and can close the connection.
+	if sendErr := proxy.sendStatus(err); sendErr != nil {
+		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
+	}
+	if err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		// send the status back to the client when forwarding mode is enabled
-		if err := proxy.sendStatus(err); err != nil {
-			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		}
 		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
 		return nil, nil
 	}

@@ -209,8 +209,6 @@ func TestGetClientUserIsSSO(t *testing.T) {
 }
 
 func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
-	t.Parallel()
-
 	client, watcher, _ := newTestResources(t)
 
 	ctx := context.Background()

@@ -358,7 +358,7 @@ exports[`loaded 1`] = `
       >
         <div
           class="c9"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 
