@@ -1,4 +1,0 @@
-#!/bin/sh
-
-# uses the version from go.mod
-exec go run github.com/bufbuild/connect-go/cmd/protoc-gen-connect-go "$@"
