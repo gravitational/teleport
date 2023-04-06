@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"net"
 	"net/http"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
@@ -88,9 +89,7 @@ var (
 // HTTPConnStateReporter returns a http connection event handler function to track
 // connection metrics for an http server.
 func HTTPConnStateReporter(service string, r *Reporter) func(net.Conn, http.ConnState) {
-	tracker := conntrack{
-		conns: make(map[net.Conn]struct{}),
-	}
+	tracker := &sync.Map{}
 	return func(conn net.Conn, state http.ConnState) {
 		if r == nil {
 			return
@@ -98,9 +97,9 @@ func HTTPConnStateReporter(service string, r *Reporter) func(net.Conn, http.Conn
 
 		switch state {
 		case http.StateActive:
-			isNewConn := tracker.add(conn)
+			_, loaded := tracker.LoadOrStore(conn, struct{}{})
 			// Skip connections already added to the tracker.
-			if !isNewConn {
+			if loaded {
 				return
 			}
 
@@ -116,9 +115,9 @@ func HTTPConnStateReporter(service string, r *Reporter) func(net.Conn, http.Conn
 			}
 			r.ConnectionAuthenticated(service, conn)
 		case http.StateClosed, http.StateHijacked:
-			exists := tracker.remove(conn)
+			_, loaded := tracker.LoadAndDelete(conn)
 			// Skip connections that were not tracked or already removed.
-			if !exists {
+			if !loaded {
 				return
 			}
 
