@@ -3391,7 +3391,7 @@ func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey str
 	resp, err := c.integrationsClient().ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
 		Limit:   int32(pageSize),
 		NextKey: nextKey,
-	}, c.callOpts...)
+	})
 	if err != nil {
 		return nil, "", trail.FromGRPC(err)
 	}
@@ -3408,7 +3408,7 @@ func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey str
 func (c *Client) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
 	ig, err := c.integrationsClient().GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
 		Name: name,
-	}, c.callOpts...)
+	})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -3423,7 +3423,7 @@ func (c *Client) CreateIntegration(ctx context.Context, ig types.Integration) (t
 		return nil, trace.BadParameter("unsupported integration type %T", ig)
 	}
 
-	ig, err := c.integrationsClient().CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igV1}, c.callOpts...)
+	ig, err := c.integrationsClient().CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igV1})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -3438,7 +3438,7 @@ func (c *Client) UpdateIntegration(ctx context.Context, ig types.Integration) (t
 		return nil, trace.BadParameter("unsupported integration type %T", ig)
 	}
 
-	ig, err := c.integrationsClient().UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igV1}, c.callOpts...)
+	ig, err := c.integrationsClient().UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igV1})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -3450,13 +3450,13 @@ func (c *Client) UpdateIntegration(ctx context.Context, ig types.Integration) (t
 func (c *Client) DeleteIntegration(ctx context.Context, name string) error {
 	_, err := c.integrationsClient().DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
 		Name: name,
-	}, c.callOpts...)
+	})
 	return trail.FromGRPC(err)
 }
 
 // DeleteAllIntegrations removes all Integrations.
 func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
-	_, err := c.integrationsClient().DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{}, c.callOpts...)
+	_, err := c.integrationsClient().DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
 	return trail.FromGRPC(err)
 }
 
