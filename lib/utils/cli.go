@@ -29,6 +29,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"testing"
 	"unicode"
 
 	"github.com/gravitational/kingpin"
@@ -79,11 +80,11 @@ func InitLoggerForTests() {
 	logrus.SetFormatter(NewTestJSONFormatter())
 	logger.SetLevel(logrus.DebugLevel)
 	logger.SetOutput(os.Stderr)
-	// if testing.Verbose() {
-	// 	return
-	// }
-	// logger.SetLevel(logrus.WarnLevel)
-	// logger.SetOutput(io.Discard)
+	if testing.Verbose() {
+		return
+	}
+	logger.SetLevel(logrus.WarnLevel)
+	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment

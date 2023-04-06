@@ -377,9 +377,6 @@ func TestAppResource(t *testing.T) {
 	mustDecodeJSON(t, buf, &out)
 	require.Len(t, out, 0)
 
-	// modifying this test to trigger flaky tests detector
-	runResourceCommand(t, fileConfig, []string{"get", types.KindApp, "--format=json"})
-
 	// Create the apps.
 	appYAMLPath := filepath.Join(t.TempDir(), "app.yaml")
 	require.NoError(t, os.WriteFile(appYAMLPath, []byte(appYAML), 0644))
