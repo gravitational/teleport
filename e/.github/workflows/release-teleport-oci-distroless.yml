@@ -136,6 +136,7 @@ jobs:
       signing-key-url: ${{ inputs.signing-key-url }}
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
+      allow-overwrites: false
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

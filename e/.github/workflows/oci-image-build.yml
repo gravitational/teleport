@@ -82,13 +82,13 @@ on:
         type: string
 
       signing-key-url:
-        description:
+        description: |
           URL of AWS KMS key to use when signing the resulting image
         type: string
         required: true
 
       image-build-args:
-        description:
+        description: |
           An optional string containing arbitrary extra build args to be passed
           to `docker buildx build`. Formatted as a newline-separated list, as
           per https://github.com/marketplace/actions/docker-setup-buildx#inputs
@@ -96,29 +96,37 @@ on:
         required: false
 
       image-build-context:
-        description:
+        description: |
           Newline-separated list of paths containing the files that
           must be copied into the build directory. When not specified, defaults
           to './teleport/build.assets/charts/.'. This is used to build images
           for Teleport integrations. Wildcards are not supported. To copy a the
           content of a directory, use the `./dir/.` notation.
         type: string
-        required: true
-        default: "./teleport/build.assets/charts/."
+        default: |
+          ./teleport/build.assets/charts/.
 
       image-build-dockerfile:
-        description:
+        description: |
           An optional file path pointing to the Dockerfile to use. The path is
           relative to the build context specified in inputs.
         type: string
-        required: true
         default: "Dockerfile-distroless"
 
       scan-image:
-        description: 
+        description: |
           Should the resulting image be run through the `trivy` scanner as part
           of the build? Only turn this off if you know that the image will be 
           automatically scanned in some other way.
+        type: boolean
+        default: true
+
+      allow-overwrites:
+        description: |
+          Allow this script to overwrite any tags in the destination image. If
+          set to false, thie image will not be rebuilt and signed if the
+          workflow detects that any of the requested tags exists in the
+          destination repository, but the build will still succeed.
         type: boolean
         default: true
 
@@ -144,6 +152,7 @@ jobs:
     environment: staging
     outputs:
       image-digest: ${{ steps.build.outputs.digest }}
+      image-built: ${{ steps.check.outputs.build_image }}
     steps:
       - name: Configure environment
         run: |
@@ -256,11 +265,14 @@ jobs:
 
       - name: Expand image tags
         id: expand
+        env:
+          DST_IMAGE_TAGS: ${{ inputs.dest-image-tags }}
+          DST_IMAGE_REPO: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}"
         run: |
           EOF=END_OF_TAGS
           echo "tags<<$EOF" >> $GITHUB_OUTPUT
-          for t in ${{ inputs.dest-image-tags }}; do
-            echo "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}:$t" >> $GITHUB_OUTPUT
+          for TAG in ${DST_IMAGE_TAGS}; do
+            echo "${DST_IMAGE_REPO}:${TAG}" >> $GITHUB_OUTPUT
           done
           echo $EOF >> $GITHUB_OUTPUT
 
@@ -280,9 +292,30 @@ jobs:
         env:
           AWS_REGION: ${{ inputs.dest-image-registry-region }} 
 
+      - name: Check if building would overwrite destination tag
+        id: check
+        env:
+          TAGS: ${{ steps.expand.outputs.tags }}
+        run: |
+          build_image=true
+          if ${{ inputs.allow-overwrites }}; then
+              echo "Overwrites allowed. Skipping existence test."
+          else
+              for tag in ${TAGS}; do
+                  echo "Checking for: ${tag}"
+                  if docker buildx imagetools inspect ${tag} > /dev/null ; then
+                      echo "found"
+                      build_image=false
+                      break
+                  fi
+              done
+          fi
+          echo build_image=${build_image} >> $GITHUB_OUTPUT
+
       - name: Build Docker image
         uses: docker/build-push-action@v3
         id: build
+        if: steps.check.outputs.build_image == 'true'
         with:
           file: "./build/${{ inputs.image-build-dockerfile }}"
           context: ./build
@@ -296,12 +329,13 @@ jobs:
             ${{ inputs.image-build-args }}
 
       - name: Sign image
+        if: steps.check.outputs.build_image == 'true'
         run: |        
           cosign sign --key ${{ inputs.signing-key-url }} --recursive "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
 
   trivy-scan:
     name: Scan Multiarch Image with Trivy
-    if: inputs.scan-image
+    if: inputs.scan-image && (needs.build-docker-image.outputs.image-built == 'true')
     runs-on: ubuntu-latest
     needs: build-docker-image
     environment: staging
