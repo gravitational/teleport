@@ -1586,7 +1586,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	// Only return the error from connecting with mfa if the error
 	// originates from the mfa ceremony. If mfa is not required then
 	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) {
+	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(mfaErr)
 	}
 
@@ -1649,7 +1649,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	defer span.End()
 
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
-		return nil, trace.Wrap(MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr)))
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
 	// per-session mfa is required, perform the mfa ceremony
