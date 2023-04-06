@@ -108,39 +108,21 @@ export function ActionPicker(props: { input: ReactElement }) {
   const filterButtons = filters.map(s => {
     if (s.filter === 'resource-type') {
       return (
-        <ButtonPrimary
-          m={1}
-          mr={0}
-          px={2}
-          size="small"
+        <FilterButton
           key="resource-type"
+          text={s.resourceType}
           onClick={() => removeFilter(s)}
-        >
-          {s.resourceType}
-        </ButtonPrimary>
+        />
       );
     }
     if (s.filter === 'cluster') {
       const clusterName = getClusterName(s.clusterUri);
       return (
-        <ButtonPrimary
-          m={1}
-          mr={0}
-          px={2}
-          size="small"
-          title={clusterName}
-          css={`
-            max-width: 130px;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            overflow: hidden;
-            display: block;
-          `}
+        <FilterButton
           key="cluster"
+          text={clusterName}
           onClick={() => removeFilter(s)}
-        >
-          {clusterName}
-        </ButtonPrimary>
+        />
       );
     }
   });
@@ -498,5 +480,29 @@ function HighlightField(props: {
       text={props.searchResult.resource[props.field]}
       keywords={keywords}
     />
+  );
+}
+
+function FilterButton(props: { text: string; onClick(): void }) {
+  return (
+    <ButtonPrimary
+      ml={2}
+      px={2}
+      size="small"
+      title={props.text}
+      key="cluster"
+      onClick={props.onClick}
+    >
+      <span
+        css={`
+          max-width: 130px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          overflow: hidden;
+        `}
+      >
+        {props.text}
+      </span>
+    </ButtonPrimary>
   );
 }
