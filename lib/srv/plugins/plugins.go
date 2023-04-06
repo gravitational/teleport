@@ -57,6 +57,12 @@ type Config struct {
 }
 
 func (c *Config) CheckAndSetDefaults() error {
+	if c.APIClient == nil {
+		return trace.BadParameter("plugin service config missing Teleport API client")
+	}
+	if len(c.ResourceMatchers) == 0 {
+		return trace.BadParameter("plugin service config missing missing matchers for plugins")
+	}
 	return nil
 }
 
