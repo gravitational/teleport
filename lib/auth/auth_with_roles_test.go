@@ -151,10 +151,11 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 	start := srv.AuthServer.Clock().Now()
 
 	for _, test := range []struct {
-		desc      string
-		renewable bool
-		reqTTL    time.Duration
-		expiresIn time.Duration
+		desc         string
+		renewable    bool
+		roleRequests bool
+		reqTTL       time.Duration
+		expiresIn    time.Duration
 	}{
 		{
 			desc:      "not-renewable",
@@ -164,11 +165,26 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			expiresIn: 1 * time.Hour,
 		},
 		{
+			desc:         "not-renewable-role-requests",
+			renewable:    false,
+			roleRequests: true,
+			// expiration is allowed to be pushed out into the future
+			reqTTL:    4 * time.Hour,
+			expiresIn: 4 * time.Hour,
+		},
+		{
 			desc:      "renewable",
 			renewable: true,
 			// expiration is allowed to be pushed out into the future
 			reqTTL:    4 * time.Hour,
 			expiresIn: 4 * time.Hour,
+		},
+		{
+			desc:         "renewable-role-requests",
+			renewable:    true,
+			roleRequests: true,
+			reqTTL:       4 * time.Hour,
+			expiresIn:    4 * time.Hour,
 		},
 		{
 			desc:      "max-renew",
@@ -180,7 +196,8 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			user, _, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil)
+			ctx := context.Background()
+			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil)
 			require.NoError(t, err)
 
 			var id TestIdentity
@@ -201,11 +218,23 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			client, err := srv.NewClient(id)
 			require.NoError(t, err)
 
-			certs, err := client.GenerateUserCerts(context.Background(), proto.UserCertsRequest{
+			req := proto.UserCertsRequest{
 				PublicKey: pub,
 				Username:  user.GetName(),
 				Expires:   start.Add(test.reqTTL),
-			})
+			}
+			if test.roleRequests {
+				// Reconfigure role to allow impersonation of its own role.
+				role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
+					Roles: []string{role.GetName()},
+				})
+				require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+				req.UseRoleRequests = true
+				req.RoleRequests = []string{role.GetName()}
+			}
+
+			certs, err := client.GenerateUserCerts(ctx, req)
 			require.NoError(t, err)
 
 			x509, err := tlsca.ParseCertificatePEM(certs.TLS)
