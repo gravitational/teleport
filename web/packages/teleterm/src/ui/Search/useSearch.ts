@@ -114,6 +114,10 @@ export function useFilterSearch() {
               .includes(search.toLocaleLowerCase())
           );
         }
+        // Cluster filter should not be visible if there is only one cluster
+        if (clusters.length === 1) {
+          return [];
+        }
         return clusters.map(cluster => {
           let score = getLengthScore(search, cluster.name);
           if (
