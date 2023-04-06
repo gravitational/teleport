@@ -3378,7 +3378,6 @@ func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.C
 	return trail.FromGRPC(err)
 }
 
-
 // integrationsClient returns an unadorned Integration client, using the underlying
 // Auth gRPC connection.
 func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
