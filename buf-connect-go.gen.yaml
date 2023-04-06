@@ -6,9 +6,11 @@ plugins:
       - run
       - google.golang.org/protobuf/cmd/protoc-gen-go
     out: .
+    opt: module=github.com/gravitational/teleport
   - name: connect-go
     path:
       - go
       - run
       - github.com/bufbuild/connect-go/cmd/protoc-gen-connect-go
     out: .
+    opt: module=github.com/gravitational/teleport
