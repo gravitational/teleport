@@ -16,7 +16,7 @@
 
 import type * as tsh from './types';
 
-export const makeServer = (props: Partial<tsh.Server>): tsh.Server => ({
+export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   uri: '/clusters/teleport-local/servers/178ef081-259b-4aa5-a018-449b5ea7e694',
   tunnel: false,
   name: '178ef081-259b-4aa5-a018-449b5ea7e694',
@@ -26,7 +26,9 @@ export const makeServer = (props: Partial<tsh.Server>): tsh.Server => ({
   ...props,
 });
 
-export const makeDatabase = (props: Partial<tsh.Database>): tsh.Database => ({
+export const makeDatabase = (
+  props: Partial<tsh.Database> = {}
+): tsh.Database => ({
   uri: '/clusters/teleport-local/dbs/foo',
   name: 'foo',
   protocol: 'postgres',
@@ -38,7 +40,7 @@ export const makeDatabase = (props: Partial<tsh.Database>): tsh.Database => ({
   ...props,
 });
 
-export const makeKube = (props: Partial<tsh.Kube>): tsh.Kube => ({
+export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
   name: 'foo',
   labelsList: [],
   uri: '/clusters/bar/kubes/foo',
