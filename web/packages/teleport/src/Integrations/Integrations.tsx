@@ -25,6 +25,7 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import { integrationService } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
 
 import { IntegrationsAddButton } from './IntegrationsAddButton';
 import { IntegrationList } from './IntegrationList';
@@ -39,7 +40,9 @@ export function Integrations() {
   const canCreateIntegrations = ctx.storeUser.getIntegrationsAccess().create;
 
   useEffect(() => {
-    run(() => integrationService.fetchIntegrations().then(setItems));
+    run(() =>
+      integrationService.fetchIntegrations(cfg.proxyCluster).then(setItems)
+    );
   }, []);
 
   return (

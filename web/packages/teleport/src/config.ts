@@ -215,8 +215,7 @@ const cfg = {
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
-    // TODO(lisa): requires backend change
-    integrationsPath: '/v1/webapi/integrations',
+    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -616,8 +615,11 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl() {
-    return cfg.api.integrationsPath;
+  getIntegrationsUrl(clusterId: string, name?: string) {
+    return generateResourcePath(cfg.api.integrationsPath, {
+      clusterId,
+      name,
+    });
   },
 
   getUIConfig() {

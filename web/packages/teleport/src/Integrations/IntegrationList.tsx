@@ -23,8 +23,6 @@ import slackIcon from 'design/assets/images/icons/slack.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { IntegrationCode } from 'teleport/services/integrations';
-
 import type { Integration, Plugin } from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
@@ -42,6 +40,10 @@ export function IntegrationList(props: Props<IntegrationLike>) {
       data={props.list}
       columns={[
         {
+          key: 'resourceType',
+          isNonRender: true,
+        },
+        {
           key: 'kind',
           headerText: 'Integration',
           isSortable: true,
@@ -52,7 +54,7 @@ export function IntegrationList(props: Props<IntegrationLike>) {
           headerText: 'Details',
         },
         {
-          key: 'statusCodeText',
+          key: 'statusCode',
           headerText: 'Status',
           isSortable: true,
           render: item => <StatusCell item={item} />,
@@ -78,7 +80,7 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
     <Cell>
       <Flex alignItems="center">
         <StatusLight status={status} />
-        {item.statusCodeText}
+        {item.statusCode}
       </Flex>
     </Cell>
   );
@@ -105,31 +107,18 @@ enum Status {
 }
 
 function getStatus(item: IntegrationLike) {
-  if (item.resourceType === 'plugin') {
-    switch (item.statusCode) {
-      case 'Running':
-        return Status.Success;
-
-      case 'Unauthorized':
-      case 'Unknown error':
-        return Status.Error;
-
-      case 'Bot not invited to channel':
-        return Status.Warning;
-    }
-    return;
-  }
-
   switch (item.statusCode) {
-    case IntegrationCode.Running:
+    case 'Running':
       return Status.Success;
 
-    case IntegrationCode.Paused:
-      return Status.Warning;
-
-    case IntegrationCode.Error:
+    case 'Unauthorized':
+    case 'Unknown error':
       return Status.Error;
+
+    case 'Bot not invited to channel':
+      return Status.Warning;
   }
+  return;
 }
 
 const StatusLight = styled(Box)`
@@ -158,31 +147,34 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     switch (item.kind) {
       case 'slack':
         formattedText = 'Slack';
-        icon = <IconContainer src={slackIcon} width="18px" />;
+        icon = <IconContainer src={slackIcon} />;
         break;
     }
   } else {
     // Default is integration.
     switch (item.kind) {
-      case 'aws':
-        // The aws icon already has the word "aws" on it,
-        // so we set the text to empty.
-        formattedText = '';
-        icon = <IconContainer src={awsIcon} width="24px" />;
+      case 'aws-oidc':
+        formattedText = 'Amazon Web Services (OIDC)';
+        icon = <IconContainer src={awsIcon} />;
         break;
     }
+  }
+
+  if (!formattedText) {
+    formattedText = item.name;
   }
 
   return (
     <Cell>
       <Flex alignItems="center">
         {icon}
-        {icon && formattedText}
+        {formattedText}
       </Flex>
     </Cell>
   );
 };
 
 const IconContainer = styled(Image)`
+  width: 22px;
   padding-right: 8px;
 `;

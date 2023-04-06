@@ -30,31 +30,30 @@
  */
 export type Integration<
   T extends string = 'integration',
-  S extends string | number = IntegrationCode,
-  K extends string = IntegrationKind
+  K extends string = IntegrationKind,
+  S extends Record<string, any> = IntegrationSpecAwsOidc
 > = {
-  name: string;
-  details: string;
-  statusCode: S;
-  statusCodeText: string;
-  statusDescription?: string;
-  kind: K;
   resourceType: T;
+  kind: K;
+  spec: S;
+  name: string;
+  details?: string;
+  statusCode: IntegrationStatusCode;
 };
-// TODO(lisa) re-visit after backend implementation
-export type IntegrationKind = 'aws';
-export enum IntegrationCode {
-  Unspecified,
-  Paused,
-  Running,
-  Error,
-}
+export type IntegrationKind = 'aws-oidc';
+export type IntegrationSpecAwsOidc = {
+  roleArn: string;
+};
 
-export type Plugin = Integration<'plugin', PluginCode, PluginKind>;
-export type PluginKind = 'slack';
-export type PluginCode =
+export type IntegrationStatusCode =
   | 'Unknown'
   | 'Running'
   | 'Unknown error'
   | 'Unauthorized'
   | 'Bot not invited to channel';
+
+export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
+export type PluginSpec = {
+  statusDescription?: string;
+};
+export type PluginKind = 'slack';

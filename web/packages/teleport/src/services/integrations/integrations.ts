@@ -17,11 +17,17 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { Integration, IntegrationCode } from './types';
+import { Integration } from './types';
 
 export const integrationService = {
-  fetchIntegrations(): Promise<Integration[]> {
-    return api.get(cfg.getIntegrationsUrl()).then(makeIntegrations);
+  fetchIntegration(clusterId: string, name: string): Promise<Integration> {
+    return api
+      .get(cfg.getIntegrationsUrl(clusterId, name))
+      .then(makeIntegration);
+  },
+
+  fetchIntegrations(clusterId: string): Promise<Integration[]> {
+    return api.get(cfg.getIntegrationsUrl(clusterId)).then(makeIntegrations);
   },
 };
 
@@ -30,30 +36,18 @@ export function makeIntegrations(json: any): Integration[] {
   return json.map(user => makeIntegration(user));
 }
 
-// TODO(lisa): re-visit after backend implementation.
 function makeIntegration(json: any): Integration {
   json = json || {};
-  const { name, details, status, type } = json;
+  const { name, subKind, awsoidc } = json;
   return {
     resourceType: 'integration',
     name,
-    details,
-    statusDescription: status?.description,
-    kind: type,
-    statusCode: status?.code,
-    statusCodeText: convertIntegrationCodeToText(status?.code),
+    kind: subKind,
+    spec: {
+      roleArn: awsoidc?.roleArn,
+    },
+    // statusCode will always default to 'Running' for now.
+    // https://github.com/gravitational/teleport/pull/24121
+    statusCode: 'Running',
   };
-}
-
-function convertIntegrationCodeToText(code = 0) {
-  if (code === IntegrationCode.Running) {
-    return 'Running';
-  }
-  if (code === IntegrationCode.Paused) {
-    return 'Paused';
-  }
-  if (code === IntegrationCode.Error) {
-    return 'Error';
-  }
-  return 'Unspecified';
 }

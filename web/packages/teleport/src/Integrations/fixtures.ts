@@ -14,12 +14,7 @@
  * limitations under the License.
  */
 
-import {
-  makeIntegrations,
-  IntegrationCode,
-} from 'teleport/services/integrations';
-
-import type { Plugin } from 'teleport/services/integrations';
+import type { Plugin, Integration } from 'teleport/services/integrations';
 
 export const plugins: Plugin[] = [
   {
@@ -28,7 +23,7 @@ export const plugins: Plugin[] = [
     details: `plugin running status`,
     kind: 'slack',
     statusCode: 'Running',
-    statusCodeText: 'Running',
+    spec: {},
   },
   {
     resourceType: 'plugin',
@@ -36,7 +31,7 @@ export const plugins: Plugin[] = [
     details: `plugin unknown status`,
     kind: 'slack',
     statusCode: 'Unknown',
-    statusCodeText: 'Unknown',
+    spec: {},
   },
   {
     resourceType: 'plugin',
@@ -44,7 +39,7 @@ export const plugins: Plugin[] = [
     details: `plugin unauthorized status`,
     kind: 'acmeco' as any, // unknown plugin, should handle gracefuly
     statusCode: 'Unauthorized',
-    statusCodeText: 'Unauthorized',
+    spec: {},
   },
   {
     resourceType: 'plugin',
@@ -52,7 +47,7 @@ export const plugins: Plugin[] = [
     details: 'plugin unknown error status',
     kind: 'slack',
     statusCode: 'Unknown error',
-    statusCodeText: 'Unknown error',
+    spec: {},
   },
   {
     resourceType: 'plugin',
@@ -60,43 +55,23 @@ export const plugins: Plugin[] = [
     details: '',
     kind: 'slack',
     statusCode: 'Bot not invited to channel',
-    statusCodeText: 'Bot not invited to channel',
+    spec: {},
   },
 ];
 
-export const integrations = [
-  ...makeIntegrations([
-    {
-      name: 'aws',
-      type: 'aws',
-      status: {
-        code: IntegrationCode.Error,
-      },
-      details: 'integration error status',
-    },
-    {
-      name: 'aws',
-      type: 'aws',
-      status: {
-        code: IntegrationCode.Paused,
-      },
-      details: 'integration paused status',
-    },
-    {
-      name: 'aws',
-      type: 'aws',
-      status: {
-        code: IntegrationCode.Running,
-      },
-      details: 'integration running status',
-    },
-    {
-      name: 'aws',
-      type: '' as any,
-      status: {
-        code: IntegrationCode.Unspecified,
-      },
-      details: 'integration unspecified status',
-    },
-  ]),
+export const integrations: Integration[] = [
+  {
+    resourceType: 'integration',
+    name: 'aws',
+    kind: 'aws-oidc',
+    statusCode: 'Running',
+    spec: { roleArn: '' },
+  },
+  {
+    resourceType: 'integration',
+    name: 'some-integration-name',
+    kind: '' as any,
+    statusCode: 'Running',
+    spec: { roleArn: '' },
+  },
 ];
