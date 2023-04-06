@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -218,7 +217,6 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		if err == nil {
 			return clt, nil
 		}
-		logrus.Debugf("==== falling back")
 	}
 
 	clt, sshErr := newSSHClient(ctx, &cfg)

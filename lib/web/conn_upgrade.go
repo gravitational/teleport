@@ -94,7 +94,6 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 }
 
 func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error {
-	h.log.Errorf("=== with ping")
 	if h.cfg.ALPNHandler == nil {
 		return trace.BadParameter("missing ALPNHandler")
 	}
@@ -105,6 +104,7 @@ func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go h.startPing(ctx, pingConn)
+	time.Sleep(time.Millisecond * 100)
 
 	return h.upgradeALPN(ctx, pingConn)
 }
@@ -115,7 +115,6 @@ func (h *Handler) startPing(ctx context.Context, pingConn *pingconn.PingConn) {
 	for {
 		select {
 		case <-ctx.Done():
-			h.log.Errorf("=== stopped")
 			return
 		case <-ticker.C:
 			err := pingConn.WritePing()

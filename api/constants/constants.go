@@ -421,7 +421,7 @@ const (
 	// specifies the upgraded connection should be handled by the ALPN handler
 	// wrapped with the Ping protocol.
 	//
-	// This should be used when the tunnelled TLS Routing protocol cannot keep
+	// This should be used when the tunneled TLS Routing protocol cannot keep
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
 	// has very short idle timeouts.
 	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"

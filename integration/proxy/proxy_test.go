@@ -1253,7 +1253,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	for _, target := range targets {
 		for _, connectType := range connectTypes {
 			t.Run(fmt.Sprintf("%v/%v", target.name, connectType.name), func(t *testing.T) {
-				connectType.clientConfig.Addrs = []string{target.addr}
+				connectType.clientConfig.WebProxyAddr = target.addr
 
 				tc, err := client.New(context.Background(), connectType.clientConfig)
 				require.NoError(t, err)

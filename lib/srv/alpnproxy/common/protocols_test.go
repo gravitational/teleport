@@ -17,7 +17,6 @@ limitations under the License.
 package common
 
 import (
-	"crypto/tls"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -28,16 +27,16 @@ func TestWithPingProtocols(t *testing.T) {
 		[]Protocol{
 			"teleport-tcp-ping",
 			"teleport-redis-ping",
-			"teleport-auth@",
+			"teleport-reversetunnel",
 			"teleport-tcp",
 			"teleport-redis",
 			"h2",
 		},
 		WithPingProtocols([]Protocol{
-			ProtocolAuth,
+			ProtocolReverseTunnel,
 			ProtocolTCP,
 			ProtocolRedisDB,
-			ProtocolAuth,
+			ProtocolReverseTunnel,
 			ProtocolHTTP2,
 		}),
 	)
@@ -48,32 +47,4 @@ func TestIsDBTLSProtocol(t *testing.T) {
 	require.True(t, IsDBTLSProtocol("teleport-redis-ping"))
 	require.False(t, IsDBTLSProtocol("teleport-tcp"))
 	require.False(t, IsDBTLSProtocol(""))
-}
-
-func TestAddNextProtos(t *testing.T) {
-	input := &tls.Config{
-		NextProtos: []string{"proto1", "proto2"},
-	}
-	want := &tls.Config{
-		NextProtos: []string{"proto1", "proto2", "teleport-proxy-ssh-ping", "teleport-proxy-ssh"},
-	}
-	require.Equal(t, want, AddNextProtos(input, ProtocolProxySSH))
-}
-
-func BenchmarkNextProtosWithPing(b *testing.B) {
-	b.Run("one with ping support", func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			NextProtosWithPing(ProtocolReverseTunnel)
-		}
-	})
-	b.Run("one without ping support", func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			NextProtosWithPing(ProtocolHTTP)
-		}
-	})
-	b.Run("five", func(b *testing.B) {
-		for n := 0; n < b.N; n++ {
-			NextProtosWithPing(ProtocolAuth, ProtocolTCP, ProtocolRedisDB, ProtocolAuth, ProtocolHTTP2)
-		}
-	})
 }

@@ -208,7 +208,6 @@ func (h *HandlerDecs) CheckAndSetDefaults() error {
 	if h.ForwardTLS && h.TLSConfig != nil {
 		return trace.BadParameter("the ForwardTLS flag and TLSConfig can't be used at the same time")
 	}
-
 	return nil
 }
 
