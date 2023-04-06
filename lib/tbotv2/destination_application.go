@@ -29,15 +29,15 @@ func (d *ApplicationDestination) String() string {
 	return d.Common.String(ApplicationDestinationType)
 }
 
-func (d *ApplicationDestination) Oneshot(ctx context.Context, bot BotI) error {
+func (d *ApplicationDestination) Oneshot(ctx context.Context, bot DestinationHost) error {
 	return trace.Wrap(d.Generate(ctx, bot))
 }
 
-func (d *ApplicationDestination) Run(ctx context.Context, bot BotI) error {
+func (d *ApplicationDestination) Run(ctx context.Context, bot DestinationHost) error {
 	return trace.Wrap(d.Common.Run(ctx, bot, d.Generate))
 }
 
-func (d *ApplicationDestination) Generate(ctx context.Context, bot BotI) error {
+func (d *ApplicationDestination) Generate(ctx context.Context, bot DestinationHost) error {
 	id, err := bot.GenerateIdentity(ctx, IdentityRequest{
 		roles: d.Common.Roles,
 		ttl:   d.Common.TTL,

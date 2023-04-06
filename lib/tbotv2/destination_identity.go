@@ -19,15 +19,15 @@ func (d *IdentityDestination) CheckAndSetDefaults() error {
 	return trace.Wrap(d.Common.CheckAndSetDefaults())
 }
 
-func (d *IdentityDestination) Oneshot(ctx context.Context, bot BotI) error {
+func (d *IdentityDestination) Oneshot(ctx context.Context, bot DestinationHost) error {
 	return trace.Wrap(d.Generate(ctx, bot))
 }
 
-func (d *IdentityDestination) Run(ctx context.Context, bot BotI) error {
+func (d *IdentityDestination) Run(ctx context.Context, bot DestinationHost) error {
 	return trace.Wrap(d.Common.Run(ctx, bot, d.Generate))
 }
 
-func (d *IdentityDestination) Generate(ctx context.Context, bot BotI) error {
+func (d *IdentityDestination) Generate(ctx context.Context, bot DestinationHost) error {
 	id, err := bot.GenerateIdentity(ctx, IdentityRequest{
 		ttl:   d.Common.TTL,
 		roles: d.Common.Roles,

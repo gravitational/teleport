@@ -6,18 +6,20 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 	"time"
 )
 
-// Yeah yeah, we'll avoid this horrid interface
-// BotI represents the bot locally, or the bot over gRPC and is used by the
-// destinations to call necessary methods.
-type BotI interface {
+// DestinationHost represents the thing "hosting" a destination plugin. This will
+// usually the be the Bot itself, or, the standalone destination host which will
+// communicate with the Bot daemon over gRPC.
+type DestinationHost interface {
 	GenerateIdentity(ctx context.Context, req IdentityRequest) (*identity.Identity, error)
 	// ListenForRotation enables destinations to listen for a CA rotation
 	ListenForRotation(ctx context.Context) (chan struct{}, func(), error)
 	ClientForIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error)
+	Logger() logrus.FieldLogger
 }
 
 type Store interface {
@@ -27,8 +29,8 @@ type Store interface {
 }
 
 type Destination interface {
-	Run(ctx context.Context, bot BotI) error
-	Oneshot(ctx context.Context, bot BotI) error
+	Run(ctx context.Context, bot DestinationHost) error
+	Oneshot(ctx context.Context, bot DestinationHost) error
 	CheckAndSetDefaults() error
 	String() string
 }
@@ -74,14 +76,15 @@ func (d *CommonDestination) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func (d *CommonDestination) Run(ctx context.Context, bot BotI, generate func(ctx context.Context, bot BotI) error) error {
+func (d *CommonDestination) Run(ctx context.Context, bot DestinationHost, generate func(ctx context.Context, bot DestinationHost) error) error {
 	rotationTrigger, stop, err := bot.ListenForRotation(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	bot.Logger().Info("Listening for rotations")
 	defer stop()
 
-	firstRenewal := make(chan struct{})
+	firstRenewal := make(chan struct{}, 1)
 	firstRenewal <- struct{}{}
 
 	for {
@@ -91,11 +94,13 @@ func (d *CommonDestination) Run(ctx context.Context, bot BotI, generate func(ctx
 		case <-firstRenewal:
 		case <-rotationTrigger:
 		case <-time.After(d.Renew):
+			bot.Logger().Info("Renewing")
 			// TODO: Don't leak this timer lol
 			// TODO: Retry logic
 			// TODO: Backoff logic
 			// TODO: Timeout logic
 			err := generate(ctx, bot)
+			bot.Logger().Info("Renewal complete")
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -103,6 +108,6 @@ func (d *CommonDestination) Run(ctx context.Context, bot BotI, generate func(ctx
 	}
 }
 
-func (d *CommonDestination) Oneshot(ctx context.Context, bot BotI, generate func(ctx context.Context, bot BotI) error) error {
+func (d *CommonDestination) Oneshot(ctx context.Context, bot DestinationHost, generate func(ctx context.Context, bot DestinationHost) error) error {
 	return trace.Wrap(generate(ctx, bot))
 }

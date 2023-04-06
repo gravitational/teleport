@@ -11,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"sync"
 	"time"
 )
 
@@ -75,20 +76,29 @@ func (b *Bot) Run(ctx context.Context) error {
 	// Wait for bot identity and CA rotation mechanisms to be happy
 	b.logger.Info("Waiting for CA rotation watcher and bot identity to be healthy")
 
-	// TODO: Emit readiness signal.
 	b.logger.Info("CA rotation watcher and bot identity healthy")
+	// TODO: Emit readiness signal. This readiness signal can be used by
+	// programmatic users of tbot to know that they are able to start adding
+	// their own destinations
 
 	// TODO: Handle management of goroutines and synced closure/error states.
-	block := make(chan struct{})
-	go func() {
-		for _, dest := range b.cfg.Destinations {
-			b.logger.Info("Starting destination.")
-			// TODO: Handle destination failing out?
-			go dest.Run(ctx, b)
-		}
-	}()
-	<-block
-
+	wg := sync.WaitGroup{}
+	for _, dest := range b.cfg.Destinations {
+		dest := dest
+		b.logger.Info("Starting destination.")
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			err := dest.Run(ctx, b)
+			if err != nil {
+				b.logger.
+					WithError(err).
+					WithField("destination", dest.String()).
+					Error("Destination failed")
+			}
+		}()
+	}
+	wg.Wait()
 	return nil
 }
 
@@ -168,11 +178,15 @@ func (b *Bot) GenerateIdentity(ctx context.Context, req IdentityRequest) (*ident
 
 func (b *Bot) ListenForRotation(ctx context.Context) (chan struct{}, func(), error) {
 	// TODO: Actually build in a CA rotation watcher
-	ch := make(chan struct{})
+	ch := make(chan struct{}, 1)
 	f := func() {
 		close(ch)
 	}
 	return ch, f, nil
+}
+
+func (b *Bot) Logger() logrus.FieldLogger {
+	return b.logger
 }
 
 func (b *Bot) ClientForIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
