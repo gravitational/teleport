@@ -176,16 +176,17 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 
 	e.emitAuditEvent(reqCopy)
 
-	signedReq, err := e.getSignedRequest(err, reqCopy)
+	signedReq, err := e.getSignedRequest(reqCopy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	tr, err := e.getTransport(ctx, err)
+	tr, err := e.getTransport(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	//nolint:bodyclose // resp will be closed in sendResponse().
 	resp, err := tr.RoundTrip(signedReq)
 	if err != nil {
 		return trace.Wrap(err)
@@ -194,7 +195,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 	return trace.Wrap(e.sendResponse(resp))
 }
 
-func (e *Engine) getTransport(ctx context.Context, err error) (*http.Transport, error) {
+func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
 	tr, err := defaults.Transport()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -209,7 +210,7 @@ func (e *Engine) getTransport(ctx context.Context, err error) (*http.Transport, 
 	return tr, nil
 }
 
-func (e *Engine) getSignedRequest(err error, reqCopy *http.Request) (*http.Request, error) {
+func (e *Engine) getSignedRequest(reqCopy *http.Request) (*http.Request, error) {
 	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, e.sessionCtx.Database.GetAWS().Region, e.sessionCtx.Database.GetAWS().AccountID)
 	if err != nil {
 		return nil, trace.Wrap(err)
