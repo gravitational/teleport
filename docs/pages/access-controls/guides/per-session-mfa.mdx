@@ -7,7 +7,7 @@ videoBanner: j8Ze7HhjFGw
 Teleport supports requiring additional multi-factor authentication checks
 when starting new:
 
-- SSH connections (a single `tsh` call)
+- SSH connections (a single `tsh ssh` call, Web UI SSH session or Teleport Connect SSH session)
 - Kubernetes sessions (a single `kubectl` call)
 - Database sessions (a single `tsh db connect` call)
 - Desktop sessions
@@ -49,7 +49,7 @@ their on-disk Teleport certificates.
 - Second factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
-  SSH from the Teleport Web UI).
+  SSH or desktop sessions from the Teleport Web UI).
 
 <Admonition type="note" title="Per-session MFA with FIPS" scope="enterprise" scopeOnly>
 
@@ -290,9 +290,11 @@ $ tsh db connect prod-mysql-instance
 
 Current limitations for this feature are:
 
-- For SSH, the `tsh` client must be used for per-session MFA.
+- For SSH connections besides the Web UI, the `tsh` or Teleport Connect client must be used for per-session MFA.
   (The OpenSSH `ssh` client does not work with per-session MFA).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
+- Database access with per-session MFA only works with `tsh db connect`.
+  Per-session MFA for databases is not supported in Teleport Connect.
 - Application access clients don't support per-session MFA
   authentication yet, although cluster and role configuration applies to them.
   If you enable per-session MFA checks cluster-wide, you will not be able to

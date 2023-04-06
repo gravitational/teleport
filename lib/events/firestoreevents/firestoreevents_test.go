@@ -86,6 +86,8 @@ func (tt *firestoreContext) setupTest(t *testing.T) {
 	if len(docSnaps) == 0 {
 		return
 	}
+	//allow using deprecated api
+	//nolint:staticcheck
 	batch := tt.log.svc.Batch()
 	for _, docSnap := range docSnaps {
 		batch.Delete(docSnap.Ref)
