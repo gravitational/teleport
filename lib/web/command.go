@@ -433,16 +433,15 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 	getAgent := func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(tc.LocalAgent()), nil
 	}
-	signerCreator := func() (ssh.Signer, error) {
-		cert, err := t.ctx.GetSSHCertificate()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		validBefore := time.Unix(int64(cert.ValidBefore), 0)
-		ttl := time.Until(validBefore)
-		return agentless.CreateAuthSigner(ctx, t.ctx.GetUser(), tc.SiteName, ttl, t.router)
+	cert, err := t.ctx.GetSSHCertificate()
+	if err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failed to get certificate")
+		t.writeError(err)
+		return
 	}
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signerCreator)
+
+	signer := agentless.SignerFromSSHCertificate(cert, t.authProvider)
+	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -472,7 +471,10 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
-	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn,
+		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
+		t.sessionData.ServerHostname,
+		tc, modules.GetModules().IsBoringBinary())
 	switch {
 	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
 		t.log.WithError(connectErr).Warn("Unable to stream terminal - failed to create node client")
@@ -509,7 +511,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 
 	// Establish SSH connection to the server. This function will block until
 	// either an error occurs or it completes successfully.
-	if err = nc.RunCommand(ctx, t.interactiveCommand, nil); err != nil {
+	if err = nc.RunCommand(ctx, t.interactiveCommand); err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure running interactive shell")
 		t.writeError(err)
 		return
