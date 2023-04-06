@@ -287,9 +287,11 @@ current-context: foo
 			require.Empty(t, cmp.Diff(got, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
+				cmp.AllowUnexported(httpTransport{}),
 				cmp.Comparer(func(a, b *transport.Config) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *kubernetes.Clientset) bool { return (a == nil) == (b == nil) }),
 				cmp.Comparer(func(a, b *rest.Config) bool { return (a == nil) == (b == nil) }),
+				cmp.Comparer(func(a, b httpTransport) bool { return true }),
 			))
 		})
 	}
