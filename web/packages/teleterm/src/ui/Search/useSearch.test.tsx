@@ -15,21 +15,20 @@
  */
 
 import React from 'react';
-
 import { renderHook } from '@testing-library/react-hooks';
 
 import { ServerUri } from 'teleterm/ui/uri';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { SearchResult } from 'teleterm/ui/services/resources';
-
-import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
-
 import {
-  makeResourceResult,
   makeServer,
   makeKube,
   makeLabelsList,
-} from './searchResultTestHelpers';
+} from 'teleterm/services/tshd/testHelpers';
+
+import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
+
+import { makeResourceResult } from './testHelpers';
 import { rankResults, useResourceSearch } from './useSearch';
 
 describe('rankResults', () => {

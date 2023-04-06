@@ -18,15 +18,15 @@ import React from 'react';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { routing } from 'teleterm/ui/uri';
-
-import { SearchResult } from '../searchResult';
 import {
   makeDatabase,
   makeKube,
-  makeResourceResult,
   makeServer,
   makeLabelsList,
-} from '../searchResultTestHelpers';
+} from 'teleterm/services/tshd/testHelpers';
+
+import { SearchResult } from '../searchResult';
+import { makeResourceResult } from '../testHelpers';
 
 import { ComponentMap, NoResultsItem, TypeToSearchItem } from './ActionPicker';
 import { ResultList } from './ResultList';
