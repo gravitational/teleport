@@ -135,7 +135,7 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 
 	if IsALPNPingProtocol(tlsConn.ConnectionState().NegotiatedProtocol) {
 		logrus.Debugf("Using ping connection for protocol %v.", tlsConn.ConnectionState().NegotiatedProtocol)
-		return pingconn.New(tlsConn), nil
+		return pingconn.NewTLS(tlsConn), nil
 	}
 	return tlsConn, nil
 }

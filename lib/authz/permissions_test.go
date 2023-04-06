@@ -182,9 +182,33 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClien
 	}
 }
 
-func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
-	t.Parallel()
+func TestGetClientUserIsSSO(t *testing.T) {
+	ctx := context.Background()
 
+	u := LocalUser{
+		Username: "someuser",
+		Identity: tlsca.Identity{
+			Username: "someuser",
+			Groups:   []string{"somerole"},
+		},
+	}
+
+	// Non SSO user must return false
+	nonSSOUserCtx := context.WithValue(ctx, contextUser, u)
+
+	isSSO, err := GetClientUserIsSSO(nonSSOUserCtx)
+	require.NoError(t, err)
+	require.False(t, isSSO, "expected a non-SSO user")
+
+	// An SSO user must return true
+	u.Identity.UserType = types.UserTypeSSO
+	ssoUserCtx := context.WithValue(ctx, contextUser, u)
+	localUserIsSSO, err := GetClientUserIsSSO(ssoUserCtx)
+	require.NoError(t, err)
+	require.True(t, localUserIsSSO, "expected an SSO user")
+}
+
+func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 	client, watcher, _ := newTestResources(t)
 
 	ctx := context.Background()

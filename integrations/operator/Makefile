@@ -23,6 +23,21 @@ include ./envtest.mk
 # Configure which compiler and buildbox to use
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
+ifeq ("$(OS)","linux")
+ifeq ("$(ARCH)","amd64")
+COMPILER ?= x86_64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX)
+else ifeq ("$(ARCH)","386")
+COMPILER ?= x86_64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX)
+else ifeq ("$(ARCH)","arm")
+COMPILER ?= arm-linux-gnueabihf-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
+else ifeq ("$(ARCH)","arm64")
+COMPILER ?= aarch64-linux-gnu-gcc
+PLATFORM_BUILDBOX ?= $(BUILDBOX_ARM)
+endif
+endif
 
 .PHONY: all
 all: build
@@ -110,8 +125,8 @@ run: manifests generate fmt vet ## Run a controller from your host.
 
 .PHONY: docker-build
 docker-build: ## Build docker image with the manager.
-	docker buildx build --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(BUILDBOX) \
-		-t ${IMG} --load ../.. -f ./Dockerfile
+	docker buildx build --platform="$(OS)/$(ARCH)" --build-arg BUILDBOX=$(PLATFORM_BUILDBOX) \
+		--build-arg COMPILER_NAME=$(COMPILER) -t ${IMG} --load ../.. -f ./Dockerfile
 
 .PHONY: docker-push
 docker-push: ## Push docker image with the manager.

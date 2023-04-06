@@ -32,6 +32,10 @@ export function KeyboardShortcutsPanel() {
       shortcutAction: 'newTab',
     },
     {
+      title: 'Open New Terminal Tab',
+      shortcutAction: 'newTerminalTab',
+    },
+    {
       title: 'Go To Next Tab',
       shortcutAction: 'nextTab',
     },

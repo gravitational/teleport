@@ -55,7 +55,7 @@ export function TopBar() {
     .find(f =>
       matchPath(history.location.pathname, {
         path: f.route.path,
-        exact: false,
+        exact: f.route.exact ?? false,
       })
     );
 

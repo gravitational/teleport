@@ -1389,6 +1389,17 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	if req.ResourceType == kubeService {
 		return &types.ListResourcesResponse{}, nil
 	}
+
+	// Check if auth server has a license for this resource type but only return an
+	// error if the user is not a builtin proxy or kube role.
+	// Builtin proxy and kube roles are allowed to list resources to avoid crashes
+	// even if the license is missing.
+	// Users with other roles will get an error if the license is missing so they
+	// can request a license with the correct features.
+	if err := enforceLicense(req.ResourceType); err != nil && !a.hasBuiltinRole(types.RoleProxy, types.RoleKube) {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -2607,7 +2618,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
+	if req.Username != a.context.User.GetName() && user.GetUserType() == types.UserTypeSSO {
 		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
 		return nil, trace.AccessDenied("access denied")
 	}
