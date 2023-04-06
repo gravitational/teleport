@@ -175,7 +175,6 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 		{
 			desc:      "renewable",
 			renewable: true,
-			// expiration is allowed to be pushed out into the future
 			reqTTL:    4 * time.Hour,
 			expiresIn: 4 * time.Hour,
 		},
@@ -193,6 +192,13 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			// but no more than the maximum renewable cert TTL
 			reqTTL:    2 * libdefaults.MaxRenewableCertTTL,
 			expiresIn: libdefaults.MaxRenewableCertTTL,
+		},
+		{
+			desc:         "not-renewable-role-requests-max-renew",
+			renewable:    false,
+			roleRequests: true,
+			reqTTL:       2 * libdefaults.MaxRenewableCertTTL,
+			expiresIn:    libdefaults.MaxRenewableCertTTL,
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
