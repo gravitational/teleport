@@ -29,22 +29,31 @@ const ProfileName = "teleport"
 
 // Certificate is an optional certificate config.
 type Certificate struct {
+	// CACert is the path to the CA cert.
 	CACert string `json:"cafilepath,omitempty"`
-	Cert   string `json:"clientcertificatefilepath,omitempty"`
-	Key    string `json:"clientkeyfilepath,omitempty"`
+	// Cert is the path to the client cert.
+	Cert string `json:"clientcertificatefilepath,omitempty"`
+	// Key is the path to the client key.
+	Key string `json:"clientkeyfilepath,omitempty"`
 }
 
 // Profile represents single profile in opensearch-cli configuration
 type Profile struct {
-	Name        string       `json:"name"`
-	Endpoint    string       `json:"endpoint"`
+	// Name is the name of the profile. We use fixed "teleport" profile name per the ProfileName constant.
+	Name string `json:"name"`
+	// Endpoint is the URL of the database endpoint
+	Endpoint string `json:"endpoint"`
+	// Certificate holds optional certificate info
 	Certificate *Certificate `json:"certificate,omitempty"`
-	MaxRetry    int          `json:"max_retry,omitempty"`
-	Timeout     int          `json:"timeout,omitempty"`
+	// MaxRetry is the maximum number of retries to be made in case of error.
+	MaxRetry int `json:"max_retry,omitempty"`
+	// Timeout is the timeout used by the client.
+	Timeout int `json:"timeout,omitempty"`
 }
 
 // Config represents configuration for opensearch-cli
 type Config struct {
+	// Profiles is the list of profiles in the config.
 	Profiles []Profile `json:"profiles"`
 }
 
@@ -77,8 +86,8 @@ func ConfigTLS(host string, port int, caCert, cert, key string) Config {
 	}}
 }
 
-// WriteTempConfig writes the config to disk, relative to the base dir.
-func WriteTempConfig(baseDir string, cfg Config) (string, error) {
+// WriteConfig writes the config to disk, relative to the base dir.
+func WriteConfig(baseDir string, cfg Config) (string, error) {
 	// serialize config
 	bytes, err := yaml.Marshal(cfg)
 	if err != nil {

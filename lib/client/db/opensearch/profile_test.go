@@ -59,9 +59,9 @@ func TestConfigTLS(t *testing.T) {
 	require.Equal(t, want, got)
 }
 
-func TestWriteTempConfig(t *testing.T) {
+func TestWriteConfig(t *testing.T) {
 	tmp := t.TempDir()
-	fn, err := WriteTempConfig(tmp, ConfigNoTLS("host.example.com", 8080))
+	fn, err := WriteConfig(tmp, ConfigNoTLS("host.example.com", 8080))
 	require.NoError(t, err)
 	require.Equal(t, path.Join(tmp, "opensearch-cli", "150502df.yml"), fn)
 	bytes, err := os.ReadFile(fn)

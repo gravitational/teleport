@@ -708,10 +708,7 @@ func TestParseOpensearchEndpoint(t *testing.T) {
 
 	tests := []struct {
 		desc     string
-		services []string
-		regions  []string
 		endpoint string
-		wantInfo *OpenSearchEndpointInfo
 	}{
 		{
 			desc:     "empty uri",

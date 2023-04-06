@@ -71,6 +71,8 @@ const (
 	elasticsearchSQLBin = "elasticsearch-sql-cli"
 	// openSearchCLIBin is the OpenSearch CLI client program name.
 	openSearchCLIBin = "opensearch-cli"
+	// openSearchSQLBin is the OpenSearch SQL client program name.
+	openSearchSQLBin = "opensearchsql"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
 	// oracleBin is the Oracle CLI program name.
@@ -430,6 +432,12 @@ func (c *CLICommandBuilder) isOpenSearchCLIBinAvailable() bool {
 	return err == nil
 }
 
+// isOpenSearchCLIBinAvailable returns true if "opensearchsql" binary is found in the system PATH.
+func (c *CLICommandBuilder) isOpenSearchSQLBinAvailable() bool {
+	_, err := c.options.exe.LookPath(openSearchSQLBin)
+	return err == nil
+}
+
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
 // true is returned when binary comes from MariaDB, false when from Oracle.
 func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
@@ -623,31 +631,31 @@ func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 
 // getOpenSearchCommand returns a command to connect to OpenSearch.
 func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
-	// get config
-	var cfg opensearch.Config
+	if c.options.tolerateMissingCLIClient == false && c.isOpenSearchSQLBinAvailable() == false {
+		return nil, trace.NotFound("%q not found, please make sure it is available in $PATH", openSearchSQLBin)
+	}
+
 	if c.options.noTLS {
-		cfg = opensearch.ConfigNoTLS(c.host, c.port)
-	} else {
+		args := []string{fmt.Sprintf("http://%v:%v", c.host, c.port)}
+		return c.options.exe.Command(openSearchSQLBin, args...), nil
+	}
+
+	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", openSearchSQLBin)
+}
+
+func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
+	cfg := opensearch.ConfigNoTLS(c.host, c.port)
+	if !c.options.noTLS {
 		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName), c.profile.KeyPath())
 	}
 
-	// write it
 	baseDir := path.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
-	tempCfg, err := opensearch.WriteTempConfig(baseDir, cfg)
+	tempCfg, err := opensearch.WriteConfig(baseDir, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// use "teleport" profile and custom config file.
-	args := []string{"--profile", opensearch.ProfileName, "--config", tempCfg}
-
-	// use extra args. if empty, replace with --help
-	extraArgs := c.options.extraArgs
-	if len(c.options.extraArgs) == 0 {
-		extraArgs = []string{"curl", "get", "--path", "/"}
-		c.options.log.Warnf("No extra arguments provided, using defaults instead: %v.", extraArgs)
-	}
-	args = append(args, extraArgs...)
+	args := []string{"--profile", opensearch.ProfileName, "--config", tempCfg, "curl", "get", "--path", "/"}
 
 	return c.options.exe.Command(openSearchCLIBin, args...), nil
 }
@@ -741,11 +749,14 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 
 func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternative {
 	var commands []CommandAlternative
-	if c.isOpenSearchCLIBinAvailable() {
-		if len(c.options.extraArgs) == 0 {
-			c.options.extraArgs = []string{"curl", "get", "--path", "/"}
-		}
+	if c.isOpenSearchSQLBinAvailable() {
 		if cmd, err := c.getOpenSearchCommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "start interactive session with opensearchsql", Command: cmd})
+		}
+	}
+
+	if c.isOpenSearchCLIBinAvailable() {
+		if cmd, err := c.getOpenSearchCLICommand(); err == nil {
 			commands = append(commands, CommandAlternative{Description: "run request with opensearch-cli", Command: cmd})
 		}
 	}
@@ -776,7 +787,7 @@ func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternat
 
 		curlCommand = c.options.exe.Command(curlBin, args...)
 	}
-	commands = append(commands, CommandAlternative{Description: "run single request with curl", Command: curlCommand})
+	commands = append(commands, CommandAlternative{Description: "run request with curl", Command: curlCommand})
 
 	return commands
 }
@@ -791,7 +802,6 @@ type connectionCommandOpts struct {
 	log                      *logrus.Entry
 	exe                      Execer
 	password                 string
-	extraArgs                []string
 }
 
 // ConnectCommandFunc is a type for functions returned by the "With*" functions in this package.
@@ -854,13 +864,6 @@ func WithPrintFormat() ConnectCommandFunc {
 func WithLogger(log *logrus.Entry) ConnectCommandFunc {
 	return func(opts *connectionCommandOpts) {
 		opts.log = log
-	}
-}
-
-// WithExtraArgs passes along extra arguments provided to DB CLI client.
-func WithExtraArgs(extraArgs []string) ConnectCommandFunc {
-	return func(opts *connectionCommandOpts) {
-		opts.extraArgs = extraArgs
 	}
 }
 

@@ -806,7 +806,6 @@ func onDatabaseConnect(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	opts = append(opts, dbcmd.WithLogger(log))
-	opts = append(opts, dbcmd.WithExtraArgs(cf.DatabaseExtraArgs))
 
 	if opts, err = maybeAddDBUserPassword(database, opts); err != nil {
 		return trace.Wrap(err)
@@ -1191,10 +1190,10 @@ func withConnectRequirements(ctx context.Context, tc *client.TeleportClient, rou
 			r.addLocalProxy(formatTLSRoutingReason(tc.SiteName))
 		}
 		switch route.Protocol {
-		case defaults.ProtocolElasticsearch:
-			// ElasticSearch access can work without a local proxy tunnel, but not
-			// via `tsh db connect`.
-			// (elasticsearch-sql-cli cannot be configured to use specific certs).
+		case defaults.ProtocolElasticsearch, defaults.ProtocolOpenSearch:
+			// ElasticSearch and OpenSearch access can work without a local proxy tunnel,
+			// but not via `tsh db connect`.
+			// (elasticsearch-sql-cli and opensearchsql cannot be configured to use specific certs).
 			r.addLocalProxyWithTunnel(formatDBProtocolReason(route.Protocol))
 		}
 		if r.localProxy && r.tunnel {

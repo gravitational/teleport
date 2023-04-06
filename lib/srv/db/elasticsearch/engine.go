@@ -148,17 +148,21 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client) error {
-	reqCopy, body, err := utils.CloneRequest(req)
+	body, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer req.Body.Close()
 
-	e.emitAuditEvent(reqCopy, body)
+	reqCopy := req.Clone(ctx)
+	reqCopy.RequestURI = ""
+	reqCopy.Body = io.NopCloser(bytes.NewReader(body))
 
 	// force HTTPS, set host URL.
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = sessionCtx.Database.GetURI()
+	reqCopy.Host = sessionCtx.Database.GetURI()
+
+	e.emitAuditEvent(reqCopy, body)
 
 	// Send the request to elasticsearch API
 	resp, err := client.Do(reqCopy)

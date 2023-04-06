@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -133,7 +134,7 @@ func (e *Engine) SendError(err error) {
 	}
 
 	if err := response.Write(e.clientConn); err != nil {
-		e.Log.Errorf("OpenSearch error: %+v", trace.Unwrap(err))
+		e.Log.WithError(err).Errorf("OpenSearch: failed to send an error to the client.")
 		return
 	}
 }
@@ -147,6 +148,10 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 		return trace.Wrap(err)
 	}
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
+
+	// TODO(Tener):
+	//  Consider rewriting to support HTTP2 clients.
+	//  Ideally we should have shared middleware for DB clients using HTTP, instead of separate per-engine implementations.
 
 	clientConnReader := bufio.NewReader(e.clientConn)
 	for {
@@ -164,20 +169,50 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, req *http.Request) error {
-	reqCopy, _, err := utils.CloneRequest(req)
+	reqCopy, err := e.rewriteRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// force HTTPS, set host URL.
-	reqCopy.URL.Scheme = "https"
-	reqCopy.URL.Host = e.sessionCtx.Database.GetURI()
-
 	e.emitAuditEvent(reqCopy)
 
-	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, e.sessionCtx.Database.GetAWS().Region, e.sessionCtx.Database.GetAWS().AccountID)
+	signedReq, err := e.getSignedRequest(err, reqCopy)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	tr, err := e.getTransport(ctx, err)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := tr.RoundTrip(signedReq)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(e.sendResponse(resp))
+}
+
+func (e *Engine) getTransport(ctx context.Context, err error) (*http.Transport, error) {
+	tr, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tr.TLSClientConfig = tlsConfig
+	return tr, nil
+}
+
+func (e *Engine) getSignedRequest(err error, reqCopy *http.Request) (*http.Request, error) {
+	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, e.sessionCtx.Database.GetAWS().Region, e.sessionCtx.Database.GetAWS().AccountID)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	signCtx := &libaws.SigningCtx{
@@ -191,28 +226,31 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 
 	signedReq, err := e.signingSvc.SignRequest(e.Context, reqCopy, signCtx)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, e.sessionCtx)
+	return signedReq, nil
+}
+
+func (e *Engine) rewriteRequest(ctx context.Context, req *http.Request) (*http.Request, error) {
+	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	clt := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: tlsConfig,
-		},
-	}
+	reqCopy := req.Clone(ctx)
+	reqCopy.RequestURI = ""
+	reqCopy.Body = io.NopCloser(bytes.NewReader(payload))
 
-	// Send the request to elasticsearch API
-	resp, err := clt.Do(signedReq)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer resp.Body.Close()
+	// Connection is hop-by-hop header, drop.
+	reqCopy.Header.Del("Connection")
 
-	return trace.Wrap(e.sendResponse(resp))
+	// force HTTPS, set host URL.
+	reqCopy.URL.Scheme = "https"
+	reqCopy.URL.Host = e.sessionCtx.Database.GetURI()
+	reqCopy.Host = e.sessionCtx.Database.GetURI()
+
+	return reqCopy, nil
 }
 
 // emitAuditEvent writes the request and response to audit stream.
@@ -242,18 +280,23 @@ func (e *Engine) emitAuditEvent(req *http.Request) {
 }
 
 // sendResponse sends the response back to the OpenSearch client.
-func (e *Engine) sendResponse(resp *http.Response) error {
-	// calculate content length if missing.
-	if resp.ContentLength == -1 {
-		respBody, err := utils.GetAndReplaceResponseBody(resp)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		resp.Body = io.NopCloser(bytes.NewReader(respBody))
-		resp.ContentLength = int64(len(respBody))
+func (e *Engine) sendResponse(serverResponse *http.Response) error {
+	payload, err := utils.GetAndReplaceResponseBody(serverResponse)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	if err := resp.Write(e.clientConn); err != nil {
+	// serverResponse may be HTTP2 response, but we should reply with HTTP 1.1
+	clientResponse := &http.Response{
+		ProtoMajor:    1,
+		ProtoMinor:    1,
+		StatusCode:    serverResponse.StatusCode,
+		Body:          io.NopCloser(bytes.NewBuffer(payload)),
+		Header:        serverResponse.Header.Clone(),
+		ContentLength: int64(len(payload)),
+	}
+
+	if err := clientResponse.Write(e.clientConn); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
