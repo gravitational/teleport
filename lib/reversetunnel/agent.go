@@ -116,7 +116,7 @@ type agentConfig struct {
 	// localAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	localAuthAddresses []string
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
 }
 
@@ -189,7 +189,7 @@ type agent struct {
 	// drainWG tracks transports and other concurrent operations required
 	// to drain a connection are finished.
 	drainWG sync.WaitGroup
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	// proxySigner is used to sign PROXY headers for securely propagating client IP address
 	proxySigner multiplexer.PROXYHeaderSigner
 }
 

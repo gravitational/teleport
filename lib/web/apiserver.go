@@ -734,6 +734,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
 	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
+
+	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -2619,67 +2621,141 @@ func (h *Handler) siteNodeConnect(
 }
 
 func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, owner string) (session.Session, error) {
-	var (
-		id   string
-		host string
-		port int
-	)
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
-	if _, err := uuid.Parse(req.Server); err != nil {
+	host, err := findByHost(ctx, clt, req.Server)
+	if err != nil {
+		return session.Session{}, err
+	}
+
+	return session.Session{
+		Login:          req.Login,
+		ServerID:       host.id,
+		ClusterName:    clusterName,
+		ServerHostname: host.hostName,
+		ServerHostPort: host.port,
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+		Owner:          owner,
+	}, nil
+}
+
+func (h *Handler) generateCommandSession(host *hostInfo, login, clusterName, owner string) (session.Session, error) {
+	h.log.Infof("Generating new session for %s in %s\n", host.hostName, clusterName)
+
+	return session.Session{
+		Login:          login,
+		ServerID:       host.id,
+		ClusterName:    clusterName,
+		ServerHostname: host.hostName,
+		ServerHostPort: host.port,
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+		Owner:          owner,
+	}, nil
+}
+
+type hostInfo struct {
+	id       string
+	hostName string
+	port     int
+}
+
+// findByLabels returns all hosts matching the given labels.
+func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]string) ([]hostInfo, error) {
+	if len(labels) == 0 {
+		return nil, nil
+	}
+
+	resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		ResourceType: types.KindNode,
+		Namespace:    apidefaults.Namespace,
+		Labels:       labels,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	hosts := make([]hostInfo, 0, len(resources))
+	for _, resource := range resources {
+		server, ok := resource.(types.Server)
+		if !ok {
+			return nil, trace.BadParameter("expected types.Server, got: %T", resource)
+		}
+
+		h := hostInfo{
+			hostName: server.GetHostname(),
+			id:       server.GetName(),
+			port:     defaultPort,
+		}
+		hosts = append(hosts, h)
+	}
+
+	return hosts, nil
+}
+
+// findByHost return a host matching by the host name.
+func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*hostInfo, error) {
+	var host hostInfo
+
+	if _, err := uuid.Parse(serverName); err != nil {
 		// The requested server is either a hostname or an address. Get all
 		// servers that may fuzzily match by populating SearchKeywords
 		resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
 			ResourceType:   types.KindNode,
 			Namespace:      apidefaults.Namespace,
-			SearchKeywords: []string{req.Server},
+			SearchKeywords: []string{serverName},
 		})
 		if err != nil {
-			return session.Session{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
 		if len(resources) == 0 {
 			// If we didn't find the resource set host and port,
 			// so we can try direct dial.
-			host, port, err = serverHostPort(req.Server)
+			host.hostName, host.port, err = serverHostPort(serverName)
 			if err != nil {
-				return session.Session{}, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-			id = host
+			host.id = host.hostName
 		}
 
 		matches := 0
 		for _, resource := range resources {
 			server, ok := resource.(types.Server)
 			if !ok {
-				return session.Session{}, trace.BadParameter("expected types.Server, got: %T", resource)
+				return nil, trace.BadParameter("expected types.Server, got: %T", resource)
 			}
 
 			// match by hostname
-			if server.GetHostname() == req.Server {
+			if server.GetHostname() == serverName {
 				if matches > 0 {
 					matches++
 					continue
 				}
 
-				host = server.GetHostname()
-				id = server.GetName()
-				port = 0
+				host.hostName = server.GetHostname()
+				host.id = server.GetName()
+				host.port = 0
 
 				matches++
 				continue
 			}
 
 			// exact match by address
-			if server.GetAddr() == req.Server {
+			if server.GetAddr() == serverName {
 				if matches > 0 {
 					matches++
 					continue
 				}
 
-				host = req.Server
-				id = server.GetName()
-				port = 0
+				host.hostName = serverName
+				host.id = server.GetName()
+				host.port = 0
 
 				matches++
 				continue
@@ -2689,12 +2765,12 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		// there was either at least one partial match or multiple
 		// exact matches on the server. connect with the resolved
 		// host and port of the requested server.
-		if matches > 1 || host == "" && id == "" {
-			host, port, err = serverHostPort(req.Server)
+		if matches > 1 || host.hostName == "" && host.id == "" {
+			host.hostName, host.port, err = serverHostPort(serverName)
 			if err != nil {
-				return session.Session{}, trace.Wrap(err)
+				return nil, trace.Wrap(err)
 			}
-			id = req.Server
+			host.id = serverName
 		}
 	} else {
 		// Even though the UUID was provided and can be dialed directly, the UI
@@ -2702,28 +2778,16 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		// Looking the node up directly by UUID is the most efficient we can be until
 		// the UI is modified to remember the hostname when the connect button is
 		// used to establish a session.
-		server, err := clt.GetNode(ctx, apidefaults.Namespace, req.Server)
+		server, err := clt.GetNode(ctx, apidefaults.Namespace, serverName)
 		if err != nil {
-			return session.Session{}, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 
-		host = server.GetHostname()
-		port = 0
-		id = req.Server
+		host.hostName = server.GetHostname()
+		host.port = 0
+		host.id = serverName
 	}
-
-	return session.Session{
-		Login:          req.Login,
-		ServerID:       id,
-		ClusterName:    clusterName,
-		ServerHostname: host,
-		ServerHostPort: port,
-		ID:             session.NewID(),
-		Created:        time.Now().UTC(),
-		LastActive:     time.Now().UTC(),
-		Namespace:      apidefaults.Namespace,
-		Owner:          owner,
-	}, nil
+	return &host, nil
 }
 
 func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
@@ -2746,7 +2810,7 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	// When joining an existing session use the specially handled
 	// `SSHSessionJoinPrincipal` login instead of the provided login so that
 	// users are able to join sessions without having permissions to create
-	// new ones themselves for auditing purposes. Otherwise the user would
+	// new ones themselves for auditing purposes. Otherwise, the user would
 	// fail the SSH lib username validation step.
 	sessionData.Login = teleport.SSHSessionJoinPrincipal
 	// Using the Login above will then display `-teleport-internal-join` as the
