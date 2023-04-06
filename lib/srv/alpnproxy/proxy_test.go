@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -191,7 +192,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		conn := NewPingConn(baseConn)
+		conn := pingconn.NewTLS(baseConn)
 		tlsConn := tls.Client(conn, &tls.Config{
 			Certificates: []tls.Certificate{
 				clientCert,

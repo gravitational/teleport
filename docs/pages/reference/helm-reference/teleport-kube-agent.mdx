@@ -106,6 +106,101 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 
 If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
 
+## `updater`
+
+`updater` controls whether the Kube Agent Updater should be deployed alongside
+the `teleport-kube-agent`. The updater fetches the target version, validates the
+image signature, and updates the teleport deployment.
+
+All kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+... default to the agent values. However, they can be overridden from the
+`udpater` object. For example:
+
+```yaml
+# the agent pod requests 1cpu and 2 GiB of memory. It also has a memory limit.
+resources:
+  requests:
+    cpu: "1"
+    memory: "2Gi"
+  limits:
+    memory: "2Gi"
+
+# the updater pod requests 0.5 cpu and 512MiB of memory. The memory limit has also been unset.
+updater:
+  resources:
+    requests:
+      cpu: "0.5"
+      memory: "512Mi"
+    limits: ~
+```
+
+Other updater-specific values that can be defined in `updater` are described
+below:
+
+### `updater.enabled`
+
+| Type   | Default value | Required? |
+|--------|---------------|-----------|
+| `bool` | false         | No        |
+
+Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+You can enable this when:
+
+- using Teleport Cloud and your tenant is enrolled into automatic updates.
+  (You can check this through the web UI, choose `Add Kubernetes` and
+  `Enroll New Resource of type Kubernetes`, and check if the value is turned
+  on.)
+- using self-hosted Teleport and you maintain your own version server.
+
+You must not enable this if:
+
+- you are a Teleport Cloud customer not enrolled in automatic updates.
+- you are a self-hosted Teleport user and have not set up your Teleport cluster to 
+  support automatic updates.
+
+### `updater.versionServer`
+
+| Type     | Default value                         | Required?                       |
+|----------|---------------------------------------|---------------------------------|
+| `string` | "https://update.gravitational.io/v1/" | Yes if not using Teleport Cloud |
+
+`updater.versionServer` is the URL of the version server the agent fetches the
+target version from. The complete version endpoint is built by concatenating
+[`versionServer`](#updaterversionserver) and
+[`releaseChannel`](#updaterreleasechannel).
+
+You must set this if the updater is enabled, and you are not a Teleport Cloud user.
+
+You must not change the default values if you are a Teleport Cloud user.
+
+### `updater.releaseChannel`
+
+| Type     | Default value   | Required? |
+|----------|-----------------|-----------|
+| `string` | "stable/cloud"  | No        |
+
+`updater.releaseChannel` is the release channel the updater subscribes to.
+The complete version endpoint is built by concatenating
+[`versionServer`](#updaterversionserver) and
+[`releaseChannel`](#updaterreleasechannel).
+You must not change the default value if you are a Teleport Cloud user unless
+instructed by Teleport support.
+
+You can change this value if the updater is enabled, you are not a Teleport
+Cloud user, and manage your own version server.
+
+### `updater.image`
+
+| Type     | Default value                                              | Required? |
+|----------|------------------------------------------------------------|-----------|
+| `string` | "public.ecr.aws/gravitational/teleport-kube-agent-updater" | No        |
+
+`image` sets the container image used for Teleport updater pods run when
+`updater.enabled` is true.
+
+You can override this to use your own Teleport Kube Agent Updater image rather
+than a Teleport-published image.
+
 ## `roleBindingName`
 
 | Type     | Default value | Required? |
@@ -1044,9 +1139,18 @@ The size of persistent volume to create.
 |----------|-----------------------------------------|
 | `string` | `public.ecr.aws/gravitational/teleport` |
 
-`image` sets the container image used for Teleport pods run by the `teleport-kube-agent` chart.
+`image` sets the container image used for Teleport agent pods run by the `teleport-kube-agent` chart.
 
 You can override this to use your own Teleport image rather than a Teleport-published image.
+
+<Admonition type="warning" title="Interaction with Teleport Kube Agent Updater">
+When using the Teleport Kube Agent Updater you must ensure the image is
+available before the updater version target gets updated and Kubernetes tries
+to pull the image.
+
+For this reason, it is strongly discouraged to set a custom image when
+connecting to a Teleport Cloud instance enrolled in automatic updates.
+</Admonition>
 
 <Tabs>
   <TabItem label="values.yaml">

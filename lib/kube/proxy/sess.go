@@ -519,7 +519,7 @@ func (s *session) launch() error {
 	s.podName = request.podName
 	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
-	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
+	eventPodMeta := request.eventPodMeta(request.context, s.sess.kubeAPICreds)
 
 	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
 	if err != nil {
@@ -835,11 +835,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 // join attempts to connect a party to the session.
 func (s *session) join(p *party) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roleNames := p.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		roles := p.Ctx.Checker.Roles()
 
 		accessContext := auth.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
@@ -912,7 +908,7 @@ func (s *session) join(p *party) error {
 	}
 
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	if p.Mode == types.SessionModeratorMode {
 		s.eventsWaiter.Add(1)

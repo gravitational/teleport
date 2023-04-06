@@ -62,6 +62,9 @@ export class ConnectProtocolUseEvent extends jspb.Message {
     getProtocol(): string;
     setProtocol(value: string): ConnectProtocolUseEvent;
 
+    getOrigin(): string;
+    setOrigin(value: string): ConnectProtocolUseEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ConnectProtocolUseEvent.AsObject;
@@ -78,6 +81,7 @@ export namespace ConnectProtocolUseEvent {
         clusterName: string,
         userName: string,
         protocol: string,
+        origin: string,
     }
 }
 

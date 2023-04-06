@@ -82,14 +82,6 @@ func (f *rdsDBProxyFetcher) getRDSProxyDatabases(ctx context.Context) (types.Dat
 
 	var databases types.Databases
 	for _, dbProxy := range rdsProxies {
-		// TODO(greedy52) RDS Proxy supports MS SQL Server but it requires MS
-		// SQL Server engine support for IAM auth.
-		//
-		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy-setup.html#rds-proxy-connecting-sqlserver
-		if aws.StringValue(dbProxy.EngineFamily) == rds.EngineFamilySqlserver {
-			f.log.Debugf("RDS Proxy %q with engine family %q is not supported yet. Skipping.", aws.StringValue(dbProxy.DBProxyName), aws.StringValue(dbProxy.EngineFamily))
-			continue
-		}
 		if !aws.BoolValue(dbProxy.RequireTLS) {
 			f.log.Debugf("RDS Proxy %q doesn't support TLS. Skipping.", aws.StringValue(dbProxy.DBProxyName))
 			continue

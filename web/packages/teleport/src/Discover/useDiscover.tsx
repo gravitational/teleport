@@ -32,7 +32,6 @@ import {
   ResourceViewConfig,
   View,
 } from './flow';
-import { resourceKindToEventResource } from './Shared/ResourceKind';
 import { viewConfigs } from './resourceViewConfigs';
 
 import type { Node } from 'teleport/services/nodes';
@@ -61,7 +60,6 @@ type EventState = {
   id: string;
   currEventName: DiscoverEvent;
   manuallyEmitSuccessEvent: boolean;
-  eventResourceName: DiscoverEventResource;
 };
 
 type CustomEventInput = {
@@ -87,19 +85,19 @@ export function DiscoverProvider(props: React.PropsWithChildren<unknown>) {
 
   const emitEvent = useCallback(
     (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
-      const { id, currEventName, eventResourceName } = eventState;
+      const { id, currEventName } = eventState;
 
       userEventService.captureDiscoverEvent({
         event: custom?.eventName || currEventName,
         eventData: {
           id,
-          resource: custom?.eventResourceName || eventResourceName,
+          resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           ...status,
         },
       });
     },
-    [eventState]
+    [eventState, resourceSpec]
   );
 
   useEffect(() => {
@@ -141,7 +139,6 @@ export function DiscoverProvider(props: React.PropsWithChildren<unknown>) {
     setEventState({
       id,
       currEventName: DiscoverEvent.Started,
-      eventResourceName: null,
       manuallyEmitSuccessEvent: null,
     });
     userEventService.captureDiscoverEvent({
@@ -159,6 +156,20 @@ export function DiscoverProvider(props: React.PropsWithChildren<unknown>) {
   // onSelectResources initializes all the required
   // variables needed to start a guided flow.
   function onSelectResource(resource: ResourceSpec) {
+    // We still want to emit an event if user clicked on
+    // unguided links to gather data on which unguided resource
+    // is most popular.
+    if (resource.unguidedLink) {
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Success },
+        {
+          eventName: DiscoverEvent.ResourceSelection,
+          eventResourceName: resource.event,
+        }
+      );
+      return;
+    }
+
     // Process each view and assign each with an index number.
     const currCfg = viewConfigs.find(r => r.kind === resource.kind);
     let indexedViews = [];
@@ -173,20 +184,20 @@ export function DiscoverProvider(props: React.PropsWithChildren<unknown>) {
       indexedViews,
       currentStep
     );
-    const eventResourceName = resourceKindToEventResource(resource);
-
     // At this point it's considered the user has
     // successfully selected a resource, so we send an event.
     emitEvent(
       { stepStatus: DiscoverEventStatus.Success },
-      { eventName: DiscoverEvent.ResourceSelection, eventResourceName }
+      {
+        eventName: DiscoverEvent.ResourceSelection,
+        eventResourceName: resource.event,
+      }
     );
 
     // Init all required states to start the flow.
     setEventState({
       ...eventState,
       currEventName: eventName,
-      eventResourceName,
       manuallyEmitSuccessEvent,
     });
     setViewConfig(currCfg);
