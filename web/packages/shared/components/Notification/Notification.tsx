@@ -232,7 +232,7 @@ const shortTextCss = css`
 const Container = styled(Flex)`
   flex-direction: row;
   justify-content: space-between;
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
   min-height: 40px;
   width: 320px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
