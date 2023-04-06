@@ -16,7 +16,9 @@ type storedDevice struct {
 	CreateTime   time.Time               `json:"create_time"`             // Required.
 	UpdateTime   time.Time               `json:"update_time"`             // Required.
 	EnrollStatus int                     `json:"enroll_status,omitempty"` // Same as devicepb.EnrollStatus.
-	Credential   *storedDeviceCredential `json:"credential,omitempty"`
+	Credential   *storedDeviceCredential `json:"credential,omitempty"`    // Optional. Present if enrolled.
+	Source       *storedDeviceSource     `json:"source,omitempty"`        // Optional.
+	Profile      *storedDeviceProfile    `json:"profile,omitempty"`       // Optional.
 }
 
 // deviceRef is stored as reference to a device in manually managed indexes.
@@ -50,9 +52,31 @@ const (
 
 // storedCollectedData represents a devicepb.DeviceCollectedData in storage.
 type storedCollectedData struct {
-	Origin       collectedDataOrigin `json:"origin"`        // Required.
-	CollectTime  time.Time           `json:"collect_time"`  // Required.
-	RecordTime   time.Time           `json:"record_time"`   // Required.
-	OSType       int                 `json:"os_type"`       // Required. Same as devicepb.OSType.
-	SerialNumber string              `json:"serial_number"` // Required.
+	Origin                  collectedDataOrigin `json:"origin"`                              // Required.
+	CollectTime             time.Time           `json:"collect_time"`                        // Required.
+	RecordTime              time.Time           `json:"record_time"`                         // Required.
+	OSType                  int                 `json:"os_type"`                             // Required. Same as devicepb.OSType.
+	SerialNumber            string              `json:"serial_number"`                       // Required.
+	ModelIdentifier         string              `json:"model_identifier,omitempty"`          // Optional.
+	OSVersion               string              `json:"os_version,omitempty"`                // Optional.
+	OSBuild                 string              `json:"os_build,omitempty"`                  // Optional.
+	OSUsername              string              `json:"os_username,omitempty"`               // Optional.
+	JamfBinaryVersion       string              `json:"jamf_binary_version,omitempty"`       // Optional.
+	MacOSEnrollmentProfiles string              `json:"macos_enrollment_profiles,omitempty"` // Optional.
+}
+
+// storedDeviceSource represents a devicepb.DeviceSource in storage.
+type storedDeviceSource struct {
+	Name   string `json:"name"`   // Required.
+	Origin int    `json:"origin"` // Required. Same as devicepb.DeviceOrigin.
+}
+
+// storedDeviceProfile represents a devicepb.DeviceProfile in storage.
+type storedDeviceProfile struct {
+	UpdateTime        time.Time `json:"update_time"`                   // Required.
+	ModelIdentifier   string    `json:"model_identifier,omitempty"`    // Optional.
+	OSVersion         string    `json:"os_version,omitempty"`          // Optional.
+	OSBuild           string    `json:"os_build,omitempty"`            // Optional.
+	OSUsernames       []string  `json:"os_usernames,omitempty"`        // Optional.
+	JamfBinaryVersion string    `json:"jamf_binary_version,omitempty"` // Optional.
 }

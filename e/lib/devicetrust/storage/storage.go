@@ -23,6 +23,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -206,12 +207,38 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device, createAsReso
 }
 
 func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (deviceID string, storedDev *storedDevice, storedCD []*storedCollectedData) {
+	var storedSource *storedDeviceSource
+	var storedProfile *storedDeviceProfile
+	if dtent.MDMFeatureActive {
+		if d.Source != nil {
+			storedSource = &storedDeviceSource{
+				Name:   d.Source.Name,
+				Origin: int(d.Source.Origin),
+			}
+		}
+
+		// Profiles have no required fields, but there's no point saving an empty
+		// profile so let's avoid that.
+		if d.Profile != nil && !proto.Equal(&devicepb.DeviceProfile{}, d.Profile) {
+			storedProfile = &storedDeviceProfile{
+				UpdateTime:        now,
+				ModelIdentifier:   d.Profile.ModelIdentifier,
+				OSVersion:         d.Profile.OsVersion,
+				OSBuild:           d.Profile.OsBuild,
+				OSUsernames:       d.Profile.OsUsernames,
+				JamfBinaryVersion: d.Profile.JamfBinaryVersion,
+			}
+		}
+	}
+
 	storedDev = &storedDevice{
 		OSType:       int(d.OsType),
 		AssetTag:     d.AssetTag,
 		CreateTime:   now,
 		UpdateTime:   now,
 		EnrollStatus: int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED),
+		Source:       storedSource,
+		Profile:      storedProfile,
 	}
 
 	// Non-resource writes don't assign readonly or system-managed fields.
@@ -251,14 +278,15 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 	}
 
 	// CollectedData.
+	const originUnknown = 0 // decided later during creation
 	storedCD = make([]*storedCollectedData, len(d.CollectedData))
 	for i, cd := range d.CollectedData {
-		storedCD[i] = &storedCollectedData{
-			CollectTime:  cd.CollectTime.AsTime(),
-			RecordTime:   cd.RecordTime.AsTime(),
-			OSType:       int(cd.OsType),
-			SerialNumber: cd.SerialNumber,
-		}
+		storedCD[i] = collectedDataToStored(cd, originUnknown, now, createAsResource)
+	}
+
+	// Profile.
+	if updateTime := d.Profile.GetUpdateTime(); dtent.MDMFeatureActive && updateTime != nil {
+		storedDev.Profile.UpdateTime = updateTime.AsTime()
 	}
 
 	return deviceID, storedDev, storedCD
@@ -401,19 +429,24 @@ func (s *S) UpdateDevice(
 		return nil, trace.Wrap(err)
 	}
 
-	// Convert updated dev to storage.
+	// System-managed: update time.
 	now := s.nowUTC()
+	updated.UpdateTime = timestamppb.New(now)
+
+	// System-managed: profile update time, if changed.
+	if updated.Profile != nil && !proto.Equal(stored.Profile, updated.Profile) {
+		updated.Profile.UpdateTime = timestamppb.New(now)
+	}
+
+	// System-managed: erase credential if the device was forcefully "unenrolled".
+	if updated.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
+		updated.Credential = nil
+	}
+
+	// Convert updated dev to storage.
 	_, storedU, _ := deviceToStored(updated, now, true /* createAsResource */)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// System-managed fields.
-	storedU.UpdateTime = now
-
-	// Erase credential if the device was forcefully "unenrolled".
-	if storedU.EnrollStatus == int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED) {
-		storedU.Credential = nil
 	}
 
 	// Marshal and update.
@@ -624,15 +657,6 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 	})
 
 	return cd, nil
-}
-
-func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollectedData {
-	return &devicepb.DeviceCollectedData{
-		CollectTime:  timestamppb.New(stored.CollectTime),
-		RecordTime:   timestamppb.New(stored.RecordTime),
-		OsType:       devicepb.OSType(stored.OSType),
-		SerialNumber: stored.SerialNumber,
-	}
 }
 
 func storedSliceToCollectedData(stored []*storedCollectedData) []*devicepb.DeviceCollectedData {
@@ -915,13 +939,8 @@ func (s *S) RecordDeviceAuthnData(ctx context.Context, deviceID string, cd *devi
 }
 
 func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time) error {
-	storedCD := &storedCollectedData{
-		Origin:       origin,
-		CollectTime:  cd.CollectTime.AsTime(),
-		RecordTime:   recordTime,
-		OSType:       int(cd.OsType),
-		SerialNumber: cd.SerialNumber,
-	}
+	storedCD := collectedDataToStored(cd, origin, recordTime, false /* createAsResource */)
+
 	val, err := json.Marshal(storedCD)
 	if err != nil {
 		return trace.Wrap(err, "marshal collected data")
@@ -1183,6 +1202,27 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			PublicKeyDer: c.PublicKeyDER,
 		}
 	}
+
+	var source *devicepb.DeviceSource
+	if sd.Source != nil {
+		source = &devicepb.DeviceSource{
+			Name:   sd.Source.Name,
+			Origin: devicepb.DeviceOrigin(sd.Source.Origin),
+		}
+	}
+
+	var profile *devicepb.DeviceProfile
+	if sd.Profile != nil {
+		profile = &devicepb.DeviceProfile{
+			UpdateTime:        timestamppb.New(sd.Profile.UpdateTime),
+			ModelIdentifier:   sd.Profile.ModelIdentifier,
+			OsVersion:         sd.Profile.OSVersion,
+			OsBuild:           sd.Profile.OSBuild,
+			OsUsernames:       sd.Profile.OSUsernames,
+			JamfBinaryVersion: sd.Profile.JamfBinaryVersion,
+		}
+	}
+
 	return &devicepb.Device{
 		ApiVersion:   currentAPIVersion,
 		Id:           deviceID,
@@ -1192,11 +1232,57 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 		UpdateTime:   timestamppb.New(sd.UpdateTime),
 		EnrollStatus: devicepb.DeviceEnrollStatus(sd.EnrollStatus),
 		Credential:   cred,
+		Source:       source,
+		Profile:      profile,
 	}
 }
 
 func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 	return storedToDeviceView(deviceID, sd, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
+}
+
+func collectedDataToStored(cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time, createAsResource bool) *storedCollectedData {
+	storedCD := &storedCollectedData{
+		Origin:       origin,
+		CollectTime:  cd.CollectTime.AsTime(),
+		RecordTime:   recordTime,
+		OSType:       int(cd.OsType),
+		SerialNumber: cd.SerialNumber,
+	}
+
+	if dtent.MDMFeatureActive {
+		storedCD.ModelIdentifier = cd.ModelIdentifier
+		storedCD.OSVersion = cd.OsVersion
+		storedCD.OSBuild = cd.OsBuild
+		storedCD.OSUsername = cd.OsUsername
+		storedCD.JamfBinaryVersion = cd.JamfBinaryVersion
+		storedCD.MacOSEnrollmentProfiles = cd.MacosEnrollmentProfiles
+	}
+
+	if !createAsResource {
+		return storedCD
+	}
+
+	if cd.RecordTime != nil {
+		storedCD.RecordTime = cd.RecordTime.AsTime()
+	}
+
+	return storedCD
+}
+
+func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollectedData {
+	return &devicepb.DeviceCollectedData{
+		CollectTime:             timestamppb.New(stored.CollectTime),
+		RecordTime:              timestamppb.New(stored.RecordTime),
+		OsType:                  devicepb.OSType(stored.OSType),
+		SerialNumber:            stored.SerialNumber,
+		ModelIdentifier:         stored.ModelIdentifier,
+		OsVersion:               stored.OSVersion,
+		OsBuild:                 stored.OSBuild,
+		OsUsername:              stored.OSUsername,
+		JamfBinaryVersion:       stored.JamfBinaryVersion,
+		MacosEnrollmentProfiles: stored.MacOSEnrollmentProfiles,
+	}
 }
 
 func deviceKeyStart() []byte {

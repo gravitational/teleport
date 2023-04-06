@@ -3,12 +3,16 @@ package storage
 import (
 	"crypto"
 	"crypto/x509"
+	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/mod/semver"
 	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -17,6 +21,15 @@ const (
 	maxCredentialIDLength       = 40 // UUID is 36 chars.
 	maxDeviceAssetTagLength     = 40 // macOS serial is 12 chars, UUID is 36 chars.
 	maxDeviceSerialNumberLength = maxDeviceAssetTagLength
+
+	maxDataModelIdentifierLength         = 40  // arbitrary, "large" number.
+	maxDataOSVersionLength               = 40  // arbitrary, "large" number.
+	maxDataOSBuildLength                 = 40  // arbitrary, "large" number.
+	maxDataOSUsernameLength              = 40  // arbitrary, "large" number.
+	maxDataJamfBinaryVersionLength       = 40  // arbitrary, "large" number.
+	maxDataMacOSEnrollmentProfilesLength = 400 // arbitrary, "large" number.
+
+	maxSourceNameLength = 40 // arbitrary, "large" number.
 )
 
 // ValidateDeviceCredential validates a devicepb.DeviceCredential instance.
@@ -63,15 +76,82 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 		return trace.BadParameter("device serial number required")
 	case len(cd.SerialNumber) > maxDeviceSerialNumberLength:
 		return trace.BadParameter("device serial number exceeds %v characters", maxDeviceSerialNumberLength)
+	}
+
+	if dtent.MDMFeatureActive {
+		if err := validateCollectedDataLike(cd.OsType, cd); err != nil {
+			return trace.Wrap(err)
+		}
+		if len(cd.GetOsUsername()) > maxDataOSUsernameLength {
+			return trace.BadParameter("device OS username exceeds %v characters", maxDeviceSerialNumberLength)
+		}
+	}
 
 	// No further validation required for non-resources.
-	case !createAsResource:
+	if !createAsResource {
 		return nil
+	}
 
 	// All fields must be set if writing collected data from a device resource.
-	case !cd.RecordTime.IsValid():
+	if !cd.RecordTime.IsValid() {
 		return trace.BadParameter("record time missing or invalid")
+	}
 
+	return nil
+}
+
+// collectedDataLike represents the intersection of devicepb.CollectedData and
+// devicepb.DeviceProfile.
+type collectedDataLike interface {
+	GetModelIdentifier() string
+	GetOsVersion() string
+	GetOsBuild() string
+	GetJamfBinaryVersion() string
+}
+
+// validateCollectedDataLike validates the common fields between
+// devicepb.CollectedData and devicepb.DeviceProfile.
+func validateCollectedDataLike(osType devicepb.OSType, cd collectedDataLike) error {
+	// Length checks for all variable-length fields.
+	switch {
+	case len(cd.GetModelIdentifier()) > maxDataModelIdentifierLength:
+		return trace.BadParameter("model identifier exceeds %v characters", maxDataModelIdentifierLength)
+	case len(cd.GetOsVersion()) > maxDataOSVersionLength:
+		return trace.BadParameter("device OS version exceeds %v characters", maxDataOSVersionLength)
+	case len(cd.GetOsBuild()) > maxDataOSBuildLength:
+		return trace.BadParameter("device OS build exceeds %v characters", maxDataOSBuildLength)
+	case len(cd.GetJamfBinaryVersion()) > maxDataJamfBinaryVersionLength:
+		return trace.BadParameter("jamf binary version exceeds %v characters", maxDataJamfBinaryVersionLength)
+	}
+
+	// Parse OS version.
+	if osType == devicepb.OSType_OS_TYPE_MACOS && cd.GetOsVersion() != "" {
+		if err := validateSemver(cd.GetOsVersion()); err != nil {
+			return trace.BadParameter("device OS version (macOS): %v", err)
+		}
+	}
+
+	// TODO(codingllama): Further validate cd and cd-like fields?
+	//  - OS version for other OSes
+	//  - OS build
+	//  - MacOS enrollment profile strings
+
+	// Parse Jamf binary version.
+	if cd.GetJamfBinaryVersion() != "" {
+		if err := validateSemver(cd.GetJamfBinaryVersion()); err != nil {
+			return trace.BadParameter("jamf binary version: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func validateSemver(v string) error {
+	switch {
+	case strings.HasPrefix(v, "v"):
+		return trace.BadParameter("version number should not start with `v`")
+	case !semver.IsValid(fmt.Sprintf("v%v", v)):
+		return trace.BadParameter("not a valid semver: %q", v)
 	default:
 		return nil
 	}
@@ -107,11 +187,28 @@ func validateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 		return trace.BadParameter("asset_tag required")
 	case len(d.AssetTag) > maxDeviceAssetTagLength:
 		return trace.BadParameter("asset_tag exceeds %v characters", maxDeviceAssetTagLength)
+	}
+
+	if dtent.MDMFeatureActive {
+		if d.Source != nil {
+			if err := validateDeviceSource(d.Source); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		if d.Profile != nil {
+			if err := validateDeviceProfile(d.OsType, d.Profile, createAsResource); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
 
 	// No further validation required for non-resources.
-	case !createAsResource:
+	if !createAsResource {
 		return nil
+	}
 
+	// Validate "simple" readonly fields.
+	switch {
 	case d.ApiVersion != "" && d.ApiVersion != currentAPIVersion: // Only v1 supported.
 		return trace.BadParameter("invalid or unsupported api_version: %v", d.ApiVersion)
 	case d.CreateTime != nil && d.UpdateTime == nil,
@@ -152,6 +249,45 @@ func validateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 	return nil
 }
 
+func validateDeviceSource(source *devicepb.DeviceSource) error {
+	switch {
+	case source.Name == "":
+		return trace.BadParameter("device source name required")
+	case len(source.Name) > maxSourceNameLength:
+		return trace.BadParameter("device source name exceeds %v characters", maxSourceNameLength)
+	case source.Origin == devicepb.DeviceOrigin_DEVICE_ORIGIN_UNSPECIFIED:
+		return trace.BadParameter("unknown or invalid device source origin")
+	default:
+		return nil
+	}
+}
+
+func validateDeviceProfile(osType devicepb.OSType, profile *devicepb.DeviceProfile, createAsResource bool) error {
+	if err := validateCollectedDataLike(osType, profile); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Usernames.
+	for i, username := range profile.OsUsernames {
+		switch {
+		case username == "":
+			return trace.BadParameter("device profile username[%v]: username cannot be empty", i)
+		case len(username) > maxDataOSUsernameLength:
+			return trace.BadParameter("device profile username[%v]: username exceeds %v characters", i, maxDataOSUsernameLength)
+		}
+	}
+
+	// No further validation required for non-resources.
+	if !createAsResource {
+		return nil
+	}
+
+	if profile.UpdateTime != nil && !profile.UpdateTime.IsValid() {
+		return trace.BadParameter("invalid device profile update time")
+	}
+	return nil
+}
+
 func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
 	switch {
 	case updated.ApiVersion != currentAPIVersion:
@@ -178,6 +314,21 @@ func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
 		return trace.BadParameter(
 			"enroll_status can only be manually transitioned to %q",
 			dtoss.FriendlyDeviceEnrollStatus(notEnrolled))
+	}
+
+	if dtent.MDMFeatureActive {
+		// Source is mutable.
+		if updated.Source != nil {
+			if err := validateDeviceSource(updated.Source); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		// Profile is mutable.
+		if updated.Profile != nil {
+			if err := validateDeviceProfile(updated.OsType, updated.Profile, false /* createAsResource */); err != nil {
+				return trace.Wrap(err)
+			}
+		}
 	}
 
 	return nil
