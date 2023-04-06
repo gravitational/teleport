@@ -96,31 +96,6 @@ export function ActionPicker(props: { input: ReactElement }) {
     [changeActivePicker, closeAndResetInput, resetInput]
   );
 
-  const excludedClustersCopy = getExcludedClustersCopy(
-    clustersService.getRootClusters()
-  );
-  const NoResultsComponent =
-    inputValue.length > 0 ? (
-      <EmptyListCopy>
-        <Text typography="subtitle1" color="text.primary">
-          No matching results found.
-        </Text>
-        {excludedClustersCopy && (
-          <Item Icon={icons.Info} iconColor="text.primary">
-            <Text typography="body1" color="text.primary">
-              {excludedClustersCopy}
-            </Text>
-          </Item>
-        )}
-      </EmptyListCopy>
-    ) : (
-      <EmptyListCopy>
-        <Text typography="subtitle1" color="text.primary">
-          Type something to search.
-        </Text>
-      </EmptyListCopy>
-    );
-
   const filterButtons = filters.map(s => {
     if (s.filter === 'resource-type') {
       return (
@@ -149,6 +124,13 @@ export function ActionPicker(props: { input: ReactElement }) {
       removeFilter(filters[length - 1]);
     }
   }
+
+  const NoResultsComponent = (
+    <NoResults
+      clusters={clustersService.getRootClusters()}
+      inputValue={inputValue}
+    />
+  );
 
   return (
     <PickerContainer>
@@ -410,6 +392,49 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   );
 }
 
+export function NoResults(props: {
+  inputValue: string;
+  clusters: tsh.Cluster[];
+}) {
+  if (props.inputValue.length > 0) {
+    const excludedClustersCopy = getExcludedClustersCopy(props.clusters);
+    return (
+      <EmptyListCopy>
+        <Text typography="subtitle1" color="text.primary">
+          No matching results found.
+        </Text>
+        {excludedClustersCopy && (
+          <Item Icon={icons.Info} iconColor="text.primary">
+            <Text typography="body1" color="text.primary">
+              {excludedClustersCopy}
+            </Text>
+          </Item>
+        )}
+      </EmptyListCopy>
+    );
+  }
+
+  return (
+    <EmptyListCopy>
+      <Text typography="subtitle1" color="text.primary">
+        Type something to search.
+      </Text>
+    </EmptyListCopy>
+  );
+}
+
+function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
+  const excludedClusters = allClusters.filter(c => !c.connected);
+  const excludedClustersString = excludedClusters.map(c => c.name).join(', ');
+  if (excludedClusters.length === 0) {
+    return '';
+  }
+  if (excludedClusters.length === 1) {
+    return `The cluster ${excludedClustersString} was excluded from the search because you are not logged in to it.`;
+  }
+  return `Clusters ${excludedClustersString} were excluded from the search because you are not logged in to them.`;
+}
+
 function Labels(
   props: React.PropsWithChildren<{
     searchResult: ResourceSearchResult;
@@ -509,18 +534,6 @@ function HighlightField(props: {
       keywords={keywords}
     />
   );
-}
-
-function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
-  const excludedClusters = allClusters.filter(c => !c.connected);
-  const excludedClustersString = excludedClusters.map(c => c.name).join(', ');
-  if (excludedClusters.length === 0) {
-    return '';
-  }
-  if (excludedClusters.length === 1) {
-    return `The cluster ${excludedClustersString} was excluded from the search because you are not logged in to it.`;
-  }
-  return `Clusters ${excludedClustersString} were excluded from the search because you are not logged in to them.`;
 }
 
 function FilterButton(props: { text: string; onClick(): void }) {

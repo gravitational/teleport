@@ -28,10 +28,11 @@ import {
   makeLabelsList,
 } from '../searchResultTestHelpers';
 
-import { ComponentMap } from './ActionPicker';
+import { ComponentMap, NoResults as NoResultsComponent } from './ActionPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
+import { PickerContainer } from 'teleterm/ui/Search/pickers/PickerContainer';
 
 export default {
   title: 'Teleterm/Search/ActionPicker',
@@ -321,5 +322,34 @@ const List = () => {
         };
       }}
     />
+  );
+};
+
+export const NoResults = () => {
+  const component = (
+    <NoResultsComponent
+      inputValue={'abc'}
+      clusters={[
+        {
+          uri: clusterUri,
+          name: 'teleport-12-ent.asteroid.earth',
+          connected: false,
+          leaf: false,
+          proxyHost: 'test:3030',
+          authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+        },
+      ]}
+    />
+  );
+  return (
+    <PickerContainer>
+      <ResultList<SearchResult>
+        attempts={[]}
+        onPick={() => {}}
+        onBack={() => {}}
+        render={() => null}
+        NoResultsComponent={component}
+      />
+    </PickerContainer>
   );
 };
