@@ -2,6 +2,7 @@ package tbotv2
 
 import (
 	"context"
+	"fmt"
 	"github.com/gravitational/trace"
 	"os"
 	"path"
@@ -12,6 +13,10 @@ var DirectoryStoreType = "directory"
 // DirectoryStore implements Writer used by Bot and Destinations as storage
 type DirectoryStore struct {
 	Path string `yaml:"path"`
+}
+
+func (w *DirectoryStore) String() string {
+	return fmt.Sprintf("%s:%s", DirectoryStoreType, w.Path)
 }
 
 func (w *DirectoryStore) path(name string) string {

@@ -5,8 +5,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var IdentityDestinationType = "identity"
+
 type IdentityDestination struct {
 	Common CommonDestination `yaml:",inline"`
+}
+
+func (d *IdentityDestination) String() string {
+	return d.Common.String(IdentityDestinationType)
 }
 
 func (d *IdentityDestination) CheckAndSetDefaults() error {

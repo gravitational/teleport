@@ -2,6 +2,7 @@ package tbotv2
 
 import (
 	"context"
+	"fmt"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
@@ -22,12 +23,14 @@ type BotI interface {
 type Store interface {
 	Write(ctx context.Context, name string, data []byte) error
 	Read(ctx context.Context, name string) ([]byte, error)
+	String() string
 }
 
 type Destination interface {
 	Run(ctx context.Context, bot BotI) error
 	Oneshot(ctx context.Context, bot BotI) error
 	CheckAndSetDefaults() error
+	String() string
 }
 
 type CommonDestination struct {
@@ -36,6 +39,10 @@ type CommonDestination struct {
 	Roles []string      `yaml:"roles"`
 	TTL   time.Duration `yaml:"ttl"`
 	Renew time.Duration `yaml:"renew"`
+}
+
+func (d *CommonDestination) String(destinationType string) string {
+	return fmt.Sprintf("%s (%s)", destinationType, d.Store.String())
 }
 
 func (d *CommonDestination) CheckAndSetDefaults() error {

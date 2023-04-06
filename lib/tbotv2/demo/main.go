@@ -35,6 +35,7 @@ func run(log logrus.FieldLogger) error {
 			},
 			&tbotv2.IdentityDestination{
 				Common: tbotv2.CommonDestination{
+					Store: &tbotv2.DirectoryStore{Path: "./identity-out"},
 					TTL:   10 * time.Minute,
 					Roles: []string{"access"},
 				},

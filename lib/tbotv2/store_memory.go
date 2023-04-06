@@ -13,6 +13,10 @@ type MemoryStore struct {
 	data map[string][]byte
 }
 
+func (w *MemoryStore) String() string {
+	return MemoryStoreType
+}
+
 func (w *MemoryStore) Write(_ context.Context, name string, data []byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

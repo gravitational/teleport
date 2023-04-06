@@ -11,6 +11,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
+var ApplicationDestinationType = "application"
+
 type ApplicationDestination struct {
 	Common CommonDestination `yaml:",inline"`
 	Name   string            `yaml:"name"`
@@ -21,6 +23,10 @@ func (d *ApplicationDestination) CheckAndSetDefaults() error {
 		return trace.BadParameter("application name must be specified")
 	}
 	return trace.Wrap(d.Common.CheckAndSetDefaults())
+}
+
+func (d *ApplicationDestination) String() string {
+	return d.Common.String(ApplicationDestinationType)
 }
 
 func (d *ApplicationDestination) Oneshot(ctx context.Context, bot BotI) error {

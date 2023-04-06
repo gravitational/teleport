@@ -33,6 +33,7 @@ type Bot struct {
 func (b *Bot) Run(ctx context.Context) error {
 	b.logger.Info("Bot starting")
 
+	b.logger.Info("Establishing bot identity")
 	// TODO: Joining/bot identity renewal.
 	// Ugly current hack to steal identity from another bot for now.
 	b.logger.Info("Stealing identity from disk")
@@ -44,35 +45,44 @@ func (b *Bot) Run(ctx context.Context) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer client.Close()
 	b.logger.Info("Successfully stole identity.")
 	b.auth = client
 	b.currentIdentity = ident
 
-	// Set up CA watcher
-	if !b.cfg.Oneshot {
-		b.logger.Info("Watching for CA rotations")
-		// TODO: Actually watch for ca rotations
-	}
-
-	// If one-shot, fire off hard-coded destinations
+	// If one-shot, fire off hard-coded destinations.
+	// In one-shot mode, we do not require the CA rotation watcher or the
+	// bot identity renewer.
 	if b.cfg.Oneshot {
+		b.logger.Info("Oneshot mode enabled.")
 		for _, dest := range b.cfg.Destinations {
+			b.logger.WithField("destination", dest.String()).Info("Running destination")
 			err := dest.Oneshot(ctx, b)
 			if err != nil {
 				return err
 			}
 		}
-		b.logger.Info("Oneshot complete. Exiting.")
+		b.logger.Info("Oneshots complete. Exiting.")
 		return nil
 	}
 
-	// TODO: Emit readiness signal.
+	// Set up CA watcher and bot identity renewer if not running on oneshot.
+	b.logger.Info("Watching for CA rotations")
+	// TODO: Actually watch for ca rotations
+	b.logger.Info("Starting bot identity renewer")
+	// TODO: Actually start bot identity renewer.
 
-	// If not one-shot, spin up sockets and destinations.
+	// Wait for bot identity and CA rotation mechanisms to be happy
+	b.logger.Info("Waiting for CA rotation watcher and bot identity to be healthy")
+
+	// TODO: Emit readiness signal.
+	b.logger.Info("CA rotation watcher and bot identity healthy")
+
 	// TODO: Handle management of goroutines and synced closure/error states.
 	block := make(chan struct{})
 	go func() {
 		for _, dest := range b.cfg.Destinations {
+			b.logger.Info("Starting destination.")
 			// TODO: Handle destination failing out?
 			go dest.Run(ctx, b)
 		}

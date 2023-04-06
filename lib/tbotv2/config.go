@@ -67,13 +67,13 @@ func (c *Config) unmarshalDestinations(node *yaml.Node) error {
 		}
 
 		switch header.Type {
-		case "application":
+		case ApplicationDestinationType:
 			v := &ApplicationDestination{}
 			if err := rawDest.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
 			c.Destinations = append(c.Destinations, v)
-		case "identity":
+		case IdentityDestinationType:
 			v := &IdentityDestination{}
 			if err := rawDest.Decode(v); err != nil {
 				return trace.Wrap(err)
