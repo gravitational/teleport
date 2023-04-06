@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 )
 
@@ -33,10 +34,13 @@ const (
 	PluginTypeSlack = "slack"
 )
 
+type Plugins []Plugin
+
 // Plugin represents a plugin instance
 type Plugin interface {
 	// ResourceWithSecrets provides common resource methods.
 	ResourceWithSecrets
+	ResourceWithLabels
 	Clone() Plugin
 	GetCredentials() PluginCredentials
 	GetStatus() PluginStatus
@@ -269,4 +273,51 @@ func (c *PluginOAuth2AccessTokenCredentials) CheckAndSetDefaults() error {
 // GetCode returns the status code
 func (c PluginStatusV1) GetCode() PluginStatusCode {
 	return c.Code
+}
+
+// MatchSearch goes through select field values and tries to
+// match against the list of search values.
+func (p *PluginV1) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(p.GetAllLabels()), p.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+// GetStaticLabels returns the database static labels.
+func (p *PluginV1) GetStaticLabels() map[string]string {
+	return p.Metadata.Labels
+}
+
+// SetStaticLabels sets the database static labels.
+func (p *PluginV1) SetStaticLabels(sl map[string]string) {
+	p.Metadata.Labels = sl
+}
+
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (p *PluginV1) GetLabel(key string) (value string, ok bool) {
+	v, ok := p.Metadata.Labels[key]
+	return v, ok
+}
+
+// GetAllLabels returns the database combined static and dynamic labels.
+func (p *PluginV1) GetAllLabels() map[string]string {
+	return p.Metadata.Labels
+}
+
+// Origin returns the origin value of the resource.
+func (p *PluginV1) Origin() string {
+	return p.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (p *PluginV1) SetOrigin(origin string) {
+	p.Metadata.SetOrigin(origin)
+}
+
+// AsResources returns these plugins as resources with labels.
+func (p Plugins) AsResources() (resources ResourcesWithLabels) {
+	for _, plugin := range p {
+		resources = append(resources, plugin)
+	}
+	return resources
 }
