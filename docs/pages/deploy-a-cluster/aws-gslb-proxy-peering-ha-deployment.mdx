@@ -14,27 +14,30 @@ of your Auth Service and Proxy Service to accommodate increasing numbers of user
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Overview
-This deployment architecure makes all connected resources accessible through a single Teleport cluster 
-across multiple regions using exclusively AWS ecosystem infrastructure. 
 
-This is accomplished using AWS Route 53 to create Global Server Load Balancing (GSLB) 
-for the Teleport Cluster and Teleport Proxy Peering to reduce the number of connections 
-created through the cluster.
+This deployment architecture features two important design decisions:
+
+1. AWS Route 53 Latency based routing is used for Global Server Load Balancing 
+   [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/). 
+   This allows for efficient distribution of traffic across resources that are globally distributed.
+
+2. Teleport's Proxy Peering is used to reduce the total number of tunnel connections in the Teleport cluster.
+
 
 This deployment architecture isn’t recommended for use cases where your users or resources are 
 clustered in a single region or for Managed Service Providers needing to provide separate clusters 
-to customers. Additionally, this architecture is not a solution for increasing the scalability of 
-a single cluster.
+to customers.
 
 We recommend this for globally distributed resources and end-users that prefer a single point of
 entry while also ensuring minimal latency when accessing connected resources.
 
 ### Key deployment components
 - High Availability Teleport Cluster
+- Deployed exclusively in AWS ecosystem
 - Auth Servers must remain in a single region
 - Proxies are deployed across multiple regions
-- [AWS Route 53 latency based routing]([Latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
-       to create [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
+- [AWS Route 53 latency based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
+- [GSLB](https://www.cloudflare.com/learning/cdn/glossary/global-server-load-balancing-gslb/)
 - [Teleport TLS Routing](https://goteleport.com/docs/architecture/tls-routing/) to reduce the number of ports needed to use Teleport
 - [Teleport Proxy Peering](https://goteleport.com/docs/architecture/proxy-peering/) for reducing the number of resource connections
 - [AWS Network Load Balancing](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
@@ -55,18 +58,14 @@ entry while also ensuring minimal latency when accessing connected resources.
 - When Teleport Auth servers are limited to a single region, there is a higher likelihood 
   of decreased availability during an AWS regional outage.
 - Technically complex to deploy
-- Long-term cost may be a prohibitive factor for some organizations and can increase total 
-  cost of ownership (TCO) throughout the system’s lifetime cycle.
-
 
 ![Diagram of a high-availability Teleport
 architecture](../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment.png)
 
 
-## AWS Network load balancer(NLB)
-For this deployment architecture we recommend using AWS NLBs if you plan 
-to use Teleport TLS routing and Proxy Peering. The NLB forwards traffic 
-from users and services to an available Teleport instance. This must not 
+## AWS Network load balancer (NLB)
+AWS NLBs are required for this highly available deployment architecture. 
+The NLB forwards traffic from users and services to an available Teleport instance. This must not 
 terminate TLS, and must transparently forward the TCP traffic it receives. 
 In other words, this must be a Layer 4 load balancer, not a Layer 7 
 (e.g., HTTP) load balancer. 
@@ -76,7 +75,7 @@ In other words, this must be a Layer 4 load balancer, not a Layer 7
   title="Note"
 >
 We recommend enabling cross-zone load balancing for the Auth and Proxy service NLB configurations to route 
-traffic across multiple zones.Doing this improves resiliency against localized AWS zone outages.
+traffic across multiple zones. Doing this improves resiliency against localized AWS zone outages.
 </Admonition>
 
 ### Configure the Proxy Service NLBs
@@ -131,11 +130,6 @@ resources) and audit events as key/value pairs. In high-availability
 deployments, you must configure the Auth Service to manage this data in a
 key-value store that runs outside of your cluster of Teleport instances.
 
-For Amazon DynamoDB, your Teleport configuration (which
-we will describe in more detail in the [Configuration](#configuration) section)
-names a table or collection where Teleport stores cluster state and audit
-events. 
-
 The Teleport Auth Service manages the creation of any required DynamoDB tables itself, 
 and does not require them to exist in advance.
 
@@ -151,16 +145,12 @@ to create tables.
 Highly available Teleport deployments use an object storage service for
 persisting session recordings.
 
-In your Teleport configuration (described in the [Configuration](#configuration)
-section), you must name an S3 bucket to use for managing session recordings. The Teleport Auth
-Service creates this bucket, so to prevent unexpected behavior, you should not
-create it in advance. 
+Depeding on how you choose to deploy the Teleport cluster, the Teleport Auth Service can create the required S3 bucket if it doens't already exist.
 
 <Admonition title="Required permissions">
 
 The Auth Service instances need permissions to get S3 buckets as well as to create, get, list, 
-and update objects. Since this setup lets Teleport create buckets for you, you should also assign
-Auth Service instances permissions to create buckets
+and update objects.
 
 </Admonition>
 
@@ -172,25 +162,15 @@ Manager, Digicert, or a trusted internal authority. The system must then
 provision Teleport Proxy Service instances with these credentials and renew them
 periodically. 
 
-If you are running a single instance of the Teleport Auth Service and Proxy
-Service, you can configure this instance to fetch credentials for itself from
-Let's Encrypt using the [ACME ALPN-01
-challenge](https://letsencrypt.org/docs/challenge-types/#tls-alpn-01), where
-Teleport demonstrates that it controls the ALPN server at the HTTPS address of
-your Teleport Proxy Service. Teleport also fetches a separate certificate for
-each application you have registered with Teleport, e.g.,
-`grafana.teleport.example.com`. 
-
 For high-availability deployments that use Let's Encrypt to supply TLS
-credentials to Teleport instances running behind a load balancer, you will need
+credentials to Teleport instances running behind a load balancer, you need
 to use the [ACME
 DNS-01](https://letsencrypt.org/docs/challenge-types/#dns-01-challenge)
 challenge to demonstrate domain name ownership to Let's Encrypt. In this
 challenge, your TLS credential provisioning system creates a DNS TXT record with
 a value expected by Let's Encrypt.
 
-In the configuration we are demonstrating in this guide, each Teleport Proxy
-Service instance expects TLS credentials for HTTPS to be available at the file
+Each Teleport Proxy Service instance expects TLS credentials for HTTPS to be available at the file
 paths `/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
 (certificate).
 
