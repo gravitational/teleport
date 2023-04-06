@@ -41,7 +41,7 @@ const (
 )
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
-	// moved into a seperate function for error management/debug purposes
+	// moved into a separate function for error management/debug purposes
 	err := runAssistant(h, w, r, sctx)
 	if err != nil {
 		h.log.Warn(trace.DebugReport(err))
@@ -85,7 +85,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return trace.Wrap(err)
 	}
 
-	client := ai.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.ApiKey)
+	client := ai.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.APIKey)
 	chat := client.NewChat()
 
 	q := r.URL.Query()
