@@ -136,6 +136,19 @@ tls:
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
 
+updater:
+  enabled: false
+  # `updater.versionServer` is the URL of the version server the agent fetches
+  # the target version from. The complete version endpoint is built by
+  # concatenating `versionServer` and `releaseChannel`.
+  versionServer: "https://update.gravitational.io/v1/"
+  # Release channel the agent subscribes to.
+  releaseChannel: "stable/cloud"
+  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+  serviceAccount:
+    # service account name defaults to "<kube agent sa name>-updater"
+    name: ""
+
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
 # If anything is set under the "storage" key, this will be ignored.
