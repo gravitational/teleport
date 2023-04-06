@@ -20,7 +20,7 @@ Continue with this guide if:
 
 - You're running an older version of Teleport and can't upgrade.
 - You want to install Desktop Access using the same instance of `teleport`
-  running the proxy/auth services.
+  running the Proxy/Auth Services.
 
 </Admonition>
 
@@ -369,9 +369,9 @@ gpupdate.exe /force
 <Admonition type="note" title="Secure Cipher Suites">
 Teleport's RDP client supports only secure algorithms for making TLS connections,
 so we have to configure our Domain Controller to support those cipher suites as well.
-This step is only *necessary* for Windows Server 2012 R2 Domain Controller as it
-does not support secure algorithms by default. If it does not apply to you, you
-can skip this step and go to the [next step](#step-57-export-your-ldap-ca-certificate).
+This step is only *necessary* for Windows Server 2012 R2 as it does not support
+secure algorithms by default. If it does not apply to you, you can skip this step
+and go to the [next step](#step-57-export-your-ldap-ca-certificate).
 </Admonition>
 
 In this step we'll create a new certificate template that uses elliptic curve
