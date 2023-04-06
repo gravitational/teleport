@@ -7,7 +7,7 @@ them via:
     address where the diagnostic endpoint will listen:
 
     ```code
-    $ sudo teleport start --debug --diag-addr=127.0.0.1:3000
+    $ sudo teleport start --diag-addr=127.0.0.1:3000
     ```
     </TabItem>
     <TabItem label="Config file">
@@ -17,9 +17,6 @@ them via:
     ```yaml
     teleport:
         diag_addr: 127.0.0.1:3000
-
-        log:
-            severity: DEBUG
     ```
     </TabItem>
 </Tabs>
@@ -32,6 +29,6 @@ them via:
     Verify that Teleport is now serving the diagnostics endpoint:
 
     ```code
-    $ curl http://127.0.0.1:3000
+    $ curl http://127.0.0.1:3000/metrics
     ```
 </Details>
