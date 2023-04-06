@@ -20,6 +20,7 @@
 package web
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"time"
@@ -28,14 +29,33 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"github.com/sashabaranov/go-openai"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/ai"
+)
+
+const (
+	kindChatTextMessage = "CHAT_TEXT_MESSAGE"
 )
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+	// moved into a separate function for error management/debug purposes
+	err := runAssistant(h, w, r, sctx)
+	if err != nil {
+		h.log.Warn(trace.DebugReport(err))
+		return nil, trace.Wrap(err)
+	}
+
+	return nil, nil
+}
+
+// runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
+func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *SessionContext) error {
 	authClient, err := sctx.GetClient()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
 	upgrader := websocket.Upgrader{
@@ -49,16 +69,24 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 		errMsg := "Error upgrading to websocket"
 		h.log.WithError(err).Error(errMsg)
 		http.Error(w, errMsg, http.StatusInternalServerError)
-		return nil, nil
+		return nil
 	}
 
 	keepAliveInterval := time.Minute // TODO(jakule)
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
-		return nil, nil
+		return nil
 	}
 	defer ws.Close()
+
+	prefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	client := ai.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.APIKey)
+	chat := client.NewChat()
 
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
@@ -71,41 +99,91 @@ func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter
 		}{
 			ConversationID: conversationID,
 		}); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 	} else {
 		// existing conversation, retrieve old messages
 		messages, err := authClient.GetAssistantMessages(r.Context(), conversationID)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		for _, msg := range messages.GetMessages() {
+			var chatMsg chatMessage
+			if err := json.Unmarshal(msg.Payload, &chatMsg); err != nil {
+				return trace.Wrap(err)
+			}
+
+			msg := chat.Insert(chatMsg.Role, chatMsg.Content)
 			if err := ws.WriteJSON(msg); err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 		}
 	}
 
 	for {
-		_, msg, err := ws.ReadMessage()
+		_, payload, err := ws.ReadMessage()
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
-		// TODO: implement ChatGPT communication
+		var wsIncoming inboundWsMessage
+		if err := json.Unmarshal(payload, &wsIncoming); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// write user message to both in-memory chain and persistent storage
+		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Content)
+		msgJson, err := json.Marshal(chatMessage{Role: openai.ChatMessageRoleUser, Content: wsIncoming.Content})
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,
-			Type:           "CHAT_RESPONSE", // Set the message type
-			Payload:        msg,
+			Type:           kindChatTextMessage,
+			Payload:        msgJson,
 			CreatedTime:    h.clock.Now().UTC(),
 		}); err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
+		}
+
+		// query the assistant and fetch an answer
+		message, err := chat.Complete(r.Context(), 500)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// write assistant message to both in-memory chain and persistent storage
+		msgJson, err = json.Marshal(chatMessage{Role: message.Role, Content: message.Content})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           kindChatTextMessage,
+			Payload:        msgJson,
+			CreatedTime:    h.clock.Now().UTC(),
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := ws.WriteJSON(message); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
-	return nil, nil
+	return nil
+}
+
+type inboundWsMessage struct {
+	Content string `json:"content"`
+}
+
+type chatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
