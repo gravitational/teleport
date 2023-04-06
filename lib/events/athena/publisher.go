@@ -108,9 +108,9 @@ func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent)
 		if len(b64Encoded) > maxS3BasedSize {
 			return trace.BadParameter("message too large to publish, size %d", len(b64Encoded))
 		}
-		return p.emitViaS3(ctx, in.GetID(), marshaledProto)
+		return trace.Wrap(p.emitViaS3(ctx, in.GetID(), marshaledProto))
 	}
-	return p.emitViaSNS(ctx, in.GetID(), b64Encoded)
+	return trace.Wrap(p.emitViaSNS(ctx, in.GetID(), b64Encoded))
 }
 
 func (p *publisher) emitViaS3(ctx context.Context, uid string, marshaledEvent []byte) error {

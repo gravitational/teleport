@@ -16,7 +16,7 @@ package athena
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -61,7 +61,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 				},
 			},
 			publishErrors: []error{
-				fmt.Errorf("error1"), fmt.Errorf("error2"),
+				errors.New("error1"), errors.New("error2"),
 			},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)

@@ -337,7 +337,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
-	return l.publisher.EmitAuditEvent(ctx, in)
+	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 
 func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
