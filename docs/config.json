@@ -1457,7 +1457,7 @@
     },
     "teleport": {
       "major_version": "12",
-      "version": "12.1.5",
+      "version": "12.2.1",
       "golang": "1.20",
       "plugin": {
         "version": "12.1.5"
