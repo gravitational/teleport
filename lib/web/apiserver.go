@@ -714,23 +714,22 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
-	// POST /webapi/assist/conversations to create a new conversation - the frontend will get the conversation ID in the response
-	// POST /webapi/assist/title with the conversation ID to create the title - frontend will get the title in the response. In the background the title will be also updated in the backend.
-	// GET /webapi/assist/conversations - to get all conversations IDs with titles
-	// GET /webapi/assist/conversations/UUID with conversation ID - returns conversation title and all messages
-	// WS - Joel is working on it, but we can remove the messages
-
+	// WebSocket endpoint for the chat conversation
 	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
 
+	// Sets the title for the conversation. TODO(jakule) The title should be a summary from OpenAI instead of passed here text.
 	h.POST("/webapi/assistant/title", h.WithAuth(h.generateAssistantTitle))
 
-	// POST /webapi/assist/conversations to create a new conversation - the frontend will get the conversation ID in the response
+	// Creates a new conversation - the conversation ID is returned in the response.
 	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
 
+	// Returns all conversations for the given user.
 	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
 
+	// Returns all messages in the given conversation.
 	h.GET("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.getAssistantConversationByID))
 
+	// Allows executing an arbitrary command on multiple nodes.
 	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
 }
 

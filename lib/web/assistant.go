@@ -70,9 +70,7 @@ func (h *Handler) getAssistantConversationByID(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.GetAssistantConversationResponse{ // TODO(jakule): think about it.
-		Id:       conversationID,
-		Title:    "",
+	return &proto.GetAssistantConversationResponse{
 		Messages: resp.Messages,
 	}, err
 }
@@ -140,7 +138,16 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return trace.Wrap(err)
 	}
 
-	client := ai.NewClient(prefs.(*types.AuthPreferenceV2).Spec.Assist.APIKey)
+	prefsV2, ok := prefs.(*types.AuthPreferenceV2)
+	if !ok {
+		return trace.Errorf("bad case, expected AuthPreferenceV2 found %T", prefs)
+	}
+
+	if prefsV2.Spec.Assist == nil {
+		return trace.Errorf("assist spec is not set")
+	}
+
+	client := ai.NewClient(prefsV2.Spec.Assist.APIKey)
 	chat := client.NewChat()
 
 	q := r.URL.Query()
@@ -169,7 +176,19 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			}
 
 			msg := chat.Insert(chatMsg.Role, chatMsg.Content)
-			if err := ws.WriteJSON(msg); err != nil {
+			payload, err := json.Marshal(msg)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			protoMsg := &proto.AssistantMessage{
+				ConversationId: conversationID,
+				Type:           kindChatTextMessage,
+				Payload:        payload,
+				CreatedTime:    h.clock.Now().UTC(),
+			}
+
+			if err := ws.WriteJSON(protoMsg); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -217,16 +236,17 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			return trace.Wrap(err)
 		}
 
-		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
+		protoMsg := &proto.AssistantMessage{
 			ConversationId: conversationID,
 			Type:           kindChatTextMessage,
 			Payload:        msgJson,
 			CreatedTime:    h.clock.Now().UTC(),
-		}); err != nil {
+		}
+		if _, err := authClient.InsertAssistantMessage(r.Context(), protoMsg); err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := ws.WriteJSON(message); err != nil {
+		if err := ws.WriteJSON(protoMsg); err != nil {
 			return trace.Wrap(err)
 		}
 	}

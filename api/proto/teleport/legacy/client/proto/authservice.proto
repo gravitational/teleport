@@ -2273,14 +2273,10 @@ message GetAssistantMessagesResponse {
   repeated AssistantMessage messages = 1;
 }
 
-message GetAssistantConversationsRequest {
-  string pagination_token = 1;
-}
+message GetAssistantConversationsRequest {}
 
 message GetAssistantConversationsResponse {
   repeated string conversation_id = 1;
-
-  string pagination_token = 2;
 }
 
 message GetAssistantConversationRequest {
@@ -2288,8 +2284,6 @@ message GetAssistantConversationRequest {
 }
 
 message GetAssistantConversationResponse {
-  string id = 1;
-  string title = 2;
   repeated AssistantMessage messages = 3;
 }
 
@@ -2303,8 +2297,10 @@ message CreateAssistantConversationResponse {
 service AuthService {
   // CreateNewConversation creates a new conversation and returns the UUID of it.
   rpc CreateAssistantConversation(CreateAssistantConversationRequest) returns (CreateAssistantConversationResponse);
+
   // GetAssistantConversation returns the title and all messages for given conversation ID.
   rpc GetAssistantConversation(GetAssistantConversationRequest) returns (GetAssistantConversationResponse);
+
   // GetAssistantConversations returns all conversations for the connected user.
   rpc GetAssistantConversations(GetAssistantConversationsRequest) returns (GetAssistantConversationsResponse);
 
