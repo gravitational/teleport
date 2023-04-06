@@ -250,6 +250,11 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
 
+	if cfg.Proxy.Enabled {
+		_, err = auth.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+		require.NoError(t, err, "proxy server didn't start after 30s")
+	}
+
 	if cfg.Auth.Enabled && cfg.Databases.Enabled {
 		waitForDatabases(t, auth, cfg.Databases.Databases)
 	}
