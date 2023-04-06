@@ -30,7 +30,7 @@ import {
   HeaderWithBackBtn,
   ConnectionDiagnosticResult,
 } from '../../Shared';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -129,7 +129,7 @@ export function TestConnectionView({
               attempt.status === 'processing' || nameOpts.length === 0
             }
             // Database name is required for Postgres.
-            isClearable={dbEngine !== DatabaseEngine.PostgreSQL}
+            isClearable={dbEngine !== DatabaseEngine.Postgres}
           />
         </Box>
       </StyledBox>

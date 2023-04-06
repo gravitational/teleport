@@ -60,7 +60,7 @@ const Dropdown = styled.div<OpenProps>`
   top: 46px;
   left: 0;
   overflow: hidden;
-  background: #3e4b7e;
+  background: ${({ theme }) => theme.colors.levels.popout};
   border-radius: 4px;
   z-index: 99;
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.45);
@@ -86,7 +86,7 @@ const DropdownItem = styled.div<ActiveProps & OpenProps>`
   &:hover,
   &:focus {
     outline: none;
-    background: #535c8a;
+    background: ${({ theme }) => theme.colors.levels.popoutHighlighted};
   }
 `;
 

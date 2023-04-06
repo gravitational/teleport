@@ -41,6 +41,7 @@ import (
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -99,7 +100,7 @@ type fakeDialer struct {
 	hostConns map[string]net.Conn
 }
 
-func (f fakeDialer) DialSite(ctx context.Context, clusterName string) (net.Conn, error) {
+func (f fakeDialer) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	conn, ok := f.siteConns[clusterName]
 	if !ok {
 		return nil, trace.NotFound(clusterName)
@@ -108,14 +109,14 @@ func (f fakeDialer) DialSite(ctx context.Context, clusterName string) (net.Conn,
 	return conn, nil
 }
 
-func (f fakeDialer) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter) (net.Conn, error) {
-	key := fmt.Sprintf("%s.%s.%s", host, port, clusterName)
+func (f fakeDialer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
+	key := fmt.Sprintf("%s.%s.%s", host, port, cluster)
 	conn, ok := f.hostConns[key]
 	if !ok {
-		return nil, trace.NotFound(key)
+		return nil, "", trace.NotFound(key)
 	}
 
-	return conn, nil
+	return conn, "", nil
 }
 
 // testPack used to test a [Service].
@@ -178,6 +179,18 @@ func newServer(t *testing.T, cfg ServerConfig) testPack {
 	}
 }
 
+func fakeSigner(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error) {
+	return func(context.Context) (ssh.Signer, error) {
+		return nil, nil
+	}
+}
+
+type fakeMonitor struct{}
+
+func (f fakeMonitor) MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error) {
+	return ctx, nil
+}
+
 // TestService_GetClusterDetails validates that a [Service] returns
 // the expected cluster details.
 func TestService_GetClusterDetails(t *testing.T) {
@@ -200,8 +213,12 @@ func TestService_GetClusterDetails(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			srv := newServer(t, ServerConfig{
-				Dialer: fakeDialer{},
-				FIPS:   test.FIPS,
+				Dialer:            fakeDialer{},
+				Logger:            utils.NewLoggerForTests(),
+				FIPS:              test.FIPS,
+				SignerFn:          fakeSigner,
+				ConnectionMonitor: fakeMonitor{},
+				LocalAddr:         &utils.NetAddr{},
 			})
 
 			resp, err := srv.Client.GetClusterDetails(context.Background(), &transportv1pb.GetClusterDetailsRequest{})
@@ -280,6 +297,10 @@ func TestService_ProxyCluster(t *testing.T) {
 						cluster: conn,
 					},
 				},
+				Logger:            utils.NewLoggerForTests(),
+				SignerFn:          fakeSigner,
+				ConnectionMonitor: fakeMonitor{},
+				LocalAddr:         &utils.NetAddr{},
 			})
 
 			stream, err := srv.Client.ProxyCluster(context.Background())
@@ -407,8 +428,18 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 						fakeHost: conn,
 					},
 				},
-				Logger:          utils.NewLoggerForTests(),
-				accessCheckerFn: test.checkerFn,
+				SignerFn:          fakeSigner,
+				ConnectionMonitor: fakeMonitor{},
+				Logger:            utils.NewLoggerForTests(),
+				LocalAddr:         &utils.NetAddr{},
+				authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
+					checker, err := test.checkerFn(info)
+					if err != nil {
+						return nil, trace.Wrap(err)
+					}
+
+					return &authz.Context{Checker: checker}, nil
+				},
 			})
 
 			stream, err := srv.Client.ProxySSH(context.Background())
@@ -461,7 +492,11 @@ func TestService_ProxySSH(t *testing.T) {
 	// create a server that will open a new connection to the
 	// ssh server created above on each dial request
 	srv := newServer(t, ServerConfig{
-		Dialer: sshSrv,
+		Dialer:            sshSrv,
+		SignerFn:          fakeSigner,
+		Logger:            utils.NewLoggerForTests(),
+		LocalAddr:         &utils.NetAddr{},
+		ConnectionMonitor: fakeMonitor{},
 		agentGetterFn: func(rw io.ReadWriter) teleagent.Getter {
 			return func() (teleagent.Agent, error) {
 				srw, ok := rw.(*streamutils.ReadWriter)
@@ -474,8 +509,8 @@ func TestService_ProxySSH(t *testing.T) {
 				}, nil
 			}
 		},
-		accessCheckerFn: func(info credentials.AuthInfo) (services.AccessChecker, error) {
-			return fakeChecker{}, nil
+		authzContextFn: func(info credentials.AuthInfo) (*authz.Context, error) {
+			return &authz.Context{Checker: fakeChecker{}}, nil
 		},
 	})
 
@@ -619,7 +654,7 @@ type sshServer struct {
 }
 
 // DialSite returns a connection to the sshServer
-func (s *sshServer) DialSite(context.Context, string) (net.Conn, error) {
+func (s *sshServer) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	conn, err := s.dial()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -632,31 +667,31 @@ func (s *sshServer) DialSite(context.Context, string) (net.Conn, error) {
 // nil and is of type testAgent, then the server will serve its keyring
 // over the underlying [streamutils.ReadWriter] so that tests can exercise
 // ssh agent multiplexing.
-func (s *sshServer) DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter) (net.Conn, error) {
+func (s *sshServer) DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error) {
 	conn, err := s.dial()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	if agentGetter == nil {
-		return conn, nil
+		return conn, "", nil
 	}
 
 	agnt, err := agentGetter()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	rw, ok := agnt.(testAgent)
 	if !ok {
-		return conn, nil
+		return conn, "", nil
 	}
 
 	go func() {
 		agent.ServeAgent(s.keyring, rw)
 	}()
 
-	return conn, nil
+	return conn, "", nil
 }
 
 func (s *sshServer) Run() {

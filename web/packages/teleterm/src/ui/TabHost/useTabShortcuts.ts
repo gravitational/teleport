@@ -31,20 +31,21 @@ export function useTabShortcuts({
   documentsService: DocumentsService;
   localClusterUri: ClusterUri;
 }) {
-  const { openClusterTab } = useNewTabOpener({
+  const { openClusterTab, openTerminalTab } = useNewTabOpener({
     documentsService,
     localClusterUri,
   });
   const tabsShortcuts = useMemo(
-    () => buildTabsShortcuts(documentsService, openClusterTab),
-    [documentsService, openClusterTab]
+    () => buildTabsShortcuts(documentsService, openClusterTab, openTerminalTab),
+    [documentsService, openClusterTab, openTerminalTab]
   );
   useKeyboardShortcuts(tabsShortcuts);
 }
 
 function buildTabsShortcuts(
   documentService: DocumentsService,
-  openClusterTab: () => void
+  openClusterTab: () => void,
+  openTerminalTab: () => void
 ): KeyboardShortcutHandlers {
   const handleTabIndex = (index: number) => () => {
     const docs = documentService.getDocuments();
@@ -77,6 +78,7 @@ function buildTabsShortcuts(
 
     documentService.open(allDocuments[indexToOpen].uri);
   };
+
   return {
     tab1: handleTabIndex(0),
     tab2: handleTabIndex(1),
@@ -91,5 +93,6 @@ function buildTabsShortcuts(
     previousTab: handleTabSwitch('previous'),
     nextTab: handleTabSwitch('next'),
     newTab: openClusterTab,
+    newTerminalTab: openTerminalTab,
   };
 }

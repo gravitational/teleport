@@ -34,6 +34,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -97,18 +99,6 @@ type LocalProxyMiddleware interface {
 	OnNewConnection(ctx context.Context, lp *LocalProxy, conn net.Conn) error
 	// OnStart is a callback triggered when the local proxy starts.
 	OnStart(ctx context.Context, lp *LocalProxy) error
-}
-
-// LocalProxyHTTPMiddleware provides callback functions for LocalProxy in HTTP proxy mode.
-type LocalProxyHTTPMiddleware interface {
-	// CheckAndSetDefaults checks configuration validity and sets defaults
-	CheckAndSetDefaults() error
-
-	// HandleRequest returns true if requests has been handled and must not be processed further, false otherwise.
-	HandleRequest(rw http.ResponseWriter, req *http.Request) bool
-
-	// HandleResponse processes the server response before sending it to the client.
-	HandleResponse(resp *http.Response) error
 }
 
 // CheckAndSetDefaults verifies the constraints for LocalProxyConfig.
@@ -230,7 +220,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	tlsConn, err := DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
+	tlsConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -239,7 +229,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	var upstreamConn net.Conn = tlsConn
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
 		l.cfg.Log.Debug("Using ping connection")
-		upstreamConn = NewPingConn(tlsConn)
+		upstreamConn = pingconn.New(tlsConn)
 	}
 
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
@@ -255,8 +245,8 @@ func (l *LocalProxy) Close() error {
 	return nil
 }
 
-func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) ALPNDialerConfig {
-	return ALPNDialerConfig{
+func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) client.ALPNDialerConfig {
+	return client.ALPNDialerConfig{
 		ALPNConnUpgradeRequired: l.cfg.ALPNConnUpgradeRequired,
 		TLSConfig: &tls.Config{
 			NextProtos:         common.ProtocolsToString(l.cfg.Protocols),
@@ -268,17 +258,8 @@ func (l *LocalProxy) getALPNDialerConfig(certs []tls.Certificate) ALPNDialerConf
 	}
 }
 
-// StartHTTPAccessProxy starts the local HTTP access proxy.
-func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
-	if l.cfg.HTTPMiddleware == nil {
-		return trace.BadParameter("Missing HTTPMiddleware in configuration")
-	}
-
-	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	proxy := &httputil.ReverseProxy{
+func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
 		Director: func(outReq *http.Request) {
 			outReq.URL.Scheme = "https"
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
@@ -306,9 +287,24 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			http.Error(w, http.StatusText(code), code)
 		},
 		Transport: &http.Transport{
-			DialTLSContext: NewALPNDialer(l.getALPNDialerConfig(l.getCerts())).DialContext,
+			DialTLSContext: client.NewALPNDialer(l.getALPNDialerConfig(certs)).DialContext,
 		},
 	}
+}
+
+// StartHTTPAccessProxy starts the local HTTP access proxy.
+func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware == nil {
+		return trace.BadParameter("Missing HTTPMiddleware in configuration")
+	}
+
+	if err := l.cfg.HTTPMiddleware.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	l.cfg.Log.Info("Starting HTTP access proxy")
+	defer l.cfg.Log.Info("HTTP access proxy stopped")
+	defaultProxy := l.makeHTTPReverseProxy(l.getCerts())
 	err := http.Serve(l.cfg.Listener, http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		if l.cfg.HTTPMiddleware.HandleRequest(rw, req) {
 			return
@@ -320,12 +316,30 @@ func (l *LocalProxy) StartHTTPAccessProxy(ctx context.Context) error {
 			req.Header.Set("X-Forwarded-Host", req.Host)
 		}
 
+		proxy, err := l.getHTTPReverseProxyForReq(req, defaultProxy)
+		if err != nil {
+			l.cfg.Log.Warnf("Failed to get reverse proxy: %v.", err)
+			trace.WriteError(rw, trace.Wrap(err))
+			return
+		}
+
 		proxy.ServeHTTP(rw, req)
 	}))
 	if err != nil && !utils.IsUseOfClosedNetworkError(err) {
 		return trace.Wrap(err)
 	}
 	return nil
+}
+
+func (l *LocalProxy) getHTTPReverseProxyForReq(req *http.Request, defaultProxy *httputil.ReverseProxy) (*httputil.ReverseProxy, error) {
+	certs, err := l.cfg.HTTPMiddleware.OverwriteClientCerts(req)
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return defaultProxy, nil
+		}
+		return nil, trace.Wrap(err)
+	}
+	return l.makeHTTPReverseProxy(certs), nil
 }
 
 // getCerts returns the local proxy's configured TLS certificates.

@@ -86,6 +86,7 @@ test.each(getServerByHostnameTests)(
       clusterUri: '/clusters/bar',
       query: 'name == "foo"',
       limit: 2,
+      sort: null,
     });
   }
 );

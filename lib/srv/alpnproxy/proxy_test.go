@@ -29,10 +29,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgproto3/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -192,7 +192,7 @@ func TestProxyTLSDatabaseHandler(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		conn := NewPingConn(baseConn)
+		conn := pingconn.New(baseConn)
 		tlsConn := tls.Client(conn, &tls.Config{
 			Certificates: []tls.Certificate{
 				clientCert,
@@ -295,21 +295,12 @@ func TestLocalProxyPostgresProtocol(t *testing.T) {
 		SNI:                "localhost",
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		// Since this a non-tunnel local proxy, we should check certs are needed
-		// for postgres.
-		// (this is how a local proxy would actually be configured for postgres).
-		CheckCertsNeeded: true,
 	}
 
 	mustStartLocalProxy(t, localProxyConfig)
 
 	conn, err := net.Dial("tcp", localProxyListener.Addr().String())
 	require.NoError(t, err)
-
-	// we have to send a request because the local proxy will inspect
-	// the client conn. It should see it's not a CancelRequest, and determine
-	// that certs are not needed.
-	mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 
 	mustReadFromConnection(t, conn, databaseHandleResponse)
 	mustCloseConnection(t, conn)
@@ -682,10 +673,6 @@ func TestProxyPingConnections(t *testing.T) {
 					}
 					return nil
 				},
-				// Since this a non-tunnel local proxy, we should check certs are needed
-				// for postgres.
-				// (this is how a local proxy would actually be configured for postgres).
-				CheckCertsNeeded: protocol == common.ProtocolPostgres,
 			}
 			mustStartLocalProxy(t, localProxyConfig)
 
@@ -700,13 +687,6 @@ func TestProxyPingConnections(t *testing.T) {
 					RootCAs:    suite.GetCertPool(),
 					ServerName: "localhost",
 				})
-			}
-
-			if protocol == common.ProtocolPostgres {
-				// we have to send a request because the local proxy will inspect
-				// the client conn. It should see it's not a CancelRequest, and determine
-				// that certs are not needed.
-				mustSendPostgresMsg(t, conn, &pgproto3.SSLRequest{})
 			}
 
 			mustReadFromConnection(t, conn, dataWritten)

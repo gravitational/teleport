@@ -5,20 +5,25 @@ on:
   push:
     branches:
       - master
+      - branch/*
   pull_request:
     paths:
+      - '.github/workflows/integration-tests-non-root.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths:
+      - '.github/workflows/integration-tests-non-root.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   test:

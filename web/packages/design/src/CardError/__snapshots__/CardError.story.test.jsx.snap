@@ -51,7 +51,7 @@ exports[`rendering of Error Cards 1`] = `
 
 <div
   class="c0"
-  color="text.onLight"
+  color="text.primaryInverse"
   width="540px"
 >
   <div

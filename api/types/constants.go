@@ -338,6 +338,9 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindIntegration is a connection to a 3rd party system API.
+	KindIntegration = "integration"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -526,6 +529,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
+	OktaTunnel TunnelType = "okta"
 )
 
 type TunnelStrategyType string

@@ -55,7 +55,7 @@ export function TopBar() {
     .find(f =>
       matchPath(history.location.pathname, {
         path: f.route.path,
-        exact: false,
+        exact: f.route.exact ?? false,
       })
     );
 
@@ -96,5 +96,6 @@ export const TopBarContainer = styled(TopNav)`
   padding-left: ${({ theme }) => `${theme.space[6]}px`};
   overflow-y: initial;
   flex-shrink: 0;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.primary.main};
+  border-bottom: 1px solid
+    ${({ theme }) => theme.colors.levels.surfaceSecondary};
 `;
