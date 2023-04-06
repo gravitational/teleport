@@ -252,6 +252,11 @@
               "title": "Hardware Key Support (Preview)",
               "slug": "/access-controls/guides/hardware-key-support/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "IP Pinning (Preview)",
+              "slug": "/access-controls/guides/ip-pinning/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
