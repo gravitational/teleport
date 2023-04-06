@@ -166,6 +166,10 @@ func TestAuthenticate(t *testing.T) {
 		},
 	}
 
+	f.getKubernetesServersForKubeCluster = func(ctx context.Context, kubeCluster string) ([]types.Server, error) {
+		return f.cfg.CachingAuthClient.GetKubeServices(ctx)
+	}
+
 	const remoteAddr = "user.example.com"
 	activeAccessRequests := []string{uuid.NewString(), uuid.NewString()}
 	tests := []struct {
@@ -805,6 +809,10 @@ func TestNewClusterSessionLocal(t *testing.T) {
 		},
 	}
 
+	f.getKubernetesServersForKubeCluster = func(ctx context.Context, kubeCluster string) ([]types.Server, error) {
+		return f.cfg.CachingAuthClient.GetKubeServices(ctx)
+	}
+
 	// Fail when kubeCluster is not specified
 	authCtx.kubeCluster = ""
 	_, err := f.newClusterSession(authCtx)
@@ -863,6 +871,9 @@ func TestNewClusterSessionRemote(t *testing.T) {
 func TestNewClusterSessionDirect(t *testing.T) {
 	ctx := context.Background()
 	f := newMockForwader(ctx, t)
+	f.getKubernetesServersForKubeCluster = func(ctx context.Context, kubeCluster string) ([]types.Server, error) {
+		return f.cfg.CachingAuthClient.GetKubeServices(ctx)
+	}
 	authCtx := mockAuthCtx(ctx, t, "kube-cluster", false)
 
 	// helper function to create kube services

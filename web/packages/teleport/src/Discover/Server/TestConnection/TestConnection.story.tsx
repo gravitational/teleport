@@ -140,4 +140,6 @@ const props: State = {
   prevStep: () => null,
   diagnosis: null,
   canTestConnection: true,
+  showMfaDialog: false,
+  cancelMfaDialog: () => null,
 };

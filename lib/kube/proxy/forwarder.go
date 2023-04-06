@@ -305,7 +305,18 @@ type Forwarder struct {
 	sessions map[uuid.UUID]*session
 	// upgrades connections to websockets
 	upgrader websocket.Upgrader
+	// getKubernetesServersForKubeCluster is a function that returns a list of
+	// kubernetes services for a given kube cluster but uses different methods
+	// depending on the service type.
+	// For example, if the service type is KubeService, it will use the
+	// local kubernetes clusters. If the service type is Proxy, it will
+	// use the heartbeat clusters.
+	getKubernetesServersForKubeCluster getKubeServicesByNameFunc
 }
+
+// getKubeServicesByNameFunc is a function that returns a list of
+// kubernetes services that might contain the given kube cluster.
+type getKubeServicesByNameFunc = func(ctx context.Context, name string) ([]types.Server, error)
 
 // Close signals close to all outstanding or background operations
 // to complete
@@ -714,7 +725,7 @@ func (f *Forwarder) getKubeAccessDetails(
 	kubeClusterName string,
 	sessionTTL time.Duration,
 ) (kubeAccessDetails, error) {
-	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	kubeServices, err := f.getKubernetesServersForKubeCluster(f.ctx, kubeClusterName)
 	if err != nil {
 		return kubeAccessDetails{}, trace.Wrap(err)
 	}
@@ -761,7 +772,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		f.log.WithField("auth_context", actx.String()).Debug("Skipping authorization due to unknown kubernetes cluster name")
 		return nil
 	}
-	servers, err := f.cfg.CachingAuthClient.GetKubeServices(ctx)
+	servers, err := f.getKubernetesServersForKubeCluster(f.ctx, actx.kubeCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1189,14 +1200,18 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	streamOptions := proxy.options()
-	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
+	err = executor.StreamWithContext(req.Context(), streamOptions)
+	// send the status back to the client when forwarding mode is enabled
+	// sendStatus sends a payload even if the error is nil to make sure the client
+	// receives the status and can close the connection.
+	if sendErr := proxy.sendStatus(err); sendErr != nil {
+		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
+	}
+	if err != nil {
 		execEvent.Code = events.ExecFailureCode
 		execEvent.Error, execEvent.ExitCode = exitCode(err)
 
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		if err := proxy.sendStatus(err); err != nil {
-			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		}
 		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
 		return nil, nil
 	}
@@ -1326,12 +1341,15 @@ func (f *Forwarder) remoteExec(ctx *authContext, w http.ResponseWriter, req *htt
 		return nil, trace.Wrap(err)
 	}
 	streamOptions := proxy.options()
-	if err = executor.StreamWithContext(req.Context(), streamOptions); err != nil {
+	err = executor.StreamWithContext(req.Context(), streamOptions)
+	// send the status back to the client when forwarding mode is enabled
+	// sendStatus sends a payload even if the error is nil to make sure the client
+	// receives the status and can close the connection.
+	if sendErr := proxy.sendStatus(err); sendErr != nil {
+		f.log.WithError(sendErr).Warning("Failed to send status. Exec command was aborted by client.")
+	}
+	if err != nil {
 		f.log.WithError(err).Warning("Executor failed while streaming.")
-		// send the status back to the client when forwarding mode is enabled
-		if err := proxy.sendStatus(err); err != nil {
-			f.log.WithError(err).Warning("Failed to send status. Exec command was aborted by client.")
-		}
 		// do not return the error otherwise the fwd.withAuth interceptor will try to write it into a hijacked connection
 		return nil, nil
 	}
@@ -1818,7 +1836,7 @@ func (f *Forwarder) newClusterSessionSameCluster(ctx authContext) (*clusterSessi
 		return sess, nil
 	}
 
-	kubeServices, err := f.cfg.CachingAuthClient.GetKubeServices(f.ctx)
+	kubeServices, err := f.getKubernetesServersForKubeCluster(f.ctx, ctx.kubeCluster)
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
