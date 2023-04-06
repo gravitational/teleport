@@ -4952,16 +4952,6 @@ func (a *Server) CreateAssistantConversation(ctx context.Context, req *proto.Cre
 	return resp, trace.Wrap(err)
 }
 
-func (a *Server) GetAssistantConversation(ctx context.Context, request *proto.GetAssistantConversationRequest) (*proto.GetAssistantConversationResponse, error) {
-	username, err := authz.GetClientUsername(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resp, err := a.Services.GetAssistantConversation(ctx, username, request)
-	return resp, trace.Wrap(err)
-}
-
 func (a *Server) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
 	username, err := authz.GetClientUsername(ctx)
 	if err != nil {

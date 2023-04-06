@@ -4924,11 +4924,6 @@ func (g *GRPCServer) CreateAssistantConversation(ctx context.Context, request *p
 	return resp, trace.Wrap(err)
 }
 
-func (g *GRPCServer) GetAssistantConversation(ctx context.Context, request *proto.GetAssistantConversationRequest) (*proto.GetAssistantConversationResponse, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 // GetAssistantMessages returns all messages with given conversation ID.
 func (g *GRPCServer) GetAssistantMessages(ctx context.Context, request *proto.AssistantRequest) (*proto.GetAssistantMessagesResponse, error) {
 	auth, err := g.authenticate(ctx)

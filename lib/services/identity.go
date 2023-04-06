@@ -276,7 +276,6 @@ type Identity interface {
 	CreateAssistantConversation(ctx context.Context, username string, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
 
 	GetAssistantConversations(ctx context.Context, username string, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
-	GetAssistantConversation(ctx context.Context, username string, request *proto.GetAssistantConversationRequest) (*proto.GetAssistantConversationResponse, error)
 
 	types.WebSessionsGetter
 	types.WebTokensGetter

@@ -1440,14 +1440,6 @@ func (s *IdentityService) GetAssistantConversations(ctx context.Context, usernam
 	}, nil
 }
 
-func (s *IdentityService) GetAssistantConversation(ctx context.Context, username string, request *proto.GetAssistantConversationRequest) (*proto.GetAssistantConversationResponse, error) {
-	//conversationID := request.GetId()
-	//
-	//s.GetAssistantMessages()
-	panic("ssss")
-
-}
-
 // GetAssistantMessages returns all messages with given conversation ID.
 func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
 	startKey := backend.Key(assistantMessagePrefix, username, conversationId)

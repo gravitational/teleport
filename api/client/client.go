@@ -3399,11 +3399,6 @@ func (c *Client) CreateAssistantConversation(ctx context.Context, req *proto.Cre
 	return resp, nil
 }
 
-func (c *Client) GetAssistantConversation(ctx context.Context, id string) (*proto.GetAssistantConversationResponse, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
 // GetAssistantMessages retrieves assistant messages with given conversation ID.
 func (c *Client) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
 	messages, err := c.grpc.GetAssistantMessages(ctx, &proto.AssistantRequest{

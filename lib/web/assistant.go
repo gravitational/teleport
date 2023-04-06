@@ -70,7 +70,11 @@ func (h *Handler) getAssistantConversationByID(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.GetAssistantConversationResponse{
+	type response struct {
+		Messages []*proto.AssistantMessage
+	}
+
+	return &response{
 		Messages: resp.Messages,
 	}, err
 }
