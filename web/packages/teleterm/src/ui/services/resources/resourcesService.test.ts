@@ -14,79 +14,75 @@
  * limitations under the License.
  */
 
+import { makeServer } from 'teleterm/services/tshd/testHelpers';
+
 import { AmbiguousHostnameError, ResourcesService } from './resourcesService';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
-const server: tsh.Server = {
-  uri: '/clusters/bar/servers/foo',
-  tunnel: false,
-  name: 'foo',
-  hostname: 'foo',
-  addr: 'localhost',
-  labelsList: [],
-};
-
-const getServerByHostnameTests: Array<
-  {
-    name: string;
-    getServersMockedValue: Awaited<ReturnType<tsh.TshClient['getServers']>>;
-  } & (
-    | { expectedServer: tsh.Server; expectedErr?: never }
-    | { expectedErr: any; expectedServer?: never }
-  )
-> = [
-  {
-    name: 'returns a server when the hostname matches a single server',
-    getServersMockedValue: {
-      agentsList: [server],
-      totalCount: 1,
-      startKey: 'foo',
+describe('getServerByHostname', () => {
+  const server: tsh.Server = makeServer();
+  const getServerByHostnameTests: Array<
+    {
+      name: string;
+      getServersMockedValue: Awaited<ReturnType<tsh.TshClient['getServers']>>;
+    } & (
+      | { expectedServer: tsh.Server; expectedErr?: never }
+      | { expectedErr: any; expectedServer?: never }
+    )
+  > = [
+    {
+      name: 'returns a server when the hostname matches a single server',
+      getServersMockedValue: {
+        agentsList: [server],
+        totalCount: 1,
+        startKey: 'foo',
+      },
+      expectedServer: server,
     },
-    expectedServer: server,
-  },
-  {
-    name: 'throws an error when the hostname matches multiple servers',
-    getServersMockedValue: {
-      agentsList: [server, server],
-      totalCount: 2,
-      startKey: 'foo',
+    {
+      name: 'throws an error when the hostname matches multiple servers',
+      getServersMockedValue: {
+        agentsList: [server, server],
+        totalCount: 2,
+        startKey: 'foo',
+      },
+      expectedErr: AmbiguousHostnameError,
     },
-    expectedErr: AmbiguousHostnameError,
-  },
-  {
-    name: 'returns nothing if the hostname does not match any servers',
-    getServersMockedValue: {
-      agentsList: [],
-      totalCount: 0,
-      startKey: 'foo',
+    {
+      name: 'returns nothing if the hostname does not match any servers',
+      getServersMockedValue: {
+        agentsList: [],
+        totalCount: 0,
+        startKey: 'foo',
+      },
+      expectedServer: undefined,
     },
-    expectedServer: undefined,
-  },
-];
-test.each(getServerByHostnameTests)(
-  'getServerByHostname $name',
-  async ({ getServersMockedValue, expectedServer, expectedErr }) => {
-    const tshClient: Partial<tsh.TshClient> = {
-      getServers: jest.fn().mockResolvedValueOnce(getServersMockedValue),
-    };
-    const service = new ResourcesService(tshClient as tsh.TshClient);
+  ];
+  test.each(getServerByHostnameTests)(
+    '$name',
+    async ({ getServersMockedValue, expectedServer, expectedErr }) => {
+      const tshClient: Partial<tsh.TshClient> = {
+        getServers: jest.fn().mockResolvedValueOnce(getServersMockedValue),
+      };
+      const service = new ResourcesService(tshClient as tsh.TshClient);
 
-    const promise = service.getServerByHostname('/clusters/bar', 'foo');
+      const promise = service.getServerByHostname('/clusters/bar', 'foo');
 
-    if (expectedErr) {
-      // eslint-disable-next-line jest/no-conditional-expect
-      await expect(promise).rejects.toThrow(expectedErr);
-    } else {
-      // eslint-disable-next-line jest/no-conditional-expect
-      await expect(promise).resolves.toStrictEqual(expectedServer);
+      if (expectedErr) {
+        // eslint-disable-next-line jest/no-conditional-expect
+        await expect(promise).rejects.toThrow(expectedErr);
+      } else {
+        // eslint-disable-next-line jest/no-conditional-expect
+        await expect(promise).resolves.toStrictEqual(expectedServer);
+      }
+
+      expect(tshClient.getServers).toHaveBeenCalledWith({
+        clusterUri: '/clusters/bar',
+        query: 'name == "foo"',
+        limit: 2,
+        sort: null,
+      });
     }
-
-    expect(tshClient.getServers).toHaveBeenCalledWith({
-      clusterUri: '/clusters/bar',
-      query: 'name == "foo"',
-      limit: 2,
-      sort: null,
-    });
-  }
-);
+  );
+});
