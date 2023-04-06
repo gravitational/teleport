@@ -3,16 +3,6 @@ title: "AWS Route 53 GSLB Multi-Region Proxy Peering High Availability Deploymen
 description: "Deploying a Proxy-peered High Availability Teleport Cluster using Route 53 to create Global Server Load Balancing"
 ---
 
-When deploying Teleport in production, you should design your deployment to
-ensure that users can continue to access infrastructure should an outage or 
-incident affect the availability of your Teleport cluster. 
-
-In order to maintain optimal end-user 
-experience with minimal latency and maximum performance, it is imperative to ensure the scalability 
-of your Auth Service and Proxy Service to accommodate increasing numbers of users and connected resources.
-
-(!docs/pages/includes/cloud/call-to-action.mdx!)
-
 ## Overview
 
 This deployment architecture features two important design decisions:
@@ -90,7 +80,7 @@ the public internet:
 | Port | Description |
 | - | - |
 | `443` | ALPN port for TLS Routing,  HTTPS connections to authenticate `tsh` users into the cluster, and to serve a Web UI |
-| `3021`| Proxy Peering GRPC Stream  |
+| `3021`| Proxy Peering gRPC Stream  |
 
 </TabItem>
 <TabItem label="VPC peering Proxy NLB ports">
@@ -235,9 +225,8 @@ additional settings.
 
 ## Configure Proxy Peering
 
-In this deployment architecure, Proxy Peering is used to restrict the number of connections made from 
-resources to proxies in the Teleport Cluster. Full Proxy Peering explanation and configuration details
-can be reviewed in the [Proxy Peering RFD](https://github.com/gravitational/teleport/blob/master/rfd/0069-proxy-peering.md).
+In this deployment architecure, [Proxy Peering](https://goteleport.com/docs/architecture/proxy-peering/) is used to restrict the number of connections made from 
+resources to proxies in the Teleport Cluster.
 
 This guide covers the necessary Proxy Peering settings for deploying an HA Teleport Cluster routing resource
 traffic with GSLB. 
@@ -270,7 +259,7 @@ proxy_service:
 ```
 
 **Option 2:** Proxies can use peer_public_addr: to advertise the proxy NLB. When using this method 
-you could incur additional latency because peer proxies must continually dial through the NLB until 
+you could incur additional latency or user experience issues because peer proxies must continually dial through the NLB until 
 they establish connection to the correct peer target.
 
 When using an NLB for peer_public_addr, be sure to set agent_connection_count to a value >=2.
