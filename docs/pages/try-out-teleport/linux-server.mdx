@@ -149,31 +149,7 @@ app_service:
 
 ### Start Teleport
 
-On your Linux machine, run the necessary commands to start the `teleport` daemon
-(this depends on how you installed Teleport earlier).
-
-<Tabs>
-  <TabItem label="Package manager RPM/DEB">
-
-    ```code
-    $ sudo systemctl start teleport
-    ```
-  </TabItem>
-
-  <TabItem label="Source or custom install">
-  Create a systemd unit file using the `teleport install systemd` command and the unit file path you'd
-  like to use for your configuration. We recommend the path `/etc/systemd/system/teleport.service` for most use cases:
-
-    ```code
-    $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-    ```
-  Enable and start the new `teleport` daemon:
-
-    ```code
-    $ sudo systemctl enable teleport && sudo systemctl start teleport
-    ```
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx !)
 
 You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar
