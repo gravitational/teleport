@@ -7,13 +7,15 @@ import (
 	"path"
 )
 
+var DirectoryStoreType = "directory"
+
 // DirectoryStore implements Writer used by Bot and Destinations as storage
 type DirectoryStore struct {
-	Dir string
+	Path string `yaml:"path"`
 }
 
 func (w *DirectoryStore) path(name string) string {
-	return path.Join(w.Dir, name)
+	return path.Join(w.Path, name)
 }
 
 func (w *DirectoryStore) Write(_ context.Context, name string, data []byte) error {

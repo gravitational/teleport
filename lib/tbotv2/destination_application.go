@@ -9,17 +9,25 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
-	"time"
 )
 
 type ApplicationDestination struct {
-	AppName string
+	Common CommonDestination `yaml:",inline"`
+	Name   string            `yaml:"name"`
 }
 
-func (d *ApplicationDestination) Generate(ctx context.Context, bot BotI, store Store, roles []string, ttl time.Duration) error {
+func (d *ApplicationDestination) Oneshot(ctx context.Context, bot BotI) error {
+	return trace.Wrap(d.Generate(ctx, bot))
+}
+
+func (d *ApplicationDestination) Run(ctx context.Context, bot BotI) error {
+	return trace.Wrap(d.Common.Run(ctx, bot, d.Generate))
+}
+
+func (d *ApplicationDestination) Generate(ctx context.Context, bot BotI) error {
 	id, err := bot.GenerateIdentity(ctx, IdentityRequest{
-		roles: roles,
-		ttl:   ttl,
+		roles: d.Common.Roles,
+		ttl:   d.Common.TTL,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -31,14 +39,14 @@ func (d *ApplicationDestination) Generate(ctx context.Context, bot BotI, store S
 	}
 	defer idClient.Close()
 
-	routeToApp, err := d.getRouteToApp(ctx, id, idClient)
+	routeToApp, err := getRouteToApp(ctx, id, idClient, d.Name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	routedIdentity, err := bot.GenerateIdentity(ctx, IdentityRequest{
-		ttl:        ttl,
-		roles:      roles,
+		ttl:        d.Common.TTL,
+		roles:      d.Common.Roles,
 		routeToApp: routeToApp,
 	})
 	if err != nil {
@@ -46,11 +54,11 @@ func (d *ApplicationDestination) Generate(ctx context.Context, bot BotI, store S
 	}
 
 	// Persist to store
-	err = store.Write(ctx, "tlscert", routedIdentity.TLSCertBytes)
+	err = d.Common.Store.Write(ctx, "tlscert", routedIdentity.TLSCertBytes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = store.Write(ctx, "key", routedIdentity.PrivateKeyBytes)
+	err = d.Common.Store.Write(ctx, "key", routedIdentity.PrivateKeyBytes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -87,8 +95,8 @@ func getApp(ctx context.Context, client auth.ClientI, appName string) (types.App
 	return apps[0], nil
 }
 
-func (d *ApplicationDestination) getRouteToApp(ctx context.Context, id *identity.Identity, client auth.ClientI) (proto.RouteToApp, error) {
-	app, err := getApp(ctx, client, d.AppName)
+func getRouteToApp(ctx context.Context, id *identity.Identity, client auth.ClientI, appName string) (proto.RouteToApp, error) {
+	app, err := getApp(ctx, client, appName)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}

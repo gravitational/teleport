@@ -14,22 +14,6 @@ import (
 	"time"
 )
 
-type Destination struct {
-	TTL   time.Duration
-	Renew time.Duration
-	Path  string
-}
-
-type Config struct {
-	AuthServer string
-	Oneshot    bool
-	Dir        string
-
-	// For the bots own identity rather than produced certs
-	TTL   time.Duration
-	Renew time.Duration
-}
-
 func NewBot(cfg Config, logger logrus.FieldLogger) *Bot {
 	return &Bot{
 		cfg:    cfg,
@@ -38,11 +22,12 @@ func NewBot(cfg Config, logger logrus.FieldLogger) *Bot {
 }
 
 type Bot struct {
+	// TODO: Mutex auth/currentIdentity
+	// TODO: Future: auth.ClientI with support for dynamic credentials.
 	auth            auth.ClientI
 	currentIdentity *identity.Identity
 	logger          logrus.FieldLogger
 	cfg             Config
-	destinations    []*destWrapper
 }
 
 func (b *Bot) Run(ctx context.Context) error {
@@ -50,14 +35,16 @@ func (b *Bot) Run(ctx context.Context) error {
 
 	// TODO: Joining/bot identity renewal.
 	// Ugly current hack to steal identity from another bot for now.
-	botStore := &DirectoryStore{
-		Dir: b.cfg.Dir,
-	}
-	ident, err := identity.LoadIdentity(botStore, identity.BotKinds()...)
+	b.logger.Info("Stealing identity from disk")
+	ident, err := identity.LoadIdentity(b.cfg.Store, identity.BotKinds()...)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 	client, err := b.ClientForIdentity(ctx, ident)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	b.logger.Info("Successfully stole identity.")
 	b.auth = client
 	b.currentIdentity = ident
 
@@ -67,35 +54,10 @@ func (b *Bot) Run(ctx context.Context) error {
 		// TODO: Actually watch for ca rotations
 	}
 
-	// Convert configured destinations into wrapped and active destinations
-	// that can be called.
-	b.destinations = []*destWrapper{
-		{
-			bot: b,
-			store: &DirectoryStore{
-				Dir: "./identity-out",
-			},
-			destination: &IdentityDestination{},
-			TTL:         10 * time.Minute,
-			Roles:       []string{"access"},
-		},
-		{
-			bot: b,
-			store: &DirectoryStore{
-				Dir: "./app-out",
-			},
-			destination: &ApplicationDestination{
-				AppName: "httpbin",
-			},
-			TTL:   10 * time.Minute,
-			Roles: []string{"access"},
-		},
-	}
-
 	// If one-shot, fire off hard-coded destinations
 	if b.cfg.Oneshot {
-		for _, dest := range b.destinations {
-			err := dest.Oneshot(ctx)
+		for _, dest := range b.cfg.Destinations {
+			err := dest.Oneshot(ctx, b)
 			if err != nil {
 				return err
 			}
@@ -104,13 +66,15 @@ func (b *Bot) Run(ctx context.Context) error {
 		return nil
 	}
 
+	// TODO: Emit readiness signal.
+
 	// If not one-shot, spin up sockets and destinations.
 	// TODO: Handle management of goroutines and synced closure/error states.
 	block := make(chan struct{})
 	go func() {
-		for _, dest := range b.destinations {
+		for _, dest := range b.cfg.Destinations {
 			// TODO: Handle destination failing out?
-			go dest.Run(ctx)
+			go dest.Run(ctx, b)
 		}
 	}()
 	<-block

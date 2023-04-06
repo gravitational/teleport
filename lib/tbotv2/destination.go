@@ -5,6 +5,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 	"time"
 )
 
@@ -16,7 +17,6 @@ type BotI interface {
 	// ListenForRotation enables destinations to listen for a CA rotation
 	ListenForRotation(ctx context.Context) (chan struct{}, func(), error)
 	ClientForIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error)
-	// TODO: Should this provide everything or should we expect them to use their own client where appropriate ?
 }
 
 type Store interface {
@@ -24,22 +24,38 @@ type Store interface {
 	Read(ctx context.Context, name string) ([]byte, error)
 }
 
-type destWrapper struct {
-	bot         BotI
-	store       Store
-	destination interface {
-		Generate(ctx context.Context, bot BotI, store Store, roles []string, ttl time.Duration) error
-	}
-	Roles []string
-	TTL   time.Duration
-	Renew time.Duration
-
-	// TODO: This could hold concept of "status":
-	// e.g waiting for renewal, renewing
+type CommonDestination struct {
+	// Store requires polymorphic marshalling/unmarshalling
+	Store Store         `yaml:"-"`
+	Roles []string      `yaml:"roles"`
+	TTL   time.Duration `yaml:"ttl"`
+	Renew time.Duration `yaml:"renew"`
 }
 
-func (i *destWrapper) Run(ctx context.Context) error {
-	rotationTrigger, stop, err := i.bot.ListenForRotation(ctx)
+func (d *CommonDestination) UnmarshalYAML(node *yaml.Node) error {
+	// Alias the type to get rid of the UnmarshalYAML :)
+	type raw CommonDestination
+	if err := node.Decode((*raw)(d)); err != nil {
+		return trace.Wrap(err)
+	}
+	// We now have set up all the fields except those with special handling
+
+	rawStore := struct {
+		Store yaml.Node `yaml:"store"`
+	}{}
+	if err := node.Decode(&rawStore); err != nil {
+		return trace.Wrap(err)
+	}
+	store, err := unmarshalStore(&rawStore.Store)
+	if err != nil {
+		return err
+	}
+	d.Store = store
+	return nil
+}
+
+func (d *CommonDestination) Run(ctx context.Context, bot BotI, generate func(ctx context.Context, bot BotI) error) error {
+	rotationTrigger, stop, err := bot.ListenForRotation(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -54,12 +70,12 @@ func (i *destWrapper) Run(ctx context.Context) error {
 			return nil
 		case <-firstRenewal:
 		case <-rotationTrigger:
-		case <-time.After(i.Renew):
+		case <-time.After(d.Renew):
 			// TODO: Don't leak this timer lol
 			// TODO: Retry logic
 			// TODO: Backoff logic
 			// TODO: Timeout logic
-			err := i.destination.Generate(ctx, i.bot, i.store, i.Roles, i.TTL)
+			err := generate(ctx, bot)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -67,6 +83,6 @@ func (i *destWrapper) Run(ctx context.Context) error {
 	}
 }
 
-func (i *destWrapper) Oneshot(ctx context.Context) error {
-	return trace.Wrap(i.destination.Generate(ctx, i.bot, i.store, i.Roles, i.TTL))
+func (d *CommonDestination) Oneshot(ctx context.Context, bot BotI, generate func(ctx context.Context, bot BotI) error) error {
+	return trace.Wrap(generate(ctx, bot))
 }
