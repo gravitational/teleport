@@ -9,6 +9,10 @@ type IdentityDestination struct {
 	Common CommonDestination `yaml:",inline"`
 }
 
+func (d *IdentityDestination) CheckAndSetDefaults() error {
+	return trace.Wrap(d.Common.CheckAndSetDefaults())
+}
+
 func (d *IdentityDestination) Oneshot(ctx context.Context, bot BotI) error {
 	return trace.Wrap(d.Generate(ctx, bot))
 }

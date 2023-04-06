@@ -16,6 +16,13 @@ type ApplicationDestination struct {
 	Name   string            `yaml:"name"`
 }
 
+func (d *ApplicationDestination) CheckAndSetDefaults() error {
+	if d.Name == "" {
+		return trace.BadParameter("application name must be specified")
+	}
+	return trace.Wrap(d.Common.CheckAndSetDefaults())
+}
+
 func (d *ApplicationDestination) Oneshot(ctx context.Context, bot BotI) error {
 	return trace.Wrap(d.Generate(ctx, bot))
 }

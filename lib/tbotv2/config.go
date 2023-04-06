@@ -2,17 +2,11 @@ package tbotv2
 
 import (
 	"bytes"
-	"context"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 	"os"
 	"time"
 )
-
-type Destination interface {
-	Run(ctx context.Context, bot BotI) error
-	Oneshot(ctx context.Context, bot BotI) error
-}
 
 type Config struct {
 	AuthServer string `yaml:"auth_server"`
@@ -120,6 +114,11 @@ func unmarshalStore(raw *yaml.Node) (Store, error) {
 }
 
 func (c *Config) CheckAndSetDefaults() error {
+	for _, dest := range c.Destinations {
+		if err := dest.CheckAndSetDefaults(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

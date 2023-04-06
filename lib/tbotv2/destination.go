@@ -24,12 +24,25 @@ type Store interface {
 	Read(ctx context.Context, name string) ([]byte, error)
 }
 
+type Destination interface {
+	Run(ctx context.Context, bot BotI) error
+	Oneshot(ctx context.Context, bot BotI) error
+	CheckAndSetDefaults() error
+}
+
 type CommonDestination struct {
 	// Store requires polymorphic marshalling/unmarshalling
 	Store Store         `yaml:"-"`
 	Roles []string      `yaml:"roles"`
 	TTL   time.Duration `yaml:"ttl"`
 	Renew time.Duration `yaml:"renew"`
+}
+
+func (d *CommonDestination) CheckAndSetDefaults() error {
+	if d.TTL == 0 {
+		d.TTL = time.Minute * 10
+	}
+	return nil
 }
 
 func (d *CommonDestination) UnmarshalYAML(node *yaml.Node) error {
