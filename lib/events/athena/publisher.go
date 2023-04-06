@@ -83,7 +83,11 @@ func newPublisher(cfg Config, awsCfg aws.Config, log *log.Entry) *publisher {
 	}
 }
 
-// EmitAuditEvent emits audit event.
+// EmitAuditEvent emits audit event to SNS topic. Topic should be connected with
+// SQS via subscription, so event is persisted on queue.
+// Events are marshaled as oneOf from apievents and encoded using base64.
+// For large events, payload is publihsed to S3, and on SNS there is only passed
+// location on S3.
 func (p *publisher) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
 	// Just double check that audit event has minimum necessary fields for athena
 	// to works. Teleport emitter layer above makes sure that they are filled.
