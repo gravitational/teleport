@@ -91,16 +91,10 @@ function getBackgroundColor(props) {
     }
     return props.theme.colors.brand.main;
   }
-  if (props.isActive) {
-    return props.theme.colors.secondary.lighter;
-  }
 }
 
 function getHoverBackgroundColor(props) {
   if (props.isSelected) {
     return props.theme.colors.brand.accent;
-  }
-  if (props.isActive) {
-    return props.theme.colors.secondary.lighter;
   }
 }
