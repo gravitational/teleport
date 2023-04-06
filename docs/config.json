@@ -461,7 +461,7 @@
       	  "slug": "/management/introduction/"
 	},
         {
-          "title": "Joining Teleport Services to a Cluster",
+          "title": "Joining Teleport Services",
           "slug": "/management/join-services-to-your-cluster/",
           "entries": [
             {

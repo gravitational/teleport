@@ -19,8 +19,8 @@ relationship with the Teleport cluster.
   distribution.
 
   In this guide, we will show you how to register a Teleport SSH Service
-  instance. This approach applies to new Proxy Service instances as well as the
-  Kubernetes Service, Database Service, and other Teleport services for
+  instance. This approach also applies to other Teleport services, like the
+  Proxy Service, Kubernetes Service, Database Service, and other services for
   accessing resources in your infrastructure.
 
   <Details type="tip" title="Running multiple Proxy Service instances behind a
@@ -91,7 +91,8 @@ Please note:
 In this command, we assigned the token the `node` type, indicating that it will
 belong to an SSH Service instance. 
 
-Copy the token so you can use it later in this guide.
+Copy the token so you can use it later in this guide. You can ignore the rest of
+the `tctl tokens add` output.
 
 <Details title="Supported token types">
 
