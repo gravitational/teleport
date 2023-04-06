@@ -292,7 +292,7 @@ func New(cfg Config) (*CircuitBreaker, error) {
 	}
 
 	cb := CircuitBreaker{cfg: cfg}
-	cb.nextGeneration(cfg.Clock.Now().UTC())
+	cb.nextGeneration(cfg.Clock.Now())
 
 	return &cb, nil
 }
