@@ -351,16 +351,6 @@ func (t *TerminalHandler) Close() error {
 	return nil
 }
 
-type baseHandler struct {
-	// log holds the structured logger.
-	log *logrus.Entry
-
-	// keepAliveInterval is the interval for sending ping frames to web client.
-	// This value is pulled from the cluster network config and
-	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
-	keepAliveInterval time.Duration
-}
-
 // startPingLoop starts a loop that will continuously send a ping frame through the websocket
 // to prevent the connection between web client and teleport proxy from becoming idle.
 // Interval is determined by the keep_alive_interval config set by user (or default).
@@ -884,19 +874,12 @@ func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) fun
 	}
 }
 
-func NewWStream(ws WSConn) (*WsStream, error) {
-	switch {
-	case ws == nil:
-		return nil, trace.BadParameter("required parameter ws not provided")
-	}
-
-	t := &WsStream{
+func NewWStream(ws WSConn) *WsStream {
+	return &WsStream{
 		ws:      ws,
 		encoder: unicode.UTF8.NewEncoder(),
 		decoder: unicode.UTF8.NewDecoder(),
 	}
-
-	return t, nil
 }
 
 // NewTerminalStream creates a stream that manages reading and writing
@@ -1158,37 +1141,6 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 	}
 }
 
-func (t *TerminalStream) processMessage(messageType string, data []byte) (int, error) {
-	switch messageType {
-	case defaults.WebsocketResize:
-		if t.resizeC == nil {
-			return 0, nil
-		}
-
-		var e events.EventFields
-		err := json.Unmarshal(data, &e)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		params, err := session.UnmarshalTerminalParams(e.GetString("size"))
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		// Send the window change request in a goroutine so reads are not blocked
-		// by network connectivity issues.
-		select {
-		case t.resizeC <- params:
-		default:
-		}
-
-		return 0, nil
-	default:
-		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
-	}
-}
-
 func (t *WsStream) Close() error {
 	// Send close envelope to web terminal upon exit without an error.
 	envelope := &Envelope{
@@ -1205,7 +1157,7 @@ func (t *WsStream) Close() error {
 	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
 }
 
-// Close send a close message on the web socket
+// Close sends a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
 	if t.resizeC != nil {

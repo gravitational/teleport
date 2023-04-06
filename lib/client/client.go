@@ -1606,14 +1606,6 @@ func (c *NodeClient) RunCommand(ctx context.Context, cmd []string, sessToJoin ty
 	defer span.End()
 
 	env := c.TC.newSessionEnv()
-	env[teleport.EnvSSHSessionReason] = c.TC.Config.Reason
-	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(c.TC.Config.DisplayParticipantRequirements)
-	encoded, err := json.Marshal(&c.TC.Config.Invited)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	env[teleport.EnvSSHSessionInvited] = string(encoded)
 
 	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
 	if err != nil {

@@ -34,18 +34,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gorilla/websocket"
-	authproto "github.com/gravitational/teleport/api/client/proto"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/observability/tracing"
-	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/lib/agentless"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/proxy"
-	"github.com/gravitational/teleport/lib/teleagent"
-	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sirupsen/logrus"
@@ -53,9 +41,21 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	authproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/observability/tracing"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/teleagent"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type CommandRequest struct {
@@ -186,7 +186,7 @@ func (h *Handler) executeCommand(
 				InteractiveCommand: strings.Split(req.Command, " "),
 				Router:             h.cfg.Router,
 				TracerProvider:     h.cfg.TracerProvider,
-				PROXYSigner:        h.cfg.PROXYSigner,
+				proxySigner:        h.cfg.PROXYSigner,
 			}
 
 			handler, err := newCommandHandler(ctx, commandHandlerConfig)
@@ -235,7 +235,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 		proxyHostPort:      cfg.ProxyHostPort,
 		interactiveCommand: cfg.InteractiveCommand,
 		router:             cfg.Router,
-		proxySigner:        cfg.PROXYSigner,
+		proxySigner:        cfg.proxySigner,
 		tracer:             cfg.tracer,
 	}, nil
 }
@@ -260,7 +260,7 @@ type CommandHandlerConfig struct {
 	// TracerProvider is used to create the tracer
 	TracerProvider oteltrace.TracerProvider
 	// ProxySigner is used to sign PROXY header and securely propagate client IP information
-	PROXYSigner multiplexer.PROXYHeaderSigner
+	proxySigner multiplexer.PROXYHeaderSigner
 	// tracer is used to create spans
 	tracer oteltrace.Tracer
 }
@@ -390,13 +390,7 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	stream, err := NewWStream(t.ws)
-	if err != nil {
-		t.log.WithError(err).Info("Failed creating a terminal stream for session")
-		t.writeError(err)
-		return
-	}
-	t.stream = stream
+	t.stream = NewWStream(t.ws)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.

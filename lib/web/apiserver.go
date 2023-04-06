@@ -2680,7 +2680,7 @@ func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]strin
 		return nil, trace.Wrap(err)
 	}
 
-	hosts := make([]hostInfo, 0)
+	hosts := make([]hostInfo, 0, len(resources))
 	for _, resource := range resources {
 		server, ok := resource.(types.Server)
 		if !ok {
@@ -2690,7 +2690,7 @@ func findByLabels(ctx context.Context, clt auth.ClientI, labels map[string]strin
 		h := hostInfo{
 			hostName: server.GetHostname(),
 			id:       server.GetName(),
-			port:     0,
+			port:     defaultPort,
 		}
 		hosts = append(hosts, h)
 	}
