@@ -18,7 +18,7 @@ package teleport.kube.v1;
 
 import "teleport/legacy/types/types.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1;kubev1";
 
 // KubeService provides methods to list Kubernetes resources when users are not allowed
 // to access the underlying cluster or resources but their `search_as_roles` allow.

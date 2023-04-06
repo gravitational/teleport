@@ -17,20 +17,20 @@ limitations under the License.
 package pingconn
 
 import (
-	"crypto/tls"
 	"encoding/binary"
 	"math"
+	"net"
 	"sync"
 
 	"github.com/gravitational/trace"
 )
 
 // New returns a ping connection wrapping the provided net.Conn.
-func New(conn *tls.Conn) *PingConn {
+func New(conn net.Conn) *PingConn {
 	return &PingConn{Conn: conn}
 }
 
-// PingConn wraps a *tls.Conn and add ping capabilities to it, including the
+// PingConn wraps a net.Conn and add ping capabilities to it, including the
 // `WritePing` function and `Read` (which excludes ping packets).
 //
 // When using this connection, the packets written will contain an initial data:
@@ -40,8 +40,7 @@ func New(conn *tls.Conn) *PingConn {
 // Ping messages have a packet size of zero and are produced only when
 // `WritePing` is called. On `Read`, any Ping packet is discarded.
 type PingConn struct {
-	//net.Conn
-	*tls.Conn
+	net.Conn
 
 	muRead  sync.Mutex
 	muWrite sync.Mutex
@@ -50,7 +49,7 @@ type PingConn struct {
 	currentSize uint32
 }
 
-// Read reads content from the underlaying connection, discarding any ping
+// Read reads content from the underlying connection, discarding any ping
 // messages it finds.
 func (c *PingConn) Read(p []byte) (int, error) {
 	c.muRead.Lock()

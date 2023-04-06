@@ -75,12 +75,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	key, err := c.tc.localAgent.GetKey(target.Cluster, WithAllCerts...)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// Either running inside the web UI in a proxy or using an identity
-			// file. Fall back to whatever AuthMethod we currently have.
-			return sshConfig, nil
-		}
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	params := ReissueParams{
@@ -93,7 +88,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	if target.MFACheck == nil {
 		check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(c.tc.HostLogin))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 		target.MFACheck = check
 	}
