@@ -106,16 +106,11 @@ export function ActionPicker(props: { input: ReactElement }) {
           No matching results found.
         </Text>
         {excludedClustersCopy && (
-          <Text
-            color="text.primary"
-            css={`
-              display: flex;
-              align-items: baseline;
-            `}
-          >
-            <icons.Info mr={1} />
-            {excludedClustersCopy}
-          </Text>
+          <Item Icon={icons.Info} iconColor="text.primary">
+            <Text typography="body1" color="text.primary">
+              {excludedClustersCopy}
+            </Text>
+          </Item>
         )}
       </EmptyListCopy>
     ) : (
@@ -523,7 +518,7 @@ function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
     return '';
   }
   if (excludedClusters.length === 1) {
-    return `Cluster ${excludedClustersString} was excluded from the search because you are not logged in to it.`;
+    return `The cluster ${excludedClustersString} was excluded from the search because you are not logged in to it.`;
   }
   return `Clusters ${excludedClustersString} were excluded from the search because you are not logged in to them.`;
 }
@@ -534,7 +529,6 @@ function FilterButton(props: { text: string; onClick(): void }) {
       px={2}
       size="small"
       title={props.text}
-      key="cluster"
       onClick={props.onClick}
     >
       <span
