@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -741,3 +742,58 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
+
+// UnmarshalJSON supports parsing DatabaseTLSMode from number or string.
+func (d *DatabaseTLSMode) UnmarshalJSON(data []byte) error {
+	type loopBreaker DatabaseTLSMode
+	var val loopBreaker
+	// try as number first.
+	if err := json.Unmarshal(data, &val); err == nil {
+		*d = DatabaseTLSMode(val)
+		return nil
+	}
+
+	// fallback to string.
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return trace.Wrap(err)
+	}
+	return d.decodeName(s)
+}
+
+// UnmarshalYAML supports parsing DatabaseTLSMode from number or string.
+func (d *DatabaseTLSMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	// try as number first.
+	type loopBreaker DatabaseTLSMode
+	var val loopBreaker
+	if err := unmarshal(&val); err == nil {
+		*d = DatabaseTLSMode(val)
+		return nil
+	}
+
+	// fallback to string.
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return trace.Wrap(err)
+	}
+	return d.decodeName(s)
+}
+
+// decodeName decodes DatabaseTLSMode from a string. This is necessary for
+// allowing tctl commands to work with the same names as documented in Teleport
+// configuration, rather than requiring it be specified as an unreadable enum
+// number.
+func (d *DatabaseTLSMode) decodeName(name string) error {
+	switch name {
+	case "verify-full", "":
+		*d = DatabaseTLSMode_VERIFY_FULL
+		return nil
+	case "verify-ca":
+		*d = DatabaseTLSMode_VERIFY_CA
+		return nil
+	case "insecure":
+		*d = DatabaseTLSMode_INSECURE
+		return nil
+	}
+	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
+}

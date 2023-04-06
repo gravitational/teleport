@@ -1888,8 +1888,9 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 	}
 
 	return cache.New(cfg.setup(cache.Config{
-		Context:          process.ExitContext(),
-		Backend:          reporter,
+		Context: process.ExitContext(),
+		Backend: reporter,
+
 		Events:           cfg.services,
 		ClusterConfig:    cfg.services,
 		Provisioner:      cfg.services,
@@ -1911,6 +1912,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		Component:        teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
 		MetricComponent:  teleport.Component(append(cfg.cacheName, teleport.ComponentCache)...),
 		Tracer:           process.TracingProvider.Tracer(teleport.ComponentCache),
+		MaxRetryPeriod:   process.Config.CachePolicy.MaxRetryPeriod,
 		Unstarted:        cfg.unstarted,
 	}))
 }
@@ -3430,6 +3432,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		tsrv, err = reversetunnel.NewServer(
 			reversetunnel.Config{
+				Context:                       process.ExitContext(),
 				Component:                     teleport.Component(teleport.ComponentProxy, process.id),
 				ID:                            process.Config.HostUUID,
 				ClusterName:                   clusterName,

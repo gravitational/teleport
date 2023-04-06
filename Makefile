@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=11.3.8
+VERSION=11.3.10
 
 DOCKER_IMAGE ?= teleport
 
@@ -898,12 +898,13 @@ update-api-import-path:
 # 		- build binaries with 'make release'
 # 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
 .PHONY: update-tag
+update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
-	git push origin $(GITTAG) && git push origin api/$(GITTAG)
+	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
 .PHONY: test-package
 test-package: remove-temp-files
