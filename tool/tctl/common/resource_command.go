@@ -126,6 +126,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDevice:                   rc.createDevice,
 		types.KindOktaImportRule:           rc.createOktaImportRule,
 		types.KindIntegration:              rc.createIntegration,
+		types.KindPlugin:                   rc.createPlugin,
 	}
 	rc.config = config
 
@@ -918,6 +919,17 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 	}
 	fmt.Printf("Integration %q has been created\n", integration.GetName())
 
+	return nil
+}
+func (rc *ResourceCommand) createPlugin(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	plugin, err := services.UnmarshalPlugin(raw.Raw)
+	if err != nil {
+		fmt.Println(err)
+		return trace.Wrap(err)
+	}
+	if err := client.CreatePlugin(ctx, plugin); err != nil {
+		return trace.Wrap(err)
+	}
 	return nil
 }
 

@@ -475,6 +475,38 @@ func (c *Client) OktaClient() services.Okta {
 	return c.oktaClient
 }
 
+func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) DeleteAllPlugins(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) DeletePlugin(ctx context.Context, name string) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -716,6 +748,7 @@ type ClientI interface {
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
 	services.Integrations
+	services.Plugins
 	types.Events
 
 	types.WebSessionsGetter
