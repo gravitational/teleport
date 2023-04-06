@@ -2073,6 +2073,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
+		UserType: req.user.GetUserType(),
 	}
 
 	var signedTLSCert []byte
@@ -3816,9 +3817,26 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 	return lease, nil
 }
 
+// enforceLicense checks if the license allows the given resource type to be
+// created.
+func enforceLicense(t string) error {
+	switch t {
+	case types.KindKubeServer, types.KindKubernetesCluster:
+		if !modules.GetModules().Features().Kubernetes {
+			return trace.AccessDenied(
+				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
+		}
+	}
+	return nil
+}
+
 // UpsertKubernetesServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	if err := enforceLicense(types.KindKubeServer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	k, err := a.Services.UpsertKubernetesServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4241,6 +4259,9 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.CreateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4265,6 +4286,9 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Kubernetes.UpdateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4314,7 +4338,17 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
+	userIsSSO, err := authz.GetClientUserIsSSO(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userMetadata := usagereporter.UserMetadata{
+		Username: username,
+		IsSSO:    userIsSSO,
+	}
+
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), userMetadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}

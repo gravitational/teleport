@@ -17,6 +17,7 @@
     "dompurify": "^3.0.1",
     "highlight.js": "^11.7.0",
     "marked": "^4.3.0",
+    "highlight-words-core": "^1.2.2",
     "react": "^16.8.4",
     "react-day-picker": "7.3.2",
     "react-dom": "^16.8.4",

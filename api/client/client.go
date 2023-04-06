@@ -613,6 +613,66 @@ func (c *Client) DevicesClient() devicepb.DeviceTrustServiceClient {
 	return devicepb.NewDeviceTrustServiceClient(c.conn)
 }
 
+// CreateDeviceResource creates a device using its resource representation.
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) CreateDeviceResource(ctx context.Context, res *types.DeviceV1) (*types.DeviceV1, error) {
+	dev, err := types.DeviceFromResource(res)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	created, err := c.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device:           dev,
+		CreateAsResource: true,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return types.DeviceToResource(created), nil
+}
+
+// DeleteDeviceResource deletes a device using its ID (either devicepb.Device.Id
+// or its Metadata.Name).
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) DeleteDeviceResource(ctx context.Context, id string) error {
+	_, err := c.DevicesClient().DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+		DeviceId: id,
+	}, c.callOpts...)
+	return trail.FromGRPC(err)
+}
+
+// GetDeviceResource reads a device using its ID (either devicepb.Device.Id
+// or its Metadata.Name).
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) GetDeviceResource(ctx context.Context, id string) (*types.DeviceV1, error) {
+	dev, err := c.DevicesClient().GetDevice(ctx, &devicepb.GetDeviceRequest{
+		DeviceId: id,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return types.DeviceToResource(dev), nil
+}
+
+// UpsertDeviceResource creates or updates a device using its resource
+// representation.
+// Prefer using [DevicesClient] directly if you can.
+func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) (*types.DeviceV1, error) {
+	dev, err := types.DeviceFromResource(res)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upserted, err := c.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
+		Device:           dev,
+		CreateAsResource: true,
+	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return types.DeviceToResource(upserted), nil
+}
+
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,

@@ -4,8 +4,8 @@ description: Introduction to the Teleport gRPC API.
 layout: tocless-doc
 ---
 
-The Teleport Auth Service provides a gRPC API for remotely interacting with
-your cluster.
+The Teleport Auth Service provides a gRPC API for remotely interacting with your
+cluster. In this section, we will show you how to use Teleport's API. 
 
 ## Go client
 
@@ -19,8 +19,8 @@ Here is what you can do with the Go Client:
  - Integrate with external tools, e.g., to write an [Access Request
    plugin](../access-controls/access-request-plugins/index.mdx). Teleport
    maintains Access Request plugins for tools like Slack, Jira, and Mattermost.
- - Perform CRUD actions on resources, such as `roles`, `auth connectors`, and
-   `provisioning tokens`.
+ - Perform CRUD actions on resources, such as roles, authentication connectors,
+   and provisioning tokens.
  - Dynamically configure Teleport.
 
 ## Get started
@@ -38,6 +38,9 @@ Teleport's API client libraries:
 - [Automatically Register Teleport Agents](./automatically-register-agents.mdx):
   Write a Teleport API client to reconcile the resources in your Teleport
   cluster with an external service discovery API.
+- [Automatically generate Teleport roles](./rbac.mdx) from an external RBAC
+  system, making it easier to get started with Teleport-based RBAC and keep your
+  Teleport roles up to date.
 - [Write an Access Request Plugin](./access-plugin.mdx): Follow this guide for a
   minimal working example of a plugin that you can use to manage Access Requests
   through your organization's unique communication worfklows.

@@ -145,11 +145,13 @@ function QuickInput() {
 
   return (
     <Flex
-      style={{
-        position: 'relative',
-        width: '100%',
-        height: '100%',
-      }}
+      css={`
+        position: relative;
+        flex: 7;
+        flex-shrink: 1;
+        min-width: calc(${props => props.theme.space[7]}px * 2);
+        height: 100%;
+      `}
       flex={1}
       ref={refContainer}
       onFocus={handleOnFocus}

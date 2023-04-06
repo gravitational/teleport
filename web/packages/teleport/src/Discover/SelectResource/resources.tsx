@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
+import { DiscoverEventResource } from 'teleport/services/userEvent';
+
 import { ResourceKind } from '../Shared/ResourceKind';
 
-import { DATABASES, DATABASES_UNGUIDED } from './databases';
-import { ResourceSpec, DatabaseLocation } from './types';
+import {
+  DATABASES,
+  DATABASES_UNGUIDED,
+  DATABASES_UNGUIDED_DOC,
+} from './databases';
+import { ResourceSpec, DatabaseLocation, DatabaseEngine } from './types';
 import { icons } from './icons';
 
 const baseServerKeywords = 'server node';
@@ -27,30 +33,35 @@ export const SERVERS: ResourceSpec[] = [
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'ubuntu',
     Icon: icons.Linux,
+    event: DiscoverEventResource.Server,
   },
   {
     name: 'Debian 8+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'debian',
     Icon: icons.Linux,
+    event: DiscoverEventResource.Server,
   },
   {
     name: 'RHEL/CentOS 7+',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'rhel centos',
     Icon: icons.Linux,
+    event: DiscoverEventResource.Server,
   },
   {
     name: 'Amazon Linux 2',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'amazon linux',
     Icon: icons.Aws,
+    event: DiscoverEventResource.Server,
   },
   {
     name: 'macOS (Intel)',
     kind: ResourceKind.Server,
     keywords: baseServerKeywords + 'mac macos intel',
     Icon: icons.Apple,
+    event: DiscoverEventResource.Server,
   },
 ];
 
@@ -62,6 +73,7 @@ export const APPLICATIONS: ResourceSpec[] = [
     Icon: icons.Application,
     unguidedLink:
       'https://goteleport.com/docs/application-access/getting-started/',
+    event: DiscoverEventResource.ApplicationHttp,
   },
 ];
 
@@ -71,6 +83,7 @@ export const WINDOWS_DESKTOPS: ResourceSpec[] = [
     kind: ResourceKind.Desktop,
     keywords: 'windows desktop active directory ad',
     Icon: icons.Windows,
+    event: DiscoverEventResource.WindowsDesktop,
   },
   // {
   //   name: 'Non Active Directory',
@@ -87,6 +100,7 @@ export const KUBERNETES: ResourceSpec[] = [
     kind: ResourceKind.Kubernetes,
     keywords: 'kubernetes cluster kubes',
     Icon: icons.Kube,
+    event: DiscoverEventResource.Kubernetes,
   },
 ];
 
@@ -97,6 +111,7 @@ export const RESOURCES: ResourceSpec[] = [
   ...SERVERS,
   ...DATABASES,
   ...DATABASES_UNGUIDED,
+  ...DATABASES_UNGUIDED_DOC,
 ];
 
 export function getResourcePretitle(r: ResourceSpec) {
@@ -108,14 +123,20 @@ export function getResourcePretitle(r: ResourceSpec) {
     case ResourceKind.Database:
       if (r.dbMeta) {
         switch (r.dbMeta.location) {
-          case DatabaseLocation.AWS:
+          case DatabaseLocation.Aws:
             return 'Amazon Web Services (AWS)';
-          case DatabaseLocation.GCP:
+          case DatabaseLocation.Gcp:
             return 'Google Cloud Provider (GCP)';
           case DatabaseLocation.SelfHosted:
             return 'Self-Hosted';
           case DatabaseLocation.Azure:
             return 'Azure';
+          case DatabaseLocation.Microsoft:
+            return 'Microsoft';
+        }
+
+        if (r.dbMeta.engine === DatabaseEngine.Doc) {
+          return 'Database';
         }
       }
       break;

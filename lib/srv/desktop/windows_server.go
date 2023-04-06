@@ -1140,6 +1140,7 @@ func (s *WindowsService) generateUserCert(ctx context.Context, username string, 
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
 func (s *WindowsService) generateCredentials(ctx context.Context, username, domain string, ttl time.Duration, activeDirectorySID string) (certDER, keyDER []byte, err error) {
 	return windows.GenerateWindowsDesktopCredentials(ctx, &windows.GenerateCredentialsRequest{
+		CAType:             types.UserCA,
 		Username:           username,
 		Domain:             domain,
 		TTL:                ttl,

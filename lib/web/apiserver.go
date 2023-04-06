@@ -91,20 +91,7 @@ import (
 const (
 	// SSOLoginFailureMessage is a generic error message to avoid disclosing sensitive SSO failure messages.
 	SSOLoginFailureMessage = "Failed to login. Please check Teleport's log for more details."
-	metaRedirectHTML       = `
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<title>Teleport Redirection Service</title>
-		<meta http-equiv="cache-control" content="no-cache"/>
-		<meta http-equiv="refresh" content="0;URL='{{.}}'" />
-	</head>
-	<body></body>
-</html>
-`
 )
-
-var metaRedirectTemplate = template.Must(template.New("meta-redirect").Parse(metaRedirectHTML))
 
 // healthCheckAppServerFunc defines a function used to perform a health check
 // to AppServer that can handle application requests (based on cluster name and
@@ -558,12 +545,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// App sessions
 	h.POST("/webapi/sessions/app", h.WithAuth(h.createAppSession))
 
-	// DELETE IN 13, deprecated/unused web sessions routes (avatus)
-	// https://github.com/gravitational/teleport/pull/19892
-	h.POST("/webapi/sessions", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
-	h.DELETE("/webapi/sessions", h.WithAuth(h.deleteWebSession))
-	h.POST("/webapi/sessions/renew", h.WithAuth(h.renewWebSession))
-
 	// Web sessions
 	h.POST("/webapi/sessions/web", httplib.WithCSRFProtection(h.WithLimiterHandlerFunc(h.createWebSession)))
 	h.DELETE("/webapi/sessions/web", h.WithAuth(h.deleteWebSession))
@@ -860,6 +841,11 @@ func (h *Handler) getUserContext(w http.ResponseWriter, r *http.Request, p httpr
 	userContext.ConsumedAccessRequestID = c.cfg.Session.GetConsumedAccessRequestID()
 
 	return userContext, nil
+}
+
+// PublicProxyAddr returns the publicly advertised proxy address
+func (h *Handler) PublicProxyAddr() string {
+	return h.cfg.PublicProxyAddr
 }
 
 func localSettings(cap types.AuthPreference) (webclient.AuthenticationSettings, error) {
@@ -1573,7 +1559,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	}
 
 	tmpl := installers.Template{
-		PublicProxyAddr: h.cfg.PublicProxyAddr,
+		PublicProxyAddr: h.PublicProxyAddr(),
 		TeleportPackage: teleportPackage,
 		RepoChannel:     repoChannel,
 	}
@@ -2936,12 +2922,6 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	var policySets []*types.SessionTrackerPolicySet
-	for _, role := range userRoles {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
-	}
-
 	accessContext := auth.SessionAccessContext{
 		Username: sctx.GetUser(),
 		Roles:    userRoles,
@@ -2952,7 +2932,7 @@ func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p http
 		if tracker.GetState() != types.SessionState_SessionStateTerminated {
 			session := trackerToLegacySession(tracker, p.ByName("site"))
 			// Get the participant modes available to the user from their roles.
-			accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, session.Owner)
+			accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 			participantModes := accessEvaluator.CanJoin(accessContext)
 
 			sessions = append(sessions, siteSessionsGetResponseSession{Session: session, ParticipantModes: participantModes})
@@ -3643,14 +3623,13 @@ func (h *Handler) WithRedirect(fn redirectHandlerFunc) httprouter.Handle {
 // See https://github.com/gravitational/teleport/issues/7467.
 func (h *Handler) WithMetaRedirect(fn redirectHandlerFunc) httprouter.Handle {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
-		app.SetRedirectPageHeaders(w.Header(), "")
 		redirectURL := fn(w, r, p)
 		if !isValidRedirectURL(redirectURL) {
 			redirectURL = client.LoginFailedRedirectURL
 		}
-		err := metaRedirectTemplate.Execute(w, redirectURL)
+		err := app.MetaRedirect(w, redirectURL)
 		if err != nil {
-			h.log.WithError(err).Warn("Failed to execute template.")
+			h.log.WithError(err).Warn("Failed to issue a redirect.")
 		}
 	}
 }
@@ -3664,6 +3643,21 @@ func (h *Handler) WithAuth(fn ContextHandler) httprouter.Handle {
 		}
 		return fn(w, r, p, sctx)
 	})
+}
+
+// WithAuthCookieAndCSRF ensures that a request is authenticated
+// for plain old non-AJAX requests (does not check the Bearer header).
+// It enforces CSRF checks (except for "safe" methods).
+func (h *Handler) WithAuthCookieAndCSRF(fn ContextHandler) httprouter.Handle {
+	f := func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+		sctx, err := h.AuthenticateRequest(w, r, false)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return fn(w, r, p, sctx)
+	}
+
+	return httplib.WithCSRFProtection(f)
 }
 
 // WithLimiter adds IP-based rate limiting to fn.

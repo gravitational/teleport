@@ -130,6 +130,8 @@ message Event {
     types.OktaImportRuleV1 OktaImportRule = 40 [(gogoproto.jsontag) = "okta_import_rule,omitempty"];
     // OktaAssignment is an OktaAssignment resource.
     types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
+    // Integration is an Integration resource.
+    types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
   }
 }
 

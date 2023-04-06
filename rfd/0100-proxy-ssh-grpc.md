@@ -59,7 +59,7 @@ service ProxyConnectionService {
   // ProxyCluster establishes a connection to the target cluster
   // 
   // The client must first send a ProxyClusterRequest with the desired cluster before the 
-  // connection is establishsed.
+  // connection is established.
   rpc ProxyCluster(stream ProxyClusterRequest) returns (stream ProxyClusterResponse);
 }
 
