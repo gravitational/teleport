@@ -13,6 +13,26 @@ true
 Create the name of the service account to use
 if serviceAccount is not defined or serviceAccount.name is empty, use .Release.Name
 */}}
-{{- define "teleport.serviceAccountName" -}}
+{{- define "teleport-kube-agent.serviceAccountName" -}}
 {{- coalesce .Values.serviceAccount.name .Values.serviceAccountName .Release.Name -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.version" -}}
+{{- if .Values.teleportVersionOverride -}}
+  {{- .Values.teleportVersionOverride -}}
+{{- else -}}
+  {{- .Chart.Version -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.baseImage" -}}
+{{- if .Values.enterprise -}}
+  {{- .Values.enterpriseImage -}}
+{{- else -}}
+  {{- .Values.image -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "teleport-kube-agent.image" -}}
+{{ include "teleport-kube-agent.baseImage" . }}:{{ include "teleport-kube-agent.version" . }}
 {{- end -}}
