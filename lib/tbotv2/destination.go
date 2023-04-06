@@ -22,12 +22,6 @@ type DestinationHost interface {
 	Logger() logrus.FieldLogger
 }
 
-type Store interface {
-	Write(ctx context.Context, name string, data []byte) error
-	Read(ctx context.Context, name string) ([]byte, error)
-	String() string
-}
-
 type Destination interface {
 	Run(ctx context.Context, bot DestinationHost) error
 	Oneshot(ctx context.Context, bot DestinationHost) error
