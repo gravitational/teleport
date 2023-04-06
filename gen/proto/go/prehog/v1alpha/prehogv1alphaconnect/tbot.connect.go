@@ -2,7 +2,7 @@
 //
 // Source: prehog/v1alpha/tbot.proto
 
-package v1alphaconnect
+package prehogv1alphaconnect
 
 import (
 	context "context"
