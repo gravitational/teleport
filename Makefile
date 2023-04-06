@@ -79,6 +79,11 @@ endif
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
+# Have cargo use sparse crates.io protocol:
+# https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
+# TODO: Delete when it becomes default in Rust 1.70.0
+export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
+
 with_rdpclient := no
 RDPCLIENT_MESSAGE := without-Windows-RDP-client
 
@@ -207,7 +212,7 @@ ifeq ("$(ARCH)","arm64")
 		CGOFLAG += CC=aarch64-linux-gnu-gcc
 	endif
 else ifeq ("$(ARCH)","arm")
-CGOFLAG = CGO_ENABLED=1 
+CGOFLAG = CGO_ENABLED=1
 
 # ARM builds need to specify the correct C compiler
 ifeq ($(IS_NATIVE_BUILD),"no")
