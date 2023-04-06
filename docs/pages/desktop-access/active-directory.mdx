@@ -117,28 +117,7 @@ Click **Next**.
 
 ## Step 2/2. Start Teleport
 
-Once you've saved `/etc/teleport.yaml`, start Teleport:
-
-<Tabs>
-<TabItem label="System Service">
-
-This command assumes the `root` user. Prepend `sudo` otherwise.
-
-```code
-$ systemctl start teleport.service
-```
-
-</TabItem>
-<TabItem label="Standalone Binary">
-
-From the directory containing the Teleport binary:
-
-```code
-$ ./teleport start --config=/etc/teleport.yaml
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
 The access wizard will detect when the new Teleport instance has joined the
 cluster, and you can then click **Next**.
