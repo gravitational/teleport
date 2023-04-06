@@ -85,10 +85,9 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 	}()
 
 	// Walk through a few attempts to update the session tracker. Even iterations
-	// will fail and force the retry mechanism to kick in. Odd iterations update
-	// session trackers successfully on first attempt.
+	// will fail and force the retry mechanism to kick in *twice*. Odd
+	// iterations update session trackers successfully on first attempt.
 	for i := 0; i < 4; i++ {
-		// Wait for the ticker to be ready.
 		clock.BlockUntil(1)
 
 		// advance the clock to fire the ticker
@@ -101,13 +100,20 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 		if i%2 == 0 {
 			svc.updateError <- updateError
 
-			// wait for the retry to be engaged
+			// the first retry is instant, wait for the update to be called
+			// again without advancing the clock
+			waitForUpdate(t, svc, done)
+
+			// send another error
+			svc.updateError <- updateError
+
+			// wait for the second retry to be engaged
 			clock.BlockUntil(1)
 
 			// advance far enough for the retry to fire
 			clock.Advance(65 * time.Second)
 
-			// wait for the update to be called again
+			// wait for the update to be called a third time
 			waitForUpdate(t, svc, done)
 		}
 
@@ -123,9 +129,7 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 	waitForUpdate(t, svc, done)
 	svc.updateError <- updateError
 
-	// advance far enough for the retry to fire
-	clock.BlockUntil(1)
-	clock.Advance(65 * time.Second)
+	// the retry fires instantly
 
 	// wait for update to be called from the retry loop and return an error
 	waitForUpdate(t, svc, done)
