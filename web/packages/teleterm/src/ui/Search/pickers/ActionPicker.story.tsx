@@ -38,6 +38,8 @@ export default {
 };
 
 const clusterUri: uri.ClusterUri = '/clusters/teleport-local';
+const longClusterUri: uri.ClusterUri =
+  '/clusters/teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c';
 
 export const Items = () => {
   return (
@@ -123,6 +125,20 @@ const List = () => {
       }),
     }),
     makeResourceResult({
+      kind: 'server',
+      resource: makeServer({
+        hostname:
+          'super-long-server-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: `${longClusterUri}/servers/super-long-desc`,
+        labelsList: makeLabelsList({
+          internal: '10.0.0.175',
+          service: 'ansible',
+          external: '32.192.113.93',
+          arch: 'aarch64',
+        }),
+      }),
+    }),
+    makeResourceResult({
       kind: 'database',
       resource: makeDatabase({
         uri: `${clusterUri}/dbs/no-desc`,
@@ -195,6 +211,23 @@ const List = () => {
       }),
     }),
     makeResourceResult({
+      kind: 'database',
+      resource: makeDatabase({
+        name: 'super-long-server-db-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: `${longClusterUri}/dbs/super-long-desc`,
+        labelsList: makeLabelsList({
+          'aws/Environment': 'demo-13-biz',
+          'aws/Accounting': 'dev-ops',
+          'aws/Name': 'db-bastion-4-13biz',
+          engine: '🐘',
+          'aws/Owner': 'foobar',
+          'aws/Service': 'teleport-db',
+          env: 'dev',
+          'teleport.dev/origin': 'config-file',
+        }),
+      }),
+    }),
+    makeResourceResult({
       kind: 'kube',
       resource: makeKube({
         name: 'short-label-list',
@@ -219,6 +252,18 @@ const List = () => {
         }),
       }),
     }),
+    makeResourceResult({
+      kind: 'kube',
+      resource: makeKube({
+        name: 'super-long-kube-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: `/clusters/teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c/kubes/super-long-desc`,
+        labelsList: makeLabelsList({
+          'im-just-a-smol': 'kube',
+          kube: 'kubersson',
+          with: 'little-to-no-labels',
+        }),
+      }),
+    }),
     {
       kind: 'resource-type-filter',
       resource: 'kubes',
@@ -230,6 +275,19 @@ const List = () => {
       resource: {
         name: 'teleport-local',
         uri: clusterUri,
+        authClusterId: '',
+        connected: true,
+        leaf: false,
+        proxyHost: 'teleport-local.dev:3090',
+      },
+      nameMatch: '',
+      score: 0,
+    },
+    {
+      kind: 'cluster-filter',
+      resource: {
+        name: 'teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c',
+        uri: longClusterUri,
         authClusterId: '',
         connected: true,
         leaf: false,
