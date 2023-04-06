@@ -1256,9 +1256,9 @@ func NewPluginsWrapper(base PluginsAccessPoint, cache ReadPluginsAccessPoint) Pl
 
 // Close closes all associated resources
 func (w *PluginsWrapper) Close() error {
-	err := w.NoCache.Close()
-	err2 := w.ReadPluginsAccessPoint.Close()
-	return trace.NewAggregate(err, err2)
+	return trace.NewAggregate(
+		w.NoCache.Close(),
+		w.ReadPluginsAccessPoint.Close())
 }
 
 type OktaWrapper struct {
