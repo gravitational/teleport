@@ -4,8 +4,8 @@ description: Use the EC2 join method to add services to your Teleport cluster on
 ---
 
 This guide will explain how to use the **EC2 join method** to configure Teleport
-processes and Proxy Service instances to join your Teleport cluster without
-sharing any secrets when they are running in AWS.
+processes to join your Teleport cluster without sharing any secrets when they
+are running in AWS.
 
 <ScopedBlock scope="cloud">
 
@@ -33,7 +33,7 @@ scopeOnly
 
 There are two other AWS join methods available depending on your use case.
 
-The **IAM join method** is available in self-hosted editions of Teleport.  It is
+The **IAM join method** is available in self-hosted editions of Teleport. It is
 available to any Teleport process running anywhere with access to IAM
 credentials, such as an EC2 instance with an attached IAM role. No specific
 permissions or IAM policy is required: an IAM role with no attached policies is
