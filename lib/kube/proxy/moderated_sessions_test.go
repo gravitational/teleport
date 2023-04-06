@@ -44,7 +44,7 @@ import (
 
 func TestModeratedSessions(t *testing.T) {
 	// enable enterprise features to have access to ModeratedSessions.
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{Kubernetes: true}})
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
@@ -119,9 +119,7 @@ func TestModeratedSessions(t *testing.T) {
 		t,
 		moderatorUsername,
 		RoleSpec{
-			Name:       moderatorRoleName,
-			KubeUsers:  roleKubeUsers,
-			KubeGroups: roleKubeGroups,
+			Name: moderatorRoleName,
 			// sessionJoin:
 			SessionJoin: []*types.SessionJoinPolicy{
 				{
@@ -130,6 +128,10 @@ func TestModeratedSessions(t *testing.T) {
 					Kinds: []string{"k8s"},
 					Modes: []string{string(types.SessionModeratorMode)},
 				},
+			},
+			SetupRoleFunc: func(r types.Role) {
+				// set kubernetes labels to empty to test relaxed join rules
+				r.SetKubernetesLabels(types.Allow, types.Labels{})
 			},
 		})
 
@@ -408,8 +410,8 @@ func TestModeratedSessions(t *testing.T) {
 
 					// checks if moderator has joined the session.
 					// Each time a user joins a session the following message is broadcasted
-					// User <user> joined the session.
-					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session.", moderatorUsername)) {
+					// User <user> joined the session with participant mode: <mode>.
+					if strings.Contains(stringData, fmt.Sprintf("User %s joined the session with participant mode: moderator.", moderatorUsername)) {
 						t.Logf("identified that moderator joined the session")
 						// inform moderator goroutine that the user detected that he joined the
 						// session.

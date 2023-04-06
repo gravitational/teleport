@@ -1920,7 +1920,9 @@ func TestWebAgentForward(t *testing.T) {
 }
 
 func TestActiveSessions(t *testing.T) {
-	t.Parallel()
+	// Use enterprise license (required for moderated sessions).
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
 	s := newWebSuite(t)
 	pack := s.authPack(t, "foo")
 
@@ -1950,6 +1952,17 @@ func TestActiveSessions(t *testing.T) {
 			Login:        pack.login,
 			Participants: []types.Participant{
 				{ID: "id", User: "user-1", LastActive: start},
+			},
+			HostPolicies: []*types.SessionTrackerPolicySet{
+				{
+					Name:    "foo",
+					Version: "5",
+					RequireSessionJoin: []*types.SessionRequirePolicy{
+						{
+							Name: "foo",
+						},
+					},
+				},
 			},
 		})
 		require.NoError(t, err)
@@ -2301,7 +2314,6 @@ func TestMotD(t *testing.T) {
 
 // TestPingAutomaticUpgrades ensures /webapi/ping returns whether AutomaticUpgrades are enabled.
 func TestPingAutomaticUpgrades(t *testing.T) {
-
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
 		// Enable Automatic Upgrades
 		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
@@ -6728,6 +6740,10 @@ func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (au
 	return nil, nil
 }
 
+func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
+	return nil, nil
+}
+
 type terminalOpt func(t *TerminalRequest)
 
 func withSessionID(sid session.ID) terminalOpt {
@@ -8204,12 +8220,10 @@ func TestForwardingTraces(t *testing.T) {
 	}
 }
 
-type mockPROXYSigner struct {
-}
+type mockPROXYSigner struct{}
 
 func (m *mockPROXYSigner) SignPROXYHeader(source, destination net.Addr) ([]byte, error) {
 	return nil, nil
-
 }
 
 type mockTraceClient struct {

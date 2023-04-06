@@ -32,7 +32,7 @@ import (
 // returned value to release the keepAliver resources.
 func (c *Client) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
-	stream, err := c.grpc.SendKeepAlives(cancelCtx, c.callOpts...)
+	stream, err := c.grpc.SendKeepAlives(cancelCtx)
 	if err != nil {
 		cancel()
 		return nil, trail.FromGRPC(err)

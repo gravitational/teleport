@@ -18,7 +18,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   Database,
   GatewayProtocol,
-  ServerSideParams,
+  GetResourcesParams,
 } from 'teleterm/services/tshd/types';
 import { routing } from 'teleterm/ui/uri';
 import { makeDatabase } from 'teleterm/ui/services/clusters';
@@ -31,7 +31,7 @@ export function useDatabases() {
   const { fetchAttempt, ...serverSideResources } =
     useServerSideResources<Database>(
       { fieldName: 'name', dir: 'ASC' }, // default sort
-      (params: ServerSideParams) =>
+      (params: GetResourcesParams) =>
         appContext.resourcesService.fetchDatabases(params)
     );
 
@@ -46,13 +46,16 @@ export function useDatabases() {
       targetUri: db.uri,
       targetName: db.name,
       targetUser: getTargetUser(db.protocol as GatewayProtocol, dbUser),
+      origin: 'resource_table',
     });
 
     const connectionToReuse =
       appContext.connectionTracker.findConnectionByDocument(doc);
 
     if (connectionToReuse) {
-      appContext.connectionTracker.activateItem(connectionToReuse.id);
+      appContext.connectionTracker.activateItem(connectionToReuse.id, {
+        origin: 'resource_table',
+      });
     } else {
       documentsService.add(doc);
       documentsService.open(doc.uri);

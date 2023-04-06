@@ -34,7 +34,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	for _, kind := range watch.Kinds {
 		protoWatch.Kinds = append(protoWatch.Kinds, proto.FromWatchKind(kind))
 	}
-	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch, c.callOpts...)
+	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch)
 	if err != nil {
 		cancel()
 		return nil, trail.FromGRPC(err)
