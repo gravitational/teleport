@@ -34,6 +34,7 @@ export const sessions: Session[] = [
     clusterId: 'im-a-cluster-name',
     resourceName: 'minikube',
     participantModes: ['observer', 'moderator', 'peer'],
+    isModeratedSession: false,
   },
   {
     kind: 'ssh',
@@ -52,6 +53,7 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator'],
+    isModeratedSession: false,
   },
   {
     kind: 'desktop',
@@ -70,6 +72,7 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator', 'peer'],
+    isModeratedSession: false,
   },
   {
     kind: 'db',
@@ -88,6 +91,7 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer'],
+    isModeratedSession: false,
   },
   {
     kind: 'app',
@@ -106,5 +110,6 @@ export const sessions: Session[] = [
     addr: 'd5d6d695-97c5-4bef-b052-0f5c6203d7a1',
     clusterId: 'im-a-cluster-name',
     participantModes: ['observer', 'moderator', 'peer'],
+    isModeratedSession: false,
   },
 ];
