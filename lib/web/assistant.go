@@ -137,6 +137,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Content)
 		msgJson, err := json.Marshal(chatMessage{Role: openai.ChatMessageRoleUser, Content: wsIncoming.Content})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,
 			Type:           kindChatTextMessage,
@@ -154,6 +158,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 		// write assistant message to both in-memory chain and persistent storage
 		msgJson, err = json.Marshal(chatMessage{Role: message.Role, Content: message.Content})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,
 			Type:           kindChatTextMessage,
