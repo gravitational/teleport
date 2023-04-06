@@ -29,7 +29,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -3998,7 +3997,7 @@ func connectToSSHAgent() agent.ExtendedAgent {
 
 // Username returns the current user's username
 func Username() (string, error) {
-	u, err := user.Current()
+	u, err := apiutils.CurrentUser()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -4174,7 +4173,7 @@ func ParseSearchKeywords(spec string, customDelimiter rune) []string {
 func runLocalCommand(hostLogin string, command []string) error {
 	if len(command) == 0 {
 		if hostLogin == "" {
-			user, err := user.Current()
+			user, err := apiutils.CurrentUser()
 			if err != nil {
 				return trace.Wrap(err)
 			}
