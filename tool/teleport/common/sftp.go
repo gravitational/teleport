@@ -34,14 +34,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
-	defaultFilePerms = 0o644
-	defaultDirPerms  = 0o755
-
 	methodGet      = "Get"
 	methodPut      = "Put"
 	methodOpen     = "Open"
@@ -154,7 +152,7 @@ func (s *sftpHandler) openFile(req *sftp.Request) (*os.File, error) {
 		flags |= os.O_WRONLY
 	}
 
-	f, err := os.OpenFile(req.Filepath, flags, defaultFilePerms)
+	f, err := os.OpenFile(req.Filepath, flags, defaults.FilePermissions)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +191,7 @@ func (s *sftpHandler) Filecmd(req *sftp.Request) (retErr error) {
 		}
 		return os.RemoveAll(req.Filepath)
 	case methodMkdir:
-		return os.MkdirAll(req.Filepath, defaultDirPerms)
+		return os.MkdirAll(req.Filepath, defaults.DirectoryPermissions)
 	case methodLink:
 		if req.Target == "" {
 			return os.ErrInvalid

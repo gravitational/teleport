@@ -866,3 +866,12 @@ const (
 // AzureInviteTokenName is the name of the default token to use
 // when templating the script to be executed.
 const AzureInviteTokenName = "azure-discovery-token"
+
+const (
+	// FilePermissions are safe default permissions to use when
+	// creating files.
+	FilePermissions = 0o644
+	// DirectoryPermissions are safe default permissions to use when
+	// creating directories.
+	DirectoryPermissions = 0o755
+)

@@ -37,6 +37,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
 
@@ -286,7 +287,7 @@ func (c *Config) transfer(ctx context.Context) error {
 			if err := c.dstFS.Mkdir(ctx, c.dstPath); err != nil {
 				return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
-			if err := c.dstFS.Chmod(ctx, c.dstPath, 0o755); err != nil {
+			if err := c.dstFS.Chmod(ctx, c.dstPath, defaults.DirectoryPermissions); err != nil {
 				return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
 			dstIsDir = true

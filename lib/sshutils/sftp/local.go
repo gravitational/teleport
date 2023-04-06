@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/defaults"
 )
 
 // localFS provides API for accessing the files on
@@ -86,7 +88,7 @@ func (l localFS) Create(ctx context.Context, path string) (io.WriteCloser, error
 		return nil, err
 	}
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, defaults.FilePermissions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -99,7 +101,7 @@ func (l localFS) Mkdir(ctx context.Context, path string) error {
 		return err
 	}
 
-	err := os.MkdirAll(path, 0o755)
+	err := os.MkdirAll(path, defaults.DirectoryPermissions)
 	if err != nil && !os.IsExist(err) {
 		return trace.ConvertSystemError(err)
 	}
