@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // Gateway is Teleterm's name for a connection to a resource like a database or a web app
 // established through our ALPN proxy.
