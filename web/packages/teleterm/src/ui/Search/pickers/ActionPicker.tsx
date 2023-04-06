@@ -96,12 +96,29 @@ export function ActionPicker(props: { input: ReactElement }) {
     [changeActivePicker, closeAndResetInput, resetInput]
   );
 
+  const excludedClustersCopy = getExcludedClustersCopy(
+    clustersService.getRootClusters()
+  );
   // If the input is empty, we don't want to say "No matching results found" if the user is yet to
   // type anything. This can happen e.g. after selecting two filters.
   const NoResultsComponent =
     inputValue.length > 0 ? (
       <EmptyListCopy>
-        <Text>No matching results found.</Text>
+        <Text typography="subtitle1" color="text.primary">
+          No matching results found.
+        </Text>
+        {excludedClustersCopy && (
+          <Text
+            color="text.primary"
+            css={`
+              display: flex;
+              align-items: baseline;
+            `}
+          >
+            <icons.Info mr={1} />
+            {excludedClustersCopy}
+          </Text>
+        )}
       </EmptyListCopy>
     ) : null;
 
@@ -481,6 +498,18 @@ function HighlightField(props: {
       keywords={keywords}
     />
   );
+}
+
+function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
+  const excludedClusters = allClusters.filter(c => !c.connected);
+  const excludedClustersString = excludedClusters.map(c => c.name).join(', ');
+  if (excludedClusters.length === 0) {
+    return '';
+  }
+  if (excludedClusters.length === 1) {
+    return `Cluster ${excludedClustersString} was excluded from the search because you are not logged in to it.`;
+  }
+  return `Clusters ${excludedClustersString} were excluded from the search because you are not logged in to them.`;
 }
 
 function FilterButton(props: { text: string; onClick(): void }) {
