@@ -1146,10 +1146,11 @@ github.com/rs/zerolog v1.13.0/go.mod h1:YbFCdg8HfsridGWAh22vktObvhZbQsZXe4/zB0OK
 github.com/rs/zerolog v1.15.0/go.mod h1:xYTKnLHcpfU2225ny5qZjxnj9NvkumZYjJHlAThCjNc=
 github.com/rs/zerolog v1.28.0 h1:MirSo27VyNi7RJYP3078AA1+Cyzd2GB66qy3aUHvsWY=
 github.com/rs/zerolog v1.28.0/go.mod h1:NILgTygv/Uej1ra5XxGf82ZFSLk58MFGAUS2o6usyD0=
-github.com/russellhaering/gosaml2 v0.8.1 h1:CE/WRWnn2UaePcytF9z0Abj69Rzwvtqu5G/TiCu2rUg=
-github.com/russellhaering/gosaml2 v0.8.1/go.mod h1:byViER/1YPUa0Puj9ROZblpoq2jsE7h/CJmitzX0geU=
-github.com/russellhaering/goxmldsig v1.2.0 h1:Y6GTTc9Un5hCxSzVz4UIWQ/zuVwDvzJk80guqzwx6Vg=
+github.com/russellhaering/gosaml2 v0.9.1 h1:H/whrl8NuSoxyW46Ww5lKPskm+5K+qYLw9afqJ/Zef0=
+github.com/russellhaering/gosaml2 v0.9.1/go.mod h1:ja+qgbayxm+0mxBRLMSUuX3COqy+sb0RRhIGun/W2kc=
 github.com/russellhaering/goxmldsig v1.2.0/go.mod h1:gM4MDENBQf7M+V824SGfyIUVFWydB7n0KkEubVJl+Tw=
+github.com/russellhaering/goxmldsig v1.3.0 h1:DllIWUgMy0cRUMfGiASiYEa35nsieyD3cigIwLonTPM=
+github.com/russellhaering/goxmldsig v1.3.0/go.mod h1:gM4MDENBQf7M+V824SGfyIUVFWydB7n0KkEubVJl+Tw=
 github.com/russross/blackfriday v1.5.2/go.mod h1:JO/DiYxRf+HjHt06OyowR9PTA263kcR/rfWxYHBV53g=
 github.com/russross/blackfriday/v2 v2.0.1/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=

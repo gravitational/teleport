@@ -439,10 +439,6 @@
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
-        },
-        {
-          "title": "FAQ",
-          "slug": "/access-controls/faq/"
         }
       ]
     },
@@ -1001,6 +997,11 @@
             {
                "title": "Self-Hosted Redis Cluster",
                "slug": "/database-access/guides/redis-cluster/"
+            },
+            {
+              "title": "Self-Hosted Oracle (Preview)",
+              "forScopes": ["enterprise", "cloud"],
+              "slug": "/database-access/guides/oracle-self-hosted/"
             },
             {
                "title": "Snowflake (Preview)",
@@ -2358,6 +2359,11 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/faq/",
+      "destination": "/access-controls/introduction/",
       "permanent": true
     }
   ]

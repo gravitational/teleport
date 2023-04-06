@@ -67,6 +67,10 @@ spec:
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
 {{- end }}
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
       containers:
       - name: post-delete-job
         env:
@@ -82,3 +86,6 @@ spec:
         {{- end }}
         command: ["teleport"]
         args: ["kube-state", "delete"]
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}

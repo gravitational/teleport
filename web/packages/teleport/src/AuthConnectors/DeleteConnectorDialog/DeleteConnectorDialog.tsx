@@ -49,7 +49,7 @@ export default function DeleteConnectorDialog(props: Props) {
         {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
         <Text typography="paragraph" mb="6">
           Are you sure you want to delete connector{' '}
-          <Text as="span" bold color="primary.contrastText">
+          <Text as="span" bold color="text.contrast">
             {name}
           </Text>
           ?

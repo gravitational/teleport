@@ -104,8 +104,6 @@ func (m mockAccessChecker) RoleNames() []string {
 }
 
 func TestSessionController_AcquireSessionContext(t *testing.T) {
-	t.Parallel()
-
 	clock := clockwork.NewFakeClock()
 	emitter := &eventstest.MockEmitter{}
 
