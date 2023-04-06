@@ -622,6 +622,11 @@ const (
 
 	// AlertLicenseExpired is an internal label that indicates that the license has expired.
 	AlertLicenseExpired = TeleportInternalLabelPrefix + "license-expired-warning"
+
+	// TeleportInternalDiscoveryGroupName is the label used to store the name of the discovery group
+	// that the discovered resource is owned by. It is used to differentiate resources
+	// that belong to different discovery services that operate on different sets of resources.
+	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
