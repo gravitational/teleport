@@ -233,6 +233,7 @@ function formatText(
 
 const Word = styled.span`
   user-select: none;
+  color: ${props => props.theme.colors.light};
 `;
 
 const Prompt = styled.span`

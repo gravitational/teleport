@@ -67,7 +67,7 @@ class InputSearch extends React.Component {
 
 function fromTheme(props) {
   return {
-    background: props.theme.colors.levels.sunkenSecondary,
+    background: props.theme.colors.levels.sunken,
 
     '&:hover': {
       background: props.theme.colors.levels.elevated,

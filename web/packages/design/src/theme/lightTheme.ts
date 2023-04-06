@@ -16,16 +16,9 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { getContrastRatio } from './utils/colorManipulator';
-import {
-  lightBlue,
-  red,
-  teal,
-  orange,
-  pink,
-  blueGrey,
-  yellow,
-} from './palette';
+import { lightBlue, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
+import { sharedStyles } from './sharedStyles';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
@@ -35,98 +28,89 @@ const colors = {
   Colors in `levels` are used to reflect the perceived depth of elements in the UI.
   The further back an element is, the more "sunken" it is, and the more forwards it is, the more "elevated" it is (think CSS z-index).
 
-  A `sunken` colour would be used to represent something like the background of the app.
+  A `sunken` color would be used to represent something like the background of the app.
   While `surface` would be the color of the primary surface where most content is located (such as tables).
   Any colors more "elevated" than that would be used for things such as popovers, menus, and dialogs.
-
-  `...Secondary` colours are used to differentiate different colors that represent the same depth.
 
   For more information on this concept: https://m3.material.io/styles/elevation/applying-elevation
  */
   levels: {
-    sunken: '#0C143D',
-    sunkenSecondary: '#111B48',
+    deep: '#E6E9EA',
 
-    surface: '#222C59',
-    surfaceSecondary: '#1C254D',
+    sunken: '#F1F2F4',
 
-    elevated: '#2C3A73',
+    surface: '#FBFBFC',
 
-    popout: '#3E4B7E',
-    popoutHighlighted: '#535c8a',
+    elevated: '#FFFFFF',
+
+    popout: '#FFFFFF',
   },
 
-  brand: {
-    main: '#512FC9',
-    accent: '#651FFF',
-    secondaryAccent: '#354AA4',
-  },
+  // Spot backgrounds are used as highlights, for example
+  // to indicate a hover or active state for an item in a menu.
+  spotBackground: ['rgba(0,0,0,0.06)', 'rgba(0,0,0,0.13)', 'rgba(0,0,0,0.18)'],
+
+  brand: '#512FC9',
 
   text: {
     // The most important text.
-    primary: 'rgba(255,255,255,0.87)',
+    primary: '#000000',
     // Secondary text.
-    secondary: 'rgba(255, 255, 255, 0.56)',
+    secondary: 'rgba(0,0,0,0.56)',
     // Placeholder text for forms.
-    placeholder: 'rgba(255, 255, 255, 0.24)',
+    placeholder: 'rgba(0,0,0,0.24)',
     // Disabled text have even lower visual prominence.
-    disabled: 'rgba(0, 0, 0, 0.24)',
-    // For maximum contrast.
-    contrast: '#FFFFFF',
+    disabled: 'rgba(0,0,0,0.18)',
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
-    primaryInverse: '#324148',
+    primaryInverse: '#FFFFFF',
   },
 
   buttons: {
-    text: 'rgba(255,255,255,0.87)',
-    textDisabled: 'rgba(255, 255, 255, 0.3)',
-    bgDisabled: 'rgba(255, 255, 255, 0.12)',
+    text: '#000000',
+    textDisabled: 'rgba(0,0,0,0.3)',
+    bgDisabled: 'rgba(0,0,0,0.12)',
 
     primary: {
+      text: '#FFFFFF',
       default: '#512FC9',
-      hover: '#651FFF',
-      active: '#354AA4',
+      hover: '#4126A1',
+      active: '#311C79',
     },
 
     secondary: {
-      default: '#222C59',
-      hover: '#2C3A73',
+      default: 'rgba(0,0,0,0.07)',
+      hover: 'rgba(0,0,0,0.13)',
+      active: 'rgba(0,0,0,0.18)',
     },
 
     border: {
-      default: '#2C3A73',
-      hover: '#2C3A73',
-      border: '#1C254D',
-      borderHover: 'rgba(255, 255, 255, 0.1)',
+      default: 'rgba(255,255,255,0)',
+      hover: 'rgba(0,0,0,0.07)',
+      active: 'rgba(0,0,0,0.13)',
+      border: 'rgba(0,0,0,0.36)',
     },
 
     warning: {
-      default: '#d50000',
-      hover: '#ff1744',
-    },
-
-    outlinedPrimary: {
-      text: '#651FFF',
-      border: '#512FC9',
-      borderHover: '#651FFF',
-      borderActive: '#354AA4',
-    },
-
-    outlinedDefault: {
-      text: 'rgba(255,255,255,0.87)',
-      textHover: '#FFFFFF',
-      border: 'rgba(255,255,255,0.87)',
-      borderHover: '#FFFFFF',
+      text: '#FFFFFF',
+      default: '#CC372D',
+      hover: '#A32C24',
+      active: '#7A211B',
     },
 
     trashButton: {
-      default: '#2e3860',
-      hover: '#414b70',
+      default: 'rgba(0,0,0,0.07)',
+      hover: 'rgba(0,0,0,0.13)',
+    },
+
+    link: {
+      default: '#0073BA',
+      hover: '#005C95',
+      active: '#004570',
     },
   },
 
-  progressBarColor: '#00BFA5',
+  progressBarColor: '#007D6B',
 
   dark: '#000000',
   light: '#FFFFFF',
@@ -136,9 +120,15 @@ const colors = {
   },
 
   error: {
-    light: red['A200'],
-    dark: red['A700'],
-    main: red['A400'],
+    main: '#CC372D',
+    hover: '#A32C24',
+    active: '#7A211B',
+  },
+
+  warning: {
+    main: '#FFAB00',
+    hover: '#CC8900',
+    active: '#996700',
   },
 
   action: {
@@ -151,14 +141,12 @@ const colors = {
   },
 
   subtle: blueGrey[50],
-  link: lightBlue[500],
+  link: '#0073BA',
   bgTerminal: '#010B1C',
-  danger: pink.A400,
   highlight: yellow[50],
   disabled: blueGrey[500],
   info: lightBlue[600],
-  warning: orange.A400,
-  success: teal.A700,
+  success: '#007D6B',
 };
 
 const borders = [
@@ -172,6 +160,7 @@ const borders = [
 ];
 
 const theme = {
+  name: 'light',
   colors,
   typography,
   font: fonts.sansSerif,
@@ -183,6 +172,7 @@ const theme = {
   radii: [0, 2, 4, 8, 16, 9999, '100%'],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
+  ...sharedStyles,
   // disabled media queries for styled-system
   breakpoints: [],
 };
