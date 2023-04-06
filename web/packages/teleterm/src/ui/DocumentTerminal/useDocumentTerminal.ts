@@ -216,11 +216,11 @@ async function setUpPtyProcess(
   const cmd = createCmd(doc, rootCluster.proxyHost, getClusterName());
   const ptyProcess = await createPtyProcess(ctx, cmd);
 
-  if (cmd.kind === 'pty.tsh-login') {
-    ctx.usageService.captureProtocolUse(clusterUri, 'ssh');
+  if (doc.kind === 'doc.terminal_tsh_node') {
+    ctx.usageService.captureProtocolUse(clusterUri, 'ssh', doc.origin);
   }
-  if (cmd.kind === 'pty.tsh-kube-login') {
-    ctx.usageService.captureProtocolUse(clusterUri, 'kube');
+  if (doc.kind === 'doc.terminal_tsh_kube') {
+    ctx.usageService.captureProtocolUse(clusterUri, 'kube', doc.origin);
   }
 
   const openContextMenu = () => ctx.mainProcessClient.openTerminalContextMenu();
