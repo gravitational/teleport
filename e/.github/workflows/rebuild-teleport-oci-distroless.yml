@@ -144,6 +144,10 @@ jobs:
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       scan-image: false
+      architectures: |
+        arm
+        arm64
+        amd64
     secrets:
       deploy-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
       deploy-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}

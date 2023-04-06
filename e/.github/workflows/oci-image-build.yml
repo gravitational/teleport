@@ -28,7 +28,7 @@ on:
         type: string
 
       dest-image-registry-region:
-        description: "AWS region containinig the destination repository"
+        description: "AWS region containing the destination repository"
         type: string
         default: us-west-2
 
@@ -129,6 +129,14 @@ on:
           destination repository, but the build will still succeed.
         type: boolean
         default: true
+
+      architectures:
+        description:
+          A newline-separated list of the CPU architectures to build for
+        type: string
+        default: |
+          arm64
+          amd64
 
     secrets:
       deploy-access-app-id:
@@ -250,18 +258,36 @@ jobs:
 
       - name: Download Teleport Debian packages
         if: inputs.dronestorage-bucket-name != ''
+        env:
+          ARCHITECTURES: ${{ inputs.architectures }}
+          TELEPORT_VERSION: ${{ inputs.teleport-version }}
+          DST_BUCKET: ${{ inputs.dronestorage-bucket-name }}
         run: |
-          for arch in amd64 arm64; do
-            export TELEPORT_DEB_FILE_NAME=teleport${{ env.DEB_RELEASE_INFIX }}_${{ inputs.teleport-version }}_$arch.deb          
-            aws s3 cp s3://${{ inputs.dronestorage-bucket-name }}/teleport/tag/${{ inputs.teleport-version }}/$TELEPORT_DEB_FILE_NAME ./build/$TELEPORT_DEB_FILE_NAME
+          for arch in $ARCHITECTURES; do
+            export TELEPORT_DEB_FILE_NAME=teleport${DEB_RELEASE_INFIX}_${TELEPORT_VERSION}_${arch}.deb          
+            aws s3 cp s3://${DST_BUCKET}/teleport/tag/${TELEPORT_VERSION}/${TELEPORT_DEB_FILE_NAME} ./build/${TELEPORT_DEB_FILE_NAME}
           done
           tree ./build
 
       - name: Verify base image
+        env:
+          BASE_IMAGE: ${{ inputs.base-image }}
         run: |
-          cosign verify --key ./distroless-key.pub ${{ inputs.base-image }} > validated-image.json
+          cosign verify --key ./distroless-key.pub ${BASE_IMAGE} > validated-image.json
           BASE_IMAGE_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
-          echo BASE_IMAGE_HASH=$BASE_IMAGE_HASH >> $GITHUB_ENV
+          echo BASE_IMAGE_HASH=${BASE_IMAGE_HASH} >> $GITHUB_ENV
+
+      - name: Expand platform names
+        id: platforms
+        env:
+          ARCHITECTURES: ${{ inputs.architectures }}
+        run: |
+          EOF=END_OF_PLATFORMS
+          echo "platforms<<$EOF" >> $GITHUB_OUTPUT
+          for a in $ARCHITECTURES; do
+            echo "linux/$a" >> $GITHUB_OUTPUT
+          done
+          echo $EOF >> $GITHUB_OUTPUT
 
       - name: Expand image tags
         id: expand
@@ -319,7 +345,7 @@ jobs:
         with:
           file: "./build/${{ inputs.image-build-dockerfile }}"
           context: ./build
-          platforms: linux/arm64,linux/amd64
+          platforms: ${{ steps.platforms.outputs.platforms }}
           push: true
           tags: ${{ steps.expand.outputs.tags }}
           sbom: true
@@ -330,8 +356,11 @@ jobs:
 
       - name: Sign image
         if: steps.check.outputs.build_image == 'true'
+        env:
+          SIGNING_KEY: ${{ inputs.signing-key-url }}
+          DST_IMAGE: "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
         run: |        
-          cosign sign --key ${{ inputs.signing-key-url }} --recursive "${{ inputs.dest-image-registry }}/${{ inputs.dest-image-repo }}@${{ steps.build.outputs.digest }}"
+          cosign sign --key ${SIGNING_KEY} --recursive ${DST_IMAGE}
 
   trivy-scan:
     name: Scan Multiarch Image with Trivy

@@ -134,6 +134,10 @@ jobs:
       dest-image-tags: ${{ needs.configure.outputs.teleport_version }}
       build-role-arn: ${{ inputs.build-role-arn }}
       signing-key-url: ${{ inputs.signing-key-url }}
+      architectures: |
+        amd64
+        arm
+        arm64
       image-build-args: |
         TELEPORT_VERSION=${{ needs.configure.outputs.teleport_version }}
       allow-overwrites: false
@@ -151,7 +155,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, arm64]
+        arch: [amd64, arm64, arm]
         mode: ['debug', 'production']
         release: ['oss', 'enterprise']
         include:
