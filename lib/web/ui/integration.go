@@ -76,7 +76,7 @@ func (r *UpdateIntegrationRequest) CheckAndSetDefaults() error {
 // a `nextToken` is provided and should be used to obtain the next page (as a query param `startKey`)
 type IntegrationsListResponse struct {
 	// Items is a list of resources retrieved.
-	Items interface{} `json:"items"`
+	Items []Integration `json:"items"`
 	// NextKey is the position to resume listing events.
 	NextKey string `json:"nextKey"`
 }
