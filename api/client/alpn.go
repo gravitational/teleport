@@ -81,6 +81,7 @@ func (d *ALPNDialer) shouldUpdateTLSConfig() bool {
 func (d *ALPNDialer) shouldUpdateServerName() bool {
 	return d.cfg.TLSConfig.ServerName == ""
 }
+
 func (d *ALPNDialer) shouldGetClusterCAs() bool {
 	return d.cfg.ALPNConnUpgradeRequired && d.cfg.TLSConfig.RootCAs == nil && d.cfg.GetClusterCAs != nil
 }
@@ -95,12 +96,20 @@ func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config
 
 	var err error
 	tlsConfig := d.cfg.TLSConfig.Clone()
+
+	// When Teleport Proxy is behind a L7 load balancer, the load balancer
+	// usually terminates TLS with public certs, and the Proxy is usually in
+	// private subnets with self-signed web certs. During the connection
+	// upgrade flow for TLS Routing, instead of serving these self-signed web
+	// certs, the TLS Routing handler at the Proxy server will present the
+	// Cluster CAs so clients here can still verify the server.
 	if d.shouldGetClusterCAs() {
 		tlsConfig.RootCAs, err = d.cfg.GetClusterCAs(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	if d.shouldUpdateServerName() {
 		tlsConfig.ServerName, _, err = webclient.ParseHostPort(addr)
 		if err != nil {
@@ -120,6 +129,7 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 	dialer := NewDialer(ctx, d.cfg.DialTimeout, d.cfg.DialTimeout,
 		WithInsecureSkipVerify(d.cfg.TLSConfig.InsecureSkipVerify),
 		WithALPNConnUpgrade(d.cfg.ALPNConnUpgradeRequired),
+		WithALPNConnUpgradePing(shouldALPNConnUpgradeWithPing(tlsConfig)),
 	)
 
 	conn, err := dialer.DialContext(ctx, network, addr)
@@ -146,13 +156,24 @@ func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (net.Conn,
 	return conn, trace.Wrap(err)
 }
 
-// ALPNSNIProtocolPingSuffix receives an ALPN protocol and returns it with the
-// Ping protocol suffix.
-func ALPNProtocolWithPing(protocol string) string {
-	return protocol + constants.ALPNSNIProtocolPingSuffix
-}
-
 // IsALPNPingProtocol checks if the provided protocol is suffixed with Ping.
 func IsALPNPingProtocol(protocol string) bool {
 	return strings.HasSuffix(protocol, constants.ALPNSNIProtocolPingSuffix)
+}
+
+// shouldALPNConnUpgradeWithPing returns true if Ping wrapper is required
+// during connection upgrade.
+func shouldALPNConnUpgradeWithPing(config *tls.Config) bool {
+	for _, proto := range config.NextProtos {
+		switch proto {
+		// Server usually sends SSH keepalives or HTTP2 pings every five
+		// minutes for reverse tunnel and SSH connections. Load balancers
+		// usually have a shorter idle timeout. Thus wrapping the connection
+		// with Ping protocol at the connection upgrade layer to keepalive.
+		case constants.ALPNSNIProtocolReverseTunnel,
+			constants.ALPNSNIProtocolSSH:
+			return true
+		}
+	}
+	return false
 }

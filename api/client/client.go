@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -345,20 +344,8 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 // Auth through Proxy using TLS Routing.
 func IsWebProxyAndConnUpgradeRequired(ctx context.Context, targetAddr string, cfg *Config) bool {
 	return cfg.ALPNSNIAuthDialClusterName != "" &&
-		isWebProxy(ctx, targetAddr, cfg) &&
+		cfg.WebProxyAddr == targetAddr &&
 		cfg.IsALPNConnUpgradeRequired(targetAddr, cfg.InsecureAddressDiscovery)
-}
-
-func isWebProxy(ctx context.Context, targetAddr string, cfg *Config) bool {
-	if cfg.WebProxyAddr != "" {
-		return cfg.WebProxyAddr == targetAddr
-	}
-	_, err := webclient.Find(&webclient.Config{
-		Context:   ctx,
-		ProxyAddr: targetAddr,
-		Insecure:  cfg.InsecureAddressDiscovery,
-	})
-	return err == nil
 }
 
 // tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
@@ -520,9 +507,7 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 type Config struct {
 	// Addrs is a list of teleport auth/proxy server addresses to dial.
 	Addrs []string
-	// WebProxyAddr is the Teleport Proxy web address. If not provided, extra
-	// webapi pings may be required to find out if Addrs are web proxy
-	// addresses.
+	// WebProxyAddr is the Teleport Proxy web address.
 	WebProxyAddr string
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
@@ -556,7 +541,7 @@ type Config struct {
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
 	// IsALPNConnUpgradeRequired is a callback function to check whether
-	// connection upgrade is required for TLS routing.
+	// connection upgrade is required for TLS Routing.
 	IsALPNConnUpgradeRequired func(addr string, insecure bool) bool
 }
 

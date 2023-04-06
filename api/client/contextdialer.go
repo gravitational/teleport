@@ -39,6 +39,7 @@ import (
 type dialConfig struct {
 	tlsConfig               *tls.Config
 	alpnConnUpgradeRequired bool
+	alpnConnUpgradeWithPing bool
 }
 
 // WithInsecureSkipVerify specifies if dialing insecure when using an HTTPS proxy.
@@ -54,6 +55,13 @@ func WithInsecureSkipVerify(insecure bool) DialOption {
 func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.alpnConnUpgradeRequired = alpnConnUpgradeRequired
+	}
+}
+
+// WithALPNConnUpgradePing specifies if Ping is required during ALPN connection upgrade.
+func WithALPNConnUpgradePing(alpnConnUpgradeWithPing bool) DialOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.alpnConnUpgradeWithPing = alpnConnUpgradeWithPing
 	}
 }
 
@@ -129,7 +137,7 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 
 		// Wrap with alpnConnUpgradeDialer if upgrade is required for TLS Routing.
 		if cfg.alpnConnUpgradeRequired {
-			dialer = newALPNConnUpgradeDialer(dialer, cfg.tlsConfig)
+			dialer = newALPNConnUpgradeDialer(dialer, cfg.tlsConfig, cfg.alpnConnUpgradeWithPing)
 		}
 
 		// Dial.
@@ -159,6 +167,15 @@ func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Dura
 
 		return conn, nil
 	})
+}
+
+// GRPCContextDialer converts a ContextDialer to a function used for
+// grpc.WithContextDialer.
+func GRPCContextDialer(dialer ContextDialer) func(context.Context, string) (net.Conn, error) {
+	return func(ctx context.Context, addr string) (net.Conn, error) {
+		conn, err := dialer.DialContext(ctx, "tcp", addr)
+		return conn, trace.Wrap(err)
+	}
 }
 
 // newTunnelDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
@@ -210,10 +227,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 			DialTimeout:     params.cfg.DialTimeout,
 			KeepAlivePeriod: params.cfg.KeepAlivePeriod,
 			TLSConfig: &tls.Config{
-				NextProtos: []string{
-					ALPNProtocolWithPing(constants.ALPNSNIProtocolReverseTunnel),
-					constants.ALPNSNIProtocolReverseTunnel,
-				},
+				NextProtos:         []string{constants.ALPNSNIProtocolReverseTunnel},
 				InsecureSkipVerify: insecure,
 				ServerName:         host,
 			},

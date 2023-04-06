@@ -2789,7 +2789,9 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 			clt, err := makeProxySSHClient(ctx, tc, config)
 			return clt, trace.Wrap(err)
 		}),
-		SSHConfig: cfg.ClientConfig,
+		SSHConfig:                 cfg.ClientConfig,
+		IsALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired,
+		InsecureSkipVerify:        tc.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4587,13 +4589,11 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxyGRPCSecure), http2.NextProtoTLS}
 
 	clt, err := client.New(ctx, client.Config{
-		WebProxyAddr:     tc.Config.WebProxyAddr,
+		Addrs:            []string{tc.Config.WebProxyAddr},
 		DialInBackground: false,
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		ALPNSNIAuthDialClusterName: clusterName,
-		IsALPNConnUpgradeRequired:  tc.IsALPNConnUpgradeRequired,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

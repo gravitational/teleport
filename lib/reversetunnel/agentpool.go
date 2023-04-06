@@ -636,14 +636,14 @@ func (c *agentPoolRuntimeConfig) alpnDialerConfig(getClusterCAs client.GetCluste
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	nextProtos := alpncommon.NextProtosWithPing(alpncommon.ProtocolReverseTunnel)
+	protocols := []alpncommon.Protocol{alpncommon.ProtocolReverseTunnel}
 	if !c.isRemoteCluster && c.tunnelStrategyType == types.ProxyPeering {
-		nextProtos = append([]string{string(alpncommon.ProtocolReverseTunnelV2)}, nextProtos...)
+		protocols = []alpncommon.Protocol{alpncommon.ProtocolReverseTunnelV2, alpncommon.ProtocolReverseTunnel}
 	}
 
 	return client.ALPNDialerConfig{
 		TLSConfig: &tls.Config{
-			NextProtos:         nextProtos,
+			NextProtos:         alpncommon.ProtocolsToString(protocols),
 			InsecureSkipVerify: lib.IsInsecureDevMode(),
 		},
 		KeepAlivePeriod:         c.keepAliveInterval,

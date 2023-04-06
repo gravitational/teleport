@@ -486,8 +486,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"http/1.1",
 				"h2",
 				"acme-tls/1",
-				"teleport-proxy-ssh-ping",
-				"teleport-reversetunnel-ping",
 				"teleport-tcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
@@ -522,8 +520,6 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			name:        "ACME disabled",
 			acmeEnabled: false,
 			wantNextProtos: []string{
-				"teleport-proxy-ssh-ping",
-				"teleport-reversetunnel-ping",
 				"teleport-tcp-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",

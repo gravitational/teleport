@@ -100,7 +100,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	if mode == types.ProxyListenerMode_Multiplex {
 		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
 			TLSConfig: &tls.Config{
-				NextProtos:         alpncommon.NextProtosWithPing(alpncommon.ProtocolReverseTunnel),
+				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
 				InsecureSkipVerify: t.InsecureSkipTLSVerify,
 			},
 			DialTimeout:             t.ClientConfig.Timeout,

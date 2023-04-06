@@ -21,11 +21,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -35,6 +38,8 @@ func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHa
 	upgrades := r.Header.Values(constants.WebAPIConnUpgradeHeader)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
+		case constants.WebAPIConnUpgradeTypeALPNPing:
+			return upgradeType, h.upgradeALPNWithPing, nil
 		case constants.WebAPIConnUpgradeTypeALPN:
 			return upgradeType, h.upgradeALPN, nil
 		}
@@ -86,6 +91,42 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 	defer waitConn.WaitForClose()
 
 	return h.cfg.ALPNHandler(ctx, waitConn)
+}
+
+func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error {
+	h.log.Errorf("=== with ping")
+	if h.cfg.ALPNHandler == nil {
+		return trace.BadParameter("missing ALPNHandler")
+	}
+
+	pingConn := pingconn.New(conn)
+
+	// Cancel ping background goroutine when connection is closed.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go h.startPing(ctx, pingConn)
+
+	return h.upgradeALPN(ctx, pingConn)
+}
+
+func (h *Handler) startPing(ctx context.Context, pingConn *pingconn.PingConn) {
+	ticker := time.NewTicker(defaults.ProxyPingInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			h.log.Errorf("=== stopped")
+			return
+		case <-ticker.C:
+			err := pingConn.WritePing()
+			if err != nil {
+				if !utils.IsOKNetworkError(err) {
+					h.log.WithError(err).Warn("Failed to write ping message")
+				}
+				return
+			}
+		}
+	}
 }
 
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {

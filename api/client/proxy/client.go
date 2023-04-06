@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -82,6 +83,11 @@ type ClientConfig struct {
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
 	DialOpts []grpc.DialOption
+	// IsALPNConnUpgradeRequired is a callback function to check whether
+	// connection upgrade is required for TLS Routing.
+	IsALPNConnUpgradeRequired func(addr string, insecure bool) bool
+	// InsecureSkipVerify is an option to skip HTTPS cert check
+	InsecureSkipVerify bool
 
 	// The below items are intended to be used by tests to connect without mTLS.
 	// The gRPC transport credentials to use when establishing the connection to proxy.
@@ -107,6 +113,9 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	}
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
+	}
+	if c.IsALPNConnUpgradeRequired == nil {
+		c.IsALPNConnUpgradeRequired = client.IsALPNConnUpgradeRequired
 	}
 
 	if c.TLSConfig != nil {
@@ -209,6 +218,7 @@ func NewClient(ctx context.Context, cfg ClientConfig) (*Client, error) {
 		if err == nil {
 			return clt, nil
 		}
+		logrus.Debugf("==== falling back")
 	}
 
 	clt, sshErr := newSSHClient(ctx, &cfg)
@@ -298,6 +308,7 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		dialCtx,
 		cfg.ProxySSHAddress,
 		append(cfg.DialOpts,
+			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
 				append(cfg.UnaryInterceptors,
@@ -334,6 +345,20 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 		transport:   transport,
 		clusterName: c,
 	}, nil
+}
+
+func newDialerForGRPCClient(ctx context.Context, cfg *ClientConfig) func(context.Context, string) (net.Conn, error) {
+	dialOpts := []client.DialOption{
+		client.WithInsecureSkipVerify(cfg.InsecureSkipVerify),
+	}
+
+	if cfg.TLSRoutingEnabled {
+		dialOpts = append(dialOpts,
+			client.WithALPNConnUpgrade(cfg.IsALPNConnUpgradeRequired(cfg.ProxyWebAddress, cfg.InsecureSkipVerify)),
+			client.WithALPNConnUpgradePing(true),
+		)
+	}
+	return client.GRPCContextDialer(client.NewDialer(ctx, defaults.DefaultIdleTimeout, cfg.DialTimeout, dialOpts...))
 }
 
 // teleportAuthority is the extension set by the server
@@ -441,10 +466,11 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 	case c.cfg.TLSRoutingEnabled:
 		return client.Config{
 			Context:                    ctx,
-			Addrs:                      []string{c.cfg.ProxyWebAddress},
+			WebProxyAddr:               c.cfg.ProxyWebAddress,
 			Credentials:                []client.Credentials{c.cfg.clientCreds()},
 			ALPNSNIAuthDialClusterName: cluster,
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+			IsALPNConnUpgradeRequired:  c.cfg.IsALPNConnUpgradeRequired,
 		}
 	case c.sshClient != nil:
 		return client.Config{

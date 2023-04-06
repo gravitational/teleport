@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
@@ -145,13 +146,15 @@ func isALPNConnUpgradeRequiredByEnv(addr, envValue string) bool {
 type alpnConnUpgradeDialer struct {
 	dialer    ContextDialer
 	tlsConfig *tls.Config
+	withPing  bool
 }
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
-func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config) ContextDialer {
+func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withPing bool) ContextDialer {
 	return &alpnConnUpgradeDialer{
 		dialer:    dialer,
 		tlsConfig: tlsConfig,
+		withPing:  withPing,
 	}
 }
 
@@ -182,26 +185,34 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 
 	tlsConn := tls.Client(conn, cfg)
 
-	err = upgradeConnThroughWebAPI(tlsConn, url.URL{
+	upgradeURL := url.URL{
 		Host:   addr,
 		Scheme: "https",
 		Path:   constants.WebAPIConnUpgrade,
-	})
-	if err != nil {
-		defer tlsConn.Close()
-		return nil, trace.Wrap(err)
 	}
-	return tlsConn, nil
+
+	switch {
+	case d.withPing:
+		if err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, constants.WebAPIConnUpgradeTypeALPNPing); err != nil {
+			return nil, trace.NewAggregate(err, tlsConn.Close())
+		}
+		return pingconn.New(tlsConn), nil
+
+	default:
+		if err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, constants.WebAPIConnUpgradeTypeALPN); err != nil {
+			return nil, trace.NewAggregate(err, tlsConn.Close())
+		}
+		return tlsConn, nil
+	}
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) error {
 	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// For now, only "alpn" is supported.
-	req.Header.Add(constants.WebAPIConnUpgradeHeader, constants.WebAPIConnUpgradeTypeALPN)
+	req.Header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
@@ -216,8 +227,9 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
 	if http.StatusSwitchingProtocols != resp.StatusCode {
 		if http.StatusNotFound == resp.StatusCode {
 			return trace.NotImplemented(
-				"connection upgrade call to %q failed with status code %v. Please upgrade the server and try again.",
+				"connection upgrade call to %q with upgrade type %v failed with status code %v. Please upgrade the server and try again.",
 				constants.WebAPIConnUpgrade,
+				upgradeType,
 				resp.StatusCode,
 			)
 		}

@@ -4559,7 +4559,7 @@ func setupALPNRouter(listeners *proxyListeners, serverTLSConfig *tls.Config, cfg
 	router.Add(alpnproxy.HandlerDecs{
 		MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolProxySSH),
 		Handler:   sshProxyListener.HandleConnection,
-		TLSConfig: alpncommon.AddNextProtos(serverTLSConfig.Clone(), alpncommon.ProtocolProxySSH),
+		TLSConfig: serverTLSConfig.Clone(),
 	})
 	listeners.ssh = sshProxyListener
 
