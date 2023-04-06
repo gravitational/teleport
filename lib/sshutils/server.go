@@ -567,7 +567,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 				case req := <-reqs:
 					if req == nil {
 						connClosed()
-						return
+						break
 					}
 					// wait for a request that wants a reply to send the error
 					if !req.WantReply {
