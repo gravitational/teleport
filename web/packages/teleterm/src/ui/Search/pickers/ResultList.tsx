@@ -108,38 +108,32 @@ export function ResultList<T>(props: ResultListProps<T>) {
   }, [items, onPick, onBack, activeItemIndex]);
 
   return (
-    <StyledGlobalSearchResults role="menu">
-      {attempts.some(a => a.status === 'processing') && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            height: '1px',
-            left: 0,
-            right: 0,
-          }}
-        >
+    <>
+      <Separator>
+        {attempts.some(a => a.status === 'processing') && (
           <LinearProgress transparentBackground={true} />
-        </div>
-      )}
-      {items.map((r, index) => {
-        const isActive = index === activeItemIndex;
-        const { Component, key } = props.render(r);
+        )}
+      </Separator>
+      <Overflow role="menu">
+        {items.map((r, index) => {
+          const isActive = index === activeItemIndex;
+          const { Component, key } = props.render(r);
 
-        return (
-          <StyledItem
-            ref={isActive ? activeItemRef : null}
-            role="menuitem"
-            $active={isActive}
-            key={key}
-            onClick={() => props.onPick(r)}
-          >
-            {Component}
-          </StyledItem>
-        );
-      })}
-      {shouldShowNoResultsCopy && NoResultsComponent}
-    </StyledGlobalSearchResults>
+          return (
+            <StyledItem
+              ref={isActive ? activeItemRef : null}
+              role="menuitem"
+              $active={isActive}
+              key={key}
+              onClick={() => props.onPick(r)}
+            >
+              {Component}
+            </StyledItem>
+          );
+        })}
+        {shouldShowNoResultsCopy && NoResultsComponent}
+      </Overflow>
+    </>
   );
 }
 
@@ -156,7 +150,7 @@ const StyledItem = styled.div`
   }
 
   :not(:last-of-type) {
-    border-bottom: 2px solid
+    border-bottom: 1px solid
       ${props => props.theme.colors.levels.surfaceSecondary};
   }
 
@@ -188,26 +182,18 @@ function getNext(selectedIndex = 0, max = 0) {
   return index;
 }
 
-const StyledGlobalSearchResults = styled.div(({ theme }) => {
-  return {
-    boxShadow: '8px 8px 18px rgb(0 0 0)',
-    color: theme.colors.text.contrast,
-    background: theme.colors.levels.surface,
-    boxSizing: 'border-box',
-    // Account for border.
-    width: 'calc(100% + 2px)',
-    // Careful, this is hardcoded based on the input height.
-    marginTop: '38px',
-    display: 'block',
-    position: 'absolute',
-    border: '1px solid ' + theme.colors.action.hover,
-    fontSize: '12px',
-    listStyle: 'none outside none',
-    textShadow: 'none',
-    zIndex: '1000',
-    maxHeight: '350px',
-    overflow: 'auto',
-    // Hardcoded to height of the shortest item.
-    minHeight: '42px',
-  };
-});
+const Separator = styled.div`
+  position: relative;
+  background: ${props => props.theme.colors.action.hover};
+  height: 1px;
+`;
+
+const Overflow = styled.div`
+  overflow: auto;
+  height: 100%;
+  border-radius: 0 0 4px 4px;
+  list-style: none outside none;
+  max-height: 350px;
+  // Hardcoded to height of the input + the shortest item.
+  min-height: 40px;
+`;

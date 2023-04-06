@@ -40,6 +40,7 @@ import { useSearchContext } from '../SearchContext';
 import { useSearchAttempts } from './useSearchAttempts';
 import { getParameterPicker } from './pickers';
 import { ResultList, EmptyListCopy } from './ResultList';
+import { PickerContainer } from './PickerContainer';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
@@ -152,8 +153,8 @@ export function ActionPicker(props: { input: ReactElement }) {
   }
 
   return (
-    <>
-      <Flex flex={1} onKeyDown={handleKeyDown}>
+    <PickerContainer>
+      <Flex alignItems="center" onKeyDown={handleKeyDown}>
         {filterButtons}
         {props.input}
       </Flex>
@@ -178,7 +179,7 @@ export function ActionPicker(props: { input: ReactElement }) {
         }}
         NoResultsComponent={NoResultsComponent}
       />
-    </>
+    </PickerContainer>
   );
 }
 
