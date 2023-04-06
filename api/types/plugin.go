@@ -101,6 +101,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case *PluginSpecV1_Opsgenie:
+		if settings.Opsgenie == nil {
+			return trace.BadParameter("settings must be set")
+		}
+		if settings.Opsgenie.Addr == "" {
+			return trace.BadParameter("opsgenie addr must be set")
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
