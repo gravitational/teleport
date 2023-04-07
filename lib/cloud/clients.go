@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"time"
 
 	gcpcredentials "cloud.google.com/go/iam/credentials/apiv1"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -66,6 +67,7 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Clients provides interface for obtaining cloud provider clients.
@@ -156,9 +158,15 @@ type AzureClients interface {
 }
 
 // NewClients returns a new instance of cloud clients retriever.
-func NewClients() Clients {
+func NewClients() (Clients, error) {
+	awsSessionsCache, err := utils.NewFnCache(utils.FnCacheConfig{
+		TTL: 15 * time.Minute,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &cloudClients{
-		awsSessions: make(map[string]*awssession.Session),
+		awsSessionsCache: awsSessionsCache,
 		azureClients: azureClients{
 			azureMySQLClients:               make(map[string]azure.DBServersClient),
 			azurePostgresClients:            make(map[string]azure.DBServersClient),
@@ -172,16 +180,16 @@ func NewClients() Clients {
 			azurePostgresFlexServersClients: azure.NewClientMap(azure.NewPostgresFlexServersClient),
 			azureRunCommandClients:          azure.NewClientMap(azure.NewRunCommandClient),
 		},
-	}
+	}, nil
 }
 
 // cloudClients implements Clients
 var _ Clients = (*cloudClients)(nil)
 
 type cloudClients struct {
-	// awsSessions is a map of cached AWS sessions per region
-	// and assumed role chain.
-	awsSessions map[string]*awssession.Session
+	// awsSessionsCache is a cache of AWS sessions, where the cache key is
+	// either "<region>" or "Region[<region>]:RoleARN[<arn>]:ExternalID[<id>]".
+	awsSessionsCache *utils.FnCache
 	// gcpIAM is the cached GCP IAM client.
 	gcpIAM *gcpcredentials.IamCredentialsClient
 	// gcpSQLAdmin is the cached GCP Cloud SQL Admin client.
@@ -239,12 +247,6 @@ type awsAssumeRoleOpts struct {
 	assumeRoleARN string
 	// assumeRoleExternalID is used to assume an external AWS IAM Role.
 	assumeRoleExternalID string
-	// cacheAssumedRole determines if an assumed role session will be cached.
-	// This should only be enabled when assuming an AWS IAM Role from config
-	// and should not be enabled when assuming a role built dynamically, such
-	// as roles constructed from database user names, so as to avoid an
-	// unbounded cache.
-	cacheAssumedRole bool
 }
 
 // AWSAssumeRoleOptionFn is an option function for setting additional options
@@ -257,7 +259,6 @@ func WithAssumeRoleFromAWSMeta(meta types.AWS) AWSAssumeRoleOptionFn {
 	return func(options *awsAssumeRoleOpts) {
 		options.assumeRoleARN = meta.AssumeRoleARN
 		options.assumeRoleExternalID = meta.ExternalID
-		options.cacheAssumedRole = true
 	}
 }
 
@@ -545,69 +546,27 @@ func (c *cloudClients) Close() (err error) {
 
 // getAWSSessionForRegion returns AWS session for the specified region.
 func (c *cloudClients) getAWSSessionForRegion(region string) (*awssession.Session, error) {
-	c.mtx.RLock()
-	if session, ok := c.awsSessions[region]; ok {
-		c.mtx.RUnlock()
-		return session, nil
-	}
-	c.mtx.RUnlock()
-	return c.initAWSSession(region)
-}
-
-func (c *cloudClients) initAWSSession(region string) (*awssession.Session, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if session, ok := c.awsSessions[region]; ok { // If some other thread already got here first.
-		return session, nil
-	}
-	logrus.Debugf("Initializing AWS session for region %v.", region)
-	session, err := awssession.NewSessionWithOptions(awssession.Options{
-		SharedConfigState: awssession.SharedConfigEnable,
-		Config: aws.Config{
-			Region: aws.String(region),
-		},
+	return utils.FnCacheGet(context.Background(), c.awsSessionsCache, region, func(ctx context.Context) (*awssession.Session, error) {
+		logrus.Debugf("Initializing AWS session for region %v.", region)
+		session, err := awssession.NewSessionWithOptions(awssession.Options{
+			SharedConfigState: awssession.SharedConfigEnable,
+			Config: aws.Config{
+				Region: aws.String(region),
+			},
+		})
+		return session, trace.Wrap(err)
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.awsSessions[region] = session
-	return session, nil
 }
 
 // getAWSSessionForRole returns AWS session for the specified region and role.
 func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsAssumeRoleOpts) (*awssession.Session, error) {
 	assumeRoler := sts.New(options.baseSession)
-	// Caching of assumed role sessions is optionl and up to the caller to
-	// specify.
-	// Callers should only cache sessions for roles in configuration, but
-	// avoid caching sessions for roles that are built dynamically, i.e.
-	// roles constructed from --db-user, to keep session cache size bounded.
-	if options.cacheAssumedRole {
-		cacheKey := fmt.Sprintf("Region[%s]:RoleARN[%s]:ExternalID[%s]", region, options.assumeRoleARN, options.assumeRoleExternalID)
-		c.mtx.RLock()
-		if cachedSession, ok := c.awsSessions[cacheKey]; ok {
-			c.mtx.RUnlock()
-			return cachedSession, nil
-		}
-		c.mtx.RUnlock()
-		return c.initAWSSessionForRole(ctx, region, cacheKey, assumeRoler, options)
-	}
-	return newSessionWithRole(ctx, assumeRoler, region, options.assumeRoleARN, options.assumeRoleExternalID)
+	cacheKey := fmt.Sprintf("Region[%s]:RoleARN[%s]:ExternalID[%s]", region, options.assumeRoleARN, options.assumeRoleExternalID)
+	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+		return newSessionWithRole(ctx, assumeRoler, region, options.assumeRoleARN, options.assumeRoleExternalID)
+	})
 }
 
-func (c *cloudClients) initAWSSessionForRole(ctx context.Context, region, cacheKey string, svc stscreds.AssumeRoler, options awsAssumeRoleOpts) (*awssession.Session, error) {
-	c.mtx.Lock()
-	defer c.mtx.Unlock()
-	if cachedSession, ok := c.awsSessions[cacheKey]; ok { // If some other thread already got here first.
-		return cachedSession, nil
-	}
-	roleSession, err := newSessionWithRole(ctx, svc, region, options.assumeRoleARN, options.assumeRoleExternalID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.awsSessions[cacheKey] = roleSession
-	return roleSession, nil
-}
 func (c *cloudClients) initGCPIAMClient(ctx context.Context) (*gcpcredentials.IamCredentialsClient, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
@@ -1073,7 +1032,12 @@ func newSessionWithRole(ctx context.Context, svc stscreds.AssumeRoler, region, r
 	}
 
 	// Create a new session with the credentials.
-	config := aws.NewConfig().WithCredentials(cred).WithRegion(region)
-	roleSession, err := awssession.NewSession(config)
+	roleSession, err := awssession.NewSessionWithOptions(awssession.Options{
+		SharedConfigState: awssession.SharedConfigEnable,
+		Config: aws.Config{
+			Region:      aws.String(region),
+			Credentials: cred,
+		},
+	})
 	return roleSession, trace.Wrap(err)
 }

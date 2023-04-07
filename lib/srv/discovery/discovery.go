@@ -66,7 +66,11 @@ type Config struct {
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 && len(c.GCPMatchers) == 0 {
 		return trace.BadParameter("no matchers configured for discovery")

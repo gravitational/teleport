@@ -59,7 +59,11 @@ func (c *IAMConfig) Check() error {
 		return trace.BadParameter("missing AccessPoint")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")

@@ -49,7 +49,11 @@ type MetadataConfig struct {
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	return nil
 }

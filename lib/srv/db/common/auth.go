@@ -114,7 +114,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AuthClient")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
