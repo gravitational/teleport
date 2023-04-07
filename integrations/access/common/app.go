@@ -419,7 +419,7 @@ func (a *BaseApp) updateMessages(ctx context.Context, reqID string, tag pd.Resol
 
 		// If resolution field is not empty then we already resolved the incident before. In this case we just quit.
 		if existing.AccessRequestData.ResolutionTag != pd.Unresolved {
-			return GenericPluginData{}, trace.CompareFailed("request is already resolved")
+			return existing, nil
 		}
 
 		// Mark plugin data as resolved.
