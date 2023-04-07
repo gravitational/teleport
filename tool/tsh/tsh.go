@@ -53,6 +53,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -2941,22 +2942,30 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 // accessRequestForSSH attempts to create a resource access request for the case
 // where "tsh ssh" was attempted and access was denied
 func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clt.Close()
 
 	// Match on hostname or host ID, user could have given either
 	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
-	filter := proto.ListResourcesRequest{
+
+	resources, err := apiclient.GetResourcesWithFilters(ctx, clt.AuthClient, proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindNode,
 		UseSearchAsRoles:    true,
 		PredicateExpression: expr,
-	}
-	nodes, err := proxyClient.FindNodesByFilters(ctx, filter)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	nodes, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if len(nodes) > 1 {
 		// Ambiguous hostname matches should have been handled by onSSH and
 		// would not make it here, this is a sanity check. Ambiguous host ID
