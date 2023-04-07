@@ -335,7 +335,9 @@ func createFile(t *testing.T, rootDir, path string) {
 		createDir(t, rootDir, dir)
 	}
 
-	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o664)
+	// use non-standard permissions to verify that transferred files
+	// permissions match the originals
+	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o654)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, f.Close())
@@ -349,7 +351,9 @@ func createFile(t *testing.T, rootDir, path string) {
 }
 
 func createDir(t *testing.T, rootDir, path string) {
-	err := os.MkdirAll(filepath.Join(rootDir, path), 0o775)
+	// use non-standard permissions to verify that transferred dirs
+	// permissions match the originals
+	err := os.MkdirAll(filepath.Join(rootDir, path), 0o765)
 	require.NoError(t, err)
 }
 
