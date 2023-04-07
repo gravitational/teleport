@@ -31,14 +31,14 @@ import { actionPicker, SearchPicker } from './pickers/pickers';
 export interface SearchContext {
   inputRef: MutableRefObject<HTMLInputElement>;
   inputValue: string;
-  opened: boolean;
   filters: SearchFilter[];
   activePicker: SearchPicker;
   onInputValueChange(value: string): void;
   changeActivePicker(picker: SearchPicker): void;
+  isOpen: boolean;
+  open(fromElement?: Element): void;
   close(): void;
   closeAndResetInput(): void;
-  open(fromElement?: Element): void;
   resetInput(): void;
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
@@ -49,7 +49,7 @@ const SearchContext = createContext<SearchContext>(null);
 export const SearchContextProvider: FC = props => {
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
-  const [opened, setOpened] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);
   // TODO(ravicious): Consider using another data structure for search filters as we know that we
@@ -67,7 +67,7 @@ export const SearchContextProvider: FC = props => {
   }
 
   const close = useCallback(() => {
-    setOpened(false);
+    setIsOpen(false);
     setActivePicker(actionPicker);
     if (previouslyActive.current instanceof HTMLElement) {
       previouslyActive.current.focus();
@@ -84,11 +84,11 @@ export const SearchContextProvider: FC = props => {
   }, []);
 
   function open(fromElement?: Element): void {
-    if (opened) {
+    if (isOpen) {
       return;
     }
     previouslyActive.current = fromElement || document.activeElement;
-    setOpened(true);
+    setIsOpen(true);
   }
 
   function setFilter(filter: SearchFilter) {
@@ -121,11 +121,11 @@ export const SearchContextProvider: FC = props => {
         filters,
         setFilter,
         removeFilter,
+        resetInput,
+        isOpen,
+        open,
         close,
         closeAndResetInput,
-        resetInput,
-        opened,
-        open,
       }}
       children={props.children}
     />
