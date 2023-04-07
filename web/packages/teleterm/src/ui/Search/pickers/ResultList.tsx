@@ -179,6 +179,6 @@ const Overflow = styled.div`
   height: 100%;
   list-style: none outside none;
   max-height: 350px;
-  // Hardcoded to height of the input + the shortest item.
+  // Hardcoded to height of the shortest item.
   min-height: 40px;
 `;
