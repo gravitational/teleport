@@ -310,6 +310,15 @@
             ],
             "default": "standalone"
         },
+        "resourceType": {
+            "$id": "#/properties/resourceType",
+            "type": "string",
+            "enum": [
+                "deployment",
+                "statefulset"
+            ],
+            "default": "deployment"
+        },         
         "validateConfigOnDeploy": {
             "$id": "#/properties/validateConfigOnDeploy",
             "type": "boolean",
