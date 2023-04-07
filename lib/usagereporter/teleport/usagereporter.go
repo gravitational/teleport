@@ -30,8 +30,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/types"
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
-	prehogv1c "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/v1alphaconnect"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/usagereporter"
@@ -78,7 +78,7 @@ type UsageReporter interface {
 // anonymized with the cluster name.
 type TeleportUsageReporter struct {
 	// usageReporter is an actual reporter that batches and sends events
-	usageReporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest]
+	usageReporter *usagereporter.UsageReporter[prehogv1a.SubmitEventRequest]
 	// anonymizer is the anonymizer used for filtered audit events.
 	anonymizer utils.Anonymizer
 	// clusterName is the cluster's name, used for anonymization and as an event
@@ -103,7 +103,7 @@ func (t *TeleportUsageReporter) Run(ctx context.Context) {
 	t.usageReporter.Run(ctx)
 }
 
-type SubmitFunc = usagereporter.SubmitFunc[prehogv1.SubmitEventRequest]
+type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
 
 func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*TeleportUsageReporter, error) {
 	if log == nil {
@@ -122,7 +122,7 @@ func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterN
 
 	clock := clockwork.NewRealClock()
 
-	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1.SubmitEventRequest]{
+	reporter := usagereporter.NewUsageReporter(&usagereporter.Options[prehogv1a.SubmitEventRequest]{
 		Log:           log,
 		Submit:        submitter,
 		MinBatchSize:  usageReporterMinBatchSize,
@@ -178,15 +178,15 @@ func NewPrehogSubmitter(ctx context.Context, prehogEndpoint string, clientCert *
 	}
 	httpClient.Timeout = 5 * time.Second
 
-	client := prehogv1c.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
+	client := prehogv1ac.NewTeleportReportingServiceClient(httpClient, prehogEndpoint)
 
-	return func(reporter *usagereporter.UsageReporter[prehogv1.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogv1.SubmitEventRequest], error) {
-		evs := make([]*prehogv1.SubmitEventRequest, 0, len(events))
+	return func(reporter *usagereporter.UsageReporter[prehogv1a.SubmitEventRequest], events []*usagereporter.SubmittedEvent[prehogv1a.SubmitEventRequest]) ([]*usagereporter.SubmittedEvent[prehogv1a.SubmitEventRequest], error) {
+		evs := make([]*prehogv1a.SubmitEventRequest, 0, len(events))
 		for _, e := range events {
 			evs = append(evs, e.Event)
 		}
 
-		req := connect.NewRequest(&prehogv1.SubmitEventsRequest{
+		req := connect.NewRequest(&prehogv1a.SubmitEventsRequest{
 			Events: evs,
 		})
 		if _, err := client.SubmitEvents(ctx, req); err != nil {

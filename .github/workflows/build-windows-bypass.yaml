@@ -17,11 +17,13 @@ on:
     # We only build tsh on Windows so only consider Go code as tsh doesn't
     # run any Rust.
     paths-ignore:
+      - '.github/workflows/build-windows.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   build:

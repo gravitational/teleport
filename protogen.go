@@ -1,10 +1,12 @@
-// Copyright 2021 Gravitational, Inc
+//go:build protogen && !protogen
+
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//     http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,16 +14,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-syntax = "proto3";
+package teleport
 
-package teleport.lib.teleterm.v1;
+// This file is needed to keep a dependency on the go protogen tools we `go run`
+// during our code generation
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
-
-// Label describes a label
-message Label {
-  // name is this label name
-  string name = 1;
-  // value is this label value
-  string value = 2;
-}
+import (
+	_ "github.com/bufbuild/connect-go/cmd/protoc-gen-connect-go"
+	_ "github.com/golang/protobuf/protoc-gen-go"
+	_ "google.golang.org/protobuf/cmd/protoc-gen-go"
+)

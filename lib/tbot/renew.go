@@ -559,7 +559,7 @@ func (b *Bot) renew(
 		return trace.Wrap(err)
 	}
 
-	identStr, err := describeTLSIdentity(b.ident())
+	identStr, err := describeTLSIdentity(newIdentity)
 	if err != nil {
 		return trace.Wrap(err, "Could not describe bot identity at %s", botDestination)
 	}
