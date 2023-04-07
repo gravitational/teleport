@@ -195,7 +195,7 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	if cliConfigPath != "" {
 		configFilePath = cliConfigPath
 		if !utils.FileExists(configFilePath) {
-			return nil, trace.NotFound("file %s is not found", configFilePath)
+			return nil, trace.BadParameter("failed to load configuration: configuration file specified '%s' does not exist", configFilePath)
 		}
 	}
 	// default config doesn't exist? quietly return:
@@ -209,6 +209,9 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]types.Resource, error) {
+	if !utils.FileExists(filePath) {
+		return nil, trace.BadParameter("failed to bootstrap cluster configuration: bootstrap file specified '%s' does not exist", filePath)
+	}
 	reader, err := utils.OpenFile(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
