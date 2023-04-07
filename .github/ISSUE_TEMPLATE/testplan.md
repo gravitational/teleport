@@ -734,6 +734,7 @@ tenant.
 tsh bench ssh --duration=30m user@direct-dial-node ls
 tsh bench ssh --duration=30m user@reverse-tunnel-node ls
 tsh bench ssh --duration=30m user@foo=bar ls
+tsh bench ssh --duration=30m --random user@foo ls
 ```
 
 ### Concurrent Session Test
