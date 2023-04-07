@@ -1,3 +1,4 @@
+{{ if eq .Values.resourceType "deployment" }}
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
 apiVersion: apps/v1
@@ -278,3 +279,4 @@ spec:
 {{- end }}
       serviceAccountName: {{ include "teleport-cluster.auth.serviceAccountName" . }}
       terminationGracePeriodSeconds: {{ $auth.terminationGracePeriodSeconds }}
+{{ end }}
