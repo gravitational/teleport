@@ -65,9 +65,6 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	if _, err := ResourceOSTypeFromString(d.Spec.OsType); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := ResourceEnrollStatusFromString(d.Spec.EnrollStatus); err != nil {
-		return trace.Wrap(err)
-	}
 
 	return nil
 }
@@ -99,10 +96,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	enrollStatus, err := ResourceEnrollStatusFromString(res.Spec.EnrollStatus)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	enrollStatus := ResourceEnrollStatusFromString(res.Spec.EnrollStatus)
 
 	var cred *devicepb.DeviceCredential
 	if res.Spec.Credential != nil {
@@ -233,24 +227,20 @@ func ResourceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) stri
 		return "enrolled"
 	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED:
 		return "not_enrolled"
-	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED:
-		return "unspecified"
 	default:
-		return enrollStatus.String()
+		return "unspecified"
 	}
 }
 
 // ResourceEnrollStatusFromString converts a string representation of
 // DeviceEnrollStatus suitable for resource fields to DeviceEnrollStatus.
-func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollStatus, error) {
+func ResourceEnrollStatusFromString(enrollStatus string) devicepb.DeviceEnrollStatus {
 	switch enrollStatus {
 	case "enrolled":
-		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, nil
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
 	case "not_enrolled":
-		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, nil
-	case "unspecified":
-		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
 	default:
-		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, trace.BadParameter("unknown enroll status %q", enrollStatus)
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED
 	}
 }
