@@ -168,8 +168,10 @@ export const InputWrapper = styled(Flex).attrs({ px: 2 })`
   column-gap: ${props => props.theme.space[2]}px;
   align-items: center;
   flex-wrap: wrap;
-  padding-block: 7px; // 8px - 1px = account for border
-  min-height: 38px; // input height without border
+  // account for border
+  padding-block: calc(${props => props.theme.space[2]}px - 1px);
+  // input height without border
+  min-height: 38px;
 
   & > input {
     height: unset;
