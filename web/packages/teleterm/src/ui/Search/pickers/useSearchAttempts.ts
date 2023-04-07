@@ -25,7 +25,7 @@ import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import {
-  sortResults,
+  sortAndLimitResults,
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
@@ -59,7 +59,7 @@ export function useSearchAttempts() {
   const resourceActionsAttempt = useMemo(
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) => {
-        const sortedResults = sortResults(results, search);
+        const sortedResults = sortAndLimitResults(results, search);
         searchLogger.current.info('results for', search, sortedResults);
 
         return mapToActions(ctx, searchContext, sortedResults);

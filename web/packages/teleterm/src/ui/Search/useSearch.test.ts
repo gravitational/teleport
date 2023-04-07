@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { sortResults } from './useSearch';
+import { sortAndLimitResults } from './useSearch';
 import {
   makeResourceResult,
   makeServer,
@@ -32,7 +32,7 @@ describe('sortResults', () => {
       kind: 'kube',
       resource: makeKube({ name: 'a' }),
     });
-    const sortedResults = sortResults([server, kube], '');
+    const sortedResults = sortAndLimitResults([server, kube], '');
 
     expect(sortedResults[0]).toEqual(kube);
     expect(sortedResults[1]).toEqual(server);
@@ -46,7 +46,7 @@ describe('sortResults', () => {
       }),
     });
 
-    const { labelMatches } = sortResults([server], 'foo bar')[0];
+    const { labelMatches } = sortAndLimitResults([server], 'foo bar')[0];
 
     labelMatches.forEach(match => {
       expect(match.score).toBeGreaterThan(0);
@@ -62,5 +62,36 @@ describe('sortResults', () => {
     expect(fooMatches).toHaveLength(2);
     expect(fooMatches[0].score).toBeGreaterThan(quuxMatch.score);
     expect(fooMatches[1].score).toBeGreaterThan(quuxMatch.score);
+  });
+
+  it('limits the results', () => {
+    const servers = Array(10)
+      .fill(undefined)
+      .map(() =>
+        makeResourceResult({
+          kind: 'server',
+          resource: makeServer({
+            labelsList: makeLabelsList({ foo: 'bar' }),
+          }),
+        })
+      );
+
+    // This item has a lower score
+    servers.unshift(
+      makeResourceResult({
+        kind: 'server',
+        resource: makeServer({
+          labelsList: makeLabelsList({ abc: 'bar123456' }),
+        }),
+      })
+    );
+
+    const sorted = sortAndLimitResults(servers, 'bar');
+
+    expect(sorted).toHaveLength(10);
+    // the item with the lowest score is not included
+    expect(
+      sorted.find(s => s.labelMatches.find(a => a.labelName === 'abc'))
+    ).toBeFalsy();
   });
 });

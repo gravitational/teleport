@@ -83,7 +83,7 @@ export function useResourceSearch() {
           resourceTypeSearchFilter
         )
       );
-      const results = (await Promise.all(searchPromises)).flat().slice(0, 10);
+      const results = (await Promise.all(searchPromises)).flat();
 
       return { results, search };
     },
@@ -174,7 +174,7 @@ export function useFilterSearch() {
   );
 }
 
-export function sortResults(
+export function sortAndLimitResults(
   searchResults: resourcesServiceTypes.SearchResult[],
   search: string
 ): ResourceSearchResult[] {
@@ -207,7 +207,8 @@ export function sortResults(
         // Highest score first.
         b.score - a.score ||
         collator.compare(mainResourceName(a), mainResourceName(b))
-    );
+    )
+    .slice(0, 10);
 }
 
 function populateMatches(
