@@ -2,6 +2,12 @@ name: Build MacOS AMD64 Release Artifacts
 on: 
   workflow_dispatch:
     inputs:
+      oss-teleport-repo:
+        description: 'The name of the OSS Teleport repo to build'
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
       oss-teleport-ref:
         description: 'Tag, branch or reference to OSS teleport to build'
         type: string
@@ -47,6 +53,16 @@ on:
         type: string
         default: ""
 
+      build-environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `promote` or `build`. The default `promote` can only be used for
+          `master` and `branch/*` branches. `build` should be used for testing
+          workflow changes on a dev branch.
+        required: false
+        type: string
+        default: promote
+
 run-name: "Build MacOS AMD64 Release Artifacts for ${{ inputs.oss-teleport-ref }}"
 jobs:
 
@@ -77,11 +93,13 @@ jobs:
     secrets: inherit # Allows the build-mac-amd64 workflow to access signing keys/passwords
     with:
       release: "enterprise"
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
       oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
       ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
       build-packages: ${{ inputs.build-packages }}
       save-artifacts: ${{ inputs.release-artifacts }}
       release-version: ${{ inputs.release-version }}
+      environment: ${{ inputs.build-environment }}
 
   register-assets-with-release-server:
     name: Register artifacts with releases API

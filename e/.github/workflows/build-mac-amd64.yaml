@@ -3,6 +3,12 @@ name: Build MacOS (Darwin) AMD64
 on:
   workflow_call:
     inputs:
+      oss-teleport-repo:
+        description: 'The name of the OSS Teleport repo to checkout'
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
       oss-teleport-ref:
         description: 'Git SHA, tag or branch of the revision of OSS teleport to build'
         required: true
@@ -44,9 +50,19 @@ on:
         type: boolean
         default: false
 
+      environment:
+        description: |
+          GitHub Actions environment in which to run the build. Can be either
+          `promote` or `build`. The default `promote` can only be used for
+          `master` and `branch/*` branches. `build` should be used for testing
+          workflow changes on a dev branch.
+        required: false
+        type: string
+        default: promote
+
 jobs:
   build-release-artifacts:
-    environment: build
+    environment: ${{ inputs.environment }}
     runs-on: macos-12-xl
     permissions:
       contents: read
@@ -54,20 +70,41 @@ jobs:
       GOMODCACHE: /tmp/gomodcache
       GOCACHE: /tmp/gocache
     steps:
-      - name: Checkout OSS Teleport
+      # --- Checkout ----------------------------------------------------------
+      # TODO(camh/tcsc): Factor repo checkout steps into separate action.
+      # Deduplicate across workflows.
+      - id: fetch-token
+        name: Fetch installation token
+        uses: tibdex/github-app-token@v1
+        continue-on-error: true
+        with:
+          app_id: ${{ secrets.DEPLOY_APP_ID }}
+          private_key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+          repository: ${{ inputs.oss-teleport-repo }}
+
+      - id: select-access-token
+        name: Select access token
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          APP_TOKEN: ${{ steps.fetch-token.outputs.token }}
+        run: |
+          echo token=${APP_TOKEN:-${GITHUB_TOKEN}} >> $GITHUB_OUTPUT
+
+      - id: checkout-oss
+        name: Checkout OSS Teleport
         uses: actions/checkout@v3
         with:
-          repository: gravitational/teleport
+          repository: ${{ inputs.oss-teleport-repo }}
           ref: ${{ inputs.oss-teleport-ref }}
+          token: ${{ steps.select-access-token.outputs.token }}
 
-      - name: Determine Enterprise Teleport reference
+      - id: determine-enterprise-ref
+        name: Determine Enterprise Teleport reference
         if: inputs.release == 'enterprise'
+        env:
+          e_ref: ${{ inputs.ent-teleport-ref }}
         run: |
-          if [[ -z "${{ inputs.ent-teleport-ref }}" ]]; then
-            echo TELEPORT_E_REF=$(git rev-parse @:e) >> $GITHUB_ENV
-          else
-            echo TELEPORT_E_REF=${{ inputs.ent-teleport-ref }} >> $GITHUB_ENV
-          fi
+          echo ref=${e_ref:-$(git rev-parse @:e)} >> $GITHUB_OUTPUT
 
       - name: Checkout Enterprise Teleport
         if: inputs.release == 'enterprise'
@@ -75,8 +112,9 @@ jobs:
         with:
           repository: gravitational/teleport.e
           path: e
-          ref: ${{ env.TELEPORT_E_REF }}
+          ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
 
+      # --- Setup -------------------------------------------------------------
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
@@ -118,6 +156,7 @@ jobs:
         run: |
           ./build.assets/keychain-setup.sh -a APP_KEY -A APP_KEY_PASSWORD -i INST_KEY -I INST_KEY_PASSWORD -v
 
+      # --- Build -------------------------------------------------------------
       - name: Build FIDO2
         run: |
           build.assets/build-fido2-macos.sh build
@@ -171,7 +210,7 @@ jobs:
         run: |
           mkdir -p build/pkg
           cd build/pkg
-          pkgutil --expand-full ../tsh-${TELEPORT_VERSION:-$(make -C ../.. print-version)}.pkg tsh
+          pkgutil --expand-full ../tsh-*.pkg tsh
           echo "CONNECT_TSH_APP_PATH=$PWD/tsh/Payload/tsh.app" >> $GITHUB_ENV
 
       - name: Build Teleport Connect
@@ -191,6 +230,7 @@ jobs:
             cp web/packages/teleterm/build/release/*.dmg build/artifacts
           fi
 
+      # --- Upload ------------------------------------------------------------
       - name: Checksum artifacts
         if: inputs.save-artifacts
         run: |
