@@ -2,7 +2,7 @@
 //
 // Source: prehog/v1alpha/teleport.proto
 
-package v1alphaconnect
+package prehogv1alphaconnect
 
 import (
 	context "context"
