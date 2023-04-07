@@ -715,20 +715,14 @@ Scale up the number of nodes/clusters a few times for each configuration below.
  2) Compare the baseline metrics with the previous release to determine if resource usage has increased
  3) Restart all Auth instances and verify that all nodes/clusters reconnect
 
-* Cluster with 10K direct dial nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
+ Perform reverse tunnel node scaling tests for all backend configurations:
+  - [ ] etcd - 10k
+  - [ ] DynamoDB - 10k
+  - [ ] Firestore - 10k
 
-* Cluster with 10K reverse tunnel nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
-
-* Cluster with 500 trusted clusters:
-- [ ] etcd
-- [ ] DynamoDB
-- [ ] Firestore
+  Perform the following additional scaling tests on DynamoDB:
+ - [ ] 10k direct dial nodes.
+ - [ ] 500 trusted clusters.
 
 ### Soak Test
 
