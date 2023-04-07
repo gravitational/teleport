@@ -407,7 +407,7 @@ func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, 
 			sha := sha256.Sum256([]byte(token))
 			configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
 			if hasTokenChanged(loadedIdent.TokenHashBytes, configTokenHashBytes) {
-				b.log.Info("Bot identity loaded from store does not match configured token. Bot will join using configured token.")
+				b.log.Info("Bot identity loaded from store does not match configured token. Bot will fetch identity using configured token.")
 				// If the token has changed, do not return the loaded
 				// identity.
 				return nil, nil
@@ -418,7 +418,7 @@ func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, 
 			// still be used.
 			b.log.
 				WithError(err).
-				Error("There was an error loading the token specified in config. Bot identity loaded from store will be tried.")
+				Error("There was an error loading the configured token. Bot identity loaded from store will be tried.")
 		}
 	}
 
