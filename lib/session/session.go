@@ -107,7 +107,7 @@ type Session struct {
 	// Owner is the name of the session owner, ie the one who created the session.
 	Owner string `json:"owner"`
 	// IsModeratedSession is true if the session requires moderation.
-	IsModeratedSession bool `json:"isModeratedSession"`
+	IsModeratedSession bool `json:"is_moderated_session"`
 }
 
 // Participants returns the usernames of the current session participants.
