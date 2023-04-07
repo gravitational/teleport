@@ -104,11 +104,8 @@ chart.
 
 ## macOS
 
-<Tabs dropdownView dropdownCaption="Teleport Edition">
-<TabItem label="Open Source" scope="oss">
-  <Tabs>
-  <TabItem label="Installer">
-
+<Tabs dropdownCaption="Teleport Edition">
+<TabItem label="Installer" options="Open Source" scope="oss">
   You can download one of the following .pkg installers for macOS:
 
   |Link|Binaries|
@@ -130,50 +127,51 @@ chart.
   # /usr/local/bin/teleport
   ```
 
-  </TabItem>
-
-  <TabItem label="Homebrew">
- <Notice type="danger">
-
-The Teleport package in Homebrew is not maintained by Teleport and we can't
-guarantee its reliability or security. We recommend the use of our [official
-Teleport packages](https://goteleport.com/download). Binaries provided by Homebrew
-are not signed by Teleport, so features that require signed and notarized binaries
-(TouchID, Device Trust) are not available in Homebrew builds.
-
-<ScopedBlock scope={["enterprise", "cloud"]}>
-
-The Homebrew version of Teleport lacks the ability to maintain SAML/OIDC authentication
-connectors through the `tctl` binary. We recommend installing the official Teleport Enterprise edition of `tctl`.
-
-</ScopedBlock>
-
-</Notice>
-
-To install Teleport with Homebrew, run the following command:
-
-```code
-$ brew install teleport
-```
-
-If you choose to use Homebrew, you must verify that the versions of `tsh`
-and `tctl` you run on your local machine are compatible with the versions
-you run on your infrastructure. Homebrew usually ships the latest release of
-Teleport, which may be incompatible with older versions. See our
-[compatibility policy](management/operations/upgrading.mdx) for details.
-
-To verify versions, log in to your cluster and compare the output of `tctl status`
-against `tsh version` and `tctl version`.
-
- </TabItem>
- </Tabs>
 </TabItem>
+<TabItem label="Homebrew" options="Open Source">
 
-<TabItem label="Enterprise" scope="enterprise">
-  (!docs/pages/includes/enterprise/install-macos.mdx!)
+  <Notice type="danger">
+
+  The Teleport package in Homebrew is not maintained by Teleport and we can't
+  guarantee its reliability or security. 
+
+  </Notice>
+
+  ### Warnings
+
+  We recommend the use of our [official
+  Teleport packages](https://goteleport.com/download). Binaries provided by Homebrew
+  are not signed by Teleport, so features that require signed and notarized binaries
+  (TouchID, Device Trust) are not available in Homebrew builds.
+
+  The `tctl` release available on Homebrew is the open source edition, and
+  cannot manage configuration resources unique to Teleport Enterprise and
+  Teleport Enterprise Cloud (e.g., OIDC and SAML connectors). For Teleport
+  Enterprise and Enterprise Cloud, we recommend installing the official Teleport
+  Enterprise edition of `tctl`.
+
+  ### Installing open source Teleport with Homebrew
+
+  To install Teleport with Homebrew, run the following command:
+
+  ```code
+  $ brew install teleport
+  ```
+
+  If you choose to use Homebrew, you must verify that the versions of `tsh`
+  and `tctl` you run on your local machine are compatible with the versions
+  you run on your infrastructure. Homebrew usually ships the latest release of
+  Teleport, which may be incompatible with older versions. See our
+  [compatibility policy](management/operations/upgrading.mdx) for details.
+
+  To verify versions, log in to your cluster and compare the output of `tctl status`
+  against `tsh version` and `tctl version`.
+
 </TabItem>
-<TabItem label="Cloud" scope="cloud">
-  (!docs/pages/includes/enterprise/install-macos.mdx!)
+<TabItem label="Installer" options="Enterprise,Cloud"  scope={["enterprise", "cloud"]}>
+
+(!docs/pages/includes/enterprise/install-macos.mdx!)
+
 </TabItem>
 </Tabs>
 
