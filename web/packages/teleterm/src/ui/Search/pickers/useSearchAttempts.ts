@@ -21,7 +21,12 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
+import {
+  Attempt,
+  makeEmptyAttempt,
+  mapAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import {
@@ -29,7 +34,7 @@ import {
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
-import { mapToActions } from 'teleterm/ui/Search/actions';
+import { mapToActions, SearchAction } from 'teleterm/ui/Search/actions';
 import Logger from 'teleterm/logger';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
@@ -110,4 +115,8 @@ function useDebounce<Args extends unknown[], ReturnValue>(
     () => debounce((...args: Args) => callbackRef.current(...args), delay),
     [delay]
   );
+}
+
+export function isEmptySearch(attempt: Attempt<SearchAction[]>): boolean {
+  return !attempt.data?.length;
 }

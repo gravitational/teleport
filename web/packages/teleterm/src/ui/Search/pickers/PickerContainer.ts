@@ -29,6 +29,8 @@ export const PickerContainer = styled.div`
   border-radius: ${props => props.theme.radii[2]}px;
   border: 1px solid ${props => props.theme.colors.action.hover};
   text-shadow: none;
+  // Prevents inner items from covering the border on rounded corners.
+  overflow: hidden;
 
   // Account for border.
   width: calc(100% + 2px);

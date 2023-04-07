@@ -36,22 +36,18 @@ type ResultListProps<T> = {
    */
   attempts: Attempt<T[]>[];
   /**
-   * NoResultsComponent is the element that's going to be rendered instead of the list if the
-   * attempt has successfully finished but there's no results to show.
+   * ExtraComponent is the element that is rendered above the items.
    */
-  NoResultsComponent?: ReactElement;
+  ExtraComponent?: ReactElement;
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, NoResultsComponent, onPick, onBack } = props;
+  const { attempts, ExtraComponent, onPick, onBack } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
-  const shouldShowNoResultsCopy =
-    NoResultsComponent &&
-    attempts.every(a => a.status === 'success' && a.data.length === 0);
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -115,12 +111,13 @@ export function ResultList<T>(props: ResultListProps<T>) {
         )}
       </Separator>
       <Overflow role="menu">
+        {ExtraComponent}
         {items.map((r, index) => {
           const isActive = index === activeItemIndex;
           const { Component, key } = props.render(r);
 
           return (
-            <StyledItem
+            <InteractiveItem
               ref={isActive ? activeItemRef : null}
               role="menuitem"
               $active={isActive}
@@ -128,22 +125,15 @@ export function ResultList<T>(props: ResultListProps<T>) {
               onClick={() => props.onPick(r)}
             >
               {Component}
-            </StyledItem>
+            </InteractiveItem>
           );
         })}
-        {shouldShowNoResultsCopy && NoResultsComponent}
       </Overflow>
     </>
   );
 }
 
-const StyledItem = styled.div`
-  &:hover,
-  &:focus {
-    cursor: pointer;
-    background: ${props => props.theme.colors.levels.elevated};
-  }
-
+export const NonInteractiveItem = styled.div`
   & mark {
     color: inherit;
     background-color: ${props => props.theme.colors.brand.accent};
@@ -162,15 +152,11 @@ const StyledItem = styled.div`
       : props.theme.colors.levels.surface};
 `;
 
-export const EmptyListCopy = styled(Box)`
-  width: 100%;
-  height: 100%;
-  padding: ${props => props.theme.space[2]}px;
-  line-height: 1.5em;
-
-  ul {
-    margin: 0;
-    padding-inline-start: 2em;
+const InteractiveItem = styled(NonInteractiveItem)`
+  &:hover,
+  &:focus {
+    cursor: pointer;
+    background: ${props => props.theme.colors.levels.elevated};
   }
 `;
 
@@ -191,7 +177,6 @@ const Separator = styled.div`
 const Overflow = styled.div`
   overflow: auto;
   height: 100%;
-  border-radius: 0 0 4px 4px;
   list-style: none outside none;
   max-height: 350px;
   // Hardcoded to height of the input + the shortest item.

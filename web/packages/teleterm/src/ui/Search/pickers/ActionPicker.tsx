@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Label as DesignLabel, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
+import { hasFinished } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -37,9 +38,9 @@ import * as uri from 'teleterm/ui/uri';
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
 
-import { useSearchAttempts } from './useSearchAttempts';
+import { isEmptySearch, useSearchAttempts } from './useSearchAttempts';
 import { getParameterPicker } from './pickers';
-import { ResultList, EmptyListCopy } from './ResultList';
+import { ResultList, NonInteractiveItem } from './ResultList';
 import { PickerContainer } from './PickerContainer';
 
 export function ActionPicker(props: { input: ReactElement }) {
@@ -125,12 +126,11 @@ export function ActionPicker(props: { input: ReactElement }) {
     }
   }
 
-  const NoResultsComponent = (
-    <NoResults
-      clusters={clustersService.getRootClusters()}
-      inputValue={inputValue}
-    />
-  );
+  const ExtraComponent = inputValue
+    ? attempts.every(a => isEmptySearch(a) && hasFinished(a)) && (
+        <NoResultsItem clusters={clustersService.getRootClusters()} />
+      )
+    : attempts.every(a => isEmptySearch(a)) && <TypeToSearchItem />;
 
   return (
     <PickerContainer>
@@ -157,7 +157,7 @@ export function ActionPicker(props: { input: ReactElement }) {
             ),
           };
         }}
-        NoResultsComponent={NoResultsComponent}
+        ExtraComponent={ExtraComponent}
       />
     </PickerContainer>
   );
@@ -395,34 +395,29 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   );
 }
 
-export function NoResults(props: {
-  inputValue: string;
-  clusters: tsh.Cluster[];
-}) {
-  if (props.inputValue.length > 0) {
-    const excludedClustersCopy = getExcludedClustersCopy(props.clusters);
-    return (
-      <EmptyListCopy>
-        <Text typography="subtitle1" color="text.primary">
-          No matching results found.
-        </Text>
-        {excludedClustersCopy && (
-          <Item Icon={icons.Info} iconColor="text.primary">
-            <Text typography="body1" color="text.primary">
-              {excludedClustersCopy}
-            </Text>
-          </Item>
-        )}
-      </EmptyListCopy>
-    );
-  }
-
+export function NoResultsItem(props: { clusters: tsh.Cluster[] }) {
+  const excludedClustersCopy = getExcludedClustersCopy(props.clusters);
   return (
-    <EmptyListCopy>
-      <Text typography="subtitle1" color="text.primary">
+    <NonInteractiveItem>
+      <Item Icon={icons.Info} iconColor="text.primary">
+        <Text typography="body1">No matching results found.</Text>
+        {excludedClustersCopy && (
+          <Text typography="body1" color="text.primary">
+            {excludedClustersCopy}
+          </Text>
+        )}
+      </Item>
+    </NonInteractiveItem>
+  );
+}
+
+export function TypeToSearchItem() {
+  return (
+    <NonInteractiveItem>
+      <Text typography="body1" color="text.primary">
         Type something to search.
       </Text>
-    </EmptyListCopy>
+    </NonInteractiveItem>
   );
 }
 

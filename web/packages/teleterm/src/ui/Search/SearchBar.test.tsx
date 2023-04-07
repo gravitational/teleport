@@ -76,21 +76,9 @@ it('does display empty results copy after providing search query for which there
   jest
     .spyOn(useSearchAttempts, 'useSearchAttempts')
     .mockImplementation(() => mockAttempts);
-  jest.spyOn(SearchContext, 'useSearchContext').mockImplementation(() => ({
-    inputValue: 'foo',
-    filters: [],
-    setFilter: () => {},
-    removeFilter: () => {},
-    opened: true,
-    open: () => {},
-    close: () => {},
-    closeAndResetInput: () => {},
-    resetInput: () => {},
-    changeActivePicker: () => {},
-    onInputValueChange: () => {},
-    activePicker: pickers.actionPicker,
-    inputRef: undefined,
-  }));
+  jest
+    .spyOn(SearchContext, 'useSearchContext')
+    .mockImplementation(() => mockedSearchContext);
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -99,5 +87,60 @@ it('does display empty results copy after providing search query for which there
   );
 
   const results = screen.getByRole('menu');
-  expect(results).toHaveTextContent('No matching results found');
+  expect(results).toHaveTextContent('No matching results found.');
 });
+
+it('does display empty results copy and excluded clusters after providing search query for which there is no results', () => {
+  const appContext = new MockAppContext();
+  jest
+    .spyOn(appContext.clustersService, 'getRootClusters')
+    .mockImplementation(() => [
+      {
+        uri: '/clusters/teleport-12-ent.asteroid.earth',
+        name: 'teleport-12-ent.asteroid.earth',
+        connected: false,
+        leaf: false,
+        proxyHost: 'test:3030',
+        authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+      },
+    ]);
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = '/clusters/foo';
+  });
+
+  const mockAttempts = [makeSuccessAttempt([])];
+  jest
+    .spyOn(useSearchAttempts, 'useSearchAttempts')
+    .mockImplementation(() => mockAttempts);
+  jest
+    .spyOn(SearchContext, 'useSearchContext')
+    .mockImplementation(() => mockedSearchContext);
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <SearchBarConnected />
+    </MockAppContextProvider>
+  );
+
+  const results = screen.getByRole('menu');
+  expect(results).toHaveTextContent('No matching results found.');
+  expect(results).toHaveTextContent(
+    'The cluster teleport-12-ent.asteroid.earth was excluded from the search because you are not logged in to it.'
+  );
+});
+
+const mockedSearchContext = {
+  inputValue: 'foo',
+  filters: [],
+  setFilter: () => {},
+  removeFilter: () => {},
+  opened: true,
+  open: () => {},
+  close: () => {},
+  closeAndResetInput: () => {},
+  resetInput: () => {},
+  changeActivePicker: () => {},
+  onInputValueChange: () => {},
+  activePicker: pickers.actionPicker,
+  inputRef: undefined,
+};

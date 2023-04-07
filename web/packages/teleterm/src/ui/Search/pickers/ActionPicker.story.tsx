@@ -28,11 +28,10 @@ import {
   makeLabelsList,
 } from '../searchResultTestHelpers';
 
-import { ComponentMap, NoResults as NoResultsComponent } from './ActionPicker';
+import { ComponentMap, NoResultsItem, TypeToSearchItem } from './ActionPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
-import { PickerContainer } from 'teleterm/ui/Search/pickers/PickerContainer';
 
 export default {
   title: 'Teleterm/Search/ActionPicker',
@@ -48,6 +47,9 @@ export const Items = () => {
       css={`
         position: relative;
         max-width: 600px;
+        display: flex;
+        flex-direction: column;
+        row-gap: 8px;
 
         > * {
           max-height: unset;
@@ -64,6 +66,9 @@ export const ItemsNarrow = () => {
       css={`
         position: relative;
         max-width: 300px;
+        display: flex;
+        flex-direction: column;
+        row-gap: 8px;
 
         > * {
           max-height: unset;
@@ -301,55 +306,41 @@ const List = () => {
   const attempt = makeSuccessAttempt(searchResults);
 
   return (
-    <ResultList<SearchResult>
-      attempts={[attempt]}
-      onPick={() => {}}
-      onBack={() => {}}
-      render={searchResult => {
-        const Component = ComponentMap[searchResult.kind];
-
-        return {
-          key:
-            searchResult.kind !== 'resource-type-filter'
-              ? searchResult.resource.uri
-              : searchResult.resource,
-          Component: (
-            <Component
-              searchResult={searchResult}
-              getClusterName={routing.parseClusterName}
-            />
-          ),
-        };
-      }}
-    />
-  );
-};
-
-export const NoResults = () => {
-  const component = (
-    <NoResultsComponent
-      inputValue={'abc'}
-      clusters={[
-        {
-          uri: clusterUri,
-          name: 'teleport-12-ent.asteroid.earth',
-          connected: false,
-          leaf: false,
-          proxyHost: 'test:3030',
-          authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-        },
-      ]}
-    />
-  );
-  return (
-    <PickerContainer>
+    <>
       <ResultList<SearchResult>
-        attempts={[]}
+        attempts={[attempt]}
         onPick={() => {}}
         onBack={() => {}}
-        render={() => null}
-        NoResultsComponent={component}
+        render={searchResult => {
+          const Component = ComponentMap[searchResult.kind];
+
+          return {
+            key:
+              searchResult.kind !== 'resource-type-filter'
+                ? searchResult.resource.uri
+                : searchResult.resource,
+            Component: (
+              <Component
+                searchResult={searchResult}
+                getClusterName={routing.parseClusterName}
+              />
+            ),
+          };
+        }}
       />
-    </PickerContainer>
+      <NoResultsItem
+        clusters={[
+          {
+            uri: clusterUri,
+            name: 'teleport-12-ent.asteroid.earth',
+            connected: false,
+            leaf: false,
+            proxyHost: 'test:3030',
+            authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+          },
+        ]}
+      />
+      <TypeToSearchItem />
+    </>
   );
 };
