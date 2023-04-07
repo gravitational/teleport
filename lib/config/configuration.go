@@ -1805,7 +1805,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 
 	if clf.BootstrapFile != "" {
 		if !utils.FileExists(clf.BootstrapFile) {
-			return trace.NotFound("failed to bootstrap cluster configuration: bootstrap file specified '%s' does not exist", clf.BootstrapFile)
+			return trace.NotFound("failed to bootstrap cluster configuration: file %q does not exist", clf.BootstrapFile)
 		}
 		resources, err := ReadResources(clf.BootstrapFile)
 		if err != nil {
