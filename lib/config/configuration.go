@@ -195,7 +195,7 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 	if cliConfigPath != "" {
 		configFilePath = cliConfigPath
 		if !utils.FileExists(configFilePath) {
-			return nil, trace.NotFound("failed to load configuration: configuration file specified '%s' does not exist", configFilePath)
+			return nil, trace.NotFound("failed to load configuration: file %q does not exist", configFilePath)
 		}
 	}
 	// default config doesn't exist? quietly return:
