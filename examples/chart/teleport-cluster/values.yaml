@@ -252,6 +252,11 @@ labels: {}
 # (3) When set to "scratch", you must write the teleport configuration in auth.teleportConfig and proxy.teleportConfig.
 chartMode: standalone
 
+# Deploy Teleport using a Deployment or StatefulSet. The default is "deployment". Options:
+# - "deployment": will deploy both the auth and proxy using a deployment.
+# - "statefulset" will deploy both the auth as a statefulSet and proxy as a deployment
+resourceType: statefulset 
+
 # validateConfigOnDeploy enables a Kubernetes job before install and upgrade that will verify
 # if the teleport.yaml configuration is valid and will block the deployment if it is not
 validateConfigOnDeploy: true
@@ -425,6 +430,21 @@ tls:
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
+
+##################################################
+# StatefulSet-specific settings (only used when resourceType is set to "statefulset")
+##################################################
+
+# Modify the persistent volume retention policy. By default PV will be retained on scale and deletion
+# https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#persistentvolumeclaim-retention
+# set between "Retain" or "Delete". Retain is the default.
+persistentVolumeClaimRetentionPolicy:
+  whenDeleted: Retain
+  whenScaled: Retain
+
+# set the updatestrategy to RollingUpdate or OnDelete
+updateStrategy:
+  type: RollingUpdate
 
 ##################################################
 # Values that you shouldn't need to change.
