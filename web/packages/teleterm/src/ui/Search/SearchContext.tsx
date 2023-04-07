@@ -37,6 +37,7 @@ export interface SearchContext {
   changeActivePicker(picker: SearchPicker): void;
   isOpen: boolean;
   open(fromElement?: Element): void;
+  lockOpen(action: Promise<any>): Promise<void>;
   close(): void;
   closeAndResetInput(): void;
   resetInput(): void;
@@ -50,6 +51,7 @@ export const SearchContextProvider: FC = props => {
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
   const [isOpen, setIsOpen] = useState(false);
+  const [isLockedOpen, setIsLockedOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);
   // TODO(ravicious): Consider using another data structure for search filters as we know that we
@@ -67,17 +69,25 @@ export const SearchContextProvider: FC = props => {
   }
 
   const close = useCallback(() => {
+    if (isLockedOpen) {
+      return;
+    }
+
     setIsOpen(false);
     setActivePicker(actionPicker);
     if (previouslyActive.current instanceof HTMLElement) {
       previouslyActive.current.focus();
     }
-  }, []);
+  }, [isLockedOpen]);
 
   const closeAndResetInput = useCallback(() => {
+    if (isLockedOpen) {
+      return;
+    }
+
     close();
     setInputValue('');
-  }, [close]);
+  }, [isLockedOpen, close]);
 
   const resetInput = useCallback(() => {
     setInputValue('');
@@ -89,6 +99,21 @@ export const SearchContextProvider: FC = props => {
     }
     previouslyActive.current = fromElement || document.activeElement;
     setIsOpen(true);
+  }
+
+  /**
+   * lockOpen forces the search bar to stay open for the duration of the action.
+   * This is useful in situations where want the search bar to not close when the user interacts
+   * with modals shown from the search bar.
+   */
+  async function lockOpen(action: Promise<any>): Promise<void> {
+    setIsLockedOpen(true);
+
+    try {
+      await action;
+    } finally {
+      setIsLockedOpen(false);
+    }
   }
 
   function setFilter(filter: SearchFilter) {
@@ -124,6 +149,7 @@ export const SearchContextProvider: FC = props => {
         resetInput,
         isOpen,
         open,
+        lockOpen,
         close,
         closeAndResetInput,
       }}
