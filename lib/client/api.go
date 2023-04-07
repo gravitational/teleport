@@ -1185,13 +1185,17 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListResourcesClient) ([]string, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListResourcesClient, options SSHOptions) ([]string, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
+
+	if options.HostAddress != "" {
+		return []string{options.HostAddress}, nil
+	}
 
 	// use the target node that was explicitly provided if valid
 	if len(tc.Labels) == 0 {
@@ -1423,11 +1427,27 @@ func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Cli
 	return clt, nil
 }
 
+// SSHOptions allow overriding configuration
+// used when connecting to a host via [TeleportClient.SSH].
+type SSHOptions struct {
+	// HostAddress is the address of the target host. If specified it
+	// will be used instead of the target provided when `tsh ssh` was invoked.
+	HostAddress string
+}
+
+// WithHostAddress returns a SSHOptions which overrides the
+// target host address with the one provided.
+func WithHostAddress(addr string) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.HostAddress = addr
+	}
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 //
 // Returns nil if successful, or (possibly) *exec.ExitError
-func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool) error {
+func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool, opts ...func(*SSHOptions)) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SSH",
@@ -1438,6 +1458,11 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		),
 	)
 	defer span.End()
+
+	var options SSHOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
@@ -1451,7 +1476,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer clt.Close()
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, clt.AuthClient)
+	nodeAddrs, err := tc.getTargetNodes(ctx, clt.AuthClient, options)
 	if err != nil {
 		return trace.Wrap(err)
 	}
