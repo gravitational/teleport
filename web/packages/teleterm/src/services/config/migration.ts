@@ -19,22 +19,35 @@ import Logger from 'teleterm/logger';
 
 const logger = new Logger('ConfigMigration');
 
-// TODO(gzdunek): when a migration fails an error should be thrown
+// TODO(gzdunek): when a migration fails an error should be thrown.
+// Currently, `FileStorage.write` catches all IO errors,
+// but instead they should be propagated and handled at higher levels.
+// If an error occurs, we should show it to the user and stop the app from working.
+//
+// Additionally, `runConfigFileMigration`
+// should be an async function that does not resolve until the migration is complete.
 export function runConfigFileMigration(configFile: FileStorage): void {
   if (configFile.getFileLoadingError()) {
     return;
   }
-  const configFileContent = configFile.get();
+  const configFileContent = configFile.get() as object;
 
-  // TODO(gzdunek): remove this migration in v14
+  // DELETE IN 14.0
   const openCommandBarProperty = 'keymap.openCommandBar';
   const openSearchBarProperty = 'keymap.openSearchBar';
-  if (configFileContent[openCommandBarProperty]) {
-    logger.info(
-      `Running migration, renaming ${openCommandBarProperty} -> ${openSearchBarProperty}`
-    );
-    configFileContent[openSearchBarProperty] =
-      configFileContent[openCommandBarProperty];
+
+  // check if the old property exists
+  if (openCommandBarProperty in configFileContent) {
+    // migrate only if the new property does not exist
+    if (!(openSearchBarProperty in configFileContent)) {
+      logger.info(
+        `Running migration, renaming ${openCommandBarProperty} -> ${openSearchBarProperty}`
+      );
+      configFileContent[openSearchBarProperty] =
+        configFileContent[openCommandBarProperty];
+    }
+
+    // remove the old property
     delete configFileContent[openCommandBarProperty];
     configFile.replace(configFileContent);
   }
