@@ -164,12 +164,15 @@ export function ActionPicker(props: { input: ReactElement }) {
 }
 
 export const InputWrapper = styled(Flex).attrs({ px: 2 })`
-  row-gap: ${props => props.theme.space[1]}px;
+  row-gap: ${props => props.theme.space[2]}px;
   column-gap: ${props => props.theme.space[2]}px;
   align-items: center;
   flex-wrap: wrap;
+  padding-block: 7px; // 8px - 1px = account for border
+  min-height: 38px; // input height without border
 
   & > input {
+    height: unset;
     padding-inline: 0;
     flex: 1;
   }
