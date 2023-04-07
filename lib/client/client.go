@@ -1807,6 +1807,15 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 	}
 	defer s.Close()
 
+	// File transfers in a moderated session require these two variablesto check for
+	// approval on the ssh server. If they exist in the context, set them in our env vars
+	if moderatedSessionID, ok := ctx.Value(scp.ModeratedSessionID).(string); ok {
+		s.Setenv(ctx, string(scp.ModeratedSessionID), moderatedSessionID)
+	}
+	if fileTransferRequestID, ok := ctx.Value(scp.FileTransferRequestID).(string); ok {
+		s.Setenv(ctx, string(scp.FileTransferRequestID), fileTransferRequestID)
+	}
+
 	stdin, err := s.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err)
