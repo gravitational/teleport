@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.transport.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1;transportv1";
 
 // TransportService provides methods to proxy connections to various Teleport instances.
 //

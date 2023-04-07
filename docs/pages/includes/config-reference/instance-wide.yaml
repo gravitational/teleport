@@ -66,13 +66,11 @@ teleport:
     # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
 
-
     # Teleport provides HTTP endpoints for monitoring purposes. They are
     # disabled by default but you can enable them using the diagnosis address.
     # See the Teleport metrics reference:
     # https://goteleport.com/docs/management/diagnostics/metrics/
     diag_addr: "127.0.0.1:3000"
-
 
     # Only use one of auth_server or proxy_server.
     #
