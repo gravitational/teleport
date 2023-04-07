@@ -305,7 +305,7 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 	conn, err := grpc.DialContext(
 		dialCtx,
 		cfg.ProxySSHAddress,
-		append(cfg.DialOpts,
+		append([]grpc.DialOption{
 			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
 			grpc.WithChainUnaryInterceptor(
@@ -320,7 +320,7 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 					metadata.StreamClientInterceptor,
 				)...,
 			),
-		)...,
+		}, cfg.DialOpts...)...,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
