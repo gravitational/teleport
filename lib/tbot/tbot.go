@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 	"sync"
 	"time"
 
@@ -240,8 +241,21 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// Maintain a context that we can cancel if the bot is running in one shot.
-	ctx, cancel := context.WithCancel(ctx)
+	// One-shot mode just invokes the output of credentials to the destinations.
+	// There's no retry logic here - this means we fail fast in the most common
+	// oneshot use-cases like CI-CD where backing off over several minutes on
+	// failure will just cost the customer money.
+	if b.cfg.Oneshot {
+		b.log.Info("One-shot mode enabled. Renewing destinations.")
+		if err := b.renewDestinations(ctx); err != nil {
+			return trace.Wrap(err)
+		}
+
+		b.log.Info("Renewed destinations. One-shot mode enabled so exiting.")
+		return nil
+	}
+
+	// If in daemon mode, we spin up all of our separate concurrent components.
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		return trace.Wrap(b.caRotationLoop(egCtx))
@@ -250,15 +264,7 @@ func (b *Bot) Run(ctx context.Context) error {
 		return trace.Wrap(b.renewBotIdentityLoop(egCtx))
 	})
 	eg.Go(func() error {
-		err := b.renewDestinationsLoop(egCtx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		// If `renewDestinationsLoop` exits with nil, the bot is running in "one-shot", so
-		// we should indicate to other long-running processes that they can
-		// finish up.
-		cancel()
-		return nil
+		return trace.Wrap(b.renewDestinationsLoop(egCtx))
 	})
 
 	return eg.Wait()
@@ -285,16 +291,22 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// Start by loading the bot's primary destination.
-	dest, err := b.cfg.Storage.GetDestination()
+	// Start by loading the bot's primary storage.
+	store, err := b.cfg.Storage.GetDestination()
 	if err != nil {
 		return nil, trace.Wrap(
 			err, "could not read bot storage destination from config",
 		)
 	}
 
+	if err := identity.VerifyWrite(store); err != nil {
+		return nil, trace.Wrap(
+			err, "Could not write to destination %s, aborting.", store,
+		)
+	}
+
 	// Now attempt to lock the destination so we have sole use of it
-	unlock, err := dest.TryLock()
+	unlock, err := store.TryLock()
 	if err != nil {
 		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
 			return unlock, trace.WrapWithMessage(err, "Failed to acquire exclusive lock for tbot destination directory - is tbot already running?")
@@ -302,106 +314,121 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return unlock, trace.Wrap(err)
 	}
 
-	var authClient auth.ClientI
-
-	fetchNewIdentity := true
-	// First, attempt to load an identity from storage.
-	ident, err := identity.LoadIdentity(dest, identity.BotKinds()...)
-	if err == nil {
-		if b.cfg.Onboarding != nil && b.cfg.Onboarding.HasToken() {
-			// try to grab the token to see if it's changed, as we'll need to fetch a new identity if it has
-			if token, err := b.cfg.Onboarding.Token(); err == nil {
-				sha := sha256.Sum256([]byte(token))
-				configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
-
-				fetchNewIdentity = hasTokenChanged(ident.TokenHashBytes, configTokenHashBytes)
-			} else {
-				// we failed to get the token, we'll continue on trying to use the existing identity
-				b.log.WithError(err).Error("There was an error loading the token")
-
-				fetchNewIdentity = false
-
-				b.log.Info("Using the last good identity")
-			}
-		}
-
-		if !fetchNewIdentity {
-			identStr, err := describeTLSIdentity(ident)
-			if err != nil {
-				return unlock, trace.Wrap(err)
-			}
-
-			b.log.Infof("Successfully loaded bot identity, %s", identStr)
-
-			if err := b.checkIdentity(ident); err != nil {
-				return unlock, trace.Wrap(err)
-			}
-
-			if b.cfg.Onboarding != nil {
-				b.log.Warn("Note: onboarding config ignored as identity was loaded from persistent storage")
-			}
-
-			authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
-			if err != nil {
-				return unlock, trace.Wrap(err)
-			}
+	b.log.Info("Initializing bot identity.")
+	var loadedIdent *identity.Identity
+	if b.cfg.Onboarding.RenewableJoinMethod() {
+		// Nil, nil will be returned if no identity can be found in store or
+		// the identity in the store is no longer relevant.
+		loadedIdent, err = b.loadIdentityFromStore(store)
+		if err != nil {
+			return unlock, trace.Wrap(err)
 		}
 	}
 
-	if fetchNewIdentity {
-		if ident != nil {
-			// If ident is set here, we detected a token change above.
-			b.log.Warnf("Detected a token change, will attempt to fetch a new identity.")
-		} else if trace.IsNotFound(err) {
-			// This is _probably_ a fresh start, so we'll log the true error
-			// and try to fetch a fresh identity.
-			b.log.Debugf("Identity %s is not found or empty and could not be loaded, will start from scratch: %+v", dest, err)
-		} else {
-			return unlock, trace.Wrap(err)
+	var newIdentity *identity.Identity
+	if b.cfg.Onboarding.RenewableJoinMethod() && loadedIdent != nil {
+		// If using a renewable join method and we loaded an identity, let's
+		// immediately renew it so we know that after initialisation we have the
+		// full certificate TTL.
+		if err := b.checkIdentity(loadedIdent); err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		// Verify we can write to the destination.
-		if err := identity.VerifyWrite(dest); err != nil {
-			return unlock, trace.Wrap(
-				err, "Could not write to destination %s, aborting.", dest,
-			)
-		}
-
-		// Get first identity
-		ident, err = b.getIdentityFromToken()
+		authClient, err := b.AuthenticatedUserClientFromIdentity(ctx, loadedIdent)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
-
-		b.log.Debug("Attempting first connection using initial auth client")
-		authClient, err = b.AuthenticatedUserClientFromIdentity(ctx, ident)
+		defer authClient.Close()
+		newIdentity, err = b.renewIdentityViaAuth(ctx, loadedIdent, authClient)
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
-
-		// Attempt a request to make sure our client works.
-		if _, err := authClient.Ping(ctx); err != nil {
-			return unlock, trace.Wrap(err, "unable to communicate with auth server")
-		}
-
-		identStr, err := describeTLSIdentity(ident)
+	} else if b.cfg.Onboarding.HasToken() {
+		// If using a non-renewable join method, or we weren't able to load an
+		// identity from the store, let's get a new identity using the
+		// configured token.
+		newIdentity, err = b.getIdentityFromToken()
 		if err != nil {
 			return unlock, trace.Wrap(err)
 		}
-		b.log.Infof("Successfully generated new bot identity, %s", identStr)
-
-		b.log.Debugf("Storing new bot identity to %s", dest)
-		if err := identity.SaveIdentity(ident, dest, identity.BotKinds()...); err != nil {
-			return unlock, trace.Wrap(
-				err, "unable to save generated identity back to destination",
-			)
-		}
+	} else {
+		// There's no loaded identity to work with, and they've not configured
+		// a token to use to request an identity :(
+		return nil, trace.BadParameter("no token configured to load identity from")
 	}
 
-	b.setClient(authClient)
-	b.setIdent(ident)
+	identStr, err := describeTLSIdentity(newIdentity)
+	if err != nil {
+		return unlock, trace.Wrap(err, "Could not describe bot's internal identity at %s", store)
+	}
+
+	b.log.Infof("Fetched new bot identity. (%s)", identStr)
+	if err := identity.SaveIdentity(newIdentity, store, identity.BotKinds()...); err != nil {
+		return unlock, trace.Wrap(err)
+	}
+
+	newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
+	if err != nil {
+		return unlock, trace.Wrap(err)
+	}
+
+	b.setClient(newClient)
+	b.setIdent(newIdentity)
+
+	// Attempt a request to make sure our client works.
+	if _, err := b.Client().Ping(ctx); err != nil {
+		return unlock, trace.Wrap(err, "unable to communicate with auth server")
+	}
+	b.log.Info("Bot initialization complete.")
 
 	return unlock, nil
+}
+
+// loadIdentityFromStore attempts to load a persisted identity from a store.
+// It checks this loaded identity against the configured onboarding profile
+// and ignores the loaded identity if there has been a configuration change.
+func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, error) {
+	b.log.WithField("store", store).Info("Loading existing bot identity from store.")
+	loadedIdent, err := identity.LoadIdentity(store, identity.BotKinds()...)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			// This is _probably_ a fresh start, so we'll log the true error
+			// and try to fetch a fresh identity.
+			b.log.Info("No existing bot identity found in store. Bot will join using configured token.")
+			return nil, nil
+		} else {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Determine if the token configured in the onboarding matches the
+	// one used to produce the credentials loaded from disk.
+	if b.cfg.Onboarding.HasToken() {
+		if token, err := b.cfg.Onboarding.Token(); err == nil {
+			sha := sha256.Sum256([]byte(token))
+			configTokenHashBytes := []byte(hex.EncodeToString(sha[:]))
+			if hasTokenChanged(loadedIdent.TokenHashBytes, configTokenHashBytes) {
+				b.log.Info("Bot identity loaded from store does not match configured token. Bot will join using configured token.")
+				// If the token has changed, do not return the loaded
+				// identity.
+				return nil, nil
+			}
+		} else {
+			// we failed to get the newly configured token to compare to,
+			// we'll assume the last good credentials written to disk should
+			// still be used.
+			b.log.
+				WithError(err).
+				Error("There was an error loading the token specified in config. Bot identity loaded from store will be tried.")
+		}
+	}
+
+	identStr, err := describeTLSIdentity(loadedIdent)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b.log.Infof("Loaded existing bot identity from store. (%s)", identStr)
+
+	return loadedIdent, nil
 }
 
 func hasTokenChanged(configTokenBytes, identityBytes []byte) bool {

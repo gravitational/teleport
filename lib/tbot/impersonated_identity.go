@@ -487,7 +487,7 @@ func (b *Bot) renewDestinations(
 			return trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
 		}
 
-		b.log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
+		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, impersonatedIdentStr)
 
 		if err := identity.SaveIdentity(impersonatedIdent, destImpl, identity.DestinationKinds()...); err != nil {
 			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
@@ -526,6 +526,7 @@ func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
 	for {
 		var err error
 		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+			b.log.Infof("Renewing destinations.")
 			err = b.renewDestinations(ctx)
 			if err == nil {
 				break
@@ -553,11 +554,7 @@ func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
 			return trace.Wrap(err)
 		}
 
-		if b.cfg.Oneshot {
-			b.log.Info("Persisted certificates successfully. One-shot mode enabled so exiting.")
-			break
-		}
-		b.log.Infof("Persisted certificates successfully. Next renewal in approximately %s.", b.cfg.RenewalInterval)
+		b.log.Infof("Renewed destinations. Next renewal in approximately %s.", b.cfg.RenewalInterval)
 
 		select {
 		case <-ctx.Done():
@@ -568,6 +565,4 @@ func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
 			continue
 		}
 	}
-
-	return nil
 }

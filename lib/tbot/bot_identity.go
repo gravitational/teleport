@@ -15,9 +15,11 @@ import (
 	"time"
 )
 
-func (b *Bot) renewBotIdentityLoop(ctx context.Context) error {
+func (b *Bot) renewBotIdentityLoop(
+	ctx context.Context,
+) error {
 	b.log.Infof(
-		"Beginning bot's identity renewal loop: ttl=%s interval=%s",
+		"Beginning bot identity renewal loop: ttl=%s interval=%s",
 		b.cfg.CertificateTTL,
 		b.cfg.RenewalInterval,
 	)
@@ -39,31 +41,44 @@ func (b *Bot) renewBotIdentityLoop(ctx context.Context) error {
 	return trace.Wrap(b.renewBotIdentity(ctx, botDestination))
 }
 
-func (b *Bot) renewBotIdentity(ctx context.Context, botDestination bot.Destination) error {
+func (b *Bot) renewBotIdentity(
+	ctx context.Context,
+	botDestination bot.Destination,
+) error {
+	b.log.Info("Renewing bot identity.")
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(botDestination); err != nil {
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
 	}
 
-	b.log.Debug("Attempting to renew bot's internal identity...")
-
-	newIdentity, err := b.renewIdentityViaAuth(ctx)
-	if err != nil {
-		return trace.Wrap(err)
+	var newIdentity *identity.Identity
+	var err error
+	if b.cfg.Onboarding.RenewableJoinMethod() {
+		// When using a renewable join method, we use GenerateUserCerts to
+		// request a new certificate using our current identity.
+		newIdentity, err = b.renewIdentityViaAuth(ctx, b.ident(), b.Client())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		// When using the non-renewable join methods, we rejoin each time rather
+		// than using certificate renewal.
+		newIdentity, err = b.getIdentityFromToken()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	identStr, err := describeTLSIdentity(b.ident())
+	identStr, err := describeTLSIdentity(newIdentity)
 	if err != nil {
 		return trace.Wrap(err, "Could not describe bot's internal identity at %s", botDestination)
 	}
 
-	b.log.Infof("Successfully renewed bots certificates, %s", identStr)
+	b.log.Infof("Fetched new bot identity. (%s)", identStr)
+	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
+		return trace.Wrap(err)
+	}
 
-	// TODO: warn if duration < certTTL? would indicate TTL > server's max renewable cert TTL
-	// TODO: error if duration < renewalInterval? next renewal attempt will fail
-
-	// Immediately attempt to reconnect using the new identity (still
-	// haven't persisted the known-good certs).
 	newClient, err := b.AuthenticatedUserClientFromIdentity(ctx, newIdentity)
 	if err != nil {
 		return trace.Wrap(err)
@@ -71,43 +86,23 @@ func (b *Bot) renewBotIdentity(ctx context.Context, botDestination bot.Destinati
 
 	b.setClient(newClient)
 	b.setIdent(newIdentity)
-	b.log.Debug("Auth client now using renewed credentials.")
+	b.log.Debugf("Bot now using new identity. (%s)", identStr)
 
-	// Now that we're sure the new creds work, persist them.
-	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Next, generate impersonated certs
-	expires := newIdentity.X509Cert.NotAfter
+	return nil
 }
 
 func (b *Bot) renewIdentityViaAuth(
 	ctx context.Context,
+	ident *identity.Identity,
+	client auth.ClientI,
 ) (*identity.Identity, error) {
-	// If using the IAM join method we always go through the initial join flow
-	// and fetch new nonrenewable certs
-	var joinMethod types.JoinMethod
-	if b.cfg.Onboarding != nil {
-		joinMethod = b.cfg.Onboarding.JoinMethod
+	b.log.Info("Fetching bot identity using existing bot identity.")
+	if ident == nil || client == nil {
+		return nil, trace.BadParameter("renewIdentityWithAuth must be called with non-nil client and identity")
 	}
-	switch joinMethod {
-	// When using join methods that are repeatable - renewDestinations fully rather than
-	// renewing using existing credentials.
-	case types.JoinMethodAzure,
-		types.JoinMethodCircleCI,
-		types.JoinMethodGitHub,
-		types.JoinMethodGitLab,
-		types.JoinMethodIAM:
-		ident, err := b.getIdentityFromToken()
-		return ident, trace.Wrap(err)
-	default:
-	}
-
 	// Ask the auth server to generate a new set of certs with a new
 	// expiration date.
-	ident := b.ident()
-	certs, err := b.Client().GenerateUserCerts(ctx, proto.UserCertsRequest{
+	certs, err := client.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		PublicKey: ident.PublicKeyBytes,
 		Username:  ident.X509Cert.Subject.CommonName,
 		Expires:   time.Now().Add(b.cfg.CertificateTTL),
@@ -129,12 +124,7 @@ func (b *Bot) renewIdentityViaAuth(
 }
 
 func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
-	if b.cfg.Onboarding == nil {
-		return nil, trace.BadParameter("onboarding config required via CLI or YAML")
-	}
-	if !b.cfg.Onboarding.HasToken() {
-		return nil, trace.BadParameter("unable to start: no token present")
-	}
+	b.log.Info("Fetching bot identity using token.")
 	addr, err := utils.ParseAddr(b.cfg.AuthServer)
 	if err != nil {
 		return nil, trace.Wrap(err, "invalid auth server address %+v", b.cfg.AuthServer)
@@ -144,8 +134,6 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to generate new keypairs")
 	}
-
-	b.log.Info("Attempting to generate new identity from token")
 
 	token, err := b.cfg.Onboarding.Token()
 	if err != nil {

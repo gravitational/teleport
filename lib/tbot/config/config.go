@@ -21,6 +21,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -38,16 +39,15 @@ import (
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
-	DefaultJoinMethod     = "token"
 )
 
 var SupportedJoinMethods = []string{
+	string(types.JoinMethodToken),
 	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
-	string(types.JoinMethodToken),
 }
 
 var log = logrus.WithFields(logrus.Fields{
@@ -200,6 +200,12 @@ func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
 }
 
+// RenewableJoinMethod indicates that certificate renewal should be used with
+// this join method rather than rejoining each time.
+func (conf *OnboardingConfig) RenewableJoinMethod() bool {
+	return conf.JoinMethod == types.JoinMethodToken
+}
+
 // SetToken stores the value for --token or auth_token in the config
 //
 // In the case of the token value pointing to a file, this allows us to
@@ -227,7 +233,7 @@ func (conf *OnboardingConfig) Token() (string, error) {
 
 // BotConfig is the bot's root config object.
 type BotConfig struct {
-	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
+	Onboarding   OnboardingConfig     `yaml:"onboarding,omitempty"`
 	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
@@ -316,12 +322,6 @@ func NewDefaultConfig(authServer string) (*BotConfig, error) {
 	}
 
 	return &cfg, nil
-}
-
-// isJoinMethodDefault determines if the given join method (as input on the
-// CLI) is set to a default value.
-func isJoinMethodDefault(joinMethod string) bool {
-	return joinMethod == "" || joinMethod == DefaultJoinMethod
 }
 
 func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
@@ -446,18 +446,16 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || len(cf.CAPins) > 0 || !isJoinMethodDefault(cf.JoinMethod) {
-		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.HasToken() || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
+	if cf.Token != "" || cf.JoinMethod != "" || len(cf.CAPins) > 0 {
+		if !reflect.DeepEqual(config.Onboarding, OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
-		config.Onboarding = &OnboardingConfig{
+		config.Onboarding = OnboardingConfig{
 			CAPins:     cf.CAPins,
 			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
-
 		config.Onboarding.SetToken(cf.Token)
 	}
 
