@@ -1,3 +1,4 @@
+{{ flags="" }}
 Teleport's diagnostic HTTP endpoints are disabled by default. You can enable
 them via:
 
@@ -7,8 +8,9 @@ them via:
     address where the diagnostic endpoint will listen:
 
     ```code
-    $ sudo teleport start --diag-addr=127.0.0.1:3000
+    $ sudo teleport start {{ flags }} --diag-addr=127.0.0.1:3000
     ```
+
     </TabItem>
     <TabItem label="Config file">
     Edit a `teleport` instance's configuration file (`/etc/teleport.yaml` by
@@ -18,6 +20,14 @@ them via:
     teleport:
         diag_addr: 127.0.0.1:3000
     ```
+
+    To enable debug logs:
+
+    ```yaml
+    log:
+        severity: DEBUG
+    ```
+
     </TabItem>
 </Tabs>
 
