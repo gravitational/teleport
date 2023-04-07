@@ -42,9 +42,14 @@ function createHtmlPlugin({ isDev }) {
 }
 
 function getCsp({ isDev }) {
+  // feedbackAddress needs to be kept in sync with the address in useShareFeedback.
+  const feedbackAddress = isDev
+    ? 'https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod'
+    : 'https://usage.teleport.dev';
+
   let csp = `
 default-src 'self';
-connect-src 'self' https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod https://usage.teleport.dev;
+connect-src 'self' ${feedbackAddress};
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
 object-src 'none';
