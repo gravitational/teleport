@@ -209,9 +209,6 @@ func ReadConfigFile(cliConfigPath string) (*FileConfig, error) {
 
 // ReadResources loads a set of resources from a file.
 func ReadResources(filePath string) ([]types.Resource, error) {
-	if !utils.FileExists(filePath) {
-		return nil, trace.NotFound("failed to bootstrap cluster configuration: bootstrap file specified '%s' does not exist", filePath)
-	}
 	reader, err := utils.OpenFile(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1807,6 +1804,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	}
 
 	if clf.BootstrapFile != "" {
+		if !utils.FileExists(clf.BootstrapFile) {
+			return trace.NotFound("failed to bootstrap cluster configuration: bootstrap file specified '%s' does not exist", clf.BootstrapFile)
+		}
 		resources, err := ReadResources(clf.BootstrapFile)
 		if err != nil {
 			return trace.Wrap(err)
@@ -1818,6 +1818,9 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	}
 
 	if clf.ApplyOnStartupFile != "" {
+		if !utils.FileExists(clf.ApplyOnStartupFile) {
+			return trace.NotFound("failed to bootstrap cluster configuration: apply on startup file specified '%s' does not exist", clf.ApplyOnStartupFile)
+		}
 		resources, err := ReadResources(clf.ApplyOnStartupFile)
 		if err != nil {
 			return trace.Wrap(err)
