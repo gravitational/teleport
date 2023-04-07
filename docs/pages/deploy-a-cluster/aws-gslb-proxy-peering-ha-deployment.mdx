@@ -1,5 +1,5 @@
 ---
-title: "AWS Route 53 GSLB Multi-Region Proxy Peering High Availability Deployment Guide"
+title: "AWS Multi-Region High Availability Deployment Guide"
 description: "Deploying a Proxy-peered High Availability Teleport Cluster using Route 53 to create Global Server Load Balancing"
 ---
 
@@ -64,7 +64,7 @@ In other words, this must be a Layer 4 load balancer, not a Layer 7
   type="warning"
   title="Note"
 >
-We recommend enabling cross-zone load balancing for the Auth and Proxy service NLB configurations to route 
+Cross-zone load balancing is requried for the Auth and Proxy service NLB configurations to route 
 traffic across multiple zones. Doing this improves resiliency against localized AWS zone outages.
 </Admonition>
 
@@ -125,8 +125,8 @@ and does not require them to exist in advance.
 
 <Admonition title="Required permissions">
 
-The Auth Service instances needs permissions to read from and write to DynamoDB, as well as 
-to create tables.
+The Auth Service instances needs [permissions to read from and write to DynamoDB](https://goteleport.com/docs/reference/backends/#dynamodb), 
+as well as to create tables.
 
 </Admonition>
 
@@ -135,11 +135,11 @@ to create tables.
 Highly available Teleport deployments use an object storage service for
 persisting session recordings.
 
-Depending on how you choose to deploy the Teleport cluster, the Teleport Auth Service can create the required S3 bucket if it doesn't already exist.
+Depeding on how you choose to deploy the Teleport cluster, the Teleport Auth Service can create the required S3 bucket if it doens't already exist.
 
 <Admonition title="Required permissions">
 
-The Auth Service instances need permissions to get S3 buckets as well as to create, get, list, 
+The Auth Service instances [need permissions to get S3 buckets](https://goteleport.com/docs/reference/backends/#s3) as well as to create, get, list, 
 and update objects.
 
 </Admonition>
@@ -255,6 +255,7 @@ method for lowest latency and most reliable connection.
 proxy_service:
   ...
   peer_public_addr: teleport.example.com:3021
+  agent_connection_count: 2
   ...
 ```
 
@@ -262,7 +263,6 @@ proxy_service:
 you could incur additional latency or user experience issues because peer proxies must continually dial through the NLB until 
 they establish connection to the correct peer target.
 
-When using an NLB for peer_public_addr, be sure to set agent_connection_count to a value >=2.
 
 ```
 proxy_service:
@@ -271,5 +271,12 @@ proxy_service:
   agent_connection_count: 2
   ...
 ```
+<Admonition
+  type="warning"
+  title="Note"
+>
+For both Option 1 and 2, agent_connection_count should be set to a value >=2 to decrease
+the likelihood of agents being unavailable.
+</Admonition>
 Refrence the [Proxy Service configuration](https://goteleport.com/docs/reference/config/#proxy-service) reference page 
 for additional settings.
