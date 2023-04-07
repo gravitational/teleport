@@ -2704,17 +2704,17 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
-		Login:              req.Login,
-		ServerID:           id,
-		ClusterName:        clusterName,
-		ServerHostname:     host,
-		ServerHostPort:     port,
-		IsModeratedSession: accessEvaluator.IsModerated(),
-		ID:                 session.NewID(),
-		Created:            time.Now().UTC(),
-		LastActive:         time.Now().UTC(),
-		Namespace:          apidefaults.Namespace,
-		Owner:              owner,
+		Login:          req.Login,
+		ServerID:       id,
+		ClusterName:    clusterName,
+		ServerHostname: host,
+		ServerHostPort: port,
+		Moderated:      accessEvaluator.IsModerated(),
+		ID:             session.NewID(),
+		Created:        time.Now().UTC(),
+		LastActive:     time.Now().UTC(),
+		Namespace:      apidefaults.Namespace,
+		Owner:          owner,
 	}, nil
 }
 
@@ -2837,7 +2837,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		KubernetesClusterName: tracker.GetKubeCluster(),
 		DesktopName:           tracker.GetDesktopName(),
 		AppName:               tracker.GetAppName(),
-		IsModeratedSession:    accessEvaluator.IsModerated(),
+		Moderated:             accessEvaluator.IsModerated(),
 		DatabaseName:          tracker.GetDatabaseName(),
 		Owner:                 tracker.GetHostUser(),
 	}

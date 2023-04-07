@@ -40,7 +40,7 @@ export interface Session {
   // participantModes are the participant modes that are available to the user listing this session.
   participantModes: ParticipantMode[];
   // whether this session requires moderation or not. this is NOT if the session is currently being actively moderated
-  isModeratedSession: boolean;
+  moderated: boolean;
 }
 
 export type SessionMetadata = {
