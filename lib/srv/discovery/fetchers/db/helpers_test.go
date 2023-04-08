@@ -46,7 +46,7 @@ func toTypeLabels(labels map[string]string) types.Labels {
 func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []services.AWSMatcher) []common.Fetcher {
 	t.Helper()
 
-	fetchers, err := MakeAWSFetchers(clients, matchers)
+	fetchers, err := MakeAWSFetchers(context.Background(), clients, matchers)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
