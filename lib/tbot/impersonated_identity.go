@@ -32,14 +32,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // generateKeys generates TLS and SSH keypairs.
@@ -60,41 +58,6 @@ func generateKeys() (private, sshpub, tlspub []byte, err error) {
 	}
 
 	return privateKey, publicKey, tlsPublicKey, nil
-}
-
-// AuthenticatedUserClientFromIdentity creates a new auth client from the given
-// identity. Note that depending on the connection address given, this may
-// attempt to connect via the proxy and therefore requires both SSH and TLS
-// credentials.
-func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
-	if id.SSHCert == nil || id.X509Cert == nil {
-		return nil, trace.BadParameter("auth client requires a fully formed identity")
-	}
-
-	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClientConfig := &authclient.Config{
-		TLS:         tlsConfig,
-		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{*authAddr},
-		Log:         b.log,
-	}
-
-	c, err := authclient.Connect(ctx, authClientConfig)
-	return c, trace.Wrap(err)
 }
 
 // describeTLSIdentity generates an informational message about the given
@@ -537,7 +500,7 @@ func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)
 				b.log.WithError(err).Warnf(
-					"Renewal attempt %d of %d failed. Retrying after %s.",
+					"Destination renewal attempt %d of %d failed. Retrying after %s.",
 					attempt,
 					renewalRetryLimit,
 					backoffTime,
@@ -550,11 +513,11 @@ func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
 			}
 		}
 		if err != nil {
-			b.log.Warnf("All %d retry attempts exhausted.", renewalRetryLimit)
+			b.log.Warnf("%d retry attempts exhausted. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, b.cfg.RenewalInterval)
 			return trace.Wrap(err)
+		} else {
+			b.log.Infof("Renewed destinations. Next destination renewal in approximately %s.", b.cfg.RenewalInterval)
 		}
-
-		b.log.Infof("Renewed destinations. Next renewal in approximately %s.", b.cfg.RenewalInterval)
 
 		select {
 		case <-ctx.Done():

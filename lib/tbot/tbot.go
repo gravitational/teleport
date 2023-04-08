@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"sync"
 	"time"
@@ -361,7 +362,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return unlock, trace.Wrap(err, "Could not describe bot's internal identity at %s", store)
 	}
 
-	b.log.Infof("Fetched new bot identity. (%s)", identStr)
+	b.log.WithField("identity", identStr).Info("Fetched new bot identity.")
 	if err := identity.SaveIdentity(newIdentity, store, identity.BotKinds()...); err != nil {
 		return unlock, trace.Wrap(err)
 	}
@@ -391,8 +392,6 @@ func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, 
 	loadedIdent, err := identity.LoadIdentity(store, identity.BotKinds()...)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			// This is _probably_ a fresh start, so we'll log the true error
-			// and try to fetch a fresh identity.
 			b.log.Info("No existing bot identity found in store. Bot will join using configured token.")
 			return nil, nil
 		} else {
@@ -426,7 +425,7 @@ func (b *Bot) loadIdentityFromStore(store bot.Destination) (*identity.Identity, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	b.log.Infof("Loaded existing bot identity from store. (%s)", identStr)
+	b.log.WithField("identity", identStr).Info("Loaded existing bot identity from store.")
 
 	return loadedIdent, nil
 }
@@ -510,4 +509,39 @@ func (b *Bot) checkIdentity(ident *identity.Identity) error {
 	}
 
 	return nil
+}
+
+// AuthenticatedUserClientFromIdentity creates a new auth client from the given
+// identity. Note that depending on the connection address given, this may
+// attempt to connect via the proxy and therefore requires both SSH and TLS
+// credentials.
+func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
+	if id.SSHCert == nil || id.X509Cert == nil {
+		return nil, trace.BadParameter("auth client requires a fully formed identity")
+	}
+
+	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authAddr, err := utils.ParseAddr(b.cfg.AuthServer)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClientConfig := &authclient.Config{
+		TLS:         tlsConfig,
+		SSH:         sshConfig,
+		AuthServers: []utils.NetAddr{*authAddr},
+		Log:         b.log,
+	}
+
+	c, err := authclient.Connect(ctx, authClientConfig)
+	return c, trace.Wrap(err)
 }

@@ -18,6 +18,7 @@ package config
 
 import (
 	"fmt"
+	"golang.org/x/exp/slices"
 	"io"
 	"net/url"
 	"os"
@@ -279,6 +280,14 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	if conf.RenewalInterval == 0 {
 		conf.RenewalInterval = DefaultRenewInterval
+	}
+
+	if conf.Onboarding.JoinMethod == "" {
+		return trace.BadParameter("join method must be configured")
+	}
+
+	if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
+		return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
 	}
 
 	return nil

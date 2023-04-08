@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
+	"math"
 	"time"
 )
 
@@ -38,14 +40,57 @@ func (b *Bot) renewBotIdentityLoop(
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(b.renewBotIdentity(ctx, botDestination))
+	ticker := time.NewTicker(b.cfg.RenewalInterval)
+	jitter := retryutils.NewJitter()
+	defer ticker.Stop()
+	for {
+		var err error
+		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+			b.log.Info("Renewing bot identity.")
+			err = b.renewBotIdentity(ctx, botDestination)
+			if err == nil {
+				break
+			}
+
+			if attempt != renewalRetryLimit {
+				// exponentially back off with jitter, starting at 1 second.
+				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
+				backoffTime = jitter(backoffTime)
+				b.log.WithError(err).Errorf(
+					"Bot identity renewal attempt %d of %d failed. Retrying after %s.",
+					attempt,
+					renewalRetryLimit,
+					backoffTime,
+				)
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-time.After(backoffTime):
+				}
+			}
+		}
+		if err != nil {
+			b.log.WithError(err).Errorf("%d bot identity renewals failed. All retry attempts exhausted. Exiting.", renewalRetryLimit)
+			return trace.Wrap(err)
+		}
+
+		b.log.Infof("Renewed bot identity. Next bot identity renewal in approximately %s.", b.cfg.RenewalInterval)
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			continue
+		case <-b.reloadChan:
+			continue
+		}
+	}
 }
 
 func (b *Bot) renewBotIdentity(
 	ctx context.Context,
 	botDestination bot.Destination,
 ) error {
-	b.log.Info("Renewing bot identity.")
 	// Make sure we can still write to the bot's destination.
 	if err := identity.VerifyWrite(botDestination); err != nil {
 		return trace.Wrap(err, "Cannot write to destination %s, aborting.", botDestination)
@@ -74,7 +119,7 @@ func (b *Bot) renewBotIdentity(
 		return trace.Wrap(err, "Could not describe bot's internal identity at %s", botDestination)
 	}
 
-	b.log.Infof("Fetched new bot identity. (%s)", identStr)
+	b.log.WithField("identity", identStr).Info("Fetched new bot identity.")
 	if err := identity.SaveIdentity(newIdentity, botDestination, identity.BotKinds()...); err != nil {
 		return trace.Wrap(err)
 	}
@@ -86,7 +131,7 @@ func (b *Bot) renewBotIdentity(
 
 	b.setClient(newClient)
 	b.setIdent(newIdentity)
-	b.log.Debugf("Bot now using new identity. (%s)", identStr)
+	b.log.WithField("identity", identStr).Debug("Bot now using new identity.")
 
 	return nil
 }
