@@ -229,7 +229,7 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 	var upstreamConn net.Conn = tlsConn
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
 		l.cfg.Log.Debug("Using ping connection")
-		upstreamConn = pingconn.New(tlsConn)
+		upstreamConn = pingconn.NewTLS(tlsConn)
 	}
 
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))

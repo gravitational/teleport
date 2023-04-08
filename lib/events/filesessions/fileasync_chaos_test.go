@@ -36,6 +36,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -55,7 +56,7 @@ func TestChaosUpload(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 	eventsC := make(chan events.UploadEvent, 100)
-	memUploader := events.NewMemoryUploader(eventsC)
+	memUploader := eventstest.NewMemoryUploader(eventsC)
 	streamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
 		Uploader:       memUploader,
 		MinUploadBytes: 1024,

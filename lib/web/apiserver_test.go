@@ -1920,12 +1920,11 @@ func TestWebAgentForward(t *testing.T) {
 }
 
 func TestActiveSessions(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
-	pack := s.authPack(t, "foo")
-
 	// Use enterprise license (required for moderated sessions).
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo")
 
 	start := time.Now()
 	kinds := []types.SessionKind{
@@ -6741,6 +6740,10 @@ func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (au
 	return nil, nil
 }
 
+func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
+	return nil, nil
+}
+
 type terminalOpt func(t *TerminalRequest)
 
 func withSessionID(sid session.ID) terminalOpt {
@@ -7912,7 +7915,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
 			},
-			Clock: clockwork.NewRealClock(),
+			ConnTLSConfig: tlsConfig,
+			Clock:         clockwork.NewRealClock(),
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   client,
