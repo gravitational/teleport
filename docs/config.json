@@ -992,6 +992,11 @@
                "slug": "/database-access/guides/mysql-self-hosted/"
             },
             {
+              "title": "Self-Hosted Oracle (Preview)",
+              "forScopes": ["enterprise", "cloud"],
+              "slug": "/database-access/guides/oracle-self-hosted/"
+            },
+            {
                "title": "Self-Hosted PostgreSQL",
                "slug": "/database-access/guides/postgres-self-hosted/"
             },
@@ -1002,11 +1007,6 @@
             {
                "title": "Self-Hosted Redis Cluster",
                "slug": "/database-access/guides/redis-cluster/"
-            },
-            {
-              "title": "Self-Hosted Oracle (Preview)",
-              "forScopes": ["enterprise", "cloud"],
-              "slug": "/database-access/guides/oracle-self-hosted/"
             },
             {
                "title": "Snowflake (Preview)",
