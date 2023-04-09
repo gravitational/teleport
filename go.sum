@@ -178,8 +178,9 @@ github.com/aws/aws-sdk-go v1.44.234 h1:8YbQ5AhpgV/cC7jYX8qS34Am/vcn2ZoIFJ1qIgwOL
 github.com/aws/aws-sdk-go v1.44.234/go.mod h1:aVsgQcEevwlmQ7qHE9I3h+dtQgpqhFB+i8Phjh7fkwI=
 github.com/aws/aws-sdk-go-v2 v0.18.0/go.mod h1:JWVYvqSMppoMJC0x5wdwiImzgXTI9FuZwxzkQq9wy+g=
 github.com/aws/aws-sdk-go-v2 v1.17.3/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
-github.com/aws/aws-sdk-go-v2 v1.17.7 h1:CLSjnhJSTSogvqUGhIC6LqFKATMRexcxLZ0i/Nzk9Eg=
 github.com/aws/aws-sdk-go-v2 v1.17.7/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
+github.com/aws/aws-sdk-go-v2 v1.17.8 h1:GMupCNNI7FARX27L7GjCJM8NgivWbRgpjNI/hOQjFS8=
+github.com/aws/aws-sdk-go-v2 v1.17.8/go.mod h1:uzbQtefpm44goOPmdKyAlXSNcwlRgF3ePWVW6EtJvvw=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 h1:dK82zF6kkPeCo8J1e+tGx4JdvDIQzj7ygIoLg8WMuGs=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10/go.mod h1:VeTZetY5KRJLuD/7fkQXMU6Mw7H5m/KP2J5Iy9osMno=
 github.com/aws/aws-sdk-go-v2/config v1.18.6/go.mod h1:qyjgnyqpKnNGT+C62zMsrZ/Mn2OodYqwIH0DpXiW8f8=
@@ -189,8 +190,9 @@ github.com/aws/aws-sdk-go-v2/credentials v1.13.6/go.mod h1:VbnUvhw31DUu6aiubViix
 github.com/aws/aws-sdk-go-v2/credentials v1.13.18 h1:EQMdtHwz0ILTW1hoP+EwuWhwCG1hD6l3+RWFQABET4c=
 github.com/aws/aws-sdk-go-v2/credentials v1.13.18/go.mod h1:vnwlwjIe+3XJPBYKu1et30ZPABG3VaXJYr8ryohpIyM=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.21/go.mod h1:ugwW57Z5Z48bpvUyZuaPy4Kv+vEfJWnIrky7RmkBvJg=
-github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.1 h1:gt57MN3liKiyGopcqgNzJb2+d9MJaKT/q1OksHNXVE4=
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.1/go.mod h1:lfUx8puBRdM5lVVMQlwt2v+ofiG/X6Ms+dy0UkG/kXw=
+github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.2 h1:jOzQAesnBFDmz93feqKnsTHsXrlwWORNZMFHMV+WLFU=
+github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.2/go.mod h1:cDh1p6XkSGSwSRIArWRc6+UqAQ7x4alQ0QfpVR6f+co=
 github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.45 h1:ckFtXy51PT613d/KLKPxFiwRqgGIxDhVbNLof6x/XLo=
 github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.45/go.mod h1:xar61xizdVU4pQygvQrNdZY1VCLNcOIvm87KzdZmWrE=
 github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.27/go.mod h1:a1/UpzeyBBerajpnP5nGZa9mGzsBn5cOKxm6NWQsvoI=
