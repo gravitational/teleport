@@ -139,7 +139,7 @@ require (
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.6.0
 	golang.org/x/term v0.6.0
-	golang.org/x/text v0.8.0
+	golang.org/x/text v0.9.0
 	google.golang.org/api v0.114.0
 	google.golang.org/genproto v0.0.0-20230327152035-dc694ad2151e
 	google.golang.org/grpc v1.54.0
