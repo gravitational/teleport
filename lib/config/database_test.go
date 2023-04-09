@@ -473,6 +473,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				require.ElementsMatch(t, tt.wantCommandLabels, got.DynamicLabels)
 				require.Equal(t, tt.flags.DatabaseAWSRegion, got.AWS.Region)
 				require.Equal(t, tt.flags.DatabaseAWSAccountID, got.AWS.AccountID)
+				require.Equal(t, tt.flags.DatabaseAWSAssumeRoleARN, got.AWS.AssumeRoleARN)
 				require.Equal(t, tt.flags.DatabaseAWSExternalID, got.AWS.ExternalID)
 				require.Equal(t, tt.flags.DatabaseAWSRedshiftClusterID, got.AWS.Redshift.ClusterID)
 				require.Equal(t, tt.flags.DatabaseAWSRDSClusterID, got.AWS.RDS.ClusterID)

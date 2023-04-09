@@ -15,7 +15,7 @@
  */
 
 import React, { useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useHistory } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
@@ -44,6 +44,7 @@ interface SelectResourceProps {
 export function SelectResource(props: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<{ entity: AddButtonResourceKind }>();
+  const history = useHistory();
 
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
@@ -60,6 +61,11 @@ export function SelectResource(props: SelectResourceProps) {
     });
     setResources(foundResources);
     setSearch(s);
+  }
+
+  function onClearSearch() {
+    history.replace({ state: {} }); // Clear any loc state.
+    onSearch('');
   }
 
   React.useEffect(() => {
@@ -115,7 +121,7 @@ export function SelectResource(props: SelectResourceProps) {
             max={100}
           />
         </InputWrapper>
-        {search && <ClearSearch onClick={() => onSearch('')} />}
+        {search && <ClearSearch onClick={onClearSearch} />}
       </Box>
       {resources.length > 0 && (
         <>
@@ -123,8 +129,6 @@ export function SelectResource(props: SelectResourceProps) {
             {resources.map((r, index) => {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
-              const selectResourceFn =
-                r.unguidedLink || !r.hasAccess ? null : () => props.onSelect(r);
 
               // There can be two types of click behavior with the resource cards:
               //  1) If the resource has no interactive UI flow ("unguided"),
@@ -140,7 +144,7 @@ export function SelectResource(props: SelectResourceProps) {
                   as={r.unguidedLink ? Link : null}
                   href={r.hasAccess ? r.unguidedLink : null}
                   target={r.unguidedLink ? '_blank' : null}
-                  onClick={selectResourceFn}
+                  onClick={() => r.hasAccess && props.onSelect(r)}
                   className={r.unguidedLink ? 'unguided' : ''}
                 >
                   {!r.unguidedLink && r.hasAccess && (

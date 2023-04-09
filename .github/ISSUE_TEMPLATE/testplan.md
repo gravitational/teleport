@@ -30,7 +30,7 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] RBAC
 
-  Make sure that invalid and valid attempts are reflected in audit log.
+  Make sure that invalid and valid attempts are reflected in audit log. Do this with both Teleport and [Agentless nodes](https://goteleport.com/docs/server-access/guides/openssh/).
 
   - [ ] Successfully connect to node with correct role
   - [ ] Unsuccessfully connect to a node in a role restricting access by label
@@ -166,18 +166,32 @@ as well as an upgrade of the previous version of Teleport.
 
   - [ ] tsh ssh \<regular-node\>
   - [ ] tsh ssh \<node-remote-cluster\>
+  - [ ] tsh ssh \<agentless-node\>
+  - [ ] tsh ssh \<agentless-node-remote-cluster\>
   - [ ] tsh ssh -A \<regular-node\>
   - [ ] tsh ssh -A \<node-remote-cluster\>
+  - [ ] tsh ssh -A \<agentless-node\>
+  - [ ] tsh ssh -A \<agentless-node-remote-cluster\>
   - [ ] tsh ssh \<regular-node\> ls
   - [ ] tsh ssh \<node-remote-cluster\> ls
+  - [ ] tsh ssh \<agentless-node\> ls
+  - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
   - [ ] tsh join \<regular-node\>
   - [ ] tsh join \<node-remote-cluster\>
+  - [ ] tsh join \<agentless-node\>
+  - [ ] tsh join \<agentless-node-remote-cluster\>
   - [ ] tsh play \<regular-node\>
   - [ ] tsh play \<node-remote-cluster\>
+  - [ ] tsh play \<agentless-node\>
+  - [ ] tsh play \<agentless-node-remote-cluster\>
   - [ ] tsh scp \<regular-node\>
   - [ ] tsh scp \<node-remote-cluster\>
+  - [ ] tsh scp \<agentless-node\>
+  - [ ] tsh scp \<agentless-node-remote-cluster\>
   - [ ] tsh ssh -L \<regular-node\>
   - [ ] tsh ssh -L \<node-remote-cluster\>
+  - [ ] tsh ssh -L \<agentless-node\>
+  - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
   - [ ] tsh ls
   - [ ] tsh clusters
 
@@ -185,14 +199,24 @@ as well as an upgrade of the previous version of Teleport.
    Make sure to test both recording and regular proxy modes.
   - [ ] ssh \<regular-node\>
   - [ ] ssh \<node-remote-cluster\>
+  - [ ] ssh \<agentless-node\>
+  - [ ] ssh \<agentless-node-remote-cluster\>
   - [ ] ssh -A \<regular-node\>
   - [ ] ssh -A \<node-remote-cluster\>
+  - [ ] ssh -A \<agentless-node\>
+  - [ ] ssh -A \<agentless-node-remote-cluster\>
   - [ ] ssh \<regular-node\> ls
   - [ ] ssh \<node-remote-cluster\> ls
+  - [ ] ssh \<agentless-node\> ls
+  - [ ] ssh \<agentless-node-remote-cluster\> ls
   - [ ] scp \<regular-node\>
   - [ ] scp \<node-remote-cluster\>
+  - [ ] scp \<agentless-node\>
+  - [ ] scp \<agentless-node-remote-cluster\>
   - [ ] ssh -L \<regular-node\>
   - [ ] ssh -L \<node-remote-cluster\>
+  - [ ] ssh -L \<agentless-node\>
+  - [ ] ssh -L \<agentless-node-remote-cluster\>
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -206,6 +230,7 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Interact with a cluster using the Web UI
   - [ ] Connect to a Teleport node
   - [ ] Connect to a OpenSSH node
+  - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
 - [ ] `tsh` CA loading
@@ -241,12 +266,18 @@ interactive sessions the 12 combinations are below.
 - [ ] Connect to a OpenSSH node in a local cluster using OpenSSH.
 - [ ] Connect to a OpenSSH node in a local cluster using Teleport.
 - [ ] Connect to a OpenSSH node in a local cluster using the Web UI.
+- [ ] Connect to an Agentless node in a local cluster using OpenSSH.
+- [ ] Connect to an Agentless node in a local cluster using Teleport.
+- [ ] Connect to an Agentless node in a local cluster using the Web UI.
 - [ ] Connect to a Teleport node in a local cluster using OpenSSH.
 - [ ] Connect to a Teleport node in a local cluster using Teleport.
 - [ ] Connect to a Teleport node in a local cluster using the Web UI.
 - [ ] Connect to a OpenSSH node in a remote cluster using OpenSSH.
 - [ ] Connect to a OpenSSH node in a remote cluster using Teleport.
 - [ ] Connect to a OpenSSH node in a remote cluster using the Web UI.
+- [ ] Connect to an Agentless node in a remote cluster using OpenSSH.
+- [ ] Connect to an Agentless node in a remote cluster using Teleport.
+- [ ] Connect to an Agentless node in a remote cluster using the Web UI.
 - [ ] Connect to a Teleport node in a remote cluster using OpenSSH.
 - [ ] Connect to a Teleport node in a remote cluster using Teleport.
 - [ ] Connect to a Teleport node in a remote cluster using the Web UI.
@@ -677,42 +708,34 @@ Using `tsh` join an SSH session as two moderators (two separate terminals, role 
 
 ## Performance
 
-Perform all tests on the following configurations:
+### Scaling Test
+Scale up the number of nodes/clusters a few times for each configuration below.
 
-- [ ] With default networking configuration
-- [ ] With Proxy Peering Enabled
-- [ ] With TLS Routing Enabled
+ 1) Verify that there are no memory/goroutine/file descriptor leaks
+ 2) Compare the baseline metrics with the previous release to determine if resource usage has increased
+ 3) Restart all Auth instances and verify that all nodes/clusters reconnect
 
-* Cluster with 10K direct dial nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
+ Perform reverse tunnel node scaling tests for all backend configurations:
+  - [ ] etcd - 10k
+  - [ ] DynamoDB - 10k
+  - [ ] Firestore - 10k
 
-* Cluster with 10K reverse tunnel nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
-
-* Cluster with 500 trusted clusters:
-- [ ] etcd
-- [ ] DynamoDB
-- [ ] Firestore
+  Perform the following additional scaling tests on DynamoDB:
+ - [ ] 10k direct dial nodes.
+ - [ ] 500 trusted clusters.
 
 ### Soak Test
 
-Run 30 minute soak test with a mix of interactive/non-interactive sessions for both direct and reverse tunnel nodes:
+Run 30 minute soak test directly against direct and tunnel nodes
+and via label based matching. Tests should be run against a Cloud
+tenant.
 
 ```shell
-tsh bench --duration=30m user@direct-dial-node ls
-tsh bench -i --duration=30m user@direct-dial-node ps uax
-
-tsh bench --duration=30m user@reverse-tunnel-node ls
-tsh bench -i --duration=30m user@reverse-tunnel-node ps uax
+tsh bench ssh --duration=30m user@direct-dial-node ls
+tsh bench ssh --duration=30m user@reverse-tunnel-node ls
+tsh bench ssh --duration=30m user@foo=bar ls
+tsh bench ssh --duration=30m --random user@foo ls
 ```
-
-Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
-
-- [ ] Verify that prometheus metrics are accurate.
 
 ### Concurrent Session Test
 
@@ -721,8 +744,8 @@ Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make
 Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
 
 ```shell
-tsh bench sessions --max=5000 user ls
-tsh bench sessions --max=5000 --web user ls
+tsh bench web sessions --max=5000 user ls
+tsh bench web sessions --max=5000 --web user ls
 ```
 
 - [ ] Verify that all 5000 sessions are able to be established.
@@ -738,6 +761,8 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify that a lack of connectivity to Auth prevents access to resources
   which require a moderated session and in async recording mode from an already
   issued certificate.
+- [ ] Verify that an open session is not terminated when all Auth instances
+  are restarted.
 
 ## Teleport with Cloud Providers
 

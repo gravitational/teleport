@@ -50,6 +50,7 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -137,6 +138,9 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 
 // ValidateDatabase validates a types.Database.
 func ValidateDatabase(db types.Database) error {
+	if err := enterprise.ProtocolValidation(db.GetProtocol()); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := db.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}

@@ -3439,7 +3439,8 @@ proto.prehog.v1alpha.DiscoverMetadata.prototype.toObject = function(opt_includeI
 proto.prehog.v1alpha.DiscoverMetadata.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    userName: jspb.Message.getFieldWithDefault(msg, 2, "")
+    userName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    sso: jspb.Message.getBooleanFieldWithDefault(msg, 3, false)
   };
 
   if (includeInstance) {
@@ -3484,6 +3485,10 @@ proto.prehog.v1alpha.DiscoverMetadata.deserializeBinaryFromReader = function(msg
       var value = /** @type {string} */ (reader.readString());
       msg.setUserName(value);
       break;
+    case 3:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setSso(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3527,6 +3532,13 @@ proto.prehog.v1alpha.DiscoverMetadata.serializeBinaryToWriter = function(message
       f
     );
   }
+  f = message.getSso();
+  if (f) {
+    writer.writeBool(
+      3,
+      f
+    );
+  }
 };
 
 
@@ -3563,6 +3575,24 @@ proto.prehog.v1alpha.DiscoverMetadata.prototype.getUserName = function() {
  */
 proto.prehog.v1alpha.DiscoverMetadata.prototype.setUserName = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional bool sso = 3;
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.DiscoverMetadata.prototype.getSso = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 3, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.prehog.v1alpha.DiscoverMetadata} returns this
+ */
+proto.prehog.v1alpha.DiscoverMetadata.prototype.setSso = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 3, value);
 };
 
 
@@ -10991,7 +11021,26 @@ proto.prehog.v1alpha.DiscoverResource = {
   DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED: 14,
   DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP: 15,
   DISCOVER_RESOURCE_DATABASE_MYSQL_GCP: 16,
-  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP: 17
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP: 17,
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS: 18,
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE: 19,
+  DISCOVER_RESOURCE_DATABASE_DYNAMODB: 20,
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES: 21,
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED: 22,
+  DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED: 23,
+  DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE: 24,
+  DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB: 25,
+  DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE: 26,
+  DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED: 27,
+  DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE: 28,
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE: 29,
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT: 30,
+  DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED: 31,
+  DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS: 32,
+  DISCOVER_RESOURCE_DATABASE_SNOWFLAKE: 33,
+  DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY: 34,
+  DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY: 35,
+  DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION: 36
 };
 
 /**

@@ -227,7 +227,7 @@ type CLIConf struct {
 	Compatibility string
 	// CertificateFormat defines the format of the user SSH certificate.
 	CertificateFormat string
-	// IdentityFileOut is an argument to -out flag
+	// IdentityFileOut is an argument to --out flag
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a freshly retrieved certificate
@@ -258,7 +258,8 @@ type CLIConf struct {
 	Verbose bool
 
 	// Format is used to change the format of output
-	Format string
+	Format  string
+	OutFile string
 
 	// SearchKeywords is a list of search keywords to match against resource field values.
 	SearchKeywords string
@@ -724,6 +725,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
+	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
+	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
+	exportRecordings.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -800,7 +804,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	join.Flag("mode", "Mode of joining the session, valid modes are observer and moderator").Short('m').Default("peer").StringVar(&cf.JoinMode)
+	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
 	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
@@ -863,16 +867,29 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// bench
 	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
-	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
-	bench.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
-	bench.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
+
+	benchSSH := bench.Command("ssh", "Run SSH benchmark test")
+	benchSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	benchSSH.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
+	var benchKubeOpts benchKubeOptions
+	benchKube := bench.Command("kube", "Run Kube benchmark test")
+	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
+	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods")
+	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
+	benchExecKube := benchKube.Command("exec", "Run a benchmark test to exec into the specified Pod")
+	benchExecKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
+	benchExecKube.Arg("pod", "Pod name to exec into").Required().StringVar(&benchKubeOpts.pod)
+	benchExecKube.Arg("command", "Command to execute on a pod").Required().StringsVar(&cf.RemoteCommand)
+	benchExecKube.Flag("container", "Selects the container to exec into.").StringVar(&benchKubeOpts.container)
+	benchExecKube.Flag("interactive", "Create interactive Kube session").BoolVar(&cf.BenchInteractive)
 
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
@@ -1129,8 +1146,31 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onVersion(&cf)
 	case ssh.FullCommand():
 		err = onSSH(&cf)
-	case bench.FullCommand():
-		err = onBenchmark(&cf)
+	case benchSSH.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.SSHBenchmark{
+				Command: cf.RemoteCommand,
+			},
+		)
+	case benchListKube.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.KubeListBenchmark{
+				Namespace: benchKubeOpts.namespace,
+			},
+		)
+	case benchExecKube.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.KubeExecBenchmark{
+				Command:       cf.RemoteCommand,
+				Namespace:     benchKubeOpts.namespace,
+				PodName:       benchKubeOpts.pod,
+				ContainerName: benchKubeOpts.container,
+				Interactive:   cf.BenchInteractive,
+			},
+		)
 	case join.FullCommand():
 		err = onJoin(&cf)
 	case scp.FullCommand():
@@ -1156,6 +1196,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onApps(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
+	case exportRecordings.FullCommand():
+		err = onExportRecording(&cf)
 	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
 	case appLogout.FullCommand():
@@ -1402,6 +1444,12 @@ func fetchProxyVersion(cf *CLIConf) (string, string, error) {
 	}
 
 	return pingRes.ServerVersion, pingRes.Proxy.SSH.PublicAddr, nil
+}
+
+type benchKubeOptions struct {
+	pod       string
+	container string
+	namespace string
 }
 
 func serializeVersion(format string, proxyVersion string, proxyPublicAddress string) (string, error) {
@@ -3084,17 +3132,16 @@ func onSSH(cf *CLIConf) error {
 }
 
 // onBenchmark executes benchmark
-func onBenchmark(cf *CLIConf) error {
+func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 	tc, err := makeClient(cf, false)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	cnf := benchmark.Config{
-		Command:       cf.RemoteCommand,
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
 	}
-	result, err := cnf.Benchmark(cf.Context, tc)
+	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
@@ -4377,6 +4424,7 @@ func onRecordings(cf *CLIConf) error {
 		return trace.Errorf("date range for recordings listing too large: %v days specified: limit %v days",
 			days, defaults.TshTctlSessionDayLimit)
 	}
+
 	var sessions []apievents.AuditEvent
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		sessions, err = tc.SearchSessionEvents(cf.Context,

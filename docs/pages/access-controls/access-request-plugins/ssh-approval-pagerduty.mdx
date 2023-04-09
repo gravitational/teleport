@@ -45,7 +45,7 @@ Teleport Cloud tenant and PagerDuty.
 
 </ScopedBlock>
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Create services
 
@@ -413,7 +413,7 @@ Run `./install` from `teleport-pagerduty`.
 
 ## Step 4/8. Export the access plugin identity
 
-(!docs/pages/includes/plugins/identity-export.mdx!)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
 ## Step 5/8. Set up a PagerDuty API key
 
@@ -470,7 +470,6 @@ The PagerDuty plugin expects the configuration to be in
 flag when you run the plugin binary later in this guide.
 
 </Details>
-
 
 Edit the configuration file in `/etc/teleport-pagerduty.toml` as explained
 below:
@@ -582,7 +581,6 @@ Access Request:
 
 ![PagerDuty dashboard showing an Access
 Request](../../../img/enterprise/plugins/pagerduty/new-access-req-incident.png)
-
 
 ### Resolve the request
 

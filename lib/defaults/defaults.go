@@ -421,6 +421,8 @@ const (
 	ProtocolMySQL = "mysql"
 	// ProtocolMongoDB is the MongoDB database protocol.
 	ProtocolMongoDB = "mongodb"
+	// ProtocolOracle is the Oracle database protocol.
+	ProtocolOracle = "oracle"
 	// ProtocolRedis is the Redis database protocol.
 	ProtocolRedis = "redis"
 	// ProtocolCockroachDB is the CockroachDB database protocol.
@@ -446,6 +448,7 @@ var DatabaseProtocols = []string{
 	ProtocolPostgres,
 	ProtocolMySQL,
 	ProtocolMongoDB,
+	ProtocolOracle,
 	ProtocolCockroachDB,
 	ProtocolRedis,
 	ProtocolSnowflake,
@@ -465,6 +468,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "MySQL"
 	case ProtocolMongoDB:
 		return "MongoDB"
+	case ProtocolOracle:
+		return "Oracle"
 	case ProtocolCockroachDB:
 		return "CockroachDB"
 	case ProtocolRedis:
@@ -866,3 +871,12 @@ const (
 // AzureInviteTokenName is the name of the default token to use
 // when templating the script to be executed.
 const AzureInviteTokenName = "azure-discovery-token"
+
+const (
+	// FilePermissions are safe default permissions to use when
+	// creating files.
+	FilePermissions = 0o644
+	// DirectoryPermissions are safe default permissions to use when
+	// creating directories.
+	DirectoryPermissions = 0o755
+)

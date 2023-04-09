@@ -216,6 +216,16 @@ func tagPipelines() []pipeline {
 		},
 	}))
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-kube-agent-updater-oci-images",
+		ghaWorkflow:  "release-teleport-kube-agent-udpater-oci.yml",
+		srcRefVar:    "DRONE_TAG",
+		workflowRef:  "${DRONE_TAG}",
+		timeout:      60 * time.Minute,
+	}))
+
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
@@ -274,7 +284,7 @@ func tagPipeline(b buildType) pipeline {
 	p.Trigger = triggerTag
 	p.DependsOn = []string{tagCleanupPipelineName}
 	p.Workspace = workspace{Path: "/go"}
-	p.Volumes = []volume{volumeAwsConfig, volumeDocker}
+	p.Volumes = []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	p.Services = []service{
 		dockerService(),
 	}
@@ -282,6 +292,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -291,13 +302,15 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:        "Build artifacts",
 			Image:       "docker",
+			Pull:        "if-not-exists",
 			Environment: tagEnvironment,
-			Volumes:     []volumeRef{volumeRefDocker},
+			Volumes:     []volumeRef{volumeRefDocker, volumeRefDockerConfig},
 			Commands:    tagBuildCommands(b),
 		},
 		{
 			Name:     "Copy artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCopyArtifactCommands(b),
 		},
 		kubernetesAssumeAwsRoleStep(kubernetesRoleSettings{
@@ -317,6 +330,7 @@ func tagPipeline(b buildType) pipeline {
 		{
 			Name:     "Register artifacts",
 			Image:    "docker",
+			Pull:     "if-not-exists",
 			Commands: tagCreateReleaseAssetCommands(b, "", extraQualifications),
 			Environment: map[string]value{
 				"RELEASES_CERT": {fromSecret: "RELEASES_CERT"},
@@ -465,12 +479,10 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 		environment["OSS_TARBALL_PATH"] = value{raw: "/go/artifacts"}
 	}
 
-	packageDockerVolumes := []volume{
-		volumeDocker,
-		volumeAwsConfig,
-	}
+	packageDockerVolumes := []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	packageDockerVolumeRefs := []volumeRef{
 		volumeRefDocker,
+		volumeRefDockerConfig,
 		volumeRefAwsConfig,
 	}
 	packageDockerService := dockerService()

@@ -428,12 +428,12 @@ func (e *Engine) getConnectConfig(ctx context.Context, sessionCtx *common.Sessio
 	// auth token and use it as a password.
 	switch sessionCtx.Database.GetType() {
 	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy:
-		config.Password, err = e.Auth.GetRDSAuthToken(sessionCtx)
+		config.Password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.DatabaseTypeRedshift:
-		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(sessionCtx)
+		config.User, config.Password, err = e.Auth.GetRedshiftAuthToken(ctx, sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

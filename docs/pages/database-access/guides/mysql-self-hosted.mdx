@@ -23,8 +23,7 @@ This guide will help you to:
 - A self-hosted MySQL or MariaDB instance.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up the Teleport Database Service
 
@@ -54,8 +53,8 @@ which you'll need to enable mutual TLS on your MySQL server.
 ## Step 3/4. Configure MySQL/MariaDB
 
 <Tabs>
-  <TabItem label="MySQL">
-  To configure MySQL to accept TLS connections, add the following to your
+<TabItem label="MySQL">
+To configure MySQL to accept TLS connections, add the following to your
 MySQL configuration file, `mysql.cnf`:
 
 ```conf
@@ -65,9 +64,10 @@ ssl-ca=/path/to/server.cas
 ssl-cert=/path/to/server.crt
 ssl-key=/path/to/server.key
 ```
-  </TabItem>
-  <TabItem label="MariaDB">
-  To configure MariaDB to accept TLS connections, add the following to your
+
+</TabItem>
+<TabItem label="MariaDB">
+To configure MariaDB to accept TLS connections, add the following to your
 MariaDB configuration file, `mysql.cnf`:
 
 ```conf
@@ -77,20 +77,19 @@ ssl-ca=/path/to/server.cas
 ssl-cert=/path/to/server.crt
 ssl-key=/path/to/server.key
 ```
-  </TabItem>
+
+</TabItem>
 </Tabs>
 
 Additionally, your MySQL/MariaDB database user accounts must be configured to require a
-valid client certificate. If you're creating a new user:
+valid client certificate.
+
+<Tabs>
+<TabItem label="New User">
+Create a new user:
 
 ```sql
 CREATE USER 'alice'@'%' REQUIRE SUBJECT '/CN=alice';
-```
-
-If you're updating an existing user:
-
-```sql
-ALTER USER 'alice'@'%' REQUIRE SUBJECT '/CN=alice';
 ```
 
 By default, the created user may not have access to anything and won't be able
@@ -99,6 +98,33 @@ to connect, so let's grant it some permissions:
 ```sql
 GRANT ALL ON `%`.* TO 'alice'@'%';
 ```
+
+<Admonition type="warning">
+This is an example command that grants database-wide permissions to a user.
+In a production environment you should follow the principle of least privilege
+</Admonition>
+</TabItem>
+<TabItem label="Existing User">
+
+Because Teleport uses certificates to authenticate database users, the user must
+not have a password set. Note that removing an existing user's password may break
+existing integrations. Consider using a new Database user specifically for Teleport
+access.
+
+Update the existing user to require a valid certificate:
+
+```sql
+ALTER USER 'alice'@'%' REQUIRE SUBJECT '/CN=alice';
+```
+
+Remove the password from the user:
+
+```sql
+SET PASSWORD FOR 'alice'@'%' = PASSWORD("");
+```
+
+</TabItem>
+</Tabs>
 
 See
 [Configuring MySQL to Use Encrypted Connections](https://dev.mysql.com/doc/refman/8.0/en/using-encrypted-connections.html)
@@ -200,15 +226,10 @@ $ teleport db configure create \
   SSH Service or Application Service.
 </Admonition>
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 </Tabs>
-
 
 ## Step 4/4. Connect
 

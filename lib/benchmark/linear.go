@@ -42,7 +42,6 @@ func (lg *Linear) GetBenchmark() *Config {
 		MinimumWindow:       lg.MinimumWindow,
 		MinimumMeasurements: lg.MinimumMeasurements,
 		Rate:                lg.currentRPS,
-		Command:             lg.config.Command,
 	}
 
 	if lg.currentRPS < lg.LowerBound {
