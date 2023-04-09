@@ -27,31 +27,8 @@ and Web UI), as well as biometric authenticators like Touch ID and Windows Hello
 WebAuthn is disabled by default. To enable WebAuthn support, update your
 Teleport configuration as below:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-<Tabs>
-  <TabItem label="Static Config">
-    Auth Server `teleport.yaml` file:
-
-    ```yaml
-    # snippet from /etc/teleport.yaml:
-    auth_service:
-      authentication:
-        type: local
-        # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-        second_factor: on
-        webauthn:
-          # Required, replace with proxy web address (example.com, mytenant.teleport.sh),
-          #  see `webauthn` Fields Definitions for details.
-          rp_id: example.com
-          # Optional, see `webauthn` Fields Definitions for details.
-          attestation_allowed_cas:
-          - "/path/to/allowed_ca.pem"
-          # Optional, see `webauthn` Fields Definitions for details.
-          attestation_denied_cas:
-          - "/path/to/denied_ca.pem"
-    ```
-  </TabItem>
-  <TabItem label="Dynamic resources">
+<Tabs dropDownCaption="Teleport Deployment">
+  <TabItem label="Dynamic resources" options="Self-Hosted,Teleport Enterprise Cloud">
 
   Obtain your existing `cluster_auth_preference` resource:
 
@@ -73,13 +50,16 @@ Teleport configuration as below:
     # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
     second_factor: "on"
     webauthn:
-      # Required, replace with proxy web address (example.com, mytenant.teleport.sh),
-      #  see usage explanation below
+      # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+      # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
+      # (https://) and port number.
       rp_id: example.com
-      # Optional, see `webauthn` Fields Definitions for details.
+      # Optional, attestation_allowed_cas is an optional allow list
+      # of certificate authorities.
       attestation_allowed_cas:
       - "/path/to/allowed_ca.pem"
-      # Optional, see `webauthn` Fields Definitions for details.
+      # Optional, attestation_allowed_cas is an optional deny list
+      # of certificate authorities.
       attestation_denied_cas:
       - "/path/to/denied_ca.pem"
   ```
@@ -90,10 +70,32 @@ Teleport configuration as below:
   $ tctl create -f cap.yaml
   # cluster auth preference has been updated
   ```
-
+  </TabItem>
+  <TabItem label="Static Config" options="Self-Hosted">
+Edit the Auth Server's `teleport.yaml` file and restart all Auth Services:
+    ```yaml
+    # snippet from /etc/teleport.yaml:
+    auth_service:
+      authentication:
+        type: local
+        # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+        second_factor: on
+        webauthn:
+          # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+          # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
+          # (https://) and port number.
+          rp_id: example.com
+          # Optional, attestation_allowed_cas is an optional allow list
+          # of certificate authorities.
+          attestation_allowed_cas:
+          - "/path/to/allowed_ca.pem"
+          # Optional, attestation_allowed_cas is an optional deny list
+          # of certificate authorities.
+          attestation_denied_cas:
+          - "/path/to/denied_ca.pem"
+    ```
   </TabItem>
 </Tabs>
-</ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
 
