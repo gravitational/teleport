@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/container v1.14.0
 	cloud.google.com/go/firestore v1.9.0
 	cloud.google.com/go/iam v0.13.0
-	cloud.google.com/go/kms v1.10.0
+	cloud.google.com/go/kms v1.10.1
 	cloud.google.com/go/storage v1.30.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.2
@@ -141,7 +141,7 @@ require (
 	golang.org/x/term v0.6.0
 	golang.org/x/text v0.9.0
 	google.golang.org/api v0.114.0
-	google.golang.org/genproto v0.0.0-20230327152035-dc694ad2151e
+	google.golang.org/genproto v0.0.0-20230330154414-c0448cd141ea
 	google.golang.org/grpc v1.54.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
