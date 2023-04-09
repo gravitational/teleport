@@ -87,7 +87,7 @@ $ tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h
 
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
-If `tctl` finds the Orapki tool in your local environment, the `tctl auth sign --format=oracle --hostdb.example.com --out=server --ttl=2190h` command will produce an Oracle Wallet and
+If `tctl` finds the Orapki tool in your local environment, the `tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h` command will produce an Oracle Wallet and
 instructions how to configure the Oracle TCPS listener with Teleport Oracle Wallet. Otherwise the `tctl auth sign --format=oracle` command  will produce a `p12` certificate and instructions on how to create an Oracle Wallet on your Oracle Database instance.
 
 ## Step 6/7. Configure Oracle Database
