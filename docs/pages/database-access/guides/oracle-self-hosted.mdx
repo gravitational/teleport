@@ -80,7 +80,7 @@ $ teleport db configure create \
 Follow the instructions below to generate TLS credentials for your database.
 
 ```code
-# Export Teleport's certificate authority and a generate certificate/key pair
+# Export Teleport's certificate authority and a generated certificate/key pair
 # for host db.example.com with a 1-year validity period.
 $ tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h
 ```
