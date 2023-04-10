@@ -17,10 +17,11 @@ limitations under the License.
 package okta
 
 import (
-	"crypto"
+	"fmt"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/require"
 
@@ -28,12 +29,12 @@ import (
 )
 
 func TestOktaGroupToUserGroup(t *testing.T) {
-	orgURL := "https://test-url.com"
 	oktaGroup := &okta.Group{
 		Id: "okta-group-id",
 	}
 
-	service := &Service{orgURL: orgURL}
+	ap := newTestAccessPoint(t, clockwork.NewRealClock())
+	service, _ := newTestService(t, ap)
 	_, err := service.oktaGroupToUserGroup(oktaGroup)
 	require.ErrorIs(t, trace.BadParameter("the okta group object has no profile"), err)
 
@@ -53,7 +54,8 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 		Description: "group description",
 		Labels: map[string]string{
 			types.OriginLabel: types.OriginOkta,
-			oktaOrgURLLabel:   orgURL,
+			oktaOrgURLLabel:   service.orgURL,
+			oktaGroupIDLabel:  "okta-group-id",
 		},
 	})
 	require.NoError(t, err)
@@ -67,12 +69,11 @@ func (d *dummyOktaApp) IsApplicationInstance() bool {
 }
 
 func TestOktaAppToApplications(t *testing.T) {
-	orgURL := "https://test-url.com"
 	tests := []struct {
 		name             string
-		oktaApp          okta.App
+		oktaApp          *okta.Application
 		errAssertionFunc require.ErrorAssertionFunc
-		expected         []types.Application
+		expected         []*types.AppV3
 	}{
 		{
 			name: "happy path",
@@ -95,31 +96,35 @@ func TestOktaAppToApplications(t *testing.T) {
 				},
 			},
 			errAssertionFunc: require.NoError,
-			expected: []types.Application{
-				newApplication(t,
+			expected: []*types.AppV3{
+				newApp(t,
 					types.Metadata{
 						Name:        "hleAaWyYRHhA",
 						Description: "app label",
 						Labels: map[string]string{
 							types.OriginLabel: types.OriginOkta,
-							oktaOrgURLLabel:   orgURL,
+							oktaOrgURLLabel:   testOrgURL,
+							oktaAppIDLabel:    "app-id",
 						},
 					},
 					types.AppSpecV3{
-						URI: "https://www.link1.com",
+						URI:        "https://www.link1.com",
+						PublicAddr: fmt.Sprintf("hleAaWyYRHhA.%s", testClusterName),
 					},
 				),
-				newApplication(t,
+				newApp(t,
 					types.Metadata{
 						Name:        "utGMAFLgNkBj",
 						Description: "app label",
 						Labels: map[string]string{
 							types.OriginLabel: types.OriginOkta,
-							oktaOrgURLLabel:   orgURL,
+							oktaOrgURLLabel:   testOrgURL,
+							oktaAppIDLabel:    "app-id",
 						},
 					},
 					types.AppSpecV3{
-						URI: "https://www.link2.com",
+						URI:        "https://www.link2.com",
+						PublicAddr: fmt.Sprintf("utGMAFLgNkBj.%s", testClusterName),
 					},
 				),
 			},
@@ -168,19 +173,13 @@ func TestOktaAppToApplications(t *testing.T) {
 				require.ErrorIs(t, err, trace.BadParameter("app links is empty in okta application object app-id (app label)"))
 			},
 		},
-		{
-			name:    "wrong okta application type",
-			oktaApp: &dummyOktaApp{},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.ErrorIs(t, err, trace.BadParameter("unable infer type of of Okta application: *okta.dummyOktaApp"))
-			},
-		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			service := &Service{orgURL: orgURL, hash: crypto.SHA256}
-			apps, err := service.oktaAppToApps(test.oktaApp)
+			ap := newTestAccessPoint(t, clockwork.NewRealClock())
+			service, _ := newTestService(t, ap)
+			apps, err := service.oktaAppToApp(test.oktaApp)
 			test.errAssertionFunc(t, err)
 			require.Equal(t, test.expected, apps)
 		})
@@ -266,8 +265,9 @@ func TestIsAppValid(t *testing.T) {
 	}
 }
 
-func newApplication(t *testing.T, metadata types.Metadata, spec types.AppSpecV3) types.Application {
-	app, err := types.NewAppV3(metadata, spec)
+func newApp(t *testing.T, metadata types.Metadata, appSpec types.AppSpecV3) *types.AppV3 {
+	app, err := types.NewAppV3(metadata, appSpec)
 	require.NoError(t, err)
+
 	return app
 }

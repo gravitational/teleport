@@ -21,20 +21,37 @@ import (
 	"io"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+)
+
+const (
+	testOrgURL      = "https://test-url.com"
+	testHostname    = "test-host"
+	testHostID      = "test-host-id"
+	testClusterName = "test-cluster-name"
+)
+
+var (
+	testProxyIDs = []string{"proxy-ids"}
 )
 
 // testAccessPoint is a test access point for the Okta service.
 type testAccessPoint struct {
 	events.Streamer
 	io.Closer
+	services.Access
 	services.Apps
 	services.ClusterConfiguration
 	services.ConnectionsDiagnostic
@@ -57,8 +74,10 @@ func (*testAccessPoint) GenerateCertAuthorityCRL(context.Context, types.CertAuth
 }
 
 // newTestAccessPoint will create a memory backed test access point for the Okta service.
-func newTestAccessPoint(t *testing.T) *testAccessPoint {
-	backend, err := memory.New(memory.Config{})
+func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
+	backend, err := memory.New(memory.Config{
+		Clock: clock,
+	})
 	require.NoError(t, err)
 
 	streamer := events.NewDiscardEmitter()
@@ -80,6 +99,13 @@ func newTestAccessPoint(t *testing.T) *testAccessPoint {
 	windowsDesktops := local.NewWindowsDesktopService(backend)
 	events := local.NewEventsService(backend)
 
+	clusterName, err := types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterID:   uuid.NewString(),
+		ClusterName: testClusterName,
+	})
+	require.NoError(t, err)
+	require.NoError(t, clusterConfiguration.SetClusterName(clusterName))
+
 	client := &testAccessPoint{
 		Streamer:              streamer,
 		Closer:                io.NopCloser(nil),
@@ -97,4 +123,71 @@ func newTestAccessPoint(t *testing.T) *testAccessPoint {
 	}
 
 	return client
+}
+
+type testProxyGetter struct{}
+
+func (t *testProxyGetter) GetProxyIDs() []string {
+	return testProxyIDs
+}
+
+// newTestService creates a new test Okta service.
+func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaClient) {
+	ctx := context.Background()
+
+	emitter := eventstest.NewCountingEmitter()
+	client := &testOktaClient{
+		oktaOrgURL: testOrgURL,
+	}
+	svc, err := newWithClientCreator(ctx, Config{
+		Hostname:        testHostname,
+		HostID:          testHostID,
+		RotationGetter:  func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ProxyGetter:     &testProxyGetter{},
+		AccessPoint:     ap,
+		OnHeartbeat:     func(err error) {},
+		Emitter:         emitter,
+		OktaAPIEndpoint: "dummy",
+		OktaAPIToken:    "dummy",
+	}, func(_ context.Context, _ Config) (oktaClient, error) {
+		return client, nil
+	})
+	require.NoError(t, err)
+
+	proxyServer, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{})
+	require.NoError(t, err)
+	require.NoError(t, ap.UpsertProxy(proxyServer))
+
+	return svc, client
+}
+
+// testOktaClient is a testing Okta client that is backed by fixed values.
+type testOktaClient struct {
+	oktaGroups []*okta.Group
+	oktaApps   []okta.App
+	oktaOrgURL string
+}
+
+// iterateGroups will iterate over the list of all Okta groups.
+func (t *testOktaClient) iterateGroups(_ context.Context, fn func(*okta.Group) error) error {
+	for _, oktaGroup := range t.oktaGroups {
+		if err := fn(oktaGroup); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// iterateApps will iterate over the list of all Okta applications.
+func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error) error {
+	for _, oktaApp := range t.oktaApps {
+		if err := fn(oktaApp); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func (t *testOktaClient) orgURL() string {
+	return t.oktaOrgURL
 }

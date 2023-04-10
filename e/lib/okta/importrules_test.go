@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -27,7 +28,7 @@ import (
 
 func TestBuildOktaImportRuleMappings(t *testing.T) {
 	ctx := context.Background()
-	ap := newTestAccessPoint(t)
+	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 
 	svc := &Service{
 		accessPoint: ap,
@@ -207,7 +208,7 @@ func TestGetLabels(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
 
-			ap := newTestAccessPoint(t)
+			ap := newTestAccessPoint(t, clockwork.NewRealClock())
 			for _, importRule := range test.importRules {
 				addIR(t, ap, importRule)
 			}

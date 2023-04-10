@@ -25,12 +25,19 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/srv/app"
 )
 
 const (
 	oktaActive       = "ACTIVE"
 	oktaAdminConsole = "Okta Admin Console"
 	oktaOrgURLLabel  = "okta/org"
+)
+
+var (
+	// these labels are hidden so they don't show up in the UI.
+	oktaGroupIDLabel = fmt.Sprintf("%s/okta-group-id", types.TeleportHiddenLabelPrefix)
+	oktaAppIDLabel   = fmt.Sprintf("%s/okta-app-id", types.TeleportHiddenLabelPrefix)
 )
 
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
@@ -42,6 +49,7 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, 
 	labels := s.getGroupLabels(oktaGroup.Id)
 	labels[types.OriginLabel] = types.OriginOkta
 	labels[oktaOrgURLLabel] = s.orgURL
+	labels[oktaGroupIDLabel] = oktaGroup.Id
 
 	userGroup, err := types.NewUserGroup(
 		types.Metadata{
@@ -57,7 +65,7 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, 
 	return userGroup, nil
 }
 
-type links struct {
+type embeddedLinks struct {
 	AppLinks []appLinks `mapstructure:"appLinks"`
 }
 
@@ -68,48 +76,45 @@ type appLinks struct {
 
 // oktaAppToApps converts an Okta app object to types.Application objects. This will convert
 // multiple appLinks in an Okta object into multiple applications.
-func (s *Service) oktaAppToApps(oktaApp okta.App) ([]types.Application, error) {
-	// This type assertion is necessary as okta.App, which is supplied by the Okta go SDK,
-	// does not contain all of the information that we need to create a types.Application
-	// object.
-	oktaAppFromAPI, ok := oktaApp.(*okta.Application)
-	if !ok {
-		return nil, trace.BadParameter("unable infer type of of Okta application: %T", oktaApp)
-	}
-
-	appIdentifier := fmt.Sprintf("%s (%s)", oktaAppFromAPI.Id, oktaAppFromAPI.Label)
+func (s *Service) oktaAppToApp(oktaApplication *okta.Application) ([]*types.AppV3, error) {
+	appIdentifier := fmt.Sprintf("%s (%s)", oktaApplication.Id, oktaApplication.Label)
 
 	// Filter out Okta apps if they're not the kind we want to display to users..
-	if err := isAppValid(oktaAppFromAPI); err != nil {
+	if err := isAppValid(oktaApplication); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if oktaAppFromAPI.Links == nil {
+	if oktaApplication.Links == nil {
 		return nil, trace.BadParameter("links is missing in okta application object %s", appIdentifier)
 	}
 
 	// Unfortunately the app links are stuffed into an interface{}, so we've got to extract the
 	// fields for app links using mapstructure.
-	links := &links{}
-	err := mapstructure.Decode(oktaAppFromAPI.Links, links)
-	if err != nil {
+	embeddedLinks := &embeddedLinks{}
+	if err := mapstructure.Decode(oktaApplication.Links, embeddedLinks); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(links.AppLinks) == 0 {
+	if len(embeddedLinks.AppLinks) == 0 {
 		return nil, trace.BadParameter("app links is empty in okta application object %s", appIdentifier)
 	}
 
-	var applications []types.Application
+	var apps []*types.AppV3
 
-	labels := s.getApplicationLabels(oktaAppFromAPI.Id)
+	labels := s.getApplicationLabels(oktaApplication.Id)
 	labels[types.OriginLabel] = types.OriginOkta
 	labels[oktaOrgURLLabel] = s.orgURL
+	labels[oktaAppIDLabel] = oktaApplication.Id
 
-	// Create an application for each app link. This is required because there can be multiple
+	// Create an app for each app link. This is required because there can be multiple
 	// app links per Okta application.
-	for _, appLink := range links.AppLinks {
-		appID, err := s.appName(oktaAppFromAPI.Id, appLink.Name)
+	for _, appLink := range embeddedLinks.AppLinks {
+		appID, err := s.appName(oktaApplication.Id, appLink.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		publicAddr, err := app.FindPublicAddr(s.accessPoint, "", appID)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -117,21 +122,22 @@ func (s *Service) oktaAppToApps(oktaApp okta.App) ([]types.Application, error) {
 		app, err := types.NewAppV3(
 			types.Metadata{
 				Name:        appID,
-				Description: oktaAppFromAPI.Label,
+				Description: oktaApplication.Label,
 				Labels:      labels,
 			},
 			types.AppSpecV3{
-				URI: appLink.Href,
+				URI:        appLink.Href,
+				PublicAddr: publicAddr,
 			},
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		applications = append(applications, app)
+		apps = append(apps, app)
 	}
 
-	return applications, nil
+	return apps, nil
 }
 
 // appName returns an app name based on the ID and app link name.

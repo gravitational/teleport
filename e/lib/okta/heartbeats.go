@@ -1,0 +1,115 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package okta
+
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/utils"
+)
+
+// startHeartbeat starts the registration heartbeat to the auth server.
+func (s *Service) startHeartbeat(ctx context.Context, app *types.AppV3) error {
+	appName := app.GetName()
+	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
+		Context:         ctx,
+		Component:       eteleport.ComponentOkta,
+		Mode:            srv.HeartbeatModeApp,
+		Announcer:       s.accessPoint,
+		GetServerInfo:   s.getServerInfoFunc(appName),
+		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
+		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
+		CheckPeriod:     defaults.HeartbeatCheckPeriod,
+		ServerTTL:       apidefaults.ServerAnnounceTTL,
+		OnHeartbeat:     s.onHeartbeat,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	go func() {
+		if err := heartbeat.Run(); err != nil {
+			s.log.Debugf("Error after running heartbeat: %v", err)
+		}
+	}()
+	s.heartbeatsMu.Lock()
+	defer s.heartbeatsMu.Unlock()
+	s.heartbeats[appName] = heartbeat
+	return nil
+}
+
+// stopHeartbeat stops the heartbeat for the specified app.
+func (s *Service) stopHeartbeat(name string) error {
+	s.heartbeatsMu.Lock()
+	defer s.heartbeatsMu.Unlock()
+	heartbeat, ok := s.heartbeats[name]
+	if !ok {
+		return nil
+	}
+	delete(s.heartbeats, name)
+	return trace.Wrap(heartbeat.Close())
+}
+
+// getServerInfoFunc returns function that the heartbeater uses to report the
+// provided app to the auth server.
+func (s *Service) getServerInfoFunc(name string) func() (types.Resource, error) {
+	return func() (types.Resource, error) {
+		return s.getServerInfo(name)
+	}
+}
+
+func (s *Service) getServerInfo(name string) (types.Resource, error) {
+	// check for app in memory
+	s.appsMu.Lock()
+	originalApp, ok := s.apps[name]
+	if !ok {
+		return nil, trace.NotFound("unable to find app %s", name)
+	}
+	app := originalApp.Copy()
+	s.appsMu.Unlock()
+
+	rotation, err := s.rotationGetter(types.RoleOkta)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	expires := s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{
+			Name:        app.GetName(),
+			Description: app.GetDescription(),
+			Labels:      app.GetStaticLabels(),
+			Expires:     &expires,
+		},
+		types.AppServerSpecV3{
+			Version:  teleport.Version,
+			Hostname: s.hostname,
+			HostID:   s.hostID,
+			Rotation: *rotation,
+			App:      app,
+			ProxyIDs: s.proxyGetter.GetProxyIDs(),
+		},
+	)
+	return appServer, trace.Wrap(err)
+}

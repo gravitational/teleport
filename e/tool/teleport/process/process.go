@@ -6,6 +6,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/db/oracle"
 	"github.com/gravitational/teleport/e/lib/licensefile"
@@ -47,6 +48,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	}
 
 	if cfg.Okta.Enabled {
+		ossProcess.SetExpectedInstanceRole(types.RoleOkta, services.OktaIdentityEvent)
 		services.InitOkta(ossProcess)
 	}
 
