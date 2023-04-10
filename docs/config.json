@@ -564,6 +564,16 @@
               "title": "Proxy Peering Migration (Preview)",
               "slug": "/management/operations/proxy-peering/",
               "forScopes": ["enterprise"]
+            },
+            {
+              "title": "Self-hosted automatic updates",
+              "slug": "/management/operations/self-hosted-automatic-agent-updates/",
+              "forScopes": ["enterprise"]
+            },
+            {
+              "title": "Enroll agent in automatic updates",
+              "slug": "/management/operations/enroll-agent-into-automatic-updates/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -1375,6 +1385,11 @@
         {
           "title": "Authorization",
           "slug": "/architecture/authorization/"
+        },
+        {
+          "title": "Automatic Agent Update",
+          "slug": "/architecture/automatic-agent-update/",
+          "forScopes": ["enterprise", "cloud"]
         },
         {
           "title": "Teleport Proxy",

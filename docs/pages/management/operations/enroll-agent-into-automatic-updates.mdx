@@ -1,0 +1,178 @@
+---
+title: Enroll an agent into automatic updates
+description: How to enroll an agent into automatic updates
+---
+
+<Admonition type="warning">
+The instructions vary between Teleport Cloud users and self-hosted
+Teleport users. Make sure to select the right scope (OpenSource, Enterprise, or
+Cloud) in the scope selector at the top of the page.
+</Admonition>
+
+<Details
+  title="Version warning"
+  opened={true}
+  scope={["enterprise"]}
+  scopeOnly={true}
+  min="13.0"
+>
+  Automatic agent update is available starting from Teleport `13.0`.
+</Details>
+
+Starting with Teleport 13, agents running in systemd or Kubernetes environments
+can be automatically updated. The [automatic updates architecture
+page](../../architecture/automatic-agent-update.mdx) describes how agent
+updating works.
+
+This guide explains how to enroll an existing Teleport agent into automatic
+updates.
+
+## Requirements
+
+- a Teleport agent either:
+  - started via systemd
+  - deployed with the `teleport-kube-agent` Helm chart
+<ScopedBlock scope={["oss","enterprise"]}>
+- automatic update infrastructure set up. For Self-Hosted users this means you
+  already followed [this guide](./self-hosted-automatic-agent-updates.mdx) and
+  know your version server URL and release channel
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+- as a Teleport Cloud user, you must check if your Could Tenant is enrolled
+  into automatic updates.
+</ScopedBlock>
+
+## Enroll instructions
+
+<Tabs>
+<TabItem label="systemd">
+
+<ScopedBlock scope={["oss","enterprise"]}>
+- create the upgrade configuration directory
+  ```code
+  $ mkdir -p /etc/teleport-upgrade.d/
+  ```
+- If you changed the agent user to run as non-root, create
+  `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
+  Else, you can skip this step.
+  ```code
+  $ touch /etc/teleport-upgrade.d/schedule
+  $ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+  ```
+- Configure the updater to connect to your custom version server and subscribe
+  to the right release channel.
+  ```code
+  $ echo <version-server-url/path>/<release-channel> > /etc/teleport-upgrade.d/endpoint
+  ```
+<ScopedBlock scope="oss">
+- install the `teleport-updater` package
+  ```code
+  $ apt install teleport-updater
+  # or
+  $ yum install teleport-updater
+  ```
+</ScopedBlock>
+<ScopedBlock scope="enterprise">
+- install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install)
+  ```code
+  $ apt install teleport-ent-updater
+  # or
+  $ yum install teleport-ent-updater
+  ```
+</ScopedBlock>
+</ScopedBlock>
+<ScopedBlock scope="cloud">
+- If you changed the agent user to run as non-root, create
+  `/etc/teleport-upgrade.d/schedule` and grant ownership to your Teleport user.
+  Else, you can skip this step.
+  ```code
+  $ mkdir -p /etc/teleport-upgrade.d/
+  $ touch /etc/teleport-upgrade.d/schedule
+  $ chown <your-teleport-user> /etc/teleport-upgrade.d/schedule
+  ```
+- install the `teleport-ent-updater` package (note: your teleport agent will be restarted during install)
+  ```code
+  $ apt install teleport-ent-updater
+  # or
+  $ yum install teleport-ent-updater
+  ```
+</ScopedBlock>
+
+Finally, verify that the updater can see your version endpoint:
+```code
+$ teleport-upgrade dry-run
+```
+
+You should see one of the following messages, depending on the target version
+you are currently serving:
+
+```code
+no upgrades available (1.2.3 == 1.2.3)
+an upgrade is available (1.2.3 -> 2.3.4)
+```
+
+<Admonition type="note">
+`teleport-upgrade` may complain about not having a valid upgrade schedule.
+This is expected immediately after install as the maintenance schedule might
+not be exported yet.
+</Admonition>
+
+</TabItem>
+<TabItem label="teleport-kube-agent chart">
+
+Add the following chart values to your existing agent `values.yaml`:
+
+<ScopedBlock scope={["oss","enterprise"]}>
+```yaml
+updater:
+  enabled: true
+  versionServer: https://<version-server-domain-and-path>
+  releaseChannel: <release-channel>
+```
+</ScopedBlock>
+
+<ScopedBlock scope="cloud">
+
+```yaml
+updater:
+  enabled: true
+```
+</ScopedBlock>
+
+Update the Helm chart release with the new values by running `helm upgrade`.
+
+You can validate the updater is running properly by checking if its pod is ready:
+```code
+$ kubectl get pods
+NAME                               READY   STATUS    RESTARTS   AGE
+my-agent-0                         1/1     Running   0          14m
+my-agent-1                         1/1     Running   0          14m
+my-agent-2                         1/1     Running   0          14m
+my-agent-updater-d9f97f5dd-v57g9   1/1     Running   0          16m
+```
+And by consulting its logs
+```code
+$ kubectl logs <your-agent-release>-updater
+2023-04-28T13:13:30Z	INFO	StatefulSet is already up-to-date, not updating.	{"controller": "statefulset", "controllerGroup": "apps", "controllerKind": "StatefulSet", "StatefulSet": {"name":"my-agent","namespace":"agent"}, "namespace": "agent", "name": "my-agent", "reconcileID": "10419f20-a4c9-45d4-a16f-406866b7fc05", "namespacedname": "agent/my-agent", "kind": "StatefulSet", "err": "no new version (current: \"v12.2.3\", next: \"v12.2.3\")"}
+```
+</TabItem>
+</Tabs>
+
+
+## Next steps
+
+You can temporarily suspend automatic updates for an agent:
+
+<Tabs>
+<TabItem label="systemd">
+Disable the systemd timer:
+```code
+$ systemctl disable teleport-upgrade.timer
+```
+</TabItem>
+<TabItem label="teleport-kube-agent chart">
+Annotate the agent deployment with `teleport.dev/skipreconcile: "true"`.
+Either by setting the `annotations.deployment` value in Helm, or by patching
+the deployment directly with `kubectl`.
+</TabItem>
+</Tabs>
