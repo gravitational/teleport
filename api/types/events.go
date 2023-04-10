@@ -99,27 +99,6 @@ type Watch struct {
 	MetricComponent string
 }
 
-// WatchKind specifies resource kind to watch
-type WatchKind struct {
-	// Kind is a resource kind to watch
-	Kind string
-	// SubKind optionally specifies the subkind of resource to watch.
-	// Some resource kinds are ambigious like web sessions, subkind in this case
-	// specifies the type of web session
-	SubKind string
-	// Name is an optional specific resource type to watch,
-	// if specified, only the events with the given resource
-	// name will be sent
-	Name string
-	// Version optionally specifies the resource version to watch.
-	Version string
-	// LoadSecrets specifies whether to load secrets
-	LoadSecrets bool
-	// Filter supplies custom event filter parameters that differ by
-	// resource (e.g. "state":"pending" for access requests).
-	Filter map[string]string
-}
-
 // Matches attempts to determine if the supplied event matches
 // this WatchKind.  If the WatchKind is misconfigured, or the
 // event appears malformed, an error is returned.
