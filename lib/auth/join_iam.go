@@ -289,6 +289,11 @@ func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) er
 // checkIAMRequest checks if the given request satisfies the token rules and
 // included the required challenge.
 func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest, cfg *iamRegisterConfig) error {
+	// Overwrite STS client if provided.
+	if a.httpClientForAWSSTS != nil {
+		ctx = context.WithValue(ctx, stsClientKey{}, a.httpClientForAWSSTS)
+	}
+
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
@@ -308,11 +313,6 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	// challenge is included in the signed portion of the request
 	if err := validateSTSIdentityRequest(identityRequest, challenge, cfg); err != nil {
 		return trace.Wrap(err)
-	}
-
-	// Overwrite STS client if provided.
-	if a.httpClientForAWSSTS != nil {
-		ctx = context.WithValue(ctx, stsClientKey{}, a.httpClientForAWSSTS)
 	}
 
 	// send the signed request to the public AWS API and get the node identity

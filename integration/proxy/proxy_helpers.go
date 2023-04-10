@@ -709,7 +709,7 @@ type fakeSTSClient struct {
 	credentials *credentials.Credentials
 }
 
-func (f *fakeSTSClient) Do(req *http.Request) (*http.Response, error) {
+func (f fakeSTSClient) Do(req *http.Request) (*http.Response, error) {
 	if err := awsutils.VerifyAWSSignature(req, f.credentials); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -741,7 +741,17 @@ func mustCreateIAMJoinProvisionToken(t *testing.T, name, awsAccountID, allowedAR
 	return provisionToken
 }
 
-func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string) {
+func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token string, credentials *credentials.Credentials) {
+	t.Helper()
+
+	cred, err := credentials.Get()
+	require.NoError(t, err)
+
+	t.Setenv("AWS_ACCESS_KEY_ID", cred.AccessKeyID)
+	t.Setenv("AWS_SECRET_ACCESS_KEY", cred.SecretAccessKey)
+	t.Setenv("AWS_SESSION_TOKEN", cred.SessionToken)
+	t.Setenv("AWS_REGION", "us-west-2")
+
 	privateKey, err := ssh.ParseRawPrivateKey([]byte(fixtures.SSHCAPrivateKey))
 	require.NoError(t, err)
 	pubTLS, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(privateKey)

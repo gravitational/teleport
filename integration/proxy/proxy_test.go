@@ -1514,28 +1514,25 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
-	t.Setenv("AWS_ACCESS_KEY_ID", "FAKE_ID")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "FAKE_KEY")
-	t.Setenv("AWS_SESSION_TOKEN", "FAKE_TOKEN")
-	t.Setenv("AWS_REGION", "us-west-2")
-
-	fakeSTSClient := &fakeSTSClient{
-		accountID:   "123456789012",
-		arn:         "arn:aws:iam::123456789012:role/test",
-		credentials: credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN"),
-	}
-	provisionToken := mustCreateIAMJoinProvisionToken(t, "iam-join-token", fakeSTSClient.accountID, fakeSTSClient.arn)
+	nodeAccount := "123456789012"
+	nodeRoleARN := "arn:aws:iam::123456789012:role/test"
+	nodeCredentials := credentials.NewStaticCredentials("FAKE_ID", "FAKE_KEY", "FAKE_TOKEN")
+	provisionToken := mustCreateIAMJoinProvisionToken(t, "iam-join-token", nodeAccount, nodeRoleARN)
 
 	suite := newSuite(t,
 		withRootClusterConfig(rootClusterStandardConfig(t), func(config *servicecfg.Config) {
 			config.Auth.BootstrapResources = []types.Resource{provisionToken}
-			config.Auth.ServerOptions = []auth.ServerOption{auth.WithHTTPClientForAWSSTS(fakeSTSClient)}
+			config.Auth.ServerOptions = []auth.ServerOption{auth.WithHTTPClientForAWSSTS(fakeSTSClient{
+				accountID:   nodeAccount,
+				arn:         nodeRoleARN,
+				credentials: nodeCredentials,
+			})}
 		}),
 		withLeafClusterConfig(leafClusterStandardConfig(t)),
 	)
 
 	// Test register through Proxy.
-	mustRegisterUsingIAMMethod(t, suite.root.Config.Proxy.WebAddr, provisionToken.GetName())
+	mustRegisterUsingIAMMethod(t, suite.root.Config.Proxy.WebAddr, provisionToken.GetName(), nodeCredentials)
 
 	// Test register through Proxy behind a L7 load balancer.
 	t.Run("ALPN conn upgrade", func(t *testing.T) {
@@ -1543,6 +1540,6 @@ func TestALPNSNIProxyGRPCInsecure(t *testing.T) {
 		albAddr, err := utils.ParseAddr(albProxy.Addr().String())
 		require.NoError(t, err)
 
-		mustRegisterUsingIAMMethod(t, *albAddr, provisionToken.GetName())
+		mustRegisterUsingIAMMethod(t, *albAddr, provisionToken.GetName(), nodeCredentials)
 	})
 }
