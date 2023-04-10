@@ -476,7 +476,9 @@ func (b *Bot) renewDestinations(
 
 const renewalRetryLimit = 5
 
-func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
+func (b *Bot) renewDestinationsLoop(
+	ctx context.Context, reloadChan <-chan struct{},
+) error {
 	b.log.Infof(
 		"Beginning destination renewal loop: ttl=%s interval=%s",
 		b.cfg.CertificateTTL,
@@ -528,7 +530,7 @@ func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			continue
-		case <-b.reloadChan:
+		case <-reloadChan:
 			continue
 		}
 	}

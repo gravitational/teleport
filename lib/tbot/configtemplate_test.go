@@ -99,9 +99,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 
 	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
-	storage, err := botConfig.Storage.GetDestination()
-	require.NoError(t, err)
-	b := New(botConfig, log, nil)
+	b := New(botConfig, log)
 
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
@@ -109,7 +107,7 @@ func TestDefaultTemplateRendering(t *testing.T) {
 	b._ident = ident
 	b._client = botClient
 
-	err = b.renewDestinations(context.Background(), storage)
+	err = b.renewDestinations(context.Background())
 	require.NoError(t, err)
 
 	dest := botConfig.Destinations[0]

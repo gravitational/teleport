@@ -52,7 +52,7 @@ func TestOnboardViaToken(t *testing.T) {
 
 	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
 	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
-	b := New(botConfig, log, nil)
+	b := New(botConfig, log)
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 
@@ -141,7 +141,7 @@ func TestDatabaseRequest(t *testing.T) {
 	}
 
 	// Onboard the bot.
-	b := New(botConfig, log, nil)
+	b := New(botConfig, log)
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 
@@ -218,7 +218,7 @@ func TestAppRequest(t *testing.T) {
 	}
 
 	// Onboard the bot.
-	b := New(botConfig, log, nil)
+	b := New(botConfig, log)
 	ident, err := b.getIdentityFromToken()
 	require.NoError(t, err)
 

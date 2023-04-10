@@ -42,10 +42,9 @@ import (
 )
 
 type Bot struct {
-	cfg        *config.BotConfig
-	log        logrus.FieldLogger
-	reloadChan chan struct{}
-	modules    modules.Modules
+	cfg     *config.BotConfig
+	log     logrus.FieldLogger
+	modules modules.Modules
 
 	// These are protected by getter/setters with mutex locks
 	mu         sync.Mutex
@@ -57,16 +56,15 @@ type Bot struct {
 	started    bool
 }
 
-func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}) *Bot {
+func New(cfg *config.BotConfig, log logrus.FieldLogger) *Bot {
 	if log == nil {
 		log = utils.NewLogger()
 	}
 
 	return &Bot{
-		cfg:        cfg,
-		log:        log,
-		reloadChan: reloadChan,
-		modules:    modules.GetModules(),
+		cfg:     cfg,
+		log:     log,
+		modules: modules.GetModules(),
 
 		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
@@ -256,16 +254,24 @@ func (b *Bot) Run(ctx context.Context) error {
 		return nil
 	}
 
+	reloadBroadcast := channelBroadcaster{
+		chanSet: map[chan struct{}]struct{}{},
+	}
+
 	// If in daemon mode, we spin up all of our separate concurrent components.
 	eg, egCtx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		return trace.Wrap(b.caRotationLoop(egCtx))
+		return trace.Wrap(b.caRotationLoop(egCtx, reloadBroadcast.broadcast))
 	})
 	eg.Go(func() error {
-		return trace.Wrap(b.renewBotIdentityLoop(egCtx))
+		reloadCh, unsubscribe := reloadBroadcast.subscribe()
+		defer unsubscribe()
+		return trace.Wrap(b.renewBotIdentityLoop(egCtx, reloadCh))
 	})
 	eg.Go(func() error {
-		return trace.Wrap(b.renewDestinationsLoop(egCtx))
+		reloadCh, unsubscribe := reloadBroadcast.subscribe()
+		defer unsubscribe()
+		return trace.Wrap(b.renewDestinationsLoop(egCtx, reloadCh))
 	})
 
 	return eg.Wait()

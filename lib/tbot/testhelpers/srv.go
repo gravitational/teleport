@@ -241,7 +241,7 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 
 	cfg := &botconfig.BotConfig{
 		AuthServer: authCfg.AuthServerAddresses()[0].String(),
-		Onboarding: &botconfig.OnboardingConfig{
+		Onboarding: botconfig.OnboardingConfig{
 			JoinMethod: botParams.JoinMethod,
 		},
 		Storage: &botconfig.StorageConfig{

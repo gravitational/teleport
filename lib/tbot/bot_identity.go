@@ -17,8 +17,11 @@ import (
 	"time"
 )
 
+const botIdentityRenewalRetryLimit = 7
+
 func (b *Bot) renewBotIdentityLoop(
 	ctx context.Context,
+	reloadChan <-chan struct{},
 ) error {
 	b.log.Infof(
 		"Beginning bot identity renewal loop: ttl=%s interval=%s",
@@ -48,22 +51,22 @@ func (b *Bot) renewBotIdentityLoop(
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-		case <-b.reloadChan:
+		case <-reloadChan:
 		}
 
 		var err error
-		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
+		for attempt := 1; attempt <= botIdentityRenewalRetryLimit; attempt++ {
 			b.log.Infof(
 				"Renewing bot identity. Attempt %d of %d.",
 				attempt,
-				renewalRetryLimit,
+				botIdentityRenewalRetryLimit,
 			)
 			err = b.renewBotIdentity(ctx, botDestination)
 			if err == nil {
 				break
 			}
 
-			if attempt != renewalRetryLimit {
+			if attempt != botIdentityRenewalRetryLimit {
 				// exponentially back off with jitter, starting at 1 second.
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)

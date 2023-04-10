@@ -84,6 +84,40 @@ func (rd *debouncer) attempt() {
 	})
 }
 
+type channelBroadcaster struct {
+	mu      sync.Mutex
+	chanSet map[chan struct{}]struct{}
+}
+
+func (cb *channelBroadcaster) subscribe() (chan struct{}, func()) {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	ch := make(chan struct{}, 1)
+	cb.chanSet[ch] = struct{}{}
+	return ch, func() {
+		cb.mu.Lock()
+		defer cb.mu.Unlock()
+		_, ok := cb.chanSet[ch]
+		if ok {
+			delete(cb.chanSet, ch)
+			close(ch)
+		}
+	}
+}
+
+func (cb *channelBroadcaster) broadcast() {
+	cb.mu.Lock()
+	defer cb.mu.Unlock()
+	for ch := range cb.chanSet {
+		select {
+		case ch <- struct{}{}:
+			// Succesfully sent notification
+		default:
+			// Channel already has valued queued
+		}
+	}
+}
+
 const caRotationRetryBackoff = time.Second * 2
 
 // caRotationLoop continually triggers `watchCARotations` until the context is
@@ -91,22 +125,9 @@ const caRotationRetryBackoff = time.Second * 2
 //
 // caRotationLoop also manages debouncing the renewals across multiple watch
 // attempts.
-func (b *Bot) caRotationLoop(ctx context.Context) error {
+func (b *Bot) caRotationLoop(ctx context.Context, reload func()) error {
 	rd := debouncer{
-		f: func() {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-
-			select {
-			case b.reloadChan <- struct{}{}:
-				b.log.Infof("Renewal triggered due to CA rotation.")
-			default:
-				b.log.Debugf("Renewal already queued, ignoring reload request.")
-			}
-		},
+		f:              reload,
 		debouncePeriod: time.Second * 10,
 	}
 	jitter := retryutils.NewJitter()
