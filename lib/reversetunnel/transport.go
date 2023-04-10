@@ -426,7 +426,7 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications and databases should never occur over
+		// Connections to applications (including Okta applications) and databases should never occur over
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
