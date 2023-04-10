@@ -289,7 +289,7 @@ func getRemoteHomeDir(sshClient *ssh.Client) (string, error) {
 	return homeDirBuf.String(), nil
 }
 
-// transfer preforms file transfers
+// transfer performs file transfers
 func (c *Config) transfer(ctx context.Context) error {
 	// get info of source files and ensure appropriate options were passed
 	matchedPaths := make([]string, 0, len(c.srcPaths))
@@ -297,7 +297,7 @@ func (c *Config) transfer(ctx context.Context) error {
 	for _, srcPath := range c.srcPaths {
 		matches, err := c.srcFS.Glob(ctx, srcPath)
 		if err != nil {
-			return trace.Errorf("error matching glob pattern %q: %w", srcPath, err)
+			return trace.Wrap(err, "error matching glob pattern %q", srcPath)
 		}
 		// clean match paths to ensure they are separated by backslashes, as
 		// SFTP requires that
@@ -309,10 +309,10 @@ func (c *Config) transfer(ctx context.Context) error {
 		for _, match := range matches {
 			fi, err := c.srcFS.Stat(ctx, match)
 			if err != nil {
-				return trace.Errorf("could not access %s path %q: %v", c.srcFS.Type(), match, err)
+				return trace.Wrap(err, "could not access %s path %q", c.srcFS.Type(), match)
 			}
 			if fi.IsDir() && !c.opts.Recursive {
-				// Note: using any other error constructor (e.g. BadParameter)
+				// Note: using any other error constructor than BadParameter
 				// might lead to relogin attempt and a completely obscure
 				// error message
 				return trace.BadParameter("%q is a directory, but the recursive option was not passed", match)
