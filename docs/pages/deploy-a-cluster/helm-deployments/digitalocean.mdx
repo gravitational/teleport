@@ -18,7 +18,6 @@ cluster:
 
 </ScopedBlock>
 
-
 This guide will show you how to get started with Teleport on DigitalOcean
 Kubernetes.
 
@@ -41,7 +40,6 @@ While the Kubernetes cluster is being provisioned, follow the "Getting Started" 
 <Figure align="left" bordered caption="Set up DigitalOcean Kubernetes client">
   ![Set up DigitalOcean Kubernetes client](../../../img/helm/digitalocean/setup-k8s.png)
 </Figure>
-
 
 ## Step 2/4. Install Teleport 
 
@@ -149,7 +147,6 @@ Copy the link shown after executing the above command and open the link in a web
   ![Set up user](../../../img/helm/digitalocean/setup-user.png)
 </Figure>
 
-
 After you complete the registration process by setting up a password and enrolling in two-factor authentication, you will be logged in to Teleport Web UI. 
 
 In this step, we created a user **tadmin** with roles `access, edit`. These are the default roles available in Teleport. However, to allow this user to access the Kubernetes cluster, we will need to assign **tadmin** a role authorized to access the Kubernetes cluster. So first, let's create a role named **member** with the Kubernetes privilege `system:master`.
@@ -249,7 +246,6 @@ Teleport keeps an audit log of access to a Kubernetes cluster. In the screenshot
 <Figure align="left" bordered caption="View audit log">
   ![View audit log](../../../img/helm/digitalocean/view-activity.png)
 </Figure>
-
 
 ## Next steps
 

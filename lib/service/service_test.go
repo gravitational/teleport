@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
@@ -424,6 +425,17 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			},
 		},
 		{
+			role: types.RoleOkta,
+			wantPrincipals: []string{
+				"global-hostname",
+				"global-uuid",
+			},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
+		},
+		{
 			role: types.SystemRole("unknown"),
 			wantPrincipals: []string{
 				"global-hostname",
@@ -589,18 +601,20 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 
 func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 	t.Parallel()
-	clock := clockwork.NewFakeClock()
 	// Create and configure a default Teleport configuration.
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
-	cfg.Clock = clock
+	cfg.Clock = clockwork.NewRealClock()
 	cfg.DataDir = t.TempDir()
 	cfg.Auth.Enabled = false
 	cfg.Proxy.Enabled = false
 	cfg.SSH.Enabled = true
-	cfg.MaxRetryPeriod = defaults.MaxWatcherBackoff
+	cfg.MaxRetryPeriod = 5 * time.Millisecond
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.ConnectFailureC = make(chan time.Duration, 5)
+	cfg.ClientTimeout = time.Millisecond
+	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	cfg.Log = utils.NewLoggerForTests()
 	process, err := NewTeleport(cfg)
 	require.NoError(t, err)
 
@@ -613,6 +627,7 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 		require.Nil(t, c)
 	}()
 
+	timeout := time.After(10 * time.Second)
 	step := cfg.MaxRetryPeriod / 5.0
 	for i := 0; i < 5; i++ {
 		// wait for connection to fail
@@ -623,14 +638,8 @@ func TestTeleportProcess_reconnectToAuth(t *testing.T) {
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
-
-			// wait for connection to get to retry.After
-			clock.BlockUntil(1)
-
-			// add some extra to the duration to ensure the retry occurs
-			clock.Advance(cfg.MaxRetryPeriod)
-		case <-time.After(time.Minute):
-			t.Fatalf("timeout waiting for failure")
+		case <-timeout:
+			t.Fatalf("timeout waiting for failure %d", i)
 		}
 	}
 
