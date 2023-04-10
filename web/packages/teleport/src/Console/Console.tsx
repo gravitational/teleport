@@ -86,7 +86,9 @@ export default function Console() {
 
   return (
     <StyledConsole>
-      {attempt.status === 'failed' && <Danger>{attempt.statusText}</Danger>}
+      {attempt.status === 'failed' && (
+        <Danger>{`Error: ${attempt.statusText} (Try refreshing the page)`}</Danger>
+      )}
       {attempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
