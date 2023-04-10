@@ -62,6 +62,12 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
+## Can I copy files on a machine without being logged in, i.e. headless authentication?
+
+Yes, Teleport supports [Headless WebAuthn authentication](.access-controls/guides/headless.mdx) that allows you to perform operations like
+downloading or uploading via `scp` or opening `ssh` sessions on remote stations you aren't
+logged into. You confirm the operation easily from your local browser or terminal.
+
 ## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
 
 Make sure that all Teleport components are at least at version 10.3.0. Older versions
