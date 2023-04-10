@@ -138,10 +138,10 @@ const (
 	KindAppServer = "app_server"
 
 	// SubKindTeleportApp is a Teleport application handled by the app service.
-	SubKindTeleportApp = "teleport_app"
+	SubKindTeleportApp = "teleport"
 
 	// SubKindOktaApp is an Okta application handled by the Okta service.
-	SubKindOktaApp = "okta_app"
+	SubKindOktaApp = "okta"
 
 	// KindApp is a web app resource.
 	KindApp = "app"

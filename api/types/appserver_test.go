@@ -36,18 +36,7 @@ func TestGetTunnelType(t *testing.T) {
 			expected:  AppTunnel,
 		},
 		{
-			name: "okta (label)",
-			appServer: &AppServerV3{
-				Metadata: Metadata{
-					Labels: map[string]string{
-						OriginLabel: OriginOkta,
-					},
-				},
-			},
-			expected: OktaTunnel,
-		},
-		{
-			name: "okta (subkind)",
+			name: "okta",
 			appServer: &AppServerV3{
 				SubKind: SubKindOktaApp,
 			},

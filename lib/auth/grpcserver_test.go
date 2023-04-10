@@ -2365,6 +2365,36 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
+
+	// Insert Okta apps
+	appOkta, err := types.NewAppV3(types.Metadata{Name: "app-okta"},
+		types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	appOkta.SetSubKind(types.SubKindOktaApp)
+	serverOkta, err := types.NewAppServerV3FromApp(appOkta, "server-okta", "server-okta")
+	require.NoError(t, err)
+
+	// Admin can't create an Okta application.
+	_, err = clt.UpsertApplicationServer(ctx, serverOkta)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create Okta app servers"))
+
+	// Okta role can create Okta applications.
+	clt, err = srv.NewClient(TestBuiltin(types.RoleOkta))
+	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, serverOkta)
+	require.NoError(t, err)
+
+	// Fetch all app servers.
+	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+
+	// Upsert will inject the Okta origin type into the app server.
+	appOkta.SetOrigin(types.OriginOkta)
+	serverOkta.SetOrigin(types.OriginOkta)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverOkta}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
+	))
 }
 
 // TestAppsCRUD tests application resource operations.

@@ -1332,15 +1332,16 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *proto.Ups
 	server := req.GetServer()
 	app := server.GetApp()
 
-	// Only allow app servers with Okta origins/subkind if coming from an Okta role. App servers sourced from
+	// Only allow app servers with Okta subkinds if coming from an Okta role. App servers sourced from
 	// Okta are redirected differently which could create unpredictable or insecure behavior if applied
 	// to non-Okta apps.
-	isOktaApp := server.GetSubKind() == types.SubKindOktaApp || server.Origin() == types.OriginOkta ||
-		app.GetSubKind() == types.SubKindOktaApp || app.Origin() == types.OriginOkta
-	if builtinRole, ok := auth.context.Identity.(authz.BuiltinRole); !ok || builtinRole.Role != types.RoleOkta {
-		if isOktaApp {
+	if server.GetSubKind() == types.SubKindOktaApp {
+		if builtinRole, ok := auth.context.Identity.(authz.BuiltinRole); !ok || builtinRole.Role != types.RoleOkta {
 			return nil, trace.BadParameter("only the Okta role can create Okta app servers")
 		}
+		server.SetOrigin(types.OriginOkta)
+		app.SetOrigin(types.OriginOkta)
+		app.SetSubKind(server.GetSubKind())
 	}
 
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)

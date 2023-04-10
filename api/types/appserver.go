@@ -188,8 +188,6 @@ func (s *AppServerV3) SetApp(app Application) error {
 // GetTunnelType returns the tunnel type associated with the app server.
 func (s *AppServerV3) GetTunnelType() TunnelType {
 	switch {
-	case s.Origin() == OriginOkta:
-		return OktaTunnel
 	case s.GetSubKind() == SubKindOktaApp:
 		return OktaTunnel
 	default:
@@ -199,7 +197,7 @@ func (s *AppServerV3) GetTunnelType() TunnelType {
 
 // String returns the server string representation.
 func (s *AppServerV3) String() string {
-	return fmt.Sprintf("AppServer(Name=%v, Subkind=%v, Version=%v, Hostname=%v, HostID=%v, App=%v)",
+	return fmt.Sprintf("AppServer(Name=%v, SubKind=%v, Version=%v, Hostname=%v, HostID=%v, App=%v)",
 		s.GetName(), s.GetSubKind(), s.GetTeleportVersion(), s.GetHostname(), s.GetHostID(), s.GetApp())
 }
 
