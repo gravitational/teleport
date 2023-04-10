@@ -66,6 +66,8 @@ type Features struct {
 	Plugins bool
 	// AutomaticUpgrades enables automatic upgrades of agents/services.
 	AutomaticUpgrades bool
+	// DeviceTrust enables device trust
+	DeviceTrust bool
 }
 
 // ToProto converts Features into proto.Features

@@ -3512,6 +3512,9 @@ func checkRoleFeatureSupport(role types.Role) error {
 	case modules.GetModules().BuildType() != modules.BuildEnterprise && len(allowReq.SearchAsRoles) != 0:
 		return trace.AccessDenied(
 			"role field allow.search_as_roles is only available in enterprise subscriptions")
+	case !features.DeviceTrust && options.DeviceTrustMode == constants.DeviceTrustModeRequired:
+		return trace.AccessDenied(
+			"role option device_trust_mode can't be %q: cluster doesn't support Device Trust", constants.DeviceTrustModeRequired)
 	default:
 		return nil
 	}
