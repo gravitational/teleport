@@ -1,0 +1,460 @@
+---
+name: Deploy OS packages to repos
+run-name: Deploy OS packages to repos ${{ inputs.workflow-run-identifier }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      repo-type:
+        description: "The type of OS package repo that the package should be deployed to"
+        required: true
+        type: choice
+        options:
+          - apt
+          - yum
+      environment:
+        description: "Environment to deploy the package to"
+        type: environment
+        required: true
+      enterprise-only:
+        description: "True to only deploy enterprise (and FIPS) artifacts, false otherwise"
+        type: boolean
+        default: false
+        required: true
+      artifact-tag:
+        description: "The tag associated with the artifact to deploy (eg. v1.2.3)"
+        type: string
+        required: true
+      version-channel:
+        description: "The version channel of the repos that the artifacts should be added to. Semver values will be truncated to major version. Examples: \"v1.2.3\" (truncated to \"v1\"), \"cloud\"."
+        type: string
+        required: true
+      # This is here to facilitate the addition of new release channels when/if the OPRT supports them
+      release-channel:
+        description: "The release channel that the artifact should be deployed to"
+        type: choice
+        required: true
+        options:
+          - stable
+        default: stable
+      package-to-test:
+        description: "The package to install and test during the smoke test"
+        type: choice
+        required: true
+        options:
+          - teleport
+          - teleport-ent
+          - teleport-ent-fips
+        default: teleport-ent
+      # This is a workaround so that the actor who initiated a workflow run via a workflow dispatch event can determine the run ID of the started workflow run
+      workflow-run-identifier:
+        description: "This field adds the provided value to the workflow run display name, allowing the calling actor to associate the started run with the GHA run ID."
+        type: string
+        required: false
+
+jobs:
+  deploy:
+    name: Deploy packages to ${{ inputs.repo-type }} repo
+    # Note that the value of this string is arbitrary as long as it contains the `${{ inputs.repo-type }}`
+    # and `${{ inputs.environment }}` expressions
+    concurrency: Only allow a single deployment for ${{ inputs.repo-type }} repo in ${{ inputs.environment }} at a time
+    permissions:
+      contents: read
+      id-token: write   # Required for aws-actions/configure-aws-credentials
+    environment: ${{ inputs.environment }}
+    runs-on:
+      - self-hosted
+      - linux
+      - x64
+      - os-package-repo-tool
+    env:
+      TOOL_BINARY_PATH: os-package-repo-tool
+      DOWNLOAD_DIRECTORY: /tmp/artifacts
+      GNUPGHOME: /tmp/gnupg
+      # These paths must be updated in the mount script in the `cloud-terraform` repo if they are changed here
+      APT_CACHE_PATH: /mnt/apt-cache/${{ inputs.environment }}
+      YUM_CACHE_PATH: /mnt/yum-cache/${{ inputs.environment }}
+    steps:
+      - name: Disallow prerelease artifacts from being deployed to production repos
+        if: inputs.environment == 'production' || inputs.environment == 'promote'
+        uses: actions/github-script@v6
+        with: 
+          script: |
+            if ("${{ inputs.artifact-tag }}".indexOf("-") > -1)
+              core.setFailed("Prerelease artifacts may not be deployed to production repos");
+      - name: Derive and set Github environment-specific variables for APT
+        if: inputs.repo-type == 'apt'
+        run: |
+          echo "PACKAGE_TYPE=deb" >> "$GITHUB_ENV"
+          echo "CACHE_PATH=$APT_CACHE_PATH" >> "$GITHUB_ENV"
+          echo "BUCKET_NAME=${{ vars.APT_S3_BUCKET }}" >> "$GITHUB_ENV"
+          echo "TOOL_ARGUMENTS=-aptly-root-dir $APT_CACHE_PATH/aptly" >> "$GITHUB_ENV"
+      - name: Derive and set Github environment-specific variables for YUM
+        if: inputs.repo-type == 'yum'
+        run: |
+          echo "PACKAGE_TYPE=rpm" >> "$GITHUB_ENV"
+          echo "CACHE_PATH=$YUM_CACHE_PATH" >> "$GITHUB_ENV"
+          echo "BUCKET_NAME=${{ vars.YUM_S3_BUCKET }}" >> "$GITHUB_ENV"
+          echo "TOOL_ARGUMENTS=-cache-dir $YUM_CACHE_PATH/createrepo -repo-domain-name ${{ vars.YUM_REPO_DOMAIN_NAME }}" >> "$GITHUB_ENV"
+      - name: Log set variables
+        run: |
+          echo "Set variables:"
+          env
+      - name: Log general runner information
+        run: |
+          echo "OS info:"
+          cat /etc/os-release
+          uname -a
+
+          echo -e "\nEC2 instance info:"
+          TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+          curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/dynamic/instance-identity/document
+
+          echo -e "\n\nYUM repo info:"
+          sudo yum repolist
+
+          echo -e "\nDisk info:"
+          df -hT
+      # Future TODO package the tool as an action or separate workflow
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: "./tooling/os-package-repo-tool/go.mod"
+          cache-dependency-path: "./tooling/os-package-repo-tool/go.sum"
+          check-latest: true
+      - name: Log installed Go version
+        run: go version
+      - name: Build tool
+        run: |
+          sudo yum install -y gcc
+          CGO_ENABLED=1 go build -race -o "$(pwd)/$TOOL_BINARY_PATH" -C "./tooling/os-package-repo-tool/" "./src/"
+      - name: Install the required runtime dependencies
+        run: |
+          # Exit on error, and error on unset vars
+          set -o errexit
+          set -o nounset
+
+          # Create new bin directory for the user
+          RUNNER_BIN_DIR="$HOME/bin"
+          mkdir -pv "$RUNNER_BIN_DIR"
+          export PATH="$RUNNER_BIN_DIR:$PATH"
+          echo "PATH=$PATH" | tee -a "$GITHUB_ENV"
+
+          # Aptly
+          # Download the artifact (tarball archive)
+          # TODO add something to hook dependabot here
+          TARBALL_FILE_NAME="/tmp/aptly.tar.gz"
+          LATEST_APTLY_RELEASE_URL=$(curl -s "https://api.github.com/repos/aptly-dev/aptly/releases/latest" | jq -r ".assets[].browser_download_url" | grep "linux_amd64.tar.gz")
+          wget -nv -O "$TARBALL_FILE_NAME" "$LATEST_APTLY_RELEASE_URL"
+          
+          # Extract the artifact
+          EXTRACT_FOLDER="/tmp/aptly_extraction"
+          mkdir -pv "$EXTRACT_FOLDER"
+          tar -xzvf "$TARBALL_FILE_NAME" --strip-components=1 -C "$EXTRACT_FOLDER"
+
+          # Copy the extracted binary to the bin directory
+          APTLY_DEST_PATH="$RUNNER_BIN_DIR/aptly"
+          cp "$EXTRACT_FOLDER/aptly" "$APTLY_DEST_PATH"
+          chmod +x "$APTLY_DEST_PATH"
+
+          # Cleanup temporary files
+          rm -rfv "$EXTRACT_FOLDER"
+          rm -rfv "$TARBALL_FILE_NAME"
+
+          # Verify the install
+          aptly version
+
+          # Createrepo
+          sudo yum install -y createrepo_c
+
+          # Verify the install
+          createrepo_c --version
+
+          # GPG >=2.2, required for both Aptly and createrepo
+          # Amazon Linux 2 only has up to gpg 2.0.22 available for some reason despite being a decade old
+          # See:
+          # * https://stackoverflow.com/questions/72973055/static-install-gnupg2-gpg-version-2-3-6-on-amazon-linux-2
+          # * https://stackoverflow.com/questions/72197579/how-to-upgrade-the-gpg-version-installed-on-aws-ec2
+          # Unfortunately this really is the simplest solution until the base AMI is updated to the new version
+          # of Amazon Linux.
+          # Download the artifacts from CentOS 8 repos (rpm archive)
+          RPM_DIR="/tmp/gpg_rpms"
+          mkdir -pv "$RPM_DIR"
+
+          WGET_URL_FILE="$RPM_DIR/wget_urls"
+          cat <<EOF > "$WGET_URL_FILE"
+          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/gnupg2-2.2.20-2.el8.x86_64.rpm
+          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/libgcrypt-1.8.5-6.el8.x86_64.rpm
+          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/readline-7.0-10.el8.x86_64.rpm
+          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/libgpg-error-1.31-1.el8.x86_64.rpm
+          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/npth-1.5-4.el8.x86_64.rpm
+          https://vault.centos.org/centos/8/BaseOS/x86_64/os/Packages/libassuan-2.5.1-3.el8.x86_64.rpm
+          EOF
+          cat "$WGET_URL_FILE"
+          wget -nv -P "$RPM_DIR/" -i "$WGET_URL_FILE"
+
+          # Force install the artifact despite lots of missing dependencies and conflicts (if it works, it works)
+          sudo rpm -i --nodeps --force "$RPM_DIR/*.rpm"
+
+          # Cleanup temporary files
+          rm -rfv "$RPM_DIR"
+
+          # Stop the existing agent if running and start a new process with the new version
+          pkill -9 gpg-agent || true
+          source <(gpg-agent --daemon)
+
+          # Verify the install
+          gpg --version
+      # Download the artifacts
+      - name: Assume AWS role for downloading the artifacts
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_DOWNLOAD_AWS_ROLE }}
+          role-session-name: "gha-oprt-artifact-download-${{ github.run_number }}"
+          role-duration-seconds: 900
+          # Given that the repo is private this should have a low security impact while making debugging easier
+          mask-aws-account-id: false
+      - name: Log the AWS role assumed
+        run: aws sts get-caller-identity
+      - name: Define artifact download filter for enterprise-only deployments
+        if: inputs.enterprise-only
+        run: |
+          echo "Enterprise-only deployment targeted, setting artifact filter..."
+          echo "ARTIFACT_FILTER=*ent" tee -a "$GITHUB_ENV"
+      - name: Define the version number used in the artifact download key
+        run: |
+          echo "Setting artifact download version..."
+          FULL_TAG="${{ inputs.artifact-tag }}"
+          echo "ARTIFACT_DOWNLOAD_VERSION=${FULL_TAG#v}" | tee -a "$GITHUB_ENV"
+      - name: Download artifacts to the download directory
+        run: |
+          echo "Creating download directory..."
+          mkdir -pv "$DOWNLOAD_DIRECTORY"
+
+          FILTER="${ARTIFACT_FILTER}*.${PACKAGE_TYPE}*"
+          S3_PATH="s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${ARTIFACT_DOWNLOAD_VERSION}/"
+          echo -e "\nDownloading files matching '$FILTER' from '$S3_PATH' to '$DOWNLOAD_DIRECTORY'..."
+          aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" "$S3_PATH" "$DOWNLOAD_DIRECTORY"
+
+          echo -e "\nDownloaded files:"
+          ls -lAht "$DOWNLOAD_DIRECTORY"
+
+          echo ""
+          [ "$(ls -A "$DOWNLOAD_DIRECTORY")" ] && echo "Found $(ls -lA | wc -l) artifacts for $ARTIFACT_DOWNLOAD_VERSION" || (echo "No artifacts found for $ARTIFACT_DOWNLOAD_VERSION!"; exit 1)
+      # Publish the package
+      - name: Assume AWS role for deploying ${{ inputs.repo-type }} artifacts
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars[format('{0}_DEPLOYMENT_AWS_ROLE', inputs.repo-type)] }}
+          role-session-name: "gha-os-package-repo-tool-deploy-${{ github.run_number }}"
+          role-duration-seconds: 3600  # 1 hour, the max that the Terraform module allows. DR takes a long time (6 hrs+) so this will cause DR to fail the first time.
+          # Given that the repo is private this should have a low security impact while making debugging easier
+          mask-aws-account-id: false
+      - name: Log the AWS role assumed
+        run: aws sts get-caller-identity
+      - name: Setup GPG signing key
+        env:
+          GPG_SIGNING_ARCHIVE: ${{ secrets.GPG_SIGNING_ARCHIVE }}
+        run: |
+          [ ! -z "$GPG_SIGNING_ARCHIVE" ] || (echo "GPG signing archive secret is unset or empty, aborting"; exit 1)
+
+          echo "Extracting the GPG signing key to GNUPGHOME at $GNUPGHOME"
+          mkdir -pv -m0700 "$GNUPGHOME"
+          echo "$GPG_SIGNING_ARCHIVE" | base64 -d | tar --no-same-owner --no-overwrite-dir -xzvf - -C "$GNUPGHOME"
+          chown -Rv "$(id -un)":"$(id -gn)" "$GNUPGHOME"
+          echo -e "\nGPG home directory contents:"
+          ls -lah "$GNUPGHOME"
+
+          echo -e "\nLoaded GPG keys:"
+          GNUPGHOME="$GNUPGHOME" gpg -v --list-secret-keys
+      - name: Ensure the environment cache path exists
+        run: |
+          echo "Creating the ${{ inputs.environment }} environment cache path at $CACHE_PATH"
+          mkdir -pv -m0770 "$CACHE_PATH"
+          sudo chown -v "ec2-user:ec2-user" "$CACHE_PATH"
+
+          # Clear out files to trigger DR
+          # Do not uncomment this unless you know what you are doing!
+          # rm -rf "$CACHE_PATH"/*
+      - name: Publish the ${{ inputs.artifact-tag }} version artifacts to the ${{ inputs.repo-type }} repo in ${{ inputs.environment }} environment
+        env:
+          LOG_LEVEL: 4
+        run: >
+            "./$TOOL_BINARY_PATH" ${{ inputs.repo-type }}
+            -bucket "$BUCKET_NAME"
+            -local-bucket-path "$CACHE_PATH/bucket-contents"
+            -version-channel "${{ inputs.version-channel }}"
+            -release-channel "${{ inputs.release-channel }}"
+            -artifact-path "$DOWNLOAD_DIRECTORY"
+            -log-level "$LOG_LEVEL"
+            $TOOL_ARGUMENTS # This is not quoted as it should be expanded by the shell
+      - name: Log runner state post-job
+        run: |
+          # Log information that may have changed during job execution so that we can catch future issues before they happen
+          echo "Disk info:"
+          df -hT
+  
+  # These jobs are designed to be a very final test to verify that we didn't just publish a broken release
+  # They are very much not a catch-all even of the few basic tests they run - but if they fail, something
+  # is really broken.
+  apt-debian-smoke-test:
+    name: Test packages deployed to APT repo on Debian
+    if: inputs.repo-type == 'apt'
+    needs: deploy
+    runs-on: ubuntu-latest
+    # A container is used here to maintain consistency in the testing methodology for both APT and YUM
+    strategy:
+      fail-fast: false
+      matrix:
+        # Multiple images are used to test for the ever recurring libc version issue
+        container-image: ["ubuntu:22.04", "ubuntu:20.04", "ubuntu:18.04", "debian:10", "debian:11"]
+    container:
+      image: ${{ matrix.container-image }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
+      #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
+      - name: Derive and set Github environment-specific variables for production
+        if: inputs.environment == 'production' || inputs.environment == 'promote'
+        run: |
+          echo "APT_REPO_DOMAIN_NAME=apt.releases.teleport.dev" >> "$GITHUB_ENV"
+      - name: Derive and set Github environment-specific variables for development
+        if: inputs.environment == 'staging' || inputs.environment == 'build'
+        run: |
+          echo "APT_REPO_DOMAIN_NAME=apt.releases.development.teleport.dev" >> "$GITHUB_ENV"
+      - name: Log set variables
+        run: |
+          echo "Set variables:"
+          env
+      - name: Setup for Teleport install
+        run: |
+          # The container images are missing a couple of minor things needed for the install instructions
+          # on the downloads page
+          # sudo is not available in the image, so create a simple do-nothing script to replace it
+          SUDO_PATH="/usr/bin/sudo"
+          echo '$@' > "$SUDO_PATH"
+          chmod +x "$SUDO_PATH"
+          sudo echo "Running this with pseudo-sudo"
+
+          # Install curl
+          apt update
+          apt install -y curl
+
+          # Set the package version
+          echo "PACKAGE_VERSION=$(echo ${{ inputs.artifact-tag }} | cut -d'v' -f2)" >> "$GITHUB_ENV"
+      - name: Install Teleport
+        run: |
+          # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
+          # This is designed to be changed as little as possible from the source
+          sudo curl https://$APT_REPO_DOMAIN_NAME/gpg \
+            -o /usr/share/keyrings/teleport-archive-keyring.asc
+          source /etc/os-release
+          echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+            https://$APT_REPO_DOMAIN_NAME/${ID?} ${VERSION_CODENAME?} ${{ inputs.release-channel }}/${{ inputs.version-channel }}" \
+            | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install ${{ inputs.package-to-test }}=$PACKAGE_VERSION
+      - name: Log Teleport version
+        run: teleport version
+      - name: Log package cache information
+        run: |
+          apt-cache policy ${{ inputs.package-to-test }}
+      - name: Verify installed Teleport version matches provided artifact version
+        run: |
+          REPORTED_VERSION=v$(teleport version | cut -d'v' -f2 | cut -d' ' -f1) # This is a little hacky to account for Enterprise versions
+          if [ "$REPORTED_VERSION" != "${{ inputs.artifact-tag }}" ]; then
+            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${{ inputs.artifact-tag }})!!!"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+  yum-rhel-smoke-test:
+    name: Test packages deployed to YUM repo on RHEL
+    if: inputs.repo-type == 'yum'
+    needs: deploy
+    runs-on: ubuntu-latest
+    # A container is used here to maintain consistency in the testing methodology for both APT and YUM
+    strategy:
+      fail-fast: false
+      matrix:
+        # Multiple images are used to test for the ever recurring libc version issue
+        container-image: 
+          - centos:7
+          # These are the closest we can easily get to rhel 7/8/9
+          - registry.access.redhat.com/ubi7:7.9
+          - registry.access.redhat.com/ubi8:8.7
+          - registry.access.redhat.com/ubi9:9.1
+    container:
+      image: ${{ matrix.container-image }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
+      #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
+      - name: Derive and set Github environment-specific variables for production
+        if: inputs.environment == 'production' || inputs.environment == 'promote'
+        run: |
+          echo "YUM_REPO_DOMAIN_NAME=yum.releases.teleport.dev" >> "$GITHUB_ENV"
+          echo "FORCE_INSTALL_PROD_PUBLIC_KEY=false" >> "$GITHUB_ENV"
+      - name: Derive and set Github environment-specific variables for development
+        if: inputs.environment == 'staging' || inputs.environment == 'build'
+        run: |
+          echo "YUM_REPO_DOMAIN_NAME=yum.releases.development.teleport.dev" >> "$GITHUB_ENV"
+          # This is required as the RPMs are signed by the prod key, not the dev key
+          # Without this yum will fail due to a signing key mismatch
+          echo "FORCE_INSTALL_PROD_PUBLIC_KEY=true" >> "$GITHUB_ENV"
+      - name: Log set variables
+        run: |
+          echo "Set variables:"
+          env
+      - name: Setup for Teleport install
+        run: |
+          # The container images are missing a couple of minor things needed for the install instructions
+          # on the downloads page
+          # sudo is not available in the image, so create a simple do-nothing script to replace it
+          SUDO_PATH="/usr/bin/sudo"
+          echo '$@' > "$SUDO_PATH"
+          chmod +x "$SUDO_PATH"
+          sudo echo "Running this with pseudo-sudo"
+
+          # Install yum-utils for yum-config-manager
+          yum install -y yum-utils
+
+          # Add the prod signing key specifically if required in a dev context to deal with prod-signed RPMs
+          if $FORCE_INSTALL_PROD_PUBLIC_KEY; then
+            rpm --import https://yum.releases.teleport.dev/gpg
+          fi
+
+          # Set the package version
+          echo "PACKAGE_VERSION=$(echo ${{ inputs.artifact-tag }} | cut -d'v' -f2 | sed 's/-/_/')" >> "$GITHUB_ENV"
+      - name: Install Teleport
+        run: |
+          # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
+          # This is designed to be changed as little as possible from the source
+          source /etc/os-release
+
+          # The UBI images use a slightly different from normal format for VERSION_ID so it must be accounted for here
+          VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
+
+          sudo yum-config-manager --add-repo $(rpm --eval "https://${YUM_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/${{ inputs.release-channel }}/${{ inputs.version-channel }}/teleport.repo")
+          sudo yum install -y ${{ inputs.package-to-test }}-$PACKAGE_VERSION
+      - name: Log Teleport version
+        run: teleport version
+      - name: Log package cache information
+        run: |
+          yum --showduplicates list available ${{ inputs.package-to-test }}
+      - name: Verify installed Teleport version matches provided artifact version
+        run: |
+          REPORTED_VERSION=v$(teleport version | cut -d'v' -f2 | cut -d' ' -f1) # This is a little hacky to account for Enterprise versions
+          if [ "$REPORTED_VERSION" != "${{ inputs.artifact-tag }}" ]; then
+            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${{ inputs.artifact-tag }})!!!"
+            exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
+          fi
+
