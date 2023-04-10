@@ -1,5 +1,4 @@
 {{ if eq .Values.resourceType "statefulset" }}
----
 {{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
 apiVersion: apps/v1
