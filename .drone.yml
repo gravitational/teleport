@@ -7221,7 +7221,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -7236,21 +7236,14 @@ trigger:
     - production
   repo:
     include:
-    - gravitational/teleport
-    - gravitational/teleport-private
+    - gravitational/*
 workspace:
   path: /go
 clone:
   disable: true
 steps:
-- name: Verify build is tagged
-  image: alpine:latest
-  pull: if-not-exists
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
 - name: Check out code
-  image: alpine/git:latest
+  image: docker:git
   pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
@@ -7258,146 +7251,34 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-- name: Assume Download AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
-  image: amazon/aws-cli
-  commands:
-  - mkdir -pv "$ARTIFACT_PATH"
-  - rm -rf "$ARTIFACT_PATH"/*
-  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="$${ENT_FILTER}*.deb*"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
-    "$ARTIFACT_PATH"
-  environment:
-    ARTIFACT_PATH: /go/artifacts
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume Download AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Assume Upload AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: APT_REPO_NEW_AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: APT_REPO_NEW_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Download artifacts for "${DRONE_TAG}"
-  - Verify build is tagged
-  - Check out code
-- name: Check if tag is prerelease
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
   image: golang:1.18-alpine
   commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Assume Upload AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Publish debs to APT repos for "${DRONE_TAG}"
-  image: golang:1.18-bullseye
-  commands:
-  - apt update
-  - apt install -y aptly
-  - mkdir -pv -m0700 "$GNUPGHOME"
-  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
-  - export RELEASE_CHANNEL="stable"
-  - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
-    -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
+    "promote" > "/go/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "release-channel=stable" -input "version-channel=${DRONE_TAG}" -input "repo-type=apt"
+    -input "environment=$(cat "/go/release-environment.txt")" -input "artifact-tag=${DRONE_TAG}" '
   environment:
-    APTLY_ROOT_DIR: /mnt/aptly
-    ARTIFACT_PATH: /go/artifacts
-    AWS_REGION: us-west-2
-    BUCKET_CACHE_PATH: /tmp/bucket
-    DEBIAN_FRONTEND: noninteractive
-    GNUPGHOME: /tmpfs/gnupg
-    GPG_RPM_SIGNING_ARCHIVE:
-      from_secret: GPG_RPM_SIGNING_ARCHIVE
-    REPO_S3_BUCKET:
-      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
-  volumes:
-  - name: apt-persistence
-    path: /mnt
-  - name: tmpfs
-    path: /tmpfs
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Check if tag is prerelease
-  - Verify build is tagged
-  - Check out code
-volumes:
-- name: apt-persistence
-  claim:
-    name: drone-s3-aptrepo-pvc
-- name: tmpfs
-  temp:
-    medium: memory
-- name: awsconfig
-  temp: {}
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -7435,7 +7316,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -7450,21 +7331,14 @@ trigger:
     - production
   repo:
     include:
-    - gravitational/teleport
-    - gravitational/teleport-private
+    - gravitational/*
 workspace:
   path: /go
 clone:
   disable: true
 steps:
-- name: Verify build is tagged
-  image: alpine:latest
-  pull: if-not-exists
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
 - name: Check out code
-  image: alpine/git:latest
+  image: docker:git
   pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
@@ -7472,147 +7346,34 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-- name: Assume Download AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
-  image: amazon/aws-cli
-  commands:
-  - mkdir -pv "$ARTIFACT_PATH"
-  - rm -rf "$ARTIFACT_PATH"/*
-  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="$${ENT_FILTER}*.rpm*"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
-    "$ARTIFACT_PATH"
-  environment:
-    ARTIFACT_PATH: /go/artifacts
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume Download AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Assume Upload AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: YUM_REPO_NEW_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Download artifacts for "${DRONE_TAG}"
-  - Verify build is tagged
-  - Check out code
-- name: Check if tag is prerelease
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
   image: golang:1.18-alpine
   commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Assume Upload AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Publish rpms to YUM repos for "${DRONE_TAG}"
-  image: golang:1.18-bullseye
-  commands:
-  - apt update
-  - apt install -y createrepo-c
-  - mkdir -pv "$CACHE_DIR"
-  - mkdir -pv -m0700 "$GNUPGHOME"
-  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
-  - export RELEASE_CHANNEL="stable"
-  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
-    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
+    "promote" > "/go/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "environment=$(cat "/go/release-environment.txt")" -input "artifact-tag=${DRONE_TAG}"
+    -input "release-channel=stable" -input "version-channel=${DRONE_TAG}" -input "repo-type=yum" '
   environment:
-    ARTIFACT_PATH: /go/artifacts
-    AWS_REGION: us-west-2
-    BUCKET_CACHE_PATH: /mnt/bucket
-    CACHE_DIR: /mnt/createrepo_cache
-    DEBIAN_FRONTEND: noninteractive
-    GNUPGHOME: /tmpfs/gnupg
-    GPG_RPM_SIGNING_ARCHIVE:
-      from_secret: GPG_RPM_SIGNING_ARCHIVE
-    REPO_S3_BUCKET:
-      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
-  volumes:
-  - name: yum-persistence
-    path: /mnt
-  - name: tmpfs
-    path: /tmpfs
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Check if tag is prerelease
-  - Verify build is tagged
-  - Check out code
-volumes:
-- name: yum-persistence
-  claim:
-    name: drone-s3-yumrepo-pvc
-- name: tmpfs
-  temp:
-    medium: memory
-- name: awsconfig
-  temp: {}
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -21263,6 +21024,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c255d7bcc4b43ec74779c9871d4e62027758bf42023e4144c59a4fb5116a96f8
+hmac: 183acf2d8d37f30325ec76e957380a777d5f0f950fb3c1ee360dd6e58e295a3b
 
 ...
