@@ -233,10 +233,9 @@ func onWatch(botConfig *config.BotConfig) error {
 }
 
 func onStart(botConfig *config.BotConfig) error {
-	reloadChan := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go handleSignals(log, reloadChan, cancel)
+	go handleSignals(log, cancel)
 
 	telemetrySentCh := make(chan struct{})
 	go func() {
@@ -275,12 +274,12 @@ func onStart(botConfig *config.BotConfig) error {
 		}
 	}()
 
-	b := tbot.New(botConfig, log, reloadChan)
+	b := tbot.New(botConfig, log)
 	return trace.Wrap(b.Run(ctx))
 }
 
 // handleSignals handles incoming Unix signals.
-func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.CancelFunc) {
+func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
@@ -290,9 +289,6 @@ func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.
 			log.Info("Received interrupt, canceling...")
 			cancel()
 			return
-		case syscall.SIGHUP, syscall.SIGUSR1:
-			log.Info("Received reload signal, reloading...")
-			reload <- struct{}{}
 		}
 	}
 }
