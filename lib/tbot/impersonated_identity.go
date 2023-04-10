@@ -489,7 +489,11 @@ func (b *Bot) renewDestinationsLoop(ctx context.Context) error {
 	for {
 		var err error
 		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			b.log.Infof("Renewing destinations.")
+			b.log.Infof(
+				"Renewing destinations. Attempt %d of %d.",
+				attempt,
+				renewalRetryLimit,
+			)
 			err = b.renewDestinations(ctx)
 			if err == nil {
 				break

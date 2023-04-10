@@ -44,9 +44,20 @@ func (b *Bot) renewBotIdentityLoop(
 	jitter := retryutils.NewJitter()
 	defer ticker.Stop()
 	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		case <-b.reloadChan:
+		}
+
 		var err error
 		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
-			b.log.Info("Renewing bot identity.")
+			b.log.Infof(
+				"Renewing bot identity. Attempt %d of %d.",
+				attempt,
+				renewalRetryLimit,
+			)
 			err = b.renewBotIdentity(ctx, botDestination)
 			if err == nil {
 				break
@@ -73,17 +84,7 @@ func (b *Bot) renewBotIdentityLoop(
 			b.log.WithError(err).Errorf("%d bot identity renewals failed. All retry attempts exhausted. Exiting.", renewalRetryLimit)
 			return trace.Wrap(err)
 		}
-
 		b.log.Infof("Renewed bot identity. Next bot identity renewal in approximately %s.", b.cfg.RenewalInterval)
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			continue
-		case <-b.reloadChan:
-			continue
-		}
 	}
 }
 
