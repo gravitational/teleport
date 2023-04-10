@@ -49,12 +49,8 @@ export default function Console() {
   const hasSshSessions = storeDocs.getSshDocuments().length > 0;
   const { attempt, run } = useAttempt();
 
-  function initUser() {
-    run(() => consoleCtx.initStoreUser());
-  }
-
   React.useEffect(() => {
-    initUser();
+    run(() => consoleCtx.initStoreUser());
   }, []);
 
   useKeyboardNav(consoleCtx);
