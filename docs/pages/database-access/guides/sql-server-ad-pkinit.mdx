@@ -166,7 +166,7 @@ Teleport performs certificate-based authentication by emulating a smart card.
   You will be modifying GPOs, and sometimes GPO modifications can take some time
   to propagate to all hosts. You can force your changes to take effect
   immediately on your current host at any time by opening a PowerShell prompt
-  and running `gpupdate.exe /force` (though their effects may still take time to
+  and running `gpupdate.exe /force` (though the effects of your changes may still take time to
   propagate to other machines on the domain).
 </Admonition>
 
@@ -236,7 +236,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Teleport Database Service must run on a Linux server with the `kinit` command
+The Teleport Database Service must run on a Linux server with the `kinit` command
 installed with PKINIT extensions.
 
 <Tabs>
