@@ -1152,7 +1152,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 				return trace.AccessDenied("access denied")
 			}
 		}
-		if !a.hasBuiltinRole(types.RoleApp) {
+		if !a.hasBuiltinRole(types.RoleApp) && !a.hasBuiltinRole(types.RoleOkta) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindAppServer, types.VerbUpdate); err != nil {
@@ -1389,6 +1389,17 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	if req.ResourceType == kubeService {
 		return &types.ListResourcesResponse{}, nil
 	}
+
+	// Check if auth server has a license for this resource type but only return an
+	// error if the user is not a builtin proxy or kube role.
+	// Builtin proxy and kube roles are allowed to list resources to avoid crashes
+	// even if the license is missing.
+	// Users with other roles will get an error if the license is missing so they
+	// can request a license with the correct features.
+	if err := enforceLicense(req.ResourceType); err != nil && !a.hasBuiltinRole(types.RoleProxy, types.RoleKube) {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -2390,7 +2401,7 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 // access request expirations.
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
-		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+		if isRoleImpersonation(*req) {
 			err := trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
 			log.WithError(err).Warn()
 			return nil, err
@@ -2402,7 +2413,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 		}
 		return a.desiredAccessInfoForImpersonation(req, user)
 	}
-	if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
 			err := trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
 			log.WithError(err).Warn()
@@ -2426,9 +2437,7 @@ func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCerts
 func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, traits wrappers.Traits) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
-	// DEPRECATED: consider making role requests without UseRoleRequests set an
-	// error in V11.
-	if req.UseRoleRequests && len(req.RoleRequests) == 0 {
+	if len(req.RoleRequests) == 0 {
 		return nil, trace.BadParameter("at least one role request is required")
 	}
 
@@ -2535,6 +2544,16 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 	)
 }
 
+func isRoleImpersonation(req proto.UserCertsRequest) bool {
+	// For now, either req.UseRoleRequests or len(req.RoleRequests) > 0
+	// indicates that role impersonation is being used.
+	// In Teleport 14.0.0, make using len(req.RoleRequests) > 0 without
+	// req.UseRoleRequests an error. This will simplify logic throughout
+	// by having a clear indicator of whether role impersonation is in use
+	// and make this helper redundant.
+	return req.UseRoleRequests || len(req.RoleRequests) > 0
+}
+
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
 	authPref, err := a.authServer.GetAuthPreference(ctx)
@@ -2584,7 +2603,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
-		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+		if isRoleImpersonation(req) {
 			// Note: technically this should never be needed as all role
 			// impersonated certs should have the DisallowReissue set.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
@@ -2625,13 +2644,18 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
 		}
 
-		// if these credentials are not renewable, we limit the TTL to the duration of the session
-		// (this prevents users renewing their certificates forever)
-		if req.Expires.After(sessionExpires) {
-			if !identity.Renewable {
-				req.Expires = sessionExpires
-			} else if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
+		if identity.Renewable || isRoleImpersonation(req) {
+			// Bot self-renewal or role impersonation can request certs with an
+			// expiry up to the global maximum allowed value.
+			if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
 				req.Expires = max
+			}
+		} else {
+			// Standard user impersonation has an expiry limited to the expiry
+			// of the current session. This prevents a user renewing their
+			// own certificates indefinitely to avoid re-authenticating.
+			if req.Expires.After(sessionExpires) {
+				req.Expires = sessionExpires
 			}
 		}
 	}
@@ -2668,8 +2692,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	case req.Username == a.context.User.GetName():
 		// users can impersonate themselves, but role impersonation requests
 		// must be checked.
-
-		if len(req.RoleRequests) > 0 {
+		if isRoleImpersonation(req) {
 			// Note: CheckImpersonateRoles() checks against the _stored_
 			// impersonate roles for the user rather than the set available
 			// to the current identity. If not explicitly denied (as above),
@@ -2758,7 +2781,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
-	} else if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+	} else if isRoleImpersonation(req) {
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
@@ -2796,8 +2819,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// requests, or when the disallow-reissue flag has already been set.
 	if a.context.Identity.GetIdentity().Renewable &&
 		req.Username == a.context.User.GetName() &&
-		len(req.RoleRequests) == 0 &&
-		!req.UseRoleRequests &&
+		!isRoleImpersonation(req) &&
 		!certReq.disallowReissue {
 		certReq.renewable = true
 	}

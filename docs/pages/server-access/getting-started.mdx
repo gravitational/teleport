@@ -32,8 +32,7 @@ pattern** so that only a single Node can be accessed publicly.
 
 - One host running a Linux environment (such as Ubuntu 20.04, CentOS 8.0, or
   Debian 10). This will serve as a Teleport Node.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/permission-warning.mdx!)
 
@@ -126,10 +125,7 @@ The `teleport node configure` command above placed a configuration file at
 `/etc/teleport.yaml`. The last step is to start Teleport, pointing it at this
 configuration:
 
-```
-# Start Teleport
-$ sudo teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport SSH Service"!)
 
 ### Access the Web UI
 
@@ -210,7 +206,6 @@ Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 
 In this example, `tele-admin` is now logged into the `tele.example.com` cluster
 through Teleport SSH.
-
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>

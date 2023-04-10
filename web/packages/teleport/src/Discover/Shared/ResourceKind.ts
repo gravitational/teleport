@@ -14,14 +14,6 @@
  * limitations under the License.
  */
 
-import { DiscoverEventResource } from 'teleport/services/userEvent';
-
-import {
-  DatabaseEngine,
-  DatabaseLocation,
-  ResourceSpec,
-} from '../SelectResource/types';
-
 import type { JoinRole } from 'teleport/services/joinToken';
 
 export enum ResourceKind {
@@ -44,70 +36,5 @@ export function resourceKindToJoinRole(kind: ResourceKind): JoinRole {
       return 'Kube';
     case ResourceKind.Server:
       return 'Node';
-  }
-}
-
-export function resourceKindToEventResource(
-  resourceSpec: ResourceSpec
-): DiscoverEventResource {
-  switch (resourceSpec.kind) {
-    case ResourceKind.Database:
-      const { engine, location } = resourceSpec.dbMeta;
-      if (location === DatabaseLocation.AWS) {
-        if (engine === DatabaseEngine.PostgreSQL) {
-          return DiscoverEventResource.DatabasePostgresRds;
-        }
-        if (engine === DatabaseEngine.MySQL) {
-          return DiscoverEventResource.DatabaseMysqlRds;
-        }
-        if (engine === DatabaseEngine.SQLServer) {
-          return DiscoverEventResource.DatabaseSqlServerRds;
-        }
-        if (engine === DatabaseEngine.RedShift) {
-          return DiscoverEventResource.DatabasePostgresRedshift;
-        }
-      }
-
-      if (location === DatabaseLocation.SelfHosted) {
-        if (engine === DatabaseEngine.PostgreSQL) {
-          return DiscoverEventResource.DatabasePostgresSelfHosted;
-        }
-        if (engine === DatabaseEngine.MySQL) {
-          return DiscoverEventResource.DatabaseMysqlSelfHosted;
-        }
-        if (engine === DatabaseEngine.Mongo) {
-          return DiscoverEventResource.DatabaseMongodbSelfHosted;
-        }
-        if (engine === DatabaseEngine.SQLServer) {
-          return DiscoverEventResource.DatabaseSqlServerSelfHosted;
-        }
-        if (engine === DatabaseEngine.Redis) {
-          return DiscoverEventResource.DatabaseRedisSelfHosted;
-        }
-      }
-
-      if (location === DatabaseLocation.GCP) {
-        if (engine === DatabaseEngine.PostgreSQL) {
-          return DiscoverEventResource.DatabasePostgresGcp;
-        }
-        if (engine === DatabaseEngine.MySQL) {
-          return DiscoverEventResource.DatabaseMysqlGcp;
-        }
-        if (engine === DatabaseEngine.SQLServer) {
-          return DiscoverEventResource.DatabaseMysqlGcp;
-        }
-      }
-      console.error(`resource database event not defined for ${resourceSpec}`);
-      return null;
-    case ResourceKind.Desktop:
-      return DiscoverEventResource.WindowsDesktop;
-    case ResourceKind.Kubernetes:
-      return DiscoverEventResource.Kubernetes;
-    case ResourceKind.Server:
-      return DiscoverEventResource.Server;
-    case ResourceKind.Application:
-      return DiscoverEventResource.ApplicationHttp;
-    default:
-      console.error(`resource event not defined for ${resourceSpec}`);
   }
 }

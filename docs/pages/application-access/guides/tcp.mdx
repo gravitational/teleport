@@ -11,8 +11,7 @@ servers or databases not yet natively supported in Database Access.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
+- (!docs/pages/includes/tctl.mdx!)
 - TCP application to connect to. In this guide we'll use a PostgreSQL running
   in Docker as an example. You can also use any TCP-based application you may
   already have.
@@ -97,11 +96,7 @@ app_service:
 Note that the URI scheme must be `tcp://` in order for Teleport to recognize
 this as a TCP application.
 
-Start Teleport:
-
-```code
-$ teleport start
-```
+(!docs/pages/includes/start-teleport.mdx!)
 
 ## Step 3/4. Start app proxy
 

@@ -66,7 +66,11 @@ type Config struct {
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if len(c.AWSMatchers) == 0 && len(c.AzureMatchers) == 0 && len(c.GCPMatchers) == 0 {
 		return trace.BadParameter("no matchers configured for discovery")
@@ -167,7 +171,7 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 	// Add database fetchers.
 	databaseMatchers, otherMatchers := splitAWSMatchers(otherMatchers, db.IsAWSMatcherType)
 	if len(databaseMatchers) > 0 {
-		databaseFetchers, err := db.MakeAWSFetchers(s.Clients, databaseMatchers)
+		databaseFetchers, err := db.MakeAWSFetchers(s.ctx, s.Clients, databaseMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -180,7 +184,8 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 			for _, region := range matcher.Regions {
 				switch t {
 				case services.AWSMatcherEKS:
-					client, err := s.Clients.GetAWSEKSClient(region)
+					// TODO(gavin): support assume_role_arn for AWS EKS.
+					client, err := s.Clients.GetAWSEKSClient(s.ctx, region)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -358,7 +363,8 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	// TODO(amk): once agentless node inventory management is
 	//            implemented, create nodes after a successful SSM run
 
-	ec2Client, err := s.Clients.GetAWSSSMClient(instances.Region)
+	// TODO(gavin): support assume_role_arn for ec2.
+	ec2Client, err := s.Clients.GetAWSSSMClient(s.ctx, instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -18,7 +18,10 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -36,6 +39,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -375,7 +379,6 @@ func (f *fakeProxy) clientConfig(t *testing.T) ClientConfig {
 	return ClientConfig{
 		ProxyWebAddress: "127.0.0.1",
 		ProxySSHAddress: "127.0.0.1",
-		ClusterName:     "test",
 		SSHDialer: SSHDialerFunc(func(ctx context.Context, network string, addr string, config *ssh.ClientConfig) (*tracessh.Client, error) {
 			conn, chans, reqs, err := f.fakeSSHServer.newClientConn()
 			if err != nil {
@@ -883,4 +886,194 @@ func TestClient_SSHConfig(t *testing.T) {
 	require.NotNil(t, sshConfig)
 	require.Equal(t, user, sshConfig.User)
 	require.Empty(t, cmp.Diff(cfg.SSHConfig, sshConfig, cmpopts.IgnoreFields(ssh.ClientConfig{}, "User", "Auth", "HostKeyCallback")))
+}
+
+type fakeTransportCredentials struct {
+	credentials.TransportCredentials
+	info credentials.AuthInfo
+	err  error
+}
+
+type fakeAuthInfo struct{}
+
+func (f fakeAuthInfo) AuthType() string {
+	return "test"
+}
+
+func (t fakeTransportCredentials) ClientHandshake(ctx context.Context, addr string, conn net.Conn) (net.Conn, credentials.AuthInfo, error) {
+	return conn, t.info, t.err
+}
+
+func TestClusterCredentials(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                string
+		expectedClusterName string
+		credentials         fakeTransportCredentials
+		errAssertion        require.ErrorAssertionFunc
+	}{
+		{
+			name:         "handshake error",
+			credentials:  fakeTransportCredentials{err: context.Canceled},
+			errAssertion: require.Error,
+		},
+		{
+			name:         "no tls auth info",
+			credentials:  fakeTransportCredentials{info: fakeAuthInfo{}},
+			errAssertion: require.NoError,
+		},
+		{
+			name:         "no server cert",
+			credentials:  fakeTransportCredentials{info: credentials.TLSInfo{}},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "no cluster oid set",
+			credentials: fakeTransportCredentials{info: credentials.TLSInfo{
+				State: tls.ConnectionState{
+					PeerCertificates: []*x509.Certificate{
+						{
+							Subject: pkix.Name{
+								Names: []pkix.AttributeTypeAndValue{
+									{
+										Type: asn1.ObjectIdentifier{1, 3, 9999, 0, 1},
+									},
+									{
+										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 1},
+									},
+									{
+										Type: asn1.ObjectIdentifier{1, 3, 9999, 0, 2},
+									},
+									{
+										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 2},
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+			errAssertion: require.NoError,
+		}, {
+			name:                "cluster name presented",
+			expectedClusterName: "test-cluster",
+			credentials: fakeTransportCredentials{info: credentials.TLSInfo{
+				State: tls.ConnectionState{
+					PeerCertificates: []*x509.Certificate{
+						{
+							Subject: pkix.Name{
+								Names: []pkix.AttributeTypeAndValue{
+									{
+										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 1},
+									},
+									{
+										Type: asn1.ObjectIdentifier{1, 3, 9999, 0, 2},
+									},
+									{
+										Type: asn1.ObjectIdentifier{1, 3, 9999, 2, 2},
+									},
+									{
+										Type:  teleportClusterASN1ExtensionOID,
+										Value: "test-cluster",
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+			errAssertion: require.NoError,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			c := &clusterName{}
+			creds := clusterCredentials{TransportCredentials: test.credentials, clusterName: c}
+			_, _, err := creds.ClientHandshake(context.Background(), "127.0.0.1", nil)
+			test.errAssertion(t, err)
+			require.Equal(t, test.expectedClusterName, c.get())
+		})
+	}
+}
+
+type fakePublicKey struct{}
+
+func (f fakePublicKey) Type() string {
+	return "test"
+}
+
+func (f fakePublicKey) Marshal() []byte {
+	return nil
+}
+
+func (f fakePublicKey) Verify(data []byte, sig *ssh.Signature) error {
+	return trace.NotImplemented("")
+}
+
+func TestClusterCallback(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name                string
+		hostKeyCB           ssh.HostKeyCallback
+		publicKey           ssh.PublicKey
+		expectedClusterName string
+		errAssertion        require.ErrorAssertionFunc
+	}{
+		{
+			name: "handshake failure",
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return context.Canceled
+			},
+			errAssertion: require.Error,
+		},
+		{
+			name:      "invalid certificate",
+			publicKey: fakePublicKey{},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+		{
+			name: "no authority present",
+			publicKey: &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{},
+				},
+			},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+
+		{
+			name:                "cluster name presented",
+			expectedClusterName: "test-cluster",
+			publicKey: &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{
+						teleportAuthority: "test-cluster",
+					},
+				},
+			},
+			hostKeyCB: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+				return nil
+			},
+			errAssertion: require.NoError,
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			c := &clusterName{}
+			err := clusterCallback(c, test.hostKeyCB)("test", addr("127.0.0.1"), test.publicKey)
+			test.errAssertion(t, err)
+			require.Equal(t, test.expectedClusterName, c.get())
+
+		})
+	}
 }

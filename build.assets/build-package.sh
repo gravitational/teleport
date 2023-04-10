@@ -2,7 +2,7 @@
 set -e
 
 usage() {
-  echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] <-a [amd64/x86_64]|[386/i386]|arm|arm64> <-r fips> <-s tarball source dir>" 1>&2
+  echo "Usage: $(basename $0) [-t <oss/ent>] [-v <version>] [-p <package type>] [-b <bundle id>] <-a [amd64/x86_64]|[386/i386]|arm|arm64> <-r fips> <-s tarball source dir>" 1>&2
   exit 1
 }
 
@@ -11,7 +11,7 @@ usage() {
 #shellcheck disable=SC1091
 . "$(dirname "$0")/build-common.sh"
 
-while getopts ":t:v:p:a:r:s:n" o; do
+while getopts ":t:v:p:a:r:s:b:n" o; do
     case "${o}" in
         t)
             t=${OPTARG}
@@ -35,6 +35,9 @@ while getopts ":t:v:p:a:r:s:n" o; do
         s)
             s=${OPTARG}
             ;;
+	b)
+	    b=${OPTARG}
+	    ;;
         n)
             # Dry-run mode.
             # Only affects parts of the script, use at your own peril!
@@ -120,6 +123,11 @@ else
         usage
     fi
 
+    if [[ -n "${b:-}" ]]; then
+        echo "bundle ID parameter can only be used for OS X packages"
+        exit 6
+    fi
+
     # set docker image appropriately
     if [[ "${PACKAGE_TYPE}" == "deb" ]]; then
         DOCKER_IMAGE="public.ecr.aws/gravitational/fpm:debian8"
@@ -197,7 +205,7 @@ fi
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
     SIGN_PKG="true"
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot"
-    BUNDLE_ID="com.gravitational.teleport"
+    BUNDLE_ID="${b:-com.gravitational.teleport}"
     if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
         PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
     else

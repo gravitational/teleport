@@ -83,6 +83,7 @@ export class QuickServerSuggester
       clusterUri: localClusterUri,
       search: input,
       limit,
+      sort: { fieldName: 'hostname', dir: 'ASC' },
     });
 
     return servers.agentsList.map(server => ({
@@ -111,6 +112,7 @@ export class QuickDatabaseSuggester
       clusterUri: localClusterUri,
       search: input,
       limit,
+      sort: { fieldName: 'name', dir: 'ASC' },
     });
 
     return databases.agentsList.map(database => ({
