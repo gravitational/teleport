@@ -464,6 +464,7 @@ func (b *Bot) renewDestinations(
 
 			if err := template.Render(ctx, b, impersonatedIdent, dest); err != nil {
 				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
+				return trace.Wrap(err)
 			}
 		}
 	}
