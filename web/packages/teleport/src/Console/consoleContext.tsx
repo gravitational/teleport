@@ -33,7 +33,7 @@ import serviceSession, {
 import ServiceNodes from 'teleport/services/nodes';
 import serviceClusters from 'teleport/services/clusters';
 import { StoreUserContext } from 'teleport/stores';
-import { UserContext } from 'teleport/services/user';
+import usersService from 'teleport/services/user';
 
 import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 
@@ -61,7 +61,8 @@ export default class ConsoleContext {
     });
   }
 
-  setStoreUser(user: UserContext) {
+  async initStoreUser() {
+    const user = await usersService.fetchUserContext();
     this.storeUser.setState(user);
   }
 
