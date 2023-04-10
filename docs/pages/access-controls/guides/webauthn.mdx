@@ -129,7 +129,7 @@ Teleport configuration as below:
   Starting on Teleport v10, WebAuthn replaces U2F. See the [U2F](#u2f) section.
 </Details>
 
-### `webauthn` Fields Definitions
+### `webauthn` fields definitions
 
 `rp_id` is the public domain of the Teleport Proxy Service, *excluding* protocol
   (`https://`) and port number.
@@ -181,6 +181,7 @@ Reference](../../reference/cli.mdx#tsh-global-flags) page.
 Once a WebAuthn device is registered, the user will be prompted for it on login:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
+
 ```code
 $ tsh login --proxy=example.com
 # Enter password for Teleport user codingllama:
@@ -194,9 +195,11 @@ $ tsh login --proxy=example.com
 #   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+
 </ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
+
 ```code
 $ tsh login --proxy=mytenant.teleport.sh
 # Enter password for Teleport user codingllama:
@@ -210,6 +213,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 #   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+
 </ScopedBlock>
 
 <Admonition type="note">
@@ -254,6 +258,7 @@ The migrated WebAuthn configuration is:
 <ScopedBlock scope={["oss", "enterprise"]}>
 <Tabs>
   <TabItem label="Static Config">
+
     ```yaml
     # snippet from /etc/teleport.yaml:
     auth_service:
@@ -270,8 +275,10 @@ The migrated WebAuthn configuration is:
           attestation_allowed_cas:
           - "/path/to/u2f_attestation_ca.pem"
     ```
+
   </TabItem>
   <TabItem label="Dynamic resources">
+
     ```yaml
     kind: cluster_auth_preference
     version: v2
@@ -290,11 +297,13 @@ The migrated WebAuthn configuration is:
         attestation_allowed_cas:
         - "/path/to/u2f_attestation_ca.pem"
     ```
+
   </TabItem>
 </Tabs>
 </ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
+
 ```yaml
 kind: cluster_auth_preference
 version: v2
@@ -313,6 +322,7 @@ spec:
     attestation_allowed_cas:
     - "/path/to/u2f_attestation_ca.pem"
 ```
+
 </ScopedBlock>
 
 ## Next steps
