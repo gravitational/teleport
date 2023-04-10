@@ -3857,12 +3857,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	}
 
 	tlscfg := serverTLSConfig.Clone()
-	setupTLSConfigClientCAsForCluster(tlscfg, accessPoint, clusterName)
 	tlscfg.ClientAuth = tls.RequireAndVerifyClientCert
 	if lib.IsInsecureDevMode() {
 		tlscfg.InsecureSkipVerify = true
 		tlscfg.ClientAuth = tls.RequireAnyClientCert
 	}
+	tlscfg.GetConfigForClient = func(*tls.ClientHelloInfo) (*tls.Config, error) {
+		tlsClone := tlscfg.Clone()
+
+		// Build the client CA pool containing the cluster's user CA in
+		// order to be able to validate certificates provided by users.
+		var err error
+		tlsClone.ClientCAs, _, err = auth.DefaultClientCertPool(accessPoint, clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return tlsClone, nil
+	}
+
 	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
 		TransportCredentials: credentials.NewTLS(tlscfg),
 		UserGetter:           authMiddleware,
@@ -4008,8 +4021,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 				PROXYSigner:                   proxySigner,
+				// ConnTLSConfig is used by the proxy authenticate to the upstream kubernetes
+				// services or remote clustes to be able to send the client identity
+				// using Impersonation headers. The upstream service will validate if
+				// the provided connection certificate is from a proxy server and
+				// will impersonate the identity of the user that is making the request.
+				ConnTLSConfig: tlsConfig.Clone(),
 			},
-			TLS:             tlsConfig,
+			TLS:             tlsConfig.Clone(),
 			LimiterConfig:   cfg.Proxy.Limiter,
 			AccessPoint:     accessPoint,
 			GetRotation:     process.GetRotation,
