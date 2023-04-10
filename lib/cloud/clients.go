@@ -253,13 +253,18 @@ type awsAssumeRoleOpts struct {
 // when getting an AWS session.
 type AWSAssumeRoleOptionFn func(*awsAssumeRoleOpts)
 
+// WithAssumeRole configures options needed for assuming an AWS role.
+func WithAssumeRole(roleARN, externalID string) AWSAssumeRoleOptionFn {
+	return func(options *awsAssumeRoleOpts) {
+		options.assumeRoleARN = roleARN
+		options.assumeRoleExternalID = externalID
+	}
+}
+
 // WithAssumeRoleFromAWSMeta extracts options needed from AWS metadata for
 // assuming an AWS role.
 func WithAssumeRoleFromAWSMeta(meta types.AWS) AWSAssumeRoleOptionFn {
-	return func(options *awsAssumeRoleOpts) {
-		options.assumeRoleARN = meta.AssumeRoleARN
-		options.assumeRoleExternalID = meta.ExternalID
-	}
+	return WithAssumeRole(meta.AssumeRoleARN, meta.ExternalID)
 }
 
 // WithChainedAssumeRole sets a role to assume with a base session to use
