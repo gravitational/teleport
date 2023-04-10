@@ -1,6 +1,16 @@
 version: v1
 plugins:
   - name: go
+    path:
+      - go
+      - run
+      - google.golang.org/protobuf/cmd/protoc-gen-go
     out: .
+    opt: module=github.com/gravitational/teleport
   - name: go-grpc
+    path:
+      - go
+      - run
+      - google.golang.org/grpc/cmd/protoc-gen-go-grpc
     out: .
+    opt: module=github.com/gravitational/teleport
