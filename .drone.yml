@@ -7191,36 +7191,6 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: migrate-apt-new-repos
-trigger:
-  event:
-    include:
-    - custom
-  repo:
-    include:
-    - non-existent-repository
-  branch:
-    include:
-    - non-existent-branch
-clone:
-  disable: true
-steps:
-- name: Placeholder
-  image: alpine:latest
-  commands:
-  - echo "This command, step, and pipeline never runs"
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
 # Generated at dronegen/gha.go (main.ghaBuildPipeline)
 ################################################
 
@@ -7274,41 +7244,11 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "release-channel=stable" -input "version-channel=${DRONE_TAG}" -input "repo-type=apt"
-    -input "environment=$(cat "/go/release-environment.txt")" -input "artifact-tag=${DRONE_TAG}" '
+    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "version-channel=${DRONE_TAG}"
+    -input "repo-type=apt" -input "environment=$(cat "/go/release-environment.txt")" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: migrate-yum-new-repos
-trigger:
-  event:
-    include:
-    - custom
-  repo:
-    include:
-    - non-existent-repository
-  branch:
-    include:
-    - non-existent-branch
-clone:
-  disable: true
-steps:
-- name: Placeholder
-  image: alpine:latest
-  commands:
-  - echo "This command, step, and pipeline never runs"
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -7369,8 +7309,8 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "environment=$(cat "/go/release-environment.txt")" -input "artifact-tag=${DRONE_TAG}"
-    -input "release-channel=stable" -input "version-channel=${DRONE_TAG}" -input "repo-type=yum" '
+    -input "repo-type=yum" -input "environment=$(cat "/go/release-environment.txt")"
+    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "version-channel=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -21024,6 +20964,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 183acf2d8d37f30325ec76e957380a777d5f0f950fb3c1ee360dd6e58e295a3b
+hmac: a1a363af5fee385d3a8bfba0a5a39d8471552c670a88018a54170f71ec5a5379
 
 ...
