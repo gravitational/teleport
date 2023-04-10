@@ -85,6 +85,13 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if closer, ok := client.(io.Closer); ok {
+			closer.Close()
+		}
+	})
+
 	return client
 }
 

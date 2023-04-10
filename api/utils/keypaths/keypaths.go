@@ -62,6 +62,8 @@ const (
 	profileFileExt = ".yaml"
 	// fileLocalCA is the filename where a self-signed localhost CA cert is stored.
 	fileLocalCA = "localca.pem"
+	// oracleWalletDirSuffix is the suffix of the oracle wallet database directory.
+	oracleWalletDirSuffix = "-wallet"
 )
 
 // Here's the file layout of all these keypaths.
@@ -90,9 +92,11 @@ const (
 //    │   ├── foo-db                   --> App access certs for user "foo"
 //    │   │   ├── root                 --> App access certs for cluster "root"
 //    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
-//    │   │   │   └── dbB-x509.pem     --> TLS cert for database service "dbB"
-//    │   │   └── leaf                 --> App access certs for cluster "leaf"
-//    │   │       └── dbC-x509.pem     --> TLS cert for database service "dbC"
+//    │   │   │   ├── dbB-x509.pem     --> TLS cert for database service "dbB"
+//    │   │   │   └── dbC-wallet       --> Oracle Client wallet Configuration directory.
+//    │   │   ├── leaf                 --> App access certs for cluster "leaf"
+//    │   │   │   └── dbC-x509.pem     --> TLS cert for database service "dbC"
+//    │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
 //    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
 //    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
@@ -276,6 +280,13 @@ func DatabaseCertDir(baseDir, proxy, username, cluster string) string {
 // <baseDir>/keys/<proxy>/<username>-db/<cluster>/<dbname>-x509.pem
 func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
 	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+fileExtTLSCert)
+}
+
+// DatabaseOracleWalletDirectory returns the path to the user's Oracle Wallet configuration directory.
+// for the given proxy, cluster and database.
+// <baseDir>/keys/<proxy>/<username>-db/<cluster>/dbname-wallet/
+func DatabaseOracleWalletDirectory(baseDir, proxy, username, cluster, dbname string) string {
+	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+oracleWalletDirSuffix)
 }
 
 // KubeDir returns the path to the user's kube directory

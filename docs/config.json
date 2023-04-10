@@ -264,6 +264,10 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
+              "title": "Headless WebAuthn (Preview)",
+              "slug": "/access-controls/guides/headless/"
+            },
+            {
               "title": "IP Pinning (Preview)",
               "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
@@ -440,10 +444,6 @@
         {
           "title": "Reference",
           "slug": "/access-controls/reference/"
-        },
-        {
-          "title": "FAQ",
-          "slug": "/access-controls/faq/"
         }
       ]
     },
@@ -804,6 +804,10 @@
               "slug": "/server-access/guides/ec2-discovery/"
             },
             {
+              "title": "Azure Instance Discovery (Preview)",
+              "slug": "/server-access/guides/azure-discovery/"
+            },
+            {
               "title": "Using Teleport with Ansible",
               "slug": "/server-access/guides/ansible/"
             }
@@ -1139,6 +1143,10 @@
               "slug": "/machine-id/guides/github-actions-kubernetes/"
             },
             {
+              "title": "GitLab CI",
+              "slug": "/machine-id/guides/gitlab/"
+            },
+            {
               "title": "Jenkins",
               "slug": "/machine-id/guides/jenkins/"
             },
@@ -1215,6 +1223,10 @@
 	{
 	    "title": "Automatically Register Teleport Agents",
 	    "slug": "/api/automatically-register-agents/"
+	},
+	{
+	    "title": "Automatically Generate Roles",
+	    "slug": "/api/rbac/"
 	}
       ]
     },
@@ -1401,8 +1413,8 @@
       "version": "12.1.2",
       "major_version": "12",
       "sla": {
-        "monthly_percentage": "99.5%",
-        "monthly_downtime": "3 hours 40 minutes"
+        "monthly_percentage": "99.9%",
+        "monthly_downtime": "44 minutes"
       }
     },
     "devicetrust": {
@@ -2342,6 +2354,11 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/faq/",
+      "destination": "/access-controls/introduction/",
       "permanent": true
     }
   ]

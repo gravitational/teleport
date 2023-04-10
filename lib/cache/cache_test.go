@@ -1622,6 +1622,34 @@ func TestApplicationServers(t *testing.T) {
 	})
 }
 
+// TestKubernetesServers tests that CRUD operations on kube servers are
+// replicated from the backend to the cache.
+func TestKubernetesServers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.KubeServer]{
+		newResource: func(name string) (types.KubeServer, error) {
+			app, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+			require.NoError(t, err)
+			return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
+		},
+		create: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		list: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.presenceS.GetKubernetesServers(ctx)
+		},
+		cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.cache.GetKubernetesServers(ctx)
+		},
+		update: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllKubernetesServers(ctx)
+		},
+	})
+}
+
 // TestApps tests that CRUD operations on application resources are
 // replicated from the backend to the cache.
 func TestApps(t *testing.T) {

@@ -95,6 +95,7 @@ type AuthProvider interface {
 	GetSessionTracker(ctx context.Context, sessionID string) (types.SessionTracker, error)
 	IsMFARequired(ctx context.Context, req *authproto.IsMFARequiredRequest) (*authproto.IsMFARequiredResponse, error)
 	GenerateUserSingleUseCerts(ctx context.Context) (authproto.AuthService_GenerateUserSingleUseCertsClient, error)
+	GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error)
 }
 
 // NewTerminal creates a web-based terminal based on WebSockets and returns a
@@ -291,13 +292,6 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If the displayLogin is set then use it instead of the login name used in
-	// the SSH connection. This is specifically for the use case when joining
-	// a session to avoid displaying "-teleport-internal-join" as the username.
-	if t.displayLogin != "" {
-		t.sessionData.Login = t.displayLogin
-	}
-
 	sendError := func(errMsg string, err error, ws *websocket.Conn) {
 		envelope := &Envelope{
 			Version: defaults.WebsocketVersion,
@@ -309,7 +303,19 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	}
 
-	sessionMetadataResponse, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	var sessionMetadataResponse []byte
+
+	// If the displayLogin is set then use it in the session metadata instead of the
+	// login name used in the SSH connection. This is specifically for the use case
+	// when joining a session to avoid displaying "-teleport-internal-join" as the username.
+	if t.displayLogin != "" {
+		sessionDataTemp := t.sessionData
+		sessionDataTemp.Login = t.displayLogin
+		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: sessionDataTemp})
+	} else {
+		sessionMetadataResponse, err = json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	}
+
 	if err != nil {
 		sendError("unable to marshal session response", err, ws)
 		return
@@ -628,16 +634,15 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 	getAgent := func() (teleagent.Agent, error) {
 		return teleagent.NopCloser(tc.LocalAgent()), nil
 	}
-	signerCreator := func() (ssh.Signer, error) {
-		cert, err := t.ctx.GetSSHCertificate()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		validBefore := time.Unix(int64(cert.ValidBefore), 0)
-		ttl := time.Until(validBefore)
-		return agentless.CreateAuthSigner(t.terminalContext, t.ctx.GetUser(), tc.SiteName, ttl, t.router)
+	cert, err := t.ctx.GetSSHCertificate()
+	if err != nil {
+		t.log.WithError(err).Warn("Unable to stream terminal - failed to get certificate")
+		t.writeError(err)
+		return
 	}
-	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signerCreator)
+
+	signer := agentless.SignerFromSSHCertificate(cert, t.authProvider)
+	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
 
@@ -667,7 +672,10 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		HostKeyCallback: tc.HostKeyCallback,
 	}
 
-	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+	nc, connectErr := client.NewNodeClient(ctx, sshConfig, conn,
+		net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
+		t.sessionData.ServerHostname,
+		tc, modules.GetModules().IsBoringBinary())
 	switch {
 	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
 		t.log.WithError(connectErr).Warn("Unable to stream terminal - failed to create node client")
@@ -707,14 +715,17 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 		sshConfig.Auth = tc.AuthMethods
 
 		// connect to the node again with the new certs
-		conn, _, err = t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signerCreator)
+		conn, _, err = t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host")
 			t.writeError(err)
 			return
 		}
 
-		nc, err = client.NewNodeClient(ctx, sshConfig, conn, net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)), tc, modules.GetModules().IsBoringBinary())
+		nc, err = client.NewNodeClient(ctx, sshConfig, conn,
+			net.JoinHostPort(t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort)),
+			t.sessionData.ServerHostname,
+			tc, modules.GetModules().IsBoringBinary())
 		if err != nil {
 			t.log.WithError(err).Warn("Unable to stream terminal - failed to create node client")
 			t.writeError(err)

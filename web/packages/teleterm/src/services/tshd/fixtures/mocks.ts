@@ -29,7 +29,7 @@ import {
   LoginPasswordlessParams,
   LoginSsoParams,
   ReviewAccessRequestParams,
-  ServerSideParams,
+  GetResourcesParams,
   TshAbortController,
   TshAbortSignal,
   TshClient,
@@ -39,13 +39,13 @@ import {
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
+  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
+  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
   assumeRole: (
     clusterUri: string,
     requestIds: string[],
