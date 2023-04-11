@@ -212,6 +212,8 @@ type CLIConf struct {
 	BenchRate int
 	// BenchInteractive indicates that we should create interactive session
 	BenchInteractive bool
+	// BenchRandom indicates that we should connect to a random host each time
+	BenchRandom bool
 	// BenchExport exports the latency profile
 	BenchExport bool
 	// BenchExportPath saves the latency profile in provided path
@@ -880,6 +882,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchSSH.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
+	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark test")
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
@@ -1152,6 +1155,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 			&cf,
 			&benchmark.SSHBenchmark{
 				Command: cf.RemoteCommand,
+				Random:  cf.BenchRandom,
 			},
 		)
 	case benchListKube.FullCommand():
