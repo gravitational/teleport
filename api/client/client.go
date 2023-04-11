@@ -3256,6 +3256,37 @@ func (c *Client) DeleteAllUserGroups(ctx context.Context) error {
 	return nil
 }
 
+// ExportUpgradeWindows is used to load derived upgrade window values for agents that
+// need to export schedules to external upgraders.
+func (c *Client) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
+	rsp, err := c.grpc.ExportUpgradeWindows(ctx, &req)
+	if err != nil {
+		return proto.ExportUpgradeWindowsResponse{}, trail.FromGRPC(err)
+	}
+	return *rsp, nil
+}
+
+// GetClusterMaintenanceConfig gets the current maintenance window config singleton.
+func (c *Client) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	rsp, err := c.grpc.GetClusterMaintenanceConfig(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return rsp, nil
+}
+
+// UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
+func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.ClusterMaintenanceConfig) error {
+	req, ok := cmc.(*types.ClusterMaintenanceConfigV1)
+	if !ok {
+		return trace.BadParameter("unexpected maintenance config type: %T", cmc)
+	}
+
+	_, err := c.grpc.UpdateClusterMaintenanceConfig(ctx, req)
+	return trail.FromGRPC(err)
+}
+
 // PluginsClient returns an unadorned Plugins client, using the underlying
 // Auth gRPC connection.
 // Clients connecting to non-Enterprise clusters, or older Teleport versions,
