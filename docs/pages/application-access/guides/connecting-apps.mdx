@@ -1,6 +1,6 @@
 ---
 title: Web Application Access
-description: How to configure Teleport for Application Access.
+description: In this getting started guide, learn how to connect an application to your Teleport cluster by running the Teleport Application Service.
 ---
 
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
@@ -26,11 +26,7 @@ ssh_service:
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Start the service:
-
-```code
-$ sudo teleport start --config=/path/to/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx!)
 
 ### Generate a token
 
@@ -216,7 +212,7 @@ The URI should be updated to include the subdirectory:
 
 ```yaml
 - name: "k8s"
-  uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default"
+  uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview"
   public_addr: "k8s.example.com"
 ```
 

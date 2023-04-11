@@ -464,7 +464,7 @@ To launch a new Application Service instance, we will create a **join token**.
 Teleport's services can join a cluster by presenting a token to the Auth
 Service.
 
-The code below generates a join token for a new Applicaiton Service instance:
+The code below generates a join token for a new Application Service instance:
 
 ```go
 func cryptoRandomHex(len int) (string, error) {
@@ -638,7 +638,7 @@ with dots replaced by hyphens.
 
 Next, we create the container. The executable that serves as the container's
 entrypoint is the same one that the `teleport` image uses by default, but with
-additonal flags that launch the container as an Application Service instance and
+additional flags that launch the container as an Application Service instance and
 set it to proxy our RabbitMQ container.
 
 Finally, we use the ID of the container we created to run the container.

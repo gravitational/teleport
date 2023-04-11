@@ -5,7 +5,7 @@ description: Detailed guide and reference documentation for Teleport's command l
 
 Teleport is made up of four CLI tools.
 
-- [teleport](#teleport): Supports the Teleport access plane by starting and configuring various Teleport services.
+- [teleport](#teleport): Supports the Teleport Access Platform by starting and configuring various Teleport services.
 - [tsh](#tsh): Allows end users to authenticate to Teleport and access resources in a cluster.
 - [tctl](#tctl): Used to configure the Teleport Auth Service.
 - [tbot](#tbot): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
@@ -16,7 +16,7 @@ Teleport is made up of four CLI tools.
 
 ## teleport
 
-The CLI tool that supports the Teleport access plane is called `teleport`, and allows Teleport services to be managed
+The CLI tool that supports the Teleport Access Platform is called `teleport`, and allows Teleport services to be managed
 over the command line:
 
 - [Auth](../architecture/authentication.mdx)
@@ -32,7 +32,7 @@ The primary commands for the `teleport` CLI are as follows:
 | Command | Description |
 | - | - |
 | `teleport help` | Outputs guidance for using Teleport commands. |
-| `teleport start` | Starts the `teleport` process in the foregound using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
+| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport configure` | Generates and writes a [configuration YAML file](config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |

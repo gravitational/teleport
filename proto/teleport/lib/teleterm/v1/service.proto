@@ -24,7 +24,7 @@ import "teleport/lib/teleterm/v1/gateway.proto";
 import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // TerminalService describes Teleterm service
 service TerminalService {

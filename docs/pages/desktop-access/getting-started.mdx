@@ -121,12 +121,6 @@ Once you've saved `/etc/teleport.yaml`, start Teleport:
 <Tabs>
 <TabItem label="System Service">
 
-This command assumes the `root` user. Prepend `sudo` otherwise.
-
-```code
-$ systemctl start teleport.service
-```
-
 Copy the join token to a file on the instance where you will run the Windows Desktop
 Service, and then use the following configuration:
 
@@ -155,6 +149,9 @@ proxy_service:
 ssh_service:
   enabled: no    
 ```
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
+
 </TabItem>
 <TabItem label="Standalone Binary">
 
