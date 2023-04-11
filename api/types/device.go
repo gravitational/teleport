@@ -65,6 +65,9 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	if _, err := ResourceOSTypeFromString(d.Spec.OsType); err != nil {
 		return trace.Wrap(err)
 	}
+	if _, err := ResourceEnrollStatusFromString(d.Spec.EnrollStatus); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -96,7 +99,10 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	enrollStatus := ResourceEnrollStatusFromString(res.Spec.EnrollStatus)
+	enrollStatus, err := ResourceEnrollStatusFromString(res.Spec.EnrollStatus)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	var cred *devicepb.DeviceCredential
 	if res.Spec.Credential != nil {
@@ -227,20 +233,27 @@ func ResourceEnrollStatusToString(enrollStatus devicepb.DeviceEnrollStatus) stri
 		return "enrolled"
 	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED:
 		return "not_enrolled"
-	default:
+	case devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED:
 		return "unspecified"
+	default:
+		return enrollStatus.String()
 	}
 }
 
 // ResourceEnrollStatusFromString converts a string representation of
 // DeviceEnrollStatus suitable for resource fields to DeviceEnrollStatus.
-func ResourceEnrollStatusFromString(enrollStatus string) devicepb.DeviceEnrollStatus {
+func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollStatus, error) {
 	switch enrollStatus {
 	case "enrolled":
-		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, nil
 	case "not_enrolled":
-		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, nil
+	case "unspecified":
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
+	// In the terraform provider, enroll_status is an optional field and can be empty.
+	case "":
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
 	default:
-		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, trace.BadParameter("unknown enroll status %q", enrollStatus)
 	}
 }
