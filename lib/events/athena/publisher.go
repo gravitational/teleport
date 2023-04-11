@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 	snsTypes "github.com/aws/aws-sdk-go-v2/service/sns/types"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
@@ -65,7 +64,7 @@ type s3uploader interface {
 }
 
 // newPublisher returns new instance of publisher.
-func newPublisher(cfg Config, awsCfg aws.Config, log *log.Entry) *publisher {
+func newPublisher(cfg Config) *publisher {
 	r := retry.NewStandard(func(so *retry.StandardOptions) {
 		so.MaxAttempts = 20
 		so.MaxBackoff = 1 * time.Minute
@@ -74,10 +73,10 @@ func newPublisher(cfg Config, awsCfg aws.Config, log *log.Entry) *publisher {
 	// TODO(tobiaszheller): consider reworking lib/observability to work also on s3 sdk-v2.
 	return &publisher{
 		topicARN: cfg.TopicARN,
-		snsPublisher: sns.NewFromConfig(awsCfg, func(o *sns.Options) {
+		snsPublisher: sns.NewFromConfig(*cfg.AWSConfig, func(o *sns.Options) {
 			o.Retryer = r
 		}),
-		uploader:      manager.NewUploader(s3.NewFromConfig(awsCfg)),
+		uploader:      manager.NewUploader(s3.NewFromConfig(*cfg.AWSConfig)),
 		payloadBucket: cfg.largeEventsBucket,
 		payloadPrefix: cfg.largeEventsPrefix,
 	}

@@ -96,13 +96,18 @@ type Config struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator.
 	UIDGenerator utils.UID
+	// LogEntry is a log entry.
+	LogEntry *log.Entry
+	// AWSConfig is AWS config which can be used to construct varius AWS Clients
+	// using aws-sdk-go-v2.
+	AWSConfig *aws.Config
 
 	// TODO(tobiaszheller): add FIPS config in later phase.
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to setup Athena based audit log.
-func (cfg *Config) CheckAndSetDefaults() error {
+func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	// AWS restrictions (https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html)
 	const glueNameMaxLen = 255
 	if cfg.Database == "" {
@@ -203,6 +208,25 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.UIDGenerator = utils.NewRealUID()
 	}
 
+	if cfg.LogEntry == nil {
+		cfg.LogEntry = log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentAthena,
+		})
+	}
+
+	if cfg.AWSConfig == nil {
+		awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// override the default environment (region + credentials) with the values
+		// from the config.
+		if cfg.Region != "" {
+			awsCfg.Region = cfg.Region
+		}
+		cfg.AWSConfig = &awsCfg
+	}
+
 	return nil
 }
 
@@ -292,41 +316,17 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 // Parquet and send it to S3 for long term storage.
 // Athena is used for quering Parquet files on S3.
 type Log struct {
-	// Entry is a log entry
-	*log.Entry
-	// Config is a backend configuration
-	Config
-
-	awsConfig aws.Config
-
 	publisher *publisher
 }
 
 // New creates an instance of an Athena based audit log.
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	err := cfg.CheckAndSetDefaults()
+	err := cfg.CheckAndSetDefaults(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logEntry := log.WithFields(log.Fields{
-		trace.Component: teleport.ComponentAthena,
-	})
-	l := &Log{
-		Entry:  logEntry,
-		Config: cfg,
-	}
-
-	l.awsConfig, err = awsconfig.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// override the default environment (region + credentials) with the values
-	// from the config.
-	if cfg.Region != "" {
-		l.awsConfig.Region = cfg.Region
-	}
-
-	l.publisher = newPublisher(cfg, l.awsConfig, logEntry)
+	l := &Log{}
+	l.publisher = newPublisher(cfg)
 
 	// TODO(tobiaszheller): initialize batcher
 	// TODO(tobiaszheller): initialize querier

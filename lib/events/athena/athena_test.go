@@ -15,10 +15,12 @@
 package athena
 
 import (
+	"context"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
@@ -109,6 +111,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		LargeEventsS3: "s3://large-payloads-bucket",
 		LocationS3:    "s3://events-bucket",
 		QueueURL:      "https://queue-url",
+		AWSConfig:     &aws.Config{},
 	}
 	tests := []struct {
 		name    string
@@ -132,6 +135,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				GetQueryResultsInterval: 100 * time.Millisecond,
 				BatchMaxItems:           20000,
 				BatchMaxInterval:        1 * time.Minute,
+				AWSConfig:               &aws.Config{},
 			},
 		},
 		{
@@ -221,10 +225,10 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.input()
-			err := cfg.CheckAndSetDefaults()
+			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator"), cmp.AllowUnexported(Config{})))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}
