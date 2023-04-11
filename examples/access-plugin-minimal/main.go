@@ -21,14 +21,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport-plugins/lib"
-	"github.com/gravitational/teleport-plugins/lib/watcherjob"
-	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"google.golang.org/api/option"
 	sheets "google.golang.org/api/sheets/v4"
 	"google.golang.org/grpc"
+
+	"github.com/gravitational/teleport-plugins/lib"
+	"github.com/gravitational/teleport-plugins/lib/watcherjob"
+	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/types"
 )
 
 const (
