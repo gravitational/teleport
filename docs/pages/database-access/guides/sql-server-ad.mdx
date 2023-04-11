@@ -1,6 +1,6 @@
 ---
 title: Database Access with Microsoft SQL Server with Active Directory authentication (Preview)
-description: How to configure Teleport Database Access with Microsoft SQL Server with Active Directory authentication.
+description: How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
 videoBanner: k2wz79XCexY
 ---
 
@@ -11,12 +11,12 @@ videoBanner: k2wz79XCexY
   scopeOnly={true}
   min="9.0"
 >
-  Database Access for Microsoft SQL Server with Active Directory authentication
+  Database access for Microsoft SQL Server with Active Directory authentication
   is available starting from Teleport `9.0`.
 </Details>
 
 <Admonition type="warning" title="Preview">
-  Database Access for Microsoft SQL Server is currently in Preview mode.
+  Database access for Microsoft SQL Server is currently in Preview mode.
 </Admonition>
 
 This guide will help you to:
@@ -275,8 +275,6 @@ Provide Active Directory parameters:
 | `--ad-domain` | Active Directory domain (Kerberos realm) that SQL Server is joined. |
 | `--ad-spn` | Service Principal Name for SQL Server to fetch Kerberos tickets for. |
 
-
-
 ### Service Principal Name
 
 You can use `ldapsearch` command to see the SPNs registered for your SQL
@@ -308,12 +306,8 @@ object typically resides under the AWS Reserved / RDS path:
 </Admonition>
 
 ## Step 5/7. Start the Database Service
-Start the Database Service:
 
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
-
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ## Step 6/7. Create SQL Server AD users
 

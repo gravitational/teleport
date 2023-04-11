@@ -1,6 +1,6 @@
 ---
 title: Database Access with Redshift Serverless on AWS
-description: How to configure Teleport Database Access with AWS Redshift Serverless.
+description: How to configure Teleport database access with AWS Redshift Serverless.
 ---
 
 This guide will help you to:
@@ -275,27 +275,7 @@ for more information.
 
 ### Start the Database service
 
-Run the following command on the Database Service node, depending on how you
-installed Teleport:
-
-<Tabs>
-<TabItem label="Package Manager">
-
-```code
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-<TabItem label="TAR archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 The Database Service will discover all Redshift databases according to the
 configuration and register them in the cluster. The Database Service will also

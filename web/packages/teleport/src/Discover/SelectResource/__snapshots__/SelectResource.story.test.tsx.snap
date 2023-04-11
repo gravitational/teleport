@@ -2373,6 +2373,18 @@ exports[`render with no access 1`] = `
   justify-content: center;
 }
 
+.c9 {
+  box-sizing: border-box;
+  background-color: red;
+  border-top-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
 .c6 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
@@ -2434,17 +2446,6 @@ exports[`render with no access 1`] = `
   opacity: 0.6;
 }
 
-.c9 {
-  position: absolute;
-  background: red;
-  padding: 0px 6px;
-  border-top-right-radius: 8px;
-  border-bottom-left-radius: 8px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
-}
-
 <div
   class="c0"
 >
@@ -2487,6 +2488,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2523,6 +2525,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2558,6 +2561,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2599,6 +2603,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2640,6 +2645,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2681,6 +2687,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2722,6 +2729,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2763,6 +2771,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2803,6 +2812,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2844,6 +2854,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2885,6 +2896,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2926,6 +2938,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -2969,6 +2982,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3013,6 +3027,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3057,6 +3072,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3101,6 +3117,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3145,6 +3162,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3189,6 +3207,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3233,6 +3252,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3277,6 +3297,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3321,6 +3342,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3365,6 +3387,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3409,6 +3432,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3453,6 +3477,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3497,6 +3522,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3535,6 +3561,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3579,6 +3606,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3623,6 +3651,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3667,6 +3696,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3711,6 +3741,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3755,6 +3786,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3799,6 +3831,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3837,6 +3870,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3881,6 +3915,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -3925,6 +3960,7 @@ exports[`render with no access 1`] = `
     >
       <div
         class="c9"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4098,6 +4134,18 @@ exports[`render with partial access 1`] = `
   justify-content: center;
 }
 
+.c20 {
+  box-sizing: border-box;
+  background-color: red;
+  border-top-right-radius: 4px;
+  border-bottom-left-radius: 4px;
+  position: absolute;
+  padding: 0px 6px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
 .c6 {
   display: grid;
   grid-template-columns: repeat(auto-fill,320px);
@@ -4190,17 +4238,6 @@ exports[`render with partial access 1`] = `
 .c5:placeholder {
   color: white;
   opacity: 0.6;
-}
-
-.c20 {
-  position: absolute;
-  background: red;
-  padding: 0px 6px;
-  border-top-right-radius: 8px;
-  border-bottom-left-radius: 8px;
-  top: 0px;
-  right: 0px;
-  font-size: 10px;
 }
 
 <div
@@ -4557,6 +4594,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4598,6 +4636,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4639,6 +4678,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4680,6 +4720,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4723,6 +4764,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4767,6 +4809,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4811,6 +4854,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4855,6 +4899,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4899,6 +4944,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4943,6 +4989,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -4987,6 +5034,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5031,6 +5079,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5075,6 +5124,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5119,6 +5169,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5163,6 +5214,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5207,6 +5259,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5251,6 +5304,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5289,6 +5343,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5333,6 +5388,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5377,6 +5433,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5421,6 +5478,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5465,6 +5523,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5509,6 +5568,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5553,6 +5613,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5591,6 +5652,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5635,6 +5697,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
@@ -5679,6 +5742,7 @@ exports[`render with partial access 1`] = `
     >
       <div
         class="c20"
+        data-testid="tooltip"
       >
         Lacking Permissions
       </div>
