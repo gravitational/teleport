@@ -367,8 +367,20 @@ func TestService_ProxySSH_Errors(t *testing.T) {
 				}}))
 
 				resp, err := stream.Recv()
-				require.ErrorIs(t, err, trace.AccessDenied("no access checker"))
 				require.Nil(t, resp)
+				switch {
+				// The server will attempt to get the authz context prior to receiving the first
+				// message from the client which may terminate the stream and result in an EOF.
+				case errors.Is(err, io.EOF):
+				// The client send may be completed prior to the server getting the authz context
+				// which will result in the client actually receiving the error from getting the
+				// authz context instead of an EOF.
+				case errors.Is(err, trace.AccessDenied("no access checker")):
+				// All other errors indicate that something went wrong
+				default:
+					t.Fatalf("expected either EOF or Access Denied, got %v", err)
+				}
+
 			},
 		},
 		{

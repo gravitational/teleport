@@ -13,16 +13,6 @@ run-name: Skip Build on Windows
 
 on:
   pull_request:
-    # We only build tsh on Windows so only consider Go code as tsh doesn't
-    # run any Rust.
-    paths-ignore:
-      - '.github/workflows/build-windows.yaml'
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
-      - 'Makefile'
   merge_group:
     # We only build tsh on Windows so only consider Go code as tsh doesn't
     # run any Rust.
@@ -38,7 +28,7 @@ on:
 jobs:
   build:
     name: Build on Windows
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     permissions:
       contents: none

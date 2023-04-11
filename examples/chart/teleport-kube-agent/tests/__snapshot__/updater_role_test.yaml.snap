@@ -1,0 +1,49 @@
+sets the correct role rules:
+  1: |
+    - apiGroups:
+      - ""
+      resources:
+      - pods
+      verbs:
+      - get
+      - watch
+      - list
+      - delete
+    - apiGroups:
+      - ""
+      resources:
+      - pods/status
+      verbs:
+      - get
+      - watch
+      - list
+    - apiGroups:
+      - ""
+      resourceNames:
+      - RELEASE-NAME-shared-state
+      resources:
+      - secrets
+      verbs:
+      - get
+      - watch
+      - list
+    - apiGroups:
+      - apps
+      resources:
+      - deployments
+      - statefulsets
+      - deployments/status
+      - statefulsets/status
+      verbs:
+      - get
+      - watch
+      - list
+    - apiGroups:
+      - apps
+      resourceNames:
+      - RELEASE-NAME
+      resources:
+      - deployments
+      - statefulsets
+      verbs:
+      - update

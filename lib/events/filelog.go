@@ -487,7 +487,7 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder
 			if fi.IsDir() || filepath.Ext(fi.Name()) != LogfileExt {
 				continue
 			}
-			fd, err := parseFileTime(fi.Name())
+			fd, err := ParseFileTime(fi.Name())
 			if err != nil {
 				l.Warningf("Failed to parse audit log file %q format: %v", fi.Name(), err)
 				continue
@@ -521,8 +521,8 @@ func (l *FileLog) matchingFiles(fromUTC, toUTC time.Time, order types.EventOrder
 	return filtered, nil
 }
 
-// parseFileTime parses file's timestamp encoded into filename
-func parseFileTime(filename string) (time.Time, error) {
+// ParseFileTime parses file's timestamp encoded into filename
+func ParseFileTime(filename string) (time.Time, error) {
 	base := strings.TrimSuffix(filename, filepath.Ext(filename))
 	return time.Parse(defaults.AuditLogTimeFormat, base)
 }

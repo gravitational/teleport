@@ -53,6 +53,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -227,7 +228,7 @@ type CLIConf struct {
 	Compatibility string
 	// CertificateFormat defines the format of the user SSH certificate.
 	CertificateFormat string
-	// IdentityFileOut is an argument to -out flag
+	// IdentityFileOut is an argument to --out flag
 	IdentityFileOut string
 	// IdentityFormat (used for --format flag for 'tsh login') defines which
 	// format to use with --out to store a freshly retrieved certificate
@@ -258,7 +259,8 @@ type CLIConf struct {
 	Verbose bool
 
 	// Format is used to change the format of output
-	Format string
+	Format  string
+	OutFile string
 
 	// SearchKeywords is a list of search keywords to match against resource field values.
 	SearchKeywords string
@@ -724,6 +726,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	lsRecordings.Flag("to-utc", fmt.Sprintf("End of time range in which recordings are listed. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&cf.ToUTC)
 	lsRecordings.Flag("limit", fmt.Sprintf("Maximum number of recordings to show. Default %s.", defaults.TshTctlSessionListLimit)).Default(defaults.TshTctlSessionListLimit).IntVar(&cf.maxRecordingsToShow)
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
+	exportRecordings := recordings.Command("export", "Export recorded desktop sesions to video.")
+	exportRecordings.Flag("out", "Override output file name").StringVar(&cf.OutFile)
+	exportRecordings.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 
 	// Local TLS proxy.
 	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
@@ -1192,6 +1197,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = onApps(&cf)
 	case lsRecordings.FullCommand():
 		err = onRecordings(&cf)
+	case exportRecordings.FullCommand():
+		err = onExportRecording(&cf)
 	case appLogin.FullCommand():
 		err = onAppLogin(&cf)
 	case appLogout.FullCommand():
@@ -2935,22 +2942,30 @@ func serializeClusters(rootCluster clusterInfo, leafClusters []clusterInfo, form
 // accessRequestForSSH attempts to create a resource access request for the case
 // where "tsh ssh" was attempted and access was denied
 func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.AccessRequest, error) {
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clt.Close()
 
 	// Match on hostname or host ID, user could have given either
 	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
-	filter := proto.ListResourcesRequest{
+
+	resources, err := apiclient.GetResourcesWithFilters(ctx, clt.AuthClient, proto.ListResourcesRequest{
+		Namespace:           apidefaults.Namespace,
+		ResourceType:        types.KindNode,
 		UseSearchAsRoles:    true,
 		PredicateExpression: expr,
-	}
-	nodes, err := proxyClient.FindNodesByFilters(ctx, filter)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	nodes, err := types.ResourcesWithLabels(resources).AsServers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if len(nodes) > 1 {
 		// Ambiguous hostname matches should have been handled by onSSH and
 		// would not make it here, this is a sanity check. Ambiguous host ID
@@ -4418,6 +4433,7 @@ func onRecordings(cf *CLIConf) error {
 		return trace.Errorf("date range for recordings listing too large: %v days specified: limit %v days",
 			days, defaults.TshTctlSessionDayLimit)
 	}
+
 	var sessions []apievents.AuditEvent
 	if err := client.RetryWithRelogin(cf.Context, tc, func() error {
 		sessions, err = tc.SearchSessionEvents(cf.Context,

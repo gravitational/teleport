@@ -28,6 +28,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -88,6 +89,36 @@ type NodeClient struct {
 	TC          *TeleportClient
 	OnMFA       func()
 	FIPSEnabled bool
+
+	mu      sync.Mutex
+	closers []io.Closer
+}
+
+// AddCloser adds an [io.Closer] that will be closed when the
+// client is closed.
+func (c *NodeClient) AddCloser(closer io.Closer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closers = append(c.closers, closer)
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error {
+	return f()
+}
+
+// AddCancel adds a [context.CancelFunc] that will be canceled when the
+// client is closed.
+func (c *NodeClient) AddCancel(cancel context.CancelFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closers = append(c.closers, closerFunc(func() error {
+		cancel()
+		return nil
+	}))
 }
 
 // ClusterName returns the name of the cluster the proxy is a member of.
@@ -715,25 +746,6 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		return nil, trace.Wrap(err)
 	}
 	return watcher, nil
-}
-
-// FindNodesByFilters returns list of the nodes which have filters matched.
-func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/FindNodesByFilters",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("resource", req.ResourceType),
-			attribute.Int("limit", int(req.Limit)),
-			attribute.String("predicate", req.PredicateExpression),
-			attribute.StringSlice("keywords", req.SearchKeywords),
-		),
-	)
-	defer span.End()
-
-	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, proxy.siteName)
-	return servers, trace.Wrap(err)
 }
 
 func (proxy *ProxyClient) GetClusterAlerts(ctx context.Context, req types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
@@ -1775,6 +1787,15 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 	}
 	defer s.Close()
 
+	// File transfers in a moderated session require these two variablesto check for
+	// approval on the ssh server. If they exist in the context, set them in our env vars
+	if moderatedSessionID, ok := ctx.Value(scp.ModeratedSessionID).(string); ok {
+		s.Setenv(ctx, string(scp.ModeratedSessionID), moderatedSessionID)
+	}
+	if fileTransferRequestID, ok := ctx.Value(scp.FileTransferRequestID).(string); ok {
+		s.Setenv(ctx, string(scp.FileTransferRequestID), fileTransferRequestID)
+	}
+
 	stdin, err := s.StdinPipe()
 	if err != nil {
 		return trace.Wrap(err)
@@ -2037,7 +2058,19 @@ func (c *NodeClient) GetRemoteTerminalSize(ctx context.Context, sessionID string
 
 // Close closes client and it's operations
 func (c *NodeClient) Close() error {
-	return c.Client.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var errors []error
+	for _, closer := range c.closers {
+		errors = append(errors, closer.Close())
+	}
+
+	c.closers = nil
+
+	errors = append(errors, c.Client.Close())
+
+	return trace.NewAggregate(errors...)
 }
 
 // localAgent returns for the Teleport client's local agent.
