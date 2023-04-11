@@ -3,12 +3,11 @@ import styled from 'styled-components';
 
 import { Box, Text } from 'design';
 import * as Icons from 'design/Icon';
+import slackIcon from 'design/assets/images/icons/slack.svg';
+import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
+import emailIcon from 'design/assets/images/icons/email.svg';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
-
-import slackIcon from './assets/slack.svg';
-import pagerdutyIcon from './assets/pagerduty.svg';
-import emailIcon from './assets/email.svg';
 
 type Permission = {
   title: string;

@@ -29,15 +29,15 @@ import cfg from 'e-teleport/config';
 
 import { pluginTypeMap } from '../data';
 
-import { State, usePluginEnroll } from './usePluginEnroll';
-import { PluginPick } from './PluginPick';
+import { State, useIntegrationEnroll } from './useIntegrationEnroll';
+import { IntegrationPick } from './IntegrationPick';
 
 export function Container() {
-  const state = usePluginEnroll();
-  return <PluginEnroll {...state} />;
+  const state = useIntegrationEnroll();
+  return <IntegrationEnroll {...state} />;
 }
 
-export function PluginEnroll(props: State) {
+export function IntegrationEnroll(props: State) {
   const { attempt, availableTypes, existingTypes } = props;
   const { type: selectedType } = useParams<{ type: string }>();
 
@@ -56,7 +56,7 @@ export function PluginEnroll(props: State) {
               </Box>
             )}
             {attempt.status === 'success' && (
-              <PluginPick
+              <IntegrationPick
                 availableTypes={availableTypes}
                 existingTypes={existingTypes}
               />
@@ -91,14 +91,14 @@ function PluginForm({ selectedType }: { selectedType: string }) {
       {resolvedType.Description && <resolvedType.Description />}
       {resolvedType.permissions?.length && (
         <Flex gap={6} p={4} bg="primary.light">
-          {resolvedType.permissions.map(perm => (
-            <Box>
+          {resolvedType.permissions.map((perm, index) => (
+            <Box key={index}>
               <Text fontWeight="bold" typography="h6">
                 {perm.category}
               </Text>
               <PermissionList>
                 {perm.permissions.map(p => (
-                  <PermissionListItem>
+                  <PermissionListItem key={`${index}${p.title}`}>
                     {p.title}{' '}
                     {p.description && (
                       <ToolTipInfo>{p.description}</ToolTipInfo>
@@ -137,7 +137,7 @@ function PluginForm({ selectedType }: { selectedType: string }) {
                   <ButtonPrimary width="200px" type="submit">
                     Connect {resolvedType.name}
                   </ButtonPrimary>
-                  <Link to={cfg.getIntegrationEnrollRoute(null)}>
+                  <Link to={cfg.oss.getIntegrationEnrollRoute(null)}>
                     <ButtonSecondary width="200px">Back</ButtonSecondary>
                   </Link>
                 </Flex>

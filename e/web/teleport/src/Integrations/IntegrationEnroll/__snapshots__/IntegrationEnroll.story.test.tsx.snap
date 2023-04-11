@@ -97,11 +97,6 @@ exports[`render NoPluginsEnrolled 1`] = `
   box-sizing: border-box;
 }
 
-.c13 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-}
-
 .c6 {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -231,6 +226,12 @@ exports[`render NoPluginsEnrolled 1`] = `
 .c16 {
   color: inherit;
   text-decoration: none;
+}
+
+.c13 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  position: relative;
 }
 
 <div>
@@ -452,14 +453,10 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   box-sizing: border-box;
 }
 
-.c12 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-}
-
 .c14 {
   display: inline-block;
   transition: color 0.3s;
+  margin-left: 4px;
   color: #00bfa5;
 }
 
@@ -487,16 +484,9 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  margin-right: -14px;
 }
 
-.c18 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
-}
-
-.c15 {
+.c16 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
@@ -587,7 +577,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   background-color: #222C59;
 }
 
-.c17 {
+.c18 {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -598,13 +588,27 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   background-color: #222C59;
 }
 
-.c17:hover {
+.c18:hover {
   background-color: #2C3A73;
 }
 
-.c16 {
+.c17 {
   color: inherit;
   text-decoration: none;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  position: relative;
+}
+
+.c15 {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  top: 0;
+  bottom: 0;
 }
 
 <div>
@@ -660,7 +664,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
                   Slack
                    
                   <span
-                    class="c14 icon icon-check "
+                    class="c14 icon icon-check c15"
                     color="success"
                   />
                 </div>
@@ -683,7 +687,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
             There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
              
             <a
-              class="c15"
+              class="c16"
               href="https://github.com/gravitational/teleport-plugins"
               rel="noreferrer"
             >
@@ -695,12 +699,12 @@ exports[`render SlackAlreadyEnrolled 1`] = `
             class="c8"
           >
             <a
-              class="c15 c16"
+              class="c16 c17"
               href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
               rel="noreferrer"
             >
               <div
-                class="c17"
+                class="c18"
               >
                 <img
                   class="c10 c11"
@@ -710,7 +714,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
                   class="c12"
                 >
                   <div
-                    class="c18"
+                    class="c13"
                   >
                     PagerDuty
                   </div>
@@ -718,12 +722,12 @@ exports[`render SlackAlreadyEnrolled 1`] = `
               </div>
             </a>
             <a
-              class="c15 c16"
+              class="c16 c17"
               href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
               rel="noreferrer"
             >
               <div
-                class="c17"
+                class="c18"
               >
                 <img
                   class="c10 c11"
@@ -733,7 +737,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
                   class="c12"
                 >
                   <div
-                    class="c18"
+                    class="c13"
                   >
                     Email
                   </div>

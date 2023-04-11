@@ -1,19 +1,15 @@
 import React from 'react';
-
 import * as Icons from 'design/Icon';
 import * as OSS from 'teleport/features';
-
 import {
   NavigationCategory,
   ManagementSection,
 } from 'teleport/Navigation/categories';
-
 import {
   AccessRequestsIcon,
   DownloadsIcon,
   SupportIcon,
   DevicesIcon,
-  IntegrationsIcon,
 } from 'design/SVGIcon';
 
 import cfg from 'e-teleport/config';
@@ -32,13 +28,14 @@ const AuthConnectors = React.lazy(
 const AccountE = React.lazy(
   () => import(/* webpackChunkName: "e-account" */ 'e-teleport/Account')
 );
-const Plugins = React.lazy(
-  () => import(/* webpackChunkName: "e-plugins" */ 'e-teleport/Plugins')
+const Integrations = React.lazy(
+  () =>
+    import(/* webpackChunkName: "e-integrations" */ 'e-teleport/Integrations')
 );
-const PluginEnroll = React.lazy(
+const IntegrationEnroll = React.lazy(
   () =>
     import(
-      /* webpackChunkName: "e-plugins" */ 'e-teleport/Plugins/PluginEnroll'
+      /* webpackChunkName: "e-integration-enroll" */ 'e-teleport/Integrations/IntegrationEnroll'
     )
 );
 const SupportE = React.lazy(
@@ -209,52 +206,42 @@ class FeatureDeviceTrust implements TeleportFeature {
     },
   };
 }
-class FeatureIntegrations implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
+
+class FeatureIntegrations extends OSS.FeatureIntegrations {
+  route = {
+    ...super.getRoute(),
+    // Enterprise version includes the enterprise only
+    //  "plugin" resource along with the base
+    // "integration" resource.
+    component: () => <Integrations />,
+  };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.plugins;
+    return flags.plugins || flags.integrations;
   }
-
-  route = {
-    title: 'Manage Integrations',
-    path: cfg.routes.integrations,
-    exact: true,
-    component: () => <Plugins />,
-  };
-
-  navigationItem = {
-    title: 'Integrations',
-    icon: <IntegrationsIcon />,
-    exact: true,
-    getLink() {
-      return cfg.routes.integrations;
-    },
-  };
 }
 
-class FeatureNewIntegration implements TeleportFeature {
+// TODO(lisa): move this to OS
+class FeatureIntegrationEnroll implements TeleportFeature {
   category = NavigationCategory.Management;
   section = ManagementSection.Access;
 
   route = {
     title: 'Enroll New Integration',
-    path: cfg.routes.integrationEnroll,
+    path: cfg.oss.routes.integrationEnroll,
     exact: false,
-    component: () => <PluginEnroll />,
+    component: () => <IntegrationEnroll />,
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.plugins;
+    return flags.enrollIntegrations;
   }
 
   navigationItem = {
     title: 'Enroll New Integration',
     icon: <Icons.Add />,
-    exact: false,
     getLink() {
-      return cfg.getIntegrationEnrollRoute(null);
+      return cfg.oss.getIntegrationEnrollRoute(null);
     },
   };
 }
@@ -308,7 +295,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureNewLock(),
     new FeatureIntegrations(),
     new OSS.FeatureDiscover(),
-    new FeatureNewIntegration(),
+    new FeatureIntegrationEnroll(),
 
     // - Activity
     new OSS.FeatureRecordings(),

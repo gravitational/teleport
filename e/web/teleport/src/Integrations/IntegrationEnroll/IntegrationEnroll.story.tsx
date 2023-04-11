@@ -1,33 +1,33 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { PluginEnroll } from './PluginEnroll';
+import { IntegrationEnroll } from './IntegrationEnroll';
 
 export default {
-  title: 'TeleportE/PluginEnroll',
+  title: 'TeleportE/IntegrationEnroll',
 };
 
 export const Processing = () => (
   <MemoryRouter>
-    <PluginEnroll {...sample} attempt={{ status: 'processing' as any }} />
+    <IntegrationEnroll {...sample} attempt={{ status: 'processing' as any }} />
   </MemoryRouter>
 );
 
 export const NoPluginsEnrolled = () => (
   <MemoryRouter>
-    <PluginEnroll {...sample} />
+    <IntegrationEnroll {...sample} />
   </MemoryRouter>
 );
 
 export const SlackAlreadyEnrolled = () => (
   <MemoryRouter>
-    <PluginEnroll {...sample} existingTypes={['slack']} />
+    <IntegrationEnroll {...sample} existingTypes={['slack']} />
   </MemoryRouter>
 );
 
 export const Failed = () => (
   <MemoryRouter>
-    <PluginEnroll
+    <IntegrationEnroll
       {...sample}
       attempt={{ status: 'failed', statusText: 'some error message' }}
     />

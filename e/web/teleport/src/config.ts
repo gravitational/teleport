@@ -37,9 +37,6 @@ const cfg = {
 
     // device trust
     deviceTrust: `/web/devices`,
-
-    integrations: '/web/integrations',
-    integrationEnroll: '/web/integrations/new/:type?',
   },
 
   api: {
@@ -118,10 +115,6 @@ const cfg = {
 
   getRecoveryTokenUrl(tokenId: string) {
     return generatePath(cfg.api.recoveryTokenPath, { tokenId });
-  },
-
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getPluginUrl(name?: string) {

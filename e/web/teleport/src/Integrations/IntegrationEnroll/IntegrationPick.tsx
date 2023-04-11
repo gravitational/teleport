@@ -11,7 +11,7 @@ import { PluginType, pluginTypes as allPluginTypes } from '../data';
 
 import { PluginIcon } from '../PluginIcon';
 
-export function PluginPick(props: Props) {
+export function IntegrationPick(props: Props) {
   const { availableTypes, existingTypes } = props;
 
   // Plugins that are adapted for hosting,
@@ -88,14 +88,24 @@ function PluginTile({
   const tile = (
     <Tile disabled={disabled}>
       <PluginIcon my={3} type={type.type} />
-      <Box mb={2}>
+      <Box mb={2} css={{ position: 'relative' }}>
         {/* Compensate for icon width to keep the text itself centered */}
-        <Text mr={disabled && '-14px'}>
+        <Text>
           {type.name}
           {disabled && (
             <>
               {' '}
-              <Icons.Check color="success" />
+              <Icons.Check
+                ml={1}
+                color="success"
+                css={`
+                  position: absolute;
+                  display: inline-flex;
+                  align-items: center;
+                  top: 0;
+                  bottom: 0;
+                `}
+              />
             </>
           )}
         </Text>
@@ -109,7 +119,7 @@ function PluginTile({
 
   if (type.hosted) {
     return (
-      <TileInternalLink to={cfg.getIntegrationEnrollRoute(type.type)}>
+      <TileInternalLink to={cfg.oss.getIntegrationEnrollRoute(type.type)}>
         {tile}
       </TileInternalLink>
     );

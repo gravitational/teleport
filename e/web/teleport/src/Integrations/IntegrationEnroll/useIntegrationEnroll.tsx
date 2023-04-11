@@ -3,7 +3,7 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
-export function usePluginEnroll() {
+export function useIntegrationEnroll() {
   const ctx = useTeleport();
   const [types, setTypes] = useState<{
     availableTypes: string[];
@@ -16,7 +16,7 @@ export function usePluginEnroll() {
       ctx.pluginsService.fetchAvailableTypes(),
       ctx.pluginsService
         .fetchPlugins()
-        .then(response => response.map(p => p.type)),
+        .then(response => response.map(p => p.kind)),
     ]);
     setTypes({ availableTypes, existingTypes });
   }
@@ -33,4 +33,4 @@ export function usePluginEnroll() {
   };
 }
 
-export type State = ReturnType<typeof usePluginEnroll>;
+export type State = ReturnType<typeof useIntegrationEnroll>;

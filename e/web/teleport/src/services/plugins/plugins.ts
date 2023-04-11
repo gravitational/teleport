@@ -2,7 +2,7 @@ import api from 'teleport/services/api';
 
 import cfg from 'e-teleport/config';
 
-import type { Plugin } from './types';
+import type { Plugin } from 'teleport/services/integrations';
 
 export const pluginsService = {
   fetchAvailableTypes(): Promise<string[]> {
@@ -10,7 +10,7 @@ export const pluginsService = {
   },
 
   fetchPlugins(): Promise<Plugin[]> {
-    return api.get(cfg.getPluginUrl(null)).then(json => json.map(makePlugin));
+    return api.get(cfg.getPluginUrl(null)).then(makePlugins);
   },
 
   async deletePlugin(name: string): Promise<void> {
@@ -18,13 +18,22 @@ export const pluginsService = {
   },
 };
 
+export function makePlugins(json: any): Plugin[] {
+  json = json || [];
+  return json.map(makePlugin);
+}
+
 function makePlugin(json: any): Plugin {
   json = json || {};
   const { name, details, status, type } = json;
   return {
+    resourceType: 'plugin',
     name,
     details,
-    status,
-    type,
+    spec: {
+      statusDescription: status.description,
+    },
+    kind: type,
+    statusCode: status.code,
   };
 }

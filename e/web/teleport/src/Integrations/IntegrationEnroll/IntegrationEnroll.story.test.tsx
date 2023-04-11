@@ -6,7 +6,7 @@ import {
   NoPluginsEnrolled,
   SlackAlreadyEnrolled,
   Failed,
-} from './PluginEnroll.story';
+} from './IntegrationEnroll.story';
 
 test('render Processing', async () => {
   const { container } = render(<Processing />);
