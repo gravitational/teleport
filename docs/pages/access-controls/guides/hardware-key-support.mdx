@@ -27,22 +27,22 @@ Additionally, this feature can be configured to require touch for every Teleport
   Supported (`tsh`, `tctl`, and Teleport Connect):
     
     - Standard Teleport API requests (`tsh ls`, `tctl create`, etc.)
-    - Server Access
-    - Database Access
+    - Server access
+    - Database access
       - Must use `tsh proxy db` instead of `tsh db connect`
   
   Not yet supported:
 
     - Teleport WebUI (except for user registration / reset password)
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration
-    - Kubernetes Access
-    - Desktop Access
-    - Application Access
+    - Kubernetes access
+    - Desktop access
+    - Application access
 
   The unsupported features above will not function for users that have have hardware key support
   enforced. This is either because the user's hardware key can't be accessed within that feature
   (WebUI) or because the protocol only supports raw private keys currently (Agent forwarding,
-  Kubernetes Access, Desktop Access). 
+  Kubernetes access, desktop access). 
 
   To navigate these incompatibilities, we recommend enabling hardware key support only when
   necessary, such as for roles with access to critical infrastructure. These roles can be accessed
