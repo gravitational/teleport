@@ -12,7 +12,7 @@ Access.
 
 This RFD specifies the Desktop protocol - wire protocol used between the
 OS-specific Teleport desktop service (like `windows_desktop_service`) and the
-web client.  OS-specific Teleport desktop services are responsible for
+web client. OS-specific Teleport desktop services are responsible for
 translating native protocols or APIs (like RDP or X11) into the protocol
 described here.
 
@@ -21,6 +21,7 @@ described here.
 ### Goals
 
 This custom protocol is created with several goals in mind:
+
 - performance - the messages should be compact and fast to encode/decode
 - portability - should map easily to standard protocols like RDP
 - decoding simplicity - the parsing code should be simple enough for auditing,
@@ -83,6 +84,7 @@ expected after it.
 Fields are all numbers, using Go-inspired names. Numbers are encoded in big
 endian order.
 For example:
+
 - `byte` is a single byte
 - `uint32` is an unsigned 32-bit integer
 - `int64` is a signed 64-bit integer
@@ -147,11 +149,13 @@ This message contains new mouse coordinates. Sent from client to server.
 This message contains a mouse button update. Sent from client to server.
 
 `button` identifies which button was used:
+
 - `0` is left button
 - `1` is middle button
 - `2` is right button
 
 `state` identifies the button state:
+
 - `0` is not pressed
 - `1` is pressed
 
@@ -166,6 +170,7 @@ This message contains a keyboard update. Sent from client to server.
 `key_code` is the keyboard code from https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values#code_values_on_windows
 
 `state` identifies the key state:
+
 - `0` is not pressed
 - `1` is pressed
 
@@ -200,10 +205,12 @@ on the remote desktop.
 This message contains a mouse wheel update. Sent from client to server.
 
 `axis` identifies which axis the scroll happened on:
+
 - `0` is vertical scroll
 - `1` is horizontal scroll
 
 `delta` is the signed scroll distance in pixels.
+
 - on vertical axis, positive `delta` is up, negative `delta` is down
 - on horizontal axis, positive `delta` is left, negative `delta` is right
 
@@ -226,6 +233,7 @@ This message sends a notification message with a severity level. Sent from serve
 `message_length` denotes the length of the `message` byte array. It doesn't include the `severity` byte.
 
 `severity` defines the severity of the `message`:
+
 - `0` is for info
 - `1` is for a warning
 - `2` is for an error
@@ -256,4 +264,13 @@ sessions. A JSON-encoded challenge is sent over websocket to the user's browser.
 The only difference is that SSH sessions wrap the MFA JSON in a protobuf
 encoding, where desktop sessions wrap the MFA JSON in a TDP message.
 
+#### 29 - RemoteFX Frame
 
+```
+| message type (29) | length uint32 | data []byte |
+```
+
+Technically the data can be any RDP X224 or FastPath frame, but it is named RemoteFX Frame because in the context
+we're using this, we expect to receive primarily FastPath frames containing RemoteFX surface commands.
+
+TODO(isaiah): we may need to rename this

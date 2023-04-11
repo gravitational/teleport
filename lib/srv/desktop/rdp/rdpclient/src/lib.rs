@@ -1214,17 +1214,10 @@ pub unsafe extern "C" fn read_rdp_output(client_ptr: *mut Client) -> CGOReadRdpO
 }
 
 async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
-    let client_ref = client.go_ref;
-    let mut image = DecodedImage::new(
-        PixelFormat::RgbA32,
-        1728, //todo(isaiah): hardcoded
-        932,  //todo(isaiah): hardcoded
-    );
-
     loop {
-        let frame = match client.read_frame().await {
+        let mut frame = match client.read_frame().await {
             Ok(it) => match it {
-                Some(frame) => frame.freeze(),
+                Some(frame) => frame,
                 None => {
                     // IronRDP returns RdpError::AccessDenied here.
                     error!("access denied");
@@ -1244,75 +1237,16 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
                 };
             }
         };
-        let outputs = match client.process_frame(&mut image, frame) {
-            Ok(o) => o,
-            Err(err) => {
-                error!("failed to process frame: {}", err);
-                return ReadRdpOutputReturns {
-                    user_message: "Failed to process frame".to_string(),
-                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                    err_code: CGOErrCode::ErrCodeFailure,
-                };
-            }
+        let err = unsafe {
+            handle_remote_fx_frame(client.go_ref, frame.as_mut_ptr(), frame.len() as u32)
         };
-
-        for out in outputs {
-            match out {
-                ActiveStageOutput::ResponseFrame(frame) => match client.write_frame(&frame).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        error!("failed to write frame: {}", err);
-                        return ReadRdpOutputReturns {
-                            user_message: "Failed to write frame".to_string(),
-                            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                            err_code: CGOErrCode::ErrCodeFailure,
-                        };
-                    }
-                },
-                ActiveStageOutput::GraphicsUpdate(region) => {
-                    let mut cpng = match CGOPNG::from_image_region(&image, &region) {
-                        Ok(cpng) => cpng,
-                        Err(e) => {
-                            if region.left == 0
-                                && region.right == 0
-                                && region.top == 0
-                                && region.bottom == 0
-                            {
-                                debug!("got a blank frame, ignoring");
-                                // This is a special case where the server is sending us a
-                                // "blank" frame. We can safely ignore this.
-                                continue;
-                            }
-                            error!("failed to convert image to png: {e:?}");
-                            return ReadRdpOutputReturns {
-                                user_message: "Failed to convert image to png".to_string(),
-                                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                                err_code: CGOErrCode::ErrCodeFailure,
-                            };
-                        }
-                    };
-
-                    let err = unsafe { handle_png(client_ref, &mut cpng) as CGOErrCode };
-                    if err != CGOErrCode::ErrCodeSuccess {
-                        return ReadRdpOutputReturns {
-                            user_message: "Failed to handle png".to_string(),
-                            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                            err_code: err,
-                        };
-                    };
-                }
-                ActiveStageOutput::Terminate => {
-                    // TODO(isaiah): This can also mean message on unknown channel received,
-                    // see IronRDP.
-                    warn!("Connection terminated by server");
-                    return ReadRdpOutputReturns {
-                        user_message: "Connection terminated by RDP server".to_string(),
-                        disconnect_code: CGODisconnectCode::DisconnectCodeServer,
-                        err_code: CGOErrCode::ErrCodeSuccess,
-                    };
-                }
-            }
-        }
+        if err != CGOErrCode::ErrCodeSuccess {
+            return ReadRdpOutputReturns {
+                user_message: "Failed to handle png".to_string(),
+                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                err_code: err,
+            };
+        };
     }
 }
 
@@ -2068,7 +2002,7 @@ pub struct CGOSharedDirectoryListRequest {
 extern "C" {
     fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
-
+    fn handle_remote_fx_frame(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
         -> CGOErrCode;
     fn tdp_sd_info_request(
