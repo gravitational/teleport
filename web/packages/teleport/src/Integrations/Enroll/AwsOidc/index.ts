@@ -14,4 +14,5 @@
  * limitations under the License.
  */
 
-export { AWS as default } from './AWS';
+// export as default for use with React.lazy
+export { AwsOidc as default } from './AwsOidc';

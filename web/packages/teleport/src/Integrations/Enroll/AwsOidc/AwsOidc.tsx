@@ -20,26 +20,26 @@ import styled from 'styled-components';
 import { SwitchTransition, Transition } from 'react-transition-group';
 
 import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
-import { Browser } from 'teleport/Integrations/Enroll/AWS/browser/Browser';
-import { IAMHomeScreen } from 'teleport/Integrations/Enroll/AWS/IAM/IAMHomeScreen';
-import { Cursor } from 'teleport/Integrations/Enroll/AWS/browser/Cursor';
-import { IAMIdentityProvidersScreen } from 'teleport/Integrations/Enroll/AWS/IAM/IAMIdentityProvidersScreen';
-import { IAMNewProviderScreen } from 'teleport/Integrations/Enroll/AWS/IAM/IAMNewProviderScreen';
-import { FirstStageInstructions } from 'teleport/Integrations/Enroll/AWS/instructions/FirstStageInstructions';
-import { SecondStageInstructions } from 'teleport/Integrations/Enroll/AWS/instructions/SecondStageInstructions';
+import { Browser } from 'teleport/Integrations/Enroll/AwsOidc/Browser/Browser';
+import { IAMHomeScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMHomeScreen';
+import { Cursor } from 'teleport/Integrations/Enroll/AwsOidc/Browser/Cursor';
+import { IAMIdentityProvidersScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMIdentityProvidersScreen';
+import { IAMNewProviderScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMNewProviderScreen';
+import { FirstStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/FirstStageInstructions';
+import { SecondStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/SecondStageInstructions';
 
-import { ThirdStageInstructions } from 'teleport/Integrations/Enroll/AWS/instructions/ThirdStageInstructions';
-import { IAMProvider } from 'teleport/Integrations/Enroll/AWS/IAM/IAMProvider';
+import { ThirdStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/ThirdStageInstructions';
+import { IAMProvider } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMProvider';
 
-import { IAMCreateNewRole } from 'teleport/Integrations/Enroll/AWS/IAM/IAMCreateNewRole';
-import { FourthStageInstructions } from 'teleport/Integrations/Enroll/AWS/instructions/FourthStageInstructions';
-import { IAMCreateNewRolePermissions } from 'teleport/Integrations/Enroll/AWS/IAM/IAMCreateNewRolePermissions';
-import { FifthStageInstructions } from 'teleport/Integrations/Enroll/AWS/instructions/FifthStageInstructions';
-import { IAMCreateNewPolicy } from 'teleport/Integrations/Enroll/AWS/IAM/IAMCreateNewPolicy';
-import { SixthStageInstructions } from 'teleport/Integrations/Enroll/AWS/instructions/SixthStageInstructions';
+import { IAMCreateNewRole } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMCreateNewRole';
+import { FourthStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/FourthStageInstructions';
+import { IAMCreateNewRolePermissions } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMCreateNewRolePermissions';
+import { FifthStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/FifthStageInstructions';
+import { IAMCreateNewPolicy } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMCreateNewPolicy';
+import { SixthStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/SixthStageInstructions';
 
-import { SeventhStageInstructions } from 'teleport/Integrations/Enroll/AWS/instructions/SeventhStageInstructions';
-import { IAMRoles } from 'teleport/Integrations/Enroll/AWS/IAM/IAMRoles';
+import { SeventhStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/SeventhStageInstructions';
+import { IAMRoles } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMRoles';
 
 import { Stage, STAGES } from './stages';
 
@@ -102,7 +102,7 @@ enum InstructionStep {
   Seventh,
 }
 
-export function AWS() {
+export function AwsOidc() {
   const [stage, setStage] = useState(Stage.Initial);
   const [showRestartAnimation, setShowRestartAnimation] = useState(false);
 

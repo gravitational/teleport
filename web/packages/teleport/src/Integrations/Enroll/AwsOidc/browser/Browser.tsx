@@ -32,9 +32,9 @@ import {
   BrowserURL,
   BrowserURLContainer,
   BrowserURLIcon,
-} from 'teleport/Integrations/Enroll/AWS/browser/BrowserComponents';
+} from 'teleport/Integrations/Enroll/AwsOidc/Browser/BrowserComponents';
 
-import { Stage } from 'teleport/Integrations/Enroll/AWS/stages';
+import { Stage } from 'teleport/Integrations/Enroll/AwsOidc/stages';
 
 interface BrowserProps {
   stage: Stage;
