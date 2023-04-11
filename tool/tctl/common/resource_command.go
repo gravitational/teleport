@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -100,29 +101,30 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                    rc.createUser,
-		types.KindRole:                    rc.createRole,
-		types.KindTrustedCluster:          rc.createTrustedCluster,
-		types.KindGithubConnector:         rc.createGithubConnector,
-		types.KindCertAuthority:           rc.createCertAuthority,
-		types.KindClusterAuthPreference:   rc.createAuthPreference,
-		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
-		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
-		types.KindUIConfig:                rc.createUIConfig,
-		types.KindLock:                    rc.createLock,
-		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
-		types.KindApp:                     rc.createApp,
-		types.KindDatabase:                rc.createDatabase,
-		types.KindKubernetesCluster:       rc.createKubeCluster,
-		types.KindToken:                   rc.createToken,
-		types.KindInstaller:               rc.createInstaller,
-		types.KindNode:                    rc.createNode,
-		types.KindOIDCConnector:           rc.createOIDCConnector,
-		types.KindSAMLConnector:           rc.createSAMLConnector,
-		types.KindLoginRule:               rc.createLoginRule,
-		types.KindSAMLIdPServiceProvider:  rc.createSAMLIdPServiceProvider,
-		types.KindDevice:                  rc.createDevice,
-		types.KindOktaImportRule:          rc.createOktaImportRule,
+		types.KindUser:                     rc.createUser,
+		types.KindRole:                     rc.createRole,
+		types.KindTrustedCluster:           rc.createTrustedCluster,
+		types.KindGithubConnector:          rc.createGithubConnector,
+		types.KindCertAuthority:            rc.createCertAuthority,
+		types.KindClusterAuthPreference:    rc.createAuthPreference,
+		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
+		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
+		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
+		types.KindUIConfig:                 rc.createUIConfig,
+		types.KindLock:                     rc.createLock,
+		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
+		types.KindApp:                      rc.createApp,
+		types.KindDatabase:                 rc.createDatabase,
+		types.KindKubernetesCluster:        rc.createKubeCluster,
+		types.KindToken:                    rc.createToken,
+		types.KindInstaller:                rc.createInstaller,
+		types.KindNode:                     rc.createNode,
+		types.KindOIDCConnector:            rc.createOIDCConnector,
+		types.KindSAMLConnector:            rc.createSAMLConnector,
+		types.KindLoginRule:                rc.createLoginRule,
+		types.KindSAMLIdPServiceProvider:   rc.createSAMLIdPServiceProvider,
+		types.KindDevice:                   rc.createDevice,
+		types.KindOktaImportRule:           rc.createOktaImportRule,
 	}
 	rc.config = config
 
@@ -488,6 +490,29 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 		return trace.Wrap(err)
 	}
 	fmt.Printf("cluster networking configuration has been updated\n")
+	return nil
+}
+
+func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	var cmc types.ClusterMaintenanceConfigV1
+	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cmc.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.force {
+		// max nonce forces "upsert" behavior
+		cmc.Nonce = math.MaxUint64
+	}
+
+	if err := client.UpdateClusterMaintenanceConfig(ctx, &cmc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("maintenance window has been updated")
 	return nil
 }
 
@@ -1459,6 +1484,17 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &netConfigCollection{netConfig}, nil
+	case types.KindClusterMaintenanceConfig:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterMaintenanceConfig)
+		}
+
+		cmc, err := client.GetClusterMaintenanceConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		return &maintenanceWindowCollection{cmc}, nil
 	case types.KindSessionRecordingConfig:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)

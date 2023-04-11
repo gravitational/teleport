@@ -92,6 +92,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		dbConfigCreateFlags              createDatabaseConfigFlags
 		systemdInstallFlags              installSystemdFlags
 		waitFlags                        waitFlags
+		rawVersion                       bool
 	)
 
 	// define commands:
@@ -384,6 +385,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
+
 	dumpNode := app.Command("node", "SSH Node configuration commands")
 	dumpNodeConfigure := dumpNode.Command("configure", "Generate a configuration file for an SSH node.")
 	dumpNodeConfigure.Flag("cluster-name",
@@ -486,7 +489,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case kubeStateDelete.FullCommand():
 		err = onKubeStateDelete()
 	case ver.FullCommand():
-		utils.PrintVersion()
+		if rawVersion {
+			// raw version must print the exact version string (relied upon
+			// by the systemd unit upgrader).
+			fmt.Printf("%s\n", teleport.Version)
+		} else {
+			utils.PrintVersion()
+		}
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
 	case dbConfigureAWSPrintIAM.FullCommand():
