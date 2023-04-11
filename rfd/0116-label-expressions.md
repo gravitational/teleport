@@ -157,8 +157,8 @@ resource label or a string literal).
 | `contains(list, item)` | Boolean | Returns true if `list` contains an exact match for `item` | `contains(user.spec.traits[teams], labels["team"])` |
 | `regexp.match(list, re)` | Boolean | Returns true if `list` contains a match for `re` | `regexp.match(labels["team"], "dev-team-\d+$")` |
 | `regexp.replace(list, re, replacement)` | `[]string` | Replaces all matches of `re` with replacement for all items in `list` | `contains(regexp.replace(user.spec.traits["allowed-env"], "^env-(.*)$", "$1"), labels["env"])`
-| `strings.upper(list)` | Boolean | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]), labels["owner"])`
-| `strings.lower(list)` | Boolean | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]), labels["owner"])`
+| `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]), labels["owner"])`
+| `strings.lower(list)` | `[]string` | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]), labels["owner"])`
 
 #### Operators
 
