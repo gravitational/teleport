@@ -18,7 +18,7 @@ package teleport.samlidp.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1;samlidpv1";
 
 // ProcessSAMLIdPRequestRequest is a request to create and sign the SAML IdP response
 // to a SAML IdP auth request.

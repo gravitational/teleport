@@ -38,8 +38,7 @@ This guide will help you to:
 
 - SQL Server running on Azure.
 - The Teleport Database Service running on an Azure virtual instance.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Create a Teleport user
 
@@ -219,11 +218,7 @@ Server auto-discovery enabled in the `eastus` region and place it at the
 
 ## Step 7/8. Start Teleport Database Service
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 <Admonition
   type="tip"

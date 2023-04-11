@@ -78,6 +78,10 @@ type Database interface {
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
 	SetStatusAWS(AWS)
+	// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
+	SetAWSExternalID(id string)
+	// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
+	SetAWSAssumeRole(roleARN string)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
 	// GetAzure returns Azure database server metadata.
@@ -339,6 +343,16 @@ func (d *DatabaseV3) GetAWS() AWS {
 // SetStatusAWS sets the database AWS metadata in the status field.
 func (d *DatabaseV3) SetStatusAWS(aws AWS) {
 	d.Status.AWS = aws
+}
+
+// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
+func (d *DatabaseV3) SetAWSExternalID(id string) {
+	d.Spec.AWS.ExternalID = id
+}
+
+// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
+func (d *DatabaseV3) SetAWSAssumeRole(roleARN string) {
+	d.Spec.AWS.AssumeRoleARN = roleARN
 }
 
 // GetGCP returns GCP information for Cloud SQL databases.
@@ -860,16 +874,6 @@ func (d Databases) Less(i, j int) bool { return d[i].GetName() < d[j].GetName() 
 // Swap swaps two databases.
 func (d Databases) Swap(i, j int) { d[i], d[j] = d[j], d[i] }
 
-// MarshalJSON marshals DatabaseTLSMode to string.
-func (d DatabaseTLSMode) MarshalJSON() ([]byte, error) {
-	val, err := d.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	out, err := json.Marshal(val)
-	return out, trace.Wrap(err)
-}
-
 // UnmarshalJSON supports parsing DatabaseTLSMode from number or string.
 func (d *DatabaseTLSMode) UnmarshalJSON(data []byte) error {
 	type loopBreaker DatabaseTLSMode
@@ -886,15 +890,6 @@ func (d *DatabaseTLSMode) UnmarshalJSON(data []byte) error {
 		return trace.Wrap(err)
 	}
 	return d.decodeName(s)
-}
-
-// MarshalYAML marshals DatabaseTLSMode to string.
-func (d DatabaseTLSMode) MarshalYAML() (interface{}, error) {
-	val, err := d.encode()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return val, nil
 }
 
 // UnmarshalYAML supports parsing DatabaseTLSMode from number or string.
@@ -932,18 +927,4 @@ func (d *DatabaseTLSMode) decodeName(name string) error {
 		return nil
 	}
 	return trace.BadParameter("DatabaseTLSMode invalid value %v", d)
-}
-
-// encode RequireMFAType into a string. This allows users to see a readable,
-// documented value for the setting using tsh db ls or tctl get db.
-func (d DatabaseTLSMode) encode() (string, error) {
-	switch d {
-	case DatabaseTLSMode_VERIFY_FULL:
-		return "verify-full", nil
-	case DatabaseTLSMode_VERIFY_CA:
-		return "verify-ca", nil
-	case DatabaseTLSMode_INSECURE:
-		return "insecure", nil
-	}
-	return "", trace.BadParameter("DatabaseTLSMode invalid value %v", d)
 }

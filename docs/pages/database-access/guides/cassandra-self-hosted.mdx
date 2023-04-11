@@ -13,7 +13,6 @@ description: How to configure Teleport Database Access with Cassandra and Scylla
   Database access for Cassandra & ScyllaDB is available starting from Teleport `v11.0`.
 </Details>
 
-
 This guide will help you to:
 
 - Install and configure Teleport.
@@ -33,8 +32,7 @@ This guide will help you to:
 
 - Self-hosted Cassandra or ScyllaDB instance.
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Database Service
 
@@ -93,7 +91,6 @@ $ teleport db start \
 ## Step 2/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
-
 
 ## Step 3/5. Set up mutual TLS
 
@@ -169,8 +166,6 @@ Follow the instructions for your database to enable TLS communication with your 
   </TabItem>
 </Tabs>
 
-
-
 ## Step 5/5. Connect
 
 Once the Database Service has joined the cluster, log in to see the available
@@ -217,7 +212,6 @@ $ tsh db logout example
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
-
 
 ## Next steps
 
