@@ -714,8 +714,22 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/headless/:headless_authentication_id", h.WithAuth(h.getHeadless))
 	h.PUT("/webapi/headless/:headless_authentication_id", h.WithAuth(h.putHeadlessState))
 
+	// WebSocket endpoint for the chat conversation
 	h.GET("/webapi/assistant", h.WithAuth(h.assistant))
 
+	// Sets the title for the conversation. TODO(jakule) The title should be a summary from OpenAI instead of passed here text.
+	h.POST("/webapi/assistant/title", h.WithAuth(h.generateAssistantTitle))
+
+	// Creates a new conversation - the conversation ID is returned in the response.
+	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
+
+	// Returns all conversations for the given user.
+	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
+
+	// Returns all messages in the given conversation.
+	h.GET("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.getAssistantConversationByID))
+
+	// Allows executing an arbitrary command on multiple nodes.
 	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
 }
 

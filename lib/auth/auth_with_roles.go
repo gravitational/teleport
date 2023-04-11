@@ -5824,6 +5824,18 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	return trace.Wrap(err)
 }
 
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return a.authServer.CreateAssistantConversation(ctx, req)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	// TODO(jakule): Check if user has access to given conversation ID
+	return a.authServer.GetAssistantConversations(ctx, request)
+}
+
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
 	// TODO(jakule): Check if user has access to given conversation ID

@@ -1385,9 +1385,66 @@ func (s *IdentityService) CreateUserRecoveryAttempt(ctx context.Context, user st
 	return trace.Wrap(err)
 }
 
+type Conversation struct {
+	Title          string `json:"title,omitempty"`
+	ConversationID string `json:"conversation_id"`
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string, _ *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+	if username == "" {
+		return nil, trace.BadParameter("missing parameter user")
+	}
+
+	conversationID := uuid.New().String()
+	payload := &Conversation{
+		ConversationID: conversationID,
+	}
+
+	value, err := json.Marshal(payload)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   backend.Key(assistantConversationPrefix, username, conversationID),
+		Value: value,
+	}
+
+	_, err = s.Create(ctx, item)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.CreateAssistantConversationResponse{Id: conversationID}, nil
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (s *IdentityService) GetAssistantConversations(ctx context.Context, username string, _ *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	startKey := backend.Key(assistantConversationPrefix, username)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conversationsIDs := make([]string, 0, len(result.Items))
+	for _, item := range result.Items {
+		payload := &Conversation{}
+		if err := json.Unmarshal(item.Value, payload); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		conversationsIDs = append(conversationsIDs, payload.ConversationID)
+	}
+
+	return &proto.GetAssistantConversationsResponse{
+		ConversationId: conversationsIDs,
+	}, nil
+}
+
 // GetAssistantMessages returns all messages with given conversation ID.
 func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
-	startKey := backend.Key(assistantPrefix, username, conversationId)
+	startKey := backend.Key(assistantMessagePrefix, username, conversationId)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1422,7 +1479,7 @@ func (s *IdentityService) CreateAssistantMessage(ctx context.Context, user strin
 	messageID := uuid.New().String()
 
 	item := backend.Item{
-		Key:   backend.Key(assistantPrefix, user, msg.ConversationId, messageID),
+		Key:   backend.Key(assistantMessagePrefix, user, msg.ConversationId, messageID),
 		Value: value,
 	}
 
@@ -1563,26 +1620,27 @@ func KeyAttestationDataFingerprintV11(pub crypto.PublicKey) (string, error) {
 }
 
 const (
-	webPrefix                 = "web"
-	usersPrefix               = "users"
-	sessionsPrefix            = "sessions"
-	attemptsPrefix            = "attempts"
-	pwdPrefix                 = "pwd"
-	connectorsPrefix          = "connectors"
-	oidcPrefix                = "oidc"
-	samlPrefix                = "saml"
-	githubPrefix              = "github"
-	requestsPrefix            = "requests"
-	requestsTracePrefix       = "requestsTrace"
-	usedTOTPPrefix            = "used_totp"
-	usedTOTPTTL               = 30 * time.Second
-	mfaDevicePrefix           = "mfa"
-	webauthnPrefix            = "webauthn"
-	webauthnGlobalSessionData = "sessionData"
-	webauthnLocalAuthPrefix   = "webauthnlocalauth"
-	webauthnSessionData       = "webauthnsessiondata"
-	recoveryCodesPrefix       = "recoverycodes"
-	recoveryAttemptsPrefix    = "recoveryattempts"
-	attestationsPrefix        = "key_attestations"
-	assistantPrefix           = "assistant"
+	webPrefix                   = "web"
+	usersPrefix                 = "users"
+	sessionsPrefix              = "sessions"
+	attemptsPrefix              = "attempts"
+	pwdPrefix                   = "pwd"
+	connectorsPrefix            = "connectors"
+	oidcPrefix                  = "oidc"
+	samlPrefix                  = "saml"
+	githubPrefix                = "github"
+	requestsPrefix              = "requests"
+	requestsTracePrefix         = "requestsTrace"
+	usedTOTPPrefix              = "used_totp"
+	usedTOTPTTL                 = 30 * time.Second
+	mfaDevicePrefix             = "mfa"
+	webauthnPrefix              = "webauthn"
+	webauthnGlobalSessionData   = "sessionData"
+	webauthnLocalAuthPrefix     = "webauthnlocalauth"
+	webauthnSessionData         = "webauthnsessiondata"
+	recoveryCodesPrefix         = "recoverycodes"
+	recoveryAttemptsPrefix      = "recoveryattempts"
+	attestationsPrefix          = "key_attestations"
+	assistantMessagePrefix      = "assistant_message"
+	assistantConversationPrefix = "assistant_conversation"
 )

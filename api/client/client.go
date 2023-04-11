@@ -3390,11 +3390,30 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	return headlessAuthn, nil
 }
 
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (c *Client) CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+	resp, err := c.grpc.CreateAssistantConversation(ctx, req, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return resp, nil
+}
+
 // GetAssistantMessages retrieves assistant messages with given conversation ID.
 func (c *Client) GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error) {
 	messages, err := c.grpc.GetAssistantMessages(ctx, &proto.AssistantRequest{
 		ConversationId: id,
 	}, c.callOpts...)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return messages, nil
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (c *Client) GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
+	messages, err := c.grpc.GetAssistantConversations(ctx, request, c.callOpts...)
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
