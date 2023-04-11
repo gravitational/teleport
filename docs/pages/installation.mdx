@@ -1,6 +1,6 @@
 ---
 title: Installing Teleport
-description: The guide for installing Teleport on servers and into Kubernetes clusters.
+description: How to install Teleport and Teleport's client tools on your platform, including binaries and instructions for Docker and Helm.
 h1: Installation
 videoBanner: VifXROQFjwg
 ---
@@ -101,7 +101,6 @@ chart.
 |`teleport-cluster`|Auth Service<br/>Proxy Service<br/>Other Teleport services if using a custom configuration|[Reference](reference/helm-reference/teleport-cluster.mdx)
 |`teleport-kube-agent`|Kubernetes Service<br/>Application Service<br/>Database Service|[Reference](reference/helm-reference/teleport-kube-agent.mdx)|
 
-
 ## macOS
 
 <Tabs dropdownView dropdownCaption="Teleport Edition">
@@ -186,7 +185,6 @@ against `tsh version` and `tctl version`.
 Teleport is written in Go, and currently requires **go v(=teleport.golang=)** or
 newer. Detailed instructions for building from source are available in the
 [README](https://github.com/gravitational/teleport#building-teleport).
-
 
 ## Checksums
 

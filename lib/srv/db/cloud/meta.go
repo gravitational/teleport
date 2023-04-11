@@ -49,7 +49,11 @@ type MetadataConfig struct {
 // Check validates the metadata service config.
 func (c *MetadataConfig) Check() error {
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	return nil
 }
@@ -92,7 +96,8 @@ func (m *Metadata) Update(ctx context.Context, database types.Database) error {
 
 // updateAWS updates cloud metadata of the provided AWS database.
 func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetchFn func(context.Context, types.Database) (*types.AWS, error)) error {
-	metadata, err := fetchFn(ctx, database)
+	meta := database.GetAWS()
+	fetchedMeta, err := fetchFn(ctx, database)
 	if err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
 			m.log.WithError(err).Debugf("No permissions to fetch metadata for %q.", database)
@@ -101,61 +106,65 @@ func (m *Metadata) updateAWS(ctx context.Context, database types.Database, fetch
 		return trace.Wrap(err)
 	}
 
-	m.log.Debugf("Fetched metadata for %q: %v.", database, metadata)
-	database.SetStatusAWS(*metadata)
+	m.log.Debugf("Fetched metadata for %q: %v.", database, fetchedMeta)
+	fetchedMeta.AssumeRoleARN = meta.AssumeRoleARN
+	fetchedMeta.ExternalID = meta.ExternalID
+	database.SetStatusAWS(*fetchedMeta)
 	return nil
 }
 
 // fetchRDSMetadata fetches metadata for the provided RDS or Aurora database.
 func (m *Metadata) fetchRDSMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
-	rds, err := m.cfg.Clients.GetAWSRDSClient(database.GetAWS().Region)
+	meta := database.GetAWS()
+	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if database.GetAWS().RDS.ClusterID != "" {
-		return fetchRDSClusterMetadata(ctx, rds, database.GetAWS().RDS.ClusterID)
+	if meta.RDS.ClusterID != "" {
+		return fetchRDSClusterMetadata(ctx, rds, meta.RDS.ClusterID)
 	}
 
-	// Try to fetch the RDS instance metadata.
-	metadata, err := fetchRDSInstanceMetadata(ctx, rds, database.GetAWS().RDS.InstanceID)
+	// Try to fetch the RDS instance fetchedMeta.
+	fetchedMeta, err := fetchRDSInstanceMetadata(ctx, rds, meta.RDS.InstanceID)
 	if err != nil && !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 		return nil, trace.Wrap(err)
 	}
 	// If RDS instance metadata wasn't found, it may be an Aurora cluster.
-	if metadata == nil {
+	if fetchedMeta == nil {
 		// Aurora cluster ID may be either explicitly specified or parsed
 		// from endpoint in which case it will be in InstanceID field.
-		clusterID := database.GetAWS().RDS.ClusterID
+		clusterID := meta.RDS.ClusterID
 		if clusterID == "" {
-			clusterID = database.GetAWS().RDS.InstanceID
+			clusterID = meta.RDS.InstanceID
 		}
 		return fetchRDSClusterMetadata(ctx, rds, clusterID)
 	}
 	// If instance was found, it may be a part of an Aurora cluster.
-	if metadata.RDS.ClusterID != "" {
-		return fetchRDSClusterMetadata(ctx, rds, metadata.RDS.ClusterID)
+	if fetchedMeta.RDS.ClusterID != "" {
+		return fetchRDSClusterMetadata(ctx, rds, fetchedMeta.RDS.ClusterID)
 	}
-	return metadata, nil
+	return fetchedMeta, nil
 }
 
 // fetchRDSProxyMetadata fetches metadata for the provided RDS Proxy database.
 func (m *Metadata) fetchRDSProxyMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
-	rds, err := m.cfg.Clients.GetAWSRDSClient(database.GetAWS().Region)
+	meta := database.GetAWS()
+	rds, err := m.cfg.Clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if database.GetAWS().RDSProxy.CustomEndpointName != "" {
-		return fetchRDSProxyCustomEndpointMetadata(ctx, rds, database.GetAWS().RDSProxy.CustomEndpointName, database.GetURI())
+	if meta.RDSProxy.CustomEndpointName != "" {
+		return fetchRDSProxyCustomEndpointMetadata(ctx, rds, meta.RDSProxy.CustomEndpointName, database.GetURI())
 	}
-	return fetchRDSProxyMetadata(ctx, rds, database.GetAWS().RDSProxy.Name)
+	return fetchRDSProxyMetadata(ctx, rds, meta.RDSProxy.Name)
 }
 
 // fetchRedshiftMetadata fetches metadata for the provided Redshift database.
 func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(meta.Region)
+	redshift, err := m.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -163,18 +172,14 @@ func (m *Metadata) fetchRedshiftMetadata(ctx context.Context, database types.Dat
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	fetchedMetadata, err := services.MetadataFromRedshiftCluster(cluster)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return fetchedMetadata, nil
+	return services.MetadataFromRedshiftCluster(cluster)
 }
 
 // fetchRedshiftServerlessMetadata fetches metadata for the provided Redshift
 // Serverless database.
 func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	client, err := m.cfg.Clients.GetAWSRedshiftServerlessClient(meta.Region)
+	client, err := m.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -188,7 +193,7 @@ func (m *Metadata) fetchRedshiftServerlessMetadata(ctx context.Context, database
 // fetchElastiCacheMetadata fetches metadata for the provided ElastiCache database.
 func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(meta.Region)
+	elastiCacheClient, err := m.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -205,7 +210,7 @@ func (m *Metadata) fetchElastiCacheMetadata(ctx context.Context, database types.
 // fetchMemoryDBMetadata fetches metadata for the provided MemoryDB database.
 func (m *Metadata) fetchMemoryDBMetadata(ctx context.Context, database types.Database) (*types.AWS, error) {
 	meta := database.GetAWS()
-	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(meta.Region)
+	memoryDBClient, err := m.cfg.Clients.GetAWSMemoryDBClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
