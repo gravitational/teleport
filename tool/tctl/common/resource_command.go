@@ -101,31 +101,31 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                    rc.createUser,
-		types.KindRole:                    rc.createRole,
-		types.KindTrustedCluster:          rc.createTrustedCluster,
-		types.KindGithubConnector:         rc.createGithubConnector,
-		types.KindCertAuthority:           rc.createCertAuthority,
-		types.KindClusterAuthPreference:   rc.createAuthPreference,
-		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
+		types.KindUser:                     rc.createUser,
+		types.KindRole:                     rc.createRole,
+		types.KindTrustedCluster:           rc.createTrustedCluster,
+		types.KindGithubConnector:          rc.createGithubConnector,
+		types.KindCertAuthority:            rc.createCertAuthority,
+		types.KindClusterAuthPreference:    rc.createAuthPreference,
+		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
 		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
-		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
-		types.KindUIConfig:                rc.createUIConfig,
-		types.KindLock:                    rc.createLock,
-		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
-		types.KindApp:                     rc.createApp,
-		types.KindDatabase:                rc.createDatabase,
-		types.KindKubernetesCluster:       rc.createKubeCluster,
-		types.KindToken:                   rc.createToken,
-		types.KindInstaller:               rc.createInstaller,
-		types.KindNode:                    rc.createNode,
-		types.KindOIDCConnector:           rc.createOIDCConnector,
-		types.KindSAMLConnector:           rc.createSAMLConnector,
-		types.KindLoginRule:               rc.createLoginRule,
-		types.KindSAMLIdPServiceProvider:  rc.createSAMLIdPServiceProvider,
-		types.KindDevice:                  rc.createDevice,
-		types.KindOktaImportRule:          rc.createOktaImportRule,
-		types.KindIntegration:             rc.createIntegration,
+		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
+		types.KindUIConfig:                 rc.createUIConfig,
+		types.KindLock:                     rc.createLock,
+		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
+		types.KindApp:                      rc.createApp,
+		types.KindDatabase:                 rc.createDatabase,
+		types.KindKubernetesCluster:        rc.createKubeCluster,
+		types.KindToken:                    rc.createToken,
+		types.KindInstaller:                rc.createInstaller,
+		types.KindNode:                     rc.createNode,
+		types.KindOIDCConnector:            rc.createOIDCConnector,
+		types.KindSAMLConnector:            rc.createSAMLConnector,
+		types.KindLoginRule:                rc.createLoginRule,
+		types.KindSAMLIdPServiceProvider:   rc.createSAMLIdPServiceProvider,
+		types.KindDevice:                   rc.createDevice,
+		types.KindOktaImportRule:           rc.createOktaImportRule,
+		types.KindIntegration:              rc.createIntegration,
 	}
 	rc.config = config
 
@@ -890,10 +890,13 @@ func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.Cl
 			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
 		}
 
+		if err := existingIntegration.CanChangeStateTo(integration); err != nil {
+			return trace.Wrap(err)
+		}
+
 		switch integration.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
 			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
-
 		default:
 			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
 		}

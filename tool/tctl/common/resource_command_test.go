@@ -686,9 +686,8 @@ version: v1
 metadata:
   name: myawsint
 spec:
-  subkind_spec:
-    aws_oidc:
-      role_arn: "arn:aws:iam::123456789012:role/OpsTeam"
+  aws_oidc:
+    role_arn: "arn:aws:iam::123456789012:role/OpsTeam"
 `
 )
 

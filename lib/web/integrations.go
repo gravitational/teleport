@@ -107,9 +107,7 @@ func (h *Handler) integrationsUpdate(w http.ResponseWriter, r *http.Request, p h
 			return nil, trace.BadParameter("cannot update %q fields for a %q integration", types.IntegrationSubKindAWSOIDC, integration.GetSubKind())
 		}
 
-		spec := integration.GetAWSOIDCIntegrationSpec()
-		spec.RoleARN = req.AWSOIDC.RoleARN
-		integration.SetAWSOIDCIntegrationSpec(spec)
+		integration.SetAWSOIDCRoleARN(req.AWSOIDC.RoleARN)
 	}
 
 	if _, err := clt.UpdateIntegration(r.Context(), integration); err != nil {

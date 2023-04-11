@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"net/url"
 	"testing"
 
 	"github.com/google/uuid"
@@ -57,7 +57,8 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertRole(ctx, roleWithFullAccess))
 
-	integrationsEndpoint := strings.Join([]string{"sites", "$site", "integrations"}, "/")
+	integrationsEndpoint, err := url.JoinPath("sites", "$site", "integrations")
+	require.NoError(t, err)
 
 	// Set up User
 	username := "fullaccess"
@@ -74,12 +75,8 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	// List integrations should return empty
 	resp, err := webPack.DoRequest(http.MethodGet, integrationsEndpoint, nil)
+	respBody := readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
-
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	listResp := ui.IntegrationsListResponse{}
@@ -97,22 +94,14 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	resp, err = webPack.DoRequest(http.MethodPost, integrationsEndpoint, createIntegrationReq)
+	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
-
-	respBody, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	// Get One Integration by name
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"/MyAWSAccount", nil)
+	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
-
-	respBody, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	integrationResp := ui.Integration{}
@@ -132,12 +121,8 @@ func TestIntegrationCRUD(t *testing.T) {
 			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
 		},
 	})
+	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
-
-	respBody, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	integrationResp = ui.Integration{}
@@ -153,12 +138,8 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	// Delete resource
 	resp, err = webPack.DoRequest(http.MethodDelete, integrationsEndpoint+"/MyAWSAccount", nil)
+	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
-
-	respBody, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	// Add multiple integrations to test pagination
@@ -175,23 +156,15 @@ func TestIntegrationCRUD(t *testing.T) {
 		}
 
 		resp, err = webPack.DoRequest(http.MethodPost, integrationsEndpoint, createIntegrationReq)
+		respBody = readAllReadCloser(t, resp.Body)
 		require.NoError(t, err)
-
-		respBody, err = io.ReadAll(resp.Body)
-		require.NoError(t, err)
-
-		defer resp.Body.Close()
 		require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 	}
 
 	// List integrations should return a full page
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"?limit=10", nil)
+	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
-
-	respBody, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	listResp = ui.IntegrationsListResponse{}
@@ -203,10 +176,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
 	require.NoError(t, err)
 
-	respBody, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
+	respBody = readAllReadCloser(t, resp.Body)
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	listResp = ui.IntegrationsListResponse{}
@@ -216,12 +186,9 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	// Requesting the 3rd page should return a single item and empty StartKey
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
+	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
 
-	respBody, err = io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	listResp = ui.IntegrationsListResponse{}
@@ -229,4 +196,13 @@ func TestIntegrationCRUD(t *testing.T) {
 
 	require.Len(t, listResp.Items, 1)
 	require.Empty(t, listResp.NextKey)
+}
+
+func readAllReadCloser(t *testing.T, r io.ReadCloser) []byte {
+	defer r.Close()
+
+	respBody, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	return respBody
 }

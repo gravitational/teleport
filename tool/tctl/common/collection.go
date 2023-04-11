@@ -1006,7 +1006,7 @@ func (c *integrationCollection) writeText(w io.Writer) error {
 			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
 		})
 	}
-	headers := []string{"Name", "SubKind", "Spec"}
+	headers := []string{"Name", "Type", "Spec"}
 	t := asciitable.MakeTable(headers, rows...)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
