@@ -118,7 +118,6 @@ function getStatus(item: IntegrationLike) {
     case 'Bot not invited to channel':
       return Status.Warning;
   }
-  return;
 }
 
 const StatusLight = styled(Box)`
