@@ -31,7 +31,6 @@ This guide requires you to have:
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection). Typically this means installing
   [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
-
 - Access to a Domain Controller
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -228,7 +227,9 @@ and `Users` which is nested one level beneath the domain root.
 
 2. Again open the `Group Policy Management` program, and on the left pane,
    navigate to `$FOREST > Domains > $DOMAIN > Group Policy Objects`.
+
 3. Right click on the GPO you just made (`Teleport Access Policy`), and select `Edit...`.
+
 4. In the group policy editor, select:
 
    ```text
@@ -236,6 +237,7 @@ and `Users` which is nested one level beneath the domain root.
    ```
 
 5. Right click on `Trusted Root Certification Authorities` and select `Import`.
+
 6. Click through the wizard, selecting your CA file.
 
    <Figure align="left" bordered caption="Import Teleport CA">
@@ -310,6 +312,7 @@ Teleport performs certificate based authentication by emulating a smart card.
    ```
 
 2. Right click on `Allow users to connect remotely by using Remote Desktop Services` and select `Edit`. Select `Enabled` and `OK`.
+
 3. Select:
 
    ```text
@@ -347,8 +350,11 @@ Set to `Disabled` and click `OK`.
    ```
 
 2. Right click on `Inbound Rules` and select `New Rule...`.
+
 3. Under `Predefined` select `Remote Desktop`.
+
 4. Only select the rule for `User Mode (TCP-in)`.
+
 5. On the next screen, select `Allow the connection` and finish.
 
    <Figure align="left" bordered caption="Open the Firewall">
@@ -390,17 +396,27 @@ P-384 and uses SHA384 as the signature algorithm.
    ```
 
 2. Open your CA computer and right-click on `Certificate Templates`, then select `Manage`.
+
 3. Find the `Computer` template on the list, right-click on it, then select `Duplicate Template`.
+
 4. In the `Compatibility` tab change `Certification Authority` to `Windows Server 2012 R2` and click `OK`.
+
 5. In the same tab change `Certificate recipient` to `Windows Server 2012 R2` and click `OK`.
+
 6. Go to the `General` tab and change `Template display name` to `RemoteDesktopAccess`.
    Make sure `Template name` is also `RemoteDesktopAccess`.
+
 7. In the `Cryptography` tab change `Provider Category` to `Key Storage Provider`,
    then `Algorithm name` to `ECDH_P384`. Also, change `Request hash` to `SHA384`.
+
 8. Next, in the `Extensions` tab select `Application Polices` and click the `Edit` button.
+
 9. Remove all entries from the list.
+
 10. Go to the `Security` tab, select `Domain Computers` and give the group `Read` and `Enroll` permissions.
+
 11. Finally, create a template by clicking `OK`.
+
 12. Go back to the Certificate Authority window and right-click on `Certificate Templates`. Then:
 
    ```text
