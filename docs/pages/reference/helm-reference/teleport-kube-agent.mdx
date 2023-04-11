@@ -377,7 +377,7 @@ You can specify multiple apps by adding additional list elements.
 |--------|---------------|--------------------------------------------------------------------------------------|
 | `list` | `[]`          | When `app` chart role is used at least one of `apps` and `appResources` is required. |
 
-`appResources` is a YAML list object detailing the resource selectors of the applications that should be proxied by Teleport Application Access.
+`appResources` is a YAML list object detailing the resource selectors of the applications that should be proxied by the Teleport Application Service.
 
 You can specify multiple selectors by including additional list elements.
 
@@ -644,7 +644,7 @@ You can specify multiple databases by adding additional list elements.
 |--------|---------------|---------------------------------------------------------------------------------------------------------------------------------------|
 | `list` | `[]`          | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
 
-`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
+`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by the Teleport Database Service.
 
 You can specify multiple selectors by adding elements to the list.
 

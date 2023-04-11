@@ -1,10 +1,10 @@
 ---
 title: Database Access CLI Reference
-description: CLI reference for Teleport Database Access.
+description: CLI reference for Teleport database access.
 ---
 
 This reference shows you how to run common commands for managing Teleport
-Database Access, including:
+the Database Service, including:
 
 - The `teleport` daemon command, which is executed on the host where you
   will run the Teleport Database Service.
@@ -143,7 +143,7 @@ $ teleport db configure bootstrap -c /etc/teleport.yaml --manual
 
 When invoked with a `--format=db` (or `--format=mongodb` for MongoDB) flag,
 produces a CA certificate, a client certificate and a private key file used for
-configuring Database Access with self-hosted database instances.
+configuring the Database Service with self-hosted database instances.
 
 <Admonition type="note" title="Note">
   For database formats, `tctl` must be run on an Auth Service host or the remote
