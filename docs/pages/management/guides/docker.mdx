@@ -71,8 +71,8 @@ We provide pre-built `amd64`, `arm`, and `arm64` Docker images for every version
 Create Teleport configs and start the process with the following `docker run` commands:
 
 ```code
-# Docker image to use. The default is the amd64 version. Add -arm64 or -arm
-# to the end (ex: (=teleport.latest_oss_docker_image=)-arm64 to get the arm versions.
+# Docker image to use. Defaults to the host architecture. Use the `--platform`
+# option in `docker run` to override.
 $ TELEPORT_DOCKER_IMAGE=(=teleport.latest_oss_docker_image=)
 # Create local config and data directories for Teleport, which will be mounted
 # into the container.
