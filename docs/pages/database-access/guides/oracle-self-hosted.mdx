@@ -1,10 +1,10 @@
 ---
 title: Database Access with Oracle (Preview)
-description: How to configure Teleport Database Access with Oracle.
+description: How to configure Teleport database access with Oracle.
 ---
 
 <Admonition type="warning" title="Preview">
-  Database Access for Oracle Database is currently in Preview mode.
+  Database access for Oracle Database is currently in Preview mode.
 </Admonition>
 
 This guide will help you to:
@@ -30,7 +30,6 @@ This guide will help you to:
 ## Step 1/7. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
-
 
 ## Step 2/7. Set up the Teleport Database Service
 
@@ -64,7 +63,6 @@ $ teleport db configure create \
 ## Step 4/7. Start the Database Service
 
 (!docs/pages/includes/start-teleport.mdx service="the Database Service"!)
-
 
 ## Step 5/7. Create a certificate/key pair and Teleport Oracle Wallet
 
@@ -157,7 +155,6 @@ $ tsh db logout oracle
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
-
 
 ## Next steps
 

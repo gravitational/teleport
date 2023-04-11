@@ -193,6 +193,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindOktaImportRule, nil
 	case types.KindOktaAssignment, types.KindOktaAssignment + "s", "oktaassignment", "oktaassignments":
 		return types.KindOktaAssignment, nil
+	case types.KindClusterMaintenanceConfig, "cmc":
+		return types.KindClusterMaintenanceConfig, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }

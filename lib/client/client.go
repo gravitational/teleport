@@ -748,25 +748,6 @@ func (proxy *ProxyClient) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	return watcher, nil
 }
 
-// FindNodesByFilters returns list of the nodes which have filters matched.
-func (proxy *ProxyClient) FindNodesByFilters(ctx context.Context, req proto.ListResourcesRequest) ([]types.Server, error) {
-	ctx, span := proxy.Tracer.Start(
-		ctx,
-		"proxyClient/FindNodesByFilters",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("resource", req.ResourceType),
-			attribute.Int("limit", int(req.Limit)),
-			attribute.String("predicate", req.PredicateExpression),
-			attribute.StringSlice("keywords", req.SearchKeywords),
-		),
-	)
-	defer span.End()
-
-	servers, err := proxy.FindNodesByFiltersForCluster(ctx, req, proxy.siteName)
-	return servers, trace.Wrap(err)
-}
-
 func (proxy *ProxyClient) GetClusterAlerts(ctx context.Context, req types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
@@ -1805,6 +1786,15 @@ func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
 		return trace.Wrap(err)
 	}
 	defer s.Close()
+
+	// File transfers in a moderated session require these two variablesto check for
+	// approval on the ssh server. If they exist in the context, set them in our env vars
+	if moderatedSessionID, ok := ctx.Value(scp.ModeratedSessionID).(string); ok {
+		s.Setenv(ctx, string(scp.ModeratedSessionID), moderatedSessionID)
+	}
+	if fileTransferRequestID, ok := ctx.Value(scp.FileTransferRequestID).(string); ok {
+		s.Setenv(ctx, string(scp.FileTransferRequestID), fileTransferRequestID)
+	}
 
 	stdin, err := s.StdinPipe()
 	if err != nil {
