@@ -214,7 +214,7 @@ jobs:
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.build-role-arn }}
-          role-session-name: "gha-docker-image-build-${{ github.run_number }}-${{ matrix.arch }}-${{ matrix.release }}-${{ matrix.mode }}-smoke-test"
+          role-session-name: "gha-oci-image-build-${{ github.run_number }}-test"
           role-duration-seconds: 3600
 
       - name: Login to ECR

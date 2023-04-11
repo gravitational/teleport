@@ -253,7 +253,7 @@ jobs:
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.dronestorage-access-role-arn }}
-          role-session-name: "gha-docker-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
+          role-session-name: "gha-oci-image-build-${{ github.run_number }}-${{ inputs.source-tag }}"
           role-duration-seconds: 3600
 
       - name: Download Teleport Debian packages
@@ -307,7 +307,7 @@ jobs:
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.build-role-arn }}
-          role-session-name: "gha-docker-image-build-${{ github.run_number }}"
+          role-session-name: "gha-oci-image-build-${{ github.run_number }}"
           role-duration-seconds: 3600
 
       - name: Login to Destination ECR Registry
@@ -374,7 +374,7 @@ jobs:
         with:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.build-role-arn }}
-          role-session-name: "gha-docker-image-build-${{ github.run_number }}-trivy"
+          role-session-name: "gha-oci-image-build-${{ github.run_number }}-trivy"
           role-duration-seconds: 3600
 
       - name: Login to ECR
