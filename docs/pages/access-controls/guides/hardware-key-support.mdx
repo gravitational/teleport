@@ -7,6 +7,8 @@ description: Hardware Key Support
 
 <Admonition type="warning" title="Preview">
   Hardware key Support is currently in Preview mode.
+
+  Hardware Key Support requires Teleport Enterprise.
 </Admonition>
 
 By default, `tsh`, Teleport Connect, and other Teleport clients store a user's login session directly on their filesystem. If a user's filesystem is compromised, any of their active Teleport login sessions would also be compromised.
@@ -77,83 +79,31 @@ spec:
     require_session_mfa: hardware_key_touch
 ```
 
-You can also enforce hardware key support cluster-wide by updating your Teleport configuration as below:
-
-<ScopedBlock scope={["enterprise"]}>
-<Tabs>
-  <TabItem label="Static Config">
-    In the Auth Server's `teleport.yaml` file:
-
-    ```yaml
-    # snippet from /etc/teleport.yaml:
-    auth_service:
-      authentication:
-        require_session_mfa: hardware_key_touch
-    ```
-  </TabItem>
-  <TabItem label="Dynamic resources">
-
-  Obtain your existing `cluster_auth_preference` resource:
-
-  ```code
-  $ tctl get cap > cap.yaml
-  ```
-
-  If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
-  Ensure that `cap.yaml` includes the following content:
-
-  ```yaml
-  kind: cluster_auth_preference
-  version: v2
-  metadata:
-    name: cluster-auth-preference
-  spec:
-    type: local
-    require_session_mfa: hardware_key_touch
-  ```
-
-  Update the configuration:
-
-  ```code
-  $ tctl create -f cap.yaml
-  # cluster auth preference has been updated
-  ```
-
-  </TabItem>
-</Tabs>
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud"]}>
-
-Obtain your existing `cluster_auth_preference` resource:
+You can also enforce hardware key support cluster-wide by updating your Teleport configuration:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
-Ensure that `cap.yaml` includes the following content:
+Set the value of `spec.require_session_mfa` to `hardware_key_touch`:
 
 ```yaml
 kind: cluster_auth_preference
-version: v2
 metadata:
+  ...
   name: cluster-auth-preference
 spec:
-  type: local
+  ...
   require_session_mfa: hardware_key_touch
+  ...
+version: v2
 ```
 
-Update the configuration:
+After you save and exit the editor, `tctl` will update the resource:
 
-```code
-$ tctl create -f cap.yaml
-# cluster auth preference has been updated
+```text
+cluster auth preference has been updated
 ```
-
-</ScopedBlock>
 
 ## Step 2/2. Log In
 
@@ -161,7 +111,7 @@ Once hardware key support is enforced, affected users will be required to have t
 
 These users will be prompted to connect and touch their YubiKey on log in:
 
-<ScopedBlock scope={["enterprise"]}>
+<ScopedBlock scope={["oss","enterprise"]}>
 
 ```code
 $ tsh login --user=dev --proxy=proxy.example.com:3080
