@@ -30,14 +30,11 @@ import * as stores from 'teleport/Console/stores';
 import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
 
 import Document from '../Document';
 
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
-import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
-import useGetScpUrl from './useGetScpUrl';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
@@ -45,13 +42,15 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
     tty,
     status,
     closeDocument,
-    fileTransferRequests,
+    session,
     approveFileTransferRequest,
+    webauthn,
+    upload,
+    download,
+    getMfaResponseAttempt,
+    filesStore,
+    fileTransferRequests,
   } = useSshSession(doc);
-  const webauthn = useWebAuthn(tty);
-  const { getScpUrl, attempt: getMfaResponseAttempt } = useGetScpUrl(
-    webauthn.addMfaToScpUrls
-  );
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
@@ -90,6 +89,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
             />
           )}
           <FileTransfer
+            filesStore={filesStore}
             beforeClose={() =>
               window.confirm('Are you sure you want to cancel file transfers?')
             }
@@ -102,44 +102,14 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
             backgroundColor={colors.levels.surface}
             transferHandlers={{
               getDownloader: async (location, abortController) => {
-                new Promise(resolve =>
-                  resolve(tty.sendFileTransferRequest(location, 'download'))
-                );
-                const url = await getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: location,
-                });
-                if (!url) {
-                  // if we return nothing here, the file transfer will not be added to the
-                  // file transfer list. If we add it to the list, the file will continue to
-                  // start the download and return another here. This prevents a second network
-                  // request that we know will fail.
+                if (session.isModeratedSession) {
+                  tty.sendFileTransferRequest(location, 'download');
                   return;
                 }
-                return getHttpFileTransferHandlers().download(
-                  url,
-                  abortController
-                );
+                return download(location, abortController);
               },
               getUploader: async (location, file, abortController) => {
-                const url = await getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: file.name,
-                });
-                if (!url) {
-                  return;
-                }
-                return getHttpFileTransferHandlers().upload(
-                  url,
-                  file,
-                  abortController
-                );
+                return upload(location, file, abortController);
               },
             }}
           />

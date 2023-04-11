@@ -601,7 +601,7 @@ message SessionConnect {
   ];
 }
 
-message FileTransferRequest {
+message FileTransferRequestEvent {
   // Metadata is a common event metadata
   Metadata Metadata = 1 [
     (gogoproto.nullable) = false,
@@ -609,38 +609,24 @@ message FileTransferRequest {
     (gogoproto.jsontag) = ""
   ];
 
-  // User is a common user event metadata
-  UserMetadata User = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
   // SessionMetadata is a common event session metadata
-  SessionMetadata Session = 3 [
+  SessionMetadata Session = 8 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
 
-  // ServerMetadata is a common server metadata
-  ServerMetadata Server = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
+  string RequestID = 2 [(gogoproto.jsontag) = "requestId"];
 
-  string RequestID = 6 [(gogoproto.jsontag) = "requestId"];
+  repeated string Approvers = 3 [(gogoproto.jsontag) = "approvers"];
 
-  repeated string Approvers = 7 [(gogoproto.jsontag) = "approvers"];
+  string Requester = 4 [(gogoproto.jsontag) = "requester"];
 
-  string Requester = 8 [(gogoproto.jsontag) = "requester"];
+  string Location = 5 [(gogoproto.jsontag) = "location"];
 
-  string Location = 9 [(gogoproto.jsontag) = "location"];
+  string Direction = 6 [(gogoproto.jsontag) = "direction"];
 
-  string Direction = 10 [(gogoproto.jsontag) = "direction"];
-
-  string ShellCmd = 11 [(gogoproto.jsontag) = "shellCmd"];
+  string ShellCmd = 7 [(gogoproto.jsontag) = "shellCmd"];
 }
 
 // Resize means that some user resized PTY on the client

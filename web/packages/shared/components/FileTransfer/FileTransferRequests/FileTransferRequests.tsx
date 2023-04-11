@@ -3,6 +3,35 @@ import styled from 'styled-components';
 import { ButtonBorder, Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
+const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
+  return (
+    <Box mt={3} key={request.requestId}>
+      <Text
+        style={{
+          wordBreak: 'break-word',
+        }}
+        mb={2}
+      >{`${request.requester} is requesting ${request.direction} of file ${request.location}`}</Text>
+      <Flex gap={2}>
+        <ButtonBorder block onClick={() => onApprove(request.requestId, true)}>
+          <Icons.Check fontSize="16px" mr={2} />
+          Approve
+        </ButtonBorder>
+        <ButtonBorder block onClick={() => onDeny(request.requestId, false)}>
+          <Icons.Cross fontSize="16px" mr={2} />
+          Deny
+        </ButtonBorder>
+      </Flex>
+    </Box>
+  );
+};
+
+type RequestFormProps = {
+  request: FileTransferRequest;
+  onApprove: (string, bool) => void;
+  onDeny: (string, bool) => void;
+};
+
 export const FileTransferRequests = (props: FileTransferRequestsProps) => {
   const { requests } = props;
 
@@ -13,43 +42,35 @@ export const FileTransferRequests = (props: FileTransferRequestsProps) => {
           File Transfer Requests
         </Text>
       </Flex>
-      {requests.map(request => (
-        <Box mt={3} key={request.requestId}>
-          <Text
-            style={{
-              wordBreak: 'break-word',
-            }}
-            mb={2}
-          >{`${request.requester} is requesting ${request.direction} of file ${request.location}`}</Text>
-          <Flex gap={2}>
-            <ButtonBorder
-              block
-              onClick={() => props.onApprove(request.requestId, true)}
-            >
-              <Icons.Check fontSize="16px" mr={2} />
-              Approve
-            </ButtonBorder>
-            <ButtonBorder
-              block
-              onClick={() => props.onDeny(request.requestId, false)}
-            >
-              <Icons.Cross fontSize="16px" mr={2} />
-              Deny
-            </ButtonBorder>
-          </Flex>
-        </Box>
-      ))}
+      {requests.map(request =>
+        request.isOwnRequest ? null : (
+          // <ResponseForm
+          //   key={request.requestId}
+          //   request={request}
+          //   onApprove={props.onApprove}
+          //   onDeny={props.onDeny}
+          // />
+          <ResponseForm
+            key={request.requestId}
+            request={request}
+            onApprove={props.onApprove}
+            onDeny={props.onDeny}
+          />
+        )
+      )}
     </Container>
   );
 };
 
 export type FileTransferRequest = {
+  sid: string;
   requestId: string;
   requester: string;
   approvers: string[];
   shellCmd: string;
   location: string;
   direction: string;
+  isOwnRequest?: boolean;
 };
 
 type FileTransferRequestsProps = {

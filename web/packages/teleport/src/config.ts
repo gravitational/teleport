@@ -548,13 +548,25 @@ const cfg = {
     });
   },
 
-  getScpUrl({ webauthn, ...params }: UrlScpParams) {
+  getScpUrl({
+    webauthn,
+    moderatedSessonId,
+    fileTransferRequestId,
+    ...params
+  }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
+
+    // only set if both are params are present
+    if (moderatedSessonId && fileTransferRequestId) {
+      path = `${path}&file_transfer_request_id=${fileTransferRequestId}&moderated_session_id=${moderatedSessonId}`;
+    }
+
     if (!webauthn) {
       return path;
     }
+
     // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
     // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
     // as the existence of this param is what will issue certs
@@ -636,6 +648,8 @@ export interface UrlScpParams {
   location: string;
   filename: string;
   webauthn?: WebauthnAssertionResponse;
+  moderatedSessonId?: string;
+  fileTransferRequestId?: string;
 }
 
 export interface UrlSshParams {

@@ -284,7 +284,8 @@ const (
 
 	// FileTransferRequestEvent means someone has requested a file transfer
 	// during a moderated session
-	FileTransferRequestEvent = "file_transfer_request"
+	FileTransferRequestEvent         = "file_transfer_request"
+	FileTransferRequestApprovedEvent = "file_transfer_request_approved"
 
 	// ResizeEvent means that some user resized PTY on the client
 	ResizeEvent  = "resize"

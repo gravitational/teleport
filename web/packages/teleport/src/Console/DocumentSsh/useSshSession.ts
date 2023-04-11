@@ -18,14 +18,15 @@ import React from 'react';
 
 import { context, trace } from '@opentelemetry/api';
 
-import { FileTransferRequest } from 'shared/components/FileTransfer/FileTransferRequests/FileTransferRequests';
-
 import cfg from 'teleport/config';
 import { TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentSsh } from 'teleport/Console/stores';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
+
+import { useFileTransfer } from './useFileTransfer';
 
 import type {
   ParticipantMode,
@@ -38,38 +39,29 @@ const tracer = trace.getTracer('TTY');
 export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
+  const user = ctx.getStoreUser();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
+  const webauthn = useWebAuthn(tty);
   const [session, setSession] = React.useState<Session>(null);
   const [status, setStatus] = React.useState<Status>('loading');
-  const [fileTransferRequests, setFileTransferRequests] = React.useState<
-    FileTransferRequest[]
-  >([]);
+
+  const {
+    download,
+    upload,
+    getMfaResponseAttempt,
+    fileTransferRequests,
+    handleFileTransferApproval,
+    filesStore,
+    updateFileTransferRequests,
+  } = useFileTransfer({
+    doc,
+    user,
+    addMfaToScpUrls: webauthn.addMfaToScpUrls,
+  });
 
   function closeDocument() {
     ctx.closeTab(doc);
-  }
-
-  function updateFileTransferRequests(data: FileTransferRequest) {
-    // We receive the same data type when a file transfer request is created and
-    // when an approve event happens. Check if we already have this request in our list. If not
-    // in our list, we add it
-    const foundRequest = fileTransferRequests.find(
-      ft => ft.requestId === data.requestId
-    );
-    if (!foundRequest) {
-      return setFileTransferRequests([...fileTransferRequests, data]);
-    }
-
-    // otherwise, we update it
-    const updatedFileTransferRequests = fileTransferRequests.map(ft => {
-      if (ft.requestId === data.requestId) {
-        return data;
-      }
-      return ft;
-    });
-
-    setFileTransferRequests(updatedFileTransferRequests);
   }
 
   function approveFileTransferRequest(requestId: string, approve: boolean) {
@@ -95,12 +87,18 @@ export default function useSshSession(doc: DocumentSsh) {
 
           tty.on(TermEvent.SESSION, payload => {
             const data = JSON.parse(payload);
+            console.log('data', data);
             data.session.kind = 'ssh';
             data.session.resourceName = data.session.server_hostname;
+            setSession({
+              ...session,
+              isModeratedSession: data.session.is_moderated_session,
+            });
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
           tty.on(TermEvent.FILE_TRANSFER_REQUEST, updateFileTransferRequests);
+          tty.on(TermEvent.FILE_TRANSFER_APPROVED, handleFileTransferApproval);
 
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
@@ -139,6 +137,11 @@ export default function useSshSession(doc: DocumentSsh) {
     fileTransferRequests,
     approveFileTransferRequest,
     closeDocument,
+    webauthn,
+    download,
+    getMfaResponseAttempt,
+    filesStore,
+    upload,
   };
 }
 

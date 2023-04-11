@@ -38,7 +38,7 @@ export default function makeSession(json): Session {
     server_addr,
     parties,
     participantModes,
-    isModeratedSession,
+    is_moderated_session,
   } = json;
 
   const createdDate = created ? new Date(created) : null;
@@ -53,13 +53,14 @@ export default function makeSession(json): Session {
     login,
     created: createdDate,
     durationText,
+    fileTransferRequests: [],
     serverId: server_id,
     resourceName: json[nameField[kind]],
     clusterId: cluster_name,
     parties: parties ? parties.map(p => makeParticipant(p)) : [],
     addr: server_addr ? server_addr.replace(PORT_REGEX, '') : '',
     participantModes: participantModes ?? [],
-    isModeratedSession,
+    isModeratedSession: is_moderated_session,
   };
 }
 
