@@ -46,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -775,7 +774,11 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag\n")
 	}
 
-	dev, err := device.UnmarshalDevice(raw.Raw)
+	res, err := types.UnmarshalDevice(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dev, err := types.DeviceFromResource(res)
 	if err != nil {
 		return trace.Wrap(err)
 	}

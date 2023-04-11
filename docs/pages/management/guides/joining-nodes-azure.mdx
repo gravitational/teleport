@@ -8,7 +8,7 @@ Teleport instances to join your Teleport cluster without sharing any secrets
 when they are running in an Azure Virtual Machine.
 
 The Azure join method is available in Teleport 12.1+. It is available to any
-Teleport Service running in an Azure Virtual Machine.
+Teleport service running in an Azure Virtual Machine.
 
 <Details
 scope={["oss", "enterprise", "cloud"]}
@@ -40,10 +40,10 @@ connecting directly to the Auth Service.
   installed. The Virtual Machine must have a
   [Managed Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   assigned to it with permission to read virtual machine info.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up a Managed Identity
+
 Every virtual machine hosting a Node or Proxy using the Azure method to join
 your Teleport cluster needs a Managed Identity assigned to it. The identity 
 requires the `Microsoft.Compute/virtualMachines/read` permission so Teleport
@@ -350,6 +350,7 @@ metadata:
 spec:
   # use the minimal set of roles required
   roles: [Node]
+  join_method: azure
   azure:
     allow:
       # specify the Azure subscription which Nodes may join from

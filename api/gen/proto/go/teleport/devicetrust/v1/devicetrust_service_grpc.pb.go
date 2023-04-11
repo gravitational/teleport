@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/devicetrust/v1/devicetrust_service.proto
 
-package v1
+package devicetrustv1
 
 import (
 	context "context"

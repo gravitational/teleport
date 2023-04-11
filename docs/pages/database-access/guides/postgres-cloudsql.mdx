@@ -25,8 +25,7 @@ This guide will help you to:
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., a Compute Engine instance, where you will run the Teleport Database
   Service
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Enable Cloud SQL IAM authentication
 
@@ -90,7 +89,6 @@ in Google Cloud documentation for more info.
 
 The final part of GCP configuration is to create a service account for the
 Teleport Database Service.
-
 
 ### Create a service account
 
@@ -195,14 +193,14 @@ Install Teleport on the host where you will run the Teleport Database Service:
 ## Step 6/7. Set up the Teleport Database service
 
 Below is an example of a Database Service configuration file that proxies
-a single Cloud SQL PostgreSQL database:
+a single Cloud SQL PostgreSQL database. Save this file as `/etc/teleport.yaml`:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Note that it has to be the proxy address
   # because the Database Service always connects to the cluster over a reverse
@@ -246,7 +244,7 @@ proxy_service:
 ```yaml
 version: v3
 teleport:
-  data_dir: /var/lib/teleport-db
+  data_dir: /var/lib/teleport
   nodename: test
   # Proxy address to connect to. Use your Teleport Cloud tenant address here.
   proxy_server: mytenant.teleport.sh:443
@@ -294,11 +292,7 @@ proxy_service:
 
 </Notice>
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ### GCP credentials
 

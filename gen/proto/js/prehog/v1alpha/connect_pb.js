@@ -560,7 +560,8 @@ proto.prehog.v1alpha.ConnectProtocolUseEvent.toObject = function(includeInstance
   var f, obj = {
     clusterName: jspb.Message.getFieldWithDefault(msg, 1, ""),
     userName: jspb.Message.getFieldWithDefault(msg, 2, ""),
-    protocol: jspb.Message.getFieldWithDefault(msg, 3, "")
+    protocol: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    origin: jspb.Message.getFieldWithDefault(msg, 4, "")
   };
 
   if (includeInstance) {
@@ -609,6 +610,10 @@ proto.prehog.v1alpha.ConnectProtocolUseEvent.deserializeBinaryFromReader = funct
       var value = /** @type {string} */ (reader.readString());
       msg.setProtocol(value);
       break;
+    case 4:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setOrigin(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -656,6 +661,13 @@ proto.prehog.v1alpha.ConnectProtocolUseEvent.serializeBinaryToWriter = function(
   if (f.length > 0) {
     writer.writeString(
       3,
+      f
+    );
+  }
+  f = message.getOrigin();
+  if (f.length > 0) {
+    writer.writeString(
+      4,
       f
     );
   }
@@ -713,6 +725,24 @@ proto.prehog.v1alpha.ConnectProtocolUseEvent.prototype.getProtocol = function() 
  */
 proto.prehog.v1alpha.ConnectProtocolUseEvent.prototype.setProtocol = function(value) {
   return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional string origin = 4;
+ * @return {string}
+ */
+proto.prehog.v1alpha.ConnectProtocolUseEvent.prototype.getOrigin = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 4, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.ConnectProtocolUseEvent} returns this
+ */
+proto.prehog.v1alpha.ConnectProtocolUseEvent.prototype.setOrigin = function(value) {
+  return jspb.Message.setProto3StringField(this, 4, value);
 };
 
 

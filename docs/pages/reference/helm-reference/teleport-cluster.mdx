@@ -346,7 +346,6 @@ For possible values, [see the Teleport Configuration Reference](../../reference/
   </TabItem>
 </Tabs>
 
-
 ## `separatePostgresListener`
 
 | Type   | Default value | Required? | `teleport.yaml` equivalent           |
@@ -527,7 +526,6 @@ else [`clusterName`](#clusterName) is used. Default port is 3036.
   ```
   </TabItem>
 </Tabs>
-
 
 ## `postgresPublicAddr`
 
@@ -1877,7 +1875,6 @@ A list of extra environment variables to be set on the main Teleport container.
   </TabItem>
 </Tabs>
 
-
 ## `extraVolumes`
 
 | Type   | Default value |
@@ -1952,6 +1949,30 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
   <TabItem label="--set">
   ```code
   $ --set imagePullPolicy=Always
+  ```
+  </TabItem>
+</Tabs>
+
+## `imagePullSecrets`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
+
+A list of secrets containing authorization tokens which can be optionally used to access a private Docker registry.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  imagePullSecrets:
+  - name: my-docker-registry-key
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "imagePullSecrets[0].name=my-docker-registry-key"
   ```
   </TabItem>
 </Tabs>

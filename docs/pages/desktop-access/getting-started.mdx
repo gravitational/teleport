@@ -37,8 +37,7 @@ an [Active Directory domain](./active-directory.mdx).
   You can reuse an existing server running any other Teleport instance.
 - A server or virtual machine running a Windows operating system with
   Remote Desktop enabled and the RDP port available to the Linux server.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Prepare Windows
 
@@ -149,27 +148,7 @@ ssh_service:
 
 </Details>
 
-Start or restart the Teleport Service. For new Teleport nodes, the examples below
-depend on how you installed Teleport (from a system package or a TAR archive):
-
-<Tabs>
-<TabItem label="System Package">
-
-```code
-$ sudo systemctl start teleport.service
-```
-
-</TabItem>
-<TabItem label="Tar Archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport;
-$ sudo systemctl start teleport;
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
 ## Step 3/4. Configure Windows access
 

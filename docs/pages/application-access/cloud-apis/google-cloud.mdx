@@ -55,7 +55,7 @@ guide.
 
 </Admonition>
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Configure Google Cloud
 
@@ -308,26 +308,7 @@ Cloud.
 
 ### Run the Teleport Application Service
 
-On the host where you will run the Teleport Application Service, execute the
-following command, depending on whether you installed Teleport using a package
-manager or via a TAR archive:
-
-<Tabs>
-<TabItem label="Package Manager">
-
-```code
-$ sudo systemctl start teleport
-```
-</TabItem>
-<TabItem label="TAR archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport;
-$ sudo systemctl start teleport;
-```
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
 ## Step 3/4. Enable your user to access Google Cloud CLIs
 

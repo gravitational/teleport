@@ -16,8 +16,7 @@ compromising productivity.
 - A Mattermost account with admin privileges. This plugin has been tested with
   Mattermost v7.0.1.
 - Either a Linux host or Kubernetes cluster where you will run the Mattermost plugin.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/8. Define RBAC resources
 
@@ -79,7 +78,7 @@ Run `./install` from `teleport-mattermost` or place the executable in the approp
 
 ## Step 4/8. Export the access plugin identity
 
-(!docs/pages/includes/plugins/identity-export.mdx!)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
 ## Step 5/8. Register a Mattermost bot
 
@@ -272,7 +271,6 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 </Tabs>
 
 ## Step 7/8. Test your Mattermost bot
-
 
 <Tabs>
 <TabItem label="Executable" scope={["oss", "enterprise"]}>

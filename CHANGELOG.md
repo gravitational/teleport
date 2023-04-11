@@ -1,5 +1,22 @@
 # Changelog
 
+## 12.2.1 (04/04/23)
+
+This release of Teleport contains several new features and improvements.
+
+* Server Access
+  * Added support for headless SSO to `tsh ls`, `tsh ssh` and `tsh scp`. [#23360](https://github.com/gravitational/teleport/pull/23360)
+* Database Access
+  * Added support for connecting to Oracle databases. [#23892](https://github.com/gravitational/teleport/pull/23892)
+* Moderated Sessions
+  * Fixed issue with joining moderated sessions via Web UI. [#24018](https://github.com/gravitational/teleport/pull/24018)
+* Helm Charts
+  * Added support for `imagePullSecrets` to `teleport-cluster` chart. [#24017](https://github.com/gravitational/teleport/pull/24017)
+* Security
+  * Added IP pinning support to Kubernetes and Database Access. [#23418](https://github.com/gravitational/teleport/pull/23418)
+* Tooling
+  * Upgraded Go to `1.20.3`. [#24062](https://github.com/gravitational/teleport/pull/24062)
+
 ## 12.1.5 (03/30/23)
 
 This release of Teleport contains 2 security fixes as well as multiple improvements and bug fixes.
@@ -330,11 +347,11 @@ This release of Teleport contains multiple improvements and bug fixes.
 
 This release of Teleport contains a security fix, as well as multiple improvements and bug fixes.
 
-## Moderated Sessions
+### Moderated Sessions
 
 * Fixed issue with moderated sessions not being disconnected on Ctrl+C. [#20588](https://github.com/gravitational/teleport/pull/20588)
 
-## Other fixes and improvements
+### Other fixes and improvements
 
 * Fixed issue with node install script downloading OSS binaries in Enterprise edition. [#20816](https://github.com/gravitational/teleport/pull/20816)
 * Fixed a regression when renewing Kubernetes dynamic credentials that prevented multiple renewals. [#20788](https://github.com/gravitational/teleport/pull/20788)
