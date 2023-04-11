@@ -27,6 +27,7 @@ import { ParametrizedAction } from '../actions';
 
 import { ResultList } from './ResultList';
 import { actionPicker } from './pickers';
+import { PickerContainer } from './PickerContainer';
 
 interface ParameterPickerProps {
   action: ParametrizedAction;
@@ -70,7 +71,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
   }, [changeActivePicker]);
 
   return (
-    <>
+    <PickerContainer>
       {props.input}
       <ResultList<string>
         attempts={[inputSuggestionAttempt, attempt]}
@@ -83,6 +84,6 @@ export function ParameterPicker(props: ParameterPickerProps) {
           ),
         })}
       />
-    </>
+    </PickerContainer>
   );
 }

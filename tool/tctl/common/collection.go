@@ -590,6 +590,37 @@ func (c *netConfigCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+type maintenanceWindowCollection struct {
+	cmc types.ClusterMaintenanceConfig
+}
+
+func (c *maintenanceWindowCollection) resources() (r []types.Resource) {
+	if c.cmc == nil {
+		return nil
+	}
+	return []types.Resource{c.cmc}
+}
+
+func (c *maintenanceWindowCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Type", "Params"})
+
+	agentUpgradeParams := "none"
+
+	if c.cmc != nil {
+		if win, ok := c.cmc.GetAgentUpgradeWindow(); ok {
+			agentUpgradeParams = fmt.Sprintf("utc_start_hour=%d", win.UTCStartHour)
+			if len(win.Weekdays) != 0 {
+				agentUpgradeParams = fmt.Sprintf("%s, weekdays=%s", agentUpgradeParams, strings.Join(win.Weekdays, ","))
+			}
+		}
+	}
+
+	t.AddRow([]string{"Agent Upgrades", agentUpgradeParams})
+
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type recConfigCollection struct {
 	recConfig types.SessionRecordingConfig
 }

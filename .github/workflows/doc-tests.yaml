@@ -28,7 +28,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Prepare config
+      - name: Prepare docs site configuration
         # The docs engine expects a config.json file at the root of the
         # gravitational/docs clone that associates directories with git
         # submodules. 
@@ -41,5 +41,8 @@ jobs:
       - name: Test the docs build
         run: cd /src && yarn install && yarn build
 
-      - name: Run tests
+      - name: Check spelling
+        run: cd /src && yarn spellcheck /src/content/docs
+
+      - name: Lint the docs
         run: cd /src && yarn markdown-lint

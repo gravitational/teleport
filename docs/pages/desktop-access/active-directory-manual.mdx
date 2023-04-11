@@ -188,7 +188,6 @@ Started](../try-out-teleport/introduction.mdx) guide.
 These steps will need to be repeated if Teleport's user certificate authority is rotated.
 </Admonition>
 
-
 Get the Teleport user CA certificate by running the following in the Windows machine where you can manage your group policy, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
@@ -378,7 +377,6 @@ to use the newly created template to issue certificates used for Remote Desktop 
 
 In this section, we will create a certificate template that uses elliptic curve P-384 and uses SHA384 as the signature algorithm.
 
-
 1. Open the Microsoft Management Console (MMC)
 
 ```text
@@ -416,7 +414,6 @@ Right-click on `Server authentication certificate template`, `Edit`, then select
   ![RDP Certificate Template](../../img/desktop-access/rdp-certificate-template.png)
 </Figure>
 
-
 ### Configure server certificate auto-enrollment
 
 In the group policy editor for `Teleport Access Policy`, select:
@@ -426,7 +423,6 @@ Computer Configuration > Policies > Windows Settings > Public Key Policies
 ```
 
 Double-click on `Certificate Services Client - Auto-Enrollment`, then select `Enabled` in the `Configuration Model`.
-
 
 ### Ensure your GPO is updated
 
