@@ -67,7 +67,12 @@ func (h *Handler) clusterDesktopsGet(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := handleClusterDesktopsGet(clt, r)
+	accessChecker, err := sctx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	res, err := handleClusterDesktopsGet(clt, accessChecker.Roles(), r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

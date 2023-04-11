@@ -204,6 +204,9 @@ func TestAppResource(t *testing.T) {
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
+			Logger: config.Log{
+				Severity: "debug",
+			},
 		},
 		Apps: config.Apps{
 			Service: config.Service{
