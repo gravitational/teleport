@@ -655,23 +655,10 @@ func (c *Client) GetDeviceResource(ctx context.Context, id string) (*types.Devic
 	return types.DeviceToResource(dev), nil
 }
 
-// UpsertDeviceResource creates or updates a device using its resource
-// representation.
-// Prefer using [DevicesClient] directly if you can.
+// UpsertDeviceResource is not supported in Teleport v12 (devices can't be
+// updated in this version).
 func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) (*types.DeviceV1, error) {
-	dev, err := types.DeviceFromResource(res)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	upserted, err := c.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
-		Device:           dev,
-		CreateAsResource: true,
-	}, c.callOpts...)
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-	return types.DeviceToResource(upserted), nil
+	return nil, trace.NotImplemented("upsert device not supported in Teleport v12")
 }
 
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying
