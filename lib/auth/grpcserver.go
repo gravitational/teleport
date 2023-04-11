@@ -356,10 +356,8 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		return trace.Wrap(err)
 	}
 	servicesWatch := types.Watch{
-		Name: auth.User.GetName(),
-	}
-	for _, kind := range watch.Kinds {
-		servicesWatch.Kinds = append(servicesWatch.Kinds, proto.ToWatchKind(kind))
+		Name:  auth.User.GetName(),
+		Kinds: watch.Kinds,
 	}
 
 	if clusterName, err := auth.GetClusterName(); err == nil {
@@ -4899,6 +4897,56 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 
 	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
 	return authReq, trace.Wrap(err)
+}
+
+// ExportUpgradeWindows is used to load derived upgrade window values for agents that
+// need to export schedules to external upgraders.
+func (g *GRPCServer) ExportUpgradeWindows(ctx context.Context, req *proto.ExportUpgradeWindowsRequest) (*proto.ExportUpgradeWindowsResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, err := auth.ExportUpgradeWindows(ctx, *req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &rsp, nil
+}
+
+// GetClusterMaintenanceConfig gets the current maintenance config singleton.
+func (g *GRPCServer) GetClusterMaintenanceConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterMaintenanceConfigV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cmc, err := auth.GetClusterMaintenanceConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rsp, ok := cmc.(*types.ClusterMaintenanceConfigV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected maintenance config type %T", cmc)
+	}
+
+	return rsp, nil
+}
+
+// UpdateClusterMaintenanceConfig updates the current maintenance config singleton.
+func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *types.ClusterMaintenanceConfigV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := auth.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &emptypb.Empty{}, nil
 }
 
 // GetBackend returns the backend from the underlying auth server.
