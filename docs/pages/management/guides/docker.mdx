@@ -108,9 +108,8 @@ Move your `license.pem` file to `~/teleport/data`.
 # Generate a sample Teleport config and write it to the local config directory.
 # This container will write the config and immediately exit--this is expected.
 $ docker run --hostname localhost --rm \
-  --entrypoint=/bin/sh \
-  -v ~/teleport/config:/etc/teleport \
-  (=teleport.latest_ent_docker_image=) -c "teleport configure > /etc/teleport/teleport.yaml"
+  --entrypoint=/usr/local/bin/teleport \
+  ${TELEPORT_DOCKER_IMAGE} configure > ~/teleport/config/teleport.yaml
 # Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
