@@ -95,6 +95,8 @@ type userACL struct {
 	License access `json:"license"`
 	// Plugins defines whether the user has access to manage hosted plugin instances
 	Plugins access `json:"plugins"`
+	// Integrations defines whether the user has access to manage integrations.
+	Integrations access `json:"integrations"`
 }
 
 type authType string
@@ -204,6 +206,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	directorySharing := userRoles.DesktopDirectorySharing()
 	download := newAccess(userRoles, ctx, types.KindDownload)
 	license := newAccess(userRoles, ctx, types.KindLicense)
+	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -229,6 +232,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Download:                download,
 		License:                 license,
 		Plugins:                 pluginsAccess,
+		Integrations:            integrationsAccess,
 	}
 
 	// local user
