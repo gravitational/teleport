@@ -708,7 +708,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	}
 
 	ctx := authz.ContextWithUser(s.closeContext, user)
-	authCtx, _, err := s.authorizeContext(ctx)
+	authCtx, _, err := Authorize(ctx, s.c.Authorizer, s, s.c.AccessPoint)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -794,7 +794,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) error {
 	// Extract the identity and application being requested from the certificate
 	// and check if the caller has access.
-	authCtx, app, err := s.authorizeContext(r.Context())
+	authCtx, app, err := Authorize(r.Context(), s.c.Authorizer, s, s.c.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -886,81 +886,12 @@ func (s *Server) getConnectionInfo(ctx context.Context, conn net.Conn) (*tls.Con
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
-	app, err := s.getApp(ctx, user.GetIdentity().RouteToApp.PublicAddr)
+	app, err := s.GetApp(ctx, user.GetIdentity().RouteToApp.PublicAddr)
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	return tlsConn, user, app, nil
-}
-
-// authorizeContext will check if the context carries identity information and
-// runs authorization checks on it.
-func (s *Server) authorizeContext(ctx context.Context) (*authz.Context, types.Application, error) {
-	// Only allow local and remote identities to proxy to an application.
-	userType, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	switch userType.(type) {
-	case authz.LocalUser, authz.RemoteUser:
-	default:
-		return nil, nil, trace.BadParameter("invalid identity: %T", userType)
-	}
-
-	// Extract authorizing context and identity of the user from the request.
-	authContext, err := s.c.Authorizer.Authorize(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	identity := authContext.Identity.GetIdentity()
-
-	// Fetch the application and check if the identity has access.
-	app, err := s.getApp(ctx, identity.RouteToApp.PublicAddr)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	authPref, err := s.c.AccessPoint.GetAuthPreference(ctx)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	// When accessing AWS management console, check permissions to assume
-	// requested IAM role as well.
-	var matchers []services.RoleMatcher
-	if app.IsAWSConsole() {
-		matchers = append(matchers, &services.AWSRoleARNMatcher{
-			RoleARN: identity.RouteToApp.AWSRoleARN,
-		})
-	}
-
-	// When accessing Azure API, check permissions to assume
-	// requested Azure identity as well.
-	if app.IsAzureCloud() {
-		matchers = append(matchers, &services.AzureIdentityMatcher{
-			Identity: identity.RouteToApp.AzureIdentity,
-		})
-	}
-
-	// When accessing GCP API, check permissions to assume
-	// requested GCP service account as well.
-	if app.IsGCP() {
-		matchers = append(matchers, &services.GCPServiceAccountMatcher{
-			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
-		})
-	}
-
-	state := authContext.GetAccessState(authPref)
-	err = authContext.Checker.CheckAccess(
-		app,
-		state,
-		matchers...)
-	if err != nil {
-		return nil, nil, utils.OpaqueAccessDenied(err)
-	}
-
-	return authContext, app, nil
 }
 
 // getSession returns a request session used to proxy the request to the
@@ -984,12 +915,12 @@ func (s *Server) getSession(ctx context.Context, identity *tlsca.Identity, app t
 	return session, nil
 }
 
-// getApp returns an application matching the public address. If multiple
+// GetApp returns an application matching the public address. If multiple
 // matching applications exist, the first one is returned. Random selection
 // (or round robin) does not need to occur here because they will all point
 // to the same target address. Random selection (or round robin) occurs at the
 // web proxy to load balance requests to the application service.
-func (s *Server) getApp(ctx context.Context, publicAddr string) (types.Application, error) {
+func (s *Server) GetApp(ctx context.Context, publicAddr string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -1074,6 +1005,84 @@ func (s *Server) getProxyPort() string {
 		return strconv.Itoa(defaults.HTTPListenPort)
 	}
 	return port
+}
+
+// AppGetter is an interface for retrieving applications.
+type AppGetter interface {
+	// GetApp retrieves an application by its public address.
+	GetApp(context.Context, string) (types.Application, error)
+}
+
+// AuthPrefGetter is an interface for retrieving auth preferences.
+type AuthPrefGetter interface {
+	// GetAuthPreference will return the cluster auth preference.
+	GetAuthPreference(context.Context) (types.AuthPreference, error)
+}
+
+// Authorize will check if the context carries identity information and runs authorization checks on it.
+func Authorize(ctx context.Context, authorizer authz.Authorizer, appGetter AppGetter, authPrefGetter AuthPrefGetter) (*authz.Context, types.Application, error) {
+	// Extract authorizing context and identity of the user from the request.
+	authContext, err := authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	user := authContext.Identity
+
+	switch user.(type) {
+	case authz.LocalUser, authz.RemoteUser:
+	default:
+		return nil, nil, trace.BadParameter("invalid identity: %T", user)
+	}
+
+	identity := user.GetIdentity()
+	publicAddr := identity.RouteToApp.PublicAddr
+
+	// Fetch the application and check if the identity has access.
+	app, err := appGetter.GetApp(ctx, publicAddr)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	authPref, err := authPrefGetter.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// When accessing AWS management console, check permissions to assume
+	// requested IAM role as well.
+	var matchers []services.RoleMatcher
+	if app.IsAWSConsole() {
+		matchers = append(matchers, &services.AWSRoleARNMatcher{
+			RoleARN: identity.RouteToApp.AWSRoleARN,
+		})
+	}
+
+	// When accessing Azure API, check permissions to assume
+	// requested Azure identity as well.
+	if app.IsAzureCloud() {
+		matchers = append(matchers, &services.AzureIdentityMatcher{
+			Identity: identity.RouteToApp.AzureIdentity,
+		})
+	}
+
+	// When accessing GCP API, check permissions to assume
+	// requested GCP service account as well.
+	if app.IsGCP() {
+		matchers = append(matchers, &services.GCPServiceAccountMatcher{
+			ServiceAccount: identity.RouteToApp.GCPServiceAccount,
+		})
+	}
+
+	state := authContext.GetAccessState(authPref)
+	err = authContext.Checker.CheckAccess(
+		app,
+		state,
+		matchers...)
+	if err != nil {
+		return nil, nil, utils.OpaqueAccessDenied(err)
+	}
+
+	return authContext, app, nil
 }
 
 // CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
