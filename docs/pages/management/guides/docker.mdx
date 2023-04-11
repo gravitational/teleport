@@ -121,7 +121,7 @@ $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
   -p 3023:3023 -p 3025:3025 -p 3080:3080 \
-  (=teleport.latest_ent_docker_image=)
+  ${TELEPORT_DOCKER_IMAGE}
 ```
 
 </TabItem>
