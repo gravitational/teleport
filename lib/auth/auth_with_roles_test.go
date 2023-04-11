@@ -51,6 +51,7 @@ import (
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -4638,6 +4639,207 @@ func TestGenerateCertAuthorityCRL(t *testing.T) {
 
 			_, err = s.GenerateCertAuthorityCRL(ctx, types.UserCA)
 			tc.assertErr(t, err)
+		})
+	}
+}
+
+func TestCheckRoleFeatureSupport(t *testing.T) {
+	tt := []struct {
+		name     string
+		role     types.Role
+		features modules.Features
+		assert   require.ErrorAssertionFunc
+	}{
+		{
+			name: "role option max_sessions isn't available when features.AccessControls is disabled",
+			features: modules.Features{
+				AccessControls: false,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessions: 1,
+					},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "role option max_sessions is available when features.AccessControls is enabled",
+			features: modules.Features{
+				AccessControls: true,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						MaxSessions: 1,
+					},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "role option request_access 'reason' is not available when features.AdvancedAccessWorkflows is disabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: false,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequestAccess: types.RequestStrategyReason,
+					},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "role option request_access 'reason' is available when features.AdvancedAccessWorkflows is enabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: true,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequestAccess: types.RequestStrategyReason,
+					},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "role option request_access 'always' is not available when features.AdvancedAccessWorkflows is disabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: false,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequestAccess: types.RequestStrategyAlways,
+					},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "role option request_access 'always' is available when features.AdvancedAccessWorkflows is enabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: true,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						RequestAccess: types.RequestStrategyAlways,
+					},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "role field allow.request.thresholds is not available when modules.Features is disabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: false,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Thresholds: []types.AccessReviewThreshold{
+								{},
+							},
+						},
+					},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "role field allow.request.thresholds is available when modules.Features is enabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: true,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Thresholds: []types.AccessReviewThreshold{
+								{},
+							},
+						},
+					},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "role field allow.review_requests is not available when features.AdvancedAccessWorkflows is disabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: false,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"role"},
+						},
+					},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "role field allow.review_requests is available when features.AdvancedAccessWorkflows is enabled",
+			features: modules.Features{
+				AdvancedAccessWorkflows: true,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"role"},
+						},
+					},
+				},
+			},
+			assert: require.NoError,
+		},
+		{
+			name: "role option device_trust_mode can't be 'required' if cluster doesn't support Device Trust",
+			features: modules.Features{
+				DeviceTrust: false,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						DeviceTrustMode: constants.DeviceTrustModeRequired,
+					},
+				},
+			},
+			assert: require.Error,
+		},
+		{
+			name: "role option device_trust_mode can be 'required' if cluster supports Device Trust",
+			features: modules.Features{
+				DeviceTrust: true,
+			},
+			role: &types.RoleV6{
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						DeviceTrustMode: constants.DeviceTrustModeRequired,
+					},
+				},
+			},
+			assert: require.NoError,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			modules.SetTestModules(t, &modules.TestModules{
+				TestFeatures: tc.features,
+			})
+
+			err := checkRoleFeatureSupport(tc.role)
+			tc.assert(t, err)
 		})
 	}
 }
