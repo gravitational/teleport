@@ -32,7 +32,7 @@ For example:
 - A v12.2+ Teleport cluster with WebAuthn configured.
   See the [Second Factor: WebAuthn](./webauthn.mdx) guide.
 - WebAuthn hardware device, such as YubiKey.
-- Machines for Headless WebAuthn activities have [Linux](../../installation.mdx#linux), [Mac](../../installation.mdx#macos) or [Windows](../../installation.mdx#windows-tsh-client-only) `tsh` binary v12.2+ installed.
+- Machines for Headless WebAuthn activities have [Linux](../../installation.mdx#linux), [macOS](../../installation.mdx#macos) or [Windows](../../installation.mdx#windows-tsh-client-only) `tsh` binary v12.2+ installed.
 - Machines used to approve Headless WebAuthn requests have a Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) or `tsh` binary v12.2+ installed.
 
@@ -136,7 +136,7 @@ Unlike a standard login session, headless sessions are only available for the
 lifetime of a single `tsh` request. This means that for each `tsh --headless`
 command, you will need to go through the Headless WebAuthn flow:
 
-### List SSH Servers Example:
+### Example: Listing SSH servers
 ```code 
 $ tsh ls --headless --proxy=proxy.example.com --user=alice
 # Complete headless authentication in your local web browser:
@@ -152,7 +152,7 @@ $ tsh ls --headless --proxy=proxy.example.com --user=alice
 # server01  127.0.0.1:3022 arch=x86_64
 ```
 
-### SSH Session Example:
+### Example: Initiating an SSH session
 ```code
 $ tsh ssh --headless --proxy=proxy.example.com --user=alice alice@server01
 # Complete headless authentication in your local web browser:
