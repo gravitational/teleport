@@ -326,7 +326,7 @@ $ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.
 
 ### tsh proxy app
 
-Starts a local TLS proxy for Application Access connections.
+Starts a local TLS proxy for Application Service connections.
 You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
 which is especially useful for interacting with an application via a CLI.
 
@@ -1423,7 +1423,7 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
 | `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
-| `--db-service` | `""` | database service name | Generate a certificate for accessing the specified database service |
+| `--db-service` | `""` | Database Service name | Generate a certificate for accessing the specified Database Service instance |
 | `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
 | `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
 
