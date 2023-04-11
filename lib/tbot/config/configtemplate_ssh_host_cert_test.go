@@ -84,7 +84,7 @@ func TestTemplateSSHHostCertRender(t *testing.T) {
 	require.NoError(t, dest.CheckAndSetDefaults())
 
 	ident := getTestIdent(t, "bot-test")
-	err = template.Render(context.Background(), mockBot, ident, dest)
+	err = template.Render(context.Background(), mockBot, ident, ident, dest)
 	require.NoError(t, err)
 
 	// Make sure a cert is written. We just use a dummy cert (the CA fixture)
