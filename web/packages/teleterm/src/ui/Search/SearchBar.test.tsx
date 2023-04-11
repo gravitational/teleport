@@ -33,7 +33,10 @@ it('does not display empty results copy after selecting two filters', () => {
     draft.rootClusterUri = '/clusters/foo';
   });
 
-  const mockAttempts = [makeSuccessAttempt([])];
+  const mockAttempts = {
+    filterActionsAttempt: makeSuccessAttempt([]),
+    resourceActionsAttempt: makeSuccessAttempt([]),
+  };
   jest
     .spyOn(useSearchAttempts, 'useSearchAttempts')
     .mockImplementation(() => mockAttempts);
@@ -72,7 +75,10 @@ it('does display empty results copy after providing search query for which there
     draft.rootClusterUri = '/clusters/foo';
   });
 
-  const mockAttempts = [makeSuccessAttempt([])];
+  const mockAttempts = {
+    filterActionsAttempt: makeSuccessAttempt([]),
+    resourceActionsAttempt: makeSuccessAttempt([]),
+  };
   jest
     .spyOn(useSearchAttempts, 'useSearchAttempts')
     .mockImplementation(() => mockAttempts);
@@ -108,7 +114,10 @@ it('does display empty results copy and excluded clusters after providing search
     draft.rootClusterUri = '/clusters/foo';
   });
 
-  const mockAttempts = [makeSuccessAttempt([])];
+  const mockAttempts = {
+    filterActionsAttempt: makeSuccessAttempt([]),
+    resourceActionsAttempt: makeSuccessAttempt([]),
+  };
   jest
     .spyOn(useSearchAttempts, 'useSearchAttempts')
     .mockImplementation(() => mockAttempts);

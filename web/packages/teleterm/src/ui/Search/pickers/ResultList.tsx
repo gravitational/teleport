@@ -24,7 +24,6 @@ import React, {
 import styled from 'styled-components';
 
 import { Attempt } from 'shared/hooks/useAsync';
-import { Box } from 'design';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 

@@ -38,7 +38,7 @@ import * as uri from 'teleterm/ui/uri';
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
 
-import { isEmptySearch, useSearchAttempts } from './useSearchAttempts';
+import { useSearchAttempts } from './useSearchAttempts';
 import { getParameterPicker } from './pickers';
 import { ResultList, NonInteractiveItem } from './ResultList';
 import { PickerContainer } from './PickerContainer';
@@ -57,7 +57,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     filters,
     removeFilter,
   } = useSearchContext();
-  const attempts = useSearchAttempts();
+  const { filterActionsAttempt, resourceActionsAttempt } = useSearchAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
 
   const getClusterName = useCallback(
@@ -126,11 +126,25 @@ export function ActionPicker(props: { input: ReactElement }) {
     }
   }
 
-  const ExtraComponent = inputValue
-    ? attempts.every(a => isEmptySearch(a) && hasFinished(a)) && (
-        <NoResultsItem clusters={clustersService.getRootClusters()} />
-      )
-    : attempts.every(a => isEmptySearch(a)) && <TypeToSearchItem />;
+  let ExtraComponent = null;
+  // The order of attempts is important. Filter actions should be displayed before resource actions.
+  const attempts = [filterActionsAttempt, resourceActionsAttempt];
+  const attemptsHaveFinishedWithoutActions = attempts.every(
+    a => hasFinished(a) && a.data.length === 0
+  );
+  const noRemainingFilters =
+    filterActionsAttempt.status === 'success' &&
+    filterActionsAttempt.data.length === 0;
+
+  if (inputValue && attemptsHaveFinishedWithoutActions) {
+    ExtraComponent = (
+      <NoResultsItem clusters={clustersService.getRootClusters()} />
+    );
+  }
+
+  if (!inputValue && noRemainingFilters) {
+    ExtraComponent = <TypeToSearchItem />;
+  }
 
   return (
     <PickerContainer>
