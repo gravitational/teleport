@@ -20,7 +20,7 @@ import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { User } from 'teleport/services/user';
-import {AuthProviderType} from 'shared/services/types';
+import { AuthProviderType } from 'shared/services/types';
 
 export default function UserList({
   users = [],
@@ -88,13 +88,13 @@ export default function UserList({
   function renderAuthType(authType: AuthProviderType) {
     switch (authType) {
       case 'github':
-       return 'GitHub';
-     case 'saml':
-       return 'SAML';
-     case 'oidc':
-       return 'OIDC';
-   }
-   return authType;
+        return 'GitHub';
+      case 'saml':
+        return 'SAML';
+      case 'oidc':
+        return 'OIDC';
+    }
+    return authType;
   }
 }
 
