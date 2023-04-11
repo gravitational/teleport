@@ -1412,11 +1412,18 @@ func (h *Handler) githubLoginWeb(w http.ResponseWriter, r *http.Request, p httpr
 		return client.LoginFailedRedirectURL
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return client.LoginFailedRedirectURL
+	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
 		CSRFToken:         req.CSRFToken,
 		ConnectorID:       req.ConnectorID,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
+		ClientLoginIP:     remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -1442,6 +1449,12 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		return nil, trace.AccessDenied(SSOLoginFailureMessage)
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return nil, trace.AccessDenied(SSOLoginFailureMessage)
+	}
+
 	response, err := h.cfg.ProxyClient.CreateGithubAuthRequest(r.Context(), types.GithubAuthRequest{
 		ConnectorID:          req.ConnectorID,
 		PublicKey:            req.PublicKey,
@@ -1451,6 +1464,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		RouteToCluster:       req.RouteToCluster,
 		KubernetesCluster:    req.KubernetesCluster,
 		AttestationStatement: req.AttestationStatement.ToProto(),
+		ClientLoginIP:        remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create GitHub auth request.")
