@@ -596,7 +596,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// but this endpoint is still used by the UI. When time allows evaluate the
 	// removal of this handler and the associated methods here and in the UI.
 	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
-	h.GET("/webapi/sites/:site/sessions/:sid", h.WithClusterAuth(h.siteSessionGet))  // get active session metadata
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -2881,37 +2880,6 @@ func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *h
 	}
 
 	return siteSessionsGetResponse{Sessions: sessions}, nil
-}
-
-// siteSessionGet gets the list of site session by id
-//
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid
-//
-// Response body:
-//
-// {"session": {"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}}
-func (h *Handler) siteSessionGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	sessionID, err := session.ParseID(p.ByName("sid"))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	h.log.Infof("web.getSession(%v)", sessionID)
-
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	tracker, err := clt.GetSessionTracker(r.Context(), string(*sessionID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
-		return nil, trace.NotFound("session %v not found", sessionID)
-	}
-
-	return trackerToLegacySession(tracker, site.GetName()), nil
 }
 
 const maxStreamBytes = 5 * 1024 * 1024

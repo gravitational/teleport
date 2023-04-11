@@ -156,10 +156,10 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
-    activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
-    terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
+    activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -461,8 +461,8 @@ const cfg = {
     return generatePath(cfg.api.userWithUsernamePath, { username });
   },
 
-  getTerminalSessionUrl({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.api.terminalSessionPath, { clusterId, sid });
+  getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
   },
 
   getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
