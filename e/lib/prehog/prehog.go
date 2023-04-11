@@ -29,9 +29,9 @@ const (
 
 var log = logrus.WithField(trace.Component, prehogComponent)
 
-// InitPreHogUsageReporting adds the prehog usage reporter to the given Teleport
-// process.
-func InitPreHogUsageReporting(
+// InitStreamingUsageReporting adds the prehog usage reporter to the given
+// Teleport process.
+func InitStreamingUsageReporting(
 	ctx context.Context,
 	licenseFile *licensefile.LicenseFile,
 	process *service.TeleportProcess,
@@ -69,7 +69,7 @@ func InitPreHogUsageReporting(
 	}
 
 	// Replace the discard usage reporter with the real implementation.
-	reporter, err := usagereporter.NewTeleportUsageReporter(log, clusterName, submitter)
+	reporter, err := usagereporter.NewStreamingUsageReporter(log, clusterName, submitter)
 	if err != nil {
 		return trace.Wrap(err)
 	}

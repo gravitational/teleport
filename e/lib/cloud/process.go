@@ -137,7 +137,7 @@ func NewTeleport(cfg Config) (*Process, error) {
 	// Start usage reporting
 	go usageReporter.Run(process.ExitContext())
 
-	if err := prehog.InitPreHogUsageReporting(
+	if err := prehog.InitStreamingUsageReporting(
 		process.ExitContext(),
 		cfg.LicenseFile,
 		process.TeleportProcess,

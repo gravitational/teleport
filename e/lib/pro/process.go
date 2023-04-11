@@ -10,6 +10,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth"
 	cloudlib "github.com/gravitational/teleport/e/lib/cloud"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
@@ -96,5 +97,17 @@ func NewTeleport(cfg Config) (*Process, error) {
 	}
 
 	go licensefile.RunLicenseChecker(process.ExitContext(), process.GetAuthServer(), process.LicenseFile)
+
+	if cfg.LicenseFile.License.GetSalesCenterReporting() {
+		// forcibly stops when ExitContext closes or is gracefully stopped in
+		// auth.shutdown
+		if err := prehog.InitAggregatingUsageReporting(
+			process.TeleportProcess,
+			cfg.LicenseFile,
+		); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return process, nil
 }
