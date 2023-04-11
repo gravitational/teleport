@@ -106,7 +106,9 @@ class TeleportContext implements types.Context {
         downloadCenter: false,
         discover: false,
         plugins: false,
+        integrations: false,
         deviceTrust: false,
+        enrollIntegrations: false,
       };
     }
 
@@ -128,7 +130,11 @@ class TeleportContext implements types.Context {
       newAccessRequest: userContext.getAccessRequestAccess().create,
       downloadCenter: userContext.hasDownloadCenterListAccess(),
       discover: userContext.hasDiscoverAccess(),
-      plugins: userContext.hasPluginsAccess(),
+      plugins: userContext.getPluginsAccess().list,
+      integrations: userContext.getIntegrationsAccess().list,
+      enrollIntegrations:
+        userContext.getPluginsAccess().create ||
+        userContext.getIntegrationsAccess().create,
       deviceTrust: userContext.getDeviceTrustAccess().list,
     };
   }
