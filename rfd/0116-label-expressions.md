@@ -241,7 +241,7 @@ Benchmark results: TBD
 Predicate expressions are parsed and evaluated in two distinct stages.
 
 The first stage takes the raw string expression as input, parses the syntax, and
-returns a closure with is essentially a plain Go function.
+returns a closure which is essentially a plain Go function.
 
 The second stage takes closure from the first stage and invokes it with the
 evaluation context (resource labels, user traits) as input to produce a result.
