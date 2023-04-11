@@ -28,7 +28,7 @@ type IntegrationAWSOIDCSpec struct {
 	RoleARN string `json:"roleArn,omitempty"`
 }
 
-// Integration describes the base Integration fields (can be read or wri) Integration
+// Integration describes Integration fields
 type Integration struct {
 	// Name is the Integration name.
 	Name string `json:"name,omitempty"`

@@ -267,6 +267,10 @@ func (ig *IntegrationV1) MarshalJSON() ([]byte, error) {
 
 	switch ig.SubKind {
 	case IntegrationSubKindAWSOIDC:
+		if ig.GetAWSOIDCIntegrationSpec() == nil {
+			return nil, trace.BadParameter("missing subkind data for %q subkind", ig.SubKind)
+		}
+
 		d.Spec.AWSOIDC = *ig.GetAWSOIDCIntegrationSpec()
 	default:
 		return nil, trace.BadParameter("invalid subkind %q", ig.SubKind)
