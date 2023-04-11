@@ -74,6 +74,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	webPack := helpers.LoginWebClient(t, proxyAddr.String(), username, userPassword)
 
 	// List integrations should return empty
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err := webPack.DoRequest(http.MethodGet, integrationsEndpoint, nil)
 	respBody := readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
@@ -93,12 +94,14 @@ func TestIntegrationCRUD(t *testing.T) {
 		},
 	}
 
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err = webPack.DoRequest(http.MethodPost, integrationsEndpoint, createIntegrationReq)
 	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 
 	// Get One Integration by name
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"/MyAWSAccount", nil)
 	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
@@ -116,6 +119,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}, integrationResp, string(respBody))
 
 	// Update the integration to another RoleARN
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err = webPack.DoRequest(http.MethodPut, integrationsEndpoint+"/MyAWSAccount", ui.UpdateIntegrationRequest{
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
@@ -137,6 +141,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}, integrationResp, string(respBody))
 
 	// Delete resource
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err = webPack.DoRequest(http.MethodDelete, integrationsEndpoint+"/MyAWSAccount", nil)
 	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
@@ -155,13 +160,15 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 		}
 
-		resp, err = webPack.DoRequest(http.MethodPost, integrationsEndpoint, createIntegrationReq)
+		//nolint:bodyclose // Body is closed in readAllReadCloser
+		resp, err := webPack.DoRequest(http.MethodPost, integrationsEndpoint, createIntegrationReq)
 		respBody = readAllReadCloser(t, resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
 	}
 
 	// List integrations should return a full page
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"?limit=10", nil)
 	respBody = readAllReadCloser(t, resp.Body)
 	require.NoError(t, err)
@@ -173,6 +180,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.Len(t, listResp.Items, pageSize)
 
 	// Requesting the 2nd page should return a full page
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
 	require.NoError(t, err)
 
@@ -185,8 +193,11 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.Len(t, listResp.Items, pageSize)
 
 	// Requesting the 3rd page should return a single item and empty StartKey
+	//nolint:bodyclose // Body is closed in readAllReadCloser
 	resp, err = webPack.DoRequest(http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
-	respBody = readAllReadCloser(t, resp.Body)
+	respBody, errReadAll := io.ReadAll(resp.Body)
+	require.NoError(t, errReadAll)
+	resp.Body.Close()
 	require.NoError(t, err)
 
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
