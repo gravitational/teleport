@@ -513,7 +513,8 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 	serverSessions.Inc()
 	startTime := time.Now().UTC()
 	rsess := rsession.Session{
-		ID: id,
+		Kind: types.SSHSessionKind,
+		ID:   id,
 		TerminalParams: rsession.TerminalParams{
 			W: teleport.DefaultTerminalWidth,
 			H: teleport.DefaultTerminalHeight,

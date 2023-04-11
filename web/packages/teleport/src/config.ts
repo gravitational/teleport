@@ -156,7 +156,7 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
-    siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
+    activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
@@ -463,6 +463,10 @@ const cfg = {
 
   getTerminalSessionUrl({ clusterId, sid }: UrlParams) {
     return generatePath(cfg.api.terminalSessionPath, { clusterId, sid });
+  },
+
+  getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
+    return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
 
   getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {

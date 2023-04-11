@@ -590,8 +590,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.DELETE("/webapi/sites/:site/locks/:uuid", h.WithClusterAuth(h.deleteClusterLock))
 
 	// active sessions handlers
-	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))  // connect to an active session (via websocket)
-	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionsGet)) // get active list of sessions
+	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))                     // connect to an active session (via websocket)
+	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
 	// TODO POSTS to `/webapi/sites/:site/sessions` should no longer be required
 	// but this endpoint is still used by the UI. When time allows evaluate the
 	// removal of this handler and the associated methods here and in the UI.
@@ -2704,6 +2704,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
+		Kind:           types.SSHSessionKind,
 		Login:          req.Login,
 		ServerID:       id,
 		ClusterName:    clusterName,
@@ -2718,6 +2719,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	}, nil
 }
 
+// fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
 func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
@@ -2843,15 +2845,10 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 	}
 }
 
-// siteSessionsGet gets the list of site sessions filtered by creation time
-// and whether they're active or not
+// clusterActiveAndPendingSessionsGet gets the list of active and pending sessions for a site.
 //
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions
-//
-// Response body:
-//
-// {"sessions": [{"id": "sid", "terminal_params": {"w": 100, "h": 100}, "parties": [], "login": "bob"}, ...] }
-func (h *Handler) siteSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// GET /v1/webapi/sites/:site/sessions
+func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
 		return nil, trace.Wrap(err)

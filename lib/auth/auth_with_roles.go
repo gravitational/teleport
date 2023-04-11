@@ -326,6 +326,7 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	if tracker.GetKind() == types.KindSSHSession {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
+			Kind:           tracker.GetSessionKind(),
 			ID:             session.ID(tracker.GetSessionID()),
 			Namespace:      apidefaults.Namespace,
 			Login:          tracker.GetLogin(),
