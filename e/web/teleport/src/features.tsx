@@ -221,29 +221,17 @@ class FeatureIntegrations extends OSS.FeatureIntegrations {
   }
 }
 
-// TODO(lisa): move this to OS
-class FeatureIntegrationEnroll implements TeleportFeature {
-  category = NavigationCategory.Management;
-  section = ManagementSection.Access;
-
+class FeatureIntegrationEnroll extends OSS.FeatureIntegrationEnroll {
   route = {
-    title: 'Enroll New Integration',
-    path: cfg.oss.routes.integrationEnroll,
-    exact: false,
+    ...super.getRoute(),
+    // Enterprise version includes creating both plugin
+    // and integration resources.
     component: () => <IntegrationEnroll />,
   };
 
   hasAccess(flags: FeatureFlags) {
-    return flags.enrollIntegrations;
+    return flags.enrollIntegrationsOrPlugins;
   }
-
-  navigationItem = {
-    title: 'Enroll New Integration',
-    icon: <Icons.Add />,
-    getLink() {
-      return cfg.oss.getIntegrationEnrollRoute(null);
-    },
-  };
 }
 
 // ****************************

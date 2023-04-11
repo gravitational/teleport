@@ -24,10 +24,11 @@ import {
 } from 'teleport/components/Layout';
 
 import { getXCSRFToken } from 'teleport/services/api';
+import { IntegrationTypes } from 'teleport/IntegrationEnroll';
 
 import cfg from 'e-teleport/config';
 
-import { pluginTypeMap } from '../data';
+import { pluginTypeMap, PluginTypes } from '../data';
 
 import { State, useIntegrationEnroll } from './useIntegrationEnroll';
 import { IntegrationPick } from './IntegrationPick';
@@ -38,35 +39,55 @@ export function Container() {
 }
 
 export function IntegrationEnroll(props: State) {
-  const { attempt, availableTypes, existingTypes } = props;
-  const { type: selectedType } = useParams<{ type: string }>();
+  const {
+    attempt,
+    availableTypes,
+    existingTypes,
+    hasPluginAccess,
+    hasIntegrationAccess,
+  } = props;
+  const { type: selectedType } =
+    useParams<{ type: PluginTypes | IntegrationTypes }>();
+
+  if (selectedType) {
+    if (selectedType === 'aws-oidc') {
+      // TODO(lisa): add the component for AWS integration.
+      return;
+    }
+
+    return (
+      <FeatureBox>
+        <PluginForm selectedType={selectedType} />
+      </FeatureBox>
+    );
+  }
+
+  let content;
+  if (attempt.status === 'processing') {
+    content = (
+      <Box textAlign="center" m={10}>
+        <Indicator />
+      </Box>
+    );
+  } else if (attempt.status === 'failed') {
+    content = <Alert children={attempt.statusText} />;
+  } else {
+    content = (
+      <IntegrationPick
+        availableTypes={availableTypes}
+        existingTypes={existingTypes}
+        hasPluginAccess={hasPluginAccess}
+        hasIntegrationAccess={hasIntegrationAccess}
+      />
+    );
+  }
 
   return (
     <FeatureBox>
-      {selectedType && <PluginForm selectedType={selectedType} />}
-      {!selectedType && (
-        <>
-          <FeatureHeader>
-            <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
-          </FeatureHeader>
-          <Box>
-            {attempt.status === 'processing' && (
-              <Box textAlign="center" m={10}>
-                <Indicator />
-              </Box>
-            )}
-            {attempt.status === 'success' && (
-              <IntegrationPick
-                availableTypes={availableTypes}
-                existingTypes={existingTypes}
-              />
-            )}
-            {attempt.status === 'failed' && (
-              <Alert children={attempt.statusText} />
-            )}
-          </Box>
-        </>
-      )}
+      <FeatureHeader>
+        <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
+      </FeatureHeader>
+      <Box>{content}</Box>
     </FeatureBox>
   );
 }

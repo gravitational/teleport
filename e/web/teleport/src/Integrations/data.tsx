@@ -29,8 +29,10 @@ type HostedPluginData = {
   permissions?: CategoryPermissions[];
 };
 
+export type PluginTypes = 'slack' | 'pagerduty' | 'email';
+
 export type PluginType = {
-  type: string;
+  type: PluginTypes;
   name: string;
   icon: string;
   url: string;

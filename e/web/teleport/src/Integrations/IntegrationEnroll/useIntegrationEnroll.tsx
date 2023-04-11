@@ -5,11 +5,15 @@ import useTeleport from 'e-teleport/useTeleportE';
 
 export function useIntegrationEnroll() {
   const ctx = useTeleport();
+
+  const hasPluginAccess = ctx.storeUser.getPluginsAccess().create;
+  const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;
+  const { attempt, run } = useAttempt(hasPluginAccess ? 'processing' : '');
+
   const [types, setTypes] = useState<{
     availableTypes: string[];
     existingTypes: string[];
   }>({ availableTypes: [], existingTypes: [] });
-  const { attempt, run } = useAttempt('processing');
 
   async function fetchTypes() {
     const [availableTypes, existingTypes] = await Promise.all([
@@ -22,7 +26,9 @@ export function useIntegrationEnroll() {
   }
 
   useEffect(() => {
-    run(() => fetchTypes());
+    if (hasPluginAccess) {
+      run(() => fetchTypes());
+    }
   }, []);
 
   return {
@@ -30,6 +36,8 @@ export function useIntegrationEnroll() {
     existingTypes: types.existingTypes,
     attempt,
     run,
+    hasPluginAccess,
+    hasIntegrationAccess,
   };
 }
 

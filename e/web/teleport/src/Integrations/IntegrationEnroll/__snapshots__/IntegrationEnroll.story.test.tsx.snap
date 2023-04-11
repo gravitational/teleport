@@ -98,6 +98,11 @@ exports[`render NoPluginsEnrolled 1`] = `
 }
 
 .c6 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -107,14 +112,13 @@ exports[`render NoPluginsEnrolled 1`] = `
   font-weight: 600;
 }
 
-.c7 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  margin-bottom: 8px;
 }
 
 .c14 {
@@ -123,7 +127,17 @@ exports[`render NoPluginsEnrolled 1`] = `
   margin: 0px;
 }
 
-.c15 {
+.c16 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c17 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
@@ -136,6 +150,15 @@ exports[`render NoPluginsEnrolled 1`] = `
   outline: none;
   margin-top: 16px;
   margin-bottom: 16px;
+}
+
+.c15 {
+  display: block;
+  outline: none;
+  margin-bottom: 8px;
+  margin-top: 16px;
+  width: 80px;
+  height: 80px;
 }
 
 .c4 {
@@ -151,9 +174,8 @@ exports[`render NoPluginsEnrolled 1`] = `
   flex-direction: column;
 }
 
-.c8 {
+.c9 {
   box-sizing: border-box;
-  margin-top: 8px;
   margin-bottom: 8px;
   display: flex;
   gap: 16px;
@@ -198,34 +220,30 @@ exports[`render NoPluginsEnrolled 1`] = `
   padding-bottom: 24px;
 }
 
-.c12 {
-  display: inline-block;
-  height: 100%;
-}
-
 .c10 {
   box-sizing: border-box;
   display: flex;
+  color: inherit;
+  text-decoration: none;
   flex-direction: column;
   align-items: center;
+  position: relative;
   border-radius: 4px;
-  height: 144px;
-  width: 144px;
+  height: 170px;
+  width: 170px;
   background-color: #222C59;
+  text-align: center;
+  cursor: pointer;
+  opacity: 1;
 }
 
 .c10:hover {
   background-color: #2C3A73;
 }
 
-.c9 {
-  color: inherit;
-  text-decoration: none;
-}
-
-.c16 {
-  color: inherit;
-  text-decoration: none;
+.c12 {
+  display: inline-block;
+  height: 100%;
 }
 
 .c13 {
@@ -258,38 +276,60 @@ exports[`render NoPluginsEnrolled 1`] = `
         >
           <div
             class="c6"
-            font-weight="bold"
           >
-            No-Code Integrations
+            <div
+              class="c7"
+              font-weight="bold"
+            >
+              No-Code Integrations
+            </div>
+            <div
+              class="c8"
+            >
+              Hosted Integrations eliminate the setup work so you can quickly connect applications to Teleport for alerting and other useful functions. This list is short for now, but it will grow with time!
+            </div>
           </div>
           <div
-            class="c7"
-          >
-            Hosted Integrations eliminate the setup work so you can quickly connect applications to Teleport for alerting and other useful functions. This list is short for now, but it will grow with time!
-          </div>
-          <div
-            class="c8"
+            class="c9"
           >
             <a
-              class="c9"
+              class="c10"
+              data-testid="tile"
               href="/web/integrations/new/slack"
+              theme="[object Object]"
             >
+              <img
+                class="c11 c12"
+                src="file_stub"
+              />
               <div
-                class="c10"
+                class="c13"
               >
-                <img
-                  class="c11 c12"
-                  src="file_stub"
-                />
                 <div
-                  class="c13"
+                  class="c14"
                 >
-                  <div
-                    class="c14"
-                  >
-                    Slack
-                  </div>
+                  Slack
                 </div>
+              </div>
+            </a>
+            <a
+              class="c10"
+              data-testid="tile"
+              href="/web/integrations/new/aws-oidc"
+              theme="[object Object]"
+            >
+              <img
+                class="c15"
+                height="80px"
+                src="file_stub"
+                width="80px"
+              />
+              <div
+                class="c14"
+              >
+                Amazon Web Services
+                <br />
+                OIDC
               </div>
             </a>
           </div>
@@ -298,71 +338,68 @@ exports[`render NoPluginsEnrolled 1`] = `
           class="c5"
         >
           <div
-            class="c6"
+            class="c7"
             font-weight="bold"
           >
             Self-Hosted Plugins
           </div>
           <div
-            class="c7"
+            class="c16"
           >
             There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
              
             <a
-              class="c15"
+              class="c17"
               href="https://github.com/gravitational/teleport-plugins"
               rel="noreferrer"
+              target="_blank"
             >
               https://github.com/gravitational/teleport-plugins
             </a>
             . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
           </div>
           <div
-            class="c8"
+            class="c9"
           >
             <a
-              class="c15 c16"
+              class="c17 c10"
+              data-testid="tile"
               href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
               rel="noreferrer"
+              target="_blank"
             >
+              <img
+                class="c11 c12"
+                src="file_stub"
+              />
               <div
-                class="c10"
+                class="c13"
               >
-                <img
-                  class="c11 c12"
-                  src="file_stub"
-                />
                 <div
-                  class="c13"
+                  class="c14"
                 >
-                  <div
-                    class="c14"
-                  >
-                    PagerDuty
-                  </div>
+                  PagerDuty
                 </div>
               </div>
             </a>
             <a
-              class="c15 c16"
+              class="c17 c10"
+              data-testid="tile"
               href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
               rel="noreferrer"
+              target="_blank"
             >
+              <img
+                class="c11 c12"
+                src="file_stub"
+              />
               <div
-                class="c10"
+                class="c13"
               >
-                <img
-                  class="c11 c12"
-                  src="file_stub"
-                />
                 <div
-                  class="c13"
+                  class="c14"
                 >
-                  <div
-                    class="c14"
-                  >
-                    Email
-                  </div>
+                  Email
                 </div>
               </div>
             </a>
@@ -453,14 +490,19 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   box-sizing: border-box;
 }
 
-.c14 {
+.c6 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+}
+
+.c16 {
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
   color: #00bfa5;
 }
 
-.c6 {
+.c7 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -470,23 +512,32 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   font-weight: 600;
 }
 
-.c7 {
+.c8 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
   font-size: 14px;
   line-height: 24px;
   margin: 0px;
-  margin-bottom: 8px;
 }
 
-.c13 {
+.c15 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
 }
 
-.c16 {
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 24px;
+  margin: 0px;
+  margin-bottom: 16px;
+}
+
+.c10 {
   color: #03a9f4;
   font-weight: normal;
   background: none;
@@ -494,11 +545,20 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   text-transform: none;
 }
 
-.c10 {
+.c12 {
   display: block;
   outline: none;
   margin-top: 16px;
   margin-bottom: 16px;
+}
+
+.c19 {
+  display: block;
+  outline: none;
+  margin-bottom: 8px;
+  margin-top: 16px;
+  width: 80px;
+  height: 80px;
 }
 
 .c4 {
@@ -514,9 +574,8 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   flex-direction: column;
 }
 
-.c8 {
+.c9 {
   box-sizing: border-box;
-  margin-top: 8px;
   margin-bottom: 8px;
   display: flex;
   gap: 16px;
@@ -562,48 +621,54 @@ exports[`render SlackAlreadyEnrolled 1`] = `
 }
 
 .c11 {
-  display: inline-block;
-  height: 100%;
-}
-
-.c9 {
   box-sizing: border-box;
   display: flex;
+  color: inherit;
+  text-decoration: none;
   flex-direction: column;
   align-items: center;
+  position: relative;
   border-radius: 4px;
-  height: 144px;
-  width: 144px;
+  height: 170px;
+  width: 170px;
   background-color: #222C59;
+  text-align: center;
+  cursor: pointer;
 }
 
 .c18 {
   box-sizing: border-box;
   display: flex;
+  color: inherit;
+  text-decoration: none;
   flex-direction: column;
   align-items: center;
+  position: relative;
   border-radius: 4px;
-  height: 144px;
-  width: 144px;
+  height: 170px;
+  width: 170px;
   background-color: #222C59;
+  text-align: center;
+  cursor: pointer;
+  opacity: 1;
 }
 
 .c18:hover {
   background-color: #2C3A73;
 }
 
-.c17 {
-  color: inherit;
-  text-decoration: none;
+.c13 {
+  display: inline-block;
+  height: 100%;
 }
 
-.c12 {
+.c14 {
   box-sizing: border-box;
   margin-bottom: 8px;
   position: relative;
 }
 
-.c15 {
+.c17 {
   position: absolute;
   display: inline-flex;
   align-items: center;
@@ -635,112 +700,136 @@ exports[`render SlackAlreadyEnrolled 1`] = `
         >
           <div
             class="c6"
-            font-weight="bold"
-          >
-            No-Code Integrations
-          </div>
-          <div
-            class="c7"
-          >
-            Hosted Integrations eliminate the setup work so you can quickly connect applications to Teleport for alerting and other useful functions. This list is short for now, but it will grow with time!
-          </div>
-          <div
-            class="c8"
           >
             <div
-              class="c9"
-              disabled=""
+              class="c7"
+              font-weight="bold"
+            >
+              No-Code Integrations
+            </div>
+            <div
+              class="c8"
+            >
+              Hosted Integrations eliminate the setup work so you can quickly connect applications to Teleport for alerting and other useful functions. This list is short for now, but it will grow with time!
+            </div>
+          </div>
+          <div
+            class="c9"
+          >
+            <a
+              class="c10 c11"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/slack"
+              rel="noreferrer"
+              target="_blank"
             >
               <img
-                class="c10 c11"
+                class="c12 c13"
                 src="file_stub"
               />
               <div
-                class="c12"
+                class="c14"
               >
                 <div
-                  class="c13"
+                  class="c15"
                 >
                   Slack
                    
                   <span
-                    class="c14 icon icon-check c15"
+                    class="c16 icon icon-check c17"
                     color="success"
                   />
                 </div>
               </div>
-            </div>
+            </a>
+            <a
+              class="c18"
+              data-testid="tile"
+              href="/web/integrations/new/aws-oidc"
+              theme="[object Object]"
+            >
+              <img
+                class="c19"
+                height="80px"
+                src="file_stub"
+                width="80px"
+              />
+              <div
+                class="c15"
+              >
+                Amazon Web Services
+                <br />
+                OIDC
+              </div>
+            </a>
           </div>
         </div>
         <div
           class="c5"
         >
           <div
-            class="c6"
+            class="c7"
             font-weight="bold"
           >
             Self-Hosted Plugins
           </div>
           <div
-            class="c7"
+            class="c20"
           >
             There is a wide variety of plugins that you can source from the Teleport GitHub repository. See below for a sampling, or check out the base repo at
              
             <a
-              class="c16"
+              class="c10"
               href="https://github.com/gravitational/teleport-plugins"
               rel="noreferrer"
+              target="_blank"
             >
               https://github.com/gravitational/teleport-plugins
             </a>
             . Self-hosted plugins will not show up in your integration list, and must be managed outside of the Teleport UI.
           </div>
           <div
-            class="c8"
+            class="c9"
           >
             <a
-              class="c16 c17"
+              class="c10 c18"
+              data-testid="tile"
               href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
               rel="noreferrer"
+              target="_blank"
             >
+              <img
+                class="c12 c13"
+                src="file_stub"
+              />
               <div
-                class="c18"
+                class="c14"
               >
-                <img
-                  class="c10 c11"
-                  src="file_stub"
-                />
                 <div
-                  class="c12"
+                  class="c15"
                 >
-                  <div
-                    class="c13"
-                  >
-                    PagerDuty
-                  </div>
+                  PagerDuty
                 </div>
               </div>
             </a>
             <a
-              class="c16 c17"
+              class="c10 c18"
+              data-testid="tile"
               href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
               rel="noreferrer"
+              target="_blank"
             >
+              <img
+                class="c12 c13"
+                src="file_stub"
+              />
               <div
-                class="c18"
+                class="c14"
               >
-                <img
-                  class="c10 c11"
-                  src="file_stub"
-                />
                 <div
-                  class="c12"
+                  class="c15"
                 >
-                  <div
-                    class="c13"
-                  >
-                    Email
-                  </div>
+                  Email
                 </div>
               </div>
             </a>

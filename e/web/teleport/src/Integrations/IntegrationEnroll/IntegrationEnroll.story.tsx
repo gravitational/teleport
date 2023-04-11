@@ -25,6 +25,26 @@ export const SlackAlreadyEnrolled = () => (
   </MemoryRouter>
 );
 
+export const NoAccessToPlugins = () => (
+  <MemoryRouter>
+    <IntegrationEnroll
+      {...sample}
+      existingTypes={['slack']}
+      hasPluginAccess={false}
+    />
+  </MemoryRouter>
+);
+
+export const NoAccessToIntegrations = () => (
+  <MemoryRouter>
+    <IntegrationEnroll
+      {...sample}
+      existingTypes={['slack']}
+      hasIntegrationAccess={false}
+    />
+  </MemoryRouter>
+);
+
 export const Failed = () => (
   <MemoryRouter>
     <IntegrationEnroll
@@ -41,4 +61,6 @@ const sample = {
   availableTypes: ['slack'],
   existingTypes: [],
   run: () => Promise.resolve(true),
+  hasPluginAccess: true,
+  hasIntegrationAccess: true,
 };
