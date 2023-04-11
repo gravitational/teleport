@@ -86,7 +86,7 @@ const AuthConnectors = React.lazy(
   () => import(/* webpackChunkName: "auth-connectors" */ './AuthConnectors')
 );
 const Locks = React.lazy(
-  () => import(/* webpackChunkName: "lazy" */ './Locks')
+  () => import(/* webpackChunkName: "locks" */ './Locks')
 );
 const NewLock = React.lazy(
   () => import(/* webpackChunkName: "newLock" */ './Locks/NewLock')
@@ -102,6 +102,10 @@ const Discover = React.lazy(
 );
 const Integrations = React.lazy(
   () => import(/* webpackChunkName: "integrations" */ './Integrations')
+);
+const IntegrationEnroll = React.lazy(
+  () =>
+    import(/* webpackChunkName: "integration-enroll" */ './IntegrationEnroll')
 );
 
 // ****************************
@@ -425,6 +429,36 @@ export class FeatureIntegrations implements TeleportFeature {
   }
 }
 
+export class FeatureIntegrationEnroll implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Enroll New Integration',
+    path: cfg.routes.integrationEnroll,
+    exact: false,
+    component: () => <IntegrationEnroll />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.enrollIntegrations;
+  }
+
+  navigationItem = {
+    title: 'Enroll New Integration',
+    icon: <AddIcon />,
+    getLink() {
+      return cfg.getIntegrationEnrollRoute(null);
+    },
+  };
+
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
+  }
+}
+
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
@@ -591,6 +625,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureNewLock(),
     new FeatureIntegrations(),
     new FeatureDiscover(),
+    new FeatureIntegrationEnroll(),
 
     // - Activity
     new FeatureRecordings(),
