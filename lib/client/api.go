@@ -34,6 +34,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -1184,13 +1185,17 @@ func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
 
 // getTargetNodes returns a list of node addresses this SSH command needs to
 // operate on.
-func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListResourcesClient) ([]string, error) {
+func (tc *TeleportClient) getTargetNodes(ctx context.Context, clt client.ListResourcesClient, options SSHOptions) ([]string, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/getTargetNodes",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
 	defer span.End()
+
+	if options.HostAddress != "" {
+		return []string{options.HostAddress}, nil
+	}
 
 	// use the target node that was explicitly provided if valid
 	if len(tc.Labels) == 0 {
@@ -1422,11 +1427,27 @@ func (tc *TeleportClient) NewTracingClient(ctx context.Context) (*apitracing.Cli
 	return clt, nil
 }
 
+// SSHOptions allow overriding configuration
+// used when connecting to a host via [TeleportClient.SSH].
+type SSHOptions struct {
+	// HostAddress is the address of the target host. If specified it
+	// will be used instead of the target provided when `tsh ssh` was invoked.
+	HostAddress string
+}
+
+// WithHostAddress returns a SSHOptions which overrides the
+// target host address with the one provided.
+func WithHostAddress(addr string) func(*SSHOptions) {
+	return func(opt *SSHOptions) {
+		opt.HostAddress = addr
+	}
+}
+
 // SSH connects to a node and, if 'command' is specified, executes the command on it,
 // otherwise runs interactive shell
 //
 // Returns nil if successful, or (possibly) *exec.ExitError
-func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool) error {
+func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally bool, opts ...func(*SSHOptions)) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/SSH",
@@ -1437,6 +1458,11 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 		),
 	)
 	defer span.End()
+
+	var options SSHOptions
+	for _, opt := range opts {
+		opt(&options)
+	}
 
 	// connect to proxy first:
 	if !tc.Config.ProxySpecified() {
@@ -1450,7 +1476,7 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 	defer clt.Close()
 
 	// which nodes are we executing this commands on?
-	nodeAddrs, err := tc.getTargetNodes(ctx, clt.AuthClient)
+	nodeAddrs, err := tc.getTargetNodes(ctx, clt.AuthClient, options)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1465,11 +1491,10 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, runLocally 
 }
 
 // ConnectToNode attempts to establish a connection to the node resolved to by the provided
-// NodeDetails. If the connection fails due to an Access Denied error, Auth is queried to
-// determine if per-session MFA is required for the node. If it is required then the MFA
-// ceremony is performed and another connection is attempted with the freshly minted
-// certificates. If it is not required, then the original Access Denied error from the node
-// is returned.
+// NodeDetails. Connecting is attempted both with the already provisioned certificates and
+// if per session mfa is required, after completing the mfa ceremony. In the event that both
+// fail the error from the connection attempt with the already provisioned certificates will
+// be returned. The client from whichever attempt succeeds first will be returned.
 func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
 	node := nodeName(nodeDetails.Addr)
 	ctx, span := tc.Tracer.Start(
@@ -1483,67 +1508,164 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	)
 	defer span.End()
 
-	sshConfig := clt.ProxyClient.SSHConfig(user)
-
-	// if mfa is required generate new config after
-	// performing the mfa ceremony
+	// if per-session mfa is required, perform the mfa ceremony to get
+	// new certificates and use them to connect.
 	if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
-		cfg, err := clt.SessionSSHConfig(ctx, user, nodeDetails)
+		clt, err := tc.connectToNodeWithMFA(ctx, clt, nodeDetails, user)
+		return clt, trace.Wrap(err)
+	}
+
+	type clientRes struct {
+		clt *NodeClient
+		err error
+	}
+
+	directResultC := make(chan clientRes, 1)
+	mfaResultC := make(chan clientRes, 1)
+
+	// use a child context so the goroutines can terminate the other if they succeed
+	directCtx, directCancel := context.WithCancel(ctx)
+	mfaCtx, mfaCancel := context.WithCancel(ctx)
+	go func() {
+		ctx, span := tc.Tracer.Start(
+			directCtx,
+			"teleportClient/connectToNode",
+			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+			oteltrace.WithAttributes(
+				attribute.String("cluster", nodeDetails.Cluster),
+				attribute.String("node", node),
+			),
+		)
+		defer span.End()
+
+		// try connecting to the node with the certs we already have
+		conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			directResultC <- clientRes{err: err}
+			return
 		}
 
-		sshConfig = cfg
+		sshConfig := clt.ProxyClient.SSHConfig(user)
+		clt, err := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
+		directResultC <- clientRes{clt: clt, err: err}
+	}()
+
+	go func() {
+		// try performing mfa and then connecting with the single use certs
+		clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
+		mfaResultC <- clientRes{clt: clt, err: err}
+	}()
+
+	var directErr, mfaErr error
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			mfaCancel()
+			directCancel()
+			return nil, ctx.Err()
+		case res := <-directResultC:
+			if res.clt != nil {
+				mfaCancel()
+				res.clt.AddCancel(directCancel)
+				return res.clt, nil
+			}
+
+			directErr = res.err
+		case res := <-mfaResultC:
+			if res.clt != nil {
+				directCancel()
+				res.clt.AddCancel(mfaCancel)
+				return res.clt, nil
+			}
+
+			mfaErr = res.err
+		}
 	}
 
-	// try connecting to the node
-	conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	mfaCancel()
+	directCancel()
+
+	// Only return the error from connecting with mfa if the error
+	// originates from the mfa ceremony. If mfa is not required then
+	// the error from the direct connection to the node must be returned.
+	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) {
+		return nil, trace.Wrap(mfaErr)
 	}
 
-	nodeClient, connectErr := NewNodeClient(ctx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
-	switch {
-	case connectErr == nil: // no error return client
-		return nodeClient, nil
-	case nodeDetails.MFACheck != nil: // per-session mfa ceremony was already performed, return the results
-		return nodeClient, trace.Wrap(connectErr)
-	case connectErr != nil && !trace.IsAccessDenied(connectErr): // catastrophic error, return it
-		return nil, trace.Wrap(connectErr)
+	return nil, trace.Wrap(directErr)
+}
+
+// MFARequiredUnknownErr indicates that connections to an instance failed
+// due to being unable to determine if mfa is required
+type MFARequiredUnknownErr struct {
+	err error
+}
+
+// MFARequiredUnknown creates a new MFARequiredUnknownErr that wraps the
+// error encountered attempting to determine if the mfa ceremony should proceed.
+func MFARequiredUnknown(err error) error {
+	return MFARequiredUnknownErr{err: err}
+}
+
+// Error returns the error string of the wrapped error if one exists.
+func (m MFARequiredUnknownErr) Error() string {
+	if m.err == nil {
+		return ""
 	}
 
-	// access was denied, determine if it was because per-session mfa is required
-	nodeDetails.MFACheck, err = clt.AuthClient.IsMFARequired(ctx, &proto.IsMFARequiredRequest{
-		Target: &proto.IsMFARequiredRequest_Node{
-			Node: &proto.NodeLogin{
-				Node:  node,
-				Login: tc.HostLogin,
-			},
-		},
-	})
-	if err != nil {
-		log.Warnf("Unable to determine if session mfa is required: %v", err)
-		return nil, trace.Wrap(connectErr)
+	return m.err.Error()
+}
+
+// Unwrap returns the underlying error from checking if an mfa
+// ceremony should have been performed.
+func (m MFARequiredUnknownErr) Unwrap() error {
+	return m.err
+}
+
+// Is determines if the provided error is an MFARequiredUnknownErr.
+func (m MFARequiredUnknownErr) Is(err error) bool {
+	switch err.(type) {
+	case MFARequiredUnknownErr:
+		return true
+	case *MFARequiredUnknownErr:
+		return true
+	default:
+		return false
+	}
+}
+
+// connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
+// if it is required, then the mfa ceremony is attempted. The target host is dialed once the ceremony
+// completes and new certificates are retrieved.
+func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+	node := nodeName(nodeDetails.Addr)
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/connectToNodeWithMFA",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("cluster", nodeDetails.Cluster),
+			attribute.String("node", node),
+		),
+	)
+	defer span.End()
+
+	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
+		return nil, trace.Wrap(MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr)))
 	}
 
-	// per-session mfa isn't required, the user simply does not
-	// have access to the provided node
-	if !nodeDetails.MFACheck.Required {
-		return nil, trace.Wrap(connectErr)
-	}
-
-	// generate new config after performing the mfa ceremony
+	// per-session mfa is required, perform the mfa ceremony
 	cfg, err := clt.SessionSSHConfig(ctx, user, nodeDetails)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, details, err = clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+	conn, details, err := clt.ProxyClient.DialHost(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	nodeClient, err = NewNodeClient(ctx, cfg, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
+	nodeClient, err := NewNodeClient(ctx, cfg, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS)
 	return nodeClient, trace.Wrap(err)
 }
 
@@ -2075,30 +2197,38 @@ func isRemoteDest(name string) bool {
 	return strings.ContainsRune(name, ':')
 }
 
-// ListNodesWithFilters returns a list of nodes connected to a proxy
+// ListNodesWithFilters returns all nodes that match the filters in the current cluster
+// that the logged in user has access to.
 func (tc *TeleportClient) ListNodesWithFilters(ctx context.Context) ([]types.Server, error) {
+	req := tc.DefaultResourceFilter()
+	req.ResourceType = types.KindNode
+
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/ListNodesWithFilters",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("resource", req.ResourceType),
+			attribute.Int("limit", int(req.Limit)),
+			attribute.String("predicate", req.PredicateExpression),
+			attribute.StringSlice("keywords", req.SearchKeywords),
+		),
 	)
 	defer span.End()
 
-	// connect to the proxy and ask it to return a full list of servers
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clt.Close()
 
-	filter := tc.DefaultResourceFilter()
-	filter.ResourceType = types.KindNode
-	servers, err := proxyClient.FindNodesByFilters(ctx, *filter)
+	resources, err := client.GetResourcesWithFilters(ctx, clt.AuthClient, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return servers, nil
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	return servers, trace.Wrap(err)
 }
 
 // GetClusterAlerts returns a list of matching alerts from the current cluster.
@@ -2398,15 +2528,22 @@ func (tc *TeleportClient) ListAllNodes(ctx context.Context) ([]types.Server, err
 	)
 	defer span.End()
 
-	proxyClient, err := tc.ConnectToProxy(ctx)
+	clt, err := tc.ConnectToCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer proxyClient.Close()
+	defer clt.Close()
 
-	return proxyClient.FindNodesByFilters(ctx, proto.ListResourcesRequest{
-		Namespace: tc.Namespace,
+	resources, err := client.GetResourcesWithFilters(ctx, clt.AuthClient, proto.ListResourcesRequest{
+		Namespace:    tc.Namespace,
+		ResourceType: types.KindNode,
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	servers, err := types.ResourcesWithLabels(resources).AsServers()
+	return servers, trace.Wrap(err)
 }
 
 // ListKubernetesClustersWithFiltersAllClusters returns a map of all kube clusters in all clusters connected to a proxy.
@@ -2699,7 +2836,14 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		return nil, trace.Wrap(err)
 	}
 
-	aclt, err := auth.NewClient(pclt.ClientConfig(ctx, pclt.ClusterName()))
+	cluster := tc.SiteName
+	connected := pclt.ClusterName()
+	root, err := tc.rootClusterName()
+	if err == nil && len(tc.JumpHosts) > 0 && connected != root {
+		cluster = connected
+	}
+
+	aclt, err := auth.NewClient(pclt.ClientConfig(ctx, cluster))
 	if err != nil {
 		return nil, trace.NewAggregate(err, pclt.Close())
 	}
@@ -2709,6 +2853,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 		ProxyClient: pclt,
 		AuthClient:  aclt,
 		Tracer:      tc.Tracer,
+		cluster:     cluster,
 	}, nil
 }
 
@@ -2751,8 +2896,9 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 				// cluster. If it's the root cluster proxy, tc.SiteName could
 				// be pointing at a leaf cluster and we don't want to override
 				// that.
-				if clusterGuesser.clusterName != rootClusterName {
-					return clusterGuesser.clusterName
+				cluster := clusterGuesser.clusterName()
+				if cluster != rootClusterName {
+					return cluster
 				}
 				return tc.SiteName
 			}
@@ -2965,7 +3111,7 @@ func (tc *TeleportClient) rootClusterName() (string, error) {
 // the proxy host certificate. It then passes that name to signersForCluster to
 // get the SSH certificates for that cluster.
 type proxyClusterGuesser struct {
-	clusterName string
+	cluster atomic.Pointer[string]
 
 	nextHostKeyCallback ssh.HostKeyCallback
 	signersForCluster   func(context.Context, string) ([]ssh.Signer, error)
@@ -2983,19 +3129,33 @@ func (g *proxyClusterGuesser) hostKeyCallback(hostname string, remote net.Addr, 
 	if !ok {
 		return trace.BadParameter("remote proxy did not present a host certificate")
 	}
-	g.clusterName = cert.Permissions.Extensions[utils.CertExtensionAuthority]
-	if g.clusterName == "" {
+
+	clusterName, ok := cert.Permissions.Extensions[utils.CertExtensionAuthority]
+	if ok {
+		g.cluster.CompareAndSwap(nil, &clusterName)
+	}
+
+	if clusterName == "" {
 		log.Debugf("Target SSH server %q does not have a cluster name embedded in their certificate; will use all available client certificates to authenticate", hostname)
 	}
+
 	if g.nextHostKeyCallback != nil {
 		return g.nextHostKeyCallback(hostname, remote, key)
 	}
 	return nil
 }
 
+func (g *proxyClusterGuesser) clusterName() string {
+	name := g.cluster.Load()
+	if name != nil {
+		return *name
+	}
+	return ""
+}
+
 func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
 	return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-		return g.signersForCluster(ctx, g.clusterName)
+		return g.signersForCluster(ctx, g.clusterName())
 	})
 }
 

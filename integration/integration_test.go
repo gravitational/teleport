@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -7312,9 +7313,12 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 		require.NoError(t, testFile.Close())
 	})
 
-	_, err = testFile.WriteString("This is test data.")
+	contents := []byte("This is test data.")
+	_, err = testFile.Write(contents)
 	require.NoError(t, err)
 	require.NoError(t, testFile.Sync())
+	_, err = testFile.Seek(0, io.SeekStart)
+	require.NoError(t, err)
 
 	// Test stat'ing a file.
 	t.Run("stat", func(t *testing.T) {
@@ -7340,6 +7344,12 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 		_, err = io.Copy(downloadFile, remoteDownloadFile)
 		require.NoError(t, err)
+
+		_, err = downloadFile.Seek(0, io.SeekStart)
+		require.NoError(t, err)
+		data, err := io.ReadAll(downloadFile)
+		require.NoError(t, err)
+		require.Equal(t, contents, data)
 	})
 
 	// Test uploading a file.
@@ -7353,11 +7363,75 @@ func testSFTP(t *testing.T, suite *integrationTestSuite) {
 
 		_, err = io.Copy(remoteUploadFile, testFile)
 		require.NoError(t, err)
+
+		_, err = remoteUploadFile.Seek(0, io.SeekStart)
+		require.NoError(t, err)
+		data, err := io.ReadAll(remoteUploadFile)
+		require.NoError(t, err)
+		require.Equal(t, contents, data)
 	})
 
+	// Test changing file permissions.
 	t.Run("chmod", func(t *testing.T) {
-		err = sftpClient.Chmod(testFilePath, 0o777)
+		err := sftpClient.Chmod(testFilePath, 0o777)
 		require.NoError(t, err)
+
+		fi, err := os.Stat(testFilePath)
+		require.NoError(t, err)
+		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
+	})
+
+	// Test operations on a directory.
+	t.Run("mkdir", func(t *testing.T) {
+		dirPath := filepath.Join(tempDir, "dir")
+		require.NoError(t, sftpClient.Mkdir(dirPath))
+
+		err := sftpClient.Chmod(dirPath, 0o777)
+		require.NoError(t, err)
+
+		fi, err := os.Stat(dirPath)
+		require.NoError(t, err)
+		require.Equal(t, fs.FileMode(0o777), fi.Mode().Perm())
+
+		f, err := sftpClient.Create(filepath.Join(dirPath, "file"))
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		fileInfos, err := sftpClient.ReadDir(dirPath)
+		require.NoError(t, err)
+		require.Len(t, fileInfos, 1)
+		require.Equal(t, "file", fileInfos[0].Name())
+	})
+
+	// Test renaming a file.
+	t.Run("rename", func(t *testing.T) {
+		path := filepath.Join(tempDir, "to-be-renamed")
+		f, err := sftpClient.Create(path)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		newPath := path + "-done"
+		err = sftpClient.Rename(path, newPath)
+		require.NoError(t, err)
+
+		_, err = sftpClient.Stat(path)
+		require.ErrorIs(t, err, os.ErrNotExist)
+		_, err = sftpClient.Stat(newPath)
+		require.NoError(t, err)
+	})
+
+	// Test removing a file.
+	t.Run("remove", func(t *testing.T) {
+		path := filepath.Join(tempDir, "to-be-removed")
+		f, err := sftpClient.Create(path)
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		err = sftpClient.Remove(path)
+		require.NoError(t, err)
+
+		_, err = sftpClient.Stat(path)
+		require.ErrorIs(t, err, os.ErrNotExist)
 	})
 
 	// Ensure SFTP audit events are present.
@@ -7478,20 +7552,34 @@ func testAgentlessConnection(t *testing.T, suite *integrationTestSuite) {
 		tc.Username,
 	)
 	require.NoError(t, err)
+	t.Cleanup(func() {
+		// ignore the error here, nodeClient is closed below if the
+		// test passes
+		_ = nodeClient.Close()
+	})
 
 	// forward SSH agent
 	sshClient := nodeClient.Client.Client
 	session, err := sshClient.NewSession()
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		require.NoError(t, session.Close())
+		// the SSH server will close the session to avoid a deadlock,
+		// so closing it here will result in io.EOF if the test passes
+		_ = session.Close()
 	})
 	require.NoError(t, agent.ForwardToAgent(sshClient, tc.LocalAgent()))
 	require.NoError(t, agent.RequestAgentForwarding(session))
 
+	// run a command
+	err = session.Run("cmd")
+	require.NoError(t, err)
+
 	require.NoError(t, nodeClient.Close())
 }
 
+// startSSHServer starts a SSH server that roughly mimics an unregistered
+// OpenSSH (agentless) server. The SSH server started only handles a small
+// subset of SSH requests necessary for testing.
 func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer) string {
 	sshCfg := ssh.ServerConfig{
 		PublicKeyCallback: func(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
@@ -7534,6 +7622,7 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		go ssh.DiscardRequests(reqs)
 
 		var agentForwarded bool
+		var cmdRequested bool
 		for channelReq := range channels {
 			assert.Equal(t, "session", channelReq.ChannelType())
 			channel, reqs, err := channelReq.Accept()
@@ -7549,11 +7638,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				if req.Type == sshutils.AgentForwardRequest {
 					agentForwarded = true
+				} else if req.Type == sshutils.ExecRequest {
+					_, err = channel.SendRequest("exit-status", false, binary.BigEndian.AppendUint32(nil, 0))
+					assert.NoError(t, err)
+					err = channel.Close()
+					assert.NoError(t, err)
+
+					cmdRequested = true
 					break
 				}
 			}
 		}
 		assert.True(t, agentForwarded)
+		assert.True(t, cmdRequested)
 	}()
 
 	return lis.Addr().String()

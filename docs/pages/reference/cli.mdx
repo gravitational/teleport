@@ -5,7 +5,7 @@ description: Detailed guide and reference documentation for Teleport's command l
 
 Teleport is made up of four CLI tools.
 
-- [teleport](#teleport): Supports the Teleport access plane by starting and configuring various Teleport services.
+- [teleport](#teleport): Supports the Teleport Access Platform by starting and configuring various Teleport services.
 - [tsh](#tsh): Allows end users to authenticate to Teleport and access resources in a cluster.
 - [tctl](#tctl): Used to configure the Teleport Auth Service.
 - [tbot](#tbot): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
@@ -16,7 +16,7 @@ Teleport is made up of four CLI tools.
 
 ## teleport
 
-The CLI tool that supports the Teleport access plane is called `teleport`, and allows Teleport services to be managed
+The CLI tool that supports the Teleport Access Platform is called `teleport`, and allows Teleport services to be managed
 over the command line:
 
 - [Auth](../architecture/authentication.mdx)
@@ -32,7 +32,7 @@ The primary commands for the `teleport` CLI are as follows:
 | Command | Description |
 | - | - |
 | `teleport help` | Outputs guidance for using Teleport commands. |
-| `teleport start` | Starts the `teleport` process in the foregound using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
+| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport configure` | Generates and writes a [configuration YAML file](config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
@@ -148,6 +148,7 @@ information about the cluster.
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
 | `--headless` | none | none | Use Headless WebAuthn for authentication |
+| `--mlock` | `auto` | `auto`, `off`, `best_effort`, `strict` | Lock process memory to protect client secrets stored in memory from being swapped to disk. |
 
 ### tsh help
 
@@ -289,7 +290,7 @@ authenticated to a Google Cloud application in Teleport before they can execute
 `tsh gcloud` commands.
 
 ```code
-$ tsh gcloud [--app] [<command>] 
+$ tsh gcloud [--app] [<command>]
 ```
 
 #### Arguments
@@ -310,7 +311,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 #### Examples
 
 ```code
-$ tsh gcloud compute instances list 
+$ tsh gcloud compute instances list
 ```
 
 ### tsh gsutil
@@ -321,7 +322,7 @@ authenticated to a Google Cloud application in Teleport before they can execute
 `tsh gsutil` commands.
 
 ```code
-$ tsh gsutil [--app] [<command>] 
+$ tsh gsutil [--app] [<command>]
 ```
 
 #### Arguments
@@ -446,8 +447,29 @@ Downloaded recorded session are directly playable as a file.
 ```code
 $ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b.tar
 ```
+
 </Admonition>
 
+### tsh recordings export
+
+Export recorded desktop sessions to video.
+
+```code
+$ tsh recordings export <session_id> [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--out` | `<session_id>.avi` | a filename | Override the output file name. |
+
+#### Examples
+
+```code
+$ tsh recordings export c8e1b2c5-322a-4095-89e3-391edfd2da9b --out=recording.avi
+wrote recording to recording.avi
+```
 
 ### tsh play
 
@@ -606,7 +628,7 @@ $ ssh myuser@node1.example.com
 
 ### tsh proxy app
 
-Starts a local TLS proxy for Application Access connections.
+Starts a local TLS proxy for Application Service connections.
 You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
 which is especially useful for interacting with an application via a CLI.
 
@@ -746,7 +768,7 @@ in to at least one Google Cloud application via Teleport before the proxy can
 start.
 
 ```code
-$ tsh proxy gcloud [<flags>] 
+$ tsh proxy gcloud [<flags>]
 ```
 
 #### Flags
@@ -769,7 +791,7 @@ Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 $ tsh apps login google-cloud-app
 $ tsh proxy gcloud
 # Set env variables from output
-$ gcloud compute instances list 
+$ gcloud compute instances list
 $ gsutil ls
 ```
 
@@ -1369,7 +1391,6 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 ...
 ```
 
-
 ## tctl
 
 `tctl` is a CLI tool that allows a cluster administrator to manage all resources
@@ -1468,8 +1489,6 @@ which could result in the error,
 
   </TabItem>
 </Tabs>
-
-
 
 **Example**
 
@@ -1893,7 +1912,7 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
 | `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
-| `--db-service` | `""` | database service name | Generate a certificate for accessing the specified database service |
+| `--db-service` | `""` | Database Service name | Generate a certificate for accessing the specified Database Service instance |
 | `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
 | `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
 
@@ -1996,7 +2015,6 @@ The test process is safe from side effects in that:
   verbs: [list,create,read,update,delete]
 ```
 </Admonition>
-
 
 #### Arguments
 
@@ -2178,7 +2196,6 @@ The following flags are specific to Google Workspace:
 | `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](https://goteleport.com/docs/enterprise/sso/google-workspace/#how-teleport-uses-google-workspace-apis) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
-
 #### Global flags
 
 These flags are available for all commands: `--debug, --config`. Run
@@ -2221,7 +2238,6 @@ $ tctl sso configure oidc --preset google -r groups,mygroup@mydomain.example.com
 $ tctl sso configure oidc ... | tctl sso test
 ```
 
-
 ### tctl sso configure saml
 
 Configure the SAML auth connector, optionally using a preset.
@@ -2262,7 +2278,6 @@ Mandatory flags: `--name`, `--attributes-to-roles`, `--entity-descriptor`. These
 | `--provider`                |                                                                       | Sets the external identity provider type, enabling workarounds. Examples: ping, adfs.                                                                            |
 | `--ignore-missing-roles`    |                                                                       | Ignore missing roles referenced in `--attributes-to-roles`.                                                                                                      |
 
-
 Supported presets:
 
 | Name       | Description                          | Display   |
@@ -2271,7 +2286,6 @@ Supported presets:
 | `onelogin` | OneLogin                             | OneLogin  |
 | `ad`       | Azure Active Directory               | Microsoft |
 | `adfs`     | Active Directory Federation Services | ADFS      |
-
 
 #### Global flags
 
@@ -2515,7 +2529,6 @@ $ tctl edit role/sre
 $ TELEPORT_EDITOR=nano tctl edit user/alice
 ```
 
-
 ### tctl status
 
 Report cluster status:
@@ -2578,7 +2591,6 @@ $ tctl alerts create \
 
 Register a device.
 
-
 ```code
 $ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
 ```
@@ -2635,7 +2647,6 @@ tsh device enroll --token=(=devicetrust.enroll_token=)
 ### tctl devices ls
 
 List registered devices.
-
 
 ```code
 $ tctl devices ls
@@ -2858,7 +2869,6 @@ $ tbot init \
     --reader-user=jenkins
 ```
 
-
 ### tbot db
 
 Connects to databases using native clients and queries database information. This is best used for testing and validation purposes;
@@ -2965,7 +2975,6 @@ Note that this decreases security:
 
 Refer to the [database guide](../machine-id/guides/databases.mdx) for more information on
 using database proxies.
-
 
 #### Flags
 

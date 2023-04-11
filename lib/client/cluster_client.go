@@ -34,17 +34,13 @@ type ClusterClient struct {
 	ProxyClient *proxyclient.Client
 	AuthClient  auth.ClientI
 	Tracer      oteltrace.Tracer
+	cluster     string
 }
 
 // ClusterName returns the name of the cluster that the client
 // is connected to.
 func (c *ClusterClient) ClusterName() string {
-	cluster := c.ProxyClient.ClusterName()
-	if len(c.tc.JumpHosts) > 0 && cluster != "" {
-		return cluster
-	}
-
-	return c.tc.SiteName
+	return c.cluster
 }
 
 // Close terminates the connections to Auth and Proxy.
@@ -75,12 +71,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 
 	key, err := c.tc.localAgent.GetKey(target.Cluster, WithAllCerts...)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// Either running inside the web UI in a proxy or using an identity
-			// file. Fall back to whatever AuthMethod we currently have.
-			return sshConfig, nil
-		}
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	params := ReissueParams{
@@ -93,7 +84,7 @@ func (c *ClusterClient) SessionSSHConfig(ctx context.Context, user string, targe
 	if target.MFACheck == nil {
 		check, err := c.AuthClient.IsMFARequired(ctx, params.isMFARequiredRequest(c.tc.HostLogin))
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 		target.MFACheck = check
 	}

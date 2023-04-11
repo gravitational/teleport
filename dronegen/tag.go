@@ -216,6 +216,16 @@ func tagPipelines() []pipeline {
 		},
 	}))
 
+	ps = append(ps, ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerTag,
+		pipelineName: "build-teleport-kube-agent-updater-oci-images",
+		ghaWorkflow:  "release-teleport-kube-agent-udpater-oci.yml",
+		srcRefVar:    "DRONE_TAG",
+		workflowRef:  "${DRONE_TAG}",
+		timeout:      60 * time.Minute,
+	}))
+
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
@@ -224,7 +234,7 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
-	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
+	ps = append(ps, darwinTagPipelineGHA())
 	ps = append(ps, windowsTagPipeline())
 
 	ps = append(ps, tagCleanupPipeline())

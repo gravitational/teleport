@@ -195,7 +195,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		return trace.BadParameter("missing ConnectionMonitor")
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = clients.NewClients()
+		cloudClients, err := clients.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
