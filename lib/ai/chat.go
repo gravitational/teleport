@@ -26,9 +26,9 @@ import (
 // Message represents a message within a live conversation.
 // Indexed by ID for frontend ordering and future partial message streaming.
 type Message struct {
-	Role    string
-	Content string
-	Idx     int
+	Role    string `json:"role"`
+	Content string `json:"content"`
+	Idx     int    `json:"idx"`
 }
 
 // Chat represents a conversation between a user and an assistant with context memory.

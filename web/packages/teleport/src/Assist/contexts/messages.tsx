@@ -66,14 +66,17 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
         return;
       }
 
-      if (value.type === 'CHAT_RESPONSE') {
+      if (value.type === 'CHAT_TEXT_MESSAGE') {
+        const msg = JSON.parse(atob(value.payload));
+
+        const author = msg.role === 'user' ? Author.User : Author.Teleport;
         setMessages(prev =>
           prev.concat({
-            author: Author.User,
+            author: author,
             content: [
               {
                 type: Type.Message,
-                value: atob(value.payload),
+                value: msg.content,
               },
             ],
           })
@@ -94,7 +97,8 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
 
       setMessages(newMessages);
 
-      sendMessage(message);
+      const data = JSON.stringify({ content: message });
+      sendMessage(data);
     },
     [messages]
   );
