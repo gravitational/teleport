@@ -71,6 +71,7 @@ export interface Acl {
   license: Access;
   download: Access;
   plugins: Access;
+  integrations: Access;
 }
 
 export interface User {

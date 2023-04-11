@@ -111,6 +111,9 @@ const cfg = {
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
     headlessSso: `/web/headless/:requestId`,
+    integrations: '/web/integrations',
+    integrationEnroll: '/web/integrations/new/:type?',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -204,7 +207,10 @@ const cfg = {
     capturePreUserEventPath: '/v1/webapi/precapture',
 
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
     webapiPingPath: '/v1/webapi/ping',
+
+    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -278,6 +284,10 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getIntegrationEnrollRoute(type?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getNodesRoute(clusterId: string) {
@@ -581,6 +591,13 @@ const cfg = {
   getMfaCreateRegistrationChallengeUrl(tokenId: string) {
     return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
       tokenId,
+    });
+  },
+
+  getIntegrationsUrl(clusterId: string, name?: string) {
+    return generateResourcePath(cfg.api.integrationsPath, {
+      clusterId,
+      name,
     });
   },
 
