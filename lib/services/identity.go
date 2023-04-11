@@ -273,8 +273,10 @@ type Identity interface {
 	// CreateAssistantMessage adds the message to the backend.
 	CreateAssistantMessage(ctx context.Context, username string, msg *proto.AssistantMessage) error
 
+	// CreateAssistantConversation creates a new conversation entry in the backend.
 	CreateAssistantConversation(ctx context.Context, username string, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
 
+	// GetAssistantConversations returns all conversations started by a user.
 	GetAssistantConversations(ctx context.Context, username string, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
 
 	types.WebSessionsGetter

@@ -660,9 +660,9 @@ type IdentityService interface {
 
 	// GetAssistantMessages returns all messages with given conversation ID.
 	GetAssistantMessages(ctx context.Context, id string) (*proto.GetAssistantMessagesResponse, error)
-
+	// GetAssistantConversations returns all conversations started by a user.
 	GetAssistantConversations(ctx context.Context, request *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error)
-
+	// CreateAssistantConversation creates a new conversation entry in the backend.
 	CreateAssistantConversation(ctx context.Context, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error)
 	// InsertAssistantMessage adds the message to the backend.
 	InsertAssistantMessage(ctx context.Context, in *proto.AssistantMessage) (*emptypb.Empty, error)

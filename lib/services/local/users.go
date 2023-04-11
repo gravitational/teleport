@@ -1390,7 +1390,8 @@ type Conversation struct {
 	ConversationID string `json:"conversation_id"`
 }
 
-func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string, req *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string, _ *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
 	if username == "" {
 		return nil, trace.BadParameter("missing parameter user")
 	}
@@ -1418,6 +1419,7 @@ func (s *IdentityService) CreateAssistantConversation(ctx context.Context, usern
 	return &proto.CreateAssistantConversationResponse{Id: conversationID}, nil
 }
 
+// GetAssistantConversations returns all conversations started by a user.
 func (s *IdentityService) GetAssistantConversations(ctx context.Context, username string, _ *proto.GetAssistantConversationsRequest) (*proto.GetAssistantConversationsResponse, error) {
 	startKey := backend.Key(assistantConversationPrefix, username)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
