@@ -30,24 +30,15 @@ This guide requires you to have:
 - An Active Directory domain, configured for LDAPS (Teleport requires an
   encrypted LDAP connection). Typically this means installing
   [AD CS](https://learn.microsoft.com/en-us/windows-server/identity/ad-cs/)
-
 - Access to a Domain Controller
 
-- An existing Teleport cluster with one of the following versions:
-
-  **Open Source or Enterprise:** version 8.0 or newer
-
-  **Teleport Cloud:** version 9.0 or newer
-
-  See [Teleport Getting Started](../try-out-teleport/introduction.mdx) if you're new to Teleport.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A Linux server to run the Teleport Desktop Service on.
 
   You can reuse an existing server running any other Teleport instance.
 
-- The `tctl` administration tool version >= (=teleport.version=)
-
-  (!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Create a restrictive service account
 
