@@ -19,9 +19,10 @@ import { useLocation, useHistory } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Text, Popover, Link } from 'design';
+import { Box, Flex, Text, Link } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
+import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
 import {
   ResourceKind,
@@ -151,7 +152,7 @@ export function SelectResource(props: SelectResourceProps) {
                     <BadgeGuided>Guided</BadgeGuided>
                   )}
                   {!r.hasAccess && (
-                    <ToolTip
+                    <ToolTipNoPermBadge
                       children={
                         <PermissionsErrorMessage resourceKind={r.kind} />
                       }
@@ -225,59 +226,6 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
       </Box>
       <Text>Clear search</Text>
     </Flex>
-  );
-};
-
-const ToolTip: React.FC = ({ children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <div
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-        css={`
-          position: absolute;
-          background: red;
-          padding: 0px 6px;
-          border-top-right-radius: 8px;
-          border-bottom-left-radius: 8px;
-          top: 0px;
-          right: 0px;
-          font-size: 10px;
-        `}
-      >
-        Lacking Permissions
-      </div>
-      <Popover
-        modalCss={() => `pointer-events: none;`}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={3} py={2}>
-          {children}
-        </StyledOnHover>
-      </Popover>
-    </>
   );
 };
 
@@ -395,12 +343,6 @@ const BadgeGuided = styled.div`
   top: 0px;
   right: 0px;
   font-size: 10px;
-`;
-
-const StyledOnHover = styled(Text)`
-  background-color: white;
-  color: black;
-  max-width: 350px;
 `;
 
 const InputWrapper = styled.div`

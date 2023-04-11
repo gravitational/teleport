@@ -2057,7 +2057,7 @@ func (c *clusterClient) Close() error {
 
 // getClusterClients establishes a ProxyClient to every cluster
 // that the user has valid credentials for
-func getClusterClients(cf *CLIConf) ([]*clusterClient, error) {
+func getClusterClients(cf *CLIConf, resource string) ([]*clusterClient, error) {
 	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
 
 	// mu guards access to clusters
@@ -2106,7 +2106,7 @@ func getClusterClients(cf *CLIConf) ([]*clusterClient, error) {
 				proxy:   proxy,
 				profile: profile,
 				name:    site.Name,
-				req:     *tc.DefaultResourceFilter(),
+				req:     *tc.ResourceFilter(resource),
 			})
 		}
 
@@ -2148,7 +2148,7 @@ func (l nodeListings) Swap(i, j int) {
 
 func listNodesAllClusters(cf *CLIConf) error {
 	tracer := cf.TracingProvider.Tracer(teleport.ComponentTSH)
-	clusters, err := getClusterClients(cf)
+	clusters, err := getClusterClients(cf, types.KindNode)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2187,7 +2187,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 			defer span.End()
 
 			logger := log.WithField("cluster", cluster.name)
-			nodes, err := cluster.proxy.FindNodesByFiltersForCluster(ctx, cluster.req, cluster.name)
+			nodes, err := cluster.proxy.FindNodesByFiltersForCluster(ctx, &cluster.req, cluster.name)
 			if err != nil {
 				logger.Errorf("Failed to get nodes: %v.", err)
 
@@ -2964,17 +2964,12 @@ func accessRequestForSSH(ctx context.Context, tc *client.TeleportClient) (types.
 	// Match on hostname or host ID, user could have given either
 	expr := fmt.Sprintf(hostnameOrIDPredicateTemplate, tc.Host)
 
-	resources, err := apiclient.GetResourcesWithFilters(ctx, clt.AuthClient, proto.ListResourcesRequest{
+	nodes, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, &proto.ListResourcesRequest{
 		Namespace:           apidefaults.Namespace,
 		ResourceType:        types.KindNode,
 		UseSearchAsRoles:    true,
 		PredicateExpression: expr,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	nodes, err := types.ResourcesWithLabels(resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
