@@ -160,16 +160,14 @@ func sendErrorToSlackStep() step {
 		Image: "plugins/slack",
 		Settings: map[string]value{
 			"webhook": {fromSecret: "SLACK_WEBHOOK_DEV_TELEPORT"},
-		},
-		Template: []string{
-			`*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
+			"template": {raw: `*{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: ` + "`{{ build.event }}`" + `)
 ` + "`${DRONE_STAGE_NAME}`" + ` artifact build failed.
 *Warning:* This is a genuine failure to build the Teleport binary from ` + "`{{ build.branch }}`" + ` (likely due to a bad merge or commit) and should be investigated immediately.
 Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
 Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
 Author: <https://github.com/{{ build.author }}|{{ build.author }}>
 <{{ build.link }}|Visit Drone build page ↗>
-`,
+`},
 		},
 		When: &condition{Status: []string{"failure"}},
 	}
