@@ -29,11 +29,12 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/strslice"
 	docker "github.com/docker/docker/client"
+	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+
 	teleport "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
 )
 
 const (
