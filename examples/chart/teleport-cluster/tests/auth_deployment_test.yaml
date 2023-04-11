@@ -314,6 +314,7 @@ tests:
             name: my-mount
             secret:
               secretName: mySecret
+
   - it: should set imagePullPolicy when set in values
     template: auth/deployment.yaml
     set:
