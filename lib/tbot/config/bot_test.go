@@ -147,6 +147,10 @@ func newMockAuth(t *testing.T) *mockAuth {
 	}
 }
 
+func (m *mockAuth) Close() error {
+	return nil
+}
+
 // mockBot is a minimal Bot impl that can be used in tests
 type mockBot struct {
 	cfg  *BotConfig
