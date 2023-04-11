@@ -2366,33 +2366,89 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 
-	// Insert Okta apps
-	appOkta, err := types.NewAppV3(types.Metadata{Name: "app-okta"},
+	// Create Okta apps
+	appOktaAppSK, err := types.NewAppV3(types.Metadata{Name: "app-okta-app-sk"},
 		types.AppSpecV3{URI: "localhost"})
 	require.NoError(t, err)
-	appOkta.SetSubKind(types.SubKindOktaApp)
-	serverOkta, err := types.NewAppServerV3FromApp(appOkta, "server-okta", "server-okta")
+	appOktaAppSK.SetSubKind(types.SubKindOktaApp)
+	serverOktaAppSK, err := types.NewAppServerV3FromApp(appOktaAppSK, "server-okta-app-sk", "server-okta-app-sk")
 	require.NoError(t, err)
 
+	appOktaOrigin, err := types.NewAppV3(types.Metadata{Name: "app-okta-origin"},
+		types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	appOktaOrigin.SetOrigin(types.OriginOkta)
+	serverOktaAppOrigin, err := types.NewAppServerV3FromApp(appOktaOrigin, "server-okta-app-origin", "server-okta-app-origin")
+	require.NoError(t, err)
+
+	appOktaAppServerSK, err := types.NewAppV3(types.Metadata{Name: "app-okta-appserver-sk"},
+		types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	serverOktaAppServerSK, err := types.NewAppServerV3FromApp(appOktaAppServerSK, "server-okta-appserver-sk", "server-okta-appserver-sk")
+	require.NoError(t, err)
+	serverOktaAppServerSK.SetSubKind(types.SubKindOktaApp)
+
+	appOktaAppServerOrigin, err := types.NewAppV3(types.Metadata{Name: "app-okta-appserver-origin"},
+		types.AppSpecV3{URI: "localhost"})
+	require.NoError(t, err)
+	serverOktaAppServerOrigin, err := types.NewAppServerV3FromApp(appOktaAppServerOrigin, "server-okta-appserver-origin", "server-okta-appserver-origin")
+	require.NoError(t, err)
+	serverOktaAppServerOrigin.SetOrigin(types.OriginOkta)
+
 	// Admin can't create an Okta application.
-	_, err = clt.UpsertApplicationServer(ctx, serverOkta)
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppSK)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create Okta app servers"))
+
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppOrigin)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create Okta app servers"))
+
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppServerSK)
+	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create Okta app servers"))
+
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppServerOrigin)
 	require.ErrorIs(t, err, trace.BadParameter("only the Okta role can create Okta app servers"))
 
 	// Okta role can create Okta applications.
 	clt, err = srv.NewClient(TestBuiltin(types.RoleOkta))
 	require.NoError(t, err)
 
-	_, err = clt.UpsertApplicationServer(ctx, serverOkta)
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppSK)
 	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppOrigin)
+	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppServerSK)
+	require.NoError(t, err)
+
+	_, err = clt.UpsertApplicationServer(ctx, serverOktaAppServerOrigin)
+	require.NoError(t, err)
+
+	setOktaVals := func(appServer types.AppServer) {
+		appServer.SetSubKind(types.SubKindOktaApp)
+		appServer.SetOrigin(types.OriginOkta)
+		app := appServer.GetApp()
+		app.SetSubKind(types.SubKindOktaApp)
+		app.SetOrigin(types.OriginOkta)
+	}
+
+	// Upsert will inject the Okta origins and subkinds into the app server.
+	setOktaVals(serverOktaAppSK)
+	setOktaVals(serverOktaAppOrigin)
+	setOktaVals(serverOktaAppServerSK)
+	setOktaVals(serverOktaAppServerOrigin)
 
 	// Fetch all app servers.
 	out, err = clt.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 
-	// Upsert will inject the Okta origin type into the app server.
-	appOkta.SetOrigin(types.OriginOkta)
-	serverOkta.SetOrigin(types.OriginOkta)
-	require.Empty(t, cmp.Diff([]types.AppServer{serverOkta}, out,
+	sortedOut := types.AppServers(out)
+	sort.Sort(sortedOut)
+
+	expected := types.AppServers([]types.AppServer{serverOktaAppSK, serverOktaAppOrigin, serverOktaAppServerSK, serverOktaAppServerOrigin})
+	sort.Sort(expected)
+
+	require.Empty(t, cmp.Diff(expected, sortedOut,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID"),
 	))
 }

@@ -371,12 +371,6 @@ func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 			subkind: wk.SubKind,
 			version: wk.Version,
 		}
-	case types.KindAppServer:
-		// AppServers can use subkinds.
-		return resourceKind{
-			kind:    wk.Kind,
-			subkind: wk.SubKind,
-		}
 	}
 	return resourceKind{
 		kind:    wk.Kind,
@@ -388,17 +382,19 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 	switch res.GetKind() {
 	case types.KindWebSession:
 		// Web sessions use subkind to differentiate between
-		// the types of sessions.
+		// the types of sessions
 		return resourceKind{
 			kind:    res.GetKind(),
 			subkind: res.GetSubKind(),
 		}
 	case types.KindAppServer:
-		// App servers use subkind to differentiate between the
-		// types of app servers.
-		return resourceKind{
-			kind:    res.GetKind(),
-			subkind: res.GetSubKind(),
+		// DELETE IN 9.0.
+		switch res.GetVersion() {
+		case types.V2:
+			return resourceKind{
+				kind:    res.GetKind(),
+				version: res.GetVersion(),
+			}
 		}
 	}
 	return resourceKind{
@@ -914,10 +910,9 @@ func (appExecutor) isSingleton() bool { return false }
 
 var _ executor[types.Application] = appExecutor{}
 
-type appServerExecutor struct {
-}
+type appServerExecutor struct{}
 
-func (a appServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.AppServer, error) {
+func (appServerExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.AppServer, error) {
 	return cache.Presence.GetApplicationServers(ctx, apidefaults.Namespace)
 }
 
