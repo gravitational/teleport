@@ -7235,8 +7235,8 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
-    "promote" > "/go/release-environment.txt"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
+    "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -7245,7 +7245,8 @@ steps:
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
     -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "version-channel=${DRONE_TAG}"
-    -input "repo-type=apt" -input "environment=$(cat "/go/release-environment.txt")" '
+    -input "enterprise-only=${DRONE_REPO_PRIVATE}" -input "repo-type=apt" -input "environment=$(cat
+    "/go/vars/release-environment.txt")" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -7300,8 +7301,8 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
-    "promote" > "/go/release-environment.txt"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
+    "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -7309,8 +7310,9 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "repo-type=yum" -input "environment=$(cat "/go/release-environment.txt")"
-    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "version-channel=${DRONE_TAG}" '
+    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "version-channel=${DRONE_TAG}"
+    -input "enterprise-only=${DRONE_REPO_PRIVATE}" -input "repo-type=yum" -input "environment=$(cat
+    "/go/vars/release-environment.txt")" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -20964,6 +20966,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: a1a363af5fee385d3a8bfba0a5a39d8471552c670a88018a54170f71ec5a5379
+hmac: fa4af456d5e252474b9ca9e604ce1114728ce2d701f5a33e436e6c27ceb1e2bf
 
 ...

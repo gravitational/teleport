@@ -34,7 +34,7 @@ func promoteBuildOsRepoPipelines() []pipeline {
 }
 
 func buildPromoteOsPackagePipeline(repoType string) pipeline {
-	releaseEnvironmentFilePath := "/go/release-environment.txt"
+	releaseEnvironmentFilePath := "/go/vars/release-environment.txt"
 	clonePath := "/go/src/github.com/gravitational/teleport"
 
 	pipeline := ghaBuildPipeline(ghaBuildType{
@@ -49,6 +49,7 @@ func buildPromoteOsPackagePipeline(repoType string) pipeline {
 			"artifact-tag":    "${DRONE_TAG}",
 			"release-channel": "stable",
 			"version-channel": "${DRONE_TAG}",
+			"enterprise-only": "${DRONE_REPO_PRIVATE}",
 		},
 	})
 
@@ -59,7 +60,7 @@ func buildPromoteOsPackagePipeline(repoType string) pipeline {
 			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
 			Commands: []string{
 				fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
-				fmt.Sprintf(`go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo "promote" > %q`, releaseEnvironmentFilePath),
+				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo "promote") > %q`, releaseEnvironmentFilePath),
 			},
 		},
 		pipeline.Steps[1],
