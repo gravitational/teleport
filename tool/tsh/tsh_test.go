@@ -961,7 +961,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			Logins:     []string{user.Username},
 			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		},
-		Options: types.RoleOptions{RequireSessionMFA: true},
+		Options: types.RoleOptions{RequireMFAType: types.RequireMFAType_SESSION},
 	})
 	require.NoError(t, err)
 
@@ -1159,7 +1159,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
 			setup:      registerPasswordlessDeviceWithWebauthnSolver,
@@ -1179,7 +1179,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
 			setup:      registerPasswordlessDeviceWithWebauthnSolver,
@@ -1199,7 +1199,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 					Webauthn: &types.Webauthn{
 						RPID: "127.0.0.1",
 					},
-					RequireSessionMFA: true,
+					RequireMFAType: types.RequireMFAType_SESSION,
 				},
 			},
 			setup:           registerPasswordlessDeviceWithWebauthnSolver,
@@ -3949,4 +3949,36 @@ func TestShowSessions(t *testing.T) {
 	err := common.ShowSessions(sessions, teleport.JSON, &buf)
 	require.NoError(t, err)
 	require.Equal(t, expected, buf.String())
+}
+
+func TestMakeProfileInfo_NoInternalLogins(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		profile        *client.ProfileStatus
+		expectedLogins []string
+	}{
+		{
+			name: "with internal logins",
+			profile: &client.ProfileStatus{
+				Logins: []string{constants.NoLoginPrefix, teleport.SSHSessionJoinPrincipal, "-teleport-something-else"},
+			},
+			expectedLogins: nil,
+		},
+		{
+			name: "with valid logins and internal logins",
+			profile: &client.ProfileStatus{
+				Logins: []string{constants.NoLoginPrefix, "alpaca", teleport.SSHSessionJoinPrincipal, "llama"},
+			},
+			expectedLogins: []string{"alpaca", "llama"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			madeProfile := makeProfileInfo(test.profile, nil /* env map */, false /* inactive */)
+			require.Equal(t, test.expectedLogins, madeProfile.Logins)
+		})
+	}
 }

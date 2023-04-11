@@ -391,7 +391,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 		event.Status.UserMessage = err.Error()
 
 		if err := emitter.EmitAuditEvent(ctx, event); err != nil {
-			log.WithError(err).Warn("Failed to emit Github login failed event.")
+			log.WithError(err).Warn("Failed to emit GitHub login failed event.")
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -403,7 +403,7 @@ func validateGithubAuthCallbackHelper(ctx context.Context, m githubManager, diag
 	event.User = auth.Username
 
 	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
-		log.WithError(err).Warn("Failed to emit Github login event.")
+		log.WithError(err).Warn("Failed to emit GitHub login event.")
 	}
 
 	return auth, nil
@@ -507,19 +507,19 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 		// optional parameter: error_description
 		errDesc := q.Get("error_description")
 		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, errParam, q)
-		return nil, trace.WithUserMessage(oauthErr, "Github returned error: %v [%v]", errDesc, errParam)
+		return nil, trace.WithUserMessage(oauthErr, "GitHub returned error: %v [%v]", errDesc, errParam)
 	}
 
 	code := q.Get("code")
 	if code == "" {
 		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "code query param must be set", q)
-		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
 	}
 
 	stateToken := q.Get("state")
 	if stateToken == "" {
 		oauthErr := trace.OAuth2(oauth2.ErrorInvalidRequest, "missing state query param", q)
-		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from Github.")
+		return nil, trace.WithUserMessage(oauthErr, "Invalid parameters received from GitHub.")
 	}
 	diagCtx.RequestID = stateToken
 
@@ -531,7 +531,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 
 	connector, client, err := a.getGithubConnectorAndClient(ctx, *req)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to get Github connector and client.")
+		return nil, trace.Wrap(err, "Failed to get GitHub connector and client.")
 	}
 	diagCtx.Info.GithubTeamsToLogins = connector.GetTeamsToLogins()
 	diagCtx.Info.GithubTeamsToRoles = connector.GetTeamsToRoles()
@@ -540,7 +540,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// exchange the authorization code received by the callback for an access token
 	token, err := client.RequestToken(oauth2.GrantTypeAuthCode, code)
 	if err != nil {
-		return nil, trace.Wrap(err, "Requesting Github OAuth2 token failed.")
+		return nil, trace.Wrap(err, "Requesting GitHub OAuth2 token failed.")
 	}
 
 	diagCtx.Info.GithubTokenInfo = &types.GithubTokenInfo{
@@ -558,18 +558,23 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	apiEndpointURL, err := url.Parse(connector.GetAPIEndpointURL())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	ghClient := &githubAPIClient{
-		token:            token.AccessToken,
-		authServer:       a,
-		endpointHostname: endpointURL.Host,
+		token:               token.AccessToken,
+		authServer:          a,
+		endpointHostname:    endpointURL.Host,
+		apiEndpointHostname: apiEndpointURL.Host,
 	}
 	userResp, err := ghClient.getUser()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user info")
+		return nil, trace.Wrap(err, "failed to query GitHub user info")
 	}
 	teamsResp, err := ghClient.getTeams()
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to query Github user teams")
+		return nil, trace.Wrap(err, "failed to query GitHub user teams")
 	}
 	log.Debugf("Retrieved %v teams for GitHub user %v.", len(teamsResp), userResp.Login)
 
@@ -587,7 +592,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 	// by making requests to Github API using the access token
 	claims, err := populateGithubClaims(userResp, teamsResp)
 	if err != nil {
-		return nil, trace.Wrap(err, "Failed to query Github API for user claims.")
+		return nil, trace.Wrap(err, "Failed to query GitHub API for user claims.")
 	}
 	diagCtx.Info.GithubClaims = claims
 
@@ -791,7 +796,7 @@ func (a *Server) createGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	if existingUser != nil {
 		ref := user.GetCreatedBy().Connector
 		if !ref.IsSameProvider(existingUser.GetCreatedBy().Connector) {
-			return nil, trace.AlreadyExists("local user %q already exists and is not a Github user",
+			return nil, trace.AlreadyExists("local user %q already exists and is not a GitHub user",
 				existingUser.GetName())
 		}
 
@@ -839,6 +844,9 @@ type githubAPIClient struct {
 	authServer *Server
 	// endpointHostname is the Github hostname to connect to.
 	endpointHostname string
+	// apiEndpointHostname is the API endpoint of the Github instance
+	// to connect to.
+	apiEndpointHostname string
 }
 
 // userResponse represents response from "user" API call
@@ -949,8 +957,8 @@ func (c *githubAPIClient) getTeams() ([]teamResponse, error) {
 }
 
 // get makes a GET request to the provided URL using the client's token for auth
-func (c *githubAPIClient) get(url string) ([]byte, string, error) {
-	request, err := http.NewRequest("GET", fmt.Sprintf("https://api.%s/%s", c.endpointHostname, url), nil)
+func (c *githubAPIClient) get(page string) ([]byte, string, error) {
+	request, err := http.NewRequest("GET", fmt.Sprintf("https://%s/%s", c.apiEndpointHostname, page), nil)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}

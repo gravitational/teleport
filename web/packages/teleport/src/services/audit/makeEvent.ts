@@ -141,13 +141,13 @@ export const formatters: Formatters = {
     type: 'github.created',
     desc: 'GITHUB Auth Connector Created',
     format: ({ user, name }) =>
-      `User [${user}] created Github connector [${name}] has been created`,
+      `User [${user}] created GitHub connector [${name}] has been created`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
     desc: 'GITHUB Auth Connector Deleted',
     format: ({ user, name }) =>
-      `User [${user}] deleted Github connector [${name}]`,
+      `User [${user}] deleted GitHub connector [${name}]`,
   },
   [eventCodes.OIDC_CONNECTOR_CREATED]: {
     type: 'oidc.created',
@@ -1191,6 +1191,14 @@ export const formatters: Formatters = {
       status.success
         ? `User [${user.user}] has spent a device enroll token`
         : `User [${user.user}] has failed to spend a device enroll token`,
+  },
+  [eventCodes.DEVICE_UPDATE]: {
+    type: 'device',
+    desc: 'Device Update',
+    format: ({ user, status }) =>
+      status.success
+        ? `User [${user.user}] has updated a device`
+        : `User [${user.user}] has failed to update a device`,
   },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',

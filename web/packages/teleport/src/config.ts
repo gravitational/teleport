@@ -99,6 +99,8 @@ const cfg = {
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
+    locks: '/web/cluster/:clusterId/locks',
+    newLock: '/web/cluster/:clusterId/locks/new',
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
     loginErrorLegacy: '/web/msg/error/login_failed',
@@ -110,6 +112,10 @@ const cfg = {
     userReset: '/web/reset/:tokenId',
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
+    headlessSso: `/web/headless/:requestId`,
+    integrations: '/web/integrations',
+    integrationEnroll: '/web/integrations/new/:type?',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -178,6 +184,8 @@ const cfg = {
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
 
+    headlessSsoPath: `/v1/webapi/headless/:requestId`,
+
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
 
@@ -190,6 +198,9 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
+    locksPath: '/v1/webapi/sites/:clusterId/locks',
+    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+
     dbSign: 'v1/webapi/sites/:clusterId/sign/db',
 
     installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
@@ -199,6 +210,12 @@ const cfg = {
 
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
+
+    webapiPingPath: '/v1/webapi/ping',
+
+    headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
+    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -272,6 +289,10 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getIntegrationEnrollRoute(type?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getNodesRoute(clusterId: string) {
@@ -425,6 +446,10 @@ const cfg = {
     return generatePath(cfg.routes.userResetContinue, { tokenId });
   },
 
+  getHeadlessSsoPath(requestId: string) {
+    return generatePath(cfg.api.headlessSsoPath, { requestId });
+  },
+
   getUserInviteTokenRoute(tokenId = '') {
     return generatePath(cfg.routes.userInvite, { tokenId });
   },
@@ -481,6 +506,22 @@ const cfg = {
       clusterId,
       ...params,
     });
+  },
+
+  getLocksRoute(clusterId: string) {
+    return generatePath(cfg.routes.locks, { clusterId });
+  },
+
+  getNewLocksRoute(clusterId: string) {
+    return generatePath(cfg.routes.newLock, { clusterId });
+  },
+
+  getLocksUrl(clusterId: string) {
+    return generatePath(cfg.api.locksPath, { clusterId });
+  },
+
+  getLocksUrlWithUuid(clusterId: string, uuid: string) {
+    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
   },
 
   getDatabaseSignUrl(clusterId: string) {
@@ -571,6 +612,13 @@ const cfg = {
   getMfaCreateRegistrationChallengeUrl(tokenId: string) {
     return generatePath(cfg.api.mfaCreateRegistrationChallengePath, {
       tokenId,
+    });
+  },
+
+  getIntegrationsUrl(clusterId: string, name?: string) {
+    return generateResourcePath(cfg.api.integrationsPath, {
+      clusterId,
+      name,
     });
   },
 

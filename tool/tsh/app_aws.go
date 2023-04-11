@@ -93,6 +93,11 @@ func newAWSApp(cf *CLIConf, profile *client.ProfileStatus, appName string) (*aws
 	}, nil
 }
 
+// GetAppName returns the app name.
+func (a *awsApp) GetAppName() string {
+	return a.appName
+}
+
 // StartLocalProxies sets up local proxies for serving AWS clients.
 //
 // There are two ways clients can connect to the local proxies.
@@ -276,8 +281,8 @@ func (a *awsApp) startLocalALPNProxy(port string) error {
 
 	a.localALPNProxy, err = alpnproxy.NewLocalProxy(
 		makeBasicLocalProxyConfig(a.cf, tc, listener),
-		alpnproxy.WithClientCert(appCerts),
-		alpnproxy.WithALPNConnUpgradeTest(a.cf.Context, tc.RootClusterCACertPool),
+		alpnproxy.WithClientCerts(appCerts),
+		alpnproxy.WithClusterCAsIfConnUpgrade(a.cf.Context, tc.RootClusterCACertPool),
 		alpnproxy.WithHTTPMiddleware(&alpnproxy.AWSAccessMiddleware{
 			AWSCredentials: cred,
 		}),

@@ -61,6 +61,12 @@ const (
 	connContextKey appServerContextKey = "teleport-connContextKey"
 )
 
+// ConnMonitor monitors authorized connnections and terminates them when
+// session controls dictate so.
+type ConnMonitor interface {
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+}
+
 // Config is the configuration for an application server.
 type Config struct {
 	// Clock is used to control time.
@@ -116,15 +122,12 @@ type Config struct {
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
-	// LockWatcher is the lock watcher for app access targets.
-	LockWatcher *services.LockWatcher
-
 	// Emitter is an event emitter.
 	Emitter events.Emitter
 
-	// MonitorCloseChannel will be signaled when the monitor closes a connection.
-	// Used only for testing. Optional.
-	MonitorCloseChannel chan struct{}
+	// ConnectionMonitor monitors connections and terminates any if
+	// any session controls prevent them.
+	ConnectionMonitor ConnMonitor
 }
 
 // CheckAndSetDefaults makes sure the configuration has the minimum required
@@ -309,7 +312,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 
 	// Make copy of server's TLS configuration and update it with the specific
 	// functionality this server needs, like requiring client certificates.
-	s.tlsConfig = copyAndConfigureTLS(s.c.TLSConfig, s.getConfigForClient)
+	s.tlsConfig = CopyAndConfigureTLS(s.log, s.c.AccessPoint, s.c.TLSConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -683,9 +686,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 
 	if err != nil {
-		s.log.WithError(err).Warnf("Failed to handle client connection.")
-		if err := conn.Close(); err != nil {
-			s.log.WithError(err).Warnf("Failed to close client connection.")
+		if !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to handle client connection.")
+		}
+		if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to close client connection.")
 		}
 		return
 	}
@@ -695,25 +700,15 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	// Make sure everything here is wrapped in the tracking read connection for monitoring.
-	ctx, cancel := context.WithCancel(s.closeContext)
-	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
-		Conn:    conn,
-		Clock:   s.c.Clock,
-		Context: ctx,
-		Cancel:  cancel,
-	})
+	// Proxy sends a X.509 client certificate to pass identity information,
+	// extract it and run authorization checks on it.
+	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Proxy sends a X.509 client certificate to pass identity information,
-	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(ctx, tc)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	authCtx, _, err := s.authorizeContext(authz.ContextWithUser(ctx, user))
+	ctx := authz.ContextWithUser(s.closeContext, user)
+	authCtx, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
 	// the following will occur:
@@ -728,7 +723,8 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		err = s.monitorConn(ctx, tc, authCtx)
+		// Monitor the connection an update the context.
+		ctx, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, conn)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -746,48 +742,9 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 	}, s.handleHTTPApp(ctx, tlsConn)
 }
 
-// monitorConn takes a TrackingReadConn and starts a connection monitor. The tracking connection will be
-// auto-terminated if disconnect_expired_cert or idle timeout is configured.
-func (s *Server) monitorConn(ctx context.Context, tc *srv.TrackingReadConn, authCtx *authz.Context) error {
-	authPref, err := s.c.AuthClient.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	netConfig, err := s.c.AuthClient.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	identity := authCtx.Identity.GetIdentity()
-	checker := authCtx.Checker
-
-	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
-
-	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
-	err = srv.StartMonitor(srv.MonitorConfig{
-		LockWatcher:           s.c.LockWatcher,
-		LockTargets:           authCtx.LockTargets(),
-		DisconnectExpiredCert: srv.GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity),
-		ClientIdleTimeout:     idleTimeout,
-		Conn:                  tc,
-		Tracker:               tc,
-		Context:               ctx,
-		Clock:                 s.c.Clock,
-		ServerID:              s.c.HostID,
-		TeleportUser:          identity.Username,
-		Emitter:               s.c.Emitter,
-		Entry:                 s.log,
-		MonitorCloseChannel:   s.c.MonitorCloseChannel,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
-}
-
 // handleTCPApp handles connection for a TCP application.
 func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsca.Identity, app types.Application) error {
-	err := s.tcpServer.handleConnection(s.closeContext, conn, identity, app)
+	err := s.tcpServer.handleConnection(ctx, conn, identity, app)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -797,7 +754,7 @@ func (s *Server) handleTCPApp(ctx context.Context, conn net.Conn, identity *tlsc
 // handleHTTPApp handles connection for an HTTP application.
 func (s *Server) handleHTTPApp(ctx context.Context, conn net.Conn) error {
 	// Wrap a TLS authorizing conn in a single-use listener.
-	listener := newListener(s.closeContext, conn)
+	listener := newListener(ctx, conn)
 
 	// Serve will return as soon as tlsConn is running in its own goroutine
 	err := s.httpServer.Serve(listener)
@@ -1119,41 +1076,9 @@ func (s *Server) getProxyPort() string {
 	return port
 }
 
-// getConfigForClient returns the list of CAs that could have signed the
-// client's certificate.
-func (s *Server) getConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, error) {
-	var clusterName string
-	var err error
-
-	// Try and extract the name of the cluster that signed the client's certificate.
-	if info.ServerName != "" {
-		clusterName, err = apiutils.DecodeClusterName(info.ServerName)
-		if err != nil {
-			if !trace.IsNotFound(err) {
-				s.log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
-			}
-		}
-	}
-
-	// Fetch list of CAs that could have signed this certificate. If clusterName
-	// is empty, all CAs that this cluster knows about are returned.
-	pool, _, err := auth.DefaultClientCertPool(s.c.AccessPoint, clusterName)
-	if err != nil {
-		// If this request fails, return nil and fallback to the default ClientCAs.
-		s.log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))
-		return nil, nil
-	}
-
-	// Don't modify the server's *tls.Config, create one per connection because
-	// the requests could be coming from different clusters.
-	tlsCopy := s.tlsConfig.Clone()
-	tlsCopy.ClientCAs = pool
-	return tlsCopy, nil
-}
-
-// copyAndConfigureTLS can be used to copy and modify an existing *tls.Config
+// CopyAndConfigureTLS can be used to copy and modify an existing *tls.Config
 // for Teleport application proxy servers.
-func copyAndConfigureTLS(config *tls.Config, fn func(*tls.ClientHelloInfo) (*tls.Config, error)) *tls.Config {
+func CopyAndConfigureTLS(log logrus.FieldLogger, client auth.AccessCache, config *tls.Config) *tls.Config {
 	tlsConfig := config.Clone()
 
 	// Require clients to present a certificate
@@ -1163,7 +1088,39 @@ func copyAndConfigureTLS(config *tls.Config, fn func(*tls.ClientHelloInfo) (*tls
 	// client's certificate to verify the chain presented. If the client does not
 	// pass in the cluster name, this functions pulls back all CA to try and
 	// match the certificate presented against any CA.
-	tlsConfig.GetConfigForClient = fn
+	tlsConfig.GetConfigForClient = newGetConfigForClientFn(log, client, tlsConfig)
 
 	return tlsConfig
+}
+
+func newGetConfigForClientFn(log logrus.FieldLogger, client auth.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
+	return func(info *tls.ClientHelloInfo) (*tls.Config, error) {
+		var clusterName string
+		var err error
+
+		// Try and extract the name of the cluster that signed the client's certificate.
+		if info.ServerName != "" {
+			clusterName, err = apiutils.DecodeClusterName(info.ServerName)
+			if err != nil {
+				if !trace.IsNotFound(err) {
+					log.Debugf("Ignoring unsupported cluster name %q.", info.ServerName)
+				}
+			}
+		}
+
+		// Fetch list of CAs that could have signed this certificate. If clusterName
+		// is empty, all CAs that this cluster knows about are returned.
+		pool, _, err := auth.DefaultClientCertPool(client, clusterName)
+		if err != nil {
+			// If this request fails, return nil and fallback to the default ClientCAs.
+			log.Debugf("Failed to retrieve client pool: %v.", trace.DebugReport(err))
+			return nil, nil
+		}
+
+		// Don't modify the server's *tls.Config, create one per connection because
+		// the requests could be coming from different clusters.
+		tlsCopy := tlsConfig.Clone()
+		tlsCopy.ClientCAs = pool
+		return tlsCopy, nil
+	}
 }

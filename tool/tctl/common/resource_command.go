@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -46,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -101,28 +101,30 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	rc.CreateHandlers = map[ResourceKind]ResourceCreateHandler{
-		types.KindUser:                    rc.createUser,
-		types.KindRole:                    rc.createRole,
-		types.KindTrustedCluster:          rc.createTrustedCluster,
-		types.KindGithubConnector:         rc.createGithubConnector,
-		types.KindCertAuthority:           rc.createCertAuthority,
-		types.KindClusterAuthPreference:   rc.createAuthPreference,
-		types.KindClusterNetworkingConfig: rc.createClusterNetworkingConfig,
-		types.KindSessionRecordingConfig:  rc.createSessionRecordingConfig,
-		types.KindUIConfig:                rc.createUIConfig,
-		types.KindLock:                    rc.createLock,
-		types.KindNetworkRestrictions:     rc.createNetworkRestrictions,
-		types.KindApp:                     rc.createApp,
-		types.KindDatabase:                rc.createDatabase,
-		types.KindKubernetesCluster:       rc.createKubeCluster,
-		types.KindToken:                   rc.createToken,
-		types.KindInstaller:               rc.createInstaller,
-		types.KindNode:                    rc.createNode,
-		types.KindOIDCConnector:           rc.createOIDCConnector,
-		types.KindSAMLConnector:           rc.createSAMLConnector,
-		types.KindLoginRule:               rc.createLoginRule,
-		types.KindSAMLIdPServiceProvider:  rc.createSAMLIdPServiceProvider,
-		types.KindDevice:                  rc.createDevice,
+		types.KindUser:                     rc.createUser,
+		types.KindRole:                     rc.createRole,
+		types.KindTrustedCluster:           rc.createTrustedCluster,
+		types.KindGithubConnector:          rc.createGithubConnector,
+		types.KindCertAuthority:            rc.createCertAuthority,
+		types.KindClusterAuthPreference:    rc.createAuthPreference,
+		types.KindClusterNetworkingConfig:  rc.createClusterNetworkingConfig,
+		types.KindClusterMaintenanceConfig: rc.createClusterMaintenanceConfig,
+		types.KindSessionRecordingConfig:   rc.createSessionRecordingConfig,
+		types.KindUIConfig:                 rc.createUIConfig,
+		types.KindLock:                     rc.createLock,
+		types.KindNetworkRestrictions:      rc.createNetworkRestrictions,
+		types.KindApp:                      rc.createApp,
+		types.KindDatabase:                 rc.createDatabase,
+		types.KindKubernetesCluster:        rc.createKubeCluster,
+		types.KindToken:                    rc.createToken,
+		types.KindInstaller:                rc.createInstaller,
+		types.KindNode:                     rc.createNode,
+		types.KindOIDCConnector:            rc.createOIDCConnector,
+		types.KindSAMLConnector:            rc.createSAMLConnector,
+		types.KindLoginRule:                rc.createLoginRule,
+		types.KindSAMLIdPServiceProvider:   rc.createSAMLIdPServiceProvider,
+		types.KindDevice:                   rc.createDevice,
+		types.KindOktaImportRule:           rc.createOktaImportRule,
 	}
 	rc.config = config
 
@@ -491,6 +493,29 @@ func (rc *ResourceCommand) createClusterNetworkingConfig(ctx context.Context, cl
 	return nil
 }
 
+func (rc *ResourceCommand) createClusterMaintenanceConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	var cmc types.ClusterMaintenanceConfigV1
+	if err := utils.FastUnmarshal(raw.Raw, &cmc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := cmc.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if rc.force {
+		// max nonce forces "upsert" behavior
+		cmc.Nonce = math.MaxUint64
+	}
+
+	if err := client.UpdateClusterMaintenanceConfig(ctx, &cmc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Println("maintenance window has been updated")
+	return nil
+}
+
 // createSessionRecordingConfig implements `tctl create recconfig.yaml` command.
 func (rc *ResourceCommand) createSessionRecordingConfig(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	newRecConfig, err := services.UnmarshalSessionRecordingConfig(raw.Raw)
@@ -783,25 +808,67 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	if rc.IsForced() {
-		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag\n")
+	res, err := types.UnmarshalDevice(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
 	}
-
-	dev, err := device.UnmarshalDevice(raw.Raw)
+	dev, err := types.DeviceFromResource(res)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO(codingllama): Figure out a way to call BulkCreateDevices here?
-	_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device:           dev,
-		CreateAsResource: true,
-	})
+	if rc.IsForced() {
+		_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
+			Device:           dev,
+			CreateAsResource: true,
+		})
+		// err checked below
+	} else {
+		_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device:           dev,
+			CreateAsResource: true,
+		})
+		// err checked below
+	}
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
 
-	fmt.Printf("Device %v/%v added to the inventory\n", dev.AssetTag, devicetrust.FriendlyOSType(dev.OsType))
+	verb := "created"
+	if rc.IsForced() {
+		verb = "updated"
+	}
+
+	fmt.Printf("Device %v/%v %v\n",
+		dev.AssetTag,
+		devicetrust.FriendlyOSType(dev.OsType),
+		verb,
+	)
+	return nil
+}
+
+func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	importRule, err := services.UnmarshalOktaImportRule(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := importRule.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	exists := false
+	if _, err = client.OktaClient().CreateOktaImportRule(ctx, importRule); err != nil {
+		if trace.IsAlreadyExists(err) {
+			exists = true
+			_, err = client.OktaClient().UpdateOktaImportRule(ctx, importRule)
+		}
+
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	fmt.Printf("Okta import rule '%s' has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
 	return nil
 }
 
@@ -1077,6 +1144,21 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.NotFound("application server %q not found", rc.ref.Name)
 		}
 		fmt.Printf("application server %q has been deleted\n", rc.ref.Name)
+	case types.KindOktaImportRule:
+		if err := client.OktaClient().DeleteOktaImportRule(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
+	case types.KindOktaAssignment:
+		if err := client.OktaClient().DeleteOktaAssignment(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Okta assignment %q has been deleted\n", rc.ref.Name)
+	case types.KindUserGroup:
+		if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("User group %q has been deleted\n", rc.ref.Name)
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -1402,6 +1484,17 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			return nil, trace.Wrap(err)
 		}
 		return &netConfigCollection{netConfig}, nil
+	case types.KindClusterMaintenanceConfig:
+		if rc.ref.Name != "" {
+			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindClusterMaintenanceConfig)
+		}
+
+		cmc, err := client.GetClusterMaintenanceConfig(ctx)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		return &maintenanceWindowCollection{cmc}, nil
 	case types.KindSessionRecordingConfig:
 		if rc.ref.Name != "" {
 			return nil, trace.BadParameter("only simple `tctl get %v` can be used", types.KindSessionRecordingConfig)
@@ -1718,6 +1811,78 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 		})
 
 		return &deviceCollection{devices: devs}, nil
+	case types.KindOktaImportRule:
+		if rc.ref.Name != "" {
+			importRule, err := client.OktaClient().GetOktaImportRule(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &oktaImportRuleCollection{importRules: []types.OktaImportRule{importRule}}, nil
+		}
+		var resources []types.OktaImportRule
+		nextKey := ""
+		for {
+			var importRules []types.OktaImportRule
+			var err error
+			importRules, nextKey, err = client.OktaClient().ListOktaImportRules(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, importRules...)
+			if nextKey == "" {
+				break
+			}
+		}
+		return &oktaImportRuleCollection{importRules: resources}, nil
+	case types.KindOktaAssignment:
+		if rc.ref.Name != "" {
+			assignment, err := client.OktaClient().GetOktaAssignment(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &oktaAssignmentCollection{assignments: []types.OktaAssignment{assignment}}, nil
+		}
+		var resources []types.OktaAssignment
+		nextKey := ""
+		for {
+			var assignments []types.OktaAssignment
+			var err error
+			assignments, nextKey, err = client.OktaClient().ListOktaAssignments(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, assignments...)
+			if nextKey == "" {
+				break
+			}
+		}
+		return &oktaAssignmentCollection{assignments: resources}, nil
+	case types.KindUserGroup:
+		if rc.ref.Name != "" {
+			userGroup, err := client.GetUserGroup(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &userGroupCollection{userGroups: []types.UserGroup{userGroup}}, nil
+		}
+		var resources []types.UserGroup
+		nextKey := ""
+		for {
+			var userGroups []types.UserGroup
+			var err error
+			userGroups, nextKey, err = client.ListUserGroups(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			resources = append(resources, userGroups...)
+			if nextKey == "" {
+				break
+			}
+		}
+		return &userGroupCollection{userGroups: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

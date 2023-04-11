@@ -16,7 +16,11 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
+	"time"
+
+	"golang.org/x/exp/maps"
 )
 
 type ghaBuildType struct {
@@ -26,6 +30,7 @@ type ghaBuildType struct {
 	ghaWorkflow  string
 	srcRefVar    string
 	workflowRef  string
+	timeout      time.Duration
 	slackOnError bool
 	dependsOn    []string
 	inputs       map[string]string
@@ -42,6 +47,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 	cmd.WriteString(`-owner ${DRONE_REPO_OWNER} `)
 	cmd.WriteString(`-repo teleport.e `)
 	cmd.WriteString(`-tag-workflow `)
+	fmt.Fprintf(&cmd, `-timeout %s `, b.timeout.String())
 	fmt.Fprintf(&cmd, `-workflow %s `, b.ghaWorkflow)
 	fmt.Fprintf(&cmd, `-workflow-ref=%s `, b.workflowRef)
 
@@ -51,14 +57,19 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 		fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
 	}
 
-	for k, v := range b.inputs {
-		fmt.Fprintf(&cmd, `-input "%s=%s" `, k, v)
+	// Sort inputs so the are output in a consistent order to avoid
+	// spurious changes in the generated drone config.
+	keys := maps.Keys(b.inputs)
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&cmd, `-input "%s=%s" `, k, b.inputs[k])
 	}
 
 	p.Steps = []step{
 		{
 			Name:  "Check out code",
 			Image: "docker:git",
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GITHUB_PRIVATE_KEY": {fromSecret: "GITHUB_PRIVATE_KEY"},
 			},
@@ -67,6 +78,7 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 		{
 			Name:  "Delegate build to GitHub",
 			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
+			Pull:  "if-not-exists",
 			Environment: map[string]value{
 				"GHA_APP_KEY": {fromSecret: "GITHUB_WORKFLOW_APP_PRIVATE_KEY"},
 			},

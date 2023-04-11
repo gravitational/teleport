@@ -96,6 +96,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/interval"
 	vc "github.com/gravitational/teleport/lib/versioncontrol"
 	"github.com/gravitational/teleport/lib/versioncontrol/github"
+	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 )
 
 const (
@@ -190,7 +191,10 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		}
 	}
 	if cfg.UserGroups == nil {
-		cfg.UserGroups = local.NewUserGroupService(cfg.Backend)
+		cfg.UserGroups, err = local.NewUserGroupService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	if cfg.ConnectionsDiagnostic == nil {
 		cfg.ConnectionsDiagnostic = local.NewConnectionsDiagnosticService(cfg.Backend)
@@ -201,9 +205,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.Enforcer == nil {
-		cfg.Enforcer = local.NewNoopEnforcer()
-	}
 	if cfg.AssertionReplayService == nil {
 		cfg.AssertionReplayService = local.NewAssertionReplayService(cfg.Backend)
 	}
@@ -212,6 +213,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	if cfg.UsageReporter == nil {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
+	}
+	if cfg.Okta == nil {
+		cfg.Okta, err = local.NewOktaService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
@@ -260,10 +267,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SAMLIdPServiceProviders: cfg.SAMLIdPServiceProviders,
 		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
-		Enforcer:                cfg.Enforcer,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
+
+		okta: cfg.Okta,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -361,12 +369,13 @@ type Services struct {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
-	services.Enforcer
 	services.ConnectionsDiagnostic
 	services.StatusInternal
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
+
+	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -379,6 +388,11 @@ func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionReq
 // Implements ReadAccessPoint
 func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.Identity.WebTokens().Get(ctx, req)
+}
+
+// OktaClient returns the okta client.
+func (r *Services) OktaClient() services.Okta {
+	return r.okta
 }
 
 var (
@@ -473,6 +487,8 @@ type Server struct {
 	loginRuleEvaluator loginrule.Evaluator
 
 	sshca.Authority
+
+	upgradeWindowStartHourGetter func(context.Context) (int64, error)
 
 	// AuthServiceName is a human-readable name of this CA. If several Auth services are running
 	// (managing multiple teleport clusters) this field is used to tell them apart in UIs
@@ -588,6 +604,20 @@ func (a *Server) SetReleaseService(svc release.Client) {
 	a.releaseService = svc
 }
 
+// SetUpgradeWindowStartHourGetter sets the getter used to sync the ClusterMaintenanceConfig resource
+// with the cloud UpgradeWindowStartHour value.
+func (a *Server) SetUpgradeWindowStartHourGetter(fn func(context.Context) (int64, error)) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.upgradeWindowStartHourGetter = fn
+}
+
+func (a *Server) getUpgradeWindowStartHourGetter() func(context.Context) (int64, error) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	return a.upgradeWindowStartHourGetter
+}
+
 // SetLoginRuleEvaluator sets the login rule evaluator.
 func (a *Server) SetLoginRuleEvaluator(l loginrule.Evaluator) {
 	a.loginRuleEvaluator = l
@@ -628,6 +658,66 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
+}
+
+// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
+// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
+func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
+	getter := a.getUpgradeWindowStartHourGetter()
+	if getter == nil {
+		return trace.Errorf("getter has not been registered")
+	}
+
+	startHour, err := getter(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cmc, err := a.GetClusterMaintenanceConfig(ctx)
+	if err != nil {
+		if !trace.IsNotFound(err) {
+			return trace.Wrap(err)
+		}
+
+		// create an empty maintenance config resource on NotFound
+		cmc = types.NewClusterMaintenanceConfig()
+	}
+
+	agentWindow, _ := cmc.GetAgentUpgradeWindow()
+
+	agentWindow.UTCStartHour = uint32(startHour)
+
+	cmc.SetAgentUpgradeWindow(agentWindow)
+
+	if err := a.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (a *Server) periodicSyncUpgradeWindowStartHour() {
+	checkInterval := interval.New(interval.Config{
+		Duration:      time.Minute * 3,
+		FirstDuration: utils.FullJitter(time.Second * 30),
+		Jitter:        retryutils.NewSeventhJitter(),
+	})
+	defer checkInterval.Stop()
+
+	for {
+		select {
+		case <-checkInterval.Next():
+			if err := a.syncUpgradeWindowStartHour(a.closeCtx); err != nil {
+				if a.closeCtx.Err() == nil {
+					// we run this periodic at a fairly high frequency, so errors are just
+					// logged but otherwise ignored.
+					log.Warnf("Failed to sync upgrade window start hour: %v", err)
+				}
+			}
+		case <-a.closeCtx.Done():
+			return
+		}
+	}
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -703,6 +793,12 @@ func (a *Server) runPeriodicOperations() {
 			}
 		}
 	}()
+
+	// cloud auth servers need to periodically sync the upgrade window
+	// from the cloud db.
+	if modules.GetModules().Features().Cloud {
+		go a.periodicSyncUpgradeWindowStartHour()
+	}
 
 	for {
 		select {
@@ -1054,11 +1150,6 @@ func (a *Server) GetEmitter() apievents.Emitter {
 // use before main server start.
 func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
-}
-
-// SetEnforcer sets the server's enforce service
-func (a *Server) SetEnforcer(enforcer services.Enforcer) {
-	a.Services.Enforcer = enforcer
 }
 
 // SetUsageReporter sets the server's usage reporter. Note that this is only
@@ -1782,7 +1873,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		user = req.impersonator
 	}
 
-	if err := a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
+	a.AnonymizeAndSubmit(&usagereporter.UserCertificateIssuedEvent{
 		UserName:        user,
 		Ttl:             durationpb.New(req.ttl),
 		IsBot:           bot,
@@ -1790,9 +1881,7 @@ func (a *Server) submitCertificateIssuedEvent(req *certRequest) {
 		UsageApp:        app,
 		UsageKubernetes: kubernetes,
 		UsageDesktop:    desktop,
-	}); err != nil {
-		log.Debugf("Unable to submit certificate issued usage event: %v", err)
-	}
+	})
 }
 
 // generateUserCert generates certificates signed with User CA
@@ -2067,6 +2156,7 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
+		UserType: req.user.GetUserType(),
 	}
 
 	var signedTLSCert []byte
@@ -3767,6 +3857,166 @@ func (a *Server) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) {
 	return k, nil
 }
 
+// KeepAliveServer implements [services.Presence] by delegating to
+// [Server.Services] and potentially emitting a [usagereporter] event.
+func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
+	if err := a.Services.KeepAliveServer(ctx, h); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// ResourceHeartbeatEvent only cares about a few KeepAlive types
+	kind := usagereporter.ResourceKindFromKeepAliveType(h.Type)
+	if kind == 0 {
+		return nil
+	}
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   h.Name,
+		Kind:   kind,
+		Static: h.Expires.IsZero(),
+	})
+
+	return nil
+}
+
+// UpsertNode implements [services.Presence] by delegating to [Server.Services]
+// and potentially emitting a [usagereporter] event.
+func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertNode(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kind := usagereporter.ResourceKindNode
+	if server.GetSubKind() == types.SubKindOpenSSHNode {
+		kind = usagereporter.ResourceKindNodeOpenSSH
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   kind,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// enforceLicense checks if the license allows the given resource type to be
+// created.
+func enforceLicense(t string) error {
+	switch t {
+	case types.KindKubeServer, types.KindKubernetesCluster:
+		if !modules.GetModules().Features().Kubernetes {
+			return trace.AccessDenied(
+				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
+		}
+	}
+	return nil
+}
+
+// UpsertKubernetesServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
+	if err := enforceLicense(types.KindKubeServer); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	k, err := a.Services.UpsertKubernetesServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		// the name of types.KubeServer might include a -proxy_service suffix
+		Name:   server.GetCluster().GetName(),
+		Kind:   usagereporter.ResourceKindKubeServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return k, nil
+}
+
+// UpsertApplicationServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertApplicationServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindAppServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// UpsertDatabaseServer implements [services.Presence] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
+	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   server.GetName(),
+		Kind:   usagereporter.ResourceKindDBServer,
+		Static: server.Expiry().IsZero(),
+	})
+
+	return lease, nil
+}
+
+// CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.CreateWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
+// UpdateWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.UpdateWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
+// UpsertWindowsDesktop implements [services.WindowsDesktops] by delegating to
+// [Server.Services] and then potentially emitting a [usagereporter] event.
+func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
+	if err := a.Services.UpsertWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetName(),
+		Kind:   usagereporter.ResourceKindWindowsDesktop,
+		Static: desktop.Expiry().IsZero(),
+	})
+
+	return nil
+}
+
 // GenerateCertAuthorityCRL generates an empty CRL for the local CA of a given type.
 func (a *Server) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
 	// Generate a CRL for the current cluster CA.
@@ -4092,6 +4342,9 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Services.CreateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4116,6 +4369,9 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
+	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := a.Kubernetes.UpdateKubernetesCluster(ctx, kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
@@ -4165,16 +4421,124 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
+	userIsSSO, err := authz.GetClientUserIsSSO(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := a.AnonymizeAndSubmit(event); err != nil {
+	userMetadata := usagereporter.UserMetadata{
+		Username: username,
+		IsSSO:    userIsSSO,
+	}
+
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), userMetadata)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	a.AnonymizeAndSubmit(event)
+
 	return nil
+}
+
+// Ping gets basic info about the auth server.
+// Please note that Ping is publicly accessible (not protected by any RBAC) by design,
+// and thus PingResponse must never contain any sensitive information.
+func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
+	cn, err := a.GetClusterName()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+
+	return proto.PingResponse{
+		ClusterName:     cn.GetClusterName(),
+		ServerVersion:   teleport.Version,
+		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ProxyPublicAddr: a.getProxyPublicAddr(),
+		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:      a.loadAllCAs,
+	}, nil
+}
+
+type maintenanceWindowCacheKey struct {
+	key string
+}
+
+// agentWindowLookahead is the number of upgrade windows, starting from 'today', that we export
+// when compiling agent upgrade schedules. The choice is arbitrary. We must export at least 2, because upgraders
+// treat a schedule value whose windows all end in the past to be stale and therefore a sign that the agent is
+// unhealthy. 3 was picked to give us some leeway in terms of how long an agent can be turned off before its
+// upgrader starts complaining of a stale schedule.
+const agentWindowLookahead = 3
+
+// exportUpgradeWindowsCached generates the export value of all upgrade window schedule types. Since schedules
+// are reloaded frequently in large clusters and export incurs string/json encoding, we use the ttl cache to store
+// the encoded schedule values for a few seconds.
+func (a *Server) exportUpgradeWindowsCached(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
+	return utils.FnCacheGet(ctx, a.ttlCache, maintenanceWindowCacheKey{"export"}, func(ctx context.Context) (proto.ExportUpgradeWindowsResponse, error) {
+		var rsp proto.ExportUpgradeWindowsResponse
+		cmc, err := a.GetClusterMaintenanceConfig(ctx)
+		if err != nil {
+			if trace.IsNotFound(err) {
+				// "not found" is treated as an empty schedule value
+				return rsp, nil
+			}
+			return rsp, trace.Wrap(err)
+		}
+
+		agentWindow, ok := cmc.GetAgentUpgradeWindow()
+		if !ok {
+			// "unconfigured" is treated as an empty schedule value
+			return rsp, nil
+		}
+
+		sched := agentWindow.Export(time.Now(), agentWindowLookahead)
+
+		rsp.CanonicalSchedule = &sched
+
+		rsp.KubeControllerSchedule, err = uw.EncodeKubeControllerSchedule(sched)
+		if err != nil {
+			log.Warnf("Failed to encode kube controller maintenance schedule: %v", err)
+		}
+
+		rsp.SystemdUnitSchedule, err = uw.EncodeSystemdUnitSchedule(sched)
+		if err != nil {
+			log.Warnf("Failed to encode systemd unit maintenance schedule: %v", err)
+		}
+
+		return rsp, nil
+	})
+}
+
+func (a *Server) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
+	var rsp proto.ExportUpgradeWindowsResponse
+
+	// get the cached collection of all export values
+	cached, err := a.exportUpgradeWindowsCached(ctx)
+	if err != nil {
+		return rsp, nil
+	}
+
+	switch req.UpgraderKind {
+	case "":
+		rsp.CanonicalSchedule = cached.CanonicalSchedule.Clone()
+	case types.UpgraderKindKubeController:
+		rsp.KubeControllerSchedule = cached.KubeControllerSchedule
+
+		if sched := os.Getenv("TELEPORT_UNSTABLE_KUBE_UPGRADE_SCHEDULE"); sched != "" {
+			rsp.KubeControllerSchedule = sched
+		}
+	case types.UpgraderKindSystemdUnit:
+		rsp.SystemdUnitSchedule = cached.SystemdUnitSchedule
+
+		if sched := os.Getenv("TELEPORT_UNSTABLE_SYSTEMD_UPGRADE_SCHEDULE"); sched != "" {
+			rsp.SystemdUnitSchedule = sched
+		}
+	default:
+		return rsp, trace.NotImplemented("unsupported upgrader kind %q in upgrade window export request", req.UpgraderKind)
+	}
+
+	return rsp, nil
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -4747,6 +5111,25 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 	return headlessAuthn, trace.Wrap(err)
 }
 
+// getProxyPublicAddr returns the first valid, non-empty proxy public address it
+// finds, or empty otherwise.
+func (a *Server) getProxyPublicAddr() string {
+	if proxies, err := a.GetProxies(); err == nil {
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				continue
+			}
+			if _, err := utils.ParseAddr(addr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				continue
+			}
+			return addr
+		}
+	}
+	return ""
+}
+
 // authKeepAliver is a keep aliver using auth server directly
 type authKeepAliver struct {
 	sync.RWMutex
@@ -4912,7 +5295,16 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.
 func DefaultDNSNamesForRole(role types.SystemRole) []string {
-	if (types.SystemRoles{role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp, types.RoleDatabase, types.RoleWindowsDesktop) {
+	if (types.SystemRoles{role}).IncludeAny(
+		types.RoleAuth,
+		types.RoleAdmin,
+		types.RoleProxy,
+		types.RoleKube,
+		types.RoleApp,
+		types.RoleDatabase,
+		types.RoleWindowsDesktop,
+		types.RoleOkta,
+	) {
 		return []string{
 			"*." + constants.APIDomain,
 			constants.APIDomain,

@@ -192,9 +192,6 @@ type InitConfig struct {
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
-	// Enforcer is used to enforce Teleport Enterprise license compliance.
-	Enforcer services.Enforcer
-
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
 
@@ -215,6 +212,9 @@ type InitConfig struct {
 
 	// UsageReporter is a service that forwards cluster usage events.
 	UsageReporter usagereporter.UsageReporter
+
+	// Okta is a service that manages Okta resources.
+	Okta services.Okta
 
 	// Clock is the clock instance auth uses. Typically you'd only want to set
 	// this during testing.

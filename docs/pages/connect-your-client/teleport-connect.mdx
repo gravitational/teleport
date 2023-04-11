@@ -26,7 +26,7 @@ your package manager. Repeat the process for in-place upgrades.
 You can also download the project as a `tar.gz` file to extract and run it in place:
 
 ```code
-$ tar -xf  teleport-(=teleport.version=)-linux-*.tar.gz
+$ tar -xf  teleport-connect-(=teleport.version=)-linux-*.tar.gz
 ```
 </TabItem>
 <TabItem label="Windows">
@@ -139,7 +139,6 @@ a custom home location through [the `TELEPORT_HOME` environment
 variable](../reference/cli.mdx#tsh-environment-variables). For example, logging in to a new cluster
 through tsh will not make that cluster show up in Teleport Connect.
 
-
 <Tabs>
 <TabItem label="macOS">
 To add tsh to `PATH`, execute `tsh install` from the command bar in Teleport Connect. This will
@@ -172,7 +171,6 @@ The file will open in your default editor.
 </Admonition>
 
 Below is the list of the supported config properties.
-
 
 | Property                      | Default                                                                                                              | Description                                                            |
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
@@ -214,7 +212,6 @@ Available key codes:
 - `F1` to `F24`
 - `,`, `.`, `/`, `\`, `` ` ``, `-`, `=`, `;`, `'`, `[`, `]`
 - `Space`, `Tab`, `CapsLock`, `NumLock`, `ScrollLock`, `Backspace`, `Delete`, `Insert`, `Enter`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `Escape`, `IntlBackslash`
-
 
 ## Telemetry
 
@@ -317,3 +314,53 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>
+
+## Uninstalling Teleport Connect
+
+<Tabs>
+<TabItem label="macOS">
+
+Remove Teleport Connect for MacOS from the Applications directory with this command:
+
+```code
+$ sudo rm -f /Applications/Teleport\ Connect.app
+```
+
+To remove the local user data directory:
+
+```code
+$ sudo rm -rf ~/Library/Application\ Support/Teleport\ Connect
+``` 
+
+</TabItem>
+<TabItem label="Windows">
+
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
+
+To remove the local user data directory:
+
+```powershell
+$ rmdir /s /q "%APPDATA%\Teleport Connect"
+```
+
+</TabItem>
+<TabItem label="Linux">
+
+For DEB installations uninstall Teleport Connect using APT:
+
+```code
+$ sudo apt remove teleport-connect
+```
+
+For RPM installations uninstall Teleport Connect using YUM:
+
+```code
+$ sudo yum remove teleport-connect
+```
+
+Installs based on a tarball should remove the
+`teleport-connect` directory and any copied/linked executables.
+
+</TabItem>
+</Tabs>
+

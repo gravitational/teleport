@@ -325,7 +325,8 @@ func (p *transport) start() {
 		clientDst = dst
 	}
 	var signedHeader []byte
-	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, dreq.Address != RemoteAuthServer, clientSrc, clientDst) {
+	isKubeOrAuth := dreq.ConnType == types.KubeTunnel || dreq.Address == RemoteAuthServer
+	if shouldSendSignedPROXYHeader(p.proxySigner, dreq.TeleportVersion, useTunnel, !isKubeOrAuth, clientSrc, clientDst) {
 		signedHeader, err = p.proxySigner.SignPROXYHeader(clientSrc, clientDst)
 		if err != nil {
 			errorMessage := fmt.Sprintf("connection rejected - could not create signed PROXY header: %v", err)
@@ -354,7 +355,7 @@ func (p *transport) start() {
 
 	errorCh := make(chan error, 2)
 
-	if signedHeader != nil {
+	if len(signedHeader) > 0 {
 		_, err = conn.Write(signedHeader)
 		if err != nil {
 			p.log.Errorf("Could not write PROXY header to the connection: %v", err)
@@ -425,11 +426,13 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 			return nil, false, trace.Wrap(err)
 		}
 
-		// Connections to applications and databases should never occur over
+		// Connections to applications (including Okta applications) and databases should never occur over
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+		case types.OktaTunnel:
+			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
 		case types.DatabaseTunnel:
 			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
 		}

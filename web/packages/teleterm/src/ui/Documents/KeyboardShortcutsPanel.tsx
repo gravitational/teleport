@@ -32,6 +32,10 @@ export function KeyboardShortcutsPanel() {
       shortcutAction: 'newTab',
     },
     {
+      title: 'Open New Terminal Tab',
+      shortcutAction: 'newTerminalTab',
+    },
+    {
       title: 'Go To Next Tab',
       shortcutAction: 'nextTab',
     },
@@ -72,7 +76,12 @@ function Entry(props: { title: string; accelerator: string }) {
       <Text textAlign="right" color="light" typography="subtitle1" py="4px">
         {props.title}
       </Text>
-      <MonoText bg="primary.main" textAlign="left" px="12px" py="4px">
+      <MonoText
+        bg="levels.surfaceSecondary"
+        textAlign="left"
+        px="12px"
+        py="4px"
+      >
         {props.accelerator}
       </MonoText>
     </>

@@ -172,7 +172,15 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
   }
 
-  hasPluginsAccess() {
-    return this.state.acl.plugins.list || this.state.acl.plugins.create;
+  getPluginsAccess() {
+    return this.state.acl.plugins;
+  }
+
+  getDeviceTrustAccess() {
+    return this.state.acl.deviceTrust;
+  }
+
+  getIntegrationsAccess() {
+    return this.state.acl.integrations;
   }
 }

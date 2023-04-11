@@ -17,7 +17,7 @@
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { MutualTlsView } from './MutualTls';
 
@@ -35,13 +35,13 @@ export const LoadedPostgres = () => (
 
 export const LoadedMongo = () => (
   <MemoryRouter>
-    <MutualTlsView {...props} dbEngine={DatabaseEngine.Mongo} />
+    <MutualTlsView {...props} dbEngine={DatabaseEngine.MongoDb} />
   </MemoryRouter>
 );
 
 export const LoadedSqlMaria = () => (
   <MemoryRouter>
-    <MutualTlsView {...props} dbEngine={DatabaseEngine.MySQL} />
+    <MutualTlsView {...props} dbEngine={DatabaseEngine.MySql} />
   </MemoryRouter>
 );
 
@@ -74,5 +74,5 @@ const props: State = {
   onNextStep: () => null,
   canUpdateDatabase: true,
   curlCmd: `some curl command`,
-  dbEngine: DatabaseEngine.PostgreSQL,
+  dbEngine: DatabaseEngine.Postgres,
 };

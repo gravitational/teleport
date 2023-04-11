@@ -30,11 +30,10 @@ import {
 import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
-import { DatabaseEngine, DatabaseLocation } from '../resources';
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
 import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
-import type { Database } from '../resources';
 
 export default function Container(props: AgentStepProps) {
   const state = useUserTraits(props);
@@ -47,7 +46,7 @@ export function SetupAccess(props: State) {
     initSelectedOptions,
     getFixedOptions,
     getSelectableOptions,
-    resourceState,
+    resourceSpec,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -95,10 +94,10 @@ export function SetupAccess(props: State) {
     onProceed({ databaseNames: selectedNames, databaseUsers: selectedUsers });
   }
 
-  const { engine, location } = resourceState as Database;
+  const { engine, location } = resourceSpec.dbMeta;
   let hasTraits = selectedUsers.length > 0;
   // Postgres connection testing requires both db user and a db name.
-  if (engine === DatabaseEngine.PostgreSQL) {
+  if (engine === DatabaseEngine.Postgres) {
     hasTraits = hasTraits && selectedNames.length > 0;
   }
 
@@ -200,8 +199,8 @@ function DbEngineInstructions({
   dbLocation: DatabaseLocation;
 }) {
   switch (dbLocation) {
-    case DatabaseLocation.AWS:
-      if (dbEngine === DatabaseEngine.PostgreSQL) {
+    case DatabaseLocation.Aws:
+      if (dbEngine === DatabaseEngine.Postgres) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -228,7 +227,7 @@ function DbEngineInstructions({
           </Box>
         );
       }
-      if (dbEngine === DatabaseEngine.MySQL) {
+      if (dbEngine === DatabaseEngine.MySql) {
         return (
           <Box mb={3}>
             <Box mb={2}>
@@ -273,7 +272,7 @@ function DbEngineInstructions({
 
     // self-hosted databases
     default:
-      if (dbEngine === DatabaseEngine.PostgreSQL) {
+      if (dbEngine === DatabaseEngine.Postgres) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -306,7 +305,7 @@ function DbEngineInstructions({
         );
       }
 
-      if (dbEngine === DatabaseEngine.Mongo) {
+      if (dbEngine === DatabaseEngine.MongoDb) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -334,7 +333,7 @@ function DbEngineInstructions({
         );
       }
 
-      if (dbEngine === DatabaseEngine.MySQL) {
+      if (dbEngine === DatabaseEngine.MySql) {
         return (
           <Box mb={3}>
             <Text mb={2}>

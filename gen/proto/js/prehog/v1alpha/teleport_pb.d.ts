@@ -79,6 +79,37 @@ export namespace ResourceCreateEvent {
     }
 }
 
+export class ResourceHeartbeatEvent extends jspb.Message { 
+    getResourceName(): Uint8Array | string;
+    getResourceName_asU8(): Uint8Array;
+    getResourceName_asB64(): string;
+    setResourceName(value: Uint8Array | string): ResourceHeartbeatEvent;
+
+    getResourceKind(): ResourceKind;
+    setResourceKind(value: ResourceKind): ResourceHeartbeatEvent;
+
+    getStatic(): boolean;
+    setStatic(value: boolean): ResourceHeartbeatEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ResourceHeartbeatEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ResourceHeartbeatEvent): ResourceHeartbeatEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ResourceHeartbeatEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ResourceHeartbeatEvent;
+    static deserializeBinaryFromReader(message: ResourceHeartbeatEvent, reader: jspb.BinaryReader): ResourceHeartbeatEvent;
+}
+
+export namespace ResourceHeartbeatEvent {
+    export type AsObject = {
+        resourceName: Uint8Array | string,
+        resourceKind: ResourceKind,
+        pb_static: boolean,
+    }
+}
+
 export class SessionStartEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): SessionStartEvent;
@@ -360,6 +391,9 @@ export class DiscoverMetadata extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): DiscoverMetadata;
 
+    getSso(): boolean;
+    setSso(value: boolean): DiscoverMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoverMetadata.AsObject;
@@ -375,6 +409,7 @@ export namespace DiscoverMetadata {
     export type AsObject = {
         id: string,
         userName: string,
+        sso: boolean,
     }
 }
 
@@ -1318,6 +1353,12 @@ export class SubmitEventRequest extends jspb.Message {
     setAgentMetadataEvent(value?: AgentMetadataEvent): SubmitEventRequest;
 
 
+    hasResourceHeartbeat(): boolean;
+    clearResourceHeartbeat(): void;
+    getResourceHeartbeat(): ResourceHeartbeatEvent | undefined;
+    setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1369,6 +1410,7 @@ export namespace SubmitEventRequest {
         kubeRequest?: KubeRequestEvent.AsObject,
         sftp?: SFTPEvent.AsObject,
         agentMetadataEvent?: AgentMetadataEvent.AsObject,
+        resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1443,6 +1485,8 @@ export namespace SubmitEventRequest {
     SFTP = 37,
 
     AGENT_METADATA_EVENT = 38,
+
+    RESOURCE_HEARTBEAT = 39,
 
     }
 
@@ -1539,6 +1583,16 @@ export namespace HelloTeleportResponse {
     }
 }
 
+export enum ResourceKind {
+    RESOURCE_KIND_UNSPECIFIED = 0,
+    RESOURCE_KIND_NODE = 1,
+    RESOURCE_KIND_APP_SERVER = 2,
+    RESOURCE_KIND_KUBE_SERVER = 3,
+    RESOURCE_KIND_DB_SERVER = 4,
+    RESOURCE_KIND_WINDOWS_DESKTOP = 5,
+    RESOURCE_KIND_NODE_OPENSSH = 6,
+}
+
 export enum DiscoverResource {
     DISCOVER_RESOURCE_UNSPECIFIED = 0,
     DISCOVER_RESOURCE_SERVER = 1,
@@ -1558,6 +1612,25 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15,
     DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16,
     DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS = 18,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE = 19,
+    DISCOVER_RESOURCE_DATABASE_DYNAMODB = 20,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES = 21,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED = 22,
+    DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED = 23,
+    DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE = 24,
+    DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB = 25,
+    DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE = 26,
+    DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED = 27,
+    DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE = 28,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE = 29,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT = 30,
+    DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED = 31,
+    DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS = 32,
+    DISCOVER_RESOURCE_DATABASE_SNOWFLAKE = 33,
+    DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34,
+    DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
+    DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
 }
 
 export enum DiscoverStatus {

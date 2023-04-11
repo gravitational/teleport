@@ -39,11 +39,13 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -918,9 +920,22 @@ func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, locatio
 
 func TestDiscoveryDatabase(t *testing.T) {
 	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1")
+	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1")
 	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US")
 
+	role := services.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "test123"}
+	awsRDSDBWithRole := awsRDSDB.Copy()
+	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
+	awsRDSDBWithRole.SetAWSExternalID("test123")
+
 	testClients := &cloud.TestCloudClients{
+		STS: &mocks.STSMock{},
+		RDS: &mocks.RDSMock{
+			DBInstances: []*rds.DBInstance{awsRDSInstance},
+			DBEngineVersions: []*rds.DBEngineVersion{
+				{Engine: aws.String(services.RDSEnginePostgres)},
+			},
+		},
 		Redshift: &mocks.RedshiftMock{
 			Clusters: []*redshift.Cluster{awsRedshiftResource},
 		},
@@ -948,6 +963,16 @@ func TestDiscoveryDatabase(t *testing.T) {
 				Regions: []string{"us-east-1"},
 			}},
 			expectDatabases: []types.Database{awsRedshiftDB},
+		},
+		{
+			name: "discover AWS database with assumed role",
+			awsMatchers: []services.AWSMatcher{{
+				Types:      []string{services.AWSMatcherRDS},
+				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:    []string{"us-west-1"},
+				AssumeRole: role,
+			}},
+			expectDatabases: []types.Database{awsRDSDBWithRole},
 		},
 		{
 			name: "discover Azure database",
@@ -978,6 +1003,26 @@ func TestDiscoveryDatabase(t *testing.T) {
 				Regions: []string{"us-east-1"},
 			}},
 			expectDatabases: []types.Database{awsRedshiftDB},
+		},
+		{
+			name: "update existing database with assumed role",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "aws-rds",
+					Description: "should be updated",
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+				}, types.DatabaseSpecV3{
+					Protocol: "postgres",
+					URI:      "should.be.updated.com:12345",
+				}),
+			},
+			awsMatchers: []services.AWSMatcher{{
+				Types:      []string{services.AWSMatcherRDS},
+				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:    []string{"us-west-1"},
+				AssumeRole: role,
+			}},
+			expectDatabases: []types.Database{awsRDSDBWithRole},
 		},
 		{
 			name: "delete existing database",
@@ -1085,10 +1130,27 @@ func TestDiscoveryDatabase(t *testing.T) {
 					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "CACert"),
 				))
 			case <-time.After(time.Second):
-				t.Fatal("Didn't receive reconcile event after 1s.")
+				t.Fatal("Didn't receive reconcile event after 1s")
 			}
 		})
 	}
+}
+
+func makeRDSInstance(t *testing.T, name, region string) (*rds.DBInstance, types.Database) {
+	instance := &rds.DBInstance{
+		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
+		DBInstanceIdentifier: aws.String(name),
+		DbiResourceId:        aws.String(uuid.New().String()),
+		Engine:               aws.String(services.RDSEnginePostgres),
+		DBInstanceStatus:     aws.String("available"),
+		Endpoint: &rds.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5432),
+		},
+	}
+	database, err := services.NewDatabaseFromRDSInstance(instance)
+	require.NoError(t, err)
+	return instance, database
 }
 
 func makeRedshiftCluster(t *testing.T, name, region string) (*redshift.Cluster, types.Database) {

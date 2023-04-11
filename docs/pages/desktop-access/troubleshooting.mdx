@@ -1,6 +1,6 @@
 ---
 title: Troubleshooting Desktop Access
-description: Common issues and resolutions for Teleport's Desktop Access
+description: Common issues and resolutions for Teleport's desktop access
 ---
 
 Common issues and resolution steps.
@@ -56,28 +56,11 @@ This means that the host does not trust the Teleport CA.
 First, make sure that you [import the Teleport CA into Group
 Policy](./active-directory-manual.mdx#create-another-gpo-and-import-the-teleport-ca). Note that if the
 Teleport CA was rotated since the last import, you will have to fetch the
-new CA using the following command:
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+new CA using the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
-# Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --proxy=teleport.example.com --user=myuser
-$ tctl auth export --type=windows >user-ca.cer
+$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=windows' > user-ca.cer
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
-$ tctl auth export --type=windows >user-ca.cer
-```
-
-</ScopedBlock>
 
 If that doesn't help, log into the target host directly, open PowerShell and
 run `gpupdate.exe /force`. This forces a Group Policy sync and should pick up

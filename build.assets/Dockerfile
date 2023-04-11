@@ -38,16 +38,26 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     make install && \
     make clean
 
+# Install openssl.
+# install_sw install only binaries, skips docs.
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
+    cd openssl && \
+    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
+    ./config --release --libdir=/usr/local/lib && \
+    make && \
+    make install_sw
+
 # Install libfido2.
-# Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
+# Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
+    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
+    grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
     make && \
     make install && \
     make clean
@@ -258,7 +268,6 @@ RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
 ARG GOGO_PROTO_TAG
-ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
      curl -fsSL -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
@@ -266,13 +275,7 @@ RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd
      chmod -R a+r /usr/local/include/google/protobuf && \
      chmod -R a+xr /usr/local/bin/protoc && \
      rm /tmp/${PROTOC_TARBALL})
-RUN (git clone https://github.com/gogo/protobuf.git --branch ${GOGO_PROTO_TAG} --depth 1 ${GOPATH}/src/github.com/gogo/protobuf && \
-     cd ${GOPATH}/src/github.com/gogo/protobuf && \
-     make install && \
-     make clean)
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1 && \
-    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0
-ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
+RUN go install github.com/gogo/protobuf/protoc-gen-gogofast@${GOGO_PROTO_TAG}
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
@@ -285,7 +288,7 @@ RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.15.1" && \
+    VERSION="1.17.0" && \
       curl -fsSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \
@@ -298,16 +301,24 @@ COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 /usr/local/lib/engines-3/ /usr/local/lib/engines-3/
+COPY --from=libfido2 /usr/local/lib/ossl-modules/ /usr/local/lib/ossl-modules/
 COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
+    /usr/local/lib/libcrypto.a \
+    /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.12.0 \
+    /usr/local/lib/libfido2.so.1.13.0 \
+    /usr/local/lib/libssl.a \
+    /usr/local/lib/libssl.so.3 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
-    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
+    ln -s libcrypto.so.3 libcrypto.so && \
+    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
+    ln -s libssl.so.3 libssl.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
 

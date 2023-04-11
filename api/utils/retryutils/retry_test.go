@@ -32,6 +32,21 @@ func TestLinear(t *testing.T) {
 		Max:  3 * time.Second,
 	})
 	require.NoError(t, err)
+	testLinear(t, r)
+}
+
+func TestLinearV2(t *testing.T) {
+	t.Parallel()
+
+	r2, err := NewRetryV2(RetryV2Config{
+		Driver: NewLinearDriver(time.Second),
+		Max:    3 * time.Second,
+	})
+	require.NoError(t, err)
+	testLinear(t, r2)
+}
+
+func testLinear(t *testing.T, r Retry) {
 	require.Equal(t, r.Duration(), time.Duration(0))
 	r.Inc()
 	require.Equal(t, r.Duration(), time.Second)
@@ -43,6 +58,37 @@ func TestLinear(t *testing.T) {
 	require.Equal(t, r.Duration(), 3*time.Second)
 	r.Reset()
 	require.Equal(t, r.Duration(), time.Duration(0))
+}
+
+func TestExponential(t *testing.T) {
+	t.Parallel()
+
+	r, err := NewRetryV2(RetryV2Config{
+		Driver: NewExponentialDriver(time.Second),
+		Max:    12 * time.Second,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, r.Duration(), time.Duration(0))
+	r.Inc()
+	require.Equal(t, r.Duration(), time.Second)
+	r.Inc()
+	require.Equal(t, r.Duration(), 2*time.Second)
+	r.Inc()
+	require.Equal(t, r.Duration(), 4*time.Second)
+	r.Inc()
+	require.Equal(t, r.Duration(), 8*time.Second)
+	r.Inc()
+	// should hit configured maximum
+	require.Equal(t, r.Duration(), 12*time.Second)
+	r.Reset()
+	require.Equal(t, r.Duration(), time.Duration(0))
+
+	// verify that exponentiation is capped s.t. we don't wrap
+	for i := 0; i < 128; i++ {
+		r.Inc()
+		require.True(t, r.Duration() > 0 && r.Duration() <= time.Second*12)
+	}
 }
 
 func TestLinearRetryMax(t *testing.T) {

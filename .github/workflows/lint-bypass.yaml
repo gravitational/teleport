@@ -10,9 +10,6 @@
 name: Lint (Go)
 run-name: make lint
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths:
       - 'docs/**'
@@ -25,10 +22,10 @@ on:
 jobs:
   lint:
     name: Lint (Go)
-    runs-on: ubuntu-latest  
-    
+    runs-on: ubuntu-latest
+
     permissions:
       contents: none
 
     steps:
-    - run: 'echo "No changes to verify"' 
+    - run: 'echo "No changes to verify"'

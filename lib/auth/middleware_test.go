@@ -17,11 +17,15 @@ limitations under the License.
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -194,7 +198,6 @@ func TestMiddlewareGetUser(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-
 			m := &Middleware{
 				ClusterName: localClusterName,
 			}
@@ -352,8 +355,10 @@ func TestWrapContextWithUser(t *testing.T) {
 			}
 
 			conn := &testConn{
-				state: tls.ConnectionState{PeerCertificates: tt.peers,
-					HandshakeComplete: !tt.needsHandshake},
+				state: tls.ConnectionState{
+					PeerCertificates:  tt.peers,
+					HandshakeComplete: !tt.needsHandshake,
+				},
 				remoteAddr: utils.MustParseAddr("127.0.0.1:4242"),
 			}
 
@@ -380,4 +385,304 @@ func subject(t *testing.T, id tlsca.Identity) pkix.Name {
 	// Since we're just mimicking certs in memory, move manually.
 	s.Names = s.ExtraNames
 	return s
+}
+
+func TestMiddleware_ServeHTTP(t *testing.T) {
+	t.Parallel()
+	localClusterName := "local"
+	remoteClusterName := "remote"
+	s := newTestServices(t)
+
+	// Set up local cluster name in the backend.
+	cn, err := services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: localClusterName,
+	})
+	require.NoError(t, err)
+	require.NoError(t, s.UpsertClusterName(cn))
+
+	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	localUserIdentity := tlsca.Identity{
+		Username:        "foo",
+		Groups:          []string{"devs"},
+		TeleportCluster: localClusterName,
+		Expires:         now,
+		Usage:           []string{},
+		Principals:      []string{},
+	}
+
+	remoteUserIdentity := tlsca.Identity{
+		Username:        "foo",
+		Groups:          []string{"devs"},
+		TeleportCluster: remoteClusterName,
+		Expires:         now,
+		Usage:           []string{},
+		Principals:      []string{},
+	}
+
+	proxyIdentity := tlsca.Identity{
+		Username:        "proxy...",
+		Groups:          []string{string(types.RoleProxy)},
+		TeleportCluster: localClusterName,
+		Expires:         now,
+		Usage:           []string{},
+		Principals:      []string{},
+	}
+
+	dbIdentity := tlsca.Identity{
+		Username:        "db...",
+		Groups:          []string{string(types.RoleDatabase)},
+		TeleportCluster: localClusterName,
+		Expires:         now,
+		Usage:           []string{},
+		Principals:      []string{},
+	}
+
+	type args struct {
+		impersonateIdentity *tlsca.Identity
+		peers               []*x509.Certificate
+		sourceIPAddr        string
+		impersonatedIPAddr  string
+	}
+	type want struct {
+		user       authz.IdentityGetter
+		userIPAddr string
+	}
+	tests := []struct {
+		name                         string
+		args                         args
+		want                         want
+		credentialsForwardingDennied bool
+		enableCredentialsForwarding  bool
+	}{
+		{
+			name: "local user without impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, localUserIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{localClusterName}},
+				}},
+				sourceIPAddr: "127.0.0.1:6514",
+			},
+			want: want{
+				user: authz.LocalUser{
+					Username: localUserIdentity.Username,
+					Identity: localUserIdentity,
+				},
+				userIPAddr: "127.0.0.1:6514",
+			},
+			credentialsForwardingDennied: false,
+			enableCredentialsForwarding:  true,
+		},
+		{
+			name: "remote user without impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, remoteUserIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{remoteClusterName}},
+				}},
+				sourceIPAddr: "127.0.0.1:6514",
+			},
+			want: want{
+				user: authz.RemoteUser{
+					Username:    remoteUserIdentity.Username,
+					Identity:    remoteUserIdentity,
+					RemoteRoles: remoteUserIdentity.Groups,
+					ClusterName: remoteClusterName,
+					Principals:  []string{},
+				},
+				userIPAddr: "127.0.0.1:6514",
+			},
+			credentialsForwardingDennied: false,
+			enableCredentialsForwarding:  true,
+		},
+		{
+			name: "proxy without impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, proxyIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{localClusterName}},
+				}},
+				sourceIPAddr: "127.0.0.1:6514",
+			},
+			want: want{
+				user: authz.BuiltinRole{
+					Username:    proxyIdentity.Username,
+					Identity:    proxyIdentity,
+					Role:        types.RoleProxy,
+					ClusterName: localClusterName,
+				},
+				userIPAddr: "127.0.0.1:6514",
+			},
+			credentialsForwardingDennied: false,
+			enableCredentialsForwarding:  true,
+		},
+		{
+			name: "db without impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, dbIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{localClusterName}},
+				}},
+				sourceIPAddr: "127.0.0.1:6514",
+			},
+			want: want{
+				user: authz.BuiltinRole{
+					Username:    dbIdentity.Username,
+					Identity:    dbIdentity,
+					Role:        types.RoleDatabase,
+					ClusterName: localClusterName,
+				},
+				userIPAddr: "127.0.0.1:6514",
+			},
+			credentialsForwardingDennied: false,
+			enableCredentialsForwarding:  true,
+		},
+		{
+			name: "proxy with impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, proxyIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{localClusterName}},
+				}},
+				impersonateIdentity: &localUserIdentity,
+				sourceIPAddr:        "127.0.0.1:6514",
+				impersonatedIPAddr:  "127.0.0.2:6514",
+			},
+			want: want{
+				user: authz.LocalUser{
+					Username: localUserIdentity.Username,
+					Identity: localUserIdentity,
+				},
+				userIPAddr: "127.0.0.2:6514",
+			},
+			credentialsForwardingDennied: false,
+			enableCredentialsForwarding:  true,
+		},
+		{
+			name: "proxy with remote user impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, proxyIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{localClusterName}},
+				}},
+				impersonateIdentity: &remoteUserIdentity,
+				sourceIPAddr:        "127.0.0.1:6514",
+				impersonatedIPAddr:  "127.0.0.2:6514",
+			},
+			want: want{
+				user: authz.RemoteUser{
+					Username:    remoteUserIdentity.Username,
+					Identity:    remoteUserIdentity,
+					RemoteRoles: remoteUserIdentity.Groups,
+					ClusterName: remoteClusterName,
+					Principals:  []string{},
+				},
+				userIPAddr: "127.0.0.2:6514",
+			},
+			credentialsForwardingDennied: false,
+			enableCredentialsForwarding:  true,
+		},
+		{
+			name: "db with impersonation but disabled forwarding",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, dbIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{localClusterName}},
+				}},
+				impersonateIdentity: &localUserIdentity,
+			},
+			credentialsForwardingDennied: true,
+			enableCredentialsForwarding:  true,
+		},
+		{
+			name: "proxy with remote user impersonation",
+			args: args{
+				peers: []*x509.Certificate{{
+					Subject:  subject(t, proxyIdentity),
+					NotAfter: now,
+					Issuer:   pkix.Name{Organization: []string{localClusterName}},
+				}},
+				impersonateIdentity: &remoteUserIdentity,
+				sourceIPAddr:        "127.0.0.1:6514",
+				impersonatedIPAddr:  "127.0.0.2:6514",
+			},
+			credentialsForwardingDennied: false,
+			enableCredentialsForwarding:  false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := &Middleware{
+				ClusterName: localClusterName,
+				Handler: &fakeHTTPHandler{
+					t:                 t,
+					expectedUser:      tt.want.user,
+					mustPanicIfCalled: tt.credentialsForwardingDennied,
+					userIP:            tt.want.userIPAddr,
+				},
+				EnableCredentialsForwarding: tt.enableCredentialsForwarding,
+			}
+			r := &http.Request{
+				Header: make(http.Header),
+				TLS: &tls.ConnectionState{
+					PeerCertificates: tt.args.peers,
+				},
+				RemoteAddr: tt.args.sourceIPAddr,
+			}
+			if tt.args.impersonateIdentity != nil {
+				data, err := json.Marshal(tt.args.impersonateIdentity)
+				require.NoError(t, err)
+				r.Header.Set(TeleportImpersonateUserHeader, string(data))
+				r.Header.Set(TeleportImpersonateIPHeader, tt.args.impersonatedIPAddr)
+			}
+			rsp := httptest.NewRecorder()
+			a.ServeHTTP(rsp, r)
+			if tt.credentialsForwardingDennied {
+				require.True(t,
+					bytes.Contains(
+						rsp.Body.Bytes(),
+						[]byte("Credentials forwarding is only permitted for Proxy"),
+					),
+				)
+			}
+			if !tt.enableCredentialsForwarding {
+				require.True(t,
+					bytes.Contains(
+						rsp.Body.Bytes(),
+						[]byte("Credentials forwarding is not permitted by this service"),
+					),
+				)
+			}
+		})
+	}
+}
+
+type fakeHTTPHandler struct {
+	t                 *testing.T
+	expectedUser      authz.IdentityGetter
+	mustPanicIfCalled bool
+	userIP            string
+}
+
+func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if h.mustPanicIfCalled {
+		panic("handler should not be called")
+	}
+	user, err := authz.UserFromContext(r.Context())
+	require.NoError(h.t, err)
+	require.Equal(h.t, h.expectedUser, user)
+	clientSrcAddr, err := authz.ClientAddrFromContext(r.Context())
+	require.NoError(h.t, err)
+	require.Equal(h.t, h.userIP, clientSrcAddr.String())
+	// Ensure that the Teleport-Impersonate-User header is not set on the request
+	// after the middleware has run.
+	require.Empty(h.t, r.Header.Get(TeleportImpersonateUserHeader))
+	require.Empty(h.t, r.Header.Get(TeleportImpersonateIPHeader))
 }

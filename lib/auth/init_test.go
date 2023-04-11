@@ -18,7 +18,10 @@ package auth
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -1091,6 +1093,145 @@ func resourceDiff(res1, res2 types.Resource) string {
 		cmpopts.EquateEmpty())
 }
 
+// TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
+// hour behavior.
+func TestSyncUpgradeWindowStartHour(t *testing.T) {
+	ctx := context.Background()
+
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	// no getter is registered, sync should fail
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	// maintenance config does not exist yet
+	cmc, err := authServer.GetClusterMaintenanceConfig(ctx)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, cmc)
+
+	// set up fake getter
+	var mu sync.Mutex
+	var fakeHour int64
+	var fakeError error
+	authServer.SetUpgradeWindowStartHourGetter(func(ctx context.Context) (int64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return fakeHour, fakeError
+	})
+
+	// sync should now succeed
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok := cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+
+	// change the served hour
+	mu.Lock()
+	fakeHour = 16
+	mu.Unlock()
+
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	// set sync to fail with out of range hour
+	mu.Lock()
+	fakeHour = 36
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	// set sync to fail with impossible int type-cast
+	mu.Lock()
+	fakeHour = math.MaxInt64
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	mu.Lock()
+	fakeHour = 18
+	mu.Unlock()
+
+	// sync should now succeed again
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that we got the new hour value
+	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
+
+	// set sync to fail with error
+	mu.Lock()
+	fakeHour = 12
+	fakeError = fmt.Errorf("uh-oh")
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
+
+	// recover and set hour to zero
+	mu.Lock()
+	fakeHour = 0
+	fakeError = nil
+	mu.Unlock()
+
+	// sync should now succeed again
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that we got the new hour value
+	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+}
+
 // TestIdentityChecker verifies auth identity properly validates host
 // certificates when connecting to an SSH server.
 func TestIdentityChecker(t *testing.T) {
@@ -1226,77 +1367,4 @@ func TestMigrateDatabaseCA(t *testing.T) {
 	require.Len(t, dbCAs, 1)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
-}
-
-func TestRotateDuplicatedCerts(t *testing.T) {
-	ctx := context.Background()
-	conf := setupConfig(t)
-
-	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := keygen.New(ctx)
-	privHost, _, err := keygen.GenerateKeyPair()
-	require.NoError(t, err)
-	privUser, _, err := keygen.GenerateKeyPair()
-	require.NoError(t, err)
-
-	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)
-	userCA := suite.NewTestCA(types.UserCA, "me.localhost", privUser)
-	// Create duplicated CAs
-	databaseCA := suite.NewTestCA(types.DatabaseCA, "me.localhost", privHost)
-	databaseCA.Spec.ActiveKeys = hostCA.Spec.ActiveKeys.Clone()
-
-	conf.Authorities = []types.CertAuthority{hostCA, userCA, databaseCA}
-
-	auth, err := Init(conf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		err = auth.Close()
-		require.NoError(t, err)
-	})
-
-	rotationPhases := []string{
-		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
-	}
-
-	// Rotate CAs.
-	for _, phase := range rotationPhases {
-		err = auth.RotateCertAuthority(ctx, RotateRequest{
-			Mode:        types.RotationModeManual,
-			TargetPhase: phase,
-			Type:        types.HostCA,
-		})
-		require.NoError(t, err)
-	}
-
-	newUserCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: "me.localhost",
-	}, true)
-	require.NoError(t, err)
-	// UserCA should be untouched, as it was not the part of the rotate request, and it's unique.
-	require.Equal(t, userCA.Spec.ActiveKeys.TLS, newUserCA.GetActiveKeys().TLS)
-	require.Equal(t, userCA.Spec.ActiveKeys.SSH, newUserCA.GetActiveKeys().SSH)
-
-	newHostCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: "me.localhost",
-	}, true)
-	require.NoError(t, err)
-	// HostCA should be rotated, as we requested for it.
-	require.NotEqual(t, hostCA.Spec.ActiveKeys.TLS, newHostCA.GetActiveKeys().TLS)
-	require.NotEqual(t, hostCA.Spec.ActiveKeys.SSH, newHostCA.GetActiveKeys().SSH)
-
-	newDatabaseCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: "me.localhost",
-	}, true)
-	require.NoError(t, err)
-	// DatabaseCA should be rotated, as the key was the same as HostCA.
-	require.NotEqual(t, databaseCA.Spec.ActiveKeys.TLS, newDatabaseCA.GetActiveKeys().TLS)
-	require.NotEqual(t, databaseCA.Spec.ActiveKeys.SSH, newDatabaseCA.GetActiveKeys().SSH)
-
-	// HostCA and DatabaseCA should be different now.
-	require.NotEqual(t, newHostCA.GetActiveKeys().TLS, newDatabaseCA.GetActiveKeys().TLS)
-	require.NotEqual(t, newHostCA.GetActiveKeys().SSH, newDatabaseCA.GetActiveKeys().SSH)
 }

@@ -75,12 +75,12 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	tlsConfig, err := id.TLSConfig(nil /* cipherSuites */)
+	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig, err := id.SSHClientConfig()
+	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -148,7 +148,6 @@ type identityConfigurator = func(req *proto.UserCertsRequest)
 func (b *Bot) generateIdentity(
 	ctx context.Context,
 	currentIdentity *identity.Identity,
-	expires time.Time,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
 	configurator identityConfigurator,
@@ -176,7 +175,7 @@ func (b *Bot) generateIdentity(
 	req := proto.UserCertsRequest{
 		PublicKey:      publicKey,
 		Username:       currentIdentity.X509Cert.Subject.CommonName,
-		Expires:        expires,
+		Expires:        time.Now().Add(b.cfg.CertificateTTL),
 		RoleRequests:   roleRequests,
 		RouteToCluster: currentIdentity.ClusterName,
 
@@ -359,12 +358,11 @@ func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *co
 
 func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
-	expires time.Time,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
 ) (*identity.Identity, error) {
 	ident, err := b.generateIdentity(
-		ctx, b.ident(), expires, destCfg, defaultRoles, nil,
+		ctx, b.ident(), destCfg, defaultRoles, nil,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -389,7 +387,7 @@ func (b *Bot) generateImpersonatedIdentity(
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
 		// using the correct impersonated ident.)
-		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		newIdent, err := b.generateIdentity(ctx, ident, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
 
@@ -400,7 +398,7 @@ func (b *Bot) generateImpersonatedIdentity(
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
-		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		newIdent, err := b.generateIdentity(ctx, ident, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = destCfg.KubernetesCluster.ClusterName
 		})
 
@@ -420,7 +418,7 @@ func (b *Bot) generateImpersonatedIdentity(
 			return nil, trace.Wrap(err)
 		}
 
-		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		newIdent, err := b.generateIdentity(ctx, ident, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		})
 		if err != nil {
@@ -473,7 +471,15 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Expires:            &expires,
+		FIPS:               b.cfg.FIPS,
+		CipherSuites:       b.cfg.CipherSuites(),
 	}
+	if params.JoinMethod == types.JoinMethodAzure {
+		params.AzureParams = auth.AzureParams{
+			ClientID: b.cfg.Onboarding.Azure.ClientID,
+		}
+	}
+
 	certs, err := auth.Register(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -500,10 +506,11 @@ func (b *Bot) renewIdentityViaAuth(
 	switch joinMethod {
 	// When using join methods that are repeatable - renew fully rather than
 	// renewing using existing credentials.
-	case types.JoinMethodIAM,
+	case types.JoinMethodAzure,
+		types.JoinMethodCircleCI,
 		types.JoinMethodGitHub,
 		types.JoinMethodGitLab,
-		types.JoinMethodCircleCI:
+		types.JoinMethodIAM:
 		ident, err := b.getIdentityFromToken()
 		return ident, trace.Wrap(err)
 	default:
@@ -560,7 +567,7 @@ func (b *Bot) renew(
 		return trace.Wrap(err)
 	}
 
-	identStr, err := describeTLSIdentity(b.ident())
+	identStr, err := describeTLSIdentity(newIdentity)
 	if err != nil {
 		return trace.Wrap(err, "Could not describe bot identity at %s", botDestination)
 	}
@@ -597,7 +604,6 @@ func (b *Bot) renew(
 	}
 
 	// Next, generate impersonated certs
-	expires := newIdentity.X509Cert.NotAfter
 	for _, dest := range b.cfg.Destinations {
 		destImpl, err := dest.GetDestination()
 		if err != nil {
@@ -619,7 +625,7 @@ func (b *Bot) renew(
 			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 		}
 
-		impersonatedIdent, err := b.generateImpersonatedIdentity(ctx, expires, dest, defaultRoles)
+		impersonatedIdent, err := b.generateImpersonatedIdentity(ctx, dest, defaultRoles)
 		if err != nil {
 			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}

@@ -39,7 +39,7 @@ func ValidVersionChange(ctx context.Context, current, next string) bool {
 	log := ctrllog.FromContext(ctx).V(1)
 	// Cannot upgrade to a non-valid version
 	if !semver.IsValid(next) {
-		log.Error(trace.BadParameter("next verison is not following semver"), "version change is invalid", "nextVersion", next)
+		log.Error(trace.BadParameter("next version is not following semver"), "version change is invalid", "nextVersion", next)
 		return false
 	}
 	switch semver.Compare(next, current) {

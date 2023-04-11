@@ -74,6 +74,28 @@ export enum DiscoverEventResource {
   DatabaseMysqlGcp = 'DISCOVER_RESOURCE_DATABASE_MYSQL_GCP',
   DatabaseSqlServerGcp = 'DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP',
 
+  DatabasePostgresRedshiftServerless = 'DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS',
+  DatabasePostgresAzure = 'DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE',
+  DatabaseDynamoDb = 'DISCOVER_RESOURCE_DATABASE_DYNAMODB',
+  DatabaseCassandraKeyspaces = 'DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES',
+  DatabaseCassandraSelfHosted = 'DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED',
+  DatabaseElasticSearchSelfHosted = 'DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED',
+  DatabaseRedisElasticache = 'DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE',
+  DatabaseRedisMemoryDb = 'DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB',
+  DatabaseRedisAzureCache = 'DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE',
+  DatabaseRedisClusterSelfHosted = 'DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED',
+
+  DatabaseMysqlAzure = 'DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE',
+  DatabaseSqlServerAzure = 'DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE',
+  DatabaseSqlServerMicrosoft = 'DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT',
+  DatabaseCockroachDbSelfHosted = 'DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED',
+  DatabaseMongodbAtlas = 'DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS',
+  DatabaseSnowflake = 'DISCOVER_RESOURCE_DATABASE_SNOWFLAKE',
+
+  DatabaseDocRdsProxy = 'DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY',
+  DatabaseDocHighAvailability = 'DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY',
+  DatabaseDocDynamicRegistration = 'DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION',
+
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
@@ -91,11 +113,13 @@ export type UserEvent = {
   alert?: string;
 };
 
-export type PreUserEvent = UserEvent & {
+export type EventMeta = {
   username: string;
   mfaType?: string;
   loginFlow?: string;
 };
+
+export type PreUserEvent = UserEvent & EventMeta;
 
 export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
   event: DiscoverEvent;
