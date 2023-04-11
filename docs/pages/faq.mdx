@@ -114,6 +114,26 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 
 Teleport offers this feature for the [Enterprise versions of Teleport](choose-an-edition/teleport-enterprise/introduction.mdx).
 
+## Why do I see an alert that some agents are out of date?
+
+Teleport monitors the inventory of all cluster components and compares their
+Teleport versions with the latest release on our GitHub page. If a component is
+not on the latest release, Teleport will create a cluster alert enclouraging
+users to upgrade.
+
+This check is performed against all cluster components, including the Proxy
+Service and Auth Service, as well as agents running other Teleport Services.
+
+## Can I suppress warnings about available upgrades?
+
+Yes. The `tctl alerts ack` command can be used to acklowledge an alert and
+temporarily prevent it from being displayed to users. To acknowledge an alert,
+you need its ID. You can get a listing of all alerts and their IDs with the
+`tctl alerts list` command.
+
+For detailed information on this family of commands, see the
+[CLI Reference](./reference/cli.mdx#tctl-alerts-list).
+
 ## Does Teleport send any data back to the cloud?
 
 The open source edition of Teleport does not send any information to our
