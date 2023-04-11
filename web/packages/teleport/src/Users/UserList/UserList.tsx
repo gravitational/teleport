@@ -20,18 +20,7 @@ import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { User } from 'teleport/services/user';
-
-function renderAuthType(authType) {
-  switch (authType) {
-    case 'github':
-      return 'GitHub';
-    case 'saml':
-      return 'SAML';
-    case 'oidc':
-      return 'OIDC';
-  }
-  return authType;
-}
+import {AuthProviderType} from 'shared/services/types';
 
 export default function UserList({
   users = [],
@@ -95,6 +84,18 @@ export default function UserList({
       pagination={{ pageSize }}
     />
   );
+
+  function renderAuthType(authType: AuthProviderType) {
+    switch (authType) {
+      case 'github':
+       return 'GitHub';
+     case 'saml':
+       return 'SAML';
+     case 'oidc':
+       return 'OIDC';
+   }
+   return authType;
+  }
 }
 
 const ActionCell = ({
