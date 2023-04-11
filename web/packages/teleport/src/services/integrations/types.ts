@@ -45,6 +45,9 @@ export type IntegrationSpecAwsOidc = {
   roleArn: string;
 };
 
+// IntegrationStatusCode must be in sync with the text values defined
+// in the backend as these are used to determine the status color:
+// https://github.com/gravitational/teleport.e/blob/1ebe50ce2fe608dc6dd24fef205fb9caaa216a46/lib/web/ui/plugins.go#L51
 export type IntegrationStatusCode =
   | 'Unknown'
   | 'Running'

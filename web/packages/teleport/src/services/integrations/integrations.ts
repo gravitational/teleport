@@ -46,8 +46,11 @@ function makeIntegration(json: any): Integration {
     spec: {
       roleArn: awsoidc?.roleArn,
     },
-    // statusCode will always default to 'Running' for now.
-    // https://github.com/gravitational/teleport/pull/24121
+    // The integration resource does not have a "status" field, but is
+    // a required field for the table that lists both plugin and
+    // integration resources together. As discussed, the only
+    // supported status for integration is `Running` for now:
+    // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: 'Running',
   };
 }
