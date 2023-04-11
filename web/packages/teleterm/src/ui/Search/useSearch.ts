@@ -101,10 +101,7 @@ export function useFilterSearch() {
   workspacesService.useState();
 
   return useCallback(
-    async (
-      search: string,
-      restrictions: SearchFilter[]
-    ): Promise<{ results: FilterSearchResult[]; search: string }> => {
+    (search: string, restrictions: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
         if (search) {
@@ -113,6 +110,10 @@ export function useFilterSearch() {
               .toLocaleLowerCase()
               .includes(search.toLocaleLowerCase())
           );
+        }
+        // Cluster filter should not be visible if there is only one cluster
+        if (clusters.length === 1) {
+          return [];
         }
         return clusters.map(cluster => {
           let score = getLengthScore(search, cluster.name);
@@ -168,7 +169,7 @@ export function useFilterSearch() {
           return b.score - a.score;
         });
 
-      return { results, search };
+      return results;
     },
     [clustersService, workspacesService]
   );
