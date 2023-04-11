@@ -222,6 +222,13 @@ spec:
       - name: "operator"
         image: '{{ .Values.operator.image }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ .Values.imagePullPolicy }}
+        {{- if or $auth.extraEnv $auth.tls.existingCASecretName }}
+        env:
+        {{- if $auth.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+        {{- end }}
+        {{- end }}
         livenessProbe:
           httpGet:
             path: /healthz
@@ -243,6 +250,11 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
+  {{- if $auth.tls.existingCASecretName }}
+        - mountPath: /etc/teleport-tls-ca
+          name: "teleport-tls-ca"
+          readOnly: true
+  {{- end }}
 {{ end }}
       volumes:
 {{- if $auth.enterprise }}
