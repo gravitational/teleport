@@ -15,3 +15,6 @@ annotations:
   serviceAccount:
     kubernetes.io/serviceaccount: "test-annotation"
     kubernetes.io/serviceaccount-different: 6
+  statefulSet:
+    kubernetes.io/statefulSet: "test-annotation"
+    kubernetes.io/statefulSet-different: 7

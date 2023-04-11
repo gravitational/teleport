@@ -1,0 +1,3 @@
+chartMode: standalone
+clusterName: helm-lint.example.com
+resourceType: statefulset

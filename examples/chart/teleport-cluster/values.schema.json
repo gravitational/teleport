@@ -318,7 +318,7 @@
                 "statefulset"
             ],
             "default": "deployment"
-        },         
+        },
         "validateConfigOnDeploy": {
             "$id": "#/properties/validateConfigOnDeploy",
             "type": "boolean",
@@ -691,6 +691,7 @@
                 "pod",
                 "service",
                 "serviceAccount",
+                "statefulSet",
                 "certSecret"
             ],
             "properties": {
@@ -716,6 +717,11 @@
                 },
                 "serviceAccount": {
                     "$id": "#/properties/annotations/properties/serviceAccount",
+                    "type": "object",
+                    "default": {}
+                },
+                "statefulSet": {
+                    "$id": "#/properties/annotations/properties/statefulSet",
                     "type": "object",
                     "default": {}
                 },

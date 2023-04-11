@@ -9,8 +9,8 @@ metadata:
   labels:
     {{- include "teleport-cluster.auth.labels" . | nindent 4 }}
     app: {{ .Release.Name }}
-{{- if $auth.annotations.deployment }}
-  annotations: {{- toYaml $auth.annotations.deployment | nindent 4 }}
+{{- if $auth.annotations.statefulSet }}
+  annotations: {{- toYaml $auth.annotations.statefulSet | nindent 4 }}
 {{- end }}
 spec:
   serviceName: {{ include "teleport-cluster.auth.serviceName" . }}
