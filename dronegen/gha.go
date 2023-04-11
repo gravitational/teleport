@@ -16,8 +16,11 @@ package main
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/maps"
 )
 
 type ghaBuildType struct {
@@ -54,8 +57,12 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 		fmt.Fprintf(&cmd, `-input oss-teleport-ref=${%s} `, b.srcRefVar)
 	}
 
-	for k, v := range b.inputs {
-		fmt.Fprintf(&cmd, `-input "%s=%s" `, k, v)
+	// Sort inputs so the are output in a consistent order to avoid
+	// spurious changes in the generated drone config.
+	keys := maps.Keys(b.inputs)
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&cmd, `-input "%s=%s" `, k, b.inputs[k])
 	}
 
 	p.Steps = []step{

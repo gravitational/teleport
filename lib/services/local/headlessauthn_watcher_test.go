@@ -18,6 +18,7 @@ package local_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -73,19 +75,16 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	waitInGoroutine := func(ctx context.Context, t *testing.T, watcher *local.HeadlessAuthenticationWatcher, name string, cond func(*types.HeadlessAuthentication) (bool, error),
 	) (headlessAuthnC chan *types.HeadlessAuthentication, firstEventReceivedC chan struct{}, errC chan error) {
-		waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second)
 		t.Cleanup(waitCancel)
 
 		headlessAuthnC = make(chan *types.HeadlessAuthentication, 1)
 		errC = make(chan error, 1)
 		firstEventReceivedC = make(chan struct{})
 		go func() {
+			var closeOnce sync.Once
 			headlessAuthn, err := watcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
-				select {
-				case <-firstEventReceivedC:
-				default:
-					close(firstEventReceivedC)
-				}
+				closeOnce.Do(func() { close(firstEventReceivedC) })
 				return cond(ha)
 			})
 			errC <- err
@@ -100,19 +99,38 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		item, err := local.MarshalHeadlessAuthenticationToItem(ha)
 		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
-			s.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: *item,
-			})
+		retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+			// Send the first event after a short tick before slowing down.
+			// We want to catch the first event quickly without risking sending
+			// multiple events in quick succession, which could mark the waiter
+			// as stale. In practice, this stale behavior protects against race
+			// conditions, but in these these tests we want to control when the
+			// watcher is marked as stale.
+			First: 25 * time.Millisecond,
+			Step:  75 * time.Millisecond,
+			Max:   100 * time.Millisecond,
+		})
+		require.NoError(t, err)
 
+		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		defer timeoutCancel()
+
+		// We don't know when the waiter will be initialized, so we send
+		// events on each tick until one is received by the waiter.
+		for {
 			select {
+			case <-timeoutCtx.Done():
+				t.Fatal("Watcher never received an event")
+			case <-retry.After():
+				retry.Inc()
+				s.buf.Emit(backend.Event{
+					Type: types.OpPut,
+					Item: *item,
+				})
 			case <-firstEventReceivedC:
-				return true
-			default:
-				return false
+				return
 			}
-		}, 2*time.Second, 100*time.Millisecond)
+		}
 	}
 
 	t.Run("WaitEventWithConditionMet", func(t *testing.T) {
@@ -170,7 +188,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		require.NoError(t, err)
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
+		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second)
 		t.Cleanup(waitCancel)
 
 		// Wait should immediately check the backend and return the existing headless authentication stub.
@@ -191,7 +209,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 		_, err := s.watcher.Wait(waitCtx, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) { return true, nil })
 		require.Error(t, err)
-		require.Equal(t, waitCtx.Err(), err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
 	t.Run("StaleCheck", func(t *testing.T) {
@@ -200,12 +218,9 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 		// Create a waiter that we can block/unblock.
 		blockWaiter := make(chan struct{})
+		var closeOnce sync.Once
 		t.Cleanup(func() {
-			select {
-			case <-blockWaiter:
-			default:
-				close(blockWaiter)
-			}
+			closeOnce.Do(func() { close(blockWaiter) })
 		})
 
 		_, blockedWaiterEventReceived, blockedWaiterErrC := waitInGoroutine(ctx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
@@ -216,7 +231,6 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		// Emit stub put event and wait for it to be caught by the waiter.
 		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
 		require.NoError(t, err)
-
 		waitForPutEvent(t, s, stub, blockedWaiterEventReceived)
 
 		// Create a second waiter to catch a second put event.
@@ -228,7 +242,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		require.NoError(t, <-freeWaiterErrC)
 
 		// unblock the waiter. It should perform a stale check and return a not found error.
-		close(blockWaiter)
+		closeOnce.Do(func() { close(blockWaiter) })
 		err = <-blockedWaiterErrC
 		require.True(t, trace.IsNotFound(err), "Expected a not found error from Wait but got %v", err)
 	})
@@ -241,9 +255,8 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 			return services.ValidateHeadlessAuthentication(ha) == nil, nil
 		})
 
-		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
+		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
 		require.NoError(t, err)
-
 		waitForPutEvent(t, s, stub, firstEventReceivedC)
 
 		// closed watchers should be handled gracefully and reset.
@@ -254,6 +267,9 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		replace := *stub
 		replace.PublicKey = []byte(sshPubKey)
 		replace.User = "user"
+
+		stub, err = s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
+		require.NoError(t, err)
 		swapped, err := s.identity.CompareAndSwapHeadlessAuthentication(ctx, stub, &replace)
 		require.NoError(t, err)
 

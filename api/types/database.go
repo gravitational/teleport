@@ -78,6 +78,10 @@ type Database interface {
 	GetAWS() AWS
 	// SetStatusAWS sets the database AWS metadata in the status field.
 	SetStatusAWS(AWS)
+	// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
+	SetAWSExternalID(id string)
+	// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
+	SetAWSAssumeRole(roleARN string)
 	// GetGCP returns GCP information for Cloud SQL databases.
 	GetGCP() GCPCloudSQL
 	// GetAzure returns Azure database server metadata.
@@ -339,6 +343,16 @@ func (d *DatabaseV3) GetAWS() AWS {
 // SetStatusAWS sets the database AWS metadata in the status field.
 func (d *DatabaseV3) SetStatusAWS(aws AWS) {
 	d.Status.AWS = aws
+}
+
+// SetAWSExternalID sets the database AWS external ID in the Spec.AWS field.
+func (d *DatabaseV3) SetAWSExternalID(id string) {
+	d.Spec.AWS.ExternalID = id
+}
+
+// SetAWSAssumeRole sets the database AWS assume role arn in the Spec.AWS field.
+func (d *DatabaseV3) SetAWSAssumeRole(roleARN string) {
+	d.Spec.AWS.AssumeRoleARN = roleARN
 }
 
 // GetGCP returns GCP information for Cloud SQL databases.
