@@ -5839,6 +5839,42 @@ func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTT
 	return nil, trace.NotImplemented("not implemented")
 }
 
+// ExportUpgradeWindows is used to load derived upgrade window values for agents that
+// need to export schedules to external upgraders.
+func (a *ServerWithRoles) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
+	// Ensure that caller is a teleport server
+	role, ok := a.context.Identity.(authz.BuiltinRole)
+	if !ok || !role.IsServer() {
+		return proto.ExportUpgradeWindowsResponse{}, trace.AccessDenied("agent maintenance schedule is only accessible to teleport built-in servers")
+	}
+
+	return a.authServer.ExportUpgradeWindows(ctx, req)
+}
+
+// GetClusterMaintenanceConfig gets the current maintenance config singleton.
+func (a *ServerWithRoles) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	if err := a.action(apidefaults.Namespace, types.KindClusterMaintenanceConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetClusterMaintenanceConfig(ctx)
+}
+
+// UpdateClusterMaintenanceConfig updates the current maintenance config singleton.
+func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.ClusterMaintenanceConfig) error {
+	if err := a.action(apidefaults.Namespace, types.KindClusterMaintenanceConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if modules.GetModules().Features().Cloud {
+		// maintenance configuration in cloud is derived from values stored in
+		// an external cloud-specific databse.
+		return trace.NotImplemented("cloud clusters not support custom cluster maintenance resources")
+	}
+
+	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
 func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
