@@ -302,14 +302,19 @@ In Azure Data Studio create a connection using your proxy's endpoint. This is
 [Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
-Create a connection with Microsoft SQL Server with the proxy endpoint `host`,`port`
-for the Server, SQL Login for the Authentication Type, keep the Password field empty
-and Encrypt set to `False`:
+Create a connection with Microsoft SQL Server with these settings:
 
+|Connection Detail|Value|
+|---|---|
+|Server|`host`,`port` of proxy endpoint|
+|Authentication Type|SQL Login|
+|Password|empty|
+|Encrypt|`False`|
+
+Example:
 ![Azure Data Studio connection options](../../img/database-access/azure-data-studio-connection.png)
 
 Click Connect to connect.
-
 
 ## SQL Server DBeaver
 
@@ -346,9 +351,20 @@ a Windows machine instead of `localhost`. (See
 [Get connection information](./gui-clients.mdx#get-connection-information) for
 more information.)
 
-Create a connection to a database engine with the proxy endpoint `host`,`port`
-for the Server name, SQL Server Authentication Type, keep the Password field empty
-and do not enable encryption:
+Create a connection with Microsoft SQL Server with these settings:
+
+|Connection Detail|Value|
+|---|---|
+|Server type|Database Engine|
+|Server name|`host`,`port` of proxy endpoint|
+|Authentication|SQL SErver Authentication|
+|Password|empty|
+|Encryption|do not enable|
+
+Example:
+![Azure Data Studio connection options](../../img/database-access/azure-data-studio-connection.png)
+
+Click Connect to connect.
 
 ![Azure Data Studio connection options](../../img/database-access/msft-sql-server-mgmt-studio-connection.png)
 
