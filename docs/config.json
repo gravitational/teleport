@@ -1004,6 +1004,11 @@
                "slug": "/database-access/guides/redis-cluster/"
             },
             {
+              "title": "Self-Hosted Oracle (Preview)",
+              "forScopes": ["enterprise", "cloud"],
+              "slug": "/database-access/guides/oracle-self-hosted/"
+            },
+            {
                "title": "Snowflake (Preview)",
                "slug": "/database-access/guides/snowflake/"
             }
@@ -1410,7 +1415,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.1.2",
+      "version": "12.1.5",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",

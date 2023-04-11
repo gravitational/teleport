@@ -130,7 +130,7 @@ Install Teleport on the host where you will run the Teleport Database Service:
 ## Step 4/5. Set up the Teleport Database service
 
 Below is an example of a database service configuration file that proxies
-a single Cloud SQL MySQL database:
+a single Cloud SQL MySQL database. Save this file as `/etc/teleport.yaml`:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
@@ -228,11 +228,7 @@ proxy_service:
   Service or Application Service.
 </Admonition>
 
-Start the Database Service:
-
-```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ### GCP credentials
 
