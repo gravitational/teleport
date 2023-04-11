@@ -592,10 +592,6 @@ func (h *Handler) bindDefaultEndpoints() {
 	// active sessions handlers
 	h.GET("/webapi/sites/:site/connect", h.WithClusterAuth(h.siteNodeConnect))                     // connect to an active session (via websocket)
 	h.GET("/webapi/sites/:site/sessions", h.WithClusterAuth(h.clusterActiveAndPendingSessionsGet)) // get list of active and pending sessions
-	// TODO POSTS to `/webapi/sites/:site/sessions` should no longer be required
-	// but this endpoint is still used by the UI. When time allows evaluate the
-	// removal of this handler and the associated methods here and in the UI.
-	h.POST("/webapi/sites/:site/sessions", h.WithClusterAuth(h.siteSessionGenerate)) // create active session metadata
 
 	// Audit events handlers.
 	h.GET("/webapi/sites/:site/events/search", h.WithClusterAuth(h.clusterSearchEvents))                 // search site events
@@ -2756,43 +2752,6 @@ type siteSessionGenerateReq struct {
 
 type siteSessionGenerateResponse struct {
 	Session session.Session `json:"session"`
-}
-
-// siteSessionCreate generates a new site session that can be used by UI
-// The ServerID from request can be in the form of hostname, uuid, or ip address.
-func (h *Handler) siteSessionGenerate(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var req *siteSessionGenerateReq
-	if err := httplib.ReadJSON(r, &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	namespace := apidefaults.Namespace
-	if req.Session.ServerID != "" {
-		servers, err := clt.GetNodes(r.Context(), namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		hostname, _, err := resolveServerHostPort(req.Session.ServerID, servers)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		req.Session.Kind = types.SSHSessionKind
-		req.Session.ServerHostname = hostname
-	}
-
-	req.Session.ID = session.NewID()
-	req.Session.Created = time.Now().UTC()
-	req.Session.LastActive = time.Now().UTC()
-	req.Session.Namespace = namespace
-
-	return siteSessionGenerateResponse{Session: req.Session}, nil
 }
 
 type siteSessionsGetResponse struct {
