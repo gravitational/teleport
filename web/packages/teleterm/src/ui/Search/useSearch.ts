@@ -101,10 +101,7 @@ export function useFilterSearch() {
   workspacesService.useState();
 
   return useCallback(
-    async (
-      search: string,
-      restrictions: SearchFilter[]
-    ): Promise<{ results: FilterSearchResult[]; search: string }> => {
+    (search: string, restrictions: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
         if (search) {
@@ -172,7 +169,7 @@ export function useFilterSearch() {
           return b.score - a.score;
         });
 
-      return { results, search };
+      return results;
     },
     [clustersService, workspacesService]
   );
