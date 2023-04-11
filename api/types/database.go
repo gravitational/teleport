@@ -788,8 +788,8 @@ func (d *DatabaseV3) handleOpenSearchConfig() error {
 	info, err := awsutils.ParseOpensearchEndpoint(d.Spec.URI)
 	switch {
 	case err != nil:
-		// when region parsing returns an error but the region is set, it's ok because we can just construct the URI using the region,
-		// so we check if the region is configured to see if this is really a configuration error.
+		// parsing the endpoint can return an error, especially if the custom endpoint feature is in use.
+		// this is fine as long as we have the region explicitly configured.
 		if d.Spec.AWS.Region == "" {
 			// the AWS region is empty, and we can't derive it from the URI, so this is a config error.
 			return trace.BadParameter("database %q AWS region is missing and cannot be derived from the URI %q",
