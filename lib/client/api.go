@@ -3115,11 +3115,18 @@ func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
 // no JumpHosts set, i.e. presumably falling back to the proxy specified in the
 // profile.
 func (tc *TeleportClient) WithoutJumpHosts(fn func(tcNoJump *TeleportClient) error) error {
-	storedJumpHosts := tc.JumpHosts
-	tc.JumpHosts = nil
-	err := fn(tc)
-	tc.JumpHosts = storedJumpHosts
-	return trace.Wrap(err)
+	tcNoJump := &TeleportClient{
+		Config:                   tc.Config,
+		localAgent:               tc.localAgent,
+		OnShellCreated:           tc.OnShellCreated,
+		eventsCh:                 make(chan events.EventFields, 1024),
+		lastPing:                 tc.lastPing,
+		dtAttemptLoginIgnorePing: tc.dtAttemptLoginIgnorePing,
+		dtAuthnRunCeremony:       tc.dtAuthnRunCeremony,
+	}
+	tcNoJump.JumpHosts = nil
+
+	return trace.Wrap(fn(tcNoJump))
 }
 
 // Logout removes certificate and key for the currently logged in user from
