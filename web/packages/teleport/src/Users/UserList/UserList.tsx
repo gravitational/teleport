@@ -18,8 +18,9 @@ import React from 'react';
 import Table, { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { User } from 'teleport/services/user';
 import { AuthProviderType } from 'shared/services/types';
+
+import { User } from 'teleport/services/user';
 
 export default function UserList({
   users = [],
