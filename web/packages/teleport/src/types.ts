@@ -91,5 +91,6 @@ export interface FeatureFlags {
   discover: boolean;
   plugins: boolean;
   integrations: boolean;
+  enrollIntegrationsOrPlugins: boolean;
   enrollIntegrations: boolean;
 }
