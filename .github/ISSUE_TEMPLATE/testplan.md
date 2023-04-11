@@ -708,42 +708,34 @@ Using `tsh` join an SSH session as two moderators (two separate terminals, role 
 
 ## Performance
 
-Perform all tests on the following configurations:
+### Scaling Test
+Scale up the number of nodes/clusters a few times for each configuration below.
 
-- [ ] With default networking configuration
-- [ ] With Proxy Peering Enabled
-- [ ] With TLS Routing Enabled
+ 1) Verify that there are no memory/goroutine/file descriptor leaks
+ 2) Compare the baseline metrics with the previous release to determine if resource usage has increased
+ 3) Restart all Auth instances and verify that all nodes/clusters reconnect
 
-* Cluster with 10K direct dial nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
+ Perform reverse tunnel node scaling tests for all backend configurations:
+  - [ ] etcd - 10k
+  - [ ] DynamoDB - 10k
+  - [ ] Firestore - 10k
 
-* Cluster with 10K reverse tunnel nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
-
-* Cluster with 500 trusted clusters:
-- [ ] etcd
-- [ ] DynamoDB
-- [ ] Firestore
+  Perform the following additional scaling tests on DynamoDB:
+ - [ ] 10k direct dial nodes.
+ - [ ] 500 trusted clusters.
 
 ### Soak Test
 
-Run 30 minute soak test with a mix of interactive/non-interactive sessions for both direct and reverse tunnel nodes:
+Run 30 minute soak test directly against direct and tunnel nodes
+and via label based matching. Tests should be run against a Cloud
+tenant.
 
 ```shell
-tsh bench --duration=30m user@direct-dial-node ls
-tsh bench -i --duration=30m user@direct-dial-node ps uax
-
-tsh bench --duration=30m user@reverse-tunnel-node ls
-tsh bench -i --duration=30m user@reverse-tunnel-node ps uax
+tsh bench ssh --duration=30m user@direct-dial-node ls
+tsh bench ssh --duration=30m user@reverse-tunnel-node ls
+tsh bench ssh --duration=30m user@foo=bar ls
+tsh bench ssh --duration=30m --random user@foo ls
 ```
-
-Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
-
-- [ ] Verify that prometheus metrics are accurate.
 
 ### Concurrent Session Test
 
@@ -752,8 +744,8 @@ Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make
 Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
 
 ```shell
-tsh bench sessions --max=5000 user ls
-tsh bench sessions --max=5000 --web user ls
+tsh bench web sessions --max=5000 user ls
+tsh bench web sessions --max=5000 --web user ls
 ```
 
 - [ ] Verify that all 5000 sessions are able to be established.
@@ -769,6 +761,8 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify that a lack of connectivity to Auth prevents access to resources
   which require a moderated session and in async recording mode from an already
   issued certificate.
+- [ ] Verify that an open session is not terminated when all Auth instances
+  are restarted.
 
 ## Teleport with Cloud Providers
 

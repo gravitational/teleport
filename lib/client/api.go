@@ -34,6 +34,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -2847,8 +2848,9 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 				// cluster. If it's the root cluster proxy, tc.SiteName could
 				// be pointing at a leaf cluster and we don't want to override
 				// that.
-				if clusterGuesser.clusterName != rootClusterName {
-					return clusterGuesser.clusterName
+				cluster := clusterGuesser.clusterName()
+				if cluster != rootClusterName {
+					return cluster
 				}
 				return tc.SiteName
 			}
@@ -3061,7 +3063,7 @@ func (tc *TeleportClient) rootClusterName() (string, error) {
 // the proxy host certificate. It then passes that name to signersForCluster to
 // get the SSH certificates for that cluster.
 type proxyClusterGuesser struct {
-	clusterName string
+	cluster atomic.Pointer[string]
 
 	nextHostKeyCallback ssh.HostKeyCallback
 	signersForCluster   func(context.Context, string) ([]ssh.Signer, error)
@@ -3079,19 +3081,33 @@ func (g *proxyClusterGuesser) hostKeyCallback(hostname string, remote net.Addr, 
 	if !ok {
 		return trace.BadParameter("remote proxy did not present a host certificate")
 	}
-	g.clusterName = cert.Permissions.Extensions[utils.CertExtensionAuthority]
-	if g.clusterName == "" {
+
+	clusterName, ok := cert.Permissions.Extensions[utils.CertExtensionAuthority]
+	if ok {
+		g.cluster.CompareAndSwap(nil, &clusterName)
+	}
+
+	if clusterName == "" {
 		log.Debugf("Target SSH server %q does not have a cluster name embedded in their certificate; will use all available client certificates to authenticate", hostname)
 	}
+
 	if g.nextHostKeyCallback != nil {
 		return g.nextHostKeyCallback(hostname, remote, key)
 	}
 	return nil
 }
 
+func (g *proxyClusterGuesser) clusterName() string {
+	name := g.cluster.Load()
+	if name != nil {
+		return *name
+	}
+	return ""
+}
+
 func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
 	return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
-		return g.signersForCluster(ctx, g.clusterName)
+		return g.signersForCluster(ctx, g.clusterName())
 	})
 }
 

@@ -121,7 +121,11 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		c.Log = logrus.New()
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()

@@ -1504,6 +1504,7 @@ enum SFTPAction {
   RENAME = 16;
   READLINK = 17;
   SYMLINK = 18;
+  LINK = 19;
 }
 
 // SFTP is emitted when file operations have occurred between server and client
