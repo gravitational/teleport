@@ -38,6 +38,8 @@ type Integration interface {
 	GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1
 	// SetAWSOIDCIntegrationSpec sets the `aws-oidc` spec fields.
 	SetAWSOIDCIntegrationSpec(*AWSOIDCIntegrationSpecV1)
+	// SetAWSOIDCRoleARN sets the RoleARN of the AWS OIDC Spec.
+	SetAWSOIDCRoleARN(string)
 }
 
 var _ ResourceWithLabels = (*IntegrationV1)(nil)
@@ -133,6 +135,19 @@ func (ig *IntegrationV1) GetAWSOIDCIntegrationSpec() *AWSOIDCIntegrationSpecV1 {
 func (ig *IntegrationV1) SetAWSOIDCIntegrationSpec(awsOIDCSpec *AWSOIDCIntegrationSpecV1) {
 	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{
 		AWSOIDC: awsOIDCSpec,
+	}
+}
+
+// SetAWSOIDCRoleARN sets the RoleARN of the AWS OIDC Spec.
+func (ig *IntegrationV1) SetAWSOIDCRoleARN(roleARN string) {
+	currentSubSpec := ig.Spec.GetAWSOIDC()
+	if currentSubSpec == nil {
+		currentSubSpec = &AWSOIDCIntegrationSpecV1{}
+	}
+
+	currentSubSpec.RoleARN = roleARN
+	ig.Spec.SubKindSpec = &IntegrationSpecV1_AWSOIDC{
+		AWSOIDC: currentSubSpec,
 	}
 }
 

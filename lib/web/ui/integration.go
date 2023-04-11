@@ -31,11 +31,11 @@ type IntegrationAWSOIDCSpec struct {
 // Integration describes the base Integration fields (can be read or wri) Integration
 type Integration struct {
 	// Name is the Integration name.
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 	// SubKind is the Integration SubKind.
-	SubKind string `json:"subKind"`
+	SubKind string `json:"subKind,omitempty"`
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
-	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc"`
+	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
 }
 
 // CheckAndSetDefaults for the create request.
@@ -59,7 +59,7 @@ func (r *Integration) CheckAndSetDefaults() error {
 // UpdateIntegrationRequest is a request to update an Integration
 type UpdateIntegrationRequest struct {
 	// AWSOIDC contains the fields for `aws-oidc` subkind integration.
-	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc"`
+	AWSOIDC *IntegrationAWSOIDCSpec `json:"awsoidc,omitempty"`
 }
 
 // CheckAndSetDefaults checks if the provided values are valid.
