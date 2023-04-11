@@ -13,13 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package benchmark package provides tools to run progressive or independent benchmarks against teleport services.
 package benchmark
 
 import (
 	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"strings"
 
@@ -33,47 +31,7 @@ import (
 	"k8s.io/kubectl/pkg/scheme"
 
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/utils"
 )
-
-// SSHBenchmark is a benchmark suite that runs a single SSH command
-// against a Teleport node for a given duration and rate.
-type SSHBenchmark struct {
-	// Command is a command to run
-	Command []string
-	// Interactive turns on interactive sessions
-	Interactive bool
-}
-
-// BenchBuilder returns a WorkloadFunc for the given benchmark suite.
-func (s SSHBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClient) (WorkloadFunc, error) {
-	return func(ctx context.Context) error {
-		if !s.Interactive {
-			// do not use parent context that will cancel in flight requests
-			// because we give test some time to gracefully wrap up
-			// the in-flight connections to avoid extra errors
-			return tc.SSH(ctx, s.Command, false)
-		}
-		config := tc.Config
-		client, err := client.NewClient(&config)
-		if err != nil {
-			return err
-		}
-		reader, writer := io.Pipe()
-		defer reader.Close()
-		defer writer.Close()
-		client.Stdin = reader
-		out := &utils.SyncBuffer{}
-		client.Stdout = out
-		client.Stderr = out
-		err = tc.SSH(ctx, nil, false)
-		if err != nil {
-			return err
-		}
-		writer.Write([]byte(strings.Join(s.Command, " ") + "\r\nexit\r\n"))
-		return nil
-	}, nil
-}
 
 // KubeListBenchmark is a benchmark suite that runs successive kubectl get pods
 // against a Teleport Kubernetes proxy for a given duration and rate.
