@@ -1,0 +1,116 @@
+---
+title: Application Access with Grafana
+description: How to configure Teleport Application Access for Grafana.
+---
+
+This guide will help you configure Grafana [JWT
+authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/jwt/)
+with Teleport Application Access.
+
+## Prerequisites
+
+- Teleport cluster version >= `5.0.0` with running Auth/Proxy Services or
+  Teleport Cloud account.
+- Running [Application Service](../guides/connecting-apps.mdx).
+- Grafana cluster version >= `8.4.0`.
+
+## Step 1/3. Enable a JWT authentication in Grafana
+
+Update your Grafana configuration file to enable JWT authentication. This file
+is typically located at `/usr/share/grafana/conf/defaults.ini`.
+
+```toml
+#################################### Auth JWT ##########################
+[auth.jwt]
+enabled = true
+enable_login_token = false
+header_name = Teleport-Jwt-Assertion
+email_claim =
+username_claim = username
+jwk_set_url = https://proxy.example.com:3080/.well-known/jwks.json
+jwk_set_file =
+cache_ttl = 60m
+expect_claims = {}
+key_file =
+role_attribute_path =
+role_attribute_strict = false
+auto_sign_up = true
+url_login = false
+allow_assign_grafana_admin = false
+```
+
+Let's take a closer look at the parameters and their values:
+
+- Set `enabled` to `true` to enable JWT authentication.
+- Set `header_name` to the name of the header within which the JWT assertion is
+  sent.
+- Set `username_claim` to the claim within the JWT that contains the username.
+- Set `jwk_set_url` to the address where the JSON Web Key Set (JWKS) are
+  available. Replace `proxy.example.com:3080` with the host:port where the
+  Teleport Proxy Service is available.
+- Set `auto_sign_up` to `true` to allow automatic creation of users upon first
+  login via Teleport.
+
+<Admonition type="tip">
+If you are not ready to connect your production Grafana cluster to Teleport,
+you can use the command below to to launch an instance of Grafana configured
+with JWT authentication in Docker to connect to Teleport and experiment with.
+
+```code
+$ docker run \
+  -e GF_AUTH_JWT_ENABLED=true \
+  -e GF_AUTH_JWT_HEADER_NAME=Teleport-Jwt-Assertion \
+  -e GF_AUTH_JWT_USERNAME_CLAIM=username \
+  -e GF_AUTH_JWT_JWK_SET_URL=https://proxy.example.com:3080/.well-known/jwks.json \
+  -e GF_AUTH_JWT_AUTO_SIGN_UP=true \
+  -p 3000:3000 grafana/grafana-oss
+```
+
+If your Teleport Proxy Service is using self-signed certificates, you will also need to add your
+self-signed public key to `/etc/ssl/certs/ca-certificates.crt` within the
+container.
+</Admonition>
+
+## Step 2/3. Register Grafana with Teleport
+
+In your Teleport App Service configuration file, `teleport.yaml`, register an
+entry for Grafana:
+
+```yaml
+app_service:
+  enabled: "yes"
+  apps:
+  - name: "grafana"
+    uri: "https://grafana.example.com:3000"
+```
+
+Replace `https://grafana.example.com:3000` with the URL of your Grafana
+instance.
+
+<Admonition type="tip">
+You can also use [dynamic registration](../guides/dynamic-registration.mdx).
+</Admonition>
+
+## Step 3/3. Connect to Grafana
+
+Now launch Grafana from the Web UI by navigating to the `Applications` tab,
+find `Grafana`, then click `Launch`.
+
+You can also navigate directly to the URL listed under the `Address` column.
+
+![Application Access dashboard with
+Grafana](../../../img/application-access/guides/grafana-dashboard.png)
+
+Notice you will be automatically logged into Grafana with your Teleport
+username.
+
+![Logged in as Teleport user within
+Grafana](../../../img/application-access/guides/grafana-auth.png)
+
+## Next steps
+
+- Get more information about integrating with [Teleport JWT
+  tokens](./introduction.mdx).
+- Learn more about [accessing APIs](../guides/api-access.mdx) with Application
+  Access.
+- Take a look at [Access Controls](../controls.mdx) with Application Access.
