@@ -5,7 +5,7 @@ go 1.19
 require (
 	cloud.google.com/go/container v1.14.0
 	cloud.google.com/go/firestore v1.9.0
-	cloud.google.com/go/iam v0.13.0
+	cloud.google.com/go/iam v1.0.0
 	cloud.google.com/go/kms v1.10.0
 	cloud.google.com/go/storage v1.30.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.4.0
@@ -134,12 +134,12 @@ require (
 	golang.org/x/crypto v0.7.0 // replaced
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/mod v0.9.0
-	golang.org/x/net v0.8.0
-	golang.org/x/oauth2 v0.6.0
+	golang.org/x/net v0.9.0
+	golang.org/x/oauth2 v0.7.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.6.0
-	golang.org/x/term v0.6.0
-	golang.org/x/text v0.8.0
+	golang.org/x/sys v0.7.0
+	golang.org/x/term v0.7.0
+	golang.org/x/text v0.9.0
 	google.golang.org/api v0.114.0
 	google.golang.org/genproto v0.0.0-20230327152035-dc694ad2151e
 	google.golang.org/grpc v1.54.0
