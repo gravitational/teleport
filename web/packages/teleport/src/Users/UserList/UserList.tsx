@@ -19,8 +19,6 @@ import { Label } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
-import { AuthProviderType } from 'shared/services/types';
-
 import { User } from 'teleport/services/user';
 
 export default function UserList({
@@ -86,7 +84,7 @@ export default function UserList({
     />
   );
 
-  function renderAuthType(authType: AuthProviderType) {
+  function renderAuthType(authType: string) {
     switch (authType) {
       case 'github':
         return 'GitHub';
