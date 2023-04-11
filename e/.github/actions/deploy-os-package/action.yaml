@@ -1,0 +1,192 @@
+---
+name: Deploy auto updates version
+description: Deploys a package to the OS package repositories
+inputs:
+  repo-type:
+    description: "The type of OS package repo that the package should be deployed to"
+    required: true
+  environment:
+    description: "What environment the package should be deployed to. Valid values are \"development\" and \"production\"."
+    required: true
+  enterprise-only:
+    description: "True to only deploy enterprise (and FIPS) artifacts, false otherwise"
+    default: "false"
+    required: true
+  artifact-tag:
+    description: "The tag associated with the artifact to deploy (eg. v1.2.3)"
+    required: true
+  version-channel:
+    description: "The version channel of the repos that the artifacts should be added to. Semver values will be truncated to major version. Examples: \"v1.2.3\" (truncated to \"v1\"), \"cloud\"."
+    required: true
+  release-channel:
+    description: "The release channel that the artifact should be deployed to"
+    required: true
+    default: "stable"
+  package-to-test:
+    description: "The package to install and test during the smoke test"
+    required: true
+    default: teleport-ent
+  # This is primarily used for development and testing
+  workflow-git-reference:
+    description: "Git reference to the version of the workflow that should be ran."
+    required: true
+    default: "refs/heads/master"
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies for workflow trigger script
+      run: npm install uuid@9.0.0
+      shell: bash
+    - name: Deploy deb package to `stable/cloud` APT repos
+      uses: actions/github-script@v6
+      # Composite actions specifically don't get input env vars populated, so
+      # they must be populated here so that Github's action library can
+      # parse them correctly
+      env:
+        INPUT_REPO-TYPE: ${{ inputs.repo-type }}
+        INPUT_ENVIRONMENT: ${{ inputs.environment }}
+        INPUT_ENTERPRISE-ONLY: ${{ inputs.enterprise-only }}
+        INPUT_ARTIFACT-TAG: ${{ inputs.artifact-tag }}
+        INPUT_VERSION-CHANNEL: ${{ inputs.version-channel }}
+        INPUT_RELEASE-CHANNEL: ${{ inputs.release-channel }}
+        INPUT_PACKAGE-TO-TEST: ${{ inputs.package-to-test }}
+        INPUT_WORKFLOW-GIT-REFERENCE: ${{ inputs.workflow-git-reference }} 
+      with: 
+        script: |
+          // Map the input to the actual environment names in Github
+          function getWorkflowEnvironment() {
+            const workflowEnvironmentMap = {
+              "development": "build",
+              "production": "promote"
+            };
+
+            const workflowEnvironment = workflowEnvironmentMap[core.getInput("environment", { required: true })];
+            if (typeof workflowEnvironment === "undefined") {
+              throw new Error(`Provided environment ${workflowEnvironment} is invalid. Value values are: ${JSON.stringify(Object.keys(workflowEnvironmentMap))}`);
+            }
+
+            return workflowEnvironment;
+          }
+
+          // Used to uniquely identify the workflow that this action started
+          function generateWorkflowRunUniqueIdentifier() {
+            const uuid = require("uuid");
+            // UUID v1 is used to be reasonably sure that the value is unique
+            const workflowRunUniqueIdentifier = `${{ github.repository }}@${{ github.ref }} - ${uuid.v4()}`
+            process.stdout.write(`Generated workflow unique ID ${workflowRunUniqueIdentifier}\n`);
+            return workflowRunUniqueIdentifier;
+          }
+
+          // Call the Github API to trigger the workflow in teleport.e
+          async function triggerWorkflow(workflowRunUniqueIdentifier) {
+            const workflowInputs = {
+              "repo-type": core.getInput("repo-type", { required: true }),
+              "environment": getWorkflowEnvironment(),
+              "enterprise-only": core.getBooleanInput("enterprise-only", { required: true }),
+              "artifact-tag": core.getInput("artifact-tag", { required: true }),
+              "version-channel": core.getInput("version-channel", { required: true }),
+              "release-channel": core.getInput("release-channel", { required: true }),
+              "package-to-test": core.getInput("package-to-test", { required: true }),
+              "workflow-run-identifier": workflowRunUniqueIdentifier
+            };
+
+            process.stdout.write(`Starting workflow with inputs: ${JSON.stringify(workflowInputs, null, 2)}\n`);
+            await github.rest.actions.createWorkflowDispatch({
+              owner: "gravitational",
+              repo: "teleport.e",
+              workflow_id: "deploy-packages.yaml",
+              ref: core.getInput("workflow-git-reference", { required: true }),
+              inputs: workflowInputs
+            });
+          }
+
+          function sleep(milliseconds) {
+            return new Promise(resolve => setTimeout(resolve, milliseconds));
+          }
+
+          // Get the Github-assigned identifier for the run based off of the 
+          // unique value provided upon run creation
+          async function getWorkflowRunId(workflowRunUniqueIdentifier) {
+            // TODO handle pagination
+            const workflowRuns = (await github.rest.actions.listWorkflowRuns({
+              owner: "gravitational",
+              repo: "teleport.e",
+              workflow_id: "deploy-packages.yaml",
+              per_page: 100
+            })).data;
+
+            for (workflowRun of workflowRuns.workflow_runs) {
+              if (!workflowRun.display_title.includes(workflowRunUniqueIdentifier)) {
+                continue;
+              }
+
+              process.stdout.write(`Found matching workflow run (${workflowRun.id}) for ${workflowRunUniqueIdentifier}:\n`);
+              process.stdout.write(`${JSON.stringify(workflowRun, null, 2)}\n`);
+
+              return workflowRun.id;
+            }
+
+            throw new Error(`Failed to find matching workflow run for ${workflowRunIdentifier}`);
+          }
+
+          function elapsedTimeToString(elapsedTimeSeconds) {
+            const hours = Math.floor(elapsedTimeSeconds / 60 / 60);
+            const minutes = Math.floor(elapsedTimeSeconds / 60 % 60);
+            const seconds = Math.floor(elapsedTimeSeconds % 60);
+            
+            return `${hours}h${minutes}m${seconds}s`;
+          }
+
+          function findArrayIntersection(firstArray, secondArray) {
+            return firstArray.some(firstArrayVal => secondArray.includes(firstArrayVal));
+          }
+
+          async function waitForWorkflowCompletion(workflowRunUniqueIdentifier) {
+            const workflowRunId = await getWorkflowRunId(workflowRunUniqueIdentifier);
+            const sleepTimeMilliseconds = 10000;
+            let iterationCount = 0;
+            while (true) {
+                const workflowRun = (await github.rest.actions.getWorkflowRun({
+                  owner: "gravitational",
+                  repo: "teleport.e",
+                  run_id: workflowRunId
+                })).data;
+
+                const elapsedTimeSeconds = iterationCount * sleepTimeMilliseconds / 1000;
+                iterationCount++;
+
+                const runStatusFields = [workflowRun.status, workflowRun.conclusion];
+
+                // Case where workflow is not yet done
+                if (findArrayIntersection(runStatusFields, ["action_required", "neutral", "in_progress", "queued", "requested", "waiting", "pending"])) {
+                  if (iterationCount !== 0) {
+                    process.stdout.write(`Workflow ${workflowRunId} still in progress (${elapsedTimeToString(elapsedTimeSeconds)} elappsed), waiting another ${sleepTimeMilliseconds / 1000}s...\n`);
+                  }
+
+                  await sleep(sleepTimeMilliseconds);
+                  continue;
+                }
+
+                // Case where workflow has failed
+                if (findArrayIntersection(runStatusFields, ["cancelled", "failure", "skipped", "timed_out", "stale"])) {
+                  throw new Error(`Workflow run ${workflowRunId} failed with status ${workflowRun.status} and conclusion "${workflowRun.conclusion}"! Workflow details: ${JSON.stringify(workflowRun, null, 2)}`);
+                }
+
+                // Case where there is some new status code that isn't accounted for here
+                if (!["success", "completed"].includes(workflowRun.status)) {
+                  throw new Error(`Unknown workflow status: ${workflowRun.status}. Workflow details: ${JSON.stringify(workflowRun, null, 2)}`);
+                }
+
+                // Case where workflow has ran, and the conclusion is not a failure state
+                process.stdout.write(`Workflow run ${workflowRunId} succeeded with status ${workflowRun.status} and conclusion in ${elapsedTimeSeconds} seconds!\n`)
+                process.stderr.write("Workflow details:\n");
+                process.stderr.write(`${JSON.stringify(workflowRun, null, 2)}\n`);
+                return;
+              }
+          }
+
+          const workflowRunUniqueIdentifier = generateWorkflowRunUniqueIdentifier();
+
+          await triggerWorkflow(workflowRunUniqueIdentifier);
+          await sleep(5000); // Wait a moment for the workflow to start
+          await waitForWorkflowCompletion(workflowRunUniqueIdentifier);
