@@ -1231,16 +1231,41 @@ checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
 
 [[package]]
 name = "ironrdp"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
- "ironrdp-core",
  "ironrdp-graphics",
  "ironrdp-input",
+ "ironrdp-pdu",
  "ironrdp-session",
 ]
 
 [[package]]
-name = "ironrdp-core"
+name = "ironrdp-graphics"
+version = "0.1.0"
+dependencies = [
+ "bit_field",
+ "bitflags",
+ "bitvec",
+ "byteorder",
+ "bytes",
+ "ironrdp-pdu",
+ "lazy_static",
+ "num-derive 0.3.3",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
+name = "ironrdp-input"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "ironrdp-pdu",
+ "smallvec",
+]
+
+[[package]]
+name = "ironrdp-pdu"
 version = "0.1.0"
 dependencies = [
  "bit_field",
@@ -1260,35 +1285,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "ironrdp-devolutions-gateway"
+name = "ironrdp-rdcleanpath"
 version = "0.1.0"
 dependencies = [
  "bytes",
  "der 0.6.1",
-]
-
-[[package]]
-name = "ironrdp-graphics"
-version = "0.1.0"
-dependencies = [
- "bit_field",
- "bitflags",
- "bitvec",
- "byteorder",
- "ironrdp-core",
- "lazy_static",
- "num-derive 0.3.3",
- "num-traits",
- "thiserror",
-]
-
-[[package]]
-name = "ironrdp-input"
-version = "0.1.0"
-dependencies = [
- "bitvec",
- "ironrdp-core",
- "smallvec",
 ]
 
 [[package]]
@@ -1300,9 +1301,9 @@ dependencies = [
  "byteorder",
  "bytes",
  "futures-util",
- "ironrdp-core",
- "ironrdp-devolutions-gateway",
  "ironrdp-graphics",
+ "ironrdp-pdu",
+ "ironrdp-rdcleanpath",
  "lazy_static",
  "log",
  "num-derive 0.3.3",
@@ -2656,7 +2657,9 @@ dependencies = [
 
 [[package]]
 name = "sspi"
-version = "0.6.0"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f820e38002148b97ce7e90eb4c77fb81023c304b87a74f396893157d8a6521c9"
 dependencies = [
  "async-dnssd",
  "bitflags",

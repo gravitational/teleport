@@ -49,22 +49,29 @@ extern crate log;
 #[macro_use]
 extern crate num_derive;
 
+use bytes::{Bytes, BytesMut};
 use errors::try_error;
-use ironrdp::core::input::MousePdu;
-use ironrdp::PduParsing;
-use rand::Rng;
-use rand::SeedableRng;
+use futures_util::io::{AsyncWrite, AsyncWriteExt};
+use ironrdp::graphics::image_processing::PixelFormat;
+use ironrdp::input::fast_path::{FastPathInput, FastPathInputEvent};
+use ironrdp::input::mouse::PointerFlags;
+use ironrdp::input::MousePdu;
+use ironrdp::pdu::geometry::Rectangle;
+use ironrdp::pdu::PduParsing as _;
+use ironrdp::session::connection_sequence::{process_connection_sequence, UpgradedStream};
+use ironrdp::session::image::DecodedImage;
+use ironrdp::session::{
+    ActiveStageOutput, ActiveStageProcessor, ErasedWriter, FramedReader, InputConfig,
+    RdpError as IronRdpError,
+};
 use rdp::core::event::*;
-use rdp::core::gcc::KeyboardLayout;
 use rdp::core::global;
 use rdp::core::mcs;
-use rdp::core::sec;
-use rdp::core::tpkt;
-use rdp::core::x224;
 use rdp::model::error::{Error as RdpError, RdpError as RdpProtocolError, RdpErrorKind, RdpResult};
-use rdp::model::link::{Link, Stream};
 use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
+use sspi::network_client::reqwest_network_client::RequestClientFactory;
+use sspi::{AuthIdentity, Secret};
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::{CStr, CString, NulError};
@@ -76,24 +83,8 @@ use std::os::raw::c_char;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::{mem, ptr, slice, time};
-
-use bytes::{Bytes, BytesMut};
-use futures_util::io::{AsyncWrite, AsyncWriteExt};
-use ironrdp::core::input::fast_path::{FastPathInput, FastPathInputEvent, KeyboardFlags};
-use ironrdp::core::input::mouse::PointerFlags;
-use ironrdp::geometry::Rectangle;
-use ironrdp::graphics::image_processing::PixelFormat;
-use ironrdp::session::connection_sequence::{process_connection_sequence, UpgradedStream};
-use ironrdp::session::image::DecodedImage;
-use ironrdp::session::{
-    ActiveStageOutput, ActiveStageProcessor, ErasedWriter, FramedReader, InputConfig,
-    RdpError as IronRdpError,
-};
-use sspi::network_client::reqwest_network_client::RequestClientFactory;
-use sspi::{AuthIdentity, Secret};
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::time::{sleep, Duration};
 use tokio_util::compat::TokioAsyncReadCompatExt as _;
 use x509_parser::prelude::{FromDer as _, X509Certificate};
 
@@ -172,7 +163,8 @@ impl Client {
 
     fn read_frame(
         &mut self,
-    ) -> impl std::future::Future<Output = Result<Option<BytesMut>, ironrdp::RdpError>> + '_ {
+    ) -> impl std::future::Future<Output = Result<Option<BytesMut>, ironrdp::pdu::RdpError>> + '_
+    {
         self.iron_rdp_client.reader.read_frame()
     }
 
@@ -575,9 +567,7 @@ async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Clien
         }
     });
 
-    let addr = ironrdp::session::connection_sequence::Address::lookup_addr(
-        "54.144.205.187:3389".to_owned(),
-    )?; //todo(isaiah): hardcoded
+    let addr = ironrdp::session::connection_sequence::Address::lookup_addr("54.144.205.187:3389")?; //todo(isaiah): hardcoded
 
     let stream = match TokioTcpStream::connect(addr.sock)
         .await
@@ -595,8 +585,8 @@ async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Clien
             password: Secret::new(pass), //todo(isaiah): hardcoded
             domain: None,
         },
-        security_protocol: ironrdp::core::SecurityProtocol::HYBRID_EX,
-        keyboard_type: ironrdp::core::gcc::KeyboardType::IbmEnhanced,
+        security_protocol: ironrdp::pdu::SecurityProtocol::HYBRID_EX,
+        keyboard_type: ironrdp::pdu::gcc::KeyboardType::IbmEnhanced,
         keyboard_subtype: 0,
         keyboard_functional_keys_count: 12,
         ime_file_name: "".to_string(),
