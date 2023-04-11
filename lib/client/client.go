@@ -28,6 +28,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -88,6 +89,36 @@ type NodeClient struct {
 	TC          *TeleportClient
 	OnMFA       func()
 	FIPSEnabled bool
+
+	mu      sync.Mutex
+	closers []io.Closer
+}
+
+// AddCloser adds an [io.Closer] that will be closed when the
+// client is closed.
+func (c *NodeClient) AddCloser(closer io.Closer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closers = append(c.closers, closer)
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error {
+	return f()
+}
+
+// AddCancel adds a [context.CancelFunc] that will be canceled when the
+// client is closed.
+func (c *NodeClient) AddCancel(cancel context.CancelFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closers = append(c.closers, closerFunc(func() error {
+		cancel()
+		return nil
+	}))
 }
 
 // ClusterName returns the name of the cluster the proxy is a member of.
@@ -309,18 +340,18 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 
 		key, err = proxy.localAgent().GetKey(params.RouteToCluster, certOptions...)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 	}
 
 	req, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	clt, err := proxy.ConnectToRootCluster(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 	defer clt.Close()
 	certs, err := clt.GenerateUserCerts(ctx, *req)
@@ -402,7 +433,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		var err error
 		key, err = proxy.localAgent().GetKey(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 	}
 
@@ -418,7 +449,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		} else {
 			authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, trace.Wrap(MFARequiredUnknown(err))
 			}
 			clt = authClt
 			defer clt.Close()
@@ -437,7 +468,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 				}
 				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
 			}
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 		requiredCheck = check
 	}
@@ -447,7 +478,7 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		// MFA is not required.
 		// SSH certs can be used without embedding the node name.
 		if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
-			return key, nil
+			return nil, trace.Wrap(MFARequiredUnknown(trace.AccessDenied("mfa is not required")))
 		}
 		// All other targets need their name embedded in the cert for routing,
 		// fall back to non-MFA reissue.
@@ -2001,7 +2032,19 @@ func (c *NodeClient) GetRemoteTerminalSize(ctx context.Context, sessionID string
 
 // Close closes client and it's operations
 func (c *NodeClient) Close() error {
-	return c.Client.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var errors []error
+	for _, closer := range c.closers {
+		errors = append(errors, closer.Close())
+	}
+
+	c.closers = nil
+
+	errors = append(errors, c.Client.Close())
+
+	return trace.NewAggregate(errors...)
 }
 
 func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeDetails) ([]ssh.AuthMethod, error) {
@@ -2011,7 +2054,7 @@ func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr No
 			// file. Fall back to whatever AuthMethod we currently have.
 			return proxy.authMethods, nil
 		}
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
 	key, err := proxy.IssueUserCertsWithMFA(
