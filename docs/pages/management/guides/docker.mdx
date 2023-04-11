@@ -96,6 +96,12 @@ $ docker run --hostname localhost --name teleport \
 Create Teleport configs and start the process with the following `docker run` commands:
 
 ```code
+# For non-FIPS images we default to the host architecture, which you can
+# override with the `--platform` option in `docker run`. For FIPS images
+# the default architecture is amd64, which you can override by appending
+# `-arm64` or `-arm` to the image tag
+$ TELEPORT_DOCKER_IMAGE=(=teleport.latest_ent_docker_image=)
+
 # Create local config and data directories for Teleport, which will be mounted
 # into the container.
 $ mkdir -p ~/teleport/config ~/teleport/data
