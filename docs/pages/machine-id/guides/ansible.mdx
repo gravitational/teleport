@@ -13,19 +13,21 @@ You will need the following tools to use Teleport with Ansible.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - `ssh` OpenSSH tool
+
 - `ansible` >= (=ansible.min_version=)
+
 - Optional: [`jq`](https://stedolan.github.io/jq/) to process `JSON` output
 
 - If you already have not done so, follow the
-[Machine ID Getting Started Guide](../getting-started.mdx) to create a bot
-user and start Machine ID.
+  [Machine ID Getting Started Guide](../getting-started.mdx) to create a bot
+  user and start Machine ID.
 
 - If you followed the above guide, note the `--destination-dir=/opt/machine-id`
-flag, which defines the directory where SSH certificates and OpenSSH configuration
-used by Ansible will be written.
+  flag, which defines the directory where SSH certificates and OpenSSH configuration
+  used by Ansible will be written.
 
   In particular, you will be using the `/opt/machine-id/ssh_config` file in your
-Ansible configuration to define how Ansible should connect to Teleport Nodes.
+  Ansible configuration to define how Ansible should connect to Teleport Nodes.
 
 - (!docs/pages/includes/tctl.mdx!)
 
