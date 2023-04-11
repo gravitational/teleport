@@ -32,7 +32,7 @@ get_conf() {
 
 
 # upgrade_endpoint is the base host+path used to load the /version and /critical endpoints
-upgrade_endpoint="$(get_conf endpoint update.gravitational.io/v1/stable/cloud)"
+upgrade_endpoint="$(get_conf endpoint updates.releases.teleport.dev/v1/stable/cloud)"
 
 # package_name specializes the teleport package name (e.g. teleport|teleport-ent|etc)
 package_name="$(get_conf package teleport)"
@@ -168,8 +168,6 @@ schedule_appears_healthy() {
 # get_current_version gets the current version of the teleport binary. if this
 # operation fails, we assume that teleport is eligible for upgrade.
 get_current_version() {
-    echo "1.2.3"
-    return 0
     if cv_output="$(teleport version --raw)"; then
         echo "${cv_output}"
         return 0
@@ -185,7 +183,8 @@ upgrade_endpoint_fetch() {
     if is_insecure_mode; then
         log_warn "fetching $host_path in insecure mode (not safe for production use)."
         if if_output="$(curl -sSf "http://${host_path}")"; then
-            echo "$if_output"
+            # emit output with empty lines and extra whitespace removed
+            echo "$if_output" | grep -v -e '^[[:space:]]*$' | awk '{$1=$1};1'
             return 0
         else
             log_debug "failed to GET $host_path (insecure mode)."
@@ -196,7 +195,8 @@ upgrade_endpoint_fetch() {
     log_debug "fetching $host_path..."
 
     if sf_output="$(curl --proto '=https' --tlsv1.2 -sSf "https://${host_path}")"; then
-        echo "$sf_output"
+        # emit output with empty lines and extra whitespace removed
+        echo "$sf_output" | grep -v -e '^[[:space:]]*$' | awk '{$1=$1};1'
         return 0
     else
         log_debug "failed to GET $host_path"
@@ -207,6 +207,7 @@ upgrade_endpoint_fetch() {
 # get_target_version loads the current value of the /version endpoint.
 get_target_version() {
     if tv_output="$(upgrade_endpoint_fetch version)"; then
+        # emit version string with leading 'v' removed if one is present
         echo "${tv_output#v}"
         return 0
     fi
@@ -216,7 +217,8 @@ get_target_version() {
 # is_critical checks if the /critical endpoint is available and set to 'yes'.
 is_critical() {
     if ef_output="$(upgrade_endpoint_fetch critical)"; then
-        if [[ $ef_output == "yes" ]]; then
+        # perform case-insensitive compare
+        if [[ ${ef_output,,} == "yes" ]]; then
             return 0
         fi
     fi
@@ -285,7 +287,7 @@ fi
 
 
 if is_critical; then
-    log_info "upgrade is marked as critical, will be attempted without checking maintenenance window."
+    log_info "upgrade is marked as critical, will be attempted without checking maintenance window."
 elif in_maintenance_window; then
     log_info "within maintenance window, upgrade will be attempted."
 elif ! schedule_appears_healthy; then

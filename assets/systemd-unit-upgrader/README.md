@@ -11,7 +11,7 @@ be defined on the auth server. Ex:
 
 ```bash
 $ cat > mw.yaml <<EOF
-kind: maintenance-window
+kind: cluster-maintenance-config
 spec:
   agent_upgrades:
     utc_start_hour: 2
@@ -23,7 +23,7 @@ EOF
 $ tctl create -f mw.yaml
 ```
 
-Second, a TLS endpoing must be set up to serve the "target version" for the updater (i.e.
+Second, a TLS endpoint must be set up to serve the "target version" for the updater (i.e.
 what version the updater should be trying to install).  For local testing, this can be mocked
 like so:
 
@@ -52,7 +52,7 @@ $ teleport-upgrade
 [i] agent may be unhealthy. marking for potential future upgrade. [ 290 ]
 ```
 
-Note that log details will differ based on wether or not your agent has exported a maintenance window
+Note that log details will differ based on whether or not your agent has exported a maintenance window
 schedule yet and wether or not a previous run noted the need for an upgrade, but they should
 be free of errors.
 

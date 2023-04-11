@@ -1,5 +1,5 @@
 [Unit]
-Description=sdt unit launched by timer
+Description=automatic teleport upgrader
 
 [Service]
 ExecStart=/usr/local/bin/teleport-upgrade
