@@ -3,23 +3,13 @@ title: Get started with Teleport on DigitalOcean Kubernetes
 description: How to get started with Teleport on DigitalOcean Kubernetes
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service
-on a DigitalOcean Kubernetes cluster. These services are fully managed in
-Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows
-you how to connect a Teleport Kubernetes Service instance to an existing Teleport
-cluster:
-
-- [Connect a Kubernetes Cluster to
-  Teleport](../../kubernetes-access/getting-started.mdx):
-
-</ScopedBlock>
-
 This guide will show you how to get started with Teleport on DigitalOcean
 Kubernetes.
+
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -41,7 +31,7 @@ While the Kubernetes cluster is being provisioned, follow the "Getting Started" 
   ![Set up DigitalOcean Kubernetes client](../../../img/helm/digitalocean/setup-k8s.png)
 </Figure>
 
-## Step 2/4. Install Teleport 
+## Step 2/4. Install Teleport
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
