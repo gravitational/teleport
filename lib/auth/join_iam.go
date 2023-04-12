@@ -196,21 +196,12 @@ type stsClient interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-type stsClientKey struct{}
-
-// stsClientFromContext allows the default http client to be overridden for tests
-func stsClientFromContext(ctx context.Context) stsClient {
-	client, ok := ctx.Value(stsClientKey{}).(stsClient)
-	if ok {
-		return client
-	}
-	return http.DefaultClient
-}
-
 // executeSTSIdentityRequest sends the sts:GetCallerIdentity HTTP request to the
 // AWS API, parses the response, and returns the awsIdentity
-func executeSTSIdentityRequest(ctx context.Context, req *http.Request) (*awsIdentity, error) {
-	client := stsClientFromContext(ctx)
+func executeSTSIdentityRequest(ctx context.Context, client stsClient, req *http.Request) (*awsIdentity, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
 
 	// set the http request context so it can be canceled
 	req = req.WithContext(ctx)
@@ -289,11 +280,6 @@ func checkIAMAllowRules(identity *awsIdentity, allowRules []*types.TokenRule) er
 // checkIAMRequest checks if the given request satisfies the token rules and
 // included the required challenge.
 func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *proto.RegisterUsingIAMMethodRequest, cfg *iamRegisterConfig) error {
-	// Overwrite STS client if provided.
-	if a.httpClientForAWSSTS != nil {
-		ctx = context.WithValue(ctx, stsClientKey{}, a.httpClientForAWSSTS)
-	}
-
 	tokenName := req.RegisterUsingTokenRequest.Token
 	provisionToken, err := a.GetToken(ctx, tokenName)
 	if err != nil {
@@ -317,7 +303,7 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 
 	// send the signed request to the public AWS API and get the node identity
 	// from the response
-	identity, err := executeSTSIdentityRequest(ctx, identityRequest)
+	identity, err := executeSTSIdentityRequest(ctx, a.httpClientForAWSSTS, identityRequest)
 	if err != nil {
 		return trace.Wrap(err)
 	}
