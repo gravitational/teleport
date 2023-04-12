@@ -1556,6 +1556,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr: h.PublicProxyAddr(),
+		MajorVersion:    version,
 		TeleportPackage: teleportPackage,
 		RepoChannel:     repoChannel,
 	}
@@ -2273,12 +2274,12 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindNode)
+	req, err := convertListResourcesRequest(r, types.KindNode)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
+	page, err := apiclient.GetResourcePage[types.Server](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2288,15 +2289,15 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers, err := ui.MakeServers(site.GetName(), servers, accessChecker.Roles())
+	uiServers, err := ui.MakeServers(site.GetName(), page.Resources, accessChecker.Roles())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return listResourcesGetResponse{
 		Items:      uiServers,
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 
@@ -2613,7 +2614,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 	if _, err := uuid.Parse(req.Server); err != nil {
 		// The requested server is either a hostname or an address. Get all
 		// servers that may fuzzily match by populating SearchKeywords
-		resources, err := apiclient.GetResourcesWithFilters(ctx, clt, proto.ListResourcesRequest{
+		servers, err := apiclient.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
 			ResourceType:   types.KindNode,
 			Namespace:      apidefaults.Namespace,
 			SearchKeywords: []string{req.Server},
@@ -2622,7 +2623,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 			return session.Session{}, trace.Wrap(err)
 		}
 
-		if len(resources) == 0 {
+		if len(servers) == 0 {
 			// If we didn't find the resource set host and port,
 			// so we can try direct dial.
 			host, port, err = serverHostPort(req.Server)
@@ -2633,12 +2634,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		}
 
 		matches := 0
-		for _, resource := range resources {
-			server, ok := resource.(types.Server)
-			if !ok {
-				return session.Session{}, trace.BadParameter("expected types.Server, got: %T", resource)
-			}
-
+		for _, server := range servers {
 			// match by hostname
 			if server.GetHostname() == req.Server {
 				if matches > 0 {

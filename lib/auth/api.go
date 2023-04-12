@@ -737,6 +737,12 @@ type ReadOktaAccessPoint interface {
 	// GetProxies returns a list of proxy servers registered in the cluster
 	GetProxies() ([]types.Server, error)
 
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
 
@@ -796,6 +802,11 @@ type OktaAccessPoint interface {
 
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+
+	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
+	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
+	// will be updated if possible.
+	UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error)
 
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
@@ -995,6 +1006,9 @@ type Cache interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+
+	// IntegrationsGetter defines read/list methods for integrations.
+	services.IntegrationsGetter
 }
 
 type NodeWrapper struct {
@@ -1247,6 +1261,13 @@ func (w *OktaWrapper) CreateOktaAssignment(ctx context.Context, assignment types
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
+}
+
+// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
+// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
+// will be updated if possible.
+func (w *OktaWrapper) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
+	return w.NoCache.UpdateOktaAssignmentActionStatuses(ctx, name, status)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

@@ -49,6 +49,10 @@ func TestNewUserContext(t *testing.T) {
 			Resources: []string{types.KindWindowsDesktop},
 			Verbs:     services.RW(),
 		},
+		{
+			Resources: []string{types.KindIntegration},
+			Verbs:     services.RW(),
+		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies access
@@ -83,6 +87,7 @@ func TestNewUserContext(t *testing.T) {
 	require.Equal(t, userContext.Name, "root")
 	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowed))
+	require.Empty(t, cmp.Diff(userContext.ACL.Integrations, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, denied))
