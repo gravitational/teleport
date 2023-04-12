@@ -1,5 +1,25 @@
 # Changelog
 
+## 12.2.2 (04/12/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Server Access
+  * Restored `MajorVersion` template variable for EC2 install scripts. [#24434](https://github.com/gravitational/teleport/pull/24434)
+  * Added `--mlock` flag to headless `tsh` mode to allow memory locking. [#24410](https://github.com/gravitational/teleport/pull/24410)
+  * Fixed issue with EC2 install script silently failing on errors. [#24034](https://github.com/gravitational/teleport/pull/24034)
+* Database Access
+  * Reduced log spam when AWS database engine name is not recognized. [#24413](https://github.com/gravitational/teleport/pull/24413)
+* Machine ID
+  * Improved post-renewal message by logging correct identity. [#24246](https://github.com/gravitational/teleport/pull/24246)
+* Kubernetes Access
+  * Fixed issue with incorrect status being returned on exec commands. [#24155](https://github.com/gravitational/teleport/pull/24155)
+* Proxy Peering
+  * Improved agent reconnect speed with proxy peering. [#24141](https://github.com/gravitational/teleport/pull/24141)
+* Helm Charts
+  * Fixed issue with `securityContext` and `nodeSelector` not being propagated to job hooks. [#24134](https://github.com/gravitational/teleport/pull/24134)
+  * Fixed issue with TLS routing being disabled after v12 upgrade when `proxyListenerMode` is empty. [#24426](https://github.com/gravitational/teleport/pull/24426)
+
 ## 12.2.1 (04/04/23)
 
 This release of Teleport contains several new features and improvements.
