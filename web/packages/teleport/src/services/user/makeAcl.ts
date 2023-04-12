@@ -95,4 +95,5 @@ export const defaultAccess = {
   edit: false,
   create: false,
   remove: false,
+  use: false,
 };

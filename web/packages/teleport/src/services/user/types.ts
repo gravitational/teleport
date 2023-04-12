@@ -45,6 +45,7 @@ export interface Access {
   edit: boolean;
   create: boolean;
   remove: boolean;
+  use?: boolean;
 }
 
 export interface Acl {
