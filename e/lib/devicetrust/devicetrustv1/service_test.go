@@ -24,6 +24,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -722,10 +723,30 @@ func TestService_UpdateDevice(t *testing.T) {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
 
+	profileBase, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "profile1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	profileSource := &devicepb.DeviceSource{
+		Name:   "myscript",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
+	}
+	profileProfile := &devicepb.DeviceProfile{
+		ModelIdentifier: "MacBookPro9,2",
+		OsVersion:       "13.2.1",
+		OsUsernames:     []string{"admin", "llama"},
+	}
+
 	tests := []struct {
-		name      string
-		req       *devicepb.UpdateDeviceRequest
-		assertDev func(t *testing.T, updated *devicepb.Device)
+		name             string
+		mdmFeatureActive bool
+		req              *devicepb.UpdateDeviceRequest
+		assertDev        func(t *testing.T, updated *devicepb.Device)
 	}{
 		{
 			name: "unenroll",
@@ -748,9 +769,43 @@ func TestService_UpdateDevice(t *testing.T) {
 				}
 			},
 		},
+		{
+			name:             "source and profile",
+			mdmFeatureActive: true,
+			req: &devicepb.UpdateDeviceRequest{
+				Device: &devicepb.Device{
+					Id:      profileBase.Id,
+					Source:  profileSource,
+					Profile: profileProfile,
+				},
+				UpdateMask: &fieldmaskpb.FieldMask{
+					Paths: []string{"source", "profile"},
+				},
+			},
+			assertDev: func(t *testing.T, updated *devicepb.Device) {
+				// want the base device with source and profile set, plus new
+				// timestamps.
+				want := proto.Clone(profileBase).(*devicepb.Device)
+				want.UpdateTime = updated.UpdateTime
+				want.Source = profileSource
+				want.Profile = profileProfile
+
+				// Sanity check, then copy the UpdateTime to `want`.
+				if updated.Profile == nil || updated.Profile.UpdateTime == nil {
+					t.Errorf("UpdateDevice returned nil Profile.UpdateTime: %v", updated)
+				} else {
+					want.Profile.UpdateTime = updated.Profile.UpdateTime
+				}
+
+				if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
+					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			setMDMFeatureActive(t, test.mdmFeatureActive)
 			emitter.Reset()
 
 			updated, err := devices.UpdateDevice(ctx, test.req)
@@ -1563,6 +1618,12 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 			})
 		})
 	}
+}
+
+func setMDMFeatureActive(t *testing.T, active bool) {
+	prev := dtent.MDMFeatureActive
+	t.Cleanup(func() { dtent.MDMFeatureActive = prev })
+	dtent.MDMFeatureActive = active
 }
 
 type wantEvent struct {

@@ -185,6 +185,10 @@ func applyDeviceUpdateMask(paths []string, dst, src *devicepb.Device) error {
 		switch path {
 		case "enroll_status":
 			dst.EnrollStatus = src.EnrollStatus
+		case "profile":
+			dst.Profile = src.Profile
+		case "source":
+			dst.Source = src.Source
 		default:
 			return trace.BadParameter("unsupported update mask path: %q", path)
 		}
