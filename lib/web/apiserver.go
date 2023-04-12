@@ -2542,7 +2542,7 @@ func (h *Handler) siteNodeConnect(
 
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
-		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx.cfg.User)
+		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx)
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return nil, trace.Wrap(err)
@@ -2610,12 +2610,13 @@ func (h *Handler) siteNodeConnect(
 	return nil, nil
 }
 
-func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, owner string) (session.Session, error) {
+func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, clusterName string, scx *SessionContext) (session.Session, error) {
 	var (
 		id   string
 		host string
 		port int
 	)
+	owner := scx.cfg.User
 	h.log.Infof("Generating new session for %s\n", clusterName)
 
 	if _, err := uuid.Parse(req.Server); err != nil {
@@ -2698,6 +2699,12 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		port = 0
 		id = req.Server
 	}
+	accessChecker, err := scx.GetUserAccessChecker()
+	if err != nil {
+		return session.Session{}, trace.Wrap(err)
+	}
+	policySets := accessChecker.SessionPolicySets()
+	accessEvaluator := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, owner)
 
 	return session.Session{
 		Login:          req.Login,
@@ -2705,6 +2712,7 @@ func (h *Handler) generateSession(ctx context.Context, clt auth.ClientI, req *Te
 		ClusterName:    clusterName,
 		ServerHostname: host,
 		ServerHostPort: port,
+		Moderated:      accessEvaluator.IsModerated(),
 		ID:             session.NewID(),
 		Created:        time.Now().UTC(),
 		LastActive:     time.Now().UTC(),
@@ -2811,6 +2819,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 			// note: we don't populate the RemoteAddr field since it isn't used and we don't have an equivalent value
 		})
 	}
+	accessEvaluator := auth.NewSessionAccessEvaluator(tracker.GetHostPolicySets(), types.SSHSessionKind, tracker.GetHostUser())
 
 	return session.Session{
 		Kind:      tracker.GetSessionKind(),
@@ -2831,6 +2840,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 		KubernetesClusterName: tracker.GetKubeCluster(),
 		DesktopName:           tracker.GetDesktopName(),
 		AppName:               tracker.GetAppName(),
+		Moderated:             accessEvaluator.IsModerated(),
 		DatabaseName:          tracker.GetDatabaseName(),
 		Owner:                 tracker.GetHostUser(),
 	}
