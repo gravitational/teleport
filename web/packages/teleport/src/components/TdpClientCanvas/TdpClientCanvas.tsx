@@ -63,26 +63,26 @@ export default function TdpClientCanvas(props: Props) {
       const ctx = canvas.getContext('2d');
 
       // Buffered rendering logic
-      var buffer: PngFrame[] = [];
+      var pngBuffer: PngFrame[] = [];
       const renderBuffer = () => {
-        if (buffer.length) {
-          for (let i = 0; i < buffer.length; i++) {
-            tdpCliOnPngFrame(ctx, buffer[i]);
+        if (pngBuffer.length) {
+          for (let i = 0; i < pngBuffer.length; i++) {
+            tdpCliOnPngFrame(ctx, pngBuffer[i]);
           }
-          buffer = [];
+          pngBuffer = [];
         }
         requestAnimationFrame(renderBuffer);
       };
       requestAnimationFrame(renderBuffer);
 
-      const pushToBuffer = (pngFrame: PngFrame) => {
-        buffer.push(pngFrame);
+      const pushToPngBuffer = (pngFrame: PngFrame) => {
+        pngBuffer.push(pngFrame);
       };
 
-      tdpCli.on(TdpClientEvent.TDP_PNG_FRAME, pushToBuffer);
+      tdpCli.on(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
 
       return () => {
-        tdpCli.removeListener(TdpClientEvent.TDP_PNG_FRAME, pushToBuffer);
+        tdpCli.removeListener(TdpClientEvent.TDP_PNG_FRAME, pushToPngBuffer);
       };
     }
   }, [tdpCli, tdpCliOnPngFrame]);

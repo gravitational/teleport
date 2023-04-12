@@ -22,6 +22,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 
 import react from '@vitejs/plugin-react-swc';
 import tsconfigPaths from 'vite-tsconfig-paths';
+import wasmPack from 'vite-plugin-wasm-pack';
 
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
@@ -73,6 +74,7 @@ export function createViteConfig(
           root: rootDirectory,
         }),
         transformPlugin(),
+        wasmPack('src/ironrdp'),
       ],
       define: {
         'process.env': process.env,

@@ -92,7 +92,7 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 // GetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
 func GetDefaultContentSecurityPolicy() string {
 	return strings.Join([]string{
-		"default-src 'self'",
+		// "default-src 'self'", // TODO(isaiah): tmp disabled until we figure out how to solve "Uncaught (in promise) CompileError: WebAssembly.instantiateStreaming(): Refused to compile or instantiate WebAssembly module because 'unsafe-eval' is not an allowed source of script in the following Content Security Policy directive: "default-src 'self'""
 		// specify CSP directives not covered by `default-src`
 		"base-uri 'self'",
 		"form-action 'self'",

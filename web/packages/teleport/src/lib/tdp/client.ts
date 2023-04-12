@@ -34,6 +34,7 @@ import type {
   ScrollAxis,
   ClientScreenSpec,
   PngFrame,
+  BitmapFrame,
   ClipboardData,
   SharedDirectoryInfoResponse,
   SharedDirectoryListResponse,
@@ -49,6 +50,7 @@ import type { WebauthnAssertionResponse } from 'teleport/services/auth';
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
   TDP_PNG_FRAME = 'tdp png frame',
+  TDP_BITMAP_FRAME = 'tdp bitmap frame',
   TDP_CLIPBOARD_DATA = 'tdp clipboard data',
   // TDP_ERROR corresponds with the TDP error message
   TDP_ERROR = 'tdp error',
@@ -123,6 +125,9 @@ export default class Client extends EventEmitterWebAuthnSender {
           break;
         case MessageType.PNG2_FRAME:
           this.handlePng2Frame(buffer);
+          break;
+        case MessageType.REMOTE_FX_FRAME:
+          this.handleRemoteFxFrame(buffer);
           break;
         case MessageType.CLIENT_SCREEN_SPEC:
           this.handleClientScreenSpec(buffer);
@@ -239,6 +244,12 @@ export default class Client extends EventEmitterWebAuthnSender {
   handlePng2Frame(buffer: ArrayBuffer) {
     this.codec.decodePng2Frame(buffer, (pngFrame: PngFrame) =>
       this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+    );
+  }
+
+  handleRemoteFxFrame(buffer: ArrayBuffer) {
+    this.codec.decodeRemoteFxFrame(buffer, (bmpFrame: BitmapFrame) =>
+      this.emit(TdpClientEvent.TDP_BITMAP_FRAME, bmpFrame)
     );
   }
 

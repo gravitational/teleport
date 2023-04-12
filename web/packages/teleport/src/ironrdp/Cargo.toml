@@ -1,0 +1,18 @@
+[package]
+name = "ironrdp"
+version = "0.1.0"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+bytes = "1.4.0"
+js-sys = "0.3.61"
+log = "0.4.17"
+console_log = "0.2.2"
+wasm-bindgen = "0.2.84"
+wasm-logger = "0.2.0"
+web-sys = { version = "0.3.61" }

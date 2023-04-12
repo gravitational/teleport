@@ -1,7 +1,8 @@
 [workspace]
 
 members = [
-    "lib/srv/desktop/rdp/rdpclient"
+    "lib/srv/desktop/rdp/rdpclient",
+    "web/packages/teleport/src/ironrdp"
 ]
 
 [profile.dev]

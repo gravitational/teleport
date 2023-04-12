@@ -10863,6 +10863,11 @@ nanomatch@^1.2.9:
     snapdragon "^0.8.1"
     to-regex "^3.0.1"
 
+narrowing@^1.4.0:
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/narrowing/-/narrowing-1.5.0.tgz#b53c2d1bcec99ae16605ba6b15827f0c7d5d6bbf"
+  integrity sha512-DUu4XdKgkfAPTAL28k79pdnshDE2W5T24QAnidSPo2F/W1TX6CjNzmEeXQfE5O1lxQvC0GYI6ZRDsLcyzugEYA==
+
 natural-compare-lite@^1.4.0:
   version "1.4.0"
   resolved "https://registry.yarnpkg.com/natural-compare-lite/-/natural-compare-lite-1.4.0.tgz#17b09581988979fddafe0201e931ba933c96cbb4"
@@ -14469,6 +14474,15 @@ vfile@^4.0.0:
     is-buffer "^2.0.0"
     unist-util-stringify-position "^2.0.0"
     vfile-message "^2.0.0"
+
+vite-plugin-wasm-pack@^0.1.12:
+  version "0.1.12"
+  resolved "https://registry.yarnpkg.com/vite-plugin-wasm-pack/-/vite-plugin-wasm-pack-0.1.12.tgz#90f6ca8cd9f8e5e7c9ac98475bc0e5b29f947b0f"
+  integrity sha512-WliYvQp9HXluir4OKGbngkcKxtYtifU11cqLurRRJGsl770Sjr1iIkp5RuvU3IC1poT4A57Z2/YgAKI2Skm7ZA==
+  dependencies:
+    chalk "^4.1.2"
+    fs-extra "^10.0.0"
+    narrowing "^1.4.0"
 
 vite-tsconfig-paths@^4.0.7:
   version "4.0.7"

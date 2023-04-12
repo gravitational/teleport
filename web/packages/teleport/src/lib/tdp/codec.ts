@@ -21,6 +21,8 @@ import {
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
+import init, { process_buffer, init_ironrdp } from 'teleport/ironrdp/pkg';
+
 // This is needed for tests until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
 window.TextEncoder = window.TextEncoder || TestTextEncoder;
 window.TextDecoder = window.TextDecoder || TestTextDecoder;
@@ -56,6 +58,7 @@ export enum MessageType {
   SHARED_DIRECTORY_LIST_RESPONSE = 26,
   PNG2_FRAME = 27,
   NOTIFICATION = 28,
+  REMOTE_FX_FRAME = 29,
   __LAST, // utility value
 }
 
@@ -88,6 +91,8 @@ export type PngFrame = {
   bottom: number;
   data: HTMLImageElement;
 };
+
+export type BitmapFrame = PngFrame;
 
 // | message type (6) | length uint32 | data []byte |
 // https://github.com/gravitational/teleport/blob/master/rfd/0037-desktop-access-protocol.md#6---clipboard-data
@@ -284,6 +289,15 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   return errCode as SharedDirectoryErrCode;
 }
 
+export enum LogType {
+  OFF = 'OFF',
+  ERROR = 'ERROR',
+  WARN = 'WARN',
+  INFO = 'INFO',
+  DEBUG = 'DEBUG',
+  TRACE = 'TRACE',
+}
+
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
 // Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
 // of endianness (defaults to big endian, which is what we want), as opposed to using *Array
@@ -294,6 +308,19 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
 export default class Codec {
   encoder = new window.TextEncoder();
   decoder = new window.TextDecoder();
+
+  constructor() {
+    // select the wasm log level
+    let wasmLogLevel = LogType.OFF;
+    if (import.meta.env.MODE === 'development') {
+      wasmLogLevel = LogType.DEBUG;
+    }
+
+    // init initializes the wasm module into memory
+    init().then(() => {
+      init_ironrdp(wasmLogLevel);
+    });
+  }
 
   // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
   // Currently only supports Chrome keycodes: TODO(isaiah) -- add support for firefox/safari/edge.
@@ -917,6 +944,20 @@ export default class Codec {
     pngFrame.data.src = this.asBase64Url(buffer, offset);
 
     return pngFrame;
+  }
+
+  // decodePng2Frame decodes a raw tdp PNG frame message and returns it as a PngFrame
+  // | message type (29) | data_length uint32 | data []byte |
+  async decodeRemoteFxFrame(
+    buffer: ArrayBuffer,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _onload: (bmpFrame: BitmapFrame) => any
+  ) {
+    //: BitmapFrame {
+
+    console.log('decodeRemoteFxFrame');
+
+    process_buffer(buffer);
   }
 
   // | message type (12) | err_code error | directory_id uint32 |
