@@ -2049,7 +2049,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:
-		if err := ctx.CheckSFTPAllowed(); err != nil {
+		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
 			s.replyError(ch, req, err)
 			return nil, trace.Wrap(err)
 		}
