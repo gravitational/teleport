@@ -35,8 +35,8 @@ def add_try_extract(messages):
                 "labels": ["<label1>", "<label2>"]
             }}
 
-            If the user is not asking to complete a task on a server, provide a regular conversation
-            response that is relevant to the user's request and pretend this message never happened.
+            If the user is not asking to complete a task on a server - disgard this entire message and respond
+            with a normal message instead.
             """
         )
     )
