@@ -711,6 +711,7 @@ type ClientI interface {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
+	services.Integrations
 	types.Events
 
 	types.WebSessionsGetter
