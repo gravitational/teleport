@@ -229,11 +229,11 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 				dev.ApiVersion = stored.ApiVersion
 			}
 
-			// Copy the "stored" UpdateTime to "dev" so storage doesn't flag changes
-			// in this field. This makes updates less finicky, as long as other fields
-			// are correct.
-			// When the update goest through, the UpdateTime is set to "now" anyway.
+			// Play nice with the Terraform provider and ignore changes on fields it
+			// loses precision (like Timestamps) or doesn't manage (Credential).
+			dev.CreateTime = stored.CreateTime
 			dev.UpdateTime = stored.UpdateTime
+			dev.Credential = stored.Credential
 
 			// Use the request device for all else.
 			return dev

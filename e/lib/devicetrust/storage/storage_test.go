@@ -1182,9 +1182,10 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 		wantErr          string
 	}{
 		{
-			name:    "deviceID is empty",
-			update:  func(stored *devicepb.Device) *devicepb.Device { return stored },
-			wantErr: "device ID required",
+			name:      "deviceID is empty",
+			update:    func(stored *devicepb.Device) *devicepb.Device { return stored },
+			wantErr:   "device ID required",
+			assertErr: trace.IsNotFound,
 		},
 		{
 			name:     "updateFunc is nil",
@@ -1501,7 +1502,7 @@ func TestS_GetDeviceByID_errors(t *testing.T) {
 		{
 			name:      "device ID required",
 			deviceID:  "",
-			assertErr: trace.IsBadParameter,
+			assertErr: trace.IsNotFound,
 		},
 		{
 			name:      "unknown device not found",

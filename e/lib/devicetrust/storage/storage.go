@@ -601,7 +601,7 @@ func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 // It returns all internal data structures along with the device.
 func (s *S) getDeviceByID(ctx context.Context, deviceID string) (*devicepb.Device, *storedDevice, *backend.Item, error) {
 	if deviceID == "" {
-		return nil, nil, nil, trace.BadParameter("device ID required")
+		return nil, nil, nil, trace.NotFound("device ID required")
 	}
 
 	item, err := s.backend.Get(ctx, deviceKey(deviceID))

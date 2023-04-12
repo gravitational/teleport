@@ -993,6 +993,14 @@ func TestService_UpsertDevice(t *testing.T) {
 	enrolledUpdate := proto.Clone(enrolled).(*devicepb.Device)
 	enrolledUpdate.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
 
+	terraformDev, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "terraform1",
+	})
+	if err != nil {
+		t.Fatalf("terraformDev createAndEnroll failed: %v", err)
+	}
+
 	tests := []struct {
 		name       string
 		req        *devicepb.UpsertDeviceRequest
@@ -1061,6 +1069,28 @@ func TestService_UpsertDevice(t *testing.T) {
 				{Type: events.DeviceEvent, Code: events.DeviceUpdateCode},
 			},
 		},
+		{
+			name: "upsert with altered CreateTime, UpdateTime and Credential(device from terraform)",
+			req: &devicepb.UpsertDeviceRequest{
+				Device: deviceFromTerraform(t, proto.Clone(terraformDev).(*devicepb.Device)),
+			},
+			assertDev: func(t *testing.T, base, upserted *devicepb.Device) {
+				// verify modified credential did not end up in the storage
+				assert.NotEqual(t, base.Credential, upserted.Credential)
+
+				// revert modified timestamps and credential to original value
+				base.CreateTime = terraformDev.CreateTime
+				base.UpdateTime = terraformDev.UpdateTime
+				base.Credential = terraformDev.Credential
+
+				if diff := cmp.Diff(base, upserted, protocmp.Transform()); diff != "" {
+					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
+				}
+			},
+			wantEvents: []wantEvent{
+				{Type: events.DeviceEvent, Code: events.DeviceUpdateCode},
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1088,6 +1118,22 @@ func TestService_UpsertDevice(t *testing.T) {
 			assertEvents(t, emitter.Events(), test.wantEvents)
 		})
 	}
+}
+
+func deviceFromTerraform(t *testing.T, dev *devicepb.Device) *devicepb.Device {
+	// Altered CreateTime and UpdateTime should be ignored.
+	// Terraform represents dates using RFC3999 and, as a result, loses sub-second
+	// precision on the timestamps. This simulates that, but in a simpler way.
+	dev.CreateTime = timestamppb.New(dev.CreateTime.AsTime().Add(1 * time.Second))
+	dev.UpdateTime = timestamppb.New(dev.UpdateTime.AsTime().Add(1 * time.Second))
+
+	// Altered Credential should be ignored. Credential is not managed in terraform.
+	dev.Credential = &devicepb.DeviceCredential{
+		Id:           "deviceFromTerraform",
+		PublicKeyDer: []byte("deviceFromTerraform test public key"),
+	}
+
+	return dev
 }
 
 func TestService_UpsertDevice_errors(t *testing.T) {
