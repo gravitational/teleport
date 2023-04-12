@@ -8,7 +8,7 @@ set -eo pipefail
 
 ROOT_PATH="$(cd "$(dirname "$0")/.." && pwd -P)"
 MAKE="${MAKE:-make}"
-SHASUMS=("shasum -a 512" "sha512sum" "sha256sum")
+SHASUMS=("shasum -a 512" "sha512sum")
 
 if ! command -v "$MAKE" >/dev/null; then
   echo "Unable to find \"$MAKE\" on path."
@@ -53,7 +53,7 @@ done
 
 function calculate_sha() {
   #shellcheck disable=SC2005,SC2086
-  echo "$(find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" -not \( -type d -name node_modules -prune \) -print0 | LC_ALL=C sort -z | cpio -0 -o 2>/dev/null | $SHASUM | tr -d " -")"
+  echo "$(find "${SRC_DIRECTORIES[@]}" "$ROOT_PATH/package.json" "$ROOT_PATH/yarn.lock" -not \( -type d -name node_modules -prune \) -type f -print0 | LC_ALL=C sort -z | xargs -0 $SHASUM | awk '{print $1}' | $SHASUM | tr -d ' -')"  
 }
 
 # Calculate the current hash-of-hashes of the given source directories. Adds in package.json as well.
@@ -78,7 +78,8 @@ if [ "$BUILD" = "true" ]; then \
   # created any necessary directories here. The recalculation is necessary as yarn.lock may have been
   # updated by the build process.
   mkdir -p "$(dirname "$LAST_SHA_FILE")"
-  calculate_sha > "$LAST_SHA_FILE"
+  # Save SHA with yarn.lock before yarn install
+  echo $CURRENT_SHA > "$LAST_SHA_FILE"
   echo "$TYPE webassets successfully updated."
 else
   echo "$TYPE webassets up to date."

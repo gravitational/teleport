@@ -15,7 +15,7 @@
  */
 
 import * as grpc from '@grpc/grpc-js';
-import { isObject, transform } from 'lodash';
+import { isObject } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 
@@ -127,24 +127,24 @@ export const withLogging = (logger: Logger): UnaryInterceptor => {
 };
 
 function filterSensitiveProperties(toFilter: object): object {
-  return transform(
-    toFilter,
-    (result: object, value: any, key: any) => {
-      if (
-        SENSITIVE_PROPERTIES.some(
-          sensitiveProp =>
-            typeof key === 'string' && key.includes(sensitiveProp)
-        )
-      ) {
-        result[key] = '~FILTERED~';
-        return;
-      }
-      if (isObject(value)) {
-        result[key] = filterSensitiveProperties(value);
-        return;
-      }
-      result[key] = value;
-    },
-    {}
-  );
+  const acc = {};
+  const transformer = (result: object, value: any, key: any) => {
+    if (
+      SENSITIVE_PROPERTIES.some(
+        sensitiveProp => typeof key === 'string' && key.includes(sensitiveProp)
+      )
+    ) {
+      result[key] = '~FILTERED~';
+      return;
+    }
+    if (isObject(value)) {
+      result[key] = filterSensitiveProperties(value);
+      return;
+    }
+    result[key] = value;
+  };
+
+  Object.keys(toFilter).forEach(key => transformer(acc, toFilter[key], key));
+
+  return acc;
 }

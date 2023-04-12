@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"encoding/xml"
 	"fmt"
 
 	"github.com/gravitational/trace"
@@ -107,7 +108,16 @@ func (s *SAMLIdPServiceProviderV1) CheckAndSetDefaults() error {
 	}
 
 	if s.Spec.EntityID == "" {
-		return trace.BadParameter("entity ID is missing")
+		// Extract just the entityID attribute from the descriptor
+		ed := &struct {
+			EntityID string `xml:"entityID,attr"`
+		}{}
+		err := xml.Unmarshal([]byte(s.Spec.EntityDescriptor), ed)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.Spec.EntityID = ed.EntityID
 	}
 
 	return nil

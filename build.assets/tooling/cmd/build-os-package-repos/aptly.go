@@ -189,7 +189,7 @@ func (a *Aptly) CreateRepoIfNotExists(r *Repo) (bool, error) {
 	}
 
 	distributionArg := fmt.Sprintf("-distribution=%s", r.osVersion)
-	componentArg := fmt.Sprintf("-component=%s/%s", r.releaseChannel, r.majorVersion)
+	componentArg := fmt.Sprintf("-component=%s/%s", r.releaseChannel, r.versionChannel)
 	_, err = BuildAndRunCommand("aptly", "repo", "create", distributionArg, componentArg, r.Name())
 	if err != nil {
 		return false, trace.Wrap(err, "failed to create repo %q", r.Name())
@@ -567,18 +567,18 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 			}
 
 			for _, releaseChannel := range releaseChannelSubdirectories {
-				majorVersionParentDirectory := filepath.Join(releaseChannelParentDirectory, releaseChannel)
-				majorVersionSubdirectories, err := getSubdirectories(majorVersionParentDirectory)
+				versionChannelParentDirectory := filepath.Join(releaseChannelParentDirectory, releaseChannel)
+				versionChannelSubdirectories, err := getSubdirectories(versionChannelParentDirectory)
 				if err != nil {
-					return nil, trace.Wrap(err, "failed to get major version subdirectories in %s", localPublishedPath)
+					return nil, trace.Wrap(err, "failed to get version channel subdirectories in %s", localPublishedPath)
 				}
 
-				for _, majorVersion := range majorVersionSubdirectories {
+				for _, versionChannel := range versionChannelSubdirectories {
 					r := &Repo{
 						os:                  os,
 						osVersion:           osVersion,
 						releaseChannel:      releaseChannel,
-						majorVersion:        majorVersion,
+						versionChannel:      versionChannel,
 						publishedSourcePath: localPublishedPath,
 					}
 
@@ -606,11 +606,11 @@ func (a *Aptly) CreateReposFromPublishedPath(localPublishedPath string) ([]*Repo
 // supportedOSInfo should be a dictionary keyed by OS name, with values being a list of
 // supported OS version codenames.
 func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][]string,
-	releaseChannel string, majorVersion string) ([]*Repo, error) {
+	releaseChannel string, versionChannel string) ([]*Repo, error) {
 	logrus.Infoln("Creating new repos from artifact requirements:")
 	logrus.Infof("Supported OSs: %+v", supportedOSInfo)
 	logrus.Infof("Release channel: %q", releaseChannel)
-	logrus.Infof("Artifact major version: %q", majorVersion)
+	logrus.Infof("Version channel: %q", versionChannel)
 
 	artifactRequirementRepos := []*Repo{}
 	for os, osVersions := range supportedOSInfo {
@@ -619,7 +619,7 @@ func (a *Aptly) CreateReposFromArtifactRequirements(supportedOSInfo map[string][
 				os:             os,
 				osVersion:      osVersion,
 				releaseChannel: releaseChannel,
-				majorVersion:   majorVersion,
+				versionChannel: versionChannel,
 			}
 
 			_, err := a.CreateRepoIfNotExists(r)

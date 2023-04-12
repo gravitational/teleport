@@ -118,6 +118,9 @@ caPin: []
 # certificate.
 insecureSkipProxyTLSVerify: false
 
+# Set enterprise to true to use enterprise image.
+enterprise: false
+
 # teleportConfig contains additional teleport configuration
 # The configuration will be merged with the chart-generated configuration
 # and will take precedence in case of conflict
@@ -132,6 +135,19 @@ tls:
   # Create the secret with `kubectl create secret generic --from-file=ca.pem=/path/to/root-ca.pem`
   # The filename inside the secret is important - it _must_ be ca.pem
   existingCASecretName: ""
+
+updater:
+  enabled: false
+  # `updater.versionServer` is the URL of the version server the agent fetches
+  # the target version from. The complete version endpoint is built by
+  # concatenating `versionServer` and `releaseChannel`.
+  versionServer: "https://update.gravitational.io/v1/"
+  # Release channel the agent subscribes to.
+  releaseChannel: "stable/cloud"
+  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+  serviceAccount:
+    # service account name defaults to "<kube agent sa name>-updater"
+    name: ""
 
 # If set, will use an existing volume mounted via extraVolumes
 # as the Teleport data directory.
@@ -184,9 +200,10 @@ storage:
 # Values that you shouldn't need to change.
 ################################################################
 
-# Container image for the agent. Since this runs without the auth_service, we
-# don't need the enterprise version.
+# Container image for the cluster.
 image: public.ecr.aws/gravitational/teleport
+# Enterprise version of the image
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent
 # Optional array of imagePullSecrets, to use when pulling from a private registry
 imagePullSecrets: []
 # - name: myRegistryKeySecretName
@@ -352,7 +369,7 @@ initSecurityContext:
   runAsNonRoot: true
   runAsUser: 9807
 
-# Security context to add to the container
+# Security context to add to other containers
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:

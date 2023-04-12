@@ -55,13 +55,30 @@ func git(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(stdout.String()), nil
 }
 
+// gitLatestCommit returns sha of the latest commit
+//
+// Runs: git log -1 --format=%H
+func gitLatestCommitSha(path string) (string, error) {
+	sha, err := git(path, "log", "--pretty=oneline", "-1", "--format=%H")
+	if err != nil {
+		return sha, trace.Errorf("%w : Error returned by `git log -1 --format=%%H", err)
+	}
+
+	return sha, nil
+}
+
 // gitMergeBase returns git ref of fork point
 //
 // Runs: git merge-base --fork-point <branch>
 func gitMergeBase(path string, branch string) (string, error) {
-	ref, err := git(path, "merge-base", "--fork-point", branch)
+	sha, err := gitLatestCommitSha(path)
 	if err != nil {
-		return ref, trace.Errorf("%w : Error returned by `git merge-base --fork-point %s`: %s", err, branch, ref)
+		return sha, trace.Wrap(err)
+	}
+
+	ref, err := git(path, "merge-base", branch, sha)
+	if err != nil {
+		return ref, trace.Errorf("%w : Error returned by `git merge-base %s %s`: %s", err, branch, sha, ref)
 	}
 
 	return ref, nil

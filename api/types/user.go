@@ -26,10 +26,21 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+// UserType is the user's types that indicates where it was created.
+type UserType string
+
+const (
+	// UserTypeSSO identifies a user that was created from an SSO provider.
+	UserTypeSSO UserType = "sso"
+	// UserTypeLocal identifies a user that was created in Teleport itself and has no connection to an external identity.
+	UserTypeLocal UserType = "local"
+)
+
 // User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
+	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
@@ -98,6 +109,8 @@ type User interface {
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
+	// GetUserType indicates if the User was created by an SSO Provider or locally.
+	GetUserType() UserType
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
@@ -156,6 +169,16 @@ func (u *UserV2) SetResourceID(id int64) {
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata
+}
+
+// Origin returns the origin value of the resource.
+func (u *UserV2) Origin() string {
+	return u.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (u *UserV2) SetOrigin(origin string) {
+	u.Metadata.SetOrigin(origin)
 }
 
 // SetMetadata sets object metadata
@@ -391,6 +414,15 @@ func (u UserV2) GetAzureIdentities() []string {
 // GetGCPServiceAccounts gets a list of GCP service accounts for the user
 func (u UserV2) GetGCPServiceAccounts() []string {
 	return u.getTrait(constants.TraitGCPServiceAccounts)
+}
+
+// GetUserType indicates if the User was created by an SSO Provider or locally.
+func (u UserV2) GetUserType() UserType {
+	if u.GetCreatedBy().Connector == nil {
+		return UserTypeLocal
+	}
+
+	return UserTypeSSO
 }
 
 func (u *UserV2) String() string {

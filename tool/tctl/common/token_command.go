@@ -32,19 +32,19 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // TokensCommand implements `tctl tokens` group of commands
 type TokensCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format, e.g. text or json
 	format string
@@ -90,7 +90,7 @@ type TokensCommand struct {
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *TokensCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	tokens := app.Command("tokens", "List or revoke invitation tokens")
@@ -100,11 +100,11 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, config *service.Con
 	// tctl tokens add ..."
 	c.tokenAdd = tokens.Command("add", "Create a invitation token")
 	c.tokenAdd.Flag("type", "Type(s) of token to add, e.g. --type=node,app,db").Required().StringVar(&c.tokenType)
-	c.tokenAdd.Flag("value", "Value of token to add").StringVar(&c.value)
+	c.tokenAdd.Flag("value", "Override the default random generated token with a specified value").StringVar(&c.value)
 	c.tokenAdd.Flag("labels", "Set token labels, e.g. env=prod,region=us-west").StringVar(&c.labels)
-	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v hour",
-		int(defaults.SignupTokenTTL/time.Hour))).
-		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).
+	c.tokenAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v minutes",
+		int(defaults.ProvisioningTokenTTL/time.Minute))).
+		Default(fmt.Sprintf("%v", defaults.ProvisioningTokenTTL)).
 		DurationVar(&c.ttl)
 	c.tokenAdd.Flag("app-name", "Name of the application to add").Default("example-app").StringVar(&c.appName)
 	c.tokenAdd.Flag("app-uri", "URI of the application to add").Default("http://localhost:8080").StringVar(&c.appURI)
@@ -149,23 +149,38 @@ func (c *TokensCommand) Add(ctx context.Context, client auth.ClientI) error {
 		return trace.Wrap(err)
 	}
 
-	var labels map[string]string
-	if c.labels != "" {
-		labels, err = libclient.ParseLabelSpec(c.labels)
+	token := c.value
+	if c.value == "" {
+		token, err = utils.CryptoRandomHex(auth.TokenLenBytes)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "generating token value")
 		}
 	}
 
-	// Generate token.
-	token, err := client.GenerateToken(ctx, &proto.GenerateTokenRequest{
-		Roles:  roles,
-		TTL:    proto.Duration(c.ttl),
-		Token:  c.value,
-		Labels: labels,
-	})
+	expires := time.Now().UTC().Add(c.ttl)
+	pt, err := types.NewProvisionToken(token, roles, expires)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if c.labels != "" {
+		labels, err := libclient.ParseLabelSpec(c.labels)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		meta := pt.GetMetadata()
+		meta.Labels = labels
+		pt.SetMetadata(meta)
+	}
+
+	if err := client.CreateToken(ctx, pt); err != nil {
+		if trace.IsAlreadyExists(err) {
+			return trace.AlreadyExists(
+				"failed to create token (%q already exists), please use another name",
+				pt.GetName(),
+			)
+		}
+		return trace.Wrap(err, "creating token")
 	}
 
 	// Print token information formatted with JSON, YAML, or just print the raw token.

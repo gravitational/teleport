@@ -307,6 +307,8 @@ const (
 	SFTPReadlinkFailureCode = "TS017E"
 	SFTPSymlinkCode         = "TS018I"
 	SFTPSymlinkFailureCode  = "TS018E"
+	SFTPLinkCode            = "TS019I"
+	SFTPLinkFailureCode     = "TS019E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -398,11 +400,40 @@ const (
 	DeviceEnrollCode = "TV005I"
 	// DeviceAuthenticateCode is the device authentication code.
 	DeviceAuthenticateCode = "TV006I"
+	// DeviceUpdateCode is the device update code.
+	DeviceUpdateCode = "TV007I"
 
 	// LoginRuleCreateCode is the login rule create code.
 	LoginRuleCreateCode = "TLR00I"
 	// LoginRuleDeleteCode is the login rule delete code.
 	LoginRuleDeleteCode = "TLR01I"
+
+	// SAMLIdPAuthAttemptCode is the SAML IdP auth attempt code.
+	SAMLIdPAuthAttemptCode = "TSI000I"
+
+	// SAMLIdPServiceProviderCreateCode is the SAML IdP service provider create code.
+	SAMLIdPServiceProviderCreateCode = "TSI001I"
+
+	// SAMLIdPServiceProviderCreateFailureCode is the SAML IdP service provider create failure code.
+	SAMLIdPServiceProviderCreateFailureCode = "TSI001W"
+
+	// SAMLIdPServiceProviderUpdateCode is the SAML IdP service provider update code.
+	SAMLIdPServiceProviderUpdateCode = "TSI002I"
+
+	// SAMLIdPServiceProviderUpdateFailureCode is the SAML IdP service provider update failure code.
+	SAMLIdPServiceProviderUpdateFailureCode = "TSI002W"
+
+	// SAMLIdPServiceProviderDeleteCode is the SAML IdP service provider delete code.
+	SAMLIdPServiceProviderDeleteCode = "TSI003I"
+
+	// SAMLIdPServiceProviderDeleteFailureCode is the SAML IdP service provider delete failure code.
+	SAMLIdPServiceProviderDeleteFailureCode = "TSI003W"
+
+	// SAMLIdPServiceProviderDeleteAllCode is the SAML IdP service provider delete all code.
+	SAMLIdPServiceProviderDeleteAllCode = "TSI004I"
+
+	// SAMLIdPServiceProviderDeleteAllFailureCode is the SAML IdP service provider delete all failure code.
+	SAMLIdPServiceProviderDeleteAllFailureCode = "TSI004W"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

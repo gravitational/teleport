@@ -90,6 +90,22 @@ func TestPing(t *testing.T) {
 			},
 		},
 		{
+			name: "OK headless connector",
+			spec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOptional,
+				Webauthn: &types.Webauthn{
+					RPID: "example.com",
+				},
+				ConnectorName: constants.HeadlessConnector,
+			},
+			assertResp: func(_ types.AuthPreference, resp *webclient.PingResponse) {
+				assert.True(t, resp.Auth.AllowHeadless, "Auth.AllowHeadless")
+				require.NotNil(t, resp.Auth.Local, "Auth.Local")
+				assert.Equal(t, constants.HeadlessConnector, resp.Auth.Local.Name, "Auth.Local.Name")
+			},
+		},
+		{
 			name:      "OK device trust mode=off",
 			buildType: modules.BuildOSS,
 			spec: &types.AuthPreferenceSpecV2{
@@ -161,4 +177,37 @@ func TestPing_multiProxyAddr(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, resp.Body.Close())
 	}
+}
+
+// TestPing_minimalAPI tests that pinging the minimal web API works correctly.
+func TestPing_minimalAPI(t *testing.T) {
+	env := newWebPack(t, 1, func(cfg *proxyConfig) {
+		cfg.minimalHandler = true
+	})
+	proxy := env.proxies[0]
+	tests := []struct {
+		name string
+		host string
+	}{
+		{
+			name: "Default ping",
+			host: proxy.handler.handler.cfg.ProxyPublicAddrs[0].Host(),
+		},
+		{
+			// This test ensures that the API doesn't try to launch an application.
+			name: "Ping with alternate host",
+			host: "example.com",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, proxy.newClient(t).Endpoint("webapi", "ping"), nil)
+			require.NoError(t, err)
+			req.Host = tc.host
+			resp, err := client.NewInsecureWebClient().Do(req)
+			require.NoError(t, err)
+			require.NoError(t, resp.Body.Close())
+		})
+	}
+
 }

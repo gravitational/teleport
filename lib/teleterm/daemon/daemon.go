@@ -23,12 +23,11 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/types"
-	prehogapi "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/usagereporter"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
 const (
@@ -47,7 +46,7 @@ func New(cfg Config) (*Service, error) {
 
 	closeContext, cancel := context.WithCancel(context.Background())
 
-	connectUsageReporter, err := NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
+	connectUsageReporter, err := usagereporter.NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -343,21 +342,6 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	return newGateway, nil
 }
 
-// GetAllServers returns a full list of nodes without pagination or sorting.
-func (s *Service) GetAllServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := cluster.GetAllServers(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
-}
-
 // GetServers accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
 	cluster, err := s.ResolveCluster(req.ClusterUri)
@@ -484,36 +468,6 @@ func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 	return nil
 }
 
-// ListServers returns cluster servers
-func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.App, error) {
-	cluster, err := s.ResolveCluster(clusterURI)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	apps, err := cluster.GetApps(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return apps, nil
-}
-
-// GetAllKubes lists kubernetes clusters
-func (s *Service) GetAllKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
-	cluster, err := s.ResolveCluster(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kubes, err := cluster.GetAllKubes(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return kubes, nil
-}
-
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination.
 func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
 	cluster, err := s.ResolveCluster(req.ClusterUri)
@@ -527,6 +481,15 @@ func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clus
 	}
 
 	return response, nil
+}
+
+func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
+	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.usageReporter.AddEventsToQueue(prehogEvent)
+	return nil
 }
 
 // Stop terminates all cluster open connections
@@ -582,7 +545,7 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 }
 
 func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
-	cluster, err := s.ResolveCluster(request.GetClusterUri())
+	cluster, err := s.ResolveCluster(request.GetServerUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -603,7 +566,7 @@ type Service struct {
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
 	// usageReporter batches the events and sends them to prehog
-	usageReporter *usagereporter.UsageReporter[prehogapi.SubmitConnectEventRequest]
+	usageReporter *usagereporter.UsageReporter
 }
 
 type CreateGatewayParams struct {

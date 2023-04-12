@@ -1,4 +1,4 @@
-{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -86,6 +86,10 @@ spec:
 {{- end }}
 {{- if $auth.tolerations }}
       tolerations: {{- toYaml $auth.tolerations | nindent 6 }}
+{{- end }}
+{{- if $auth.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $auth.imagePullSecrets | nindent 6 }}
 {{- end }}
 {{- if $auth.initContainers }}
       initContainers:

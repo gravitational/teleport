@@ -45,6 +45,15 @@ type Lock interface {
 	// SetLockExpiry sets the lock's expiry.
 	SetLockExpiry(*time.Time)
 
+	// CreatedAt returns the time the lock was created.
+	CreatedAt() time.Time
+	// SetCreatedAt sets the lock's created time.
+	SetCreatedAt(time.Time)
+	// CreatedBy returns the user that created the lock.
+	CreatedBy() string
+	// SetCreatedBy sets the lock's creator.
+	SetCreatedBy(string)
+
 	// IsInForce returns whether the lock is in force at a particular time.
 	IsInForce(time.Time) bool
 }
@@ -148,6 +157,22 @@ func (c *LockV2) SetLockExpiry(expiry *time.Time) {
 	c.Spec.Expires = expiry
 }
 
+func (c *LockV2) CreatedAt() time.Time {
+	return c.Spec.CreatedAt
+}
+
+func (c *LockV2) SetCreatedAt(t time.Time) {
+	c.Spec.CreatedAt = t
+}
+
+func (c *LockV2) CreatedBy() string {
+	return c.Spec.CreatedBy
+}
+
+func (c *LockV2) SetCreatedBy(user string) {
+	c.Spec.CreatedBy = user
+}
+
 // IsInForce returns whether the lock is in force at a particular time.
 func (c *LockV2) IsInForce(t time.Time) bool {
 	if c.Spec.Expires == nil {
@@ -201,28 +226,14 @@ func (t LockTarget) Match(lock Lock) bool {
 		return false
 	}
 	lockTarget := lock.Target()
-	if t.User != "" && lockTarget.User != t.User {
-		return false
-	}
-	if t.Role != "" && lockTarget.Role != t.Role {
-		return false
-	}
-	if t.Login != "" && lockTarget.Login != t.Login {
-		return false
-	}
-	if t.Node != "" && lockTarget.Node != t.Node {
-		return false
-	}
-	if t.MFADevice != "" && lockTarget.MFADevice != t.MFADevice {
-		return false
-	}
-	if t.WindowsDesktop != "" && lockTarget.WindowsDesktop != t.WindowsDesktop {
-		return false
-	}
-	if t.AccessRequest != "" && lockTarget.AccessRequest != t.AccessRequest {
-		return false
-	}
-	return true
+	return (t.User == "" || lockTarget.User == t.User) &&
+		(t.Role == "" || lockTarget.Role == t.Role) &&
+		(t.Login == "" || lockTarget.Login == t.Login) &&
+		(t.Node == "" || lockTarget.Node == t.Node) &&
+		(t.MFADevice == "" || lockTarget.MFADevice == t.MFADevice) &&
+		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
+		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
+		(t.Device == "" || lockTarget.Device == t.Device)
 }
 
 // String returns string representation of the LockTarget.

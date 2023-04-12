@@ -32,15 +32,17 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 )
 
+type OnSessionLeaveAction string
+
 const (
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that terminates
 	// a session once the require policy is no longer fulfilled.
-	OnSessionLeaveTerminate = "terminate"
+	OnSessionLeaveTerminate OnSessionLeaveAction = "terminate"
 
 	// OnSessionLeaveTerminate is a moderated sessions policy constant that pauses
 	// a session once the require policies is no longer fulfilled. It is resumed
 	// once the requirements are fulfilled again.
-	OnSessionLeavePause = "pause"
+	OnSessionLeavePause OnSessionLeaveAction = "pause"
 )
 
 // Role contains a set of permissions or settings
@@ -775,9 +777,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	// DELETE IN 13.0.0
-	r.CheckSetRequireSessionMFA()
-
 	// Make sure all fields have defaults.
 	if r.Spec.Options.CertificateFormat == "" {
 		r.Spec.Options.CertificateFormat = constants.CertificateFormatStandard
@@ -977,16 +976,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 	return nil
-}
-
-// RequireSessionMFA must be checked/set when communicating with an old server or client.
-// DELETE IN 13.0.0
-func (r *RoleV6) CheckSetRequireSessionMFA() {
-	if r.Spec.Options.RequireMFAType != RequireMFAType_OFF {
-		r.Spec.Options.RequireSessionMFA = r.Spec.Options.RequireMFAType.IsSessionMFARequired()
-	} else if r.Spec.Options.RequireSessionMFA {
-		r.Spec.Options.RequireMFAType = RequireMFAType_SESSION
-	}
 }
 
 // String returns the human readable representation of a role.

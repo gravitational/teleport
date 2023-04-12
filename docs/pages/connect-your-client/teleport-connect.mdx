@@ -26,7 +26,7 @@ your package manager. Repeat the process for in-place upgrades.
 You can also download the project as a `tar.gz` file to extract and run it in place:
 
 ```code
-$ tar -xf  teleport-(=teleport.version=)-linux-*.tar.gz
+$ tar -xf  teleport-connect-(=teleport.version=)-linux-*.tar.gz
 ```
 </TabItem>
 <TabItem label="Windows">
@@ -34,6 +34,13 @@ Download and run the installer `.exe` file. It will install and open Teleport Co
 further user input.
 
 Repeat the process with newer versions to upgrade.
+
+A silent installation can be performed by running the installer with the `/S` flag. This will hide
+the progress bar and skip the launch of the app after the installation is complete.
+
+```code
+$ "Teleport Connect Setup-(=teleport.version=).exe" /S
+```
 </TabItem>
 </Tabs>
 
@@ -132,7 +139,6 @@ a custom home location through [the `TELEPORT_HOME` environment
 variable](../reference/cli.mdx#tsh-environment-variables). For example, logging in to a new cluster
 through tsh will not make that cluster show up in Teleport Connect.
 
-
 <Tabs>
 <TabItem label="macOS">
 To add tsh to `PATH`, execute `tsh install` from the command bar in Teleport Connect. This will
@@ -151,27 +157,72 @@ installation directory to the `Path` user environment variable.
 </TabItem>
 </Tabs>
 
+## Configuration
+
+Teleport Connect can be configured by editing the `app_config.json` file, which it creates on first launch.
+To open it, click the More Options icon `⋮` -> Open Config File.
+The file will open in your default editor.
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  Any changes to the config file will take effect at the next launch.
+</Admonition>
+
+Below is the list of the supported config properties.
+
+| Property                      | Default                                                                                                              | Description                                                            |
+|-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)). |
+| `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                              |
+| `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+W` on Windows/Linux                                                                   | Shortcut to close a tab.                                               |
+| `keymap.newTab`               | `Command+T` on macOS<br/>`Ctrl+T` on Windows/Linux                                                                   | Shortcut to open a new tab.                                            |
+| `keymap.previousTab`          | `Shift+Command+Tab` on macOS<br/>`Ctrl+Shift+Tab` on Windows/Linux                                                   | Shortcut to go to the previous tab.                                    |
+| `keymap.nextTab`              | `Command+Tab` on macOS<br/>`Ctrl+Tab` on Windows/Linux                                                               | Shortcut to go to the next tab.                                        |
+| `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+P` on Windows/Linux                                                                   | Shortcut to open the connection list.                                  |
+| `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                   | Shortcut to open the cluster selector.                                 |
+| `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                   | Shortcut to open the profile selector.                                 |
+| `keymap.openCommandBar`       | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                   | Shortcut to open the command bar.                                      |
+| `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                          |
+| `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                            |
+
+<Admonition
+  type="note"
+  title="Note"
+>
+  The additional `$schema` property present in the config file allows text editors to provide autocompletion.
+  It should not be modified.
+</Admonition>
+
+### Configuring keyboard shortcuts
+
+A valid shortcut contains at least one modifier and a single key code, for example `Shift+Tab`.
+Function keys such as `F1` do not require a modifier.
+Modifiers and a key code must be combined by the `+` character.
+
+Available modifiers:
+
+- `Control`, `Option`, `Shift`, `Command` on macOS.
+- `Ctrl`, `Alt`, `Shift` on Windows and Linux.
+
+Available key codes:
+- `0` to `9`
+- `A` to `Z`
+- `F1` to `F24`
+- `,`, `.`, `/`, `\`, `` ` ``, `-`, `=`, `;`, `'`, `[`, `]`
+- `Space`, `Tab`, `CapsLock`, `NumLock`, `ScrollLock`, `Backspace`, `Delete`, `Insert`, `Enter`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `Escape`, `IntlBackslash`
+
 ## Telemetry
 
 (!docs/pages/includes/teleport-connect-telemetry.mdx!)
 
 ### Disabling telemetry
 
-If you initially agreed to share telemetry data, but now want to opt out, you need to update the `app_config.json` file:
+If you initially agreed to share telemetry data, but now want to opt out, you need to set `usageReporting.enabled` in the config to `false` (see [Configuration](#configuration)):
 ```json
 "usageReporting.enabled": false
 ```
-<Tabs>
-<TabItem label="macOS">
-The Teleport Connect configuration file is located at `~/Library/Application Support/Teleport Connect/app_config.json`.
-</TabItem>
-<TabItem label="Linux">
-The Teleport Connect configuration file is located at `~/.config/Teleport Connect/app_config.json`.
-</TabItem>
-<TabItem label="Windows">
-The Teleport Connect configuration file is located at `C:\Users\%UserName%\AppData\Roaming\Teleport Connect\app_config.json`.
-</TabItem>
-</Tabs>
 
 The changes will take effect at the next launch.
 
@@ -263,3 +314,53 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>
+
+## Uninstalling Teleport Connect
+
+<Tabs>
+<TabItem label="macOS">
+
+Remove Teleport Connect for MacOS from the Applications directory with this command:
+
+```code
+$ sudo rm -f /Applications/Teleport\ Connect.app
+```
+
+To remove the local user data directory:
+
+```code
+$ sudo rm -rf ~/Library/Application\ Support/Teleport\ Connect
+``` 
+
+</TabItem>
+<TabItem label="Windows">
+
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
+
+To remove the local user data directory:
+
+```powershell
+$ rmdir /s /q "%APPDATA%\Teleport Connect"
+```
+
+</TabItem>
+<TabItem label="Linux">
+
+For DEB installations uninstall Teleport Connect using APT:
+
+```code
+$ sudo apt remove teleport-connect
+```
+
+For RPM installations uninstall Teleport Connect using YUM:
+
+```code
+$ sudo yum remove teleport-connect
+```
+
+Installs based on a tarball should remove the
+`teleport-connect` directory and any copied/linked executables.
+
+</TabItem>
+</Tabs>
+

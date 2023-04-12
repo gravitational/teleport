@@ -3,6 +3,7 @@
 #include <bpf/bpf_core_read.h>     /* for BPF CO-RE helpers */
 #include <bpf/bpf_tracing.h>       /* for getting kprobe arguments */
 
+#include "./common.h"
 #include "../helpers.h"
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
@@ -16,6 +17,9 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 #define EVENTS_BUF_SIZE (4096*8)
 
 BPF_HASH(currsock, u32, struct sock *, INFLIGHT_MAX);
+
+// hashmap keeps all cgroups id that should be monitored by Teleport.
+BPF_HASH(monitored_cgroups, u64, int64_t, MAX_MONITORED_SESSIONS);
 
 // separate data structs for ipv4 and ipv6
 struct ipv4_data_t {
@@ -55,7 +59,16 @@ static int trace_connect_entry(struct sock *sk)
 static int trace_connect_return(int ret, short ipver)
 {
     u64 pid_tgid = bpf_get_current_pid_tgid();
-	u32 id = (u32)pid_tgid;
+    u64 cgroup = bpf_get_current_cgroup_id();
+    u32 id = (u32)pid_tgid;
+    u64 *is_monitored;
+
+    // Check if the cgroup should be monitored.
+    is_monitored = bpf_map_lookup_elem(&monitored_cgroups, &cgroup);
+    if (is_monitored == NULL) {
+        // cgroup has not been marked for monitoring, ignore.
+        return 0;
+    }
 
     struct sock **skpp;
     skpp = bpf_map_lookup_elem(&currsock, &id);

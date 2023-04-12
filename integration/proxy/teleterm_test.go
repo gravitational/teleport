@@ -50,16 +50,12 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 	require.NoError(t, err)
 
 	t.Run("root cluster", func(t *testing.T) {
-		t.Parallel()
-
 		databaseURI := uri.NewClusterURI(rootClusterName).
 			AppendDB(pack.Root.MysqlService.Name)
 
 		testGatewayCertRenewal(t, pack, creds, databaseURI)
 	})
 	t.Run("leaf cluster", func(t *testing.T) {
-		t.Parallel()
-
 		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
 		databaseURI := uri.NewClusterURI(rootClusterName).
 			AppendLeafCluster(leafClusterName).
@@ -119,7 +115,7 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, creds *h
 		TargetURI:  databaseURI.String(),
 		TargetUser: "root",
 	})
-	require.NoError(t, err)
+	require.NoError(t, err, trace.DebugReport(err))
 
 	// Open a new connection.
 	client, err := mysql.MakeTestClientWithoutTLS(

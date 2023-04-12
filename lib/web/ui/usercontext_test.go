@@ -49,6 +49,10 @@ func TestNewUserContext(t *testing.T) {
 			Resources: []string{types.KindWindowsDesktop},
 			Verbs:     services.RW(),
 		},
+		{
+			Resources: []string{types.KindIntegration},
+			Verbs:     services.RW(),
+		},
 	})
 
 	// not setting the rule, or explicitly denying, both denies access
@@ -72,11 +76,6 @@ func TestNewUserContext(t *testing.T) {
 		},
 	})
 
-	// set some windows desktop logins
-	role1.SetWindowsLogins(types.Allow, []string{"a", "b"})
-	role1.SetWindowsLogins(types.Deny, []string{"c"})
-	role2.SetWindowsLogins(types.Allow, []string{"d"})
-
 	roleSet := []types.Role{role1, role2}
 	userContext, err := NewUserContext(user, roleSet, proto.Features{}, true)
 	require.NoError(t, err)
@@ -88,6 +87,7 @@ func TestNewUserContext(t *testing.T) {
 	require.Equal(t, userContext.Name, "root")
 	require.Empty(t, cmp.Diff(userContext.ACL.AuthConnectors, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.TrustedClusters, allowed))
+	require.Empty(t, cmp.Diff(userContext.ACL.Integrations, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.AppServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.DBServers, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.KubeServers, denied))
@@ -100,7 +100,6 @@ func TestNewUserContext(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.ConnectionDiagnostic, denied))
 	require.Empty(t, cmp.Diff(userContext.ACL.Desktops, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b", "d"}))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",
@@ -172,7 +171,6 @@ func TestNewUserContextCloud(t *testing.T) {
 	require.Empty(t, cmp.Diff(userContext.ACL.Tokens, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.Nodes, allowed))
 	require.Empty(t, cmp.Diff(userContext.ACL.AccessRequests, allowed))
-	require.Empty(t, cmp.Diff(userContext.ACL.WindowsLogins, []string{"a", "b"}))
 	require.Empty(t, cmp.Diff(userContext.AccessStrategy, accessStrategy{
 		Type:   types.RequestStrategyOptional,
 		Prompt: "",

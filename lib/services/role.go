@@ -60,7 +60,6 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindSSHSession, RO()),
 	types.NewRule(types.KindAppServer, RO()),
 	types.NewRule(types.KindRemoteCluster, RO()),
-	types.NewRule(types.KindKubeService, RO()),
 	types.NewRule(types.KindKubeServer, RO()),
 	types.NewRule(types.KindDatabaseServer, RO()),
 	types.NewRule(types.KindDatabase, RO()),
@@ -156,6 +155,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindClusterAuthPreference, RW()),
 				types.NewRule(types.KindClusterNetworkingConfig, RW()),
 				types.NewRule(types.KindSessionRecordingConfig, RW()),
+				types.NewRule(types.KindUIConfig, RW()),
 				types.NewRule(types.KindApp, RW()),
 				types.NewRule(types.KindDatabase, RW()),
 				types.NewRule(types.KindLock, RW()),
@@ -995,28 +995,67 @@ func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ..
 	return result
 }
 
-// EnumerateServerLogins works on a given role set to return a minimal description of allowed set of logins.
-// The wildcard selector is ignored, since it is now allowed for server logins
-func (set RoleSet) EnumerateServerLogins(server types.Server) EnumerationResult {
-	result := NewEnumerationResult()
+// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
+//
+// Supports the following resource types:
+//
+// - types.Server with GetKind() == types.KindNode
+//
+// - types.KindWindowsDesktop
+func (set RoleSet) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
+	// Create a map indexed by all logins in the RoleSet,
+	// mapped to false if any role has it in its deny section,
+	// true otherwise.
+	mapped := make(map[string]bool)
 
-	// gather logins for checking from the roles
-	// no need to check for wildcards
-	var logins []string
 	for _, role := range set {
-		logins = append(logins, role.GetLogins(types.Allow)...)
-		logins = append(logins, role.GetLogins(types.Deny)...)
+		var loginGetter func(types.RoleConditionType) []string
+
+		switch resource.GetKind() {
+		case types.KindNode:
+			loginGetter = role.GetLogins
+		case types.KindWindowsDesktop:
+			loginGetter = role.GetWindowsLogins
+		default:
+			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
+		}
+
+		for _, login := range loginGetter(types.Allow) {
+			mapped[login] = true
+		}
+		for _, login := range loginGetter(types.Deny) {
+			mapped[login] = false
+		}
 	}
 
-	logins = apiutils.Deduplicate(logins)
-
-	// check each individual user against the server.
-	for _, user := range logins {
-		err := set.checkAccess(server, AccessState{MFAVerified: true}, NewLoginMatcher(user))
-		result.allowedDeniedMap[user] = err == nil
+	// Create a list of only the logins not denied by a role in the set.
+	var notDenied []string
+	for login, isNotDenied := range mapped {
+		if isNotDenied {
+			notDenied = append(notDenied, login)
+		}
 	}
 
-	return result
+	var newLoginMatcher func(login string) RoleMatcher
+	switch resource.GetKind() {
+	case types.KindNode:
+		newLoginMatcher = NewLoginMatcher
+	case types.KindWindowsDesktop:
+		newLoginMatcher = NewWindowsLoginMatcher
+	default:
+		return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
+	}
+
+	// Filter the not-denied logins for those allowed to be used with the given resource.
+	var allowed []string
+	for _, login := range notDenied {
+		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newLoginMatcher(login))
+		if err == nil {
+			allowed = append(allowed, login)
+		}
+	}
+
+	return allowed, nil
 }
 
 // MatchNamespace returns true if given list of namespace matches
@@ -1093,6 +1132,24 @@ func MatchDatabaseUser(selectors []string, user string, matchWildcard bool) (boo
 // MatchLabels matches selector against target. Empty selector matches
 // nothing, wildcard matches everything.
 func MatchLabels(selector types.Labels, target map[string]string) (bool, string, error) {
+	return MatchLabelGetter(selector, mapLabelGetter(target))
+}
+
+// LabelGetter allows retrieving a particular label by name.
+type LabelGetter interface {
+	GetLabel(key string) (value string, ok bool)
+}
+
+type mapLabelGetter map[string]string
+
+func (m mapLabelGetter) GetLabel(key string) (value string, ok bool) {
+	v, ok := m[key]
+	return v, ok
+}
+
+// MatchLabelGetter matches selector against labelGetter. Empty selector matches
+// nothing, wildcard matches everything.
+func MatchLabelGetter(selector types.Labels, labelGetter LabelGetter) (bool, string, error) {
 	// Empty selector matches nothing.
 	if len(selector) == 0 {
 		return false, "no match, empty selector", nil
@@ -1106,19 +1163,20 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 
 	// Perform full match.
 	for key, selectorValues := range selector {
-		targetVal, hasKey := target[key]
-
+		targetVal, hasKey := labelGetter.GetLabel(key)
 		if !hasKey {
 			return false, fmt.Sprintf("no key match: '%v'", key), nil
 		}
 
-		if !slices.Contains(selectorValues, types.Wildcard) {
-			result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
-			if err != nil {
-				return false, "", trace.Wrap(err)
-			} else if !result {
-				return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
-			}
+		if slices.Contains(selectorValues, types.Wildcard) {
+			continue
+		}
+
+		result, err := utils.SliceMatchesRegex(targetVal, selectorValues)
+		if err != nil {
+			return false, "", trace.Wrap(err)
+		} else if !result {
+			return false, fmt.Sprintf("no value match: got '%v' want: '%v'", targetVal, selectorValues), nil
 		}
 	}
 
@@ -1521,6 +1579,32 @@ func (set RoleSet) CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) 
 		return nil, trace.NotFound("this user cannot request GCP API access, has no assigned service accounts")
 	}
 	return utils.StringsSliceFromSet(accounts), nil
+}
+
+// CheckAccessToSAMLIdP checks access to the SAML IdP.
+//
+//nolint:revive // Because we want this to be IdP.
+func (set RoleSet) CheckAccessToSAMLIdP(authPref types.AuthPreference) error {
+	if authPref != nil {
+		if !authPref.IsSAMLIdPEnabled() {
+			return trace.AccessDenied("SAML IdP is disabled at the cluster level")
+		}
+	}
+	for _, role := range set {
+		options := role.GetOptions()
+
+		// This should never happen, but we should make sure that we don't get a nil pointer error here.
+		if options.IDP == nil || options.IDP.SAML == nil || options.IDP.SAML.Enabled == nil {
+			continue
+		}
+
+		// If any role specifically denies access to the IdP, we'll return AccessDenied.
+		if !options.IDP.SAML.Enabled.Value {
+			return trace.AccessDenied("user has been denied access to the SAML IdP by role %s", role.GetName())
+		}
+	}
+
+	return nil
 }
 
 // CheckLoginDuration checks if role set can login up to given duration and
@@ -2109,7 +2193,11 @@ func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
 	}
 
 	// If input database user is the short role name, try the full ARN.
-	return []string{awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)}
+	roleARN, err := awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)
+	if err != nil {
+		return nil
+	}
+	return []string{roleARN}
 }
 
 // DatabaseNameMatcher matches a role against database name.
@@ -2291,20 +2379,20 @@ type AccessCheckable interface {
 	GetKind() string
 	GetName() string
 	GetMetadata() types.Metadata
-	GetAllLabels() map[string]string
+	GetLabel(key string) (value string, ok bool)
 }
 
 // rbacDebugLogger creates a debug logger for Teleport's RBAC component.
 // It also returns a flag indicating whether debug logging is enabled,
 // allowing the RBAC system to generate more verbose errors in debug mode.
 func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...interface{})) {
-	isDebugEnabled := log.IsLevelEnabled(log.DebugLevel)
+	isDebugEnabled := log.IsLevelEnabled(log.TraceLevel)
 	log := log.WithField(trace.Component, teleport.ComponentRBAC)
-	return isDebugEnabled, log.Debugf
+	return isDebugEnabled, log.Tracef
 }
 
-// checkAccess checks if this role set has access to a particular resource,
-// optionally matching the resource's labels.
+// checkAccess checks if this role set has access to a particular resource r,
+// based on the passed AccessState, the resource's labels, and the passed matchers.
 func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
@@ -2317,7 +2405,6 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	}
 
 	namespace := types.ProcessNamespace(r.GetMetadata().Namespace)
-	allLabels := r.GetAllLabels()
 
 	// Additional message depending on kind of resource
 	// so there's more context on why the user might not have access.
@@ -2355,7 +2442,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			continue
 		}
 
-		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Deny), allLabels)
+		matchLabels, labelsMessage, err := MatchLabelGetter(getRoleLabels(role, types.Deny), r)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2399,7 +2486,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			continue
 		}
 
-		matchLabels, labelsMessage, err := MatchLabels(getRoleLabels(role, types.Allow), allLabels)
+		matchLabels, labelsMessage, err := MatchLabelGetter(getRoleLabels(role, types.Allow), r)
 		if err != nil {
 			return trace.Wrap(err)
 		}

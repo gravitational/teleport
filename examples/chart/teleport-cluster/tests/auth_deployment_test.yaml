@@ -325,6 +325,17 @@ tests:
             name: SOME_ENVIRONMENT_VARIABLE
             value: "some-value"
 
+  - it: should set imagePullSecrets when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/imagepullsecrets.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: myRegistryKeySecretName
+      - matchSnapshot:
+          path: spec.template.spec.imagePullSecrets
+
   - it: should provision initContainer correctly when set in values
     template: auth/deployment.yaml
     values:

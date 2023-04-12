@@ -19,7 +19,7 @@ import winston, {
   format,
   transports,
 } from 'winston';
-import { isObject } from 'lodash';
+import { isObject } from 'shared/utils/highbar';
 
 import split2 from 'split2';
 

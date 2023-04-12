@@ -1,6 +1,6 @@
 ---
 title: Getting Started with Desktop Access
-description: Access Windows systems through Teleport using passwordless authentication.
+description: Passwordless access to Windows systems for local users
 videoBanner: 9DyKQbg4ORc
 ---
 
@@ -8,7 +8,7 @@ This guide will help you configure Teleport to provide secure, passwordless acce
 to Windows desktops. This configuration does not require an Active Directory domain.
 
 <Admonition type="note">
-Windows Access without Active Directory is an Enterprise only feature.
+Passwordless access for local users is an Enterprise-only feature.
 
 For open source Teleport, consider integrating Teleport with Active Directory
 for automatic discovery by reading [Desktop Access with Active Directory](./active-directory.mdx).
@@ -24,23 +24,20 @@ with the static host definitions described below.
   scopeOnly={true}
   min="12.0"
 >
-Windows Access without Active Directory is available starting from Teleport `v12`.
+Passwordless access for local users is available starting from Teleport `v12`.
 Previous versions of Teleport can implement Windows Access by integrating with
 an [Active Directory domain](./active-directory.mdx).
 </Details>
 
-<Admonition type="warning">
-Teleport Desktop Access is not yet compatible with Windows Server 2022.
-</Admonition>
-
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- A Linux server to run the Teleport Desktop Access service on.
+- A Linux server to run the Teleport Desktop Service on.
   You can reuse an existing server running any other Teleport instance.
-
-(!docs/pages/includes/tctl.mdx!)
+- A server or virtual machine running a Windows operating system with
+  Remote Desktop enabled and the RDP port available to the Linux server.
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Prepare Windows
 
@@ -49,28 +46,27 @@ to your Windows system, and prepare it for passwordless access through Teleport.
 
 ### Import the Teleport root certificate
 
-Use `tctl` to export the Teleport user certificate authority:
+Export the Teleport user certificate authority by running the following from your Windows system:
 
 ```code
-$ tctl auth export --type=windows > teleport.cer
+$ curl 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows' > teleport.cer
 ```
-
-Copy this certificate to your Windows system, if you didn't run `tctl` from there.
 
 ### Install the Teleport service for Windows
 
 From the Windows system, download the [Teleport Windows Auth
-Setup](https://github.com/gravitational/teleport/releases/tag/v12.0.0-passwordless-windows).
+Setup](https://github.com/gravitational/teleport/releases/tag/v12.1.1-passwordless-windows).
 Extract the `.exe` file from the archive and run it. When prompted, select the
 Teleport certificate file from the previous step. Once complete, reboot the system.
 
 <Admonition type="tip" title="Headless Installation">
 The Teleport Windows Auth Setup can be run in a shell environment with elevated
 privileges. You can use this to automate installation, uninstallation, and
-certificate updates. For example:
+certificate updates. The following command will install the Teleport Certificate,
+load the required DLL, disable NLA, and reboot the Windows machine:
 
 ```code
-$ teleport-windows-auth-setup-v12.0.0-amd64.exe install --cert=teleport.cer -r
+$ teleport-windows-auth-setup.exe install --cert=teleport.cer -r
 Teleport Authentication Package installed
 ```
 
@@ -96,12 +92,14 @@ Copy the token to the Linux host where you will run the Desktop service as `/tmp
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Create `/etc/teleport.yaml` and configure it for Desktop Access:
+Create `/etc/teleport.yaml` and configure it for Desktop Access. Update the `proxy_server`
+value to your Teleport proxy service or cloud tenant, and put the Windows machine address
+under `non_ad_hosts`:
 
 ```yml
 version: v3
 teleport:
-  nodename: example.teleport.com
+  nodename: windows.teleport.example.com
   proxy_server: teleport-proxy.example.com:443
   auth_token: /tmp/token
 windows_desktop_service:
@@ -119,7 +117,8 @@ ssh_service:
 Note that without Active Directory, Teleport cannot automatically discover your
 Desktops. Instead you must define the Windows systems configured for access through
 Teleport in your config file, or use Teleport's [API](../api/introduction.mdx)
-to build your own integration.
+to build your own integration. An example API integration is available on
+[GitHub](https://github.com/gravitational/teleport/tree/master/examples/desktop-registration).
 
 <Details title="Add labels to hosts">
 You can attach labels to your Windows hosts by matching to their hostnames.
@@ -128,7 +127,7 @@ For example, to add the `cloud: ec2` label to hosts with EC2 private IP DNS name
 ```diff
 version: v3
 teleport:
-  nodename: example.teleport.com
+  nodename: windows.teleport.example.com
   proxy_server: teleport-proxy.example.com:443
 windows_desktop_service:
   enabled: yes
@@ -149,27 +148,7 @@ ssh_service:
 
 </Details>
 
-Start or restart the Teleport Service. For new Teleport nodes, the examples below
-depend on how you installed Teleport (from a system package or a TAR archive):
-
-<Tabs>
-<TabItem label="System Package">
-
-```code
-$ sudo systemctl start teleport.service
-```
-
-</TabItem>
-<TabItem label="Tar Archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport;
-$ sudo systemctl start teleport;
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Desktop Service"!)
 
 ## Step 3/4. Configure Windows access
 
@@ -216,7 +195,6 @@ You can now connect to your Windows desktops from the Teleport Web UI:
 ## Next Steps
 
 - See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows Desktop Access permissions.
-
+Windows desktop access permissions.
 - See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.

@@ -15,79 +15,37 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import {
-  ClusterUri,
-  KubeUri,
-  RootClusterUri,
-  routing,
-  ServerUri,
-} from 'teleterm/ui/uri';
-import { tsh } from 'teleterm/ui/services/clusters/types';
+import { ClusterUri, KubeUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 import { Platform } from 'teleterm/mainProcess/types';
+import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
   'tsh-ssh': {
     displayName: '',
     description: '',
-    run(
+    async run(
       ctx: IAppContext,
-      args: { loginHost: string; localClusterUri: ClusterUri }
+      args: {
+        loginHost: string;
+        localClusterUri: ClusterUri;
+        origin: DocumentOrigin;
+      }
     ) {
-      const { loginHost, localClusterUri } = args;
+      const { loginHost, localClusterUri, origin } = args;
       const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
       const documentsService =
         ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
-      let login: string | undefined, host: string;
-      const parts = loginHost.split('@');
 
-      if (parts.length > 1) {
-        host = parts.pop();
-        // If someone types in `foo@bar@baz` as input here, `parts` will have more than two
-        // elements. `foo@bar` is probably not a valid login, but we don't want to lose that
-        // input here.
-        //
-        // In any case, we're just repeating what `tsh ssh` is doing with inputs like these.
-        login = parts.join('@');
-      } else {
-        host = parts[0];
-      }
+      const doc = documentsService.createTshNodeDocumentFromLoginHost(
+        localClusterUri,
+        loginHost,
+        { origin }
+      );
 
-      // TODO(ravicious): Handle finding host by more than just a name.
-      // Basically we have to replicate tsh ssh behavior here.
-      const servers = ctx.clustersService.searchServers(localClusterUri, {
-        search: host,
-        searchableProps: ['hostname'],
-      });
-      let server: tsh.Server | undefined;
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
 
-      if (servers.length === 1) {
-        server = servers[0];
-      } else if (servers.length > 1) {
-        // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
-        console.error('Ambiguous host');
-      }
-
-      let serverUri: ServerUri, serverHostname: string;
-
-      if (server) {
-        serverUri = server.uri;
-        serverHostname = server.hostname;
-      } else {
-        // If we can't find a server by the given hostname, we still want to create a document to
-        // handle the error further down the line.
-        const clusterParams = routing.parseClusterUri(localClusterUri).params;
-        serverUri = routing.getServerUri({
-          ...clusterParams,
-          serverId: host,
-        });
-        serverHostname = host;
-      }
-      // TODO(ravicious): Handle failure due to incorrect host name.
-      const doc = documentsService.createTshNodeDocument(serverUri);
-      doc.title = login ? `${login}@${serverHostname}` : serverHostname;
-      doc.login = login;
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
     },
@@ -140,15 +98,23 @@ const commands = {
   'kube-connect': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { kubeUri: KubeUri }) {
+    async run(
+      ctx: IAppContext,
+      args: { kubeUri: KubeUri; origin: DocumentOrigin }
+    ) {
+      const rootClusterUri = routing.ensureRootClusterUri(args.kubeUri);
       const documentsService =
-        ctx.workspacesService.getActiveWorkspaceDocumentService();
+        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
       const kubeDoc = documentsService.createTshKubeDocument({
         kubeUri: args.kubeUri,
+        origin: args.origin,
       });
       const connection = ctx.connectionTracker.findConnectionByDocument(
         kubeDoc
       ) as TrackedKubeConnection;
+
+      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+
       documentsService.add({
         ...kubeDoc,
         kubeConfigRelativePath:
@@ -245,6 +211,7 @@ export class CommandLauncher {
 
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
+    return undefined;
   }
 
   getAutocompleteCommands() {

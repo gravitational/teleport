@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
@@ -61,6 +62,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/cassandra"
@@ -1773,7 +1775,7 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 // createUserAndRole creates Teleport user and role with specified names
 // and allowed database users/names properties.
 func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userName, roleName string, dbUsers, dbNames []string) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName})
+	user, role, err := auth.CreateUserAndRole(c.tlsServer.Auth(), userName, []string{roleName}, nil)
 	require.NoError(t, err)
 	role.SetDatabaseUsers(types.Allow, dbUsers)
 	role.SetDatabaseNames(types.Allow, dbNames)
@@ -1900,7 +1902,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.clusterName,
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
@@ -1934,18 +1936,25 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	// Create test audit events emitter.
 	testCtx.emitter = eventstest.NewChannelEmitter(100)
 
+	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+		AccessPoint: proxyAuthClient,
+		LockWatcher: proxyLockWatcher,
+		Clock:       testCtx.clock,
+		ServerID:    testCtx.hostID,
+		Emitter:     testCtx.emitter,
+		Logger:      utils.NewLoggerForTests(),
+	})
+	require.NoError(t, err)
+
 	// Create database proxy server.
 	testCtx.proxyServer, err = NewProxyServer(ctx, ProxyServerConfig{
-		AuthClient:  proxyAuthClient,
-		AccessPoint: proxyAuthClient,
-		Authorizer:  proxyAuthorizer,
-		Tunnel:      tunnel,
-		TLSConfig:   tlsConfig,
-		Limiter:     connLimiter,
-		Emitter:     testCtx.emitter,
-		Clock:       testCtx.clock,
-		ServerID:    "proxy-server",
-		LockWatcher: proxyLockWatcher,
+		AuthClient:        proxyAuthClient,
+		AccessPoint:       proxyAuthClient,
+		Authorizer:        proxyAuthorizer,
+		Tunnel:            tunnel,
+		TLSConfig:         tlsConfig,
+		Limiter:           connLimiter,
+		ConnectionMonitor: connMonitor,
 	})
 	require.NoError(t, err)
 
@@ -2040,7 +2049,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 	})
 	require.NoError(t, err)
-	dbAuthorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	dbAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: c.clusterName,
 		AccessPoint: c.authClient,
 		LockWatcher: lockWatcher,
@@ -2057,6 +2066,16 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 	// Create default limiter.
 	connLimiter, err := limiter.NewLimiter(limiter.Config{})
+	require.NoError(t, err)
+
+	connMonitor, err := srv.NewConnectionMonitor(srv.ConnectionMonitorConfig{
+		AccessPoint: c.authClient,
+		LockWatcher: lockWatcher,
+		Clock:       c.clock,
+		ServerID:    p.HostID,
+		Emitter:     c.emitter,
+		Logger:      utils.NewLoggerForTests(),
+	})
 	require.NoError(t, err)
 
 	// Create database server agent itself.
@@ -2089,7 +2108,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		},
 		CADownloader:             p.CADownloader,
 		OnReconcile:              p.OnReconcile,
-		LockWatcher:              lockWatcher,
+		ConnectionMonitor:        connMonitor,
 		CloudClients:             p.CloudClients,
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,

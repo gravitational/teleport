@@ -17,7 +17,6 @@ package db
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -28,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
@@ -53,7 +52,7 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 	}
 
 	// Start Teleport Database Service
-	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, resMatchers, service.Database{
+	helpers.MakeTestDatabaseServer(t, *proxyAddr, provisionToken, resMatchers, servicecfg.Database{
 		Name:     "dummydb",
 		Protocol: defaults.ProtocolPostgres,
 		URI:      "127.0.0.1:0",
@@ -85,14 +84,8 @@ func TestDatabaseServiceHeartbeat(t *testing.T) {
 
 	// List Database Services
 	listDBServicesEndpoint := strings.Join([]string{"sites", "$site", "databaseservices"}, "/")
-	resp, err := webPack.DoRequest(http.MethodGet, listDBServicesEndpoint, nil)
-	require.NoError(t, err)
-
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody := webPack.DoRequest(t, http.MethodGet, listDBServicesEndpoint, nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	var listResp listDatabaseServicesResp
 	require.NoError(t, json.Unmarshal(respBody, &listResp))

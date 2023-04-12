@@ -1,4 +1,4 @@
-{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $configTemplate := printf "teleport-cluster.auth.config.%s" $auth.chartMode -}}
 apiVersion: v1
 kind: ConfigMap

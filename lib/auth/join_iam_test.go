@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 )
 
 func responseFromAWSIdentity(id awsIdentity) string {
@@ -456,36 +457,6 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
-			desc:             "non-fips client pass v11",
-			tokenName:        "test-token",
-			requestTokenName: "test-token",
-			tokenSpec: types.ProvisionTokenSpecV2{
-				Roles: []types.SystemRole{types.RoleNode},
-				Allow: []*types.TokenRule{
-					{
-						AWSAccount: "1234",
-						AWSARN:     "arn:aws::1111",
-					},
-				},
-				JoinMethod: types.JoinMethodIAM,
-			},
-			stsClient: &mockClient{
-				respStatusCode: http.StatusOK,
-				respBody: responseFromAWSIdentity(awsIdentity{
-					Account: "1234",
-					Arn:     "arn:aws::1111",
-				}),
-			},
-			iamRegisterOptions: []iamRegisterOption{
-				withFips(true),
-				withAuthVersion(&semver.Version{Major: 11}),
-			},
-			challengeResponseOptions: []challengeResponseOption{
-				withHost("sts.us-east-1.amazonaws.com"),
-			},
-			assertError: require.NoError,
-		},
-		{
 			desc:             "non-fips client fail v12",
 			tokenName:        "test-token",
 			requestTokenName: "test-token",
@@ -531,7 +502,7 @@ func TestAuth_RegisterUsingIAMMethod(t *testing.T) {
 			}()
 
 			requestContext := context.Background()
-			requestContext = context.WithValue(requestContext, ContextClientAddr, &net.IPAddr{})
+			requestContext = authz.ContextWithClientAddr(requestContext, &net.IPAddr{})
 			requestContext = context.WithValue(requestContext, stsClientKey{}, tc.stsClient)
 
 			_, err = a.RegisterUsingIAMMethod(requestContext, func(challenge string) (*proto.RegisterUsingIAMMethodRequest, error) {

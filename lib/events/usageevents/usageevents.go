@@ -23,9 +23,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // UsageLogger is a trivial audit log sink that forwards an anonymized subset of
@@ -38,77 +37,21 @@ type UsageLogger struct {
 	inner apievents.Emitter
 
 	// reporter is a usage reporter, where filtered audit events will be sent
-	reporter services.UsageReporter
+	reporter usagereporter.UsageReporter
 }
 
-// report submits a usage event, but silently ignores events if no reporter is
-// configured.
-func (u *UsageLogger) report(event services.UsageAnonymizable) error {
+var _ apievents.Emitter = (*UsageLogger)(nil)
+
+// reportAuditEvent tries to convert the audit event into a usage event, and
+// submits the usage event if successful, but silently ignores events if no
+// reporter is configured.
+func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	if u.reporter == nil {
 		return nil
 	}
 
-	return trace.Wrap(u.reporter.AnonymizeAndSubmit(event))
-}
-
-func (u *UsageLogger) reportAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	switch e := event.(type) {
-	case *apievents.UserLogin:
-		// Only count successful logins.
-		if !e.Success {
-			return nil
-		}
-
-		// Note: we can have different behavior based on event code (local vs
-		// SSO) if desired, but we currently only care about connector type /
-		// method
-		return trace.Wrap(u.report(&services.UsageUserLogin{
-			UserName:      e.User,
-			ConnectorType: e.Method,
-		}))
-	case *apievents.SessionStart:
-		// Note: session.start is only SSH and Kubernetes.
-		sessionType := types.SSHSessionKind
-		if e.KubernetesCluster != "" {
-			sessionType = types.KubernetesSessionKind
-		}
-
-		return trace.Wrap(u.report(&services.UsageSessionStart{
-			UserName:    e.User,
-			SessionType: string(sessionType),
-		}))
-	case *apievents.DatabaseSessionStart:
-		return trace.Wrap(u.report(&services.UsageSessionStart{
-			UserName:    e.User,
-			SessionType: string(types.DatabaseSessionKind),
-		}))
-	case *apievents.AppSessionStart:
-		return trace.Wrap(u.report(&services.UsageSessionStart{
-			UserName:    e.User,
-			SessionType: string(types.AppSessionKind),
-		}))
-	case *apievents.WindowsDesktopSessionStart:
-		return trace.Wrap(u.report(&services.UsageSessionStart{
-			UserName:    e.User,
-			SessionType: string(types.WindowsDesktopSessionKind),
-		}))
-	case *apievents.GithubConnectorCreate:
-		return trace.Wrap(u.report(&services.UsageSSOCreate{
-			ConnectorType: types.KindGithubConnector,
-		}))
-	case *apievents.OIDCConnectorCreate:
-		return trace.Wrap(u.report(&services.UsageSSOCreate{
-			ConnectorType: types.KindOIDCConnector,
-		}))
-	case *apievents.SAMLConnectorCreate:
-		return trace.Wrap(u.report(&services.UsageSSOCreate{
-			ConnectorType: types.KindSAMLConnector,
-		}))
-	case *apievents.RoleCreate:
-		return trace.Wrap(u.report(&services.UsageRoleCreate{
-			UserName: e.User,
-			RoleName: e.ResourceMetadata.Name,
-		}))
+	if a := usagereporter.ConvertAuditEvent(event); a != nil {
+		u.reporter.AnonymizeAndSubmit(a)
 	}
 
 	return nil
@@ -131,7 +74,7 @@ func (u *UsageLogger) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 // New creates a new usage event IAuditLog impl, which wraps another IAuditLog
 // impl and forwards a subset of audit log events to the cluster UsageReporter
 // service.
-func New(reporter services.UsageReporter, log logrus.FieldLogger, inner apievents.Emitter) (*UsageLogger, error) {
+func New(reporter usagereporter.UsageReporter, log logrus.FieldLogger, inner apievents.Emitter) (*UsageLogger, error) {
 	if log == nil {
 		log = logrus.StandardLogger()
 	}

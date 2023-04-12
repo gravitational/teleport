@@ -25,6 +25,7 @@ import (
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
 type FileTransferProgressSender = func(progress *api.FileTransferProgress) error
@@ -39,8 +40,16 @@ func (c *Cluster) TransferFile(ctx context.Context, request *api.FileTransferReq
 		return newFileTransferProgress(fileInfo.Size(), sendProgress)
 	}
 
+	// TODO(ravicious): Move URI parsing to the outermost layer.
+	// https://github.com/gravitational/teleport/issues/15953
+	serverURI := uri.New(request.GetServerUri())
+	serverUUID := serverURI.GetServerUUID()
+	if serverUUID == "" {
+		return trace.BadParameter("server URI does not include server UUID")
+	}
+
 	err = addMetadataToRetryableError(ctx, func() error {
-		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), request.GetHostname()+":0", config)
+		err := c.clusterClient.TransferFiles(ctx, request.GetLogin(), serverUUID+":0", config)
 		return trace.Wrap(err)
 	})
 	return trace.Wrap(err)

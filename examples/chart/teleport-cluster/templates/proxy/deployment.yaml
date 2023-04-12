@@ -1,4 +1,4 @@
-{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName -}}
 # Deployment is {{ if not $replicable }}not {{end}}replicable
 {{- if and $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
@@ -94,6 +94,10 @@ spec:
 {{- if $proxy.tolerations }}
       tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
 {{- end }}
+{{- if $proxy.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $proxy.imagePullSecrets | nindent 6 }}
+{{- end }}
       initContainers:
         # wait-auth-update is responsible for holding off the proxy rollout until all auths are running the
         # next major version in case of major upgrade.
@@ -104,6 +108,9 @@ spec:
             - wait
             - no-resolve
             - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local'
+{{- if $proxy.securityContext }}
+          securityContext: {{- toYaml $proxy.securityContext | nindent 12 }}
+{{- end }}
 {{- if $proxy.initContainers }}
   {{- range $initContainer := $proxy.initContainers }}
     {{- if and (not $initContainer.resources) $proxy.resources }}
@@ -162,7 +169,7 @@ spec:
           containerPort: 3021
           protocol: TCP
         {{- end }}
-        {{- if eq $proxy.proxyListenerMode "separate" }}
+        {{- if ne $proxy.proxyListenerMode "multiplex" }}
         - name: sshproxy
           containerPort: 3023
           protocol: TCP

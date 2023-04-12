@@ -32,15 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 )
 
-const (
-	// ProxyHelloSignature is a string which Teleport proxy will send
-	// right after the initial SSH "handshake/version" message if it detects
-	// talking to a Teleport server.
-	//
-	// This is also leveraged by tsh to propagate its tracing span ID.
-	ProxyHelloSignature = "Teleport-Proxy"
-)
-
 // HandshakePayload structure is sent as a JSON blob by the teleport
 // proxy to every SSH server who identifies itself as Teleport server
 //
@@ -155,7 +146,7 @@ func ProxyClientSSHConfig(sshCert *ssh.Certificate, priv crypto.Signer, knownHos
 
 	cfg := &ssh.ClientConfig{
 		Auth:    []ssh.AuthMethod{authMethod},
-		Timeout: defaults.DefaultDialTimeout,
+		Timeout: defaults.DefaultIOTimeout,
 	}
 
 	// The KeyId is not always a valid principal, so we use the first valid principal instead.

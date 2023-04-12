@@ -1,6 +1,6 @@
 ---
 title: Database Access with Azure PostgreSQL and MySQL
-description: How to configure Teleport Database Access with Azure Database for PostgreSQL and MySQL.
+description: How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
 ---
 
 <Details
@@ -49,6 +49,7 @@ Create the Database Service configuration.
 <TabItem label="PostgreSQL">
 
 - Specify the region for your database(s) in `--azure-postgres-discovery`.
+
 - Replace the `--proxy` value with your Teleport proxy address or Teleport cloud
   URI (e.g. `mytenant.teleport.sh:443`):
 
@@ -213,7 +214,7 @@ Go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Billing
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
 <Figure align="left">
-![IAM custom role](../../../img/database-access/guides/azure/add-custom-role@2x.png)
+![IAM custom role](../../../img/azure/add-custom-role@2x.png)
 </Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example

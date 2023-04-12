@@ -22,7 +22,7 @@ import * as Icons from 'design/Icon';
 import { StyledTable, StyledPanel } from './StyledTable';
 import { TableProps } from './types';
 import { SortHeaderCell, TextCell } from './Cells';
-import Pager from './Pager';
+import { ClientSidePager, ServerSidePager } from './Pager';
 import InputSearch from './InputSearch';
 import useTable, { State } from './useTable';
 
@@ -133,10 +133,9 @@ export function Table<T>({
         data={state.data}
         renderHeaders={renderHeaders}
         renderBody={renderBody}
-        nextPage={nextPage}
-        prevPage={prevPage}
+        nextPage={fetching.onFetchNext}
+        prevPage={fetching.onFetchPrev}
         pagination={state.pagination}
-        fetching={fetching}
         serversideProps={serversideProps}
       />
     );
@@ -268,7 +267,7 @@ function PagedTable<T>({
             searchValue={searchValue}
             setSearchValue={setSearchValue}
           />
-          <Pager
+          <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
             data={data}
@@ -283,7 +282,7 @@ function PagedTable<T>({
       </StyledTable>
       {!isTopPager && (
         <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
-          <Pager
+          <ClientSidePager
             nextPage={nextPage}
             prevPage={prevPage}
             data={data}
@@ -301,7 +300,6 @@ function ServersideTable<T>({
   renderHeaders,
   renderBody,
   data,
-  fetching,
   className,
   style,
   serversideProps,
@@ -314,13 +312,7 @@ function ServersideTable<T>({
         {renderBody(data)}
       </StyledTable>
       <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
-        <Pager
-          nextPage={nextPage}
-          prevPage={prevPage}
-          data={data}
-          serversideProps={serversideProps}
-          {...fetching}
-        />
+        <ServerSidePager nextPage={nextPage} prevPage={prevPage} />
       </StyledPanel>
     </>
   );
@@ -390,6 +382,5 @@ type ServersideTableProps<T> = BasicTableProps<T> & {
   nextPage: () => void;
   prevPage: () => void;
   pagination: State<T>['state']['pagination'];
-  fetching: State<T>['fetching'];
   serversideProps: State<T>['serversideProps'];
 };

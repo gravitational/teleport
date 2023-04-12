@@ -127,14 +127,6 @@ export function DiscoverDesktops() {
 
   const ref = useRef<HTMLDivElement>();
 
-  function handleNextStep() {
-    emitEvent(
-      { stepStatus: DiscoverEventStatus.Success },
-      { autoDiscoverResourcesCount: result.agents.length }
-    );
-    nextStep();
-  }
-
   const desktops = [];
 
   if (result && result.agents) {
@@ -159,6 +151,14 @@ export function DiscoverDesktops() {
         });
       }
     }
+  }
+
+  function handleNextStep() {
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success },
+      { autoDiscoverResourcesCount: desktops.length }
+    );
+    nextStep();
   }
 
   const items = desktops

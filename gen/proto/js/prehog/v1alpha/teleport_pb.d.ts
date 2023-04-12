@@ -15,6 +15,9 @@ export class UserLoginEvent extends jspb.Message {
     getConnectorType(): string;
     setConnectorType(value: string): UserLoginEvent;
 
+    getDeviceId(): string;
+    setDeviceId(value: string): UserLoginEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UserLoginEvent.AsObject;
@@ -30,6 +33,7 @@ export namespace UserLoginEvent {
     export type AsObject = {
         userName: string,
         connectorType: string,
+        deviceId: string,
     }
 }
 
@@ -72,6 +76,37 @@ export class ResourceCreateEvent extends jspb.Message {
 export namespace ResourceCreateEvent {
     export type AsObject = {
         resourceType: string,
+    }
+}
+
+export class ResourceHeartbeatEvent extends jspb.Message { 
+    getResourceName(): Uint8Array | string;
+    getResourceName_asU8(): Uint8Array;
+    getResourceName_asB64(): string;
+    setResourceName(value: Uint8Array | string): ResourceHeartbeatEvent;
+
+    getResourceKind(): ResourceKind;
+    setResourceKind(value: ResourceKind): ResourceHeartbeatEvent;
+
+    getStatic(): boolean;
+    setStatic(value: boolean): ResourceHeartbeatEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): ResourceHeartbeatEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: ResourceHeartbeatEvent): ResourceHeartbeatEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: ResourceHeartbeatEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): ResourceHeartbeatEvent;
+    static deserializeBinaryFromReader(message: ResourceHeartbeatEvent, reader: jspb.BinaryReader): ResourceHeartbeatEvent;
+}
+
+export namespace ResourceHeartbeatEvent {
+    export type AsObject = {
+        resourceName: Uint8Array | string,
+        resourceKind: ResourceKind,
+        pb_static: boolean,
     }
 }
 
@@ -356,6 +391,9 @@ export class DiscoverMetadata extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): DiscoverMetadata;
 
+    getSso(): boolean;
+    setSso(value: boolean): DiscoverMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoverMetadata.AsObject;
@@ -371,6 +409,7 @@ export namespace DiscoverMetadata {
     export type AsObject = {
         id: string,
         userName: string,
+        sso: boolean,
     }
 }
 
@@ -982,6 +1021,117 @@ export namespace UICreateNewRoleViewDocumentationClickEvent {
     }
 }
 
+export class KubeRequestEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): KubeRequestEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): KubeRequestEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: KubeRequestEvent): KubeRequestEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: KubeRequestEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): KubeRequestEvent;
+    static deserializeBinaryFromReader(message: KubeRequestEvent, reader: jspb.BinaryReader): KubeRequestEvent;
+}
+
+export namespace KubeRequestEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
+export class SFTPEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): SFTPEvent;
+
+    getAction(): number;
+    setAction(value: number): SFTPEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SFTPEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: SFTPEvent): SFTPEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SFTPEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SFTPEvent;
+    static deserializeBinaryFromReader(message: SFTPEvent, reader: jspb.BinaryReader): SFTPEvent;
+}
+
+export namespace SFTPEvent {
+    export type AsObject = {
+        userName: string,
+        action: number,
+    }
+}
+
+export class AgentMetadataEvent extends jspb.Message { 
+    getVersion(): string;
+    setVersion(value: string): AgentMetadataEvent;
+
+    getHostId(): string;
+    setHostId(value: string): AgentMetadataEvent;
+
+    clearServicesList(): void;
+    getServicesList(): Array<string>;
+    setServicesList(value: Array<string>): AgentMetadataEvent;
+    addServices(value: string, index?: number): string;
+
+    getOs(): string;
+    setOs(value: string): AgentMetadataEvent;
+
+    getOsVersion(): string;
+    setOsVersion(value: string): AgentMetadataEvent;
+
+    getHostArchitecture(): string;
+    setHostArchitecture(value: string): AgentMetadataEvent;
+
+    getGlibcVersion(): string;
+    setGlibcVersion(value: string): AgentMetadataEvent;
+
+    clearInstallMethodsList(): void;
+    getInstallMethodsList(): Array<string>;
+    setInstallMethodsList(value: Array<string>): AgentMetadataEvent;
+    addInstallMethods(value: string, index?: number): string;
+
+    getContainerRuntime(): string;
+    setContainerRuntime(value: string): AgentMetadataEvent;
+
+    getContainerOrchestrator(): string;
+    setContainerOrchestrator(value: string): AgentMetadataEvent;
+
+    getCloudEnvironment(): string;
+    setCloudEnvironment(value: string): AgentMetadataEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AgentMetadataEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AgentMetadataEvent): AgentMetadataEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AgentMetadataEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AgentMetadataEvent;
+    static deserializeBinaryFromReader(message: AgentMetadataEvent, reader: jspb.BinaryReader): AgentMetadataEvent;
+}
+
+export namespace AgentMetadataEvent {
+    export type AsObject = {
+        version: string,
+        hostId: string,
+        servicesList: Array<string>,
+        os: string,
+        osVersion: string,
+        hostArchitecture: string,
+        glibcVersion: string,
+        installMethodsList: Array<string>,
+        containerRuntime: string,
+        containerOrchestrator: string,
+        cloudEnvironment: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1185,6 +1335,30 @@ export class SubmitEventRequest extends jspb.Message {
     setUiCreateNewRoleViewDocumentationClick(value?: UICreateNewRoleViewDocumentationClickEvent): SubmitEventRequest;
 
 
+    hasKubeRequest(): boolean;
+    clearKubeRequest(): void;
+    getKubeRequest(): KubeRequestEvent | undefined;
+    setKubeRequest(value?: KubeRequestEvent): SubmitEventRequest;
+
+
+    hasSftp(): boolean;
+    clearSftp(): void;
+    getSftp(): SFTPEvent | undefined;
+    setSftp(value?: SFTPEvent): SubmitEventRequest;
+
+
+    hasAgentMetadataEvent(): boolean;
+    clearAgentMetadataEvent(): void;
+    getAgentMetadataEvent(): AgentMetadataEvent | undefined;
+    setAgentMetadataEvent(value?: AgentMetadataEvent): SubmitEventRequest;
+
+
+    hasResourceHeartbeat(): boolean;
+    clearResourceHeartbeat(): void;
+    getResourceHeartbeat(): ResourceHeartbeatEvent | undefined;
+    setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1233,6 +1407,10 @@ export namespace SubmitEventRequest {
         uiCreateNewRoleSaveClick?: UICreateNewRoleSaveClickEvent.AsObject,
         uiCreateNewRoleCancelClick?: UICreateNewRoleCancelClickEvent.AsObject,
         uiCreateNewRoleViewDocumentationClick?: UICreateNewRoleViewDocumentationClickEvent.AsObject,
+        kubeRequest?: KubeRequestEvent.AsObject,
+        sftp?: SFTPEvent.AsObject,
+        agentMetadataEvent?: AgentMetadataEvent.AsObject,
+        resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1302,6 +1480,14 @@ export namespace SubmitEventRequest {
 
     UI_CREATE_NEW_ROLE_VIEW_DOCUMENTATION_CLICK = 35,
 
+    KUBE_REQUEST = 36,
+
+    SFTP = 37,
+
+    AGENT_METADATA_EVENT = 38,
+
+    RESOURCE_HEARTBEAT = 39,
+
     }
 
 }
@@ -1319,6 +1505,46 @@ export class SubmitEventResponse extends jspb.Message {
 }
 
 export namespace SubmitEventResponse {
+    export type AsObject = {
+    }
+}
+
+export class SubmitEventsRequest extends jspb.Message { 
+    clearEventsList(): void;
+    getEventsList(): Array<SubmitEventRequest>;
+    setEventsList(value: Array<SubmitEventRequest>): SubmitEventsRequest;
+    addEvents(value?: SubmitEventRequest, index?: number): SubmitEventRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SubmitEventsRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: SubmitEventsRequest): SubmitEventsRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SubmitEventsRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SubmitEventsRequest;
+    static deserializeBinaryFromReader(message: SubmitEventsRequest, reader: jspb.BinaryReader): SubmitEventsRequest;
+}
+
+export namespace SubmitEventsRequest {
+    export type AsObject = {
+        eventsList: Array<SubmitEventRequest.AsObject>,
+    }
+}
+
+export class SubmitEventsResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): SubmitEventsResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: SubmitEventsResponse): SubmitEventsResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: SubmitEventsResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): SubmitEventsResponse;
+    static deserializeBinaryFromReader(message: SubmitEventsResponse, reader: jspb.BinaryReader): SubmitEventsResponse;
+}
+
+export namespace SubmitEventsResponse {
     export type AsObject = {
     }
 }
@@ -1357,6 +1583,16 @@ export namespace HelloTeleportResponse {
     }
 }
 
+export enum ResourceKind {
+    RESOURCE_KIND_UNSPECIFIED = 0,
+    RESOURCE_KIND_NODE = 1,
+    RESOURCE_KIND_APP_SERVER = 2,
+    RESOURCE_KIND_KUBE_SERVER = 3,
+    RESOURCE_KIND_DB_SERVER = 4,
+    RESOURCE_KIND_WINDOWS_DESKTOP = 5,
+    RESOURCE_KIND_NODE_OPENSSH = 6,
+}
+
 export enum DiscoverResource {
     DISCOVER_RESOURCE_UNSPECIFIED = 0,
     DISCOVER_RESOURCE_SERVER = 1,
@@ -1376,6 +1612,25 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15,
     DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16,
     DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS = 18,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE = 19,
+    DISCOVER_RESOURCE_DATABASE_DYNAMODB = 20,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES = 21,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED = 22,
+    DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED = 23,
+    DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE = 24,
+    DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB = 25,
+    DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE = 26,
+    DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED = 27,
+    DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE = 28,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE = 29,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT = 30,
+    DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED = 31,
+    DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS = 32,
+    DISCOVER_RESOURCE_DATABASE_SNOWFLAKE = 33,
+    DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34,
+    DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
+    DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
 }
 
 export enum DiscoverStatus {

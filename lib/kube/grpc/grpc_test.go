@@ -20,12 +20,13 @@ import (
 	"net"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/testing/protocmp"
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport"
@@ -35,7 +36,6 @@ import (
 	kubeproxy "github.com/gravitational/teleport/lib/kube/proxy"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestListKubernetesResources(t *testing.T) {
@@ -368,7 +368,7 @@ func TestListKubernetesResources(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
-			require.Equal(t, tt.want, rsp)
+			require.Empty(t, cmp.Diff(rsp, tt.want, protocmp.Transform()))
 		})
 	}
 }
@@ -386,25 +386,26 @@ func initGRPCServer(t *testing.T, testCtx *kubeproxy.TestContext, listener net.L
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &auth.Middleware{
-		AccessPoint:   testCtx.AuthClient,
+		ClusterName:   clusterName,
 		Limiter:       limiter,
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 	}
 
+	tlsConf := copyAndConfigureTLS(tlsConfig, logrus.New(), testCtx.AuthClient, clusterName)
+	creds, err := auth.NewTransportCredentials(auth.TransportCredentialsConfig{
+		TransportCredentials: credentials.NewTLS(tlsConf),
+		UserGetter:           authMiddleware,
+	})
+	require.NoError(t, err)
+
 	grpcServer := grpc.NewServer(
 		grpc.ChainUnaryInterceptor(
-			utils.GRPCServerUnaryErrorInterceptor,
-			otelgrpc.UnaryServerInterceptor(),
 			authMiddleware.UnaryInterceptor(),
 		),
 		grpc.ChainStreamInterceptor(
-			utils.GRPCServerStreamErrorInterceptor,
-			otelgrpc.StreamServerInterceptor(),
 			authMiddleware.StreamInterceptor(),
 		),
-		grpc.Creds(credentials.NewTLS(
-			copyAndConfigureTLS(tlsConfig, logrus.New(), testCtx.AuthClient, clusterName),
-		)),
+		grpc.Creds(creds),
 	)
 	t.Cleanup(grpcServer.GracefulStop)
 	// Auth client, lock watcher and authorizer for Kube proxy.

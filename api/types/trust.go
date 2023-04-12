@@ -20,7 +20,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api"
 )
 
 // CertAuthType specifies certificate authority type. New variants should be
@@ -44,10 +47,6 @@ const (
 	// SAMLIDPCA identifies the certificate authority that will be used by the
 	// SAML identity provider.
 	SAMLIDPCA CertAuthType = "saml_idp"
-	// CertAuthTypeAll is a special type that represents all CertAuthTypes.
-	// DEPRECATED, DELETE IN 13.0.0. For more information see:
-	// https://github.com/gravitational/teleport/issues/17493
-	CertAuthTypeAll CertAuthType = "all"
 )
 
 // CertAuthTypes lists all certificate authority types.
@@ -57,9 +56,19 @@ var CertAuthTypes = []CertAuthType{HostCA, UserCA, DatabaseCA, OpenSSHCA, JWTSig
 // major version, so that we can avoid erroring out when a potentially older
 // remote server doesn't know about them.
 func (c CertAuthType) NewlyAdded() bool {
+	return c.addedInMajorVer() >= semver.New(api.Version).Major
+}
+
+// addedInVer return the major version in which given CA was added.
+func (c CertAuthType) addedInMajorVer() int64 {
 	switch c {
+	case DatabaseCA:
+		return 9
+	case OpenSSHCA, SAMLIDPCA:
+		return 12
 	default:
-		return false
+		// We don't care about other CAs added before v4.0.0
+		return 4
 	}
 }
 

@@ -55,7 +55,7 @@ guide.
 
 </Admonition>
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Configure Google Cloud
 
@@ -119,7 +119,8 @@ permissions to impersonate target service accounts.
 
 If you are enabling access to an existing service account, you can skip to the
 [next
-section](#enable-the-application-service-to-impersonate-your-service-account).
+section](#enable-teleport-google-cloud-cli-to-impersonate-target-service-accounts
+).
 
 </Notice>
 
@@ -311,22 +312,7 @@ On the host where you will run the Teleport Application Service, execute the
 following command, depending on whether you installed Teleport using a package
 manager or via a TAR archive:
 
-<Tabs>
-<TabItem label="Package Manager">
-
-```code
-$ sudo systemctl start teleport
-```
-</TabItem>
-<TabItem label="TAR archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport; 
-$ sudo systemctl start teleport; 
-```
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
 ## Step 3/4. Enable your user to access Google Cloud CLIs
 
@@ -680,7 +666,6 @@ command.
   our documentation on [Role Access
   Requests](../../access-controls/access-requests/role-requests.mdx) and [Access
   Request plugins](../../access-controls/access-request-plugins/index.mdx).
-
 - You can proxy any `gcloud` or `gsutil` command via Teleport. For a full
   reference of commands, view the Google Cloud documentation for
   [`gcloud`](https://cloud.google.com/sdk/gcloud/reference) and

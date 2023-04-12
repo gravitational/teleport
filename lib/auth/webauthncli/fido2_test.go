@@ -122,7 +122,9 @@ func (p noopPrompt) PromptPIN() (string, error) {
 	return "", nil
 }
 
-func (p noopPrompt) PromptTouch() error { return nil }
+func (p noopPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
+	return func() error { return nil }, nil
+}
 
 // pinCancelPrompt exercises cancellation after device selection.
 type pinCancelPrompt struct {
@@ -137,9 +139,9 @@ func (p *pinCancelPrompt) PromptPIN() (string, error) {
 	return p.pin, nil
 }
 
-func (p pinCancelPrompt) PromptTouch() error {
+func (p pinCancelPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 	// 2nd touch never happens
-	return nil
+	return func() error { return nil }, nil
 }
 
 func TestIsFIDO2Available(t *testing.T) {
@@ -811,12 +813,16 @@ func TestFIDO2Login_singleResidentCredential(t *testing.T) {
 
 type countingPrompt struct {
 	wancli.LoginPrompt
-	count int
+	count, ackCount int
 }
 
-func (cp *countingPrompt) PromptTouch() error {
+func (cp *countingPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
 	cp.count++
-	return cp.LoginPrompt.PromptTouch()
+	ack, err := cp.LoginPrompt.PromptTouch()
+	return func() error {
+		cp.ackCount++
+		return ack()
+	}, err
 }
 
 func TestFIDO2Login_PromptTouch(t *testing.T) {
@@ -943,6 +949,7 @@ func TestFIDO2Login_PromptTouch(t *testing.T) {
 			_, _, err := wancli.FIDO2Login(ctx, origin, test.assertion, prompt, test.opts)
 			require.NoError(t, err, "FIDO2Login errored")
 			assert.Equal(t, test.wantTouches, prompt.count, "FIDO2Login did an unexpected number of touch prompts")
+			assert.Equal(t, test.wantTouches, prompt.ackCount, "FIDO2Login did an unexpected number of touch acknowledgements")
 		})
 	}
 }
@@ -2052,9 +2059,9 @@ func (f *fakeFIDO2Device) PromptPIN() (string, error) {
 	return f.pin, nil
 }
 
-func (f *fakeFIDO2Device) PromptTouch() error {
+func (f *fakeFIDO2Device) PromptTouch() (wancli.TouchAcknowledger, error) {
 	f.setUP()
-	return nil
+	return func() error { return nil }, nil
 }
 
 func (f *fakeFIDO2Device) credentialID() []byte {

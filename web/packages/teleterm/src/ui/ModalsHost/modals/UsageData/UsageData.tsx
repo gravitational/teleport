@@ -20,7 +20,7 @@ import DialogConfirmation, {
   DialogFooter,
   DialogHeader,
 } from 'design/DialogConfirmation';
-import { ButtonIcon, ButtonPrimary, ButtonSecondary, Text } from 'design';
+import { ButtonIcon, ButtonPrimary, ButtonSecondary, Link, Text } from 'design';
 import { Close } from 'design/Icon';
 
 interface UsageDataProps {
@@ -67,6 +67,16 @@ export function UsageData(props: UsageDataProps) {
           <Text typography="body1" color="text.secondary">
             Do you agree to Teleport Connect collecting anonymized usage data?
             This will help us improve the product.
+          </Text>
+          <Text typography="body1" color="text.secondary">
+            To learn more, see{' '}
+            <Link
+              href="https://goteleport.com/docs/faq/#teleport-connect"
+              target="_blank"
+            >
+              our documentation
+            </Link>
+            .
           </Text>
         </DialogContent>
         <DialogFooter>

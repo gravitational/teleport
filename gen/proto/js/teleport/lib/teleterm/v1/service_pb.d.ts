@@ -6,7 +6,6 @@
 
 import * as jspb from "google-protobuf";
 import * as teleport_lib_teleterm_v1_access_request_pb from "../../../../teleport/lib/teleterm/v1/access_request_pb";
-import * as teleport_lib_teleterm_v1_app_pb from "../../../../teleport/lib/teleterm/v1/app_pb";
 import * as teleport_lib_teleterm_v1_auth_settings_pb from "../../../../teleport/lib/teleterm/v1/auth_settings_pb";
 import * as teleport_lib_teleterm_v1_cluster_pb from "../../../../teleport/lib/teleterm/v1/cluster_pb";
 import * as teleport_lib_teleterm_v1_database_pb from "../../../../teleport/lib/teleterm/v1/database_pb";
@@ -598,14 +597,8 @@ export namespace LoginPasswordlessRequest {
 }
 
 export class FileTransferRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): FileTransferRequest;
-
     getLogin(): string;
     setLogin(value: string): FileTransferRequest;
-
-    getHostname(): string;
-    setHostname(value: string): FileTransferRequest;
 
     getSource(): string;
     setSource(value: string): FileTransferRequest;
@@ -615,6 +608,9 @@ export class FileTransferRequest extends jspb.Message {
 
     getDirection(): FileTransferDirection;
     setDirection(value: FileTransferDirection): FileTransferRequest;
+
+    getServerUri(): string;
+    setServerUri(value: string): FileTransferRequest;
 
 
     serializeBinary(): Uint8Array;
@@ -629,12 +625,11 @@ export class FileTransferRequest extends jspb.Message {
 
 export namespace FileTransferRequest {
     export type AsObject = {
-        clusterUri: string,
         login: string,
-        hostname: string,
         source: string,
         destination: string,
         direction: FileTransferDirection,
+        serverUri: string,
     }
 }
 
@@ -783,27 +778,6 @@ export namespace AddClusterRequest {
     }
 }
 
-export class ListAppsRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): ListAppsRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListAppsRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: ListAppsRequest): ListAppsRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListAppsRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListAppsRequest;
-    static deserializeBinaryFromReader(message: ListAppsRequest, reader: jspb.BinaryReader): ListAppsRequest;
-}
-
-export namespace ListAppsRequest {
-    export type AsObject = {
-        clusterUri: string,
-    }
-}
-
 export class ListClustersRequest extends jspb.Message { 
 
     serializeBinary(): Uint8Array;
@@ -841,27 +815,6 @@ export class ListClustersResponse extends jspb.Message {
 export namespace ListClustersResponse {
     export type AsObject = {
         clustersList: Array<teleport_lib_teleterm_v1_cluster_pb.Cluster.AsObject>,
-    }
-}
-
-export class GetAllDatabasesRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): GetAllDatabasesRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetAllDatabasesRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: GetAllDatabasesRequest): GetAllDatabasesRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetAllDatabasesRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetAllDatabasesRequest;
-    static deserializeBinaryFromReader(message: GetAllDatabasesRequest, reader: jspb.BinaryReader): GetAllDatabasesRequest;
-}
-
-export namespace GetAllDatabasesRequest {
-    export type AsObject = {
-        clusterUri: string,
     }
 }
 
@@ -928,29 +881,6 @@ export class ListLeafClustersRequest extends jspb.Message {
 export namespace ListLeafClustersRequest {
     export type AsObject = {
         clusterUri: string,
-    }
-}
-
-export class GetAllDatabasesResponse extends jspb.Message { 
-    clearDatabasesList(): void;
-    getDatabasesList(): Array<teleport_lib_teleterm_v1_database_pb.Database>;
-    setDatabasesList(value: Array<teleport_lib_teleterm_v1_database_pb.Database>): GetAllDatabasesResponse;
-    addDatabases(value?: teleport_lib_teleterm_v1_database_pb.Database, index?: number): teleport_lib_teleterm_v1_database_pb.Database;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetAllDatabasesResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: GetAllDatabasesResponse): GetAllDatabasesResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetAllDatabasesResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetAllDatabasesResponse;
-    static deserializeBinaryFromReader(message: GetAllDatabasesResponse, reader: jspb.BinaryReader): GetAllDatabasesResponse;
-}
-
-export namespace GetAllDatabasesResponse {
-    export type AsObject = {
-        databasesList: Array<teleport_lib_teleterm_v1_database_pb.Database.AsObject>,
     }
 }
 
@@ -1032,11 +962,6 @@ export namespace CreateGatewayRequest {
 }
 
 export class ListGatewaysRequest extends jspb.Message { 
-    clearClusterIdsList(): void;
-    getClusterIdsList(): Array<string>;
-    setClusterIdsList(value: Array<string>): ListGatewaysRequest;
-    addClusterIds(value: string, index?: number): string;
-
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ListGatewaysRequest.AsObject;
@@ -1050,7 +975,6 @@ export class ListGatewaysRequest extends jspb.Message {
 
 export namespace ListGatewaysRequest {
     export type AsObject = {
-        clusterIdsList: Array<string>,
     }
 }
 
@@ -1145,50 +1069,6 @@ export namespace SetGatewayLocalPortRequest {
     export type AsObject = {
         gatewayUri: string,
         localPort: string,
-    }
-}
-
-export class GetAllServersRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): GetAllServersRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetAllServersRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: GetAllServersRequest): GetAllServersRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetAllServersRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetAllServersRequest;
-    static deserializeBinaryFromReader(message: GetAllServersRequest, reader: jspb.BinaryReader): GetAllServersRequest;
-}
-
-export namespace GetAllServersRequest {
-    export type AsObject = {
-        clusterUri: string,
-    }
-}
-
-export class GetAllServersResponse extends jspb.Message { 
-    clearServersList(): void;
-    getServersList(): Array<teleport_lib_teleterm_v1_server_pb.Server>;
-    setServersList(value: Array<teleport_lib_teleterm_v1_server_pb.Server>): GetAllServersResponse;
-    addServers(value?: teleport_lib_teleterm_v1_server_pb.Server, index?: number): teleport_lib_teleterm_v1_server_pb.Server;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetAllServersResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: GetAllServersResponse): GetAllServersResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetAllServersResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetAllServersResponse;
-    static deserializeBinaryFromReader(message: GetAllServersResponse, reader: jspb.BinaryReader): GetAllServersResponse;
-}
-
-export namespace GetAllServersResponse {
-    export type AsObject = {
-        serversList: Array<teleport_lib_teleterm_v1_server_pb.Server.AsObject>,
     }
 }
 
@@ -1299,50 +1179,6 @@ export namespace GetDatabasesResponse {
     }
 }
 
-export class GetAllKubesRequest extends jspb.Message { 
-    getClusterUri(): string;
-    setClusterUri(value: string): GetAllKubesRequest;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetAllKubesRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: GetAllKubesRequest): GetAllKubesRequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetAllKubesRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetAllKubesRequest;
-    static deserializeBinaryFromReader(message: GetAllKubesRequest, reader: jspb.BinaryReader): GetAllKubesRequest;
-}
-
-export namespace GetAllKubesRequest {
-    export type AsObject = {
-        clusterUri: string,
-    }
-}
-
-export class GetAllKubesResponse extends jspb.Message { 
-    clearKubesList(): void;
-    getKubesList(): Array<teleport_lib_teleterm_v1_kube_pb.Kube>;
-    setKubesList(value: Array<teleport_lib_teleterm_v1_kube_pb.Kube>): GetAllKubesResponse;
-    addKubes(value?: teleport_lib_teleterm_v1_kube_pb.Kube, index?: number): teleport_lib_teleterm_v1_kube_pb.Kube;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): GetAllKubesResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: GetAllKubesResponse): GetAllKubesResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: GetAllKubesResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): GetAllKubesResponse;
-    static deserializeBinaryFromReader(message: GetAllKubesResponse, reader: jspb.BinaryReader): GetAllKubesResponse;
-}
-
-export namespace GetAllKubesResponse {
-    export type AsObject = {
-        kubesList: Array<teleport_lib_teleterm_v1_kube_pb.Kube.AsObject>,
-    }
-}
-
 export class GetKubesRequest extends jspb.Message { 
     getClusterUri(): string;
     setClusterUri(value: string): GetKubesRequest;
@@ -1416,29 +1252,6 @@ export namespace GetKubesResponse {
         agentsList: Array<teleport_lib_teleterm_v1_kube_pb.Kube.AsObject>,
         totalCount: number,
         startKey: string,
-    }
-}
-
-export class ListAppsResponse extends jspb.Message { 
-    clearAppsList(): void;
-    getAppsList(): Array<teleport_lib_teleterm_v1_app_pb.App>;
-    setAppsList(value: Array<teleport_lib_teleterm_v1_app_pb.App>): ListAppsResponse;
-    addApps(value?: teleport_lib_teleterm_v1_app_pb.App, index?: number): teleport_lib_teleterm_v1_app_pb.App;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): ListAppsResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: ListAppsResponse): ListAppsResponse.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: ListAppsResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): ListAppsResponse;
-    static deserializeBinaryFromReader(message: ListAppsResponse, reader: jspb.BinaryReader): ListAppsResponse;
-}
-
-export namespace ListAppsResponse {
-    export type AsObject = {
-        appsList: Array<teleport_lib_teleterm_v1_app_pb.App.AsObject>,
     }
 }
 

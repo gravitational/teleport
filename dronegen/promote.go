@@ -14,9 +14,41 @@
 
 package main
 
+import "time"
+
 func promoteBuildPipelines() []pipeline {
 	promotePipelines := make([]pipeline, 0)
 	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
+
+	ociPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-teleport-oci-distroless-images",
+		ghaWorkflow:  "promote-teleport-oci-distroless.yml",
+		timeout:      60 * time.Minute,
+		workflowRef:  "${DRONE_TAG}",
+		inputs: map[string]string{
+			"release-source-tag": "${DRONE_TAG}",
+		},
+	})
+	ociPipeline.Trigger.Target.Include = append(ociPipeline.Trigger.Target.Include, "promote-distroless")
+
+	promotePipelines = append(promotePipelines, ociPipeline)
+
+	updaterPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-teleport-kube-agent-updater-oci-images",
+		ghaWorkflow:  "promote-teleport-kube-agent-updater-oci.yml",
+		timeout:      60 * time.Minute,
+		workflowRef:  "${DRONE_TAG}",
+		inputs: map[string]string{
+			"release-source-tag": "${DRONE_TAG}",
+		},
+	})
+	updaterPipeline.Trigger.Target.Include = append(updaterPipeline.Trigger.Target.Include, "promote-updater")
+
+	promotePipelines = append(promotePipelines, updaterPipeline)
 
 	return promotePipelines
 }

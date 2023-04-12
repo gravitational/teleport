@@ -112,6 +112,7 @@ export const eventCodes = {
   DEVICE_ENROLL_TOKEN_SPENT: 'TV004I',
   DEVICE_ENROLL: 'TV005I',
   DEVICE_AUTHENTICATE: 'TV006I',
+  DEVICE_UPDATE: 'TV007I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -218,6 +219,15 @@ export const eventCodes = {
   INSTANCE_JOIN: 'TJ002I',
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
+  SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
+  SAML_IDP_SERVICE_PROVIDER_CREATE: 'TSI001I',
+  SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE: 'TSI001W',
+  SAML_IDP_SERVICE_PROVIDER_UPDATE: 'TSI002I',
+  SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE: 'TSI002W',
+  SAML_IDP_SERVICE_PROVIDER_DELETE: 'TSI003I',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE: 'TSI003W',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL: 'TSI004I',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE: 'TSI004W',
 } as const;
 
 /**
@@ -1042,6 +1052,7 @@ export type RawEvents = {
   [eventCodes.DEVICE_AUTHENTICATE]: RawDeviceEvent<
     typeof eventCodes.DEVICE_AUTHENTICATE
   >;
+  [eventCodes.DEVICE_UPDATE]: RawDeviceEvent<typeof eventCodes.DEVICE_UPDATE>;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -1122,6 +1133,76 @@ export type RawEvents = {
   [eventCodes.LOGIN_RULE_DELETE]: RawEvent<
     typeof eventCodes.LOGIN_RULE_DELETE,
     HasName
+  >;
+  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: RawEvent<
+    typeof eventCodes.SAML_IDP_AUTH_ATTEMPT,
+    {
+      success: boolean;
+      service_provider_entity_id: string;
+      service_provider_shortcut: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
   >;
 };
 

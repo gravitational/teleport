@@ -866,7 +866,7 @@ func TestIsSameRuleSet(t *testing.T) {
 	}
 }
 
-func TestJoinScriptEnterprise(t *testing.T) {
+func TestJoinScript(t *testing.T) {
 	validToken := "f18da1c9f6630a51e8daf121e7451daa"
 
 	m := &mockedNodeAPIGetter{
@@ -890,31 +890,61 @@ func TestJoinScriptEnterprise(t *testing.T) {
 		},
 	}
 
-	isTeleportOSSLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport[-_]v?\${TELEPORT_VERSION}`)
-	isTeleportEntLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/teleport-ent[-_]v?\${TELEPORT_VERSION}`)
+	t.Run("direct download links", func(t *testing.T) {
+		getGravitationalTeleportLinkRegex := regexp.MustCompile(`https://get\.gravitational\.com/\${TELEPORT_PACKAGE_NAME}[-_]v?\${TELEPORT_VERSION}`)
 
-	// Using the OSS Version, all the links must contain only teleport as package name.
-	script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
-	require.NoError(t, err)
+		t.Run("oss", func(t *testing.T) {
+			// Using the OSS Version, all the links must contain only teleport as package name.
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			require.NoError(t, err)
 
-	matches := isTeleportOSSLinkRegex.FindAllString(script, -1)
-	require.ElementsMatch(t, matches, []string{
-		"https://get.gravitational.com/teleport-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport_${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-${TELEPORT_VERSION}",
+			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
+			require.ElementsMatch(t, matches, []string{
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			})
+			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport'")
+		})
+
+		t.Run("ent", func(t *testing.T) {
+			// Using the Enterprise Version, the package name must be teleport-ent
+			modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
+			require.NoError(t, err)
+
+			matches := getGravitationalTeleportLinkRegex.FindAllString(script, -1)
+			require.ElementsMatch(t, matches, []string{
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-v${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}_${TELEPORT_VERSION}",
+				"https://get.gravitational.com/${TELEPORT_PACKAGE_NAME}-${TELEPORT_VERSION}",
+			})
+			require.Contains(t, script, "TELEPORT_PACKAGE_NAME='teleport-ent'")
+		})
 	})
 
-	// Using the Enterprise Version, all the links must contain teleport-ent as package name
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	script, err = getJoinScript(context.Background(), scriptSettings{token: validToken}, m)
-	require.NoError(t, err)
-
-	matches = isTeleportEntLinkRegex.FindAllString(script, -1)
-	require.ElementsMatch(t, matches, []string{
-		"https://get.gravitational.com/teleport-ent-v${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-ent_${TELEPORT_VERSION}",
-		"https://get.gravitational.com/teleport-ent-${TELEPORT_VERSION}",
+	t.Run("using repo", func(t *testing.T) {
+		t.Run("cloud and automatic upgrades", func(t *testing.T) {
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: true}, m)
+			require.NoError(t, err)
+			// Uses the stable/cloud channel.
+			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
+		})
+		t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
+			// Using the Enterprise Version, the package name must be teleport-ent
+			modules.SetTestModules(t, &modules.TestModules{
+				TestFeatures: modules.Features{
+					Cloud:             true,
+					AutomaticUpgrades: false,
+				},
+			})
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: false}, m)
+			require.NoError(t, err)
+			// Setting an empty string, means it will use `stable/v<majorVersion>` later on.
+			require.Contains(t, script, "REPO_CHANNEL=''")
+		})
 	})
+
 }
 
 func TestIsSameAzureRuleSet(t *testing.T) {

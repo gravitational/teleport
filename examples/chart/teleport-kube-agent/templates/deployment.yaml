@@ -115,7 +115,7 @@ spec:
       {{- end }}
       containers:
       - name: "teleport"
-        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        image: {{ include "teleport-kube-agent.image" . | quote }}
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
@@ -127,6 +127,9 @@ spec:
         {{- if .Values.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
           value: /etc/teleport-tls-ca/ca.pem
+        # Used to track whether a Teleport agent was installed using this method.
+        - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+          value: true
         {{- end }}
         {{- end }}
         args:
@@ -203,5 +206,5 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
 {{- end }}

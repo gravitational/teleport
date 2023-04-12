@@ -20,6 +20,9 @@ GOPATH ?= $(shell go env GOPATH)
 # This directory will be the real path of the directory of the first Makefile in the list.
 MAKE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
+# If set to 1, webassets are not built.
+WEBASSETS_SKIP_BUILD ?= 0
+
 # These are standard autotools variables, don't change them please
 ifneq ("$(wildcard /bin/bash)","")
 SHELL := /bin/bash -o pipefail
@@ -47,6 +50,9 @@ ARCH ?= $(shell go env GOARCH)
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
+# Include common makefile shared between OSS and Ent.
+include common.mk
+
 # FIPS support must be requested at build time.
 FIPS_MESSAGE := without-FIPS-support
 ifneq ("$(FIPS)","")
@@ -69,44 +75,14 @@ PAM_MESSAGE := with-PAM-support
 endif
 endif
 
-# BPF support will only be built into Teleport if headers exist at build time.
-BPF_MESSAGE := without-BPF-support
-
-# We don't compile BPF for anything except regular non-FIPS linux/amd64 for now, as other builds
-# have compilation issues that require fixing.
-with_bpf := no
-ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
-ifneq ("$(wildcard /usr/include/bpf/libbpf.h)","")
-with_bpf := yes
-BPF_TAG := bpf
-BPF_MESSAGE := with-BPF-support
-CLANG ?= $(shell which clang || which clang-10)
-LLVM_STRIP ?= $(shell which llvm-strip || which llvm-strip-10)
-KERNEL_ARCH := $(shell uname -m | sed 's/x86_64/x86/')
-INCLUDES :=
-ER_BPF_BUILDDIR := lib/bpf/bytecode
-RS_BPF_BUILDDIR := lib/restrictedsession/bytecode
-
-# Get Clang's default includes on this system. We'll explicitly add these dirs
-# to the includes list when compiling with `-target bpf` because otherwise some
-# architecture-specific dirs will be "missing" on some architectures/distros -
-# headers such as asm/types.h, asm/byteorder.h, asm/socket.h, asm/sockios.h,
-# sys/cdefs.h etc. might be missing.
-#
-# Use '-idirafter': Don't interfere with include mechanics except where the
-# build would have failed anyways.
-CLANG_BPF_SYS_INCLUDES = $(shell $(CLANG) -v -E - </dev/null 2>&1 \
-	| sed -n '/<...> search starts here:/,/End of search list./{ s| \(/.*\)|-idirafter \1|p }')
-
-STATIC_LIBS += -lbpf -lelf -lz
-endif
-endif
-endif
-
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+# Have cargo use sparse crates.io protocol:
+# https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
+# TODO: Delete when it becomes default in Rust 1.70.0
+export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 with_rdpclient := no
 RDPCLIENT_MESSAGE := without-Windows-RDP-client
@@ -228,34 +204,25 @@ export
 
 TEST_LOG_DIR = ${abspath ./test-logs}
 
-# Is this build targeting the same OS & architecture it is being compiled on, or
-# will it require cross-compilation? We need to know this (especially for ARM) so we
-# can set the cross-compiler path (and possibly feature flags) correctly.
-IS_NATIVE_BUILD ?= $(if $(filter $(ARCH), $(shell go env GOARCH)),"yes","no")
-
 # Set CGOFLAG and BUILDFLAGS as needed for the OS/ARCH.
 ifeq ("$(OS)","linux")
-ifeq ("$(ARCH)","amd64")
-# Link static version of libraries required by Teleport (bpf, pcsc) to reduce system dependencies. Avoid dependencies on dynamic libraries if we already link the static version using --as-needed.
-CGOFLAG = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS) -Wl,-Bdynamic -Wl,--as-needed"
-CGOFLAG_TSH = CGO_ENABLED=1 CGO_LDFLAGS="-Wl,-Bstatic $(STATIC_LIBS_TSH) -Wl,-Bdynamic -Wl,--as-needed"
+# True if $ARCH == amd64 || $ARCH == arm64
+ifeq ("$(ARCH)","arm64")
+	ifeq ($(IS_NATIVE_BUILD),"no")
+		CGOFLAG += CC=aarch64-linux-gnu-gcc
+	endif
 else ifeq ("$(ARCH)","arm")
-# ARM builds need to specify the correct C compiler
-CGOFLAG = CGO_ENABLED=1 CC=arm-linux-gnueabihf-gcc
-# Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
-BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
-else ifeq ("$(ARCH)","arm64")
-# ARM64 requires CGO but does not need to do any special linkage due to its reduced featureset
 CGOFLAG = CGO_ENABLED=1
 
-# If we 're not guaranteed to be building natively on an arm64 system, then we'll
-# need to configure the cross compiler.
+# ARM builds need to specify the correct C compiler
 ifeq ($(IS_NATIVE_BUILD),"no")
-CGOFLAG += CC=aarch64-linux-gnu-gcc
+CC=arm-linux-gnueabihf-gcc
 endif
 
+# Add -debugtramp=2 to work around 24 bit CALL/JMP instruction offset.
+BUILDFLAGS = $(ADDFLAGS) -ldflags '-w -s -debugtramp=2' -trimpath
 endif
-endif
+endif # OS == linux
 
 # Windows requires extra parameters to cross-compile with CGO.
 ifeq ("$(OS)","windows")
@@ -321,12 +288,12 @@ $(RS_BPF_BUILDDIR):
 
 # Build BPF code
 $(ER_BPF_BUILDDIR)/%.bpf.o: bpf/enhancedrecording/%.bpf.c $(wildcard bpf/*.h) | $(ER_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 # Build BPF code
 $(RS_BPF_BUILDDIR)/%.bpf.o: bpf/restrictedsession/%.bpf.c $(wildcard bpf/*.h) | $(RS_BPF_BUILDDIR)
-	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
+	$(CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(KERNEL_ARCH) -I/usr/libbpf-${LIBBPF_VER}/include $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 .PHONY: bpf-rs-bytecode
@@ -367,8 +334,10 @@ endif
 # only tsh is built.
 #
 .PHONY:full
+full: WEBASSETS_SKIP_BUILD = 0
 full: ensure-webassets
 ifneq ("$(OS)", "windows")
+	export WEBASSETS_SKIP_BUILD=0
 	$(MAKE) all
 endif
 
@@ -465,6 +434,8 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
+include darwin-signing.mk
+
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
@@ -472,12 +443,7 @@ release-darwin-unsigned: clean full build-archive
 .PHONY: release-darwin
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	# Only run if Apple username/pass for notarization are provided
-	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
-		cd ./build.assets/tooling/ && \
-		go run ./cmd/notarize-apple-binaries/*.go \
-			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
-	fi
+	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
@@ -540,6 +506,28 @@ release-windows: release-windows-unsigned
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
+
+#
+# make release-connect produces a release package of Teleport Connect.
+# It is used only for MacOS releases. Windows releases do not use this
+# Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
+#
+# Only export the CSC_NAME (developer key ID) when the recipe is run, so
+# that we do not shell out and run the `security` command if not necessary.
+#
+# Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
+# should be defined for the `yarn package-term` command to succeed. CI sets
+# this appropriately depending on whether a push build is running, or a
+# proper release (a proper release needs the APP_PATH as that points to
+# the complete signed package). See web/packages/teleterm/README.md for
+# details.
+#
+.PHONY: release-connect
+release-connect:
+	$(eval export CSC_NAME)
+	yarn install --frozen-lockfile
+	yarn build-term
+	yarn package-term -c.extraMetadata.version=$(VERSION)
 
 #
 # Remove trailing whitespace in all markdown files under docs/.
@@ -629,7 +617,7 @@ test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDE
 # Runs base unit tests
 .PHONY: test-go-unit
 test-go-unit: FLAGS ?= -race -shuffle on
-test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e operator )
+test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit.json \
@@ -684,7 +672,7 @@ UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
 test-go-root: FLAGS ?= -race -shuffle on
-test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e operator)
+test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/unit-root.json \
@@ -708,7 +696,38 @@ test-api:
 #
 .PHONY: test-operator
 test-operator:
-	make -C operator test
+	make -C integrations/operator test
+#
+# Runs Go tests on the integrations/kube-agent-updater module. These have to be run separately as the package name is different.
+#
+.PHONY: test-kube-agent-updater
+test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-kube-agent-updater: FLAGS ?= -race -shuffle on
+test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
+test-kube-agent-updater:
+	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/kube-agent-updater.json \
+		| ${RENDER_TESTS}
+
+.PHONY: test-access-integrations
+test-access-integrations:
+	make -C integrations test-access
+
+.PHONY: test-integrations-lib
+test-integrations-lib:
+	make -C integrations test-lib
+
+#
+# Runs Go tests on the examples/teleport-usage module. These have to be run separately as the package name is different.
+#
+.PHONY: test-teleport-usage
+test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
+test-teleport-usage: FLAGS ?= -race -shuffle on
+test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
+test-teleport-usage:
+	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/teleport-usage.json \
+		| ${RENDER_TESTS}
 
 #
 # Runs cargo test on our Rust modules.
@@ -745,7 +764,7 @@ run-etcd:
 #
 .PHONY: integration
 integration: FLAGS ?= -v -race
-integration: PACKAGES = $(shell go list ./... | grep integration)
+integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
 	$(CGOFLAG) go test -timeout 30m -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) \
@@ -759,7 +778,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
 integration-root: FLAGS ?= -v -race
-integration-root: PACKAGES = $(shell go list ./... | grep integration)
+integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \
 		| tee $(TEST_LOG_DIR)/integration-root.json \
@@ -771,7 +790,7 @@ integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 # changes (or last commit).
 #
 .PHONY: lint
-lint: lint-sh lint-helm lint-api lint-go lint-license lint-rust lint-tools lint-protos
+lint: lint-sh lint-helm lint-api lint-kube-agent-updater lint-go lint-license lint-rust lint-tools lint-protos
 
 .PHONY: lint-tools
 lint-tools: lint-build-tooling lint-backport
@@ -807,7 +826,7 @@ fix-imports/host:
 		echo 'gci is not installed or is missing from PATH, consider installing it ("go install github.com/daixiang0/gci@latest") or use "make -C build.assets/ fix-imports"';\
 		exit 1;\
 	fi
-	gci write -s 'standard,default,prefix(github.com/gravitational/teleport)' --skip-generated .
+	gci write -s standard -s default -s 'prefix(github.com/gravitational/teleport)' --skip-generated .
 
 .PHONY: lint-build-tooling
 lint-build-tooling: GO_LINT_FLAGS ?=
@@ -825,11 +844,16 @@ lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
 	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
 
+.PHONY: lint-kube-agent-updater
+lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
+lint-kube-agent-updater:
+	cd integrations/kube-agent-updater && golangci-lint run -c ../../.golangci.yml $(GO_LINT_API_FLAGS)
+
 # TODO(awly): remove the `--exclude` flag after cleaning up existing scripts
 .PHONY: lint-sh
 lint-sh: SH_LINT_FLAGS ?=
 lint-sh:
-	find . -type f -name '*.sh' | xargs \
+	find . -type f -name '*.sh' -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
 		$(SH_LINT_FLAGS)
@@ -933,12 +957,13 @@ $(VERSRC): Makefile
 # 		- build binaries with 'make release'
 # 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
 .PHONY: update-tag
+update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
-	git push origin $(GITTAG) && git push origin api/$(GITTAG)
+	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
 .PHONY: test-package
 test-package: remove-temp-files
@@ -1116,18 +1141,20 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
 	# we pass them through for consistency - they will be dropped by the build script
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
+	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
 
@@ -1167,11 +1194,13 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
-	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/build/index.ejs webassets/teleport/index.html; \
+	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 
 .PHONY: ensure-webassets-e
 ensure-webassets-e:
-	@MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/e/teleport/app && cp web/packages/build/index.ejs webassets/e/teleport/index.html; \
+	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" Enterprise webassets/e/e-sha build-ui-e web e/web; fi
 
 .PHONY: init-submodules-e
 init-submodules-e:
@@ -1198,15 +1227,16 @@ backport:
 
 .PHONY: ensure-js-deps
 ensure-js-deps:
-	yarn install --ignore-scripts
+	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && touch webassets/teleport/index.html; \
+	else yarn install --ignore-scripts; fi
 
 .PHONY: build-ui
 build-ui: ensure-js-deps
-	yarn build-ui-oss
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-oss
 
 .PHONY: build-ui-e
 build-ui-e: ensure-js-deps
-	yarn build-ui-e
+	@[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ] || yarn build-ui-e
 
 .PHONY: docker-ui
 docker-ui:

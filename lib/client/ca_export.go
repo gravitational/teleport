@@ -110,6 +110,13 @@ func exportAuth(ctx context.Context, client auth.ClientI, req ExportAuthoritiesR
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "db-der":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.DatabaseCA,
+			UnpackPEM:         true,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	case "tls-user-der", "windows":
 		req := exportTLSAuthorityRequest{
 			AuthType:          types.UserCA,

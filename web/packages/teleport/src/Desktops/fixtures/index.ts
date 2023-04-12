@@ -22,12 +22,14 @@ export const desktops: Desktop[] = [
     name: 'bb8411a4-ba50-537c-89b3-226a00447bc6',
     addr: 'host.com',
     labels: [{ name: 'foo', value: 'bar' }],
+    logins: ['Administrator'],
   },
   {
     os: 'windows',
     name: 'd96e7dd6-26b6-56d5-8259-778f943f90f2',
     addr: 'another.com',
     labels: [],
+    logins: ['Administrator'],
   },
   {
     os: 'windows',
@@ -37,5 +39,6 @@ export const desktops: Desktop[] = [
       { name: 'bar', value: 'foo' },
       { name: 'foo', value: 'bar' },
     ],
+    logins: ['Administrator'],
   },
 ];

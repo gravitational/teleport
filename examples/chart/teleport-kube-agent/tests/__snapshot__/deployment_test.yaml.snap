@@ -748,6 +748,8 @@ should mount tls.existingCASecretName and set environment when set in values if 
       env:
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: true
       image: public.ecr.aws/gravitational/teleport:13.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -814,6 +816,8 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: http://username:password@my.proxy.host:3128
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: true
       image: public.ecr.aws/gravitational/teleport:13.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:

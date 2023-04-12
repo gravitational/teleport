@@ -1,5 +1,5 @@
 ---
-title: Deploy Open Source Teleport on a Linux Server
+title: Try out Teleport on a Linux Server
 description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
 videoBanner: 8aiVin0LvmE
 ---
@@ -37,7 +37,21 @@ We will run the following Teleport services:
   Google Compute Engine
   [startup script](https://cloud.google.com/compute/docs/instances/startup-scripts),
   or similar.
+
+  <Admonition type="warning">
+
+  This guide is not intended for local environments, e.g., a Docker container on
+  your workstation. For guides to trying out a containerized Teleport deployment
+  locally, see the following:
+
+  - [Local Kubernetes Cluster](./local-kubernetes.mdx)
+  - [Docker Compose](./docker-compose.mdx)
+  - [Single Docker Container](../management/guides/docker.mdx)
+
+  </Admonition>
+
 - A two-factor authenticator app such as [Authy](https://authy.com/download/), [Google Authenticator](https://www.google.com/landing/2step/), or [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
+
 - `python3` installed on your Linux machine. We will use this to run a simple
   HTTP file server, so you can use another HTTP server if you have one
   installed.
@@ -135,31 +149,7 @@ app_service:
 
 ### Start Teleport
 
-On your Linux machine, run the necessary commands to start the `teleport` daemon
-(this depends on how you installed Teleport earlier).
-
-<Tabs>
-  <TabItem label="Package manager RPM/DEB">
-
-    ```code
-    $ sudo systemctl start teleport
-    ```
-  </TabItem>
-
-  <TabItem label="Source or custom install">
-  Create a systemd unit file using the `teleport install systemd` command and the unit file path you'd
-  like to use for your configuration. We recommend the path `/etc/systemd/system/teleport.service` for most use cases:
-
-    ```code
-    $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-    ```
-  Enable and start the new `teleport` daemon:
-
-    ```code
-    $ sudo systemctl enable teleport && sudo systemctl start teleport
-    ```
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx!)
 
 You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar

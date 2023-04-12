@@ -17,7 +17,7 @@ limitations under the License.
 // @ts-ignore
 import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
 
-import { PendingAccessRequest } from '../workspacesService';
+import type { PendingAccessRequest } from '../workspacesService';
 
 export class AccessRequestsService {
   constructor(

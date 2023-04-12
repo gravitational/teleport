@@ -14,6 +14,5 @@
  * limitations under the License.
  */
 
-import Pager from './Pager';
-
-export default Pager;
+export { ClientSidePager } from './ClientSidePager/ClientSidePager';
+export { ServerSidePager } from './ServerSidePager';

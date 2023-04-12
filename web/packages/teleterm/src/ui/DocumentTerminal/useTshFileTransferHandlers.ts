@@ -19,11 +19,12 @@ import {
   createFileTransferEventsEmitter,
 } from 'shared/components/FileTransfer';
 
-import { routing, ServerUri } from 'teleterm/ui/uri';
 import { FileTransferDirection } from 'teleterm/services/tshd/types';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { IAppContext } from 'teleterm/ui/types';
+
+import type * as uri from 'teleterm/ui/uri';
 
 export function useTshFileTransferHandlers() {
   const appContext = useAppContext();
@@ -60,17 +61,15 @@ function transferFile(
   abortController: AbortController,
   direction: FileTransferDirection
 ): FileTransferListeners {
-  const server = appContext.clustersService.getServer(file.serverUri);
   const eventsEmitter = createFileTransferEventsEmitter();
   const getFileTransferActionAsPromise = () =>
     new Promise((resolve, reject) => {
       const callbacks = appContext.fileTransferService.transferFile(
         {
+          serverUri: file.serverUri,
           source: file.source,
           destination: file.destination,
           login: file.login,
-          clusterUri: routing.ensureClusterUri(file.serverUri),
-          hostname: server.hostname,
           direction,
         },
         abortController
@@ -98,5 +97,5 @@ type FileTransferRequestObject = {
   source: string;
   destination: string;
   login: string;
-  serverUri: ServerUri;
+  serverUri: uri.ServerUri;
 };

@@ -23,6 +23,8 @@ import {
   resourceKindToJoinRole,
 } from 'teleport/Discover/Shared/ResourceKind';
 
+import { useDiscover } from '../useDiscover';
+
 import type { AgentLabel } from 'teleport/services/agents';
 import type { JoinMethod, JoinToken } from 'teleport/services/joinToken';
 
@@ -48,6 +50,7 @@ export function useJoinTokenSuspender(
   reloadJoinToken: () => void;
 } {
   const ctx = useTeleport();
+  const { emitErrorEvent } = useDiscover();
 
   const [, rerender] = useState(0);
 
@@ -76,8 +79,9 @@ export function useJoinTokenSuspender(
           }
           result.response = token;
         })
-        .catch(error => {
+        .catch((error: Error) => {
           result.error = error;
+          emitErrorEvent(`failed to fetch a join token: ${error.message}`);
         }),
     };
 

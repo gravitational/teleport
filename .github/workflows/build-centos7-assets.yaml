@@ -13,8 +13,8 @@ jobs:
     name: Build CentOS 7 Asset Buildbox
     strategy:
       matrix:
-        # Build assets on x86. TODO(jakule) Add ARM64 build.
-        runner: [ ubuntu-22.04-32core ]
+        # Build assets on x86 and ARM64.
+        runner: [ ubuntu-22.04-32core, ['self-hosted', 'linux', 'arm64'] ]
     # Use bigger worker. Clang takes a while to build.
     runs-on: ${{ matrix.runner }}
 

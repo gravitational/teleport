@@ -168,6 +168,10 @@ const (
 	// PuTTYSimpleRequest is a PuTTY-specific channel name which it automatically requests when it proxies
 	// connections. Teleport does not support this channel type, so deliberately ignores requests for it.
 	PuTTYSimpleRequest = "simple@putty.projects.tartarus.org"
+
+	// PuTTYWinadjRequest is a PuTTY-specific channel name which it automatically requests to measure window
+	// size on active connections, expecting a failure response from the server.
+	PuTTYWinadjRequest = "winadj@putty.projects.tartarus.org"
 )
 
 const (

@@ -22,11 +22,14 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
@@ -55,6 +58,8 @@ type SignerHandlerConfig struct {
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
 	*awsutils.SigningService
+	// Clock is used to override time in tests.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
@@ -71,6 +76,9 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.WithField(trace.Component, "aws:signer")
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -145,7 +153,7 @@ func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w htt
 		return trace.Wrap(err)
 	}
 
-	unsignedReq, err := rewriteRequest(s.closeContext, req, re)
+	unsignedReq, err := s.rewriteCommonRequest(sessCtx, w, req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -176,7 +184,7 @@ func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext
 		return trace.Wrap(err)
 	}
 
-	req, err = rewriteRequestByAssumedRole(s.closeContext, req, re)
+	req, err = s.rewriteRequestByAssumedRole(req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -229,9 +237,24 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 	return outReq, nil
 }
 
+// rewriteCommonRequest updates request signed with the default local proxy credentials.
+func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+	req, err := rewriteRequest(s.closeContext, r, re)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if strings.EqualFold(re.SigningName, sts.EndpointsID) {
+		if err := updateAssumeRoleDuration(sessCtx.Identity, w, req, s.Clock); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return req, nil
+}
+
 // rewriteRequestByAssumedRole updates headers and url for requests by assumed roles.
-func rewriteRequestByAssumedRole(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
-	req, err := rewriteRequest(ctx, r, re)
+func (s *signerHandler) rewriteRequestByAssumedRole(r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+	req, err := rewriteRequest(s.closeContext, r, re)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

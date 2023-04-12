@@ -3,23 +3,22 @@ title: Getting Started - Kubernetes with SSO
 description: Getting started with Teleport. Let's deploy Teleport in a Kubernetes with SSO and Audit logs
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service instance to an existing Teleport cluster:
-
-</ScopedBlock>
-
 Teleport can provide secure, unified access to your Kubernetes clusters. This guide will show you how to:
 
+<ScopedBlock scope={["enterprise"]}>
+- Deploy Teleport Enterprise in a Kubernetes cluster.
+</ScopedBlock>
+<ScopedBlock scope={["oss","cloud"]}>
 - Deploy Teleport in a Kubernetes cluster.
+</ScopedBlock>
 - Set up Single Sign-On (SSO) for authentication to your Teleport cluster.
 
-While completing this guide, you will deploy a single Teleport pod running the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
+While completing this guide, you will deploy one Teleport pod each for the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
 
-<Admonition type="tip" title="Have an existing Teleport cluster?">
-If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes cluster to Teleport.
-</Admonition>
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -48,7 +47,7 @@ Teleport also supports Kubernetes in on-premise and air-gapped environments. If 
 
 ## Step 1/3. Install Teleport
 
-Let's start with a single-pod Teleport deployment using a persistent
+Let's start with a Teleport deployment using a persistent
 volume as a backend. Modify the values of `CLUSTER_NAME` and `EMAIL`
 according to your environment, where `CLUSTER_NAME` is the domain name you
 are using for your Teleport deployment and `EMAIL` is an email address
@@ -326,7 +325,7 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
   </TabItem>
 
   <TabItem label="Enterprise" scope={["enterprise"]}>
-    Follow the [SAML Okta Guide](../../access-controls/sso/okta.mdx#configure-okta) to create a SAML app.
+    Follow the [SAML Okta Guide](../../access-controls/sso/okta.mdx) to create a SAML app.
     Check out [OIDC guides](../../access-controls/sso/oidc.mdx#identity-providers) for OpenID Connect apps.
     Save the file below as `okta.yaml` and update the `acs` field.
     Any member in Okta group `okta-admin` will assume a builtin role `access`.
@@ -397,6 +396,19 @@ the default one in case there is a problem.
   ```
 </Admonition>
 
+## Troubleshooting
+
+If you are experiencing errors connecting to the Teleport cluster, check the status of the Auth Service and Proxy Service pods. A successful state should show both pods running as below:
+
+```code
+$ kubectl get pods -n teleport-cluster
+NAME                                READY   STATUS    RESTARTS   AGE
+teleport-cluster-auth-5f8587bfd4-p5zv6    1/1     Running   0          48s
+teleport-cluster-proxy-767747dd94-vkxz6   1/1     Running   0          48s
+```
+If a pod's status is `Pending`, use the `kubectl logs` and `kubectl describe` commands 
+for that pod to check the status. The Auth Service pod relies on being able to allocate a Persistent Volume Claim, and may enter a `Pending` state if no Persistent Volume is available.
+
 ## Next steps
 
 To see all of the options you can set in the values file for the
@@ -406,7 +418,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect Kubernetes clusters with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/guides/multiple-clusters.mdx)
+- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
-- [Federated Access using Trusted Clusters](../../kubernetes-access/guides/federation.mdx)
+- [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

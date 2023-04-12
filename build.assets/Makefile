@@ -19,13 +19,13 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20
+GOLANG_VERSION ?= go1.20.3
 
 NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.67.0
-LIBBPF_VERSION ?= 0.7.0-teleport
+RUST_VERSION ?= 1.68.0
+LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 UID := $$(id -u)
@@ -73,6 +73,12 @@ endif
 DOCKERFLAGS := $(DOCKERFLAGS) -v $(GOCACHE):/go/cache -e GOCACHE=/go/cache
 endif
 
+ifeq ("$(RUNTIME_ARCH)","arm64")
+	# devtoolset-11 is not available on CentOS 7 aarch64
+	DEVTOOLSET ?= devtoolset-10
+else
+	DEVTOOLSET ?= devtoolset-11
+endif
 
 #
 # Build 'teleport' release inside a docker container
@@ -163,6 +169,7 @@ buildbox-centos7:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
@@ -354,8 +361,16 @@ enter-root: buildbox
 # Starts shell inside the centos7 container
 #
 .PHONY:enter/centos7
-enter/centos7: buildbox
+enter/centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
+		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
+
+#
+# Starts a root shell inside the centos7 container
+#
+.PHONY:enter-root/centos7
+enter-root/centos7: buildbox-centos7
+	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
 
 #
@@ -431,10 +446,18 @@ define RELEASE_RECIPE
 			-v "/tmp:/tmp" \
 			-v "$(WORKSPACE):/go/teleport" \
 			-w /go/teleport \
-			-u 1000:1000 \
 			$(BUILDBOX) \
 		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 endef
+
+# It's ok to ignore `go: command not found`. Makefile's $(shell go env)-line commands are producing it.
+.PHONY: release-oss-ensure-webassets
+release-oss-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets)
+
+.PHONY: release-enterprise-ensure-webassets
+release-enterprise-ensure-webassets:
+	$(call RELEASE_RECIPE,ensure-webassets-e)
 
 .PHONY: release-oss
 release-oss:
@@ -463,7 +486,7 @@ release-fips: buildbox-fips
 .PHONY:release-centos7
 release-centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7) \
-		/usr/bin/scl enable devtoolset-11 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
+		/usr/bin/scl enable $(DEVTOOLSET) 'make release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no'
 
 #
 # Create a Teleport FIPS package for CentOS 7 using the build container.
@@ -472,7 +495,7 @@ release-centos7: buildbox-centos7
 .PHONY:release-centos7-fips
 release-centos7-fips:
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
-		/usr/bin/scl enable devtoolset-11 '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
+		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 
 #
 # Create a Windows Teleport package using the build container.
@@ -536,5 +559,77 @@ print-buildbox-version:
 .PHONY:build-centos7-assets
 build-centos7-assets:
 	docker build \
+		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
+
+#################################################################################
+# Multiarch build steps
+#################################################################################
+
+GCC_VERSION ?= 10.4.0
+CLANG_BPF_VERSION ?= 10.0.1
+CLANG_FIPS_VERSION ?= 7.0.1
+BUILDBOX_PREFIX ?= ghcr.io/gravitational
+
+#
+# Build Dockerfile-multiarch-base on GHA
+#
+.PHONY:build-multiarch-base
+build-multiarch-base: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-base:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-base:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg GCC_VERSION=$(GCC_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-base .
+
+#
+# Build Dockerfile-multiarch-clang on GHA with clang-10, based on -base
+#
+.PHONY:build-multiarch-clang10
+build-multiarch-clang10: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang10:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-clang10:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg CLANG_VERSION=$(CLANG_BPF_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-clang .
+
+#
+# Build Dockerfile-multiarch-clang on GHA with clang-7, based on -base
+#
+.PHONY:build-multiarch-clang7
+build-multiarch-clang7: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang7:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-clang7:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg CLANG_VERSION=$(CLANG_FIPS_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-clang .
+
+#
+# Build Dockerfile-multiarch on GHA, based on -base
+#
+.PHONY:build-multiarch
+build-multiarch: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg UID=$(shell id -u) \
+		--build-arg GID=$(shell id -g) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch .

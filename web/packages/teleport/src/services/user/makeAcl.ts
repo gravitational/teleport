@@ -16,9 +16,8 @@ limitations under the License.
 
 import { Acl } from './types';
 
-export default function makeAcl(json): Acl {
+export function makeAcl(json): Acl {
   json = json || {};
-  const windowsLogins = json.windowsLogins || [];
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
   const roles = json.roles || defaultAccess;
@@ -31,6 +30,11 @@ export default function makeAcl(json): Acl {
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
+  const plugins = json.plugins || defaultAccess;
+  // TODO(lisa): requires backend changes to user context.
+  // Feature is off until all TODO related to integrations is done.
+  // const integrations = json.integrations || defaultAccess;
+  const integrations = defaultAccess;
   const dbServers = json.dbServers || defaultAccess;
   const db = json.db || defaultAccess;
   const desktops = json.desktops || defaultAccess;
@@ -54,8 +58,9 @@ export default function makeAcl(json): Acl {
   const license = json.license || defaultAccess;
   const download = json.download || defaultAccess;
 
+  const deviceTrust = json.deviceTrust || defaultAccess;
+
   return {
-    windowsLogins,
     authConnectors,
     trustedClusters,
     roles,
@@ -68,6 +73,8 @@ export default function makeAcl(json): Acl {
     tokens,
     accessRequests,
     billing,
+    plugins,
+    integrations,
     dbServers,
     db,
     desktops,
@@ -78,6 +85,7 @@ export default function makeAcl(json): Acl {
     connectionDiagnostic,
     license,
     download,
+    deviceTrust,
   };
 }
 

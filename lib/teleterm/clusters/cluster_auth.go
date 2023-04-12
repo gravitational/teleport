@@ -19,10 +19,10 @@ package clusters
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
@@ -64,15 +64,8 @@ func (c *Cluster) Logout(ctx context.Context) error {
 		}
 	}
 
-	// Get the address of the active Kubernetes proxy to find AuthInfos,
-	// Clusters, and Contexts in kubeconfig.
-	clusterName, _ := c.clusterClient.KubeProxyHostPort()
-	if c.clusterClient.SiteName != "" {
-		clusterName = fmt.Sprintf("%v.%v", c.clusterClient.SiteName, clusterName)
-	}
-
 	// Remove cluster entries from kubeconfig
-	if err := kubeconfig.Remove("", clusterName); err != nil {
+	if err := kubeconfig.RemoveByServerAddr("", c.clusterClient.KubeClusterAddr()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -283,7 +276,7 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 				KubernetesCluster: c.clusterClient.KubernetesCluster,
 			},
 			AuthenticatorAttachment: c.clusterClient.AuthenticatorAttachment,
-			CustomPrompt:            newPwdlessLoginPrompt(ctx, stream),
+			CustomPrompt:            newPwdlessLoginPrompt(ctx, c.Log, stream),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -294,11 +287,13 @@ func (c *Cluster) passwordlessLogin(stream api.TerminalService_LoginPasswordless
 
 // pwdlessLoginPrompt is a implementation for wancli.LoginPrompt for teleterm passwordless logins.
 type pwdlessLoginPrompt struct {
+	log    *logrus.Entry
 	Stream api.TerminalService_LoginPasswordlessServer
 }
 
-func newPwdlessLoginPrompt(ctx context.Context, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
+func newPwdlessLoginPrompt(ctx context.Context, log *logrus.Entry, stream api.TerminalService_LoginPasswordlessServer) *pwdlessLoginPrompt {
 	return &pwdlessLoginPrompt{
+		log:    log,
 		Stream: stream,
 	}
 }
@@ -325,8 +320,19 @@ func (p *pwdlessLoginPrompt) PromptPIN() (string, error) {
 }
 
 // PromptTouch prompts the user for a security key touch.
-func (p *pwdlessLoginPrompt) PromptTouch() error {
-	return trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}))
+func (p *pwdlessLoginPrompt) PromptTouch() (wancli.TouchAcknowledger, error) {
+	return p.ackTouch, trace.Wrap(p.Stream.Send(&api.LoginPasswordlessResponse{Prompt: api.PasswordlessPrompt_PASSWORDLESS_PROMPT_TAP}))
+}
+
+func (p *pwdlessLoginPrompt) ackTouch() error {
+	// TODO(nklaassen): Send touch acknowledgement if worth the effort, this is
+	// not strictly necessary but a nice-to-have acknowledgement to the user
+	// that we successfully detected their tap.
+	// The current gRPC message type switch in teleterm client code will reject
+	// any new message types, making this difficult to add without breaking
+	// older clients.
+	p.log.Debug("Detected security key tap")
+	return nil
 }
 
 // PromptCredential prompts the user to select a login name in the list of logins.

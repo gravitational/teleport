@@ -1,10 +1,10 @@
 ---
 title: Database Access Getting Started Guide
-description: Getting started with Teleport Database Access and AWS Aurora PostgreSQL.
+description: Getting started with Teleport database access and AWS Aurora PostgreSQL.
 ---
 
-In this getting started guide we will use Teleport Database Access to connect
-to a PostgreSQL AWS Aurora database.
+In this getting started guide we will use Teleport to connect to a PostgreSQL
+AWS Aurora database.
 
 Here's an overview of what we will do:
 
@@ -23,7 +23,7 @@ Here's an overview of what we will do:
 
 <Admonition type="note" title="Supported versions">
 
-Teleport Database Access is available starting from the `6.0.0` Teleport
+Teleport database access is available starting from the `6.0.0` Teleport
 release.
 
 </Admonition>
@@ -35,7 +35,7 @@ release.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up Aurora
 
@@ -146,7 +146,7 @@ $ teleport db start \
   title="AWS Credentials"
 >
   The node that connects to the database should have AWS credentials configured
-  with the policy from [step 1](#step-13-set-up-aurora).
+  with the policy from [step 1](#step-14-set-up-aurora).
 </Admonition>
 
 ## Step 3/4. Create a user and role

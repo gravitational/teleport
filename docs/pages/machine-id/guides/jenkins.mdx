@@ -13,28 +13,12 @@ utilize Machine ID with minimal changes.
 
 You will need the following tools to use Teleport with Jenkins.
 
-- The Teleport Auth Service and Proxy Service version >= 9.0.0, deployed on
-  your own infrastructure or managed via Teleport Cloud.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - `ssh` OpenSSH tool
 - Jenkins
-- The `tctl` admin tool version >= (=teleport.version=)
 
-<Admonition type="note" title="Machine ID and TLS Routing">
-TLS Routing support will be added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). Until
-that time, the Teleport Proxy Server will need to be configured with a
-dedicated SSH listener.
-
-```yaml
-version: v1
-proxy_service:
-  enabled: "yes"
-  listen_addr: "0.0.0.0:3023"
-  ...
-```
-</Admonition>
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Architecture
 
@@ -140,6 +124,8 @@ $ sudo tbot init \
     --reader-user=jenkins
 ```
 
+(!docs/pages/includes/machine-id/machine-id-init-bot-data.mdx!)
+
 Next, you need to start Machine ID in the background of each Jenkins worker.
 
 <ScopedBlock scope={["cloud"]}>
@@ -186,6 +172,7 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
+Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
@@ -195,13 +182,13 @@ LimitNOFILE=524288
 WantedBy=multi-user.target
 ```
 
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
+
 Finally, run the following commands to start Machine ID.
 
-```code
-$ sudo systemctl daemon-reload
-$ sudo systemctl start machine-id
-$ sudo systemctl status machine-id
-```
+(!docs/pages/includes/machine-id/machine-id-service.mdx!)
 
 ## Step 2/2. Update and run Jenkins pipelines
 
@@ -218,3 +205,7 @@ steps {
 You are all set. You have provided Jenkins with short-lived certificates tied
 to a machine identity that can be rotated, audited, and controlled with all the
 familiar Teleport access controls.
+
+## Next steps
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

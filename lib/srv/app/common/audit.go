@@ -99,7 +99,7 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 		},
 		UserMetadata: identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.ClientIP,
+			RemoteAddr: identity.LoginIP,
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
@@ -128,7 +128,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 		},
 		UserMetadata: identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.ClientIP,
+			RemoteAddr: identity.LoginIP,
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),

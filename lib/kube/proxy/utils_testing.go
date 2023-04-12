@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
@@ -59,7 +60,7 @@ type TestContext struct {
 	TLSServer   *auth.TestTLSServer
 	AuthServer  *auth.Server
 	AuthClient  *auth.Client
-	Authz       auth.Authorizer
+	Authz       authz.Authorizer
 	KubeServer  *TLSServer
 	Emitter     *eventstest.ChannelEmitter
 	Context     context.Context
@@ -140,7 +141,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		proxyLockWatcher.Close()
 	})
-	testCtx.Authz, err = auth.NewAuthorizer(auth.AuthorizerOpts{
+	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testCtx.ClusterName,
 		AccessPoint: proxyAuthClient,
 		LockWatcher: proxyLockWatcher,
@@ -171,7 +172,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
-
+	client := newAuthClientWithStreamer(testCtx)
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -185,12 +186,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// directly to AuthClient solves the issue.
 			// We wrap the AuthClient with an events.TeeStreamer to send non-disk
 			// events like session.end to testCtx.emitter as well.
-			AuthClient: newAuthClientWithStreamer(testCtx),
+			AuthClient: client,
 			// StreamEmitter is required although not used because we are using
 			// "node-sync" as session recording mode.
 			StreamEmitter:     testCtx.Emitter,
 			DataDir:           t.TempDir(),
-			CachingAuthClient: testCtx.AuthClient,
+			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
 			Context:           testCtx.Context,
 			KubeconfigPath:    kubeConfigLocation,
@@ -205,7 +206,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 		DynamicLabels: nil,
 		TLS:           tlsConfig,
-		AccessPoint:   testCtx.AuthClient,
+		AccessPoint:   client,
 		LimiterConfig: limiter.Config{
 			MaxConnections:   1000,
 			MaxNumberOfUsers: 1000,
@@ -280,7 +281,7 @@ type RoleSpec struct {
 
 // CreateUserAndRole creates Teleport user and role with specified names
 func (c *TestContext) CreateUserAndRole(ctx context.Context, t *testing.T, username string, roleSpec RoleSpec) (types.User, types.Role) {
-	user, role, err := auth.CreateUserAndRole(c.TLSServer.Auth(), username, []string{roleSpec.Name})
+	user, role, err := auth.CreateUserAndRole(c.TLSServer.Auth(), username, []string{roleSpec.Name}, nil)
 	require.NoError(t, err)
 	role.SetKubeUsers(types.Allow, roleSpec.KubeUsers)
 	role.SetKubeGroups(types.Allow, roleSpec.KubeGroups)
@@ -318,8 +319,19 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...KubeCluste
 	return kubeConfigLocation
 }
 
+// GenTestKubeClientTLSCertOptions is a function that can be used to modify the
+// identity used to generate the kube client certificate.
+type GenTestKubeClientTLSCertOptions func(*tlsca.Identity)
+
+// WithResourceAccessRequests adds resource access requests to the identity.
+func WithResourceAccessRequests(r ...types.ResourceID) GenTestKubeClientTLSCertOptions {
+	return func(identity *tlsca.Identity) {
+		identity.AllowedResourceIDs = r
+	}
+}
+
 // GenTestKubeClientTLSCert generates a kube client to access kube service
-func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string) (*kubernetes.Clientset, *rest.Config) {
+func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
 	clusterName, err := authServer.GetClusterName()
 	require.NoError(t, err)
@@ -358,6 +370,9 @@ func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeClust
 		KubernetesGroups:  user.GetKubeGroups(),
 		KubernetesCluster: kubeCluster,
 		RouteToCluster:    c.ClusterName,
+	}
+	for _, opt := range opts {
+		opt(&id)
 	}
 	subj, err := id.Subject()
 	require.NoError(t, err)

@@ -14,7 +14,7 @@ serviceAccount:
   create: true
 
 joinParams:
-  # the kubernetes join method is not currently suited for joining a large amoubt of nodes in a short time
+  # the kubernetes join method is not currently suited for joining a large amount of nodes in a short time
   method: token
   # DO NOT USE THIS IN PRODUCTION
   token_name: qwertyuiop

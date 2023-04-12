@@ -19,13 +19,15 @@ package prehog.v1alpha;
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha";
 
 message UserLoginEvent {
   // anonymized
   string user_name = 1;
   // local/github/saml/oidc
   string connector_type = 2;
+  // The anonymized device ID, for logins where device trust is enabled.
+  string device_id = 3;
 }
 
 message SSOCreateEvent {
@@ -39,6 +41,27 @@ message ResourceCreateEvent {
   string resource_type = 1;
 
   // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+}
+
+// the kind of a "resource" as intended by ResourceHeartbeatEvent
+enum ResourceKind {
+  RESOURCE_KIND_UNSPECIFIED = 0;
+  RESOURCE_KIND_NODE = 1;
+  RESOURCE_KIND_APP_SERVER = 2;
+  RESOURCE_KIND_KUBE_SERVER = 3;
+  RESOURCE_KIND_DB_SERVER = 4;
+  RESOURCE_KIND_WINDOWS_DESKTOP = 5;
+  RESOURCE_KIND_NODE_OPENSSH = 6;
+}
+
+// a heartbeat for a resource served by a Teleport instance outside of the
+// control plane (i.e. not auth, not proxy)
+message ResourceHeartbeatEvent {
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes resource_name = 1;
+  ResourceKind resource_kind = 2;
+  // true if the heartbeat has no expiration
+  bool static = 3;
 }
 
 message SessionStartEvent {
@@ -123,6 +146,9 @@ message DiscoverMetadata {
 
   // anonymized
   string user_name = 2;
+
+  // SSO indicates whether the user is from an SSO provider.
+  bool sso = 3;
 }
 
 // DiscoverResource represents a resource type.
@@ -145,6 +171,28 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15;
   DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16;
   DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17;
+
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS = 18;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE = 19;
+  DISCOVER_RESOURCE_DATABASE_DYNAMODB = 20;
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES = 21;
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED = 22; // Cassandra & ScyllaDb
+  DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED = 23;
+  DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE = 24; // Elasticache & MemoryDb
+  DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB = 25;
+  DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE = 26;
+  DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED = 27;
+
+  DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE = 28;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE = 29;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT = 30;
+  DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED = 31;
+  DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS = 32;
+  DISCOVER_RESOURCE_DATABASE_SNOWFLAKE = 33;
+
+  DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
+  DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
+  DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -297,6 +345,32 @@ message UICreateNewRoleViewDocumentationClickEvent {
   string user_name = 1;
 }
 
+message KubeRequestEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+message SFTPEvent {
+  // anonymized
+  string user_name = 1;
+  // matching SFTPAction in teleport/api/types/events/events.proto
+  int32 action = 2;
+}
+
+message AgentMetadataEvent {
+  string version = 1;
+  string host_id = 2;
+  repeated string services = 3;
+  string os = 4;
+  string os_version = 5;
+  string host_architecture = 6;
+  string glibc_version = 7;
+  repeated string install_methods = 8;
+  string container_runtime = 9;
+  string container_orchestrator = 10;
+  string cloud_environment = 11;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -350,16 +424,30 @@ message SubmitEventRequest {
     UICreateNewRoleSaveClickEvent ui_create_new_role_save_click = 33;
     UICreateNewRoleCancelClickEvent ui_create_new_role_cancel_click = 34;
     UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 35;
+
+    KubeRequestEvent kube_request = 36;
+    SFTPEvent sftp = 37;
+    AgentMetadataEvent agent_metadata_event = 38;
+    ResourceHeartbeatEvent resource_heartbeat = 39;
   }
+
   reserved 8; // UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";
 }
 message SubmitEventResponse {}
 
+message SubmitEventsRequest {
+  repeated SubmitEventRequest events = 1;
+}
+message SubmitEventsResponse {}
+
 message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
-  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {
+    option deprecated = true;
+  }
+  rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }

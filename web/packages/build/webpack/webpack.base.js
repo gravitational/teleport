@@ -18,7 +18,6 @@ const path = require('path');
 
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
-const LodashModuleReplacementPlugin = require('lodash-webpack-plugin');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
@@ -51,9 +50,6 @@ const configFactory = {
         ...options,
       });
     },
-    lodash() {
-      return new LodashModuleReplacementPlugin();
-    },
     bundleAnalyzer(options) {
       return new BundleAnalyzerPlugin({ analyzerHost: '0.0.0.0', ...options });
     },
@@ -78,7 +74,7 @@ const configFactory = {
       return {
         test: /\.svg$/,
         type: 'asset/inline',
-        exclude: /node_modules/,
+        exclude: /[\\/]node_modules[\\/]/,
       };
     },
     css() {
@@ -104,7 +100,7 @@ const configFactory = {
     jsx() {
       return {
         test: /\.(ts|tsx|js|jsx)$/,
-        exclude: /(node_modules)|(assets)/,
+        exclude: /[\\/]node_modules[\\/]/,
         use: [
           {
             loader: 'babel-loader',
@@ -114,6 +110,9 @@ const configFactory = {
             options: {
               onlyCompileBundledFiles: true,
               configFile: tsconfigPath,
+              compilerOptions: {
+                jsx: 'preserve',
+              },
             },
           },
         ],

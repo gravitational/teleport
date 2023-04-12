@@ -24,6 +24,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -210,6 +212,10 @@ func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) (*user.User, err
 	if userCloser != nil {
 		ctx.AddCloser(userCloser)
 	}
+
+	// Indicate that the user was created by Teleport.
+	ctx.UserCreatedByTeleport = true
+
 	return tempUser, nil
 }
 
@@ -282,12 +288,19 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 	scx.Infof("Creating (exec) session %v.", sessionID)
 
+	approved, err := s.isApprovedFileTransfer(scx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	canStart, _, err := sess.checkIfStart()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if !canStart {
+	// canStart will be true for non-moderated sessions. If canStart is false, check to
+	// see if the request has been approved through a moderated session next.
+	if !canStart && !approved {
 		return errCannotStartUnattendedSession
 	}
 
@@ -331,6 +344,50 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 	}
 
 	return sess.term.GetWinSize()
+}
+
+func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, error) {
+	s.sessionsMux.Lock()
+	defer s.sessionsMux.Unlock()
+
+	// if a sessID and requestID environment variables were not set, return not approved and no error.
+	// This means the file transfer came from a non-moderated session. sessionID will be passed after a
+	// moderated session approval process has completed.
+	sessID, _ := scx.GetEnv(string(sftp.ModeratedSessionID))
+	if sessID == "" {
+		return false, nil
+	}
+	// fetch session from registry with sessionID
+	sess := s.sessions[rsession.ID(sessID)]
+	if sess == nil {
+		// If they sent a sessionID and it wasn't found, send an actual error
+		return false, trace.NotFound("Session not found")
+	}
+
+	requestID, _ := scx.GetEnv(string(sftp.FileTransferRequestID))
+	if requestID == "" {
+		return false, nil
+	}
+	// find file transfer request in the session by requestID
+	req := sess.fileTransferRequests[requestID]
+	if req == nil {
+		// If they sent a fileTransferRequestID and it wasn't found, send an actual error
+		return false, trace.NotFound("File transfer request not found")
+	}
+
+	if req.requester != scx.Identity.TeleportUser {
+		return false, trace.AccessDenied("Teleport user does not match original requester")
+	}
+
+	var incomingShellCmd string
+	if scx.sshRequest != nil {
+		incomingShellCmd = string(scx.sshRequest.Payload)
+	}
+	if incomingShellCmd != req.shellCmd {
+		return false, trace.AccessDenied("Incoming request does not match the approved request")
+	}
+
+	return sess.checkIfFileTransferApproved(req)
 }
 
 // NotifyWinChange is called to notify all members in the party that the PTY
@@ -449,6 +506,11 @@ type session struct {
 	// participants at the end of a session.
 	participants map[rsession.ID]*party
 
+	// fileTransferRequests is a set of fileTransferRequests that are currently in the approval
+	// process, or already approved and not yet executed during a moderated session. If a request is
+	// denied or, once it's been executed, it should be removed from this map.
+	fileTransferRequests map[string]*fileTransferRequest
+
 	io       *TermManager
 	inWriter io.Writer
 
@@ -498,6 +560,9 @@ type session struct {
 
 	// serverMeta contains metadata about the target node of this session.
 	serverMeta apievents.ServerMetadata
+
+	// started is true after the session start.
+	started atomic.Bool
 }
 
 // newSession creates a new session with a given ID within a given context.
@@ -626,22 +691,42 @@ func (s *session) Stop() {
 	s.BroadcastMessage("Stopping session...")
 	s.log.Info("Stopping session")
 
-	// close io copy loops
+	// Close io copy loops
 	s.io.Close()
 
-	// Close and kill terminal
-	if s.term != nil {
-		if err := s.term.Close(); err != nil {
-			s.log.WithError(err).Debug("Failed to close the shell")
-		}
-		if err := s.term.Kill(context.TODO()); err != nil {
-			s.log.WithError(err).Debug("Failed to kill the shell")
-		}
-	}
+	// Make sure that the terminal has been closed
+	s.haltTerminal()
 
 	// Close session tracker and mark it as terminated
 	if err := s.tracker.Close(s.serverCtx); err != nil {
 		s.log.WithError(err).Debug("Failed to close session tracker")
+	}
+}
+
+// haltTerminal closes the terminal. Then is tried to terminate the terminal in a graceful way
+// and kill by sending SIGKILL if the graceful termination fails.
+func (s *session) haltTerminal() {
+	if s.term == nil {
+		return
+	}
+
+	if err := s.term.Close(); err != nil {
+		s.log.WithError(err).Debug("Failed to close the shell")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := s.term.KillUnderlyingShell(ctx); err != nil {
+		s.log.WithError(err).Debug("Failed to terminate the shell")
+	} else {
+		// Return before we send SIGKILL to the child process, as doing that
+		// could interrupt the "graceful shutdown" process.
+		return
+	}
+
+	if err := s.term.Kill(context.TODO()); err != nil {
+		s.log.WithError(err).Debug("Failed to kill the shell")
 	}
 }
 
@@ -876,7 +961,13 @@ func (s *session) setHasEnhancedRecording(val bool) {
 
 // launch launches the session.
 // Must be called under session Lock.
-func (s *session) launch(ctx *ServerContext) error {
+func (s *session) launch() {
+	// Mark the session as started here, as we want to avoid double initialization.
+	if s.started.Swap(true) {
+		s.log.Debugf("Session has already started")
+		return
+	}
+
 	s.log.Debug("Launching session")
 	s.BroadcastMessage("Connecting to %v over SSH", s.serverMeta.ServerHostname)
 
@@ -933,8 +1024,6 @@ func (s *session) launch(ctx *ServerContext) error {
 		_, err := io.Copy(s.term.PTY(), s.io)
 		s.log.Debugf("Copying from reader to PTY completed with error %v.", err)
 	}()
-
-	return nil
 }
 
 // startInteractive starts a new interactive process (or a shell) in the
@@ -1276,7 +1365,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	// Remove party for the term writer
 	s.io.DeleteWriter(string(p.id))
 
-	// Emit session leave event to both the Audit Log as well as over the
+	// Emit session leave event to both the Audit Log and over the
 	// "x-teleport-event" channel in the SSH connection.
 	s.emitSessionLeaveEvent(p.ctx)
 
@@ -1286,7 +1375,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	}
 
 	if !canRun {
-		if policyOptions.TerminateOnLeave {
+		if policyOptions.OnLeaveAction == types.OnSessionLeaveTerminate {
 			// Force termination in goroutine to avoid deadlock
 			go s.registry.ForceTerminate(s.scx)
 			return nil
@@ -1373,6 +1462,38 @@ func (s *session) checkPresence() error {
 	return nil
 }
 
+type fileTransferRequest struct {
+	// requester is the Teleport User that requested the file transfer
+	requester string
+	// shellCmd is the requested scp command to run
+	shellCmd string
+	// approvers is a list of participants of moderator or peer type that have approved the request
+	approvers map[string]*party
+}
+
+func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, error) {
+	var participants []auth.SessionAccessContext
+
+	for _, party := range req.approvers {
+		if party.ctx.Identity.TeleportUser == s.initiator {
+			continue
+		}
+
+		participants = append(participants, auth.SessionAccessContext{
+			Username: party.ctx.Identity.TeleportUser,
+			Roles:    party.ctx.Identity.AccessChecker.Roles(),
+			Mode:     party.mode,
+		})
+	}
+
+	isApproved, _, err := s.access.FulfilledFor(participants)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return isApproved, nil
+}
+
 func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
 	var participants []auth.SessionAccessContext
 
@@ -1454,8 +1575,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session.", p.user)
-	s.log.Infof("New party %v joined session", p.String())
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
+	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
 
 	if mode == types.SessionPeerMode {
 		s.term.AddParty(1)
@@ -1474,18 +1595,30 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 			return trace.Wrap(err)
 		}
 
-		if canStart {
-			if err := s.launch(s.scx); err != nil {
-				s.log.WithError(err).Error("Failed to launch session")
-			}
-			return nil
-		}
+		switch {
+		case canStart && !s.started.Load():
+			s.launch()
 
-		base := "Waiting for required participants..."
-		if s.displayParticipantRequirements {
-			s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
-		} else {
-			s.BroadcastMessage(base)
+			return nil
+		case canStart:
+			// If the session is already running, but the party is a moderator that leaved
+			// a session with onLeave=pause and then rejoined, we need to unpause the session.
+			// When the moderator leaved the session, the session was paused, and we spawn
+			// a goroutine to wait for the moderator to rejoin. If the moderator rejoins
+			// before the session ends, we need to unpause the session by updating its state and
+			// the goroutine will unblock the s.io terminal.
+			// types.SessionState_SessionStatePending marks a session that is waiting for
+			// a moderator to rejoin.
+			if err := s.tracker.UpdateState(s.serverCtx, types.SessionState_SessionStateRunning); err != nil {
+				s.log.Warnf("Failed to set tracker state to %v", types.SessionState_SessionStateRunning)
+			}
+		default:
+			const base = "Waiting for required participants..."
+			if s.displayParticipantRequirements {
+				s.BroadcastMessage(base+"\r\n%v", s.access.PrettyRequirementsList())
+			} else {
+				s.BroadcastMessage(base)
+			}
 		}
 	}
 

@@ -38,7 +38,7 @@ commands, and view your `kubectl`  activity in Teleport's audit log:
 The fastest way to register a Kubernetes cluster with Teleport is to deploy a
 Teleport Kubernetes Service instance on the cluster you want to register.
 We'll show you how to do this in our [Getting Started
-Guide](../getting-started.mdx).
+Guide](getting-started.mdx).
 
 ## Automatically register Kubernetes clusters
 
@@ -64,6 +64,9 @@ manually when you create the cluster. There are a few ways to do this:
 
 - [Deploy the Teleport Kubernetes
   Service](./register-clusters/register-via-deployment.mdx) on your cluster of
+  choice.
+- [Deploy the Teleport Kubernetes
+  Service with IAM Joining](./register-clusters/iam-joining.mdx) on your cluster of
   choice.
 - Deploy the Teleport Kubernetes Service outside your Kubernetes cluster (e.g.,
   directly on a virtual machine) and [give it access to a
