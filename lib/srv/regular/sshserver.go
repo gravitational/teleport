@@ -2014,12 +2014,6 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 }
 
-// TODO: tsh scp will display neither the message sent in stderr or in
-// the reply; github.com/pkg/sftp ignores the SSH channel stderr, and
-// golang.org/x/crypto/ssh.channel.SendRequest ignores the message in
-// a channel reply. This is bad UX for users, as
-// 'ssh: subsystem request failed' will be the only error displayed when
-// access is denied.
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	s.Logger.WithError(err).Errorf("failure handling SSH %q request", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
@@ -2049,8 +2043,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:
-		if err := ctx.CheckSFTPAllowed(); err != nil {
-			s.replyError(ch, req, err)
+		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 

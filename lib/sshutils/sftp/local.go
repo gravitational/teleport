@@ -105,7 +105,7 @@ func (l localFS) Open(ctx context.Context, path string) (fs.File, error) {
 	return &fileWrapper{file: f}, nil
 }
 
-func (l localFS) Create(ctx context.Context, path string) (io.WriteCloser, error) {
+func (l localFS) Create(ctx context.Context, path string, _ int64) (io.WriteCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, trace.Wrap(err)
 	}

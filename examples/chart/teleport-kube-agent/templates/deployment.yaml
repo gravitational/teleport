@@ -119,8 +119,12 @@ spec:
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
-        {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
+        {{- if or .Values.extraEnv .Values.tls.existingCASecretName .Values.updater.enabled }}
         env:
+        {{- if .Values.updater.enabled }}
+        - name: TELEPORT_EXT_UPGRADER
+          value: kube
+        {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}

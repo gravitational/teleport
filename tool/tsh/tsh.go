@@ -3241,7 +3241,6 @@ func onSCP(cf *CLIConf) error {
 	if err == nil || (err != nil && errors.Is(err, context.Canceled)) {
 		return nil
 	}
-	fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 
 	return trace.Wrap(err)
 }
@@ -4518,50 +4517,37 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 type envGetter func(string) string
 
 // setEnvFlags sets flags that can be set via environment variables.
-func setEnvFlags(cf *CLIConf, fn envGetter) {
-	// prioritize CLI input
-	if cf.SiteName == "" {
-		setSiteNameFromEnv(cf, fn)
-	}
-	// prioritize CLI input
-	if cf.KubernetesCluster == "" {
-		setKubernetesClusterFromEnv(cf, fn)
-	}
-
+func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	// these can only be set with env vars.
-	setTeleportHomeFromEnv(cf, fn)
-	setGlobalTshConfigPathFromEnv(cf, fn)
-}
-
-// setSiteNameFromEnv sets teleport site name from environment if configured.
-// First try reading TELEPORT_CLUSTER, then the legacy term TELEPORT_SITE.
-func setSiteNameFromEnv(cf *CLIConf, fn envGetter) {
-	if clusterName := fn(siteEnvVar); clusterName != "" {
-		cf.SiteName = clusterName
-	}
-	if clusterName := fn(clusterEnvVar); clusterName != "" {
-		cf.SiteName = clusterName
-	}
-}
-
-// setTeleportHomeFromEnv sets home directory from environment if configured.
-func setTeleportHomeFromEnv(cf *CLIConf, fn envGetter) {
-	if homeDir := fn(types.HomeEnvVar); homeDir != "" {
+	if homeDir := getEnv(types.HomeEnvVar); homeDir != "" {
 		cf.HomePath = path.Clean(homeDir)
 	}
-}
-
-// setKubernetesClusterFromEnv sets teleport kube cluster from environment if configured.
-func setKubernetesClusterFromEnv(cf *CLIConf, fn envGetter) {
-	if kubeName := fn(kubeClusterEnvVar); kubeName != "" {
-		cf.KubernetesCluster = kubeName
-	}
-}
-
-// setGlobalTshConfigPathFromEnv sets path to global tsh config file.
-func setGlobalTshConfigPathFromEnv(cf *CLIConf, fn envGetter) {
-	if configPath := fn(globalTshConfigEnvVar); configPath != "" {
+	if configPath := getEnv(globalTshConfigEnvVar); configPath != "" {
 		cf.GlobalTshConfigPath = path.Clean(configPath)
+	}
+
+	// prioritize CLI input for the rest.
+	if cf.SiteName == "" {
+		// check cluster env variables in order of priority.
+		if clusterName := getEnv(clusterEnvVar); clusterName != "" {
+			cf.SiteName = clusterName
+		} else if clusterName = getEnv(siteEnvVar); clusterName != "" {
+			cf.SiteName = clusterName
+		} else if clusterName = getEnv(teleport.SSHTeleportClusterName); clusterName != "" {
+			cf.SiteName = clusterName
+		}
+	}
+
+	if cf.KubernetesCluster == "" {
+		cf.KubernetesCluster = getEnv(kubeClusterEnvVar)
+	}
+
+	if cf.Username == "" {
+		cf.Username = getEnv(teleport.SSHTeleportUser)
+	}
+
+	if cf.Proxy == "" {
+		cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
 	}
 }
 

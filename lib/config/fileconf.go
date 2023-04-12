@@ -521,8 +521,12 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
 			}
 		} else if matcher.ExternalID != "" {
-			return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
-				matcher.ExternalID)
+			for _, t := range matcher.Types {
+				if !slices.Contains(services.RequireAWSIAMRolesAsUsersMatchers, t) {
+					return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
+						matcher.ExternalID)
+				}
+			}
 		}
 
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {

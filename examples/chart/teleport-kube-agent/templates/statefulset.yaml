@@ -132,6 +132,10 @@ spec:
                 fieldPath: metadata.namespace
           - name: RELEASE_NAME
             value: {{ .Release.Name }}
+          {{- if .Values.updater.enabled }}
+          - name: TELEPORT_EXT_UPGRADER
+            value: kube
+          {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE
             value: /etc/teleport-tls-ca/ca.pem
