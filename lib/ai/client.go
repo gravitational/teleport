@@ -16,22 +16,17 @@ limitations under the License.
 
 package ai
 
-import (
-	openai "github.com/sashabaranov/go-openai"
-)
-
 type Client struct {
-	api *openai.Client
+	apiURL string
 }
 
-func NewClient(apiKey string) *Client {
-	return &Client{
-		api: openai.NewClient(apiKey),
-	}
+func NewClient(apiURL string) *Client {
+	return &Client{apiURL}
 }
 
-func (client *Client) NewChat() *Chat {
+func (client *Client) NewChat(username string) *Chat {
 	return &Chat{
-		client: client,
+		client:   client,
+		username: username,
 	}
 }

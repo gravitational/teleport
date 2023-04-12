@@ -151,8 +151,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return trace.Errorf("assist spec is not set")
 	}
 
-	client := ai.NewClient(prefsV2.Spec.Assist.APIKey)
-	chat := client.NewChat()
+	client := ai.NewClient(prefsV2.Spec.Assist.APIURL)
+	chat := client.NewChat(sctx.cfg.User)
 
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
@@ -199,6 +199,33 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	}
 
 	for {
+		// query the assistant and fetch an answer
+		message, err := chat.Complete(r.Context(), 500)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		// write assistant message to both in-memory chain and persistent storage
+		chat.Insert(message.Role, message.Content)
+		msgJson, err := json.Marshal(chatMessage{Role: message.Role, Content: message.Content})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		protoMsg := &proto.AssistantMessage{
+			ConversationId: conversationID,
+			Type:           kindChatTextMessage,
+			Payload:        msgJson,
+			CreatedTime:    h.clock.Now().UTC(),
+		}
+		if _, err := authClient.InsertAssistantMessage(r.Context(), protoMsg); err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := ws.WriteMessage(websocket.TextMessage, msgJson); err != nil {
+			return trace.Wrap(err)
+		}
+
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
 			if err == io.EOF {
@@ -214,7 +241,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 
 		// write user message to both in-memory chain and persistent storage
 		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Content)
-		msgJson, err := json.Marshal(chatMessage{Role: openai.ChatMessageRoleUser, Content: wsIncoming.Content})
+		msgJson, err = json.Marshal(chatMessage{Role: openai.ChatMessageRoleUser, Content: wsIncoming.Content})
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -225,32 +252,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			Payload:        msgJson,
 			CreatedTime:    h.clock.Now().UTC(),
 		}); err != nil {
-			return trace.Wrap(err)
-		}
-
-		// query the assistant and fetch an answer
-		message, err := chat.Complete(r.Context(), 500)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// write assistant message to both in-memory chain and persistent storage
-		msgJson, err = json.Marshal(chatMessage{Role: message.Role, Content: message.Content})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		protoMsg := &proto.AssistantMessage{
-			ConversationId: conversationID,
-			Type:           kindChatTextMessage,
-			Payload:        msgJson,
-			CreatedTime:    h.clock.Now().UTC(),
-		}
-		if _, err := authClient.InsertAssistantMessage(r.Context(), protoMsg); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := ws.WriteJSON(protoMsg); err != nil {
 			return trace.Wrap(err)
 		}
 	}
