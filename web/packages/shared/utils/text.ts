@@ -14,23 +14,17 @@
  * limitations under the License.
  */
 
-import { pluralize } from './text';
+// If you ever need to pluralize a word which cannot be pluralized by appending 's', just add a
+// third optional argument which is the pluralized noun.
+// https://api.rubyonrails.org/v7.0.4.2/classes/ActionView/Helpers/TextHelper.html#method-i-pluralize
 
-export function getDurationText(hrs: number, mins: number, secs: number) {
-  if (!hrs && !mins) {
-    return `${secs} secs`;
+/**
+ * pluralize adds an 's' to the given word if num is bigger than 1.
+ */
+export function pluralize(num: number, word: string) {
+  if (num > 1) {
+    return `${word}s`;
   }
 
-  const hrText = pluralize(hrs, 'hr');
-  const minText = pluralize(mins, 'min');
-
-  if (!hrs) {
-    return `${mins} ${minText}`;
-  }
-
-  if (hrs && !mins) {
-    return `${hrs} ${hrText}`;
-  }
-
-  return `${hrs} ${hrText} and ${mins} ${minText}`;
+  return word;
 }
