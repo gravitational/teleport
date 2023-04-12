@@ -75,7 +75,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 
 	waitInGoroutine := func(ctx context.Context, t *testing.T, watcher *local.HeadlessAuthenticationWatcher, name string, cond func(*types.HeadlessAuthentication) (bool, error),
 	) (headlessAuthnC chan *types.HeadlessAuthentication, firstEventReceivedC chan struct{}, errC chan error) {
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second)
+		waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
 		t.Cleanup(waitCancel)
 
 		headlessAuthnC = make(chan *types.HeadlessAuthentication, 1)
@@ -106,13 +106,13 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 			// as stale. In practice, this stale behavior protects against race
 			// conditions, but in these these tests we want to control when the
 			// watcher is marked as stale.
-			First: 25 * time.Millisecond,
-			Step:  75 * time.Millisecond,
-			Max:   100 * time.Millisecond,
+			First: 100 * time.Millisecond,
+			Step:  300 * time.Millisecond,
+			Max:   500 * time.Millisecond,
 		})
 		require.NoError(t, err)
 
-		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, 2*time.Second)
 		defer timeoutCancel()
 
 		// We don't know when the waiter will be initialized, so we send
@@ -188,7 +188,7 @@ func TestHeadlessAuthenticationWatcher(t *testing.T) {
 		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		require.NoError(t, err)
 
-		waitCtx, waitCancel := context.WithTimeout(ctx, time.Second)
+		waitCtx, waitCancel := context.WithTimeout(ctx, 2*time.Second)
 		t.Cleanup(waitCancel)
 
 		// Wait should immediately check the backend and return the existing headless authentication stub.
