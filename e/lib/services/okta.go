@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/service"
@@ -108,6 +109,28 @@ func initOktaService(process *service.TeleportProcess) error {
 		log.Debugf("Okta service dependencies have started, continuing.")
 	}
 
+	// Create the authorizer.
+	clusterName := conn.ServerIdentity.ClusterName
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: eteleport.ComponentOkta,
+			Log:       log,
+			Client:    conn.Client,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// asyncEmitter makes sure that sessions do not block
 	// in case if connections are slow
 	asyncEmitter, err := process.NewAsyncEmitter(conn.Client)
@@ -117,8 +140,16 @@ func initOktaService(process *service.TeleportProcess) error {
 
 	proxyGetter := reversetunnel.NewConnectedProxyGetter()
 
+	tlsConfig, err := conn.ServerIdentity.TLSConfig(nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	oktaService, err := okta.New(ctx, okta.Config{
 		Log:             log,
+		TLSConfig:       tlsConfig,
+		Authorizer:      authorizer,
+		ClusterName:     clusterName,
 		Hostname:        process.Config.Hostname,
 		HostID:          process.Config.HostUUID,
 		RotationGetter:  process.GetRotation,
@@ -172,8 +203,6 @@ func initOktaService(process *service.TeleportProcess) error {
 	}
 
 	log.Info("Okta service has successfully started")
-
-	clusterName := conn.ServerIdentity.ClusterName
 
 	// Create and start an agent pool.
 	agentPool, err := reversetunnel.NewAgentPool(

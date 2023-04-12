@@ -19,8 +19,10 @@ package okta
 import (
 	"context"
 	"crypto"
+	"crypto/tls"
 	"encoding/base64"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -31,14 +33,19 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/time/rate"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/e/lib/teleport"
+	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
+	"github.com/gravitational/teleport/lib/srv/app"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ProxyGetter is an interface for retrieving proxy IDs.
@@ -53,6 +60,16 @@ type Config struct {
 
 	// Clock is the clock to use for this service.
 	Clock clockwork.Clock
+
+	// TLSConfig is the TLS configuration for the Okta service which handles
+	// HTTP redirects.
+	TLSConfig *tls.Config
+
+	// Authorizer is the authorizer for the Okta service.
+	Authorizer authz.Authorizer
+
+	// ClusterName is the name of the cluster.
+	ClusterName string
 
 	// Hostname is the hostname.
 	Hostname string
@@ -90,10 +107,19 @@ type Config struct {
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.Log == nil {
-		c.Log = logrus.WithField(trace.Component, teleport.ComponentOkta)
+		c.Log = logrus.WithField(trace.Component, eteleport.ComponentOkta)
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
+	}
+	if c.TLSConfig == nil {
+		return trace.BadParameter("TLS config is missing")
+	}
+	if c.Authorizer == nil {
+		return trace.BadParameter("authorizer is missing")
+	}
+	if c.ClusterName == "" {
+		return trace.BadParameter("cluster name is missing")
 	}
 	if c.Hostname == "" {
 		return trace.BadParameter("hostname is missing")
@@ -147,9 +173,12 @@ type oktaClient interface {
 
 // Service is the Okta service.
 type Service struct {
-	log   logrus.FieldLogger
-	clock clockwork.Clock
+	log        *logrus.Entry
+	clock      clockwork.Clock
+	tlsConfig  *tls.Config
+	authorizer authz.Authorizer
 
+	clusterName    string
 	hostname       string
 	hostID         string
 	rotationGetter services.RotationGetter
@@ -210,6 +239,8 @@ type Service struct {
 
 	stopChCloser sync.Once
 	stopCh       chan struct{}
+
+	httpServer *http.Server
 }
 
 // New will create a new Okta service.
@@ -250,6 +281,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 	s := &Service{
 		log:                  config.Log,
 		clock:                config.Clock,
+		authorizer:           config.Authorizer,
+		clusterName:          config.ClusterName,
 		hostname:             config.Hostname,
 		hostID:               config.HostID,
 		rotationGetter:       config.RotationGetter,
@@ -273,6 +306,15 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 		syncStoppedCh:        make(chan struct{}, 1),
 		stopCh:               make(chan struct{}, 1),
 	}
+	s.tlsConfig = app.CopyAndConfigureTLS(config.Log, s.accessPoint, config.TLSConfig)
+
+	authMiddleware := &auth.Middleware{
+		ClusterName:   s.clusterName,
+		AcceptedUsage: []string{teleport.UsageAppsOnly},
+		Handler:       s,
+	}
+	s.httpServer = &http.Server{Handler: httplib.MakeTracingHandler(authMiddleware, eteleport.ComponentOkta),
+		TLSConfig: s.tlsConfig}
 
 	return s, nil
 }
@@ -331,9 +373,107 @@ func (s *Service) Close(ctx context.Context) error {
 
 // HandleConnection handles connections for Okta applications.
 func (s *Service) HandleConnection(conn net.Conn) {
-	// TODO(mdwn): Handle connections for incoming application requests.
-	s.log.Warnf("Okta handle connection is not yet implemented, closing the incoming connection.")
-	if err := conn.Close(); err != nil {
-		s.log.Errorf("Error closing connection: %v", err)
+	closerConn := utils.NewCloserConn(conn)
+
+	tlsConn := tls.Server(closerConn, s.tlsConfig)
+	if err := tlsConn.Handshake(); err != nil {
+		// These are logged at debug because there are spurious errors
+		// produced by the health check.
+		s.log.Tracef("Error during TLS handshake: %v", err)
+		if closeErr := closerConn.Close(); closeErr != nil && !utils.IsUseOfClosedNetworkError(closeErr) {
+			s.log.Debugf("Error closing connection: %v", closeErr)
+		}
+		return
 	}
+
+	go func() {
+		if err := s.httpServer.Serve(&connListener{tlsConn}); err != nil && err != http.ErrServerClosed {
+			s.log.Errorf("Error serving HTTP: %s", err)
+		}
+	}()
+
+	closerConn.Wait()
 }
+
+// ServeHTTP performs the necessary redirects to Okta applications.
+func (s *Service) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Connection", "close")
+
+	app, err := s.authorize(r.Context())
+	if err != nil {
+		code := trace.ErrorToCode(err)
+		http.Error(w, http.StatusText(code), code)
+		return
+	}
+
+	http.Redirect(w, r, app.GetURI(), http.StatusFound)
+}
+
+// authorizeContext will check if the context carries identity information and
+// checks if the user has access to the application.
+func (s *Service) authorize(ctx context.Context) (types.Application, error) {
+	// Extract authorizing context and identity of the user from the request.
+	authContext, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, utils.OpaqueAccessDenied(err)
+	}
+
+	user := authContext.Identity
+
+	switch user.(type) {
+	case authz.LocalUser, authz.RemoteUser:
+	default:
+		return nil, utils.OpaqueAccessDenied(trace.BadParameter("invalid identity: %T", user))
+	}
+
+	publicAddr := user.GetIdentity().RouteToApp.PublicAddr
+
+	app, err := s.getApp(publicAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authPref, err := s.accessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	state := authContext.GetAccessState(authPref)
+	err = authContext.Checker.CheckAccess(
+		app,
+		state)
+	if err != nil {
+		return nil, utils.OpaqueAccessDenied(err)
+	}
+
+	return app, nil
+}
+
+// getApp will return the application with the given public address from the
+// list of known applications.
+func (s *Service) getApp(publicAddr string) (types.Application, error) {
+	s.appsMu.RLock()
+	var foundApp types.Application
+	for _, app := range s.apps {
+		if app.GetPublicAddr() == publicAddr {
+			foundApp = app.Copy()
+			break
+		}
+	}
+	s.appsMu.RUnlock()
+
+	if foundApp == nil {
+		return nil, trace.NotFound("couldn't find app with public address %s", publicAddr)
+	}
+
+	return foundApp, nil
+}
+
+// connListener is a simple connection listener for serving HTTP requests.
+type connListener struct {
+	conn net.Conn
+}
+
+func (c *connListener) Accept() (net.Conn, error) { return c.conn, nil }
+func (c *connListener) Close() error              { return nil }
+func (c *connListener) Addr() net.Addr            { return c.conn.LocalAddr() }

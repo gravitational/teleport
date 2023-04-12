@@ -18,8 +18,11 @@ package okta
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509/pkix"
 	"io"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -28,12 +31,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -75,6 +83,8 @@ func (*testAccessPoint) GenerateCertAuthorityCRL(context.Context, types.CertAuth
 
 // newTestAccessPoint will create a memory backed test access point for the Okta service.
 func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
+	ctx := context.Background()
+
 	backend, err := memory.New(memory.Config{
 		Clock: clock,
 	})
@@ -82,9 +92,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 
 	streamer := events.NewDiscardEmitter()
 
-	// TODO(mdwn): Remove the app service once the Okta cache changes have been
-	// checked in.
-	apps := local.NewAppService(backend)
+	access := local.NewAccessService(backend)
 	ca := local.NewCAService(backend)
 	clusterConfiguration, err := local.NewClusterConfigurationService(backend)
 	require.NoError(t, err)
@@ -106,10 +114,12 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	require.NoError(t, err)
 	require.NoError(t, clusterConfiguration.SetClusterName(clusterName))
 
+	require.NoError(t, clusterConfiguration.SetAuthPreference(ctx, types.DefaultAuthPreference()))
+
 	client := &testAccessPoint{
 		Streamer:              streamer,
 		Closer:                io.NopCloser(nil),
-		Apps:                  apps,
+		Access:                access,
 		ClusterConfiguration:  clusterConfiguration,
 		ConnectionsDiagnostic: connectionsDiagnostic,
 		DatabaseServices:      databaseServices,
@@ -139,7 +149,24 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 	client := &testOktaClient{
 		oktaOrgURL: testOrgURL,
 	}
+	services.NewLockWatcher(ctx, services.LockWatcherConfig{})
+	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentOkta,
+			Client:    ap,
+		},
+	})
+	require.NoError(t, err)
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: testClusterName,
+		AccessPoint: ap,
+		LockWatcher: lockWatcher,
+	})
+	require.NoError(t, err)
 	svc, err := newWithClientCreator(ctx, Config{
+		TLSConfig:       generateTestTLSConfig(t, testHostID, nil),
+		Authorizer:      authorizer,
+		ClusterName:     testClusterName,
 		Hostname:        testHostname,
 		HostID:          testHostID,
 		RotationGetter:  func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
@@ -153,6 +180,9 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 		return client, nil
 	})
 	require.NoError(t, err)
+
+	// Skip client cert verification for tests.
+	svc.tlsConfig.ClientAuth = tls.RequireAnyClientCert
 
 	proxyServer, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
@@ -190,4 +220,35 @@ func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error)
 
 func (t *testOktaClient) orgURL() string {
 	return t.oktaOrgURL
+}
+
+// generateTestTLSConfig will generate a TLS config for testing.
+func generateTestTLSConfig(t *testing.T, name string, roles []string, extensions ...pkix.AttributeTypeAndValue) *tls.Config {
+	keyPEM, certPEM, err := utils.GenerateSelfSignedSigningCert(pkix.Name{
+		Organization: roles,
+		CommonName:   name,
+		ExtraNames: append([]pkix.AttributeTypeAndValue{
+			{
+				Type:  tlsca.TeleportClusterASN1ExtensionOID,
+				Value: testClusterName,
+			},
+		}, extensions...),
+	}, nil, 10*365*24*time.Hour)
+	require.NoError(t, err)
+
+	key, err := utils.ParsePrivateKeyPEM(keyPEM)
+	require.NoError(t, err)
+	cert, err := tlsutils.ParseCertificatePEM(certPEM)
+	require.NoError(t, err)
+
+	tlsCert := tls.Certificate{
+		PrivateKey:  key,
+		Certificate: [][]byte{cert.Raw},
+	}
+
+	return &tls.Config{
+		Certificates:       []tls.Certificate{tlsCert},
+		ServerName:         name,
+		InsecureSkipVerify: true,
+	}
 }

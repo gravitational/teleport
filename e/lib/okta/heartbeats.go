@@ -81,18 +81,13 @@ func (s *Service) getServerInfoFunc(name string) func() (types.Resource, error) 
 
 func (s *Service) getServerInfo(name string) (types.Resource, error) {
 	// check for app in memory
-	s.appsMu.Lock()
+	s.appsMu.RLock()
 	originalApp, ok := s.apps[name]
 	if !ok {
 		return nil, trace.NotFound("unable to find app %s", name)
 	}
 	app := originalApp.Copy()
-	s.appsMu.Unlock()
-
-	rotation, err := s.rotationGetter(types.RoleOkta)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	s.appsMu.RUnlock()
 
 	expires := s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	appServer, err := types.NewAppServerV3(
@@ -106,10 +101,25 @@ func (s *Service) getServerInfo(name string) (types.Resource, error) {
 			Version:  teleport.Version,
 			Hostname: s.hostname,
 			HostID:   s.hostID,
-			Rotation: *rotation,
+			Rotation: s.getRotationState(),
 			App:      app,
 			ProxyIDs: s.proxyGetter.GetProxyIDs(),
 		},
 	)
+	if err != nil {
+		s.log.Errorf("Error getting server info: %v", err)
+	}
 	return appServer, trace.Wrap(err)
+}
+
+// getRotationState is a helper to return this server's CA rotation state.
+func (s *Service) getRotationState() types.Rotation {
+	rotation, err := s.rotationGetter(types.RoleOkta)
+	if err != nil && !trace.IsNotFound(err) {
+		s.log.WithError(err).Warn("Failed to get rotation state.")
+	}
+	if rotation != nil {
+		return *rotation
+	}
+	return types.Rotation{}
 }
