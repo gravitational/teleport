@@ -86,14 +86,14 @@ func TestAccessOpenSearch(t *testing.T) {
 			err:          true,
 		},
 		{
-			desc:         "access allowed to specific user/database",
+			desc:         "access allowed to specific user",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "alice",
 		},
 		{
-			desc:         "access denied to specific user/database",
+			desc:         "access denied to specific user",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{"alice"},

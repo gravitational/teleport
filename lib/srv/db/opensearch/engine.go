@@ -150,6 +150,11 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	//  Consider rewriting to support HTTP2 clients.
 	//  Ideally we should have shared middleware for DB clients using HTTP, instead of separate per-engine implementations.
 
+	tr, err := e.getTransport(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	clientConnReader := bufio.NewReader(e.clientConn)
 	for {
 		req, err := http.ReadRequest(clientConnReader)
@@ -157,7 +162,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, signer, req); err != nil {
+		if err := e.process(ctx, tr, signer, req); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -165,7 +170,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, signer *libaws.SigningService, req *http.Request) error {
+func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request) error {
 	reqCopy, err := e.rewriteRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -174,11 +179,6 @@ func (e *Engine) process(ctx context.Context, signer *libaws.SigningService, req
 	e.emitAuditEvent(reqCopy)
 
 	signedReq, err := e.getSignedRequest(signer, reqCopy)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	tr, err := e.getTransport(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -274,7 +274,7 @@ func (e *Engine) emitAuditEvent(req *http.Request) {
 		Body:             body,
 	}
 
-	e.Audit.EmitEvent(req.Context(), ev)
+	e.Audit.EmitEvent(e.Context, ev)
 }
 
 // sendResponse sends the response back to the OpenSearch client.
