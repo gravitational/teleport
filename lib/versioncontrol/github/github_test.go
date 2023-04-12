@@ -307,6 +307,14 @@ func TestLabelParse(t *testing.T) {
 			desc: "normalize caps and spaces",
 		},
 		{
+			notes: "labels: security-patch=yes, security-patch-alts=v1.2.3|v1.2.4",
+			expect: map[string]string{
+				vc.LabelSecurityPatch:     "yes",
+				vc.LabelSecurityPatchAlts: "v1.2.3|v1.2.4",
+			},
+			desc: "real-world label set",
+		},
+		{
 			notes: "labels: hello=world, greeting='Hey there! how are you?', , count=7",
 			expect: map[string]string{
 				"hello": "world",
