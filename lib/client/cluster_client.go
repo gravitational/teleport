@@ -34,17 +34,13 @@ type ClusterClient struct {
 	ProxyClient *proxyclient.Client
 	AuthClient  auth.ClientI
 	Tracer      oteltrace.Tracer
+	cluster     string
 }
 
 // ClusterName returns the name of the cluster that the client
 // is connected to.
 func (c *ClusterClient) ClusterName() string {
-	cluster := c.ProxyClient.ClusterName()
-	if len(c.tc.JumpHosts) > 0 && cluster != "" {
-		return cluster
-	}
-
-	return c.tc.SiteName
+	return c.cluster
 }
 
 // Close terminates the connections to Auth and Proxy.

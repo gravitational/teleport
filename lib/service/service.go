@@ -124,6 +124,7 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
+	uw "github.com/gravitational/teleport/lib/versioncontrol/upgradewindow"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -962,6 +963,34 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	})
 
+	// if an external upgrader is defined, we need to set up an appropriate upgrade window exporter.
+	if upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER"); upgraderKind != "" {
+		if process.Config.Auth.Enabled || process.Config.Proxy.Enabled {
+			process.log.Warnf("Use of external upgraders on control-plane instances is not recommended.")
+		}
+
+		driver, err := uw.NewDriver(upgraderKind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		exporter, err := uw.NewExporter(uw.ExporterConfig[inventory.DownstreamSender]{
+			Driver:                   driver,
+			ExportFunc:               process.exportUpgradeWindows,
+			AuthConnectivitySentinel: process.inventoryHandle.Sender(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		process.RegisterCriticalFunc("upgradeewindow.export", exporter.Run)
+		process.OnExit("upgradewindow.export.stop", func(_ interface{}) {
+			exporter.Close()
+		})
+
+		process.log.Infof("Configured upgrade window exporter for external upgrader. kind=%s", upgraderKind)
+	}
+
 	serviceStarted := false
 
 	if !cfg.DiagnosticAddr.IsEmpty() {
@@ -1226,6 +1255,20 @@ func (process *TeleportProcess) makeInventoryControlStream(ctx context.Context) 
 		return nil, trace.Errorf("instance client not yet initialized")
 	}
 	return clt.InventoryControlStream(ctx)
+}
+
+// exportUpgradeWindow is a helper for calling ExportUpgradeWindows either on the local in-memory auth server, or via the instance client, depending on
+// which is available.
+func (process *TeleportProcess) exportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
+	if auth := process.getLocalAuth(); auth != nil {
+		return auth.ExportUpgradeWindows(ctx, req)
+	}
+
+	clt := process.getInstanceClient()
+	if clt == nil {
+		return proto.ExportUpgradeWindowsResponse{}, trace.Errorf("instance client not yet initialized")
+	}
+	return clt.ExportUpgradeWindows(ctx, req)
 }
 
 // adminCreds returns admin UID and GID settings based on the OS
@@ -2947,7 +2990,7 @@ func (process *TeleportProcess) getAdditionalPrincipals(role types.SystemRole) (
 			utils.NetAddr{Addr: reversetunnel.LocalKubernetes},
 		)
 		addrs = append(addrs, process.Config.Kube.PublicAddrs...)
-	case types.RoleApp:
+	case types.RoleApp, types.RoleOkta:
 		principals = append(principals, process.Config.HostUUID)
 	case types.RoleWindowsDesktop:
 		addrs = append(addrs,

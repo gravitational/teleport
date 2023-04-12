@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-} from 'react';
-import { makeEmptyAttempt, mapAttempt, useAsync } from 'shared/hooks/useAsync';
+  makeEmptyAttempt,
+  makeSuccessAttempt,
+  mapAttempt,
+  useAsync,
+} from 'shared/hooks/useAsync';
 import { debounce } from 'shared/utils/highbar';
 
 import {
@@ -37,25 +36,15 @@ import { useSearchContext } from 'teleterm/ui/Search/SearchContext';
 export function useSearchAttempts() {
   const searchLogger = useRef(new Logger('search'));
   const ctx = useAppContext();
+  // Both states are used by mapToActions.
+  ctx.workspacesService.useState();
+  ctx.clustersService.useState();
   const searchContext = useSearchContext();
   const { inputValue, filters } = searchContext;
 
   const [resourceSearchAttempt, runResourceSearch, setResourceSearchAttempt] =
     useAsync(useResourceSearch());
-  const [filterSearchAttempt, runFilterSearch, setFilterSearchAttempt] =
-    useAsync(useFilterSearch());
-
   const runResourceSearchDebounced = useDebounce(runResourceSearch, 200);
-
-  // Both states are used by mapToActions.
-  ctx.workspacesService.useState();
-  ctx.clustersService.useState();
-
-  const resetAttempts = useCallback(() => {
-    setResourceSearchAttempt(makeEmptyAttempt());
-    setFilterSearchAttempt(makeEmptyAttempt());
-  }, [setResourceSearchAttempt, setFilterSearchAttempt]);
-
   const resourceActionsAttempt = useMemo(
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) => {
@@ -67,35 +56,34 @@ export function useSearchAttempts() {
     [ctx, resourceSearchAttempt, searchContext]
   );
 
-  const filterActionsAttempt = useMemo(
-    () =>
-      mapAttempt(filterSearchAttempt, ({ results }) =>
-        // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
-        mapToActions(ctx, searchContext, results)
-      ),
-    [ctx, filterSearchAttempt, searchContext]
-  );
+  const runFilterSearch = useFilterSearch();
+  const filterActionsAttempt = useMemo(() => {
+    // TODO(gzdunek): filters are sorted inline, should be done here to align with resource search
+    const filterSearchResults = runFilterSearch(inputValue, filters);
+    const filterActions = mapToActions(ctx, searchContext, filterSearchResults);
+
+    return makeSuccessAttempt(filterActions);
+  }, [runFilterSearch, inputValue, filters, ctx, searchContext]);
 
   useEffect(() => {
-    // Reset both attempts as soon as the input changes. If we didn't do that, then the resource
-    // search attempt would only get updated on debounce. This could lead to the following scenario:
+    // Reset the resource search attempt as soon as the input changes. If we didn't do that, then
+    // the attempt would only get updated on debounce. This could lead to the following scenario:
     //
     // 1. You type in `foo`, wait for the results to show up.
     // 2. You clear the input and quickly type in `bar`.
     // 3. Now you see the stale results for `foo`, because the debounce didn't kick in yet.
-    resetAttempts();
+    setResourceSearchAttempt(makeEmptyAttempt());
 
-    runFilterSearch(inputValue, filters);
     runResourceSearchDebounced(inputValue, filters);
   }, [
     inputValue,
     filters,
-    resetAttempts,
+    setResourceSearchAttempt,
     runFilterSearch,
     runResourceSearchDebounced,
   ]);
 
-  return [filterActionsAttempt, resourceActionsAttempt];
+  return { filterActionsAttempt, resourceActionsAttempt };
 }
 
 function useDebounce<Args extends unknown[], ReturnValue>(

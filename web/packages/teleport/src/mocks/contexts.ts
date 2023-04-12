@@ -60,6 +60,7 @@ const allAccessAcl: Acl = {
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,
+  integrations: fullAccess,
   deviceTrust: fullAccess,
 };
 
