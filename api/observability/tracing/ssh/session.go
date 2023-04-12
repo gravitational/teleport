@@ -204,7 +204,7 @@ func (s *Session) WindowChange(ctx context.Context, h, w int) error {
 	return trace.Wrap(s.Session.WindowChange(h, w))
 }
 
-func (s *Session) ApproveFileTransfer(ctx context.Context, req FileTransferResponseReq) error {
+func (s *Session) FileTransferRespond(ctx context.Context, req FileTransferResponseReq) error {
 	const request = "file-transfer-request-response"
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(

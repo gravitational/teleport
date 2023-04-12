@@ -191,10 +191,13 @@ class Tty extends EventEmitterWebAuthnSender {
   _processAuditPayload(payload) {
     const event = JSON.parse(payload);
     if (event.event === EventType.FILE_TRANSFER_REQUEST) {
-      this.emit(TermEvent.FILE_TRANSFER_REQUEST, event);
+      this.emit(EventType.FILE_TRANSFER_REQUEST, event);
     }
-    if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVED) {
-      this.emit(TermEvent.FILE_TRANSFER_APPROVED, event);
+    if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVE) {
+      this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event);
+    }
+    if (event.event === EventType.FILE_TRANSFER_REQUEST_DENY) {
+      this.emit(EventType.FILE_TRANSFER_REQUEST_DENY, event);
     }
     if (event.event === EventType.RESIZE) {
       let [w, h] = event.size.split(':');

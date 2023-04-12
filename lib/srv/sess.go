@@ -393,11 +393,6 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	}
 
 	incomingShellCmd := string(scx.sshRequest.Payload[4:])
-	fmt.Println("-----")
-	fmt.Printf("incomingShellCmd: %+v\n", scx.sshRequest.Payload)
-	fmt.Printf("incomingShellCmd: %+v\n", incomingShellCmd)
-	fmt.Printf("req: %+v\n", req.shellCmd)
-	fmt.Println("-----")
 	if incomingShellCmd != req.shellCmd {
 		return false, trace.AccessDenied("Incoming request does not match the approved request")
 	}
@@ -405,17 +400,25 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 	return sess.checkIfFileTransferApproved(req)
 }
 
-func (s *SessionRegistry) NotifyFileTransferApproved(req *fileTransferRequest, scx *ServerContext) error {
+type FileTransferRequestEvent string
+
+const (
+	FileTransferUpdate   FileTransferRequestEvent = "file_transfer_request"
+	FileTransferApproved FileTransferRequestEvent = "file_transfer_request_approve"
+	FileTransferDenied   FileTransferRequestEvent = "file_transfer_request_deny"
+)
+
+func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, res FileTransferRequestEvent, scx *ServerContext) error {
 	session := scx.getSession()
 	if session == nil {
-		s.log.Debug("Unable to notify file transfer approval, no session found in context.")
+		s.log.Debug("Unable to notify %s, no session found in context.", res)
 		return nil
 	}
 	sid := session.id
 
-	fileTransferApprovedEvent := &apievents.FileTransferRequestEvent{
+	fileTransferEvent := &apievents.FileTransferRequestEvent{
 		Metadata: apievents.Metadata{
-			Type:        events.FileTransferRequestApprovedEvent,
+			Type:        string(res),
 			ClusterName: scx.ClusterName,
 		},
 		SessionMetadata: apievents.SessionMetadata{
@@ -430,65 +433,23 @@ func (s *SessionRegistry) NotifyFileTransferApproved(req *fileTransferRequest, s
 	}
 
 	for _, approver := range req.approvers {
-		fileTransferApprovedEvent.Approvers = append(fileTransferApprovedEvent.Approvers, approver.user)
+		fileTransferEvent.Approvers = append(fileTransferEvent.Approvers, approver.user)
 	}
 
-	eventPayload, err := json.Marshal(fileTransferApprovedEvent)
+	eventPayload, err := json.Marshal(fileTransferEvent)
 	for _, p := range session.parties {
 		if err != nil {
-			s.log.Warnf("Unable to marshal file transfer approved event for %v: %v.", p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to marshal %s event for %v: %v.", res, p.sconn.RemoteAddr(), err)
 			continue
 		}
 
 		// Send the message as a global request.
 		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
 		if err != nil {
-			s.log.Warnf("Unable to send file transfer approved event to %v: %v.", p.sconn.RemoteAddr(), err)
+			s.log.Warnf("Unable to send %s event to %v: %v.", res, p.sconn.RemoteAddr(), err)
 			continue
 		}
-		s.log.Debugf("Sent file transfer approved event to %v.", p.sconn.RemoteAddr())
-	}
-
-	return nil
-}
-
-func (s *SessionRegistry) NotifyFileTransferRequest(ctx context.Context, req *fileTransferRequest, scx *ServerContext) error {
-	session := scx.getSession()
-	if session == nil {
-		s.log.Debug("Unable to create file transfer Request, no session found in context.")
-		return nil
-	}
-	sid := session.id
-
-	fileTransferRequestEvent := &apievents.FileTransferRequestEvent{
-		Metadata: apievents.Metadata{
-			Type:        events.FileTransferRequestEvent,
-			ClusterName: scx.ClusterName,
-		},
-		SessionMetadata: apievents.SessionMetadata{
-			SessionID: string(sid),
-		},
-		RequestID: req.id,
-		Requester: req.requester,
-		Location:  req.location,
-		Direction: req.direction,
-		ShellCmd:  req.shellCmd,
-		Approvers: make([]string, 0),
-	}
-
-	eventPayload, err := json.Marshal(fileTransferRequestEvent)
-	if err != nil {
-		s.log.Warnf("Unable to marshal file transfer request event")
-	}
-
-	for _, p := range session.getParties() {
-		// Send the message as a global request.
-		_, _, err = p.sconn.SendRequest(teleport.SessionEvent, false, eventPayload)
-		if err != nil {
-			s.log.Warnf("Unable to send file transfer request event to %v: %v.", p.sconn.RemoteAddr(), err)
-			continue
-		}
-		s.log.Debugf("Sent file transfer request event to %v.", p.sconn.RemoteAddr())
+		s.log.Debugf("Sent %s event to %v.", res, p.sconn.RemoteAddr())
 	}
 
 	return nil
@@ -1649,6 +1610,29 @@ func (s *session) newFileTransferRequest(params *rsession.FileTransferParams) *f
 	}
 }
 
+func (s *session) denyFileTransferRequest(params *rsession.FileTransferParams, scx *ServerContext) (*fileTransferRequest, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fileTransferReq := s.fileTransferRequests[params.RequestID]
+	if fileTransferReq == nil {
+		return nil, trace.NotFound("File Transfer Request %s not found", params.RequestID)
+	}
+	var denier *party
+	for _, p := range s.parties {
+		if p.ctx.ID() == scx.ID() {
+			denier = p
+		}
+	}
+	if denier == nil {
+		return nil, trace.AccessDenied("Cannot deny file transfer requests if not in the current moderated session")
+	}
+
+	delete(s.fileTransferRequests, fileTransferReq.id)
+	s.BroadcastMessage("%s denied file transfer request %s", scx.Identity.TeleportUser, fileTransferReq.id)
+	s.registry.NotifyFileTransferRequest(fileTransferReq, FileTransferDenied, scx)
+	return fileTransferReq, nil
+}
+
 func (s *session) approveFileTransferRequest(params *rsession.FileTransferParams, scx *ServerContext) (*fileTransferRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1676,9 +1660,14 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferParams
 		return nil, trace.Wrap(err)
 	}
 
+	var eventType FileTransferRequestEvent
 	if approved {
-		s.registry.NotifyFileTransferApproved(fileTransferReq, scx)
+		eventType = FileTransferApproved
+	} else {
+		eventType = FileTransferUpdate
 	}
+
+	s.registry.NotifyFileTransferRequest(fileTransferReq, eventType, scx)
 
 	return fileTransferReq, nil
 }

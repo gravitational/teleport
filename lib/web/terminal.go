@@ -880,12 +880,8 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileT
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferC:
-			if transferRequest.Response {
-				t.sshSession.ApproveFileTransfer(t.terminalContext, tracessh.FileTransferResponseReq{
-					RequestID: transferRequest.RequestID,
-					Approved:  transferRequest.Approved,
-				})
-			} else {
+			// if not response, this is a new file transfer request
+			if !transferRequest.Response {
 				shellCmd, err := t.getRemoteShellCmd(transferRequest)
 				if err != nil {
 					t.log.Error(err)
@@ -896,7 +892,12 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileT
 					Location:  transferRequest.Location,
 					ShellCmd:  shellCmd,
 				}, shellCmd)
-
+			} else {
+				// if response exists, this contains an Approved bool and we handle accordingly
+				t.sshSession.FileTransferRespond(t.terminalContext, tracessh.FileTransferResponseReq{
+					RequestID: transferRequest.RequestID,
+					Approved:  transferRequest.Approved,
+				})
 			}
 		}
 	}
@@ -1180,7 +1181,6 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 
 		return 0, trace.Wrap(err)
 	}
-
 	if ty != websocket.BinaryMessage {
 		return 0, trace.BadParameter("expected binary message, got %v", ty)
 	}

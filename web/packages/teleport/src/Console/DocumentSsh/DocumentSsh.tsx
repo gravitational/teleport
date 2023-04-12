@@ -43,7 +43,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
     status,
     closeDocument,
     session,
-    approveFileTransferRequest,
+    fileTransferRequestResponse,
     webauthn,
     upload,
     download,
@@ -83,8 +83,8 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
         <FileTransferContainer>
           {fileTransferRequests.length > 0 && (
             <FileTransferRequests
-              onDeny={approveFileTransferRequest}
-              onApprove={approveFileTransferRequest}
+              onDeny={fileTransferRequestResponse}
+              onApprove={fileTransferRequestResponse}
               requests={fileTransferRequests}
             />
           )}

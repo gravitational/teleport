@@ -141,7 +141,11 @@ func (t *TermHandlers) HandleFileTransferResponseRequest(ctx context.Context, ch
 		return nil
 	}
 
-	session.approveFileTransferRequest(params, scx)
+	if params.Approved {
+		session.approveFileTransferRequest(params, scx)
+	} else {
+		session.denyFileTransferRequest(params, scx)
+	}
 	return nil
 }
 
@@ -162,7 +166,7 @@ func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Cha
 	}
 
 	ftReq := session.addFileTransferRequest(params, scx)
-	t.SessionRegistry.NotifyFileTransferRequest(ctx, ftReq, scx)
+	t.SessionRegistry.NotifyFileTransferRequest(ftReq, FileTransferUpdate, scx)
 
 	return nil
 }

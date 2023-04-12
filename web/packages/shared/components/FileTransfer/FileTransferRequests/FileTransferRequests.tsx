@@ -3,6 +3,24 @@ import styled from 'styled-components';
 import { ButtonBorder, Box, Flex, Text } from 'design';
 import * as Icons from 'design/Icon';
 
+const OwnForm = ({ request, onCancel }: OwnFormProps) => {
+  return (
+    <Box mt={3} key={request.requestId}>
+      <Flex alignItems="middle" justifyContent="space-between">
+        <Text
+          style={{
+            wordBreak: 'break-word',
+          }}
+          mb={2}
+        >{`Pending ${request.direction}: ${request.location}`}</Text>
+
+        <ButtonBorder onClick={() => onCancel(request.requestId, false)}>
+          <Icons.Cross fontSize="16px" />
+        </ButtonBorder>
+      </Flex>
+    </Box>
+  );
+};
 const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
   return (
     <Box mt={3} key={request.requestId}>
@@ -32,6 +50,11 @@ type RequestFormProps = {
   onDeny: (string, bool) => void;
 };
 
+type OwnFormProps = {
+  request: FileTransferRequest;
+  onCancel: (string, bool) => void;
+};
+
 export const FileTransferRequests = (props: FileTransferRequestsProps) => {
   const { requests } = props;
 
@@ -43,13 +66,13 @@ export const FileTransferRequests = (props: FileTransferRequestsProps) => {
         </Text>
       </Flex>
       {requests.map(request =>
-        request.isOwnRequest ? null : (
-          // <ResponseForm
-          //   key={request.requestId}
-          //   request={request}
-          //   onApprove={props.onApprove}
-          //   onDeny={props.onDeny}
-          // />
+        request.isOwnRequest ? (
+          <OwnForm
+            key={request.requestId}
+            request={request}
+            onCancel={props.onDeny}
+          />
+        ) : (
           <ResponseForm
             key={request.requestId}
             request={request}

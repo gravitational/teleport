@@ -19,7 +19,7 @@ import React from 'react';
 import { context, trace } from '@opentelemetry/api';
 
 import cfg from 'teleport/config';
-import { TermEvent } from 'teleport/lib/term/enums';
+import { EventType, TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
@@ -52,6 +52,7 @@ export default function useSshSession(doc: DocumentSsh) {
     getMfaResponseAttempt,
     fileTransferRequests,
     handleFileTransferApproval,
+    handleFileTransferDenied,
     filesStore,
     updateFileTransferRequests,
   } = useFileTransfer({
@@ -64,7 +65,7 @@ export default function useSshSession(doc: DocumentSsh) {
     ctx.closeTab(doc);
   }
 
-  function approveFileTransferRequest(requestId: string, approve: boolean) {
+  function fileTransferRequestResponse(requestId: string, approve: boolean) {
     tty.approveFileTransferRequest(requestId, approve);
   }
 
@@ -87,7 +88,6 @@ export default function useSshSession(doc: DocumentSsh) {
 
           tty.on(TermEvent.SESSION, payload => {
             const data = JSON.parse(payload);
-            console.log('data', data);
             data.session.kind = 'ssh';
             data.session.resourceName = data.session.server_hostname;
             setSession({
@@ -97,8 +97,15 @@ export default function useSshSession(doc: DocumentSsh) {
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
-          tty.on(TermEvent.FILE_TRANSFER_REQUEST, updateFileTransferRequests);
-          tty.on(TermEvent.FILE_TRANSFER_APPROVED, handleFileTransferApproval);
+          tty.on(EventType.FILE_TRANSFER_REQUEST, updateFileTransferRequests);
+          tty.on(
+            EventType.FILE_TRANSFER_REQUEST_APPROVE,
+            handleFileTransferApproval
+          );
+          tty.on(
+            EventType.FILE_TRANSFER_REQUEST_DENY,
+            handleFileTransferDenied
+          );
 
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
@@ -135,7 +142,7 @@ export default function useSshSession(doc: DocumentSsh) {
     status,
     session,
     fileTransferRequests,
-    approveFileTransferRequest,
+    fileTransferRequestResponse,
     closeDocument,
     webauthn,
     download,

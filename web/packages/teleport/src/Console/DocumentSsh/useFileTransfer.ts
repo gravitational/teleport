@@ -22,27 +22,28 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
       ...data,
       isOwnRequest: user?.username === data.requester,
     };
-    // We receive the same data type when a file transfer request is created and
-    // when an approve event happens. Check if we already have this request in our list. If not
-    // in our list, we add it
-    const foundRequest = fileTransferRequests.find(
-      ft => ft.requestId === newFileTransferRequest.requestId
-    );
-    if (!foundRequest) {
-      return setFileTransferRequests(prevstate => [
-        ...prevstate,
-        newFileTransferRequest,
-      ]);
-    }
+    return setFileTransferRequests(prevstate => {
+      // We receive the same data type when a file transfer request is created and
+      // when an update event happens. Check if we already have this request in our list. If not
+      // in our list, we add it
+      const foundRequest = prevstate.find(
+        ft => ft.requestId === newFileTransferRequest.requestId
+      );
+      if (!foundRequest) {
+        return [...prevstate, newFileTransferRequest];
+      } else {
+        return prevstate.map(ft => {
+          if (ft.requestId === newFileTransferRequest.requestId) {
+            return newFileTransferRequest;
+          }
+          return ft;
+        });
+      }
+    });
+  }
 
-    setFileTransferRequests(prevstate =>
-      prevstate.map(ft => {
-        if (ft.requestId === newFileTransferRequest.requestId) {
-          return newFileTransferRequest;
-        }
-        return ft;
-      })
-    );
+  function handleFileTransferDenied(request: FileTransferRequest) {
+    removeFileTransferRequest(request.requestId);
   }
 
   function handleFileTransferApproval(request: FileTransferRequest) {
@@ -125,6 +126,7 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
     getMfaResponseAttempt,
     updateFileTransferRequests,
     handleFileTransferApproval,
+    handleFileTransferDenied,
     filesStore,
   };
 };

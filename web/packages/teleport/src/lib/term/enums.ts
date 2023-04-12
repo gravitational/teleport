@@ -22,7 +22,8 @@ export enum EventType {
   RESIZE = 'resize',
   FILE_TRANSFER_REQUEST = 'file_transfer_request',
   FILE_TRANSFER_REQUEST_RESPONSE = 'file_transfer_request_response',
-  FILE_TRANSFER_REQUEST_APPROVED = 'file_transfer_request_approved',
+  FILE_TRANSFER_REQUEST_APPROVE = 'file_transfer_request_approve',
+  FILE_TRANSFER_REQUEST_DENY = 'file_transfer_request_deny',
 }
 
 export enum TermEvent {
@@ -33,8 +34,6 @@ export enum TermEvent {
   DATA = 'terminal.data',
   CONN_CLOSE = 'connection.close',
   WEBAUTHN_CHALLENGE = 'terminal.webauthn',
-  FILE_TRANSFER_REQUEST = 'terminal.file_transfer_request',
-  FILE_TRANSFER_APPROVED = 'terminal.file_transfer_approved',
 }
 
 // Websocket connection close codes.
