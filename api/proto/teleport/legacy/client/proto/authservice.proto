@@ -2943,4 +2943,10 @@ service AuthService {
 
   // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
   rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
+
+  // CreatePlugin creates a plugin resource.
+  rpc CreatePlugin(types.PluginV1) returns (google.protobuf.Empty);
+
+  // DeletePlugins deletes a plugin resource.
+  rpc DeletePlugin(types.ResourceRequest) returns (google.protobuf.Empty);
 }

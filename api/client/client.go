@@ -3630,3 +3630,44 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	}
 	return headlessAuthn, nil
 }
+
+func (c *Client) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
+	p, ok := plugin.(*types.PluginV1)
+	if !ok {
+		return trace.BadParameter("unknown plugin type")
+	}
+	_, err := c.grpc.CreatePlugin(ctx, p, c.callOpts...)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}
+
+func (c *Client) DeleteAllPlugins(ctx context.Context) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) DeletePlugin(ctx context.Context, name string) error {
+	_, err := c.grpc.DeletePlugin(ctx, &types.ResourceRequest{Name: name})
+	return trace.Wrap(err)
+}
+
+func (c *Client) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
+	return nil, trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
+	return nil, "", trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
+	return trace.NotImplemented(notImplementedMessage)
+}
+
+func (c *Client) SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error {
+	return trace.NotImplemented(notImplementedMessage)
+}

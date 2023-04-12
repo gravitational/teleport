@@ -137,6 +137,9 @@ type InitConfig struct {
 	// Databases is a service that manages database resources.
 	Databases services.Databases
 
+	// Plugins is a service that manages plugin resources.
+	Plugins services.Plugins
+
 	// DatabaseServices is a service that manages DatabaseService resources.
 	DatabaseServices services.DatabaseServices
 

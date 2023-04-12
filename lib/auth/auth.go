@@ -162,6 +162,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.DatabaseServices == nil {
 		cfg.DatabaseServices = local.NewDatabaseServicesService(cfg.Backend)
 	}
+	if cfg.Plugins == nil {
+		cfg.Plugins = local.NewPluginsService(cfg.Backend)
+	}
 	if cfg.Kubernetes == nil {
 		cfg.Kubernetes = local.NewKubernetesService(cfg.Backend)
 	}
@@ -266,6 +269,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Kubernetes:              cfg.Kubernetes,
 		Databases:               cfg.Databases,
 		DatabaseServices:        cfg.DatabaseServices,
+		Plugins:                 cfg.Plugins,
 		AuditLogSessionStreamer: cfg.AuditLog,
 		Events:                  cfg.Events,
 		WindowsDesktops:         cfg.WindowsDesktops,
@@ -370,6 +374,7 @@ type Services struct {
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
+	services.Plugins
 	services.WindowsDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups

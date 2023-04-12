@@ -4933,8 +4933,6 @@ func (g *GRPCServer) GetClusterMaintenanceConfig(ctx context.Context, _ *emptypb
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	cmc, err := auth.GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4959,6 +4957,24 @@ func (g *GRPCServer) UpdateClusterMaintenanceConfig(ctx context.Context, cmc *ty
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// CreatePlugin creates a plugin resource.
+func (g *GRPCServer) CreatePlugin(ctx context.Context, plugin *types.PluginV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.Wrap(auth.CreatePlugin(ctx, plugin))
+}
+
+// DeletePlugin deletes a plugin resource.
+func (g *GRPCServer) DeletePlugin(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return nil, trace.Wrap(auth.DeletePlugin(ctx, req.Name))
 }
 
 // GetBackend returns the backend from the underlying auth server.

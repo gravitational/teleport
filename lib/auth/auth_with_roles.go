@@ -300,7 +300,7 @@ func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 }
 
 func (a *ServerWithRoles) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
-	return trace.NotImplemented(notImplementedMessage)
+	return a.authServer.CreatePlugin(ctx, plugin)
 }
 
 func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
@@ -308,7 +308,7 @@ func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
 }
 
 func (a *ServerWithRoles) DeletePlugin(ctx context.Context, name string) error {
-	return trace.NotImplemented(notImplementedMessage)
+	return a.authServer.DeletePlugin(ctx, name)
 }
 
 func (a *ServerWithRoles) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
