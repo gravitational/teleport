@@ -27,11 +27,11 @@ export enum Type {
 
 export interface MessageContent {
   type: Type;
-  value: string | string[];
+  value: string;
 }
 
 export interface Message {
-  hidden?: boolean;
+  isNew?: boolean;
   content: MessageContent[];
   author: Author;
 }

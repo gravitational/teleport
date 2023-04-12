@@ -38,22 +38,22 @@ import { Action, Actions } from './Action';
 interface ChatItemProps {
   message: Message;
   isLast: boolean;
+  isNew: boolean;
   scrollTextarea: () => void;
 }
 
 const appear = keyframes`
-  0% {
-    transform: translate3d(0, 30px, 0);
-    opacity: 0;
-  }
-
-  100% {
+  to {
     transform: translate3d(0, 0, 0);
     opacity: 1;
   }
 `;
 
-const Container = styled.div<{ teleport?: boolean; isLast: boolean }>`
+const Container = styled.div<{
+  teleport?: boolean;
+  isLast: boolean;
+  isNew: boolean;
+}>`
   padding: 20px 30px;
   background: ${p => (p.teleport ? '#0c143d' : 'rgba(255, 255, 255, 0.1)')};
   display: flex;
@@ -61,8 +61,8 @@ const Container = styled.div<{ teleport?: boolean; isLast: boolean }>`
   margin-bottom: ${p => (p.isLast ? 0 : '70px')};
   position: relative;
   animation: ${appear} 0.6s linear forwards;
-  transform: translate3d(0, 30px, 0);
-  opacity: 0;
+  transform: ${p => (p.isNew ? 'translate3d(0, 30px, 0)' : 'none')};
+  opacity: ${p => (p.isNew ? 0 : 1)};
 `;
 
 const ChatItemAvatar = styled.div`
@@ -139,27 +139,14 @@ export function ChatItem(props: ChatItemProps) {
   for (const [index, item] of props.message.content.entries()) {
     switch (item.type) {
       case Type.Message:
-        if (Array.isArray(item.value)) {
-          for (const [i, value] of item.value.entries()) {
-            content.push(
-              <ChatItemContent
-                key={`message-${index}-${i}`}
-                dangerouslySetInnerHTML={{
-                  __html: DOMPurify.sanitize(marked.parse(value)),
-                }}
-              />
-            );
-          }
-        } else {
-          content.push(
-            <ChatItemContent
-              key={`message-${index}`}
-              dangerouslySetInnerHTML={{
-                __html: DOMPurify.sanitize(marked.parse(item.value)),
-              }}
-            />
-          );
-        }
+        content.push(
+          <ChatItemContent
+            key={`message-${index}`}
+            dangerouslySetInnerHTML={{
+              __html: DOMPurify.sanitize(marked.parse(item.value)),
+            }}
+          />
+        );
 
         break;
 
@@ -214,6 +201,7 @@ export function ChatItem(props: ChatItemProps) {
     <Container
       teleport={props.message.author === Author.Teleport}
       isLast={props.isLast}
+      isNew={props.isNew}
     >
       {avatar}
 
@@ -233,7 +221,7 @@ export function ExampleChatItem() {
   const ctx = useTeleport();
 
   return (
-    <Container teleport={true} isLast={false}>
+    <Container teleport={true} isLast={false} isNew={false}>
       <ChatItemAvatarTeleport>
         <ChatItemAvatarImage backgroundImage={teleport} />
       </ChatItemAvatarTeleport>
@@ -241,7 +229,8 @@ export function ExampleChatItem() {
         Hey {ctx.storeUser.state.username}, I'm Teleport - a powerful tool that
         can assist you in managing your Teleport cluster via ChatGPT. <br />
         <br />
-        Here are some things I can do:
+        Start a new chat with me on the left to get started! Here's some of the
+        things I can do:
         <ExampleList />
       </ChatItemContent>
     </Container>
