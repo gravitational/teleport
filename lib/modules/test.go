@@ -93,3 +93,6 @@ func (m *TestModules) AttestHardwareKey(ctx context.Context, obj interface{}, po
 	}
 	return policy, nil
 }
+
+// SetCloudFeatures sets features from cloud
+func (m *TestModules) SetCloudFeatures(f Features) {}
