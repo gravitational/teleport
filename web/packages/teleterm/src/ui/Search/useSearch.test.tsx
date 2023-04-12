@@ -14,14 +14,23 @@
  * limitations under the License.
  */
 
-import { sortAndLimitResults } from './useSearch';
+import React from 'react';
+
+import renderHook from 'design/utils/renderHook';
+
+import { ServerUri } from 'teleterm/ui/uri';
+import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { SearchResult } from 'teleterm/ui/services/resources';
+
+import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
+
 import {
   makeResourceResult,
   makeServer,
   makeKube,
   makeLabelsList,
 } from './searchResultTestHelpers';
-import { rankResults } from './useSearch';
+import { rankResults, useResourceSearch } from './useSearch';
 
 describe('rankResults', () => {
   it('uses the displayed resource name as the tie breaker if the scores are equal', () => {
@@ -72,17 +81,31 @@ describe('rankResults', () => {
         makeResourceResult({
           kind: 'server',
           resource: makeServer({
-            labelsList: makeLabelsList({ foo: 'bar' }),
+            labelsList: makeLabelsList({ foo: 'bar1' }),
           }),
         })
       );
 
-    // This item has a lower score
+    // This item has the lowest score, added as the first one
+    const lowestScoreServerUri: ServerUri = '/clusters/test/servers/lowest';
     servers.unshift(
       makeResourceResult({
         kind: 'server',
         resource: makeServer({
-          labelsList: makeLabelsList({ abc: 'bar123456' }),
+          uri: lowestScoreServerUri,
+          labelsList: makeLabelsList({ foo: 'bar123456' }),
+        }),
+      })
+    );
+
+    // This item has the highest score, added as the last one
+    const highestScoreServerUri: ServerUri = '/clusters/test/servers/highest';
+    servers.push(
+      makeResourceResult({
+        kind: 'server',
+        resource: makeServer({
+          uri: highestScoreServerUri,
+          labelsList: makeLabelsList({ foo: 'bar' }),
         }),
       })
     );
@@ -90,9 +113,46 @@ describe('rankResults', () => {
     const sorted = rankResults(servers, 'bar');
 
     expect(sorted).toHaveLength(10);
+    // the item with the highest score is the first one
+    expect(sorted[0].resource.uri).toBe(highestScoreServerUri);
     // the item with the lowest score is not included
     expect(
-      sorted.find(s => s.labelMatches.find(a => a.labelName === 'abc'))
+      sorted.find(s => s.resource.uri === lowestScoreServerUri)
     ).toBeFalsy();
+  });
+});
+
+describe('useResourceSearch', () => {
+  it('should not limit results', async () => {
+    const appContext = new MockAppContext();
+    const servers: SearchResult[] = Array(20)
+      .fill(undefined)
+      .map(() => ({
+        kind: 'server' as const,
+        resource: makeServer({}),
+      }));
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set('/clusters/teleport-local', {
+        connected: true,
+        authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+        leaf: false,
+        name: 'teleport-local',
+        proxyHost: 'localhost:3080',
+        uri: '/clusters/teleport-local',
+      });
+    });
+    jest
+      .spyOn(appContext.resourcesService, 'searchResources')
+      .mockResolvedValue(servers);
+
+    const { current } = renderHook(() => useResourceSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    const result = await current('foo', []);
+    expect(result.results).toEqual(servers);
   });
 });
