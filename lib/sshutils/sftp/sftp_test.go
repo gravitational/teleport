@@ -19,6 +19,7 @@ package sftp
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -54,7 +55,7 @@ func TestUpload(t *testing.T) {
 		dstPath         string
 		opts            Options
 		files           []string
-		expectedErr     string
+		errCheck        require.ErrorAssertionFunc
 	}{
 		{
 			name: "one file",
@@ -245,7 +246,6 @@ func TestUpload(t *testing.T) {
 			srcPaths: []string{
 				"glob*",
 				"file",
-				"*stuff",
 			},
 			globbedSrcPaths: []string{
 				"globS",
@@ -288,7 +288,9 @@ func TestUpload(t *testing.T) {
 				"tres",
 				"dst_file",
 			},
-			expectedErr: `local file "%s/dst_file" is not a directory, but multiple source files were specified`,
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were specified`, i[0]))
+			},
 		},
 		{
 			name: "multiple matches from src dst not dir",
@@ -302,7 +304,9 @@ func TestUpload(t *testing.T) {
 				"glob3",
 				"dst_file",
 			},
-			expectedErr: `local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`,
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`, i[0]))
+			},
 		},
 		{
 			name: "src dir with recursive not passed",
@@ -313,7 +317,18 @@ func TestUpload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			expectedErr: `"%s/src" is a directory, but the recursive option was not passed`,
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
+			},
+		},
+		{
+			name: "non-existent src file",
+			srcPaths: []string{
+				"idontexist",
+			},
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, errors.Is(err, os.ErrNotExist))
+			},
 		},
 	}
 
@@ -346,7 +361,7 @@ func TestUpload(t *testing.T) {
 
 			ctx := context.Background()
 			err = cfg.transfer(ctx)
-			if tt.expectedErr == "" {
+			if tt.errCheck == nil {
 				require.NoError(t, err)
 				srcPaths := tt.srcPaths
 				if len(tt.globbedSrcPaths) != 0 {
@@ -354,7 +369,7 @@ func TestUpload(t *testing.T) {
 				}
 				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, srcPaths...)
 			} else {
-				require.EqualError(t, err, fmt.Sprintf(tt.expectedErr, tempDir))
+				tt.errCheck(t, err, tempDir)
 			}
 		})
 	}
@@ -370,7 +385,7 @@ func TestDownload(t *testing.T) {
 		dstPath         string
 		opts            Options
 		files           []string
-		expectedErr     string
+		errCheck        require.ErrorAssertionFunc
 	}{
 		{
 			name:    "one file",
@@ -484,7 +499,16 @@ func TestDownload(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			expectedErr: `"%s/src" is a directory, but the recursive option was not passed`,
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
+			},
+		},
+		{
+			name:    "non-existent src file",
+			srcPath: "idontexist",
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, errors.Is(err, os.ErrNotExist))
+			},
 		},
 	}
 
@@ -515,7 +539,7 @@ func TestDownload(t *testing.T) {
 
 			ctx := context.Background()
 			err = cfg.transfer(ctx)
-			if tt.expectedErr == "" {
+			if tt.errCheck == nil {
 				require.NoError(t, err)
 				srcPaths := []string{tt.srcPath}
 				if len(tt.globbedSrcPaths) != 0 {
@@ -523,7 +547,7 @@ func TestDownload(t *testing.T) {
 				}
 				checkTransfer(t, tt.opts.PreserveAttrs, tt.dstPath, srcPaths...)
 			} else {
-				require.EqualError(t, err, fmt.Sprintf(tt.expectedErr, tempDir))
+				tt.errCheck(t, err, tempDir)
 			}
 		})
 	}
