@@ -69,8 +69,9 @@ Ensure that your environment includes the following:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
-The TLS Routing configuration on the Teleport Cluster impacts the available ports for
-database clients to connect.
+The TLS Routing configuration on the Teleport cluster impacts the ports that are available for database clients to connect to.
+
+Follow the instructions below to see if TLS Routing is enabled on your cluster and get connection information for your database GUI clients.
 
 (!docs/pages/includes/determinetls.mdx!)
 
@@ -80,7 +81,7 @@ database clients to connect.
 (!docs/pages/includes/database-access/tsh-db-tunnel.mdx!)
 
 </TabItem>
-<TabItem label="TLS Routing enabled">
+<TabItem label="TLS Routing Enabled">
 
 If TLS Routing is confirmed enabled use the following command to start a local TLS proxy your
 GUI database client will connect to:
@@ -99,7 +100,7 @@ Use the displayed local proxy host/port and credentials paths when configuring
 your GUI client below. When entering the hostname, use `localhost` rather than
 `127.0.0.1`.
 </TabItem>
-<TabItem label="TLS Routing disabled">
+<TabItem label="TLS Routing Disabled">
 
 If TLS Routing is not enabled, dedicated ports are available for the DB type connection in addition to running
 a local database proxy. Run the following command to see the database
