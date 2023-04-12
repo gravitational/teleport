@@ -19,11 +19,11 @@ import Logger from 'teleterm/logger';
 
 const logger = new Logger('ConfigMigration');
 
-// TODO(gzdunek): when a migration fails an error should be thrown.
-// Currently, `FileStorage.write` catches all IO errors,
-// but instead they should be propagated and handled at higher levels.
-// If an error occurs, we should show it to the user and stop the app from working.
-//
+// TODO(gzdunek): when a migration fails the user should be notified.
+// Currently, `FileStorage.write` catches all IO errors.
+// It should have a mode of interaction that does not do this and allows callers to handle the errors themselves.
+// Related discussion in the PR https://github.com/gravitational/teleport/pull/24051#discussion_r1160753228.
+
 // Additionally, `runConfigFileMigration`
 // should be an async function that does not resolve until the migration is complete.
 export function runConfigFileMigration(configFile: FileStorage): void {
@@ -33,6 +33,9 @@ export function runConfigFileMigration(configFile: FileStorage): void {
   const configFileContent = configFile.get() as object;
 
   // DELETE IN 14.0
+  // This migration renames 'keymap.openCommandBar' config key to 'keymap.openSearchBar'.
+  // We do it because we replaced the 'command bar' feature with the 'search bar',
+  // but we want to preserve the keyboard shortcut.
   const openCommandBarProperty = 'keymap.openCommandBar';
   const openSearchBarProperty = 'keymap.openSearchBar';
 
