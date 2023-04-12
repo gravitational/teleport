@@ -987,6 +987,129 @@ export const formatters: Formatters = {
       return message;
     },
   },
+  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: {
+    type: 'db.session.elasticsearch.request',
+    desc: 'Elasticsearch Request Failed',
+    format: ({ user, db_service, category, target, query, path }) => {
+      // local redefinition of enum ElasticsearchCategory from events.proto
+      enum ElasticsearchCategory {
+        GENERAL = 0,
+        SECURITY = 1,
+        SEARCH = 2,
+        SQL = 3,
+      }
+
+      let categoryString = 'UNKNOWN';
+      switch (category) {
+        case ElasticsearchCategory.GENERAL:
+          categoryString = 'GENERAL';
+          break;
+        case ElasticsearchCategory.SEARCH:
+          categoryString = 'SEARCH';
+          break;
+        case ElasticsearchCategory.SECURITY:
+          categoryString = 'SECURITY';
+          break;
+        case ElasticsearchCategory.SQL:
+          categoryString = 'SQL';
+          break;
+      }
+
+      let message = `User [${user}] has attempted to run a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+
+      if (query) {
+        message += `, query string: [${truncateStr(query, 80)}]`;
+      }
+
+      if (target) {
+        message += `, target: [${target}]`;
+      }
+
+      return message;
+    },
+  },
+  [eventCodes.OPENSEARCH_REQUEST]: {
+    type: 'db.session.opensearch.request',
+    desc: 'OpenSearch Request',
+    format: ({ user, db_service, category, target, query, path }) => {
+      // local redefinition of enum OpenSearchCategory from events.proto
+      enum OpenSearchCategory {
+        GENERAL = 0,
+        SECURITY = 1,
+        SEARCH = 2,
+        SQL = 3,
+      }
+
+      let categoryString = 'UNKNOWN';
+      switch (category) {
+        case OpenSearchCategory.GENERAL:
+          categoryString = 'GENERAL';
+          break;
+        case OpenSearchCategory.SEARCH:
+          categoryString = 'SEARCH';
+          break;
+        case OpenSearchCategory.SECURITY:
+          categoryString = 'SECURITY';
+          break;
+        case OpenSearchCategory.SQL:
+          categoryString = 'SQL';
+          break;
+      }
+
+      let message = `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+
+      if (query) {
+        message += `, query string: [${truncateStr(query, 80)}]`;
+      }
+
+      if (target) {
+        message += `, target: [${target}]`;
+      }
+
+      return message;
+    },
+  },
+  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: {
+    type: 'db.session.opensearch.request',
+    desc: 'OpenSearch Request Failed',
+    format: ({ user, db_service, category, target, query, path }) => {
+      // local redefinition of enum OpenSearchCategory from events.proto
+      enum OpenSearchCategory {
+        GENERAL = 0,
+        SECURITY = 1,
+        SEARCH = 2,
+        SQL = 3,
+      }
+
+      let categoryString = 'UNKNOWN';
+      switch (category) {
+        case OpenSearchCategory.GENERAL:
+          categoryString = 'GENERAL';
+          break;
+        case OpenSearchCategory.SEARCH:
+          categoryString = 'SEARCH';
+          break;
+        case OpenSearchCategory.SECURITY:
+          categoryString = 'SECURITY';
+          break;
+        case OpenSearchCategory.SQL:
+          categoryString = 'SQL';
+          break;
+      }
+
+      let message = `User [${user}] has attempted to run a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+
+      if (query) {
+        message += `, query string: [${truncateStr(query, 80)}]`;
+      }
+
+      if (target) {
+        message += `, target: [${target}]`;
+      }
+
+      return message;
+    },
+  },
   [eventCodes.DYNAMODB_REQUEST]: {
     type: 'db.session.dynamodb.request',
     desc: 'DynamoDB Request',
