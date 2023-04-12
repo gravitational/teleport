@@ -95,6 +95,7 @@ export function useMutualTls({ ctx, props }: Props) {
     canUpdateDatabase: access.edit,
     curlCmd: generateSignCertificateCurlCommand(
       clusterId,
+      '17520h',
       meta.db.hostname,
       joinToken?.id
     ),
@@ -104,13 +105,14 @@ export function useMutualTls({ ctx, props }: Props) {
 
 function generateSignCertificateCurlCommand(
   clusterId: string,
+  expiration: string,
   hostname: string,
   token: string
 ) {
   if (!token) return '';
 
   const requestUrl = cfg.getDatabaseSignUrl(clusterId);
-  const requestData = JSON.stringify({ hostname });
+  const requestData = JSON.stringify({ ttl: expiration, hostname });
 
   // curl flag -OJ  makes curl use the file name
   // defined from the response header.
