@@ -100,8 +100,8 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		bearerToken: csResp.Token,
 	}
 
-	resp, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(bs))
+	respStatusCode, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(bs))
 
 	var clusters []ui.Cluster
 	require.NoError(t, json.Unmarshal(bs, &clusters), string(bs))
@@ -113,8 +113,8 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 
 // DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
-// Body is read and returned (as []bytes) as well as the http.Response.
-func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (*http.Response, []byte) {
+// Status Code and Body are returned.
+func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
 	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
 	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
 	u, err := url.Parse(endpoint)
@@ -141,5 +141,5 @@ func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 
-	return resp, body
+	return resp.StatusCode, body
 }

@@ -73,8 +73,8 @@ func TestIntegrationCRUD(t *testing.T) {
 	webPack := helpers.LoginWebClient(t, proxyAddr.String(), username, userPassword)
 
 	// List integrations should return empty
-	resp, respBody := webPack.DoRequest(t, http.MethodGet, integrationsEndpoint, nil)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody := webPack.DoRequest(t, http.MethodGet, integrationsEndpoint, nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	listResp := ui.IntegrationsListResponse{}
 	require.NoError(t, json.Unmarshal(respBody, &listResp))
@@ -90,12 +90,12 @@ func TestIntegrationCRUD(t *testing.T) {
 		},
 	}
 
-	resp, respBody = webPack.DoRequest(t, http.MethodPost, integrationsEndpoint, createIntegrationReq)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPost, integrationsEndpoint, createIntegrationReq)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	// Get One Integration by name
-	resp, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"/MyAWSAccount", nil)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"/MyAWSAccount", nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	integrationResp := ui.Integration{}
 	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
@@ -109,12 +109,12 @@ func TestIntegrationCRUD(t *testing.T) {
 	}, integrationResp, string(respBody))
 
 	// Update the integration to another RoleARN
-	resp, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/MyAWSAccount", ui.UpdateIntegrationRequest{
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodPut, integrationsEndpoint+"/MyAWSAccount", ui.UpdateIntegrationRequest{
 		AWSOIDC: &ui.IntegrationAWSOIDCSpec{
 			RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
 		},
 	})
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	integrationResp = ui.Integration{}
 	require.NoError(t, json.Unmarshal(respBody, &integrationResp))
@@ -128,8 +128,8 @@ func TestIntegrationCRUD(t *testing.T) {
 	}, integrationResp, string(respBody))
 
 	// Delete resource
-	resp, respBody = webPack.DoRequest(t, http.MethodDelete, integrationsEndpoint+"/MyAWSAccount", nil)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodDelete, integrationsEndpoint+"/MyAWSAccount", nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	// Add multiple integrations to test pagination
 	// Tests two full pages + 1 item to prevent off by one errors.
@@ -144,13 +144,13 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 		}
 
-		resp, respBody := webPack.DoRequest(t, http.MethodPost, integrationsEndpoint, createIntegrationReq)
-		require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+		respStatusCode, respBody := webPack.DoRequest(t, http.MethodPost, integrationsEndpoint, createIntegrationReq)
+		require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 	}
 
 	// List integrations should return a full page
-	resp, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10", nil)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10", nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	listResp = ui.IntegrationsListResponse{}
 	require.NoError(t, json.Unmarshal(respBody, &listResp))
@@ -158,8 +158,8 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.Len(t, listResp.Items, pageSize)
 
 	// Requesting the 2nd page should return a full page
-	resp, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	listResp = ui.IntegrationsListResponse{}
 	require.NoError(t, json.Unmarshal(respBody, &listResp))
@@ -167,8 +167,8 @@ func TestIntegrationCRUD(t *testing.T) {
 	require.Len(t, listResp.Items, pageSize)
 
 	// Requesting the 3rd page should return a single item and empty StartKey
-	resp, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody = webPack.DoRequest(t, http.MethodGet, integrationsEndpoint+"?limit=10&startKey="+listResp.NextKey, nil)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	listResp = ui.IntegrationsListResponse{}
 	require.NoError(t, json.Unmarshal(respBody, &listResp))
