@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -46,9 +47,6 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 // Engine handles connections from OpenSearch clients coming from Teleport
 // proxy over reverse tunnel.
 type Engine struct {
-	// signingSvc will be used by the engine to provide the AWS sigv4 authorization header
-	// required by AWS for request validation: https://docs.aws.amazon.com/general/latest/gr/signing-elements.html
-	signingSvc *libaws.SigningService
 
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
@@ -65,22 +63,6 @@ type Engine struct {
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
-
-	awsSession, err := e.CloudClients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	svc, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	e.signingSvc = svc
-
 	return nil
 }
 
@@ -143,11 +125,26 @@ func (e *Engine) SendError(err error) {
 // target OpenSearch server and starts proxying requests between client/server.
 func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error {
 	err := e.checkAccess(ctx)
+
 	e.Audit.OnSessionStart(e.Context, e.sessionCtx, err)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
+
+	meta := e.sessionCtx.Database.GetAWS()
+	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
+		Clock:                 e.Clock,
+		Session:               awsSession,
+		GetSigningCredentials: e.GetSigningCredsFn,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// TODO(Tener):
 	//  Consider rewriting to support HTTP2 clients.
@@ -160,7 +157,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req); err != nil {
+		if err := e.process(ctx, signer, req); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -168,7 +165,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request) error {
+func (e *Engine) process(ctx context.Context, signer *libaws.SigningService, req *http.Request) error {
 	reqCopy, err := e.rewriteRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
@@ -176,7 +173,7 @@ func (e *Engine) process(ctx context.Context, req *http.Request) error {
 
 	e.emitAuditEvent(reqCopy)
 
-	signedReq, err := e.getSignedRequest(reqCopy)
+	signedReq, err := e.getSignedRequest(signer, reqCopy)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -210,7 +207,7 @@ func (e *Engine) getTransport(ctx context.Context) (*http.Transport, error) {
 	return tr, nil
 }
 
-func (e *Engine) getSignedRequest(reqCopy *http.Request) (*http.Request, error) {
+func (e *Engine) getSignedRequest(signer *libaws.SigningService, reqCopy *http.Request) (*http.Request, error) {
 	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser, e.sessionCtx.Database.GetAWS().Region, e.sessionCtx.Database.GetAWS().AccountID)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -225,7 +222,7 @@ func (e *Engine) getSignedRequest(reqCopy *http.Request) (*http.Request, error) 
 		AWSExternalID: e.sessionCtx.Database.GetAWS().ExternalID,
 	}
 
-	signedReq, err := e.signingSvc.SignRequest(e.Context, reqCopy, signCtx)
+	signedReq, err := signer.SignRequest(e.Context, reqCopy, signCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
