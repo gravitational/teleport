@@ -138,7 +138,7 @@ export function AwsOidc() {
 
   return (
     <Container>
-      <Header>Set up your first AWS account</Header>
+      <Header>Set up your AWS account</Header>
 
       <HeaderSubtitle>
         Instead of storing long-lived static credentials, Teleport will become a
