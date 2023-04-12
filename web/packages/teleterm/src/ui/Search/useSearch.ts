@@ -175,7 +175,8 @@ export function useFilterSearch() {
   );
 }
 
-export function sortAndLimitResults(
+/** Sorts and then returns top 10 results. */
+export function rankResults(
   searchResults: resourcesServiceTypes.SearchResult[],
   search: string
 ): ResourceSearchResult[] {

@@ -24,7 +24,7 @@ import {
 import { debounce } from 'shared/utils/highbar';
 
 import {
-  sortAndLimitResults,
+  rankResults,
   useFilterSearch,
   useResourceSearch,
 } from 'teleterm/ui/Search/useSearch';
@@ -48,7 +48,7 @@ export function useSearchAttempts() {
   const resourceActionsAttempt = useMemo(
     () =>
       mapAttempt(resourceSearchAttempt, ({ results, search }) => {
-        const sortedResults = sortAndLimitResults(results, search);
+        const sortedResults = rankResults(results, search);
         searchLogger.current.info('results for', search, sortedResults);
 
         return mapToActions(ctx, searchContext, sortedResults);

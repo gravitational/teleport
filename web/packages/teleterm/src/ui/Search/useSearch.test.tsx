@@ -21,8 +21,9 @@ import {
   makeKube,
   makeLabelsList,
 } from './searchResultTestHelpers';
+import { rankResults } from './useSearch';
 
-describe('sortResults', () => {
+describe('rankResults', () => {
   it('uses the displayed resource name as the tie breaker if the scores are equal', () => {
     const server = makeResourceResult({
       kind: 'server',
@@ -32,7 +33,7 @@ describe('sortResults', () => {
       kind: 'kube',
       resource: makeKube({ name: 'a' }),
     });
-    const sortedResults = sortAndLimitResults([server, kube], '');
+    const sortedResults = rankResults([server, kube], '');
 
     expect(sortedResults[0]).toEqual(kube);
     expect(sortedResults[1]).toEqual(server);
@@ -46,7 +47,7 @@ describe('sortResults', () => {
       }),
     });
 
-    const { labelMatches } = sortAndLimitResults([server], 'foo bar')[0];
+    const { labelMatches } = rankResults([server], 'foo bar')[0];
 
     labelMatches.forEach(match => {
       expect(match.score).toBeGreaterThan(0);
@@ -86,7 +87,7 @@ describe('sortResults', () => {
       })
     );
 
-    const sorted = sortAndLimitResults(servers, 'bar');
+    const sorted = rankResults(servers, 'bar');
 
     expect(sorted).toHaveLength(10);
     // the item with the lowest score is not included
