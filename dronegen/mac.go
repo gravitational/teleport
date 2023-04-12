@@ -366,6 +366,8 @@ func configureToolchainsCommands(config toolchainConfig) []string {
 		// need to unlock Keychain only for the build-darwin-amd64-connect pipeline.
 		`export HOME=/Users/$(whoami)`,
 		`export TOOLCHAIN_DIR=` + perBuildToolchainsDir,
+		`security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain`,
+		`security find-identity -v`,
 	}
 
 	// Configure toolchains in descending order so that Node.js is added to PATH last.
