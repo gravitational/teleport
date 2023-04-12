@@ -30,8 +30,7 @@ import {
 
 import { useAppContext } from '../appContextProvider';
 
-const OPEN_COMMAND_BAR_SHORTCUT_ACTION: KeyboardShortcutAction =
-  'openCommandBar';
+const OPEN_SEARCH_BAR_SHORTCUT_ACTION: KeyboardShortcutAction = 'openSearchBar';
 
 export function SearchBarConnected() {
   const { workspacesService } = useAppContext();
@@ -64,7 +63,7 @@ function SearchBar() {
   ctx.clustersService.useState();
 
   useKeyboardShortcuts({
-    [OPEN_COMMAND_BAR_SHORTCUT_ACTION]: () => {
+    [OPEN_SEARCH_BAR_SHORTCUT_ACTION]: () => {
       open();
     },
   });
@@ -121,9 +120,7 @@ function SearchBar() {
       {!opened && (
         <>
           <Input {...defaultInputProps} />
-          <Shortcut>
-            {getAccelerator(OPEN_COMMAND_BAR_SHORTCUT_ACTION)}
-          </Shortcut>
+          <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
         </>
       )}
       {opened && (
