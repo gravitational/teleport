@@ -410,7 +410,7 @@ func (t *commandHandler) handler(r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to the client.
-	go t.startPingLoop(r.Context(), t.ws)
+	go startPingLoop(r.Context(), t.ws, t.keepAliveInterval, t.log, t.Close)
 
 	go t.streamEvents(r.Context(), tc)
 	// Pump raw terminal in/out and audit events into the websocket.
@@ -498,7 +498,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 
 		if !mfaRequiredResp.Required {
 			t.log.WithError(connectErr).Warn("Unable to stream terminal - user does not have access to host")
-			// write the original connection  error
+			// write the original connection error
 			t.writeError(connectErr)
 			return
 		}
@@ -523,33 +523,6 @@ func (t *commandHandler) streamOutput(ctx context.Context, ws WSConn, tc *client
 	}
 
 	t.log.Debug("Sent close event to web client.")
-}
-
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
-// to prevent the connection between web client and teleport proxy from becoming idle.
-// Interval is determined by the keep_alive_interval config set by user (or default).
-// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
-func (t *commandHandler) startPingLoop(ctx context.Context, ws WSConn) {
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.keepAliveInterval)
-	tickerCh := time.NewTicker(t.keepAliveInterval)
-	defer tickerCh.Stop()
-
-	for {
-		select {
-		case <-tickerCh.C:
-			// A short deadline is used here to detect a broken connection quickly.
-			// If this is just a temporary issue, we will retry shortly anyway.
-			deadline := time.Now().Add(time.Second)
-			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-				t.log.WithError(err).Error("Unable to send ping frame to web client")
-				t.Close()
-				return
-			}
-		case <-ctx.Done():
-			t.log.Debug("Terminating websocket ping loop.")
-			return
-		}
-	}
 }
 
 func (t *commandHandler) Close() error {

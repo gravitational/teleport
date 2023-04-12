@@ -23,10 +23,10 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	"github.com/sashabaranov/go-openai"
@@ -128,13 +128,23 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	}
 
-	keepAliveInterval := time.Minute // TODO(jakule)
+	// Use the default interval as this handler doesn't have access to network config.
+	// Note: This time should be longer than OpenAI response time.
+	keepAliveInterval := defaults.KeepAliveInterval()
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil
 	}
 	defer ws.Close()
+
+	// Update the read deadline upon receiving a pong message.
+	ws.SetPongHandler(func(_ string) error {
+		ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
+		return nil
+	})
+
+	go startPingLoop(r.Context(), ws, keepAliveInterval, h.log, nil)
 
 	prefs, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
 	if err != nil {
@@ -200,7 +210,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 	for {
 		_, payload, err := ws.ReadMessage()
 		if err != nil {
-			if err == io.EOF {
+			if err == io.EOF || websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
 				break
 			}
 			return trace.Wrap(err)
@@ -253,6 +263,8 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			return trace.Wrap(err)
 		}
 	}
+
+	h.log.Debugf("end assistant conversation loop")
 
 	return nil
 }
