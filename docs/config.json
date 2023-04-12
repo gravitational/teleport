@@ -1468,8 +1468,10 @@
         "version": "12.1.5"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:12.1.5",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:12.1.5"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:12.1.5",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:12.1.5",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:12.1.5",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:12.1.5"
     },
     "terraform": {
       "version": "1.0.0"
@@ -2364,11 +2366,6 @@
     {
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
-      "permanent": true
-    },
-    {
-      "source": "/access-controls/faq/",
-      "destination": "/access-controls/introduction/",
       "permanent": true
     }
   ]
