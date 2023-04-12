@@ -1,6 +1,6 @@
 ---
 title: Desktop Access with Active Directory
-description: Integrate Teleport Desktop Access to your Active Directory Domain
+description: Integrate the Teleport Desktop Service with your Active Directory domain
 videoBanner: v36tlB8D5kk
 ---
 
@@ -21,10 +21,10 @@ provide secure, passwordless access to Windows desktops.
 
 <Details title="Compare Desktop Access to other RDP clients">
 
-Teleport Desktop Access is designed to be a secure access solution for Windows
+The Teleport Desktop Service is designed to be a secure access solution for Windows
 environments. Teleport implements a minimal feature set of the RDP protocol with
 security as a priority, and may not be as performant as standard RDP clients.
-Consider Desktop Access to manage access to your most sensitive Windows
+Consider the Desktop Service to manage access to your most sensitive Windows
 environments, not as a drop-in replacement for other tools to provide general
 access to Windows desktops.
 
@@ -73,7 +73,7 @@ Click **NEXT**.
 The PowerShell script will output a Teleport configuration block. Copy this
 block to a temporary location. Click **Next**.
 
-On the Linux host you installed Teleport to run as the Desktop Access connector,
+On the Linux host you installed Teleport to run as the Desktop Service connector,
 edit `/etc/teleport.yaml` and paste the configuration provided by the output of
 the previous step. Review and edit the addition as necessarily for your environment:
 

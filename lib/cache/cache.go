@@ -369,6 +369,7 @@ func ForDiscovery(cfg Config) Config {
 func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindUser},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -376,6 +377,8 @@ func ForOkta(cfg Config) Config {
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindProxy},
+		{Kind: types.KindRole},
+		{Kind: types.KindClusterAuthPreference},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg

@@ -23,7 +23,7 @@ proxy_service:
 {{- else }}
   public_addr: '{{ required "clusterName is required in chart values" .Values.clusterName }}:443'
 {{- end }}
-{{- if eq .Values.proxyListenerMode "separate" }}
+{{- if ne .Values.proxyListenerMode "multiplex" }}
   listen_addr: 0.0.0.0:3023
   {{- if .Values.sshPublicAddr }}
   ssh_public_addr: {{- toYaml .Values.sshPublicAddr | nindent 8 }}

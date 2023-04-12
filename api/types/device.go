@@ -250,6 +250,9 @@ func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollS
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, nil
 	case "unspecified":
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
+	// In the terraform provider, enroll_status is an optional field and can be empty.
+	case "":
+		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, nil
 	default:
 		return devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, trace.BadParameter("unknown enroll status %q", enrollStatus)
 	}
