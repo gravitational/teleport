@@ -16,6 +16,7 @@
 
 // export as default for use with React.lazy
 export { IntegrationEnroll as default } from './IntegrationEnroll';
-export { IntegrationTiles } from './IntegrationTiles';
 
+export { IntegrationTiles } from './IntegrationTiles';
+export { getRoutesToEnrollIntegrations } from './IntegrationRoute';
 export * from './common';

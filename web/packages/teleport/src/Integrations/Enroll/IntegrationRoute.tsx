@@ -14,19 +14,23 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
+import React, { lazy } from 'react';
 
 import cfg from 'teleport/config';
+import { Route } from 'teleport/components/Router';
+import { IntegrationKind } from 'teleport/services/integrations';
 
-import { IntegrationEnroll } from './IntegrationEnroll';
-
-export default {
-  title: 'Teleport/Integrations/Enroll',
-};
-
-export const Picker = () => (
-  <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
-    <IntegrationEnroll />
-  </MemoryRouter>
+const EnrollAwsOidc = lazy(
+  () => import(/* webpackChunkName: "enroll-aws-oidc" */ './AwsOidc')
 );
+
+export function getRoutesToEnrollIntegrations() {
+  return [
+    <Route
+      key={IntegrationKind.AwsOidc}
+      exact
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
+      component={EnrollAwsOidc}
+    />,
+  ];
+}

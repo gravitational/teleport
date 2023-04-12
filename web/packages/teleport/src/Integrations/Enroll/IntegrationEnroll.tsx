@@ -22,13 +22,30 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
+import cfg from 'teleport/config';
+import { Route, Switch } from 'teleport/components/Router';
 
 import { IntegrationTiles } from './IntegrationTiles';
 import { NoCodeIntegrationDescription } from './common';
+import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
 
 export function IntegrationEnroll() {
   return (
     <FeatureBox>
+      <Switch>
+        {getRoutesToEnrollIntegrations()}
+        <Route
+          path={cfg.routes.integrationEnroll}
+          component={IntegrationPicker}
+        />
+      </Switch>
+    </FeatureBox>
+  );
+}
+
+export function IntegrationPicker() {
+  return (
+    <>
       <FeatureHeader>
         <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
       </FeatureHeader>
@@ -36,6 +53,6 @@ export function IntegrationEnroll() {
         <NoCodeIntegrationDescription />
         <IntegrationTiles />
       </Box>
-    </FeatureBox>
+    </>
   );
 }
