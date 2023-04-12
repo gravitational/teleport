@@ -113,7 +113,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 
 // DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
-// Returns the http.Response.
+// Body is read and returned (as []bytes) as well as the http.Response.
 func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (*http.Response, []byte) {
 	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
 	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
