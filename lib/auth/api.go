@@ -1247,6 +1247,7 @@ type PluginsWrapper struct {
 	NoCache PluginsAccessPoint
 }
 
+// NewPluginsWrapper returns a new instance of PluginsAccessPoint
 func NewPluginsWrapper(base PluginsAccessPoint, cache ReadPluginsAccessPoint) PluginsAccessPoint {
 	return &PluginsWrapper{
 		NoCache:                base,

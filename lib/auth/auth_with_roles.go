@@ -299,34 +299,42 @@ func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 	)
 }
 
+// CreatePlugin creates a new plugin resource.
 func (a *ServerWithRoles) CreatePlugin(ctx context.Context, plugin types.Plugin) error {
 	return a.authServer.CreatePlugin(ctx, plugin)
 }
 
+// DeleteAllPlugins deletes all plugin resources.
 func (a *ServerWithRoles) DeleteAllPlugins(ctx context.Context) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// DeletePlugin deletes a plugin resource.
 func (a *ServerWithRoles) DeletePlugin(ctx context.Context, name string) error {
 	return a.authServer.DeletePlugin(ctx, name)
 }
 
+// GetPlugin returns a plugin resource.
 func (a *ServerWithRoles) GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// GetPlugins returns all plugin resources.
 func (a *ServerWithRoles) GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error) {
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
+// ListPlugins lists plugin resources.
 func (a *ServerWithRoles) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
 	return nil, "", trace.NotImplemented(notImplementedMessage)
 }
 
+// SetPluginCredentials sets the credentials for a plugin resource.
 func (a *ServerWithRoles) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// SetPluginStatus sets the status of a plugin resource.
 func (a *ServerWithRoles) SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
