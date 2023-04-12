@@ -45,18 +45,43 @@ export type IntegrationSpecAwsOidc = {
   roleArn: string;
 };
 
-// IntegrationStatusCode must be in sync with the text values defined
-// in the backend as these are used to determine the status color:
-// https://github.com/gravitational/teleport.e/blob/1ebe50ce2fe608dc6dd24fef205fb9caaa216a46/lib/web/ui/plugins.go#L51
-export type IntegrationStatusCode =
-  | 'Unknown'
-  | 'Running'
-  | 'Unknown error'
-  | 'Unauthorized'
-  | 'Bot not invited to channel';
+export enum IntegrationStatusCode {
+  UNKNOWN = 0,
+  RUNNING = 1,
+  OTHER_ERROR = 2,
+  UNAUTHORIZED = 3,
+  SLACK_NOT_IN_CHANNEL = 10,
+}
+
+export function getStatusCodeTitle(code: IntegrationStatusCode): string {
+  switch (code) {
+    case IntegrationStatusCode.UNKNOWN:
+      return 'Unknown';
+    case IntegrationStatusCode.RUNNING:
+      return 'Running';
+    case IntegrationStatusCode.UNAUTHORIZED:
+      return 'Unauthorized';
+    case IntegrationStatusCode.SLACK_NOT_IN_CHANNEL:
+      return 'Bot not invited to channel';
+    default:
+    case IntegrationStatusCode.OTHER_ERROR:
+      return 'Unknown error';
+  }
+}
+
+export function getStatusCodeDescription(code: IntegrationStatusCode): string | null {
+  switch (code) {
+    case IntegrationStatusCode.UNAUTHORIZED:
+      return 'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.';
+
+    case IntegrationStatusCode.SLACK_NOT_IN_CHANNEL:
+      return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
+
+    default:
+      return null;
+  }
+}
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
-export type PluginSpec = {
-  statusDescription?: string;
-};
+export type PluginSpec = {};
 export type PluginKind = 'slack';
