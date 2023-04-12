@@ -129,7 +129,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		return nil
 	}
 
-	keepAliveInterval := time.Minute // TODO(jakule)
+	keepAliveInterval := time.Minute * 10 // TODO(jakule)
 	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
