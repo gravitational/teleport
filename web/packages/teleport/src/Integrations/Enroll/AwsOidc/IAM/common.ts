@@ -109,6 +109,7 @@ export const NextButton = styled.div`
   font-weight: 700;
   border-radius: 4px;
   border: 1px solid #1d67b3;
+  margin-left: 12px;
 `;
 
 export const RoleButton = styled.div`

@@ -5,23 +5,15 @@ import Box from 'design/Box';
 
 import { ButtonPrimary } from 'design';
 
-import { Stage } from '../stages';
-
 import { InstructionsContainer } from './common';
 
 import type { CommonInstructionsProps } from './common';
-
-interface FirstStageInstructionsProps {
-  stage: Stage;
-}
 
 const InstructionBlock = styled.div`
   margin-bottom: 30px;
 `;
 
-export function FirstStageInstructions(
-  props: CommonInstructionsProps & FirstStageInstructionsProps
-) {
+export function FirstStageInstructions(props: CommonInstructionsProps) {
   return (
     <InstructionsContainer>
       <InstructionBlock>

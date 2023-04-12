@@ -44,9 +44,8 @@ import { IAMRoles } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMRoles';
 import { Stage, STAGES } from './stages';
 
 const Container = styled.div`
-  padding-left: 40px;
   padding-right: 40px;
-  padding-top: 30px;
+  padding-top: 16px;
 `;
 
 const InstructionsContainer = styled.div`
@@ -59,6 +58,7 @@ const BrowserContainer = styled.div`
 `;
 
 const RestartAnimation = styled.div`
+  z-index: 100;
   display: flex;
   align-items: center;
   opacity: ${p => (p.visible ? 1 : 0)};
@@ -164,7 +164,6 @@ export function AwsOidc() {
                 {currentStageConfig.instructionStep ===
                   InstructionStep.First && (
                   <FirstStageInstructions
-                    stage={stage}
                     onNext={() => {
                       setStage(Stage.NewProviderFullScreen);
                     }}
@@ -211,13 +210,7 @@ export function AwsOidc() {
                   />
                 )}
                 {currentStageConfig.instructionStep ===
-                  InstructionStep.Seventh && (
-                  <SeventhStageInstructions
-                    onNext={() => {
-                      setStage(Stage.ListRoles);
-                    }}
-                  />
-                )}
+                  InstructionStep.Seventh && <SeventhStageInstructions />}
               </div>
             )}
           </Transition>

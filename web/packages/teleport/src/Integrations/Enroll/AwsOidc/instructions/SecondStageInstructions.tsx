@@ -6,7 +6,7 @@ import Box from 'design/Box';
 import { ButtonPrimary } from 'design';
 
 import FieldInput from 'shared/components/FieldInput';
-import Validation from 'shared/components/Validation';
+import Validation, { Validator } from 'shared/components/Validation';
 
 import { requiredField } from 'shared/components/Validation/rules';
 
@@ -19,7 +19,14 @@ import type { CommonInstructionsProps } from './common';
 export function SecondStageInstructions(props: CommonInstructionsProps) {
   const [thumbprint, setThumbprint] = useState('');
 
-  // TODO: validate thumbprint
+  function handleSubmit(validator: Validator) {
+    if (!validator.validate()) {
+      return;
+    }
+
+    // TODO(lisa): validate thumbprint
+    props.onNext();
+  }
 
   return (
     <InstructionsContainer>
@@ -66,8 +73,9 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
       <Validation>
         {({ validator }) => (
           <>
-            <Box mt={5}>
+            <Box mt={2}>
               <FieldInput
+                label="thumbprint"
                 onChange={e => setThumbprint(e.target.value)}
                 value={thumbprint}
                 placeholder="Paste the thumbprint here"
@@ -75,10 +83,7 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
               />
             </Box>
             <Box mt={5}>
-              <ButtonPrimary
-                disabled={!validator.validate()}
-                onClick={() => props.onNext()}
-              >
+              <ButtonPrimary onClick={() => handleSubmit(validator)}>
                 Next
               </ButtonPrimary>
             </Box>
