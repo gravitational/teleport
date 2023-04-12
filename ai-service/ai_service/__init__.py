@@ -1,1 +1,1 @@
-from ai_service.app import run
+from ai_service.app import app
