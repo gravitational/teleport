@@ -1391,9 +1391,10 @@ type Conversation struct {
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
-func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string, _ *proto.CreateAssistantConversationRequest) (*proto.CreateAssistantConversationResponse, error) {
+func (s *IdentityService) CreateAssistantConversation(ctx context.Context, username string, _ *proto.CreateAssistantConversationRequest,
+) (*proto.CreateAssistantConversationResponse, error) {
 	if username == "" {
-		return nil, trace.BadParameter("missing parameter user")
+		return nil, trace.BadParameter("missing parameter username")
 	}
 
 	conversationID := uuid.New().String()
@@ -1444,6 +1445,14 @@ func (s *IdentityService) GetAssistantConversations(ctx context.Context, usernam
 
 // GetAssistantMessages returns all messages with given conversation ID.
 func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, conversationId string) (*proto.GetAssistantMessagesResponse, error) {
+	if username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	if conversationId == "" {
+		return nil, trace.BadParameter("missing conversation ID")
+	}
+
 	startKey := backend.Key(assistantMessagePrefix, username, conversationId)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
@@ -1470,7 +1479,11 @@ func (s *IdentityService) GetAssistantMessages(ctx context.Context, username, co
 }
 
 // CreateAssistantMessage adds the message to the backend.
-func (s *IdentityService) CreateAssistantMessage(ctx context.Context, user string, msg *proto.AssistantMessage) error {
+func (s *IdentityService) CreateAssistantMessage(ctx context.Context, username string, msg *proto.AssistantMessage) error {
+	if username == "" {
+		return trace.BadParameter("missing username")
+	}
+
 	value, err := json.Marshal(msg)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1479,7 +1492,7 @@ func (s *IdentityService) CreateAssistantMessage(ctx context.Context, user strin
 	messageID := uuid.New().String()
 
 	item := backend.Item{
-		Key:   backend.Key(assistantMessagePrefix, user, msg.ConversationId, messageID),
+		Key:   backend.Key(assistantMessagePrefix, username, msg.ConversationId, messageID),
 		Value: value,
 	}
 
