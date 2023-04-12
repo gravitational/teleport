@@ -119,17 +119,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -239,17 +238,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -363,17 +361,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -483,17 +480,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -574,17 +570,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -1177,17 +1172,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -1268,17 +1262,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -4371,17 +4364,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -20351,6 +20343,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 101989203bdefb320f8daace5e6e6bf4b4e032c42b4fd22ace1acb54fe284880
+hmac: 500d6db4385acfd4f4614d962b87f67ff37f16f62c7a6c295d59c8b4611ac92d
 
 ...

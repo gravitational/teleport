@@ -79,7 +79,7 @@ export default function useQuickInput() {
   const hasSuggestions =
     suggestionsAttempt.status === 'success' &&
     suggestionsAttempt.data.length > 0;
-  const openCommandBarShortcutAction: KeyboardShortcutAction = 'openCommandBar';
+  const openSearchBarShortcutAction: KeyboardShortcutAction = 'openSearchBar';
   const { getAccelerator } = useKeyboardShortcutFormatters();
 
   const onFocus = (e: any) => {
@@ -177,7 +177,7 @@ export default function useQuickInput() {
   };
 
   useKeyboardShortcuts({
-    [openCommandBarShortcutAction]: () => {
+    [openSearchBarShortcutAction]: () => {
       quickInputService.show();
     },
   });
@@ -208,7 +208,7 @@ export default function useQuickInput() {
     onInputChange: quickInputService.setInputValue,
     onHide: quickInputService.hide,
     onShow: quickInputService.show,
-    keyboardShortcut: getAccelerator(openCommandBarShortcutAction),
+    keyboardShortcut: getAccelerator(openSearchBarShortcutAction),
   };
 }
 

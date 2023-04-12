@@ -354,6 +354,11 @@ func setupCollections(c *Cache, watches []types.WatchKind) (map[resourceKind]col
 				return nil, trace.BadParameter("missing parameter Okta")
 			}
 			collections[resourceKind] = &genericCollection[types.OktaAssignment, oktaAssignmentsExecutor]{cache: c, watch: watch}
+		case types.KindIntegration:
+			if c.Integrations == nil {
+				return nil, trace.BadParameter("missing parameter Integrations")
+			}
+			collections[resourceKind] = &genericCollection[types.Integration, integrationsExecutor]{cache: c, watch: watch}
 		default:
 			return nil, trace.BadParameter("resource %q is not supported", watch.Kind)
 		}
@@ -1575,3 +1580,48 @@ func (oktaAssignmentsExecutor) delete(ctx context.Context, cache *Cache, resourc
 func (oktaAssignmentsExecutor) isSingleton() bool { return false }
 
 var _ executor[types.OktaAssignment] = oktaAssignmentsExecutor{}
+
+type integrationsExecutor struct{}
+
+func (integrationsExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]types.Integration, error) {
+	var (
+		startKey  string
+		resources []types.Integration
+	)
+	for {
+		var igs []types.Integration
+		var err error
+		igs, startKey, err = cache.Integrations.ListIntegrations(ctx, 0, startKey)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		resources = append(resources, igs...)
+
+		if startKey == "" {
+			break
+		}
+	}
+
+	return resources, nil
+}
+
+func (integrationsExecutor) upsert(ctx context.Context, cache *Cache, resource types.Integration) error {
+	_, err := cache.integrationsCache.CreateIntegration(ctx, resource)
+	if trace.IsAlreadyExists(err) {
+		_, err = cache.integrationsCache.UpdateIntegration(ctx, resource)
+	}
+	return trace.Wrap(err)
+}
+
+func (integrationsExecutor) deleteAll(ctx context.Context, cache *Cache) error {
+	return cache.integrationsCache.DeleteAllIntegrations(ctx)
+}
+
+func (integrationsExecutor) delete(ctx context.Context, cache *Cache, resource types.Resource) error {
+	return cache.integrationsCache.DeleteIntegration(ctx, resource.GetName())
+}
+
+func (integrationsExecutor) isSingleton() bool { return false }
+
+var _ executor[types.Integration] = integrationsExecutor{}
