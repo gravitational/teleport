@@ -210,7 +210,6 @@ func writeChildError(w io.Writer, err error) {
 		Code:     trace.ErrorToCode(err),
 		RawError: data,
 	})
-
 }
 
 // DecodeChildError consumes the output from a child
@@ -722,11 +721,11 @@ func (c *ServerContext) SetAllowFileCopying(allow bool) {
 func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if remote file operations are disabled for this node.
 	if !c.AllowFileCopying {
-		return ErrNodeFileCopyingNotPermitted
+		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
 	}
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return errRoleFileCopyingNotPermitted
+		return trace.Wrap(errRoleFileCopyingNotPermitted)
 	}
 
 	return nil
@@ -748,7 +747,7 @@ func (c *ServerContext) CheckSFTPAllowed() error {
 		return trace.Wrap(err)
 	}
 	if !canStart {
-		return errCannotStartUnattendedSession
+		return trace.Wrap(errCannotStartUnattendedSession)
 	}
 
 	return nil
@@ -1019,7 +1018,7 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 // available proxy. if public_address is not set, fall back to the hostname
 // of the first proxy we get back.
 func (c *ServerContext) ProxyPublicAddress() string {
-	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
+	// TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
 	return "<proxyhost>:3080"
 }
 

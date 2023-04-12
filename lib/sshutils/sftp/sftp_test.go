@@ -22,12 +22,16 @@ import (
 	"fmt"
 	"io"
 	"math/rand"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -320,9 +324,9 @@ func TestUpload(t *testing.T) {
 			for _, file := range tt.files {
 				// if path ends in slash, create dir
 				if strings.HasSuffix(file, string(filepath.Separator)) {
-					createDir(t, tempDir, file)
+					createDir(t, filepath.Join(tempDir, file))
 				} else {
-					createFile(t, tempDir, file)
+					createFile(t, filepath.Join(tempDir, file))
 				}
 			}
 			for i := range tt.srcPaths {
@@ -491,9 +495,9 @@ func TestDownload(t *testing.T) {
 			for _, file := range tt.files {
 				// if path ends in slash, create dir
 				if strings.HasSuffix(file, string(filepath.Separator)) {
-					createDir(t, tempDir, file)
+					createDir(t, filepath.Join(tempDir, file))
 				} else {
-					createFile(t, tempDir, file)
+					createFile(t, filepath.Join(tempDir, file))
 				}
 			}
 			tt.srcPath = filepath.Join(tempDir, tt.srcPath)
@@ -526,6 +530,8 @@ func TestDownload(t *testing.T) {
 }
 
 func TestHomeDirExpansion(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		path         string
@@ -562,8 +568,10 @@ func TestHomeDirExpansion(t *testing.T) {
 }
 
 func TestCopyingSymlinkedFile(t *testing.T) {
+	t.Parallel()
+
 	tempDir := t.TempDir()
-	createFile(t, tempDir, "file")
+	createFile(t, filepath.Join(tempDir, "file"))
 	linkPath := filepath.Join(tempDir, "link")
 	err := os.Symlink(filepath.Join(tempDir, "file"), linkPath)
 	require.NoError(t, err)
@@ -583,15 +591,96 @@ func TestCopyingSymlinkedFile(t *testing.T) {
 	checkTransfer(t, false, dstPath, linkPath)
 }
 
-func createFile(t *testing.T, rootDir, path string) {
+func TestHTTPUpload(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	src := filepath.Join(tempDir, "source")
+	dst := filepath.Join(tempDir, "destination")
+
+	createFile(t, src)
+	f, err := os.Open(src)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		f.Close()
+	})
+
+	req, err := http.NewRequest("POST", "/", f)
+	require.NoError(t, err)
+
+	fi, err := f.Stat()
+	require.NoError(t, err)
+	req.Header.Set("Content-Length", strconv.FormatInt(fi.Size(), 10))
+
+	cfg, err := CreateHTTPUploadConfig(
+		HTTPTransferRequest{
+			Src:         "source",
+			Dst:         dst,
+			HTTPRequest: req,
+		},
+	)
+	require.NoError(t, err)
+	cfg.dstFS = &localFS{}
+
+	err = cfg.transfer(req.Context())
+	require.NoError(t, err)
+
+	srcContents, err := os.ReadFile(src)
+	require.NoError(t, err)
+	dstContents, err := os.ReadFile(dst)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(string(srcContents), string(dstContents)))
+}
+
+func TestHTTPDownload(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	src := filepath.Join(tempDir, "source")
+
+	createFile(t, src)
+	f, err := os.Open(src)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		f.Close()
+	})
+
+	contents, err := os.ReadFile(src)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	cfg, err := CreateHTTPDownloadConfig(
+		HTTPTransferRequest{
+			Src:          src,
+			Dst:          "/home/robots.txt",
+			HTTPResponse: w,
+		},
+	)
+	require.NoError(t, err)
+	cfg.srcFS = &localFS{}
+
+	err = cfg.transfer(context.Background())
+	require.NoError(t, err)
+
+	data, err := io.ReadAll(w.Body)
+	require.NoError(t, err)
+	contentLengthStr := strconv.Itoa(len(data))
+
+	require.Empty(t, cmp.Diff(string(contents), string(data)))
+	require.Empty(t, cmp.Diff(contentLengthStr, w.Header().Get("Content-Length")))
+	require.Empty(t, cmp.Diff("application/octet-stream", w.Header().Get("Content-Type")))
+	require.Empty(t, cmp.Diff(`attachment;filename="robots.txt"`, w.Header().Get("Content-Disposition")))
+}
+
+func createFile(t *testing.T, path string) {
 	dir := filepath.Dir(path)
 	if dir != path {
-		createDir(t, rootDir, dir)
+		createDir(t, dir)
 	}
 
 	// use non-standard permissions to verify that transferred files
 	// permissions match the originals
-	f, err := os.OpenFile(filepath.Join(rootDir, path), os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o654)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o654)
 	require.NoError(t, err)
 	defer func() {
 		require.NoError(t, f.Close())
@@ -604,10 +693,10 @@ func createFile(t *testing.T, rootDir, path string) {
 	require.NoError(t, err)
 }
 
-func createDir(t *testing.T, rootDir, path string) {
+func createDir(t *testing.T, path string) {
 	// use non-standard permissions to verify that transferred dirs
 	// permissions match the originals
-	err := os.MkdirAll(filepath.Join(rootDir, path), 0o765)
+	err := os.MkdirAll(path, 0o765)
 	require.NoError(t, err)
 }
 
@@ -677,7 +766,7 @@ func compareFiles(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo
 	require.NoError(t, err)
 	srcBytes, err := os.ReadFile(src)
 	require.NoError(t, err)
-	require.True(t, bytes.Equal(dstBytes, srcBytes), "%q and %q contents not equal", dst, src[0])
+	require.True(t, bytes.Equal(dstBytes, srcBytes), "%q and %q contents not equal", dst, src)
 }
 
 func compareFileInfos(t *testing.T, preserveAttrs bool, dstInfo, srcInfo os.FileInfo, dst, src string) {
