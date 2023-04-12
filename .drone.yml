@@ -838,7 +838,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_destroy -f -v 6
+      $RELCLI_IMAGE auto_destroy -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -20304,7 +20304,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_publish -f -v 6
+      $RELCLI_IMAGE auto_publish -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -20343,6 +20343,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: dcf10b332b4bc54f24baaaf73a8222d3e8148a85c6fbdd880ca92a0e62ad52a9
+hmac: c3ec624a7d78b178fb297fe3fc3b1b8ffb06d8028c1428c4b95ba0328b234ea1
 
 ...
