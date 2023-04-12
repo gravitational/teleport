@@ -104,7 +104,6 @@ func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	go h.startPing(ctx, pingConn)
-	time.Sleep(time.Millisecond * 100)
 
 	return h.upgradeALPN(ctx, pingConn)
 }

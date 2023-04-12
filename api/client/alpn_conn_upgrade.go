@@ -159,7 +159,7 @@ func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withP
 }
 
 // DialContext implements ContextDialer
-func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	logrus.Debugf("ALPN connection upgrade for %v.", addr)
 
 	conn, err := d.dialer.DialContext(ctx, network, addr)
@@ -184,56 +184,58 @@ func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr st
 	}
 
 	tlsConn := tls.Client(conn, cfg)
-
 	upgradeURL := url.URL{
 		Host:   addr,
 		Scheme: "https",
 		Path:   constants.WebAPIConnUpgrade,
 	}
 
-	switch {
-	case d.withPing:
-		if err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, constants.WebAPIConnUpgradeTypeALPNPing); err != nil {
-			return nil, trace.NewAggregate(err, tlsConn.Close())
-		}
-		return pingconn.New(tlsConn), nil
-
-	default:
-		if err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, constants.WebAPIConnUpgradeTypeALPN); err != nil {
-			return nil, trace.NewAggregate(err, tlsConn.Close())
-		}
-		return tlsConn, nil
+	conn, err = upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	if err != nil {
+		return nil, trace.NewAggregate(tlsConn.Close(), err)
 	}
+	return conn, nil
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) error {
+func (d *alpnConnUpgradeDialer) upgradeType() string {
+	if d.withPing {
+		return constants.WebAPIConnUpgradeTypeALPNPing
+	}
+	return constants.WebAPIConnUpgradeTypeALPN
+}
+
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (net.Conn, error) {
 	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	req.Header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
 	if http.StatusSwitchingProtocols != resp.StatusCode {
 		if http.StatusNotFound == resp.StatusCode {
-			return trace.NotImplemented(
+			return nil, trace.NotImplemented(
 				"connection upgrade call to %q with upgrade type %v failed with status code %v. Please upgrade the server and try again.",
 				constants.WebAPIConnUpgrade,
 				upgradeType,
 				resp.StatusCode,
 			)
 		}
-		return trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
+		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
-	return nil
+
+	if upgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
+		return pingconn.New(conn), nil
+	}
+	return conn, nil
 }
