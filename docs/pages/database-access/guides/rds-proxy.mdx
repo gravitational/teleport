@@ -106,7 +106,8 @@ example:
                 "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_anotheruser"
             ]
         },
-        {
+        {   
+            "Effect": "Allow",
             "Action": "kms:Decrypt",
             "Resource": "arn:aws:kms:us-west-1:account_id:key/key_id",
             "Condition": {
