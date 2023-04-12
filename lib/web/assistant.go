@@ -56,14 +56,13 @@ func (h *Handler) createAssistantConversation(w http.ResponseWriter, r *http.Req
 	return resp, nil
 }
 
-func (h *Handler) getAssistantConversationByID(w http.ResponseWriter, r *http.Request, _ httprouter.Params, sctx *SessionContext) (any, error) {
+func (h *Handler) getAssistantConversationByID(_ http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext) (any, error) {
 	authClient, err := sctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	q := r.URL.Query()
-	conversationID := q.Get("conversation_id")
+	conversationID := p.ByName("conversation_id")
 
 	resp, err := authClient.GetAssistantMessages(r.Context(), conversationID)
 	if err != nil {
