@@ -257,17 +257,11 @@ func TestS_CreateDevice(t *testing.T) {
 	s := env.S
 	ctx := context.Background()
 
-	clock := env.Clock
-	clockAdvance := func() {
-		clock.Advance(1 * time.Second)
-	}
-
 	const dev1Tag = "A00AA0AAAA0A"
 	const resource1Tag = "AAA000000000"
 	const resource2Tag = "BBB000000000"
-	const resource3Tag = "CCC000000000"
-	const resource4Tag = "DDD000000000"
-	const resource5Tag = "EEE000000000"
+	const resource3Tag = "DDD000000000"
+	const resource4Tag = "EEE000000000"
 
 	_, pubKeyDER := newKeyPair(t)
 
@@ -286,6 +280,7 @@ func TestS_CreateDevice(t *testing.T) {
 			Id:           "ae2d978c-fee8-419d-a2e6-a5dd0a00c4b8",
 			PublicKeyDer: pubKeyDER,
 		},
+		// CollectedData is ignored on Create.
 		CollectedData: []*devicepb.DeviceCollectedData{
 			{
 				CollectTime:  timestamppb.New(time.Date(2023, 2, 24, 19, 0, 5, 0, time.UTC)),
@@ -317,24 +312,11 @@ func TestS_CreateDevice(t *testing.T) {
 	}
 
 	// Used for MDMFeatureActive tests.
-	resource5Dev := proto.Clone(resource1Dev).(*devicepb.Device)
-	resource5Dev.Id = "e22fb287-74fd-44de-957f-813682440a32"
-	resource5Dev.AssetTag = resource5Tag
-	// resource5Dev.Credential is the same as resource1Dev, but it doesn't matter.
-	resource5Dev.CollectedData = nil // not important for this scenario.
-
-	// excessiveCD is used by resource-like write tests.
-	excessiveCD := make([]*devicepb.DeviceCollectedData, storage.MaxCollectedDataPerDevice+2)
-	for i := range excessiveCD {
-		now := clock.Now().UTC()
-		excessiveCD[i] = &devicepb.DeviceCollectedData{
-			CollectTime:  timestamppb.New(now),
-			RecordTime:   timestamppb.New(now.Add(50 * time.Millisecond)),
-			OsType:       devicepb.OSType_OS_TYPE_MACOS,
-			SerialNumber: resource3Tag,
-		}
-		clockAdvance()
-	}
+	resource4Dev := proto.Clone(resource1Dev).(*devicepb.Device)
+	resource4Dev.Id = "e22fb287-74fd-44de-957f-813682440a32"
+	resource4Dev.AssetTag = resource4Tag
+	// resource4Dev.Credential is the same as resource1Dev, but it doesn't matter.
+	resource4Dev.CollectedData = nil // not important for this scenario.
 
 	tests := []struct {
 		name             string
@@ -361,7 +343,9 @@ func TestS_CreateDevice(t *testing.T) {
 				want.UpdateTime = dev.UpdateTime
 				want.EnrollStatus = dev.EnrollStatus
 				want.Credential = dev.Credential
-				want.CollectedData = dev.CollectedData
+
+				// Ignored on pure Create/Update methods.
+				want.CollectedData = nil
 
 				// We don't want MDM-related fields, the feature is inactive here.
 				want.Source = nil
@@ -377,25 +361,11 @@ func TestS_CreateDevice(t *testing.T) {
 			createAsResource: true,
 		},
 		{
-			name: "excessive collected data discarded on write",
-			dev: &devicepb.Device{
-				OsType:        devicepb.OSType_OS_TYPE_MACOS,
-				AssetTag:      resource3Tag,
-				CollectedData: excessiveCD,
-			},
-			createAsResource: true,
-			modifyWant: func(_ *devicepb.Device, want *devicepb.Device) {
-				// Keep the oldest CD as enrollment data, skip the excessive entry
-				// (index 1) and retain the rest.
-				want.CollectedData = append(excessiveCD[:1], excessiveCD[2:]...)
-			},
-		},
-		{
 			name:             "MDM feature active",
 			mdmFeatureActive: true,
 			dev: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
-				AssetTag: resource4Tag,
+				AssetTag: resource3Tag,
 				Source: &devicepb.DeviceSource{
 					Name:   "mysource",
 					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
@@ -412,7 +382,7 @@ func TestS_CreateDevice(t *testing.T) {
 		{
 			name:             "MDM feature active (as resource)",
 			mdmFeatureActive: true,
-			dev:              resource5Dev,
+			dev:              resource4Dev,
 			createAsResource: true,
 			modifyWant: func(dev *devicepb.Device, want *devicepb.Device) {
 				// Essentially everything copied fom dev.

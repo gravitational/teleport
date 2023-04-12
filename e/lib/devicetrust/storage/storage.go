@@ -167,7 +167,7 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device, createAsReso
 	// that are usually system-managed are present, so we do our best to honor
 	// those and insert as-is to storage.
 
-	deviceID, storedDev, storedCD := deviceToStored(dev, s.nowUTC(), createAsResource)
+	deviceID, storedDev := deviceToStored(dev, s.nowUTC(), createAsResource)
 
 	// Marshal device before writes, just in the extremely unlikely case that it
 	// fails.
@@ -194,19 +194,16 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device, createAsReso
 		return nil, trace.Wrap(err)
 	}
 
-	// Write collected data, if any.
-	// Only happens for resource-like writes.
-	storedCD, err = s.recordResourceCollectedData(ctx, deviceID, storedCD)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	// Note: we don't write collected data on pure Create or Update methods -
+	// all collected data writes should be predicated on a successful device
+	// challenge.
+	// The DeviceProfile is the best way to constrain the device by various
+	// characteristics (for versions newer than v12).
 
-	created := storedToDevice(deviceID, storedDev)
-	created.CollectedData = storedSliceToCollectedData(storedCD)
-	return created, nil
+	return storedToDevice(deviceID, storedDev), nil
 }
 
-func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (deviceID string, storedDev *storedDevice, storedCD []*storedCollectedData) {
+func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (deviceID string, storedDev *storedDevice) {
 	var storedSource *storedDeviceSource
 	var storedProfile *storedDeviceProfile
 	if dtent.MDMFeatureActive {
@@ -243,7 +240,7 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 
 	// Non-resource writes don't assign readonly or system-managed fields.
 	if !createAsResource {
-		return uuid.NewString(), storedDev, nil
+		return uuid.NewString(), storedDev
 	}
 
 	// ID.
@@ -277,19 +274,12 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 		}
 	}
 
-	// CollectedData.
-	const originUnknown = 0 // decided later during creation
-	storedCD = make([]*storedCollectedData, len(d.CollectedData))
-	for i, cd := range d.CollectedData {
-		storedCD[i] = collectedDataToStored(cd, originUnknown, now, createAsResource)
-	}
-
 	// Profile.
 	if updateTime := d.Profile.GetUpdateTime(); dtent.MDMFeatureActive && updateTime != nil {
 		storedDev.Profile.UpdateTime = updateTime.AsTime()
 	}
 
-	return deviceID, storedDev, storedCD
+	return deviceID, storedDev
 }
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
@@ -444,7 +434,7 @@ func (s *S) UpdateDevice(
 	}
 
 	// Convert updated dev to storage.
-	_, storedU, _ := deviceToStored(updated, now, true /* createAsResource */)
+	_, storedU := deviceToStored(updated, now, true /* createAsResource */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -657,17 +647,6 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 	})
 
 	return cd, nil
-}
-
-func storedSliceToCollectedData(stored []*storedCollectedData) []*devicepb.DeviceCollectedData {
-	if len(stored) == 0 {
-		return nil
-	}
-	cd := make([]*devicepb.DeviceCollectedData, len(stored))
-	for i, s := range stored {
-		cd[i] = storedToCollectedData(s)
-	}
-	return cd
 }
 
 // GetDevicesByAssetTag reads devices by asset tag.
@@ -974,60 +953,6 @@ func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *device
 	}
 
 	return nil
-}
-
-// recordResourceCollectedData is a variant of [recordResourceCollectedData]
-// used exclusively for collected data acquired during resource-like device
-// writes.
-// It's simplified by the fact that the device is brand-new, thus has no
-// collected data present in storage: the `storedCD` is all the data we have for
-// the device.
-// Returns the stored slice.
-func (s *S) recordResourceCollectedData(ctx context.Context, deviceID string, storedCD []*storedCollectedData) ([]*storedCollectedData, error) {
-	if len(storedCD) == 0 {
-		return nil, nil
-	}
-
-	// Sort by ascending RecordTime and do the following assumptions:
-	// - The oldest collected data is the enrollment data.
-	// - All other datas are authn data
-	sort.Slice(storedCD, func(i, j int) bool {
-		d1 := storedCD[i]
-		d2 := storedCD[j]
-		return d1.RecordTime.Before(d2.RecordTime)
-	})
-
-	// Limit slice to MaxCollectedDataPerDevice+1, keeping the oldest data
-	// (enrollment) and the N newer ones (authn).
-	if l := len(storedCD); l > MaxCollectedDataPerDevice+1 {
-		storedCD = append(storedCD[:1], storedCD[l-MaxCollectedDataPerDevice:]...)
-	}
-
-	for i, cd := range storedCD {
-		// Assign ID and origin according to slice position (first=enrollment).
-		var cdID string
-		if i == 0 {
-			cdID = enrollmentDataID
-			cd.Origin = originEnrollment
-		} else {
-			cdID = uuid.NewString()
-			cd.Origin = originAuthentication
-		}
-
-		val, err := json.Marshal(cd)
-		if err != nil {
-			return nil, trace.Wrap(err, "marshal collected data (index=%v, cd=%v)", i, cd)
-		}
-
-		if _, err := s.backend.Put(ctx, backend.Item{
-			Key:   collectedDataKey(deviceID, cdID),
-			Value: val,
-		}); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return storedCD, nil
 }
 
 // simplifiedCollectedData is used to decide which collected data entries to

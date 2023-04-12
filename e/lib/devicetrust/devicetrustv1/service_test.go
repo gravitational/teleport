@@ -343,6 +343,8 @@ func TestService_CreateDevice(t *testing.T) {
 						Id:           "ae2d978c-fee8-419d-a2e6-a5dd0a00c4b8",
 						PublicKeyDer: pubKeyDER,
 					},
+					// CollectedData is ignored by CreateDevice - it's only written in
+					// paths where a device challenge is cleared.
 					CollectedData: []*devicepb.DeviceCollectedData{
 						{
 							CollectTime:  timestamppb.New(time.Date(2023, 2, 15, 15, 28, 35, 402554, time.UTC)),
@@ -399,6 +401,7 @@ func TestService_CreateDevice(t *testing.T) {
 			want.UpdateTime = got.UpdateTime
 			want.EnrollToken = got.EnrollToken
 			want.EnrollStatus = got.EnrollStatus
+			want.CollectedData = nil // ignored by CreateDevice
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Fatalf("CreateDevice mismatch (-want +got):\n%s", diff)
 			}
@@ -609,6 +612,7 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 	t.Run("CreateDevice", func(t *testing.T) {
 		deleteAll(t)
 
+		wantAll := make([]*devicepb.Device, 0, len(allDevices))
 		for _, dev := range allDevices {
 			created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
 				Device:           dev,
@@ -618,14 +622,18 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 				t.Fatalf("CreateDevice(%q, createAsResource=true) failed: %v", dev.AssetTag, err)
 			}
 
-			// Assert CreatteDevice's response.
-			if diff := cmp.Diff(dev, created, protocmp.Transform()); diff != "" {
+			want := proto.Clone(dev).(*devicepb.Device)
+			want.CollectedData = nil // ignored by CreateDevice
+			wantAll = append(wantAll, want)
+
+			// Assert CreateDevice's response.
+			if diff := cmp.Diff(want, created, protocmp.Transform()); diff != "" {
 				t.Errorf("CreateDevice mismatch (-want +got):\n%s", diff)
 			}
 		}
 
 		// Assert storage.
-		assertDevices(t, allDevices)
+		assertDevices(t, wantAll)
 	})
 
 	t.Run("BulkCreateDevices", func(t *testing.T) {
@@ -650,8 +658,14 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 			t.Errorf("BulkCreateDevices mismatch (-want +got):\n%s", diff)
 		}
 
+		wantAll := make([]*devicepb.Device, len(allDevices))
+		for i, dev := range allDevices {
+			wantAll[i] = proto.Clone(dev).(*devicepb.Device)
+			wantAll[i].CollectedData = nil // ignored by BulkCreateDevices
+		}
+
 		// Assert storage.
-		assertDevices(t, allDevices)
+		assertDevices(t, wantAll)
 	})
 }
 
