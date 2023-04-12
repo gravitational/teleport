@@ -602,7 +602,7 @@ func TestCompletenessInit(t *testing.T) {
 
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
-		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.org", i))
+		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
 		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
