@@ -39,7 +39,7 @@ export const WithTraitsAwsPostgres = () => (
   <MemoryRouter>
     <SetupAccess
       {...props}
-      resourceSpec={getDbMeta(DatabaseEngine.PostgreSQL, DatabaseLocation.AWS)}
+      resourceSpec={getDbMeta(DatabaseEngine.Postgres, DatabaseLocation.Aws)}
     />
   </MemoryRouter>
 );
@@ -48,7 +48,7 @@ export const WithTraitsAwsMySql = () => (
   <MemoryRouter>
     <SetupAccess
       {...props}
-      resourceSpec={getDbMeta(DatabaseEngine.MySQL, DatabaseLocation.AWS)}
+      resourceSpec={getDbMeta(DatabaseEngine.MySql, DatabaseLocation.Aws)}
     />
   </MemoryRouter>
 );
@@ -61,13 +61,13 @@ export const WithTraitsPostgres = () => (
 
 export const WithTraitsMongo = () => (
   <MemoryRouter>
-    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.Mongo)} />
+    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MongoDb)} />
   </MemoryRouter>
 );
 
 export const WithTraitsMySql = () => (
   <MemoryRouter>
-    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MySQL)} />
+    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MySql)} />
   </MemoryRouter>
 );
 
@@ -98,10 +98,7 @@ const props: State = {
     initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits }),
   dynamicTraits: {} as any,
   staticTraits: {} as any,
-  resourceSpec: getDbMeta(
-    DatabaseEngine.PostgreSQL,
-    DatabaseLocation.SelfHosted
-  ),
+  resourceSpec: getDbMeta(DatabaseEngine.Postgres, DatabaseLocation.SelfHosted),
 };
 
 const staticTraits = {

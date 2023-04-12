@@ -175,7 +175,6 @@ type step struct {
 	Environment map[string]value    `yaml:"environment,omitempty"`
 	Volumes     []volumeRef         `yaml:"volumes,omitempty"`
 	Settings    map[string]value    `yaml:"settings,omitempty"`
-	Template    []string            `yaml:"template,omitempty"`
 	When        *condition          `yaml:"when,omitempty"`
 	Failure     string              `yaml:"failure,omitempty"`
 	Resources   *containerResources `yaml:"resources,omitempty"`

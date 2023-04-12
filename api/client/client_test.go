@@ -119,13 +119,13 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 }
 
 func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
-	resources, err := testResources(req.ResourceType, req.Namespace)
+	resources, err := testResources[types.ResourceWithLabels](req.ResourceType, req.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
 	resp := &proto.ListResourcesResponse{
-		Resources:  make([]*proto.PaginatedResource, 0),
+		Resources:  make([]*proto.PaginatedResource, 0, len(resources)),
 		TotalCount: int32(len(resources)),
 	}
 
@@ -202,18 +202,17 @@ func (m *mockServer) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADevi
 
 const fiveMBNode = "fiveMBNode"
 
-func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, error) {
-	var err error
+func testResources[T types.ResourceWithLabels](resourceType, namespace string) ([]T, error) {
 	size := 50
 	// Artificially make each node ~ 100KB to force
 	// ListResources to fail with chunks of >= 40.
 	labelSize := 100000
-	resources := make([]types.ResourceWithLabels, size)
+	resources := make([]T, 0, size)
 
 	switch resourceType {
 	case types.KindDatabaseServer:
 		for i := 0; i < size; i++ {
-			resources[i], err = types.NewDatabaseServerV3(types.Metadata{
+			resource, err := types.NewDatabaseServerV3(types.Metadata{
 				Name: fmt.Sprintf("db-%d", i),
 				Labels: map[string]string{
 					"label": string(make([]byte, labelSize)),
@@ -224,10 +223,11 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 				Hostname: "localhost",
 				HostID:   fmt.Sprintf("host-%d", i),
 			})
-
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			resources = append(resources, any(resource).(T))
 		}
 	case types.KindAppServer:
 		for i := 0; i < size; i++ {
@@ -240,7 +240,7 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 				return nil, trace.Wrap(err)
 			}
 
-			resources[i], err = types.NewAppServerV3(types.Metadata{
+			resource, err := types.NewAppServerV3(types.Metadata{
 				Name: fmt.Sprintf("app-%d", i),
 				Labels: map[string]string{
 					"label": string(make([]byte, labelSize)),
@@ -253,6 +253,8 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			resources = append(resources, any(resource).(T))
 		}
 	case types.KindNode:
 		for i := 0; i < size; i++ {
@@ -264,7 +266,7 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			}
 
 			var err error
-			resources[i], err = types.NewServerWithLabels(fmt.Sprintf("node-%d", i), types.KindNode, types.ServerSpecV2{},
+			resource, err := types.NewServerWithLabels(fmt.Sprintf("node-%d", i), types.KindNode, types.ServerSpecV2{},
 				map[string]string{
 					"label": string(make([]byte, nodeLabelSize)),
 				},
@@ -272,6 +274,8 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			resources = append(resources, any(resource).(T))
 		}
 	case types.KindKubeServer:
 		for i := 0; i < size; i++ {
@@ -286,7 +290,7 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			resources[i], err = types.NewKubernetesServerV3(
+			resource, err := types.NewKubernetesServerV3(
 				types.Metadata{
 					Name: name,
 					Labels: map[string]string{
@@ -301,12 +305,14 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+
+			resources = append(resources, any(resource).(T))
 		}
 	case types.KindWindowsDesktop:
 		for i := 0; i < size; i++ {
 			var err error
 			name := fmt.Sprintf("windows-desktop-%d", i)
-			resources[i], err = types.NewWindowsDesktopV3(
+			resource, err := types.NewWindowsDesktopV3(
 				name,
 				map[string]string{"label": string(make([]byte, labelSize))},
 				types.WindowsDesktopSpecV3{
@@ -316,8 +322,9 @@ func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, 
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-		}
 
+			resources = append(resources, any(resource).(T))
+		}
 	default:
 		return nil, trace.Errorf("unsupported resource type %s", resourceType)
 	}
@@ -568,7 +575,75 @@ func TestListResources(t *testing.T) {
 	require.Equal(t, 50, resp.TotalCount)
 }
 
+func testGetResources[T types.ResourceWithLabels](t *testing.T, clt *Client, kind string) {
+	ctx := context.Background()
+	expectedResources, err := testResources[T](kind, defaults.Namespace)
+	require.NoError(t, err)
+
+	// Test listing everything at once errors with limit exceeded.
+	_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		Limit:        int32(len(expectedResources)),
+		ResourceType: kind,
+	})
+	require.Error(t, err)
+	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
+
+	// Test getting a page of resources
+	page, err := GetResourcePage[T](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:      defaults.Namespace,
+		ResourceType:   kind,
+		NeedTotalCount: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, expectedResources, page.Total)
+	require.Empty(t, cmp.Diff(expectedResources[:len(page.Resources)], page.Resources))
+
+	// Test getting all resources by chunks to handle limit exceeded.
+	resources, err := GetAllResources[T](ctx, clt, &proto.ListResourcesRequest{
+		Namespace:    defaults.Namespace,
+		ResourceType: kind,
+	})
+	require.NoError(t, err)
+	require.Len(t, resources, len(expectedResources))
+	require.Empty(t, cmp.Diff(expectedResources, resources))
+}
+
 func TestGetResources(t *testing.T) {
+	t.Parallel()
+	srv := startMockServer(t)
+
+	// Create client
+	clt, err := srv.NewClient(context.Background())
+	require.NoError(t, err)
+
+	t.Run("DatabaseServer", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.DatabaseServer](t, clt, types.KindDatabaseServer)
+	})
+
+	t.Run("ApplicationServer", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.AppServer](t, clt, types.KindAppServer)
+	})
+
+	t.Run("Node", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.Server](t, clt, types.KindNode)
+	})
+
+	t.Run("KubeServer", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.KubeServer](t, clt, types.KindKubeServer)
+	})
+
+	t.Run("WindowsDesktop", func(t *testing.T) {
+		t.Parallel()
+		testGetResources[types.WindowsDesktop](t, clt, types.KindWindowsDesktop)
+	})
+}
+
+func TestGetResourcesWithFilters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := startMockServer(t)
@@ -598,8 +673,10 @@ func TestGetResources(t *testing.T) {
 	}
 
 	for name, test := range testCases {
+		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			expectedResources, err := testResources(test.resourceType, defaults.Namespace)
+			t.Parallel()
+			expectedResources, err := testResources[types.ResourceWithLabels](test.resourceType, defaults.Namespace)
 			require.NoError(t, err)
 
 			// Test listing everything at once errors with limit exceeded.

@@ -1,6 +1,6 @@
 ---
 title: Using the tsh Command Line Tool
-description: Using the tsh command line tool
+description: This reference shows you how to use Teleport's tsh tool to authenticate to a cluster, explore your infrastructure, and connect to a resource.
 ---
 
 This guide will show you how to use the Teleport client tool, `tsh`.
@@ -840,8 +840,8 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 
 ## Interactive Recording
 
-Within the Teleport cluster the Server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
-The same listings, including Desktop Access sessions, are available in the Web Console under Session Recordings in the Activity section.
+Within the Teleport cluster, server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
+The same listings, including Windows desktop sessions, are available in the Web Console under Session Recordings in the Activity section.
 
 ### List and Play Recordings
 
@@ -873,7 +873,6 @@ tmpfs            1982720       0   1982720   0% /proc/acpi
 tmpfs            1982720       0   1982720   0% /sys/firmware
 root@ubuntu:/# exit
 exit
-
 
 end of session playback
 ```

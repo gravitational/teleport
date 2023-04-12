@@ -38,7 +38,7 @@ visualization and alerting.
 - On Splunk Enterprise, port `8088` should be open to traffic from the host
   running the Teleport Event Handler and Universal Forwarder.
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up the Teleport Event Handler plugin
 
@@ -226,7 +226,6 @@ In the **Input Settings** view (above), next to the **Source type** field, click
 then **_json**. Splunk will index incoming logs as JSON, which is the format the
 Event Handler uses to send logs to the Universal Forwarder.
 
-
 In the **Index** section, select the `teleport-audit-logs` index you created
 earlier. Click **Review** then view the summary and click **Submit**. Copy the
 **Token Value** field and keep it somewhere safe so you can use it later in this
@@ -252,7 +251,6 @@ $ sudo chown splunk:splunk server.pem
 ```
 
 ### Configure the HTTP Event Collector
-
 
 On your Universal Forwarder host, create a file at
 `/opt/splunkforwarder/etc/system/local/inputs.conf` with the following content:
