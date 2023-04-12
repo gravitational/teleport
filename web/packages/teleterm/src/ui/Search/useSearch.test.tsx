@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import renderHook from 'design/utils/renderHook';
+import { renderHook } from '@testing-library/react-hooks';
 
 import { ServerUri } from 'teleterm/ui/uri';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
@@ -123,7 +123,7 @@ describe('rankResults', () => {
 });
 
 describe('useResourceSearch', () => {
-  it('should not limit results', async () => {
+  it('does not limit results', async () => {
     const appContext = new MockAppContext();
     const servers: SearchResult[] = Array(20)
       .fill(undefined)
@@ -145,14 +145,14 @@ describe('useResourceSearch', () => {
       .spyOn(appContext.resourcesService, 'searchResources')
       .mockResolvedValue(servers);
 
-    const { current } = renderHook(() => useResourceSearch(), {
+    const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (
         <MockAppContextProvider appContext={appContext}>
           {children}
         </MockAppContextProvider>
       ),
     });
-    const result = await current('foo', []);
-    expect(result.results).toEqual(servers);
+    const searchResult = await result.current('foo', []);
+    expect(searchResult.results).toEqual(servers);
   });
 });
