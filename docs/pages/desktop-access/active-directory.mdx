@@ -84,7 +84,17 @@ block to a temporary location. Click **Next**.
 
 On the Linux host where you will run the Teleport Desktop Service, create a file
 called `/etc/teleport.yaml` and paste the configuration provided by the output
-of the previous step. The configuration file will resemble the following:
+of the previous step. 
+
+<Notice type="tip">
+
+If you would like to run the Teleport Desktop Service from a Teleport process
+that is already running other services, copy and paste only the
+`windows_desktop_service` section.
+
+</Notice>
+
+The configuration file will resemble the following:
 
 ```yaml
 version: v3
