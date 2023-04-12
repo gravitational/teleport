@@ -3186,7 +3186,11 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginFunc, error) {
 	switch pr.Auth.Type {
 	case constants.Local:
-		switch pr.Auth.Local.Name {
+		authType := constants.LocalConnector
+		if pr.Auth.Local != nil {
+			authType = pr.Auth.Local.Name
+		}
+		switch authType {
 		case constants.PasswordlessConnector:
 			// Sanity check settings.
 			if !pr.Auth.AllowPasswordless {
