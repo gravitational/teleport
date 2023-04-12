@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
+	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
@@ -495,13 +496,13 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 	allDevices = append(allDevices, alpacaDev)
 
 	// Authenticate a few times to generate additional collected data.
-	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey); err != nil {
+	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey, defaultCollectData); err != nil {
 		t.Fatalf("authenticateDevice failed: %v", err)
 	}
-	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey); err != nil {
+	if err := authenticateDevice(ctx, devices, llamaDev, llamaKey, defaultCollectData); err != nil {
 		t.Fatalf("authenticateDevice failed: %v", err)
 	}
-	if err := authenticateDevice(ctx, devices, alpacaDev, alpacaKey); err != nil {
+	if err := authenticateDevice(ctx, devices, alpacaDev, alpacaKey, defaultCollectData); err != nil {
 		t.Fatalf("authenticateDevice failed: %v", err)
 	}
 
@@ -667,58 +668,6 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 		// Assert storage.
 		assertDevices(t, wantAll)
 	})
-}
-
-func authenticateDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device, devKey *fakeEnclaveKey) error {
-	stream, err := devices.AuthenticateDevice(ctx)
-	if err != nil {
-		return err
-	}
-
-	// 1. Init.
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_Init{
-			Init: &devicepb.AuthenticateDeviceInit{
-				CredentialId: devKey.id,
-				DeviceData: &devicepb.DeviceCollectedData{
-					CollectTime:  timestamppb.Now(),
-					OsType:       dev.OsType,
-					SerialNumber: dev.AssetTag,
-				},
-			},
-		},
-	}); err != nil {
-		return err
-	}
-	resp, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	// 2. Challenge.
-	sig, err := devKey.signChallenge(resp.GetChallenge().Challenge)
-	if err != nil {
-		return err
-	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-				Signature: sig,
-			},
-		},
-	}); err != nil {
-		return err
-	}
-	resp, err = stream.Recv()
-	if err != nil {
-		return err
-	}
-
-	// 3. Success.
-	if resp.GetUserCertificates() == nil {
-		return fmt.Errorf("got payload type %T, wanted UserCertificates", resp.Payload)
-	}
-	return nil
 }
 
 func TestService_UpdateDevice(t *testing.T) {
@@ -1676,6 +1625,83 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 					Code: events.DeviceEnrollTokenCreateCode,
 				},
 			})
+		})
+	}
+}
+
+func TestService_dataDriftErrorsRedacted(t *testing.T) {
+	env := testenv.NewUsingT(t)
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Enable MDM fields and features like profile validation.
+	setMDMFeatureActive(t, true /* active */)
+
+	// Create a device with a profile for testing.
+	// This raises the bar that collected data has to meet.
+	dev, key, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama1",
+		Profile: &devicepb.DeviceProfile{
+			ModelIdentifier: "MacBookPro9,2",
+		},
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	// Authenticate adding some "organic" collected data, beyond what is in the
+	// profile.
+	organicCollectData := func(dev *devicepb.Device) *devicepb.DeviceCollectedData {
+		cd := defaultCollectData(dev)
+		// Add some organic data, beyond the profile
+		cd.OsVersion = "13.2.1"
+		cd.OsBuild = "22D68"
+		cd.OsUsername = "llama"
+		return cd
+	}
+	if err := authenticateDevice(ctx, devices, dev, key, organicCollectData); err != nil {
+		t.Fatalf("authenticateDevice failed: %v", err)
+	}
+
+	badCollectData := func(dev *devicepb.Device) *devicepb.DeviceCollectedData {
+		cd := organicCollectData(dev)
+		cd.ModelIdentifier = "MacBookPro9,3" // model can't change
+		return cd
+	}
+
+	tests := []struct {
+		name string
+		rpc  func() error // RPC is supposed to fail with a drift error.
+	}{
+		{
+			name: "authenticate",
+			rpc: func() error {
+				return authenticateDevice(ctx, devices, dev, key, badCollectData)
+			},
+		},
+		{
+			name: "enroll",
+			rpc: func() error {
+				_, _, err := enrollDevice(ctx, devices, dev, badCollectData)
+				return err
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			gotErr := test.rpc()
+			if gotErr == nil {
+				t.Fatal("Got err=nil, wanted non-nil")
+			}
+			if !trace.IsAccessDenied(gotErr) {
+				t.Errorf("Got err=%v (%T), want trace.AccessDeniedError", gotErr, gotErr)
+			}
+			if gotErr.Error() != devicetrustv1.DataDriftDetectedMessage {
+				t.Errorf("Got err=%v, want %q (redacted data drift message)", gotErr, devicetrustv1.DataDriftDetectedMessage)
+			}
 		})
 	}
 }

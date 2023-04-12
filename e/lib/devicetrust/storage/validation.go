@@ -165,16 +165,41 @@ func validateSemver(v string) error {
 func ValidateCollectedDataAgainstDevice(cd *devicepb.DeviceCollectedData, dev *devicepb.Device) error {
 	switch {
 	case dev.OsType != cd.OsType:
-		return trace.BadParameter(
-			"collected data OS type mismatch: %v vs %v",
-			dtoss.FriendlyOSType(dev.OsType),
-			dtoss.FriendlyOSType(cd.OsType))
+		return NewCollectedDataDriftError(
+			fmt.Sprintf(
+				"collected data OS type mismatch: %v vs %v",
+				dtoss.FriendlyOSType(dev.OsType),
+				dtoss.FriendlyOSType(cd.OsType)))
 	case dev.AssetTag != cd.SerialNumber:
-		return trace.BadParameter(
-			"collected data serial number mismatch: %q vs %q",
-			dev.AssetTag, cd.SerialNumber)
+		return NewCollectedDataDriftError(
+			fmt.Sprintf(
+				"collected data serial number mismatch: %q vs %q",
+				dev.AssetTag, cd.SerialNumber))
 	}
-	return nil
+
+	if !dtent.MDMFeatureActive || dev.Profile == nil {
+		return nil
+	}
+	return trace.Wrap(validateDeviceProfileDrift(cd, dev.Profile))
+}
+
+func validateDeviceProfileDrift(cd *devicepb.DeviceCollectedData, profile *devicepb.DeviceProfile) error {
+	// OS username.
+	if len(profile.OsUsernames) > 0 {
+		found := false
+		for _, username := range profile.OsUsernames {
+			if username == cd.OsUsername {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return NewCollectedDataDriftError("device OS username not present in profile")
+		}
+	}
+
+	// Data-like fields.
+	return trace.Wrap(validateDataLikeDrift(cd, profile))
 }
 
 func validateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
@@ -332,4 +357,58 @@ func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
 	}
 
 	return nil
+}
+
+func validateCollectedDataDrift(target, source *devicepb.DeviceCollectedData) error {
+	switch {
+	case target == nil || source == nil:
+		return trace.BadParameter("target and source required")
+	case target.OsType != source.OsType:
+		return NewCollectedDataDriftError("os_type drift detected")
+	case target.SerialNumber != source.SerialNumber:
+		return NewCollectedDataDriftError("serial number drift detected")
+	case source.OsUsername != "" && source.OsUsername != target.OsUsername:
+		return NewCollectedDataDriftError("device OS username drift detected")
+	}
+	if err := validateDataLikeDrift(target, source); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// TODO(codingllama): Detect drift on macos enrollment profiles.
+
+	return nil
+}
+
+func validateDataLikeDrift(target, source collectedDataLike) error {
+	switch {
+	case source.GetModelIdentifier() != "" && target.GetModelIdentifier() != source.GetModelIdentifier():
+		return NewCollectedDataDriftError("device model drift detected")
+	case isBackwardsVersionDrift(source.GetOsVersion(), target.GetOsVersion()):
+		return NewCollectedDataDriftError("device OS version drift detected")
+	default:
+		return nil
+	}
+
+	// TODO(codingllama): Verify Jamf binary drift?
+	//  Backwards drift seems unlikely but could happen.
+	//  Going from present to missing is also an interesting signal, but could be
+	//  a legitimate change.
+}
+
+func isBackwardsVersionDrift(v1, v2 string) bool {
+	if v1 == "" {
+		return false
+	}
+	// v2 is required if v1 is known.
+	if v2 == "" {
+		return true
+	}
+
+	v1Prefixed := fmt.Sprintf("v%v", v1)
+	v2Prefixed := fmt.Sprintf("v%v", v2)
+	if !semver.IsValid(v1Prefixed) {
+		return false // can't detect drift
+	}
+
+	return semver.Compare(v1Prefixed, v2Prefixed) > 0
 }

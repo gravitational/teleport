@@ -633,6 +633,10 @@ MDM server: https://example.com/mdm/ServerURL`,
 		JamfBinaryVersion: "9.27",
 	}
 
+	isDriftError := func(err error) bool {
+		return errors.Is(err, &storage.CollectedDataDriftError{})
+	}
+
 	tests := []struct {
 		name             string
 		mdmFeatureActive bool
@@ -869,7 +873,7 @@ MDM server: https://example.com/mdm/ServerURL`,
 			},
 			createAsResource: true,
 			wantErr:          "serial number mismatch",
-			assertErr:        trace.IsBadParameter,
+			assertErr:        isDriftError,
 		},
 		{
 			name:             "resource: cd.os_version macOS not a semver",
@@ -1873,6 +1877,10 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 		SerialNumber: dev.AssetTag,
 	}
 
+	isDriftError := func(err error) bool {
+		return errors.Is(err, &storage.CollectedDataDriftError{})
+	}
+
 	tests := []struct {
 		name       string
 		deviceID   string
@@ -1975,7 +1983,7 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 
 			},
-			assertErr: trace.IsBadParameter,
+			assertErr: isDriftError,
 			wantErr:   "OS type mismatch",
 		},
 		{
@@ -2012,16 +2020,18 @@ func TestS_EnrollDevice_errors(t *testing.T) {
 				return cp
 
 			},
-			assertErr: trace.IsBadParameter,
+			assertErr: isDriftError,
 			wantErr:   "serial number mismatch",
 		},
 	}
 	for _, test := range tests {
-		_, err := s.EnrollDevice(ctx, test.deviceID, test.createCred(), test.createCD())
-		if !test.assertErr(err) {
-			t.Errorf("EnrollDevice: assertErr failed, err=%v", err)
-		}
-		assert.ErrorContains(t, err, test.wantErr, "EnrollDevice error mismatch")
+		t.Run(test.name, func(t *testing.T) {
+			_, err := s.EnrollDevice(ctx, test.deviceID, test.createCred(), test.createCD())
+			if !test.assertErr(err) {
+				t.Errorf("EnrollDevice: assertErr failed, err=%v", err)
+			}
+			assert.ErrorContains(t, err, test.wantErr, "EnrollDevice error mismatch")
+		})
 	}
 }
 
@@ -2319,7 +2329,171 @@ MDM server: https://example.com/mdm/ServerURL`,
 			}
 		})
 	}
+}
 
+func TestS_RecordDeviceAuthnData_validateDataDrift(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	clock := env.Clock
+	ctx := context.Background()
+
+	devWithProfile, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "alpaca",
+		Profile: &devicepb.DeviceProfile{
+			ModelIdentifier:   "MacBookPro9,2",
+			OsVersion:         "13.3.1",
+			OsBuild:           "22E261",
+			OsUsernames:       []string{"admin", "llama"},
+			JamfBinaryVersion: "10.45.0-t1678116779",
+		},
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	devWithData, err := s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama",
+	}, false /* createAsResource */)
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	// Record a couple of CD instances that evolve over time as the basis for
+	// testing.
+	cd1 := &devicepb.DeviceCollectedData{
+		OsType:            devWithData.OsType,
+		SerialNumber:      devWithData.AssetTag,
+		ModelIdentifier:   "MacBookPro9,2",
+		OsVersion:         "13.2.1",
+		OsBuild:           "22D68",
+		OsUsername:        "llama",
+		JamfBinaryVersion: "9.27",
+	}
+	cd2 := &devicepb.DeviceCollectedData{
+		OsType:            devWithData.OsType,
+		SerialNumber:      devWithData.AssetTag,
+		ModelIdentifier:   "MacBookPro9,2",
+		OsVersion:         "13.3",
+		OsBuild:           "22E260",
+		OsUsername:        "llama",
+		JamfBinaryVersion: "10.44.1-t1677509507",
+	}
+	for _, cd := range []*devicepb.DeviceCollectedData{cd1, cd2} {
+		clock.Advance(1 * time.Second)
+		cd.CollectTime = timestamppb.New(clock.Now())
+		if err := s.RecordDeviceAuthnData(ctx, devWithData.Id, cd); err != nil {
+			t.Fatalf("RecordDeviceAuthnData failed: %v", err)
+		}
+	}
+
+	tests := []struct {
+		name     string
+		deviceID string
+		createCD func() *devicepb.DeviceCollectedData
+		wantErr  string
+	}{
+		// Profile validation.
+		{
+			name:     "profile ModelIdentifier drift",
+			deviceID: devWithProfile.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devWithProfile)
+				cd.ModelIdentifier = "MacBookPro9,3" // can't change
+				return cd
+			},
+			wantErr: "device model",
+		},
+		{
+			name:     "profile OsVersion missing",
+			deviceID: devWithProfile.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devWithProfile)
+				cd.OsVersion = ""
+				return cd
+			},
+			wantErr: "OS version",
+		},
+		{
+			name:     "profile OsVersion backwards drift",
+			deviceID: devWithProfile.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devWithProfile)
+				cd.OsVersion = "13.1"
+				return cd
+			},
+			wantErr: "OS version",
+		},
+		{
+			name:     "profile OsUsernames drift",
+			deviceID: devWithProfile.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(devWithProfile)
+				cd.OsUsername = "alpaca2" // not in profile
+				return cd
+			},
+			wantErr: "OS username",
+		},
+
+		// Previous data validation.
+		{
+			name:     "old collected data replay drift",
+			deviceID: devWithData.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				return cd1 // rolls back OS version, among others
+			},
+			wantErr: "OS version",
+		},
+		{
+			name:     "collected data ModelIdentifier drift",
+			deviceID: devWithData.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := proto.Clone(cd2).(*devicepb.DeviceCollectedData)
+				cd.ModelIdentifier = "MacBookPro9,1" // can't change
+				return cd
+			},
+			wantErr: "device model",
+		},
+		{
+			name:     "collected data OsVersion drift",
+			deviceID: devWithData.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := proto.Clone(cd2).(*devicepb.DeviceCollectedData)
+				cd.OsVersion = "13.2.2" // in-between cd1 and cd2
+				return cd
+			},
+			wantErr: "OS version",
+		},
+		{
+			name:     "collected data OsUsername drift",
+			deviceID: devWithData.Id,
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := proto.Clone(cd2).(*devicepb.DeviceCollectedData)
+				cd.OsUsername = "eve" // unexpected change
+				return cd
+			},
+			wantErr: "OS username",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			clock.Advance(1 * time.Second) // Use a somewhat-realistic time sequence
+
+			err := s.RecordDeviceAuthnData(ctx, test.deviceID, test.createCD())
+			switch {
+			case err == nil:
+				t.Fatal("RecordDeviceAuthnData returned err=nil, want non-nil")
+			case !errors.Is(err, &storage.CollectedDataDriftError{}):
+				t.Errorf("RecordDeviceAuthnData returned err=%v (%T), want a data drift error", err, err)
+			}
+			assert.ErrorContains(t, err, test.wantErr, "RecordDeviceAuthnData error message mismatch")
+		})
+	}
 }
 
 func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.Device, crypto.PrivateKey, error) {
@@ -2349,11 +2523,21 @@ func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*
 }
 
 func collectedDataForDevice(dev *devicepb.Device) *devicepb.DeviceCollectedData {
-	return &devicepb.DeviceCollectedData{
+	cd := &devicepb.DeviceCollectedData{
 		CollectTime:  timestamppb.Now(),
 		OsType:       dev.OsType,
 		SerialNumber: dev.AssetTag,
 	}
+	if p := dev.Profile; p != nil {
+		cd.ModelIdentifier = p.ModelIdentifier
+		cd.OsVersion = p.OsVersion
+		cd.OsBuild = p.OsBuild
+		if len(p.OsUsernames) > 0 {
+			cd.OsUsername = p.OsUsernames[0]
+		}
+		cd.JamfBinaryVersion = p.JamfBinaryVersion
+	}
+	return cd
 }
 
 func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {

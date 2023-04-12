@@ -6,14 +6,12 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -491,42 +489,5 @@ func TestService_EnrollDevice(t *testing.T) {
 				t.Errorf("GetDevice mismatch (-want +got):\n%s", diff)
 			}
 		})
-	}
-}
-
-type fakeEnclaveKey struct {
-	id        string
-	priv      *ecdsa.PrivateKey
-	pubKeyDER []byte
-}
-
-func newFakeEnclaveKey() (*fakeEnclaveKey, error) {
-	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, err
-	}
-
-	pubKeyDER, err := x509.MarshalPKIXPublicKey(priv.Public())
-	if err != nil {
-		return nil, err
-	}
-
-	id := uuid.NewString()
-	return &fakeEnclaveKey{
-		id:        id[:],
-		priv:      priv,
-		pubKeyDER: pubKeyDER,
-	}, nil
-}
-
-func (k *fakeEnclaveKey) signChallenge(c []byte) (sig []byte, err error) {
-	h := sha256.Sum256(c)
-	return ecdsa.SignASN1(rand.Reader, k.priv, h[:])
-}
-
-func (k *fakeEnclaveKey) deviceCredential() *devicepb.DeviceCredential {
-	return &devicepb.DeviceCredential{
-		Id:           k.id,
-		PublicKeyDer: k.pubKeyDER,
 	}
 }

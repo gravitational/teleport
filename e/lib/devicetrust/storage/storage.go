@@ -912,9 +912,45 @@ func (s *S) RecordDeviceAuthnData(ctx context.Context, deviceID string, cd *devi
 	if err := ValidateCollectedDataAgainstDevice(cd, dev); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := s.validateCollectedDataDrift(ctx, dev, cd); err != nil {
+		return trace.Wrap(err)
+	}
 
 	err = s.recordCollectedData(ctx, deviceID, cd, originAuthentication, s.nowUTC())
 	return trace.Wrap(err)
+}
+
+func (s *S) validateCollectedDataDrift(ctx context.Context, dev *devicepb.Device, cd *devicepb.DeviceCollectedData) error {
+	// Pre-MDM there's no data that can drift, it all must match exactly.
+	if !dtent.MDMFeatureActive {
+		return nil
+	}
+
+	storedCD, err := s.getDeviceCollectedData(ctx, dev.Id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	l := len(storedCD)
+	if l == 0 {
+		s.logger.
+			WithFields(log.Fields{
+				"DeviceID": dev.Id,
+				"AssetTag": dev.AssetTag,
+			}).
+			Warn("Found no collected data entries for device. Skipping collected data drift validation.")
+		return nil
+	}
+
+	// Comparing `cd` against the last entry should be enough to guarantee no
+	// drift, as data can only drift forward.
+	// Note that storedCD is already sorted by RecordTime DESC.
+	source := storedCD[l-1]
+	if err := validateCollectedDataDrift(cd, source); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 func (s *S) recordCollectedData(ctx context.Context, deviceID string, cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time) error {

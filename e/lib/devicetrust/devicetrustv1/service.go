@@ -2,6 +2,7 @@ package devicetrustv1
 
 import (
 	"context"
+	"errors"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -21,6 +22,10 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// DataDriftDetectedMessage is the error message used to redact data drift
+// errors.
+const DataDriftDetectedMessage = "collected data drift detected"
 
 // AuthServer represents the [auth.Server] methods used by [Service].
 type AuthServer interface {
@@ -400,12 +405,15 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 	}, nil
 }
 
-func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (*devicepb.DeviceEnrollToken, error) {
+func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (token *devicepb.DeviceEnrollToken, err error) {
+	// Redact for auto-enroll scenarios.
+	defer func() { err = s.redactDataDriftErr(nil /* dev */, err) }()
+
 	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbCreateEnrollToken); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId)
+	token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -426,7 +434,10 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	return token, nil
 }
 
-func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) error {
+func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) (err error) {
+	var dev *devicepb.Device
+	defer func() { err = s.redactDataDriftErr(dev, err) }()
+
 	ctx := stream.Context()
 	if err := s.authorizeVerb(ctx, types.KindDevice, types.VerbEnroll); err != nil {
 		return trace.Wrap(err)
@@ -437,7 +448,7 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 		logger:  s.logger,
 		storage: s.storage,
 	}
-	dev, err := c.EnrollDevice(stream)
+	dev, err = c.EnrollDevice(stream)
 	// err handled below.
 
 	// Emit audit event.
@@ -458,7 +469,10 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 
 var authnDisabledLogOnce sync.Once
 
-func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) error {
+func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) (err error) {
+	var dev *devicepb.Device
+	defer func() { err = s.redactDataDriftErr(dev, err) }()
+
 	// Authenticate the user, but do not perform any additional authorization
 	// checks. Any user may authenticate devices.
 	ctx := stream.Context()
@@ -501,7 +515,7 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 			return certs, trace.Wrap(err)
 		},
 	}
-	dev, err := c.AuthenticateDevice(stream)
+	dev, err = c.AuthenticateDevice(stream)
 	// err handled below.
 
 	// Emit audit event.
@@ -518,6 +532,25 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 	})
 
 	return trace.Wrap(err)
+}
+
+func (s *Service) redactDataDriftErr(dev *devicepb.Device, err error) error {
+	if !errors.Is(err, &storage.CollectedDataDriftError{}) {
+		return err
+	}
+
+	var fields log.Fields
+	if dev != nil {
+		fields = log.Fields{
+			"DeviceID": dev.Id,
+			"AssetTag": dev.AssetTag,
+		}
+	}
+	s.logger.
+		WithError(err).
+		WithFields(fields).
+		Warn("Collected data drift detected")
+	return trace.AccessDenied(DataDriftDetectedMessage)
 }
 
 func (s *Service) authorizeVerbs(ctx context.Context, rule string, verbs []string) error {
