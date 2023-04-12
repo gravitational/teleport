@@ -69,7 +69,9 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
   }
 }
 
-export function getStatusCodeDescription(code: IntegrationStatusCode): string | null {
+export function getStatusCodeDescription(
+  code: IntegrationStatusCode
+): string | null {
   switch (code) {
     case IntegrationStatusCode.UNAUTHORIZED:
       return 'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.';

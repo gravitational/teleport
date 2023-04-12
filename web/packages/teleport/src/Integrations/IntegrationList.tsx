@@ -24,7 +24,13 @@ import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import { getStatusCodeDescription, getStatusCodeTitle, Integration, IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
+import {
+  getStatusCodeDescription,
+  getStatusCodeTitle,
+  Integration,
+  IntegrationStatusCode,
+  Plugin,
+} from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -114,7 +120,7 @@ enum Status {
 }
 
 function getStatus(item: IntegrationLike): Status | null {
-  if (item.resourceType !== "plugin") {
+  if (item.resourceType !== 'plugin') {
     return Status.Success;
   }
 
