@@ -1,14 +1,6 @@
 import json
 from flask import Flask, request
-from langchain.llms import OpenAI
 from langchain.chat_models import ChatOpenAI
-from langchain import PromptTemplate, LLMChain
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    AIMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import ai_service.model as model
 
@@ -20,9 +12,7 @@ def root():
     return "Hello, World!"
 
 
-# llm = OpenAI(model_name="gpt-4", temperature=0)
 chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.5)
-
 
 @app.route("/assistant_query", methods=["POST"])
 def assistant_query():
@@ -41,5 +31,17 @@ def assistant_query():
                 messages.append(SystemMessage(content=raw_message["content"]))
 
     model.add_try_extract(messages)
-    completion = chat_llm(messages)
-    return completion.content
+    completion = chat_llm(messages).content
+    try:
+        data = json.loads(completion)
+        return {
+            "kind": "command",
+            "command": data["command"],
+            "servers": data["servers"],
+            "labels": data["labels"]
+        }
+    except json.JSONDecodeError:
+        return {
+            "kind": "chat",
+            "content": completion
+        }

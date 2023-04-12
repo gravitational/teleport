@@ -1,5 +1,7 @@
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from langchain.schema import HumanMessage, SystemMessage
 
+# TODO(joel): base core logic on a LangChain MultiAction custom agent instead. Ideally with a "human" tool for asking followup questions.
+#             Also include tools for discovering more info about a cluster and retrieve various information.
 
 def context(username):
     return [
@@ -22,12 +24,13 @@ def add_try_extract(messages):
             content=f"""
             If the input is a request to complete a task on a server, try to extract the following information:
             - A Linux shell command
-            - One or more servers to run the command and/or one or more server labels.
+            - One or more target servers
+            - One or more target labels
 
             If there is a lack of details, provide most logical solution.
             Ensure the output is a valid shell command.
-            If multiple steps required try to combine them together.
-            Provide the output in the following format:
+            There must be at least one target server or label, otherwise we do not have enough information to complete the task.
+            Provide the output in the following format with no other text:
 
             {{
                 "command": "<command to run>",
@@ -36,7 +39,7 @@ def add_try_extract(messages):
             }}
 
             If the user is not asking to complete a task on a server - disgard this entire message and respond
-            with a normal message instead.
+            with friendly conversational message instead.
             """
         )
     )
