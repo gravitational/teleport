@@ -784,6 +784,9 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 
 // RequireAWSIAMRolesAsUsers returns true for database types that require AWS
 // IAM roles as database users.
+// IMPORTANT: if you add a database that requires AWS IAM Roles as users,
+// and that database supports discovery, be sure to update RequireAWSIAMRolesAsUsersMatchers
+// in lib/services as well.
 func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	awsType, ok := d.getAWSType()
 	if !ok {
