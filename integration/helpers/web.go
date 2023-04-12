@@ -25,7 +25,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/httplib/csrf"
@@ -101,13 +100,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 		bearerToken: csResp.Token,
 	}
 
-	resp, err = webClient.DoRequest(http.MethodGet, "sites", nil)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	bs, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
+	resp, bs := webClient.DoRequest(t, http.MethodGet, "sites", nil)
 	require.Equal(t, http.StatusOK, resp.StatusCode, string(bs))
 
 	var clusters []ui.Cluster
@@ -121,23 +114,17 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 // DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Returns the http.Response.
-func (w *WebClientPack) DoRequest(method, endpoint string, payload any) (*http.Response, error) {
+func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (*http.Response, []byte) {
 	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
 	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
 	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	bs, err := json.Marshal(payload)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(bs))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	require.NoError(t, err)
 
 	req.AddCookie(&http.Cookie{
 		Name:  web.CookieName,
@@ -147,5 +134,12 @@ func (w *WebClientPack) DoRequest(method, endpoint string, payload any) (*http.R
 	req.Header.Add("Content-Type", "application/json")
 
 	resp, err := w.clt.Do(req)
-	return resp, trace.Wrap(err)
+	require.NoError(t, err)
+
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	return resp, body
 }
