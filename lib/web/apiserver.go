@@ -1567,6 +1567,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 
 	tmpl := installers.Template{
 		PublicProxyAddr: h.cfg.PublicProxyAddr,
+		MajorVersion:    version,
 		TeleportPackage: teleportPackage,
 		RepoChannel:     repoChannel,
 	}
