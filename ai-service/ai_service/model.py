@@ -34,8 +34,17 @@ def add_try_extract(messages):
 
             {{
                 "command": "<command to run>",
-                "servers": ["<server1>", "<server2>"],
-                "labels": ["<label1>", "<label2>"]
+                "nodes": ["<server1>", "<server2>"],
+                "labels": [
+                    {{
+                        "key": "<label1>",
+                        "value": "<value1>",
+                    }},
+                    {{
+                        "key": "<label2>",
+                        "value": "<value2>",
+                    }}
+                ]
             }}
 
             If the user is not asking to complete a task on a server - disgard this entire message and respond

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -62,39 +63,78 @@ type completionRequest struct {
 	Messages []openai.ChatCompletionMessage `json:"messages"`
 }
 
+type completionResponse struct {
+	Kind    string   `json:"kind"`
+	Content string   `json:"content,omitempty"`
+	Command string   `json:"command,omitempty"`
+	Nodes   []string `json:"nodes,omitempty"`
+	Labels  []Label  `json:"labels,omitempty"`
+}
+
+type Label struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type CompletionCommand struct {
+	Command string   `json:"command,omitempty"`
+	Nodes   []string `json:"nodes,omitempty"`
+	Labels  []Label  `json:"labels,omitempty"`
+}
+
 // Complete completes the conversation with a message from the assistant based on the current context.
-func (chat *Chat) Complete(ctx context.Context, maxTokens int) (Message, error) {
+func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *CompletionCommand, error) {
 	payload, err := json.Marshal(completionRequest{
 		Username: chat.username,
 		Messages: chat.messages,
 	})
 	if err != nil {
-		return Message{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// TODO(joel): respond with configuration status of api url at features endpoint
 	request, err := http.NewRequest("POST", chat.client.apiURL+"/assistant_query", bytes.NewBuffer(payload))
 	if err != nil {
-		return Message{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	request.Header.Set("Content-Type", "application/json")
 	client := &http.Client{}
 	response, err := client.Do(request)
 	if err != nil {
-		return Message{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	defer response.Body.Close()
 
-	content, err := io.ReadAll(response.Body)
+	raw, err := io.ReadAll(response.Body)
 	if err != nil {
-		return Message{}, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	return Message{
-		Role:    openai.ChatMessageRoleAssistant,
-		Content: string(content),
-		Idx:     len(chat.messages) - 1,
-	}, nil
+	fmt.Println(string(raw))
+	var responseData completionResponse
+	if err := json.Unmarshal(raw, &responseData); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
 
+	switch {
+	case responseData.Kind == "command":
+		command := CompletionCommand{
+			Command: responseData.Command,
+			Nodes:   responseData.Nodes,
+			Labels:  responseData.Labels,
+		}
+
+		return nil, &command, nil
+	case responseData.Kind == "chat":
+		message := Message{
+			Role:    openai.ChatMessageRoleAssistant,
+			Content: string(responseData.Content),
+			Idx:     len(chat.messages) - 1,
+		}
+
+		return &message, nil, nil
+	default:
+		return nil, nil, trace.BadParameter("unknown completion kind: %s", responseData.Kind)
+	}
 }

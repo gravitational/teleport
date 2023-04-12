@@ -14,11 +14,15 @@ def root():
 
 chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.5)
 
+
 @app.route("/assistant_query", methods=["POST"])
 def assistant_query():
     print(request.json)
     if request.json["messages"] is None:
-        return "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT."
+        return {
+            "kind": "chat",
+            "content": "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT.",
+        }
 
     messages = model.context(username=request.json["username"])
     for raw_message in request.json["messages"]:
@@ -37,11 +41,8 @@ def assistant_query():
         return {
             "kind": "command",
             "command": data["command"],
-            "servers": data["servers"],
-            "labels": data["labels"]
+            "nodes": data["nodes"],
+            "labels": data["labels"],
         }
     except json.JSONDecodeError:
-        return {
-            "kind": "chat",
-            "content": completion
-        }
+        return {"kind": "chat", "content": completion}
