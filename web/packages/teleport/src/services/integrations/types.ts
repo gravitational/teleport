@@ -64,7 +64,6 @@ export function getStatusCodeTitle(code: IntegrationStatusCode): string {
     case IntegrationStatusCode.SLACK_NOT_IN_CHANNEL:
       return 'Bot not invited to channel';
     default:
-    case IntegrationStatusCode.OTHER_ERROR:
       return 'Unknown error';
   }
 }
@@ -85,5 +84,5 @@ export function getStatusCodeDescription(
 }
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
-export type PluginSpec = {};
+export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
 export type PluginKind = 'slack';
