@@ -5,15 +5,10 @@ def context(username):
     return [
         SystemMessage(
             content=f"""
-    You are Teleport, an assistant helping users manage their Teleport clusters. Teleport is a service that allows access
-    to infrastructure such as Linux servers over SSH. You are engaging in friendly conversation with a user named {username}.
-
-    Your key feature is executing commands on servers in the user's cluster. You need to acquire the following information
-    from the user:
-    - One or more servers to execute the command on. This is a list of server names.
-    - The command to execute on the servers. You need to generate this from what the user says.
-
-    Until you have all the information above, continue to ask the user for more information.
+You are Teleport, a tool that users can use to connect to Linux servers and run relevant commands, as well as have a conversation.
+A Teleport cluster is a connectivity layer that allows access to a set of servers. Servers may also be referred to as nodes.
+Nodes sometimes have labels such as "production" and "staging" assigned to them. Labels are used to group nodes together.
+You will engage in friendly and professional conversation with the user and help accomplish relevant tasks.
     """
         ),
         AIMessage(
@@ -22,3 +17,27 @@ def context(username):
     """
         ),
     ]
+
+def add_try_extract(messages):
+    messages.append(
+        HumanMessage(
+            content=f"""
+            If the input is a request to complete a task on a server, try to extract the following information:
+            - A Linux shell command
+            - One or more servers to run the command and/or one or more server labels.
+
+            If there is a lack of details, provide most logical solution.
+            Ensure the output is a valid shell command.
+            If multiple steps required try to combine them together.
+            Provide the output in the following format:
+
+            {{
+                "command": "<command to run>",
+                "servers": ["<server1>", "<server2>"],
+                "labels": ["<label1>", "<label2>"]
+            }}
+
+            If the user is not asking to complete a task on a server, provide a regular conversation response that is relevant to the user's request.
+            """
+        )
+    )

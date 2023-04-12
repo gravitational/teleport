@@ -20,8 +20,8 @@ def root():
     return "Hello, World!"
 
 
-llm = OpenAI(model_name="gpt-4", temperature=0.1)
-chat_llm = ChatOpenAI(temperature=0.1)
+llm = OpenAI(model_name="gpt-4", temperature=0)
+chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0)
 
 
 @app.route("/assistant_query", methods=["POST"])
@@ -36,5 +36,6 @@ def assistant_query():
             case "system":
                 messages.append(SystemMessage(content=raw_message["text"]))
 
+    model.add_try_extract(messages)
     completion = chat_llm(messages)
     return completion.content
