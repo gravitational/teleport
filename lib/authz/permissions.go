@@ -816,6 +816,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
 						types.NewRule(types.KindAppServer, services.RW()),
@@ -825,6 +826,9 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindOktaImportRule, services.RO()),
 						types.NewRule(types.KindOktaAssignment, services.RW()),
 						types.NewRule(types.KindProxy, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
