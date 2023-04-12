@@ -119,7 +119,12 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 }
 
 // Render generates SSH host cert files.
-func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, _ *identity.Identity, unroutedIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHHostCert) Render(
+	ctx context.Context,
+	bot Bot,
+	_, unroutedIdentity *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)

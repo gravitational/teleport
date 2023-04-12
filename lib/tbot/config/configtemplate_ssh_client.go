@@ -112,8 +112,7 @@ func getClusterNames(client auth.ClientI) ([]string, error) {
 func (c *TemplateSSHClient) Render(
 	ctx context.Context,
 	bot Bot,
-	_ *identity.Identity,
-	unroutedIdentity *identity.Identity,
+	_, unroutedIdentity *identity.Identity,
 	destination *DestinationConfig,
 ) error {
 	dest, err := destination.GetDestination()
