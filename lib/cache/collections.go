@@ -3263,6 +3263,7 @@ func (s *integrations) processEvent(ctx context.Context, event types.Event) erro
 		if trace.IsAlreadyExists(err) {
 			_, err = s.integrationsCache.UpdateIntegration(ctx, resource)
 		}
+		return trace.Wrap(err)
 	default:
 		s.Logger.WithField("event", event.Type).Warn("Skipping unsupported event type.")
 	}
