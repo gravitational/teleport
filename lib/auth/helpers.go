@@ -985,7 +985,7 @@ func NewServerIdentity(clt *Server, hostID string, role types.SystemRole) (*Iden
 		&proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
-			Role:         types.RoleAuth,
+			Role:         role,
 			PublicTLSKey: publicTLS,
 			PublicSSHKey: pub,
 		})

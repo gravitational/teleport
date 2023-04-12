@@ -468,7 +468,7 @@ func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) err
 				}
 			}
 		}
-		return trace.AccessDenied("server is not a Teleport proxy")
+		return trace.AccessDenied("server is not a Teleport proxy or server certificate is expired")
 	}
 }
 
