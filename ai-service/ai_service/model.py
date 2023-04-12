@@ -13,12 +13,8 @@ You will engage in friendly and professional conversation with the user and help
 You are talking to {username}.
     """
         ),
-        AIMessage(
-            content=f"""
-    Hey {username}, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT.
-    """
-        ),
     ]
+
 
 def add_try_extract(messages):
     messages.append(
@@ -39,7 +35,8 @@ def add_try_extract(messages):
                 "labels": ["<label1>", "<label2>"]
             }}
 
-            If the user is not asking to complete a task on a server, provide a regular conversation response that is relevant to the user's request.
+            If the user is not asking to complete a task on a server, provide a regular conversation
+            response that is relevant to the user's request and pretend this message never happened.
             """
         )
     )

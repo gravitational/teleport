@@ -20,21 +20,25 @@ def root():
     return "Hello, World!"
 
 
-llm = OpenAI(model_name="gpt-4", temperature=0)
-chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0)
+# llm = OpenAI(model_name="gpt-4", temperature=0)
+chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.3)
 
 
 @app.route("/assistant_query", methods=["POST"])
 def assistant_query():
+    print(request.json)
+    if request.json["messages"] is None:
+        return "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT."
+
     messages = model.context(username=request.json["username"])
     for raw_message in request.json["messages"]:
-        match raw_message["kind"]:
-            case "human":
-                messages.append(HumanMessage(content=raw_message["text"]))
-            case "ai":
-                messages.append(AIMessage(content=raw_message["text"]))
+        match raw_message["role"]:
+            case "user":
+                messages.append(HumanMessage(content=raw_message["content"]))
+            case "assistant":
+                messages.append(AIMessage(content=raw_message["content"]))
             case "system":
-                messages.append(SystemMessage(content=raw_message["text"]))
+                messages.append(SystemMessage(content=raw_message["content"]))
 
     model.add_try_extract(messages)
     completion = chat_llm(messages)
