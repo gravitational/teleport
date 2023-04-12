@@ -47,7 +47,6 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 // Engine handles connections from OpenSearch clients coming from Teleport
 // proxy over reverse tunnel.
 type Engine struct {
-
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// clientConn is a client connection.
@@ -66,15 +65,15 @@ func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Se
 	return nil
 }
 
-// ErrorDetails contains error details.
-type ErrorDetails struct {
+// errorDetails contains error details.
+type errorDetails struct {
 	Reason string `json:"reason"`
 	Type   string `json:"type"`
 }
 
-// ErrorResponse will be returned to the client in case of error.
-type ErrorResponse struct {
-	Error  ErrorDetails `json:"error"`
+// errorResponse will be returned to the client in case of error.
+type errorResponse struct {
+	Error  errorDetails `json:"error"`
 	Status int          `json:"status"`
 }
 
@@ -84,8 +83,8 @@ func (e *Engine) SendError(err error) {
 		return
 	}
 
-	cause := ErrorResponse{
-		Error: ErrorDetails{
+	cause := errorResponse{
+		Error: errorDetails{
 			Reason: err.Error(),
 			Type:   "internal_server_error_exception",
 		},

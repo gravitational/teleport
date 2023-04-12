@@ -17,6 +17,7 @@ package db
 import (
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -60,6 +61,7 @@ func TestAccessOpenSearch(t *testing.T) {
 		role         string
 		allowDbUsers []string
 		dbUser       string
+		payload      string
 		err          bool
 	}{
 		{
@@ -67,6 +69,7 @@ func TestAccessOpenSearch(t *testing.T) {
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{types.Wildcard},
+			payload:      `{"count":31874,"_shards":{"total":6,"successful":6,"skipped":0,"failed":0}}`,
 			dbUser:       "opensearch",
 		},
 		{
@@ -75,6 +78,7 @@ func TestAccessOpenSearch(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{},
 			dbUser:       "opensearch",
+			payload:      `{"error":{"reason":"access to db denied. User does not have permissions. Confirm database user and name.","type":"access_denied_exception"},"status":401}`,
 			err:          true,
 		},
 		{
@@ -83,6 +87,7 @@ func TestAccessOpenSearch(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{},
 			dbUser:       "opensearch",
+			payload:      `{"error":{"reason":"access to db denied. User does not have permissions. Confirm database user and name.","type":"access_denied_exception"},"status":401}`,
 			err:          true,
 		},
 		{
@@ -90,6 +95,7 @@ func TestAccessOpenSearch(t *testing.T) {
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
+			payload:      `{"count":31874,"_shards":{"total":6,"successful":6,"skipped":0,"failed":0}}`,
 			dbUser:       "alice",
 		},
 		{
@@ -98,6 +104,7 @@ func TestAccessOpenSearch(t *testing.T) {
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "baduser",
+			payload:      `{"error":{"reason":"access to db denied. User does not have permissions. Confirm database user and name.","type":"access_denied_exception"},"status":401}`,
 			err:          true,
 		},
 	}
@@ -111,7 +118,7 @@ func TestAccessOpenSearch(t *testing.T) {
 			dbConn, proxy, err := testCtx.openSearchClient(ctx, test.user, "OpenSearch", test.dbUser)
 
 			t.Cleanup(func() {
-				proxy.Close()
+				_ = proxy.Close()
 			})
 
 			require.NoError(t, err)
@@ -121,15 +128,20 @@ func TestAccessOpenSearch(t *testing.T) {
 			require.NoError(t, err)
 			t.Logf("result: %v", result)
 
+			payload, err := io.ReadAll(result.Body)
+			require.NoError(t, err)
+			require.Equal(t, test.payload, string(payload))
+
 			if test.err {
 				require.True(t, result.IsError())
 				require.Equal(t, 401, result.StatusCode)
 				return
 			}
+
 			require.NoError(t, err)
 			require.False(t, result.IsError())
 			require.False(t, result.HasWarnings())
-			require.Equal(t, `[200 OK] {"count":31874,"_shards":{"total":6,"successful":6,"skipped":0,"failed":0}}`, result.String())
+			require.Equal(t, `[200 OK] `, result.String())
 
 			require.NoError(t, result.Body.Close())
 		})
