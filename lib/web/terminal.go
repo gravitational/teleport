@@ -357,33 +357,6 @@ func (t *TerminalHandler) Close() error {
 	return nil
 }
 
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
-// to prevent the connection between web client and teleport proxy from becoming idle.
-// Interval is determined by the keep_alive_interval config set by user (or default).
-// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
-func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.keepAliveInterval)
-	tickerCh := time.NewTicker(t.keepAliveInterval)
-	defer tickerCh.Stop()
-
-	for {
-		select {
-		case <-tickerCh.C:
-			// A short deadline is used here to detect a broken connection quickly.
-			// If this is just a temporary issue, we will retry shortly anyway.
-			deadline := time.Now().Add(time.Second)
-			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-				t.log.WithError(err).Error("Unable to send ping frame to web client")
-				t.Close()
-				return
-			}
-		case <-t.terminalContext.Done():
-			t.log.Debug("Terminating websocket ping loop.")
-			return
-		}
-	}
-}
-
 // handler is the main websocket loop. It creates a Teleport client and then
 // pumps raw events and audit events back to the client until the SSH session
 // is complete.
@@ -424,7 +397,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go t.startPingLoop(ws)
+	go startPingLoop(t.terminalContext, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
