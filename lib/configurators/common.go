@@ -21,6 +21,7 @@ import (
 // BootstrapFlags flags provided by users to configure and define how the
 // configurators will work.
 type BootstrapFlags struct {
+	// DiscoveryService indicates the bootstrap is for the discovery service.
 	DiscoveryService bool
 	// ConfigPath database agent configuration path.
 	ConfigPath string
