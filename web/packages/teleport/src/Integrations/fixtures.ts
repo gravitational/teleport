@@ -24,7 +24,7 @@ export const plugins: Plugin[] = [
     name: 'slack-default',
     details: `plugin running status`,
     kind: 'slack',
-    statusCode: IntegrationStatusCode.RUNNING,
+    statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
   {
@@ -32,7 +32,7 @@ export const plugins: Plugin[] = [
     name: 'slack-secondary',
     details: `plugin unknown status`,
     kind: 'slack',
-    statusCode: IntegrationStatusCode.UNKNOWN,
+    statusCode: IntegrationStatusCode.Unknown,
     spec: {},
   },
   {
@@ -40,7 +40,7 @@ export const plugins: Plugin[] = [
     name: 'acmeco-default',
     details: `plugin unauthorized status`,
     kind: 'acmeco' as any, // unknown plugin, should handle gracefuly
-    statusCode: IntegrationStatusCode.UNAUTHORIZED,
+    statusCode: IntegrationStatusCode.Unauthorized,
     spec: {},
   },
   {
@@ -48,7 +48,7 @@ export const plugins: Plugin[] = [
     name: 'slack',
     details: 'plugin other error status',
     kind: 'slack',
-    statusCode: IntegrationStatusCode.OTHER_ERROR,
+    statusCode: IntegrationStatusCode.OtherError,
     spec: {},
   },
   {
@@ -56,7 +56,7 @@ export const plugins: Plugin[] = [
     name: 'slack',
     details: '',
     kind: 'slack',
-    statusCode: IntegrationStatusCode.SLACK_NOT_IN_CHANNEL,
+    statusCode: IntegrationStatusCode.SlackNotInChannel,
     spec: {},
   },
 ];
@@ -66,14 +66,14 @@ export const integrations: Integration[] = [
     resourceType: 'integration',
     name: 'aws',
     kind: 'aws-oidc',
-    statusCode: IntegrationStatusCode.RUNNING,
+    statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '' },
   },
   {
     resourceType: 'integration',
     name: 'some-integration-name',
     kind: '' as any,
-    statusCode: IntegrationStatusCode.RUNNING,
+    statusCode: IntegrationStatusCode.Running,
     spec: { roleArn: '' },
   },
 ];

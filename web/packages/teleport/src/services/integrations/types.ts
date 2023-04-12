@@ -46,22 +46,22 @@ export type IntegrationSpecAwsOidc = {
 };
 
 export enum IntegrationStatusCode {
-  UNKNOWN = 0,
-  RUNNING = 1,
-  OTHER_ERROR = 2,
-  UNAUTHORIZED = 3,
-  SLACK_NOT_IN_CHANNEL = 10,
+  Unknown = 0,
+  Running = 1,
+  OtherError = 2,
+  Unauthorized = 3,
+  SlackNotInChannel = 10,
 }
 
 export function getStatusCodeTitle(code: IntegrationStatusCode): string {
   switch (code) {
-    case IntegrationStatusCode.UNKNOWN:
+    case IntegrationStatusCode.Unknown:
       return 'Unknown';
-    case IntegrationStatusCode.RUNNING:
+    case IntegrationStatusCode.Running:
       return 'Running';
-    case IntegrationStatusCode.UNAUTHORIZED:
+    case IntegrationStatusCode.Unauthorized:
       return 'Unauthorized';
-    case IntegrationStatusCode.SLACK_NOT_IN_CHANNEL:
+    case IntegrationStatusCode.SlackNotInChannel:
       return 'Bot not invited to channel';
     default:
       return 'Unknown error';
@@ -72,10 +72,10 @@ export function getStatusCodeDescription(
   code: IntegrationStatusCode
 ): string | null {
   switch (code) {
-    case IntegrationStatusCode.UNAUTHORIZED:
+    case IntegrationStatusCode.Unauthorized:
       return 'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.';
 
-    case IntegrationStatusCode.SLACK_NOT_IN_CHANNEL:
+    case IntegrationStatusCode.SlackNotInChannel:
       return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
 
     default:

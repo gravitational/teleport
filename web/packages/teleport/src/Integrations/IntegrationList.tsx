@@ -125,11 +125,11 @@ function getStatus(item: IntegrationLike): Status | null {
   }
 
   switch (item.statusCode) {
-    case IntegrationStatusCode.UNKNOWN:
+    case IntegrationStatusCode.Unknown:
       return null;
-    case IntegrationStatusCode.RUNNING:
+    case IntegrationStatusCode.Running:
       return Status.Success;
-    case IntegrationStatusCode.SLACK_NOT_IN_CHANNEL:
+    case IntegrationStatusCode.SlackNotInChannel:
       return Status.Warning;
     default:
       return Status.Error;
