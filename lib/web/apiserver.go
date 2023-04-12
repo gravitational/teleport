@@ -703,6 +703,13 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Diagnose a Connection
 	h.POST("/webapi/sites/:site/diagnostics/connections", h.WithClusterAuth(h.diagnoseConnection))
 
+	// Integrations CRUD
+	h.GET("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsList))
+	h.POST("/webapi/sites/:site/integrations", h.WithClusterAuth(h.integrationsCreate))
+	h.GET("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsGet))
+	h.PUT("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsUpdate))
+	h.DELETE("/webapi/sites/:site/integrations/:name", h.WithClusterAuth(h.integrationsDelete))
+
 	// Connection upgrades.
 	h.GET("/webapi/connectionupgrade", httplib.MakeHandler(h.connectionUpgrade))
 
