@@ -404,10 +404,19 @@ func (c *Config) transfer(ctx context.Context) error {
 	matchedPaths := make([]string, 0, len(c.srcPaths))
 	fileInfos := make([]os.FileInfo, 0, len(c.srcPaths))
 	for _, srcPath := range c.srcPaths {
+		// This source path may or may not contain a glob pattern, but
+		// try and glob just in case. It is also possible the user
+		// specified a file path containing glob pattern characters but
+		// means the literal path without globbing, in which case we'll
+		// use the raw source path as the sole match below.
 		matches, err := c.srcFS.Glob(ctx, srcPath)
 		if err != nil {
 			return trace.Wrap(err, "error matching glob pattern %q", srcPath)
 		}
+		if len(matches) == 0 {
+			matches = []string{srcPath}
+		}
+
 		// clean match paths to ensure they are separated by backslashes, as
 		// SFTP requires that
 		for i := range matches {
