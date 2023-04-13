@@ -1271,6 +1271,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 	case proxy.teleportClient.TLSRoutingEnabled:
 		clientConfig.Addrs = []string{proxy.teleportClient.WebProxyAddr}
 		clientConfig.ALPNSNIAuthDialClusterName = clusterName
+		clientConfig.IsALPNConnUpgradeRequiredFunc = proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy
 	default:
 		clientConfig.Dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 			return proxy.dialAuthServer(ctx, clusterName)

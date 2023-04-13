@@ -150,28 +150,48 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 }
 
 // connectInBackground connects the client to the server in the background.
-// The client will use the first credentials and the given dialer. If
-// no dialer is given, the first address will be used. This address must
-// be an auth server address.
+//
+// The client will use the first credentials and the given dialer.
+//
+// If no dialer is given, the first address will be used. If no
+// ALPNSNIAuthDialClusterName is given, this address must be an auth server
+// address.
+//
+// If ALPNSNIAuthDialClusterName is given, the address is expected to be a web
+// proxy address and the client will connect auth through the web proxy server
+// using TLS Routing. cfg.IsALPNConnUpgradeRequiredFunc must also be provided
+// in this case assuming the caller has the context on whether ALPN connection
+// upgrade is required.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	tlsConfig, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Dialer connect.
 	if cfg.Dialer != nil {
-		return dialerConnect(ctx, connectParams{
+		client, err := dialerConnect(ctx, connectParams{
 			cfg:       cfg,
 			tlsConfig: tlsConfig,
 			dialer:    cfg.Dialer,
 		})
-	} else if len(cfg.Addrs) != 0 {
-		return authConnect(ctx, connectParams{
-			cfg:       cfg,
-			tlsConfig: tlsConfig,
-			addr:      cfg.Addrs[0],
-		})
+		return client, trace.Wrap(err)
 	}
-	return nil, trace.BadParameter("must provide Dialer or Addrs in config")
+
+	// Auth connect.
+	if len(cfg.Addrs) == 0 {
+		return nil, trace.BadParameter("must provide Dialer or Addrs in config")
+	}
+	if cfg.ALPNSNIAuthDialClusterName != "" && cfg.IsALPNConnUpgradeRequiredFunc == nil {
+		return nil, trace.BadParameter("must provide IsALPNConnUpgradeRequiredFunc for authConnect using TLS Routing")
+	}
+
+	client, err := authConnect(ctx, connectParams{
+		cfg:       cfg,
+		tlsConfig: tlsConfig,
+		addr:      cfg.Addrs[0],
+	})
+	return client, trace.Wrap(err)
 }
 
 // connect connects the client to the server using the Credentials and
@@ -333,7 +353,7 @@ func authConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.cfg.IsALPNConnUpgradeRequiredFunc != nil {
 		opts = append(opts,
 			WithALPNConnUpgrade(params.cfg.IsALPNConnUpgradeRequiredFunc(params.addr, params.cfg.InsecureAddressDiscovery)),
-			WithALPNConnUpgradePing(true), // Use ping for long-lived connections.
+			WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
 		)
 	}
 

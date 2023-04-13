@@ -113,8 +113,8 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
 	}
-	if c.IsALPNConnUpgradeRequiredFunc == nil {
-		c.IsALPNConnUpgradeRequiredFunc = client.IsALPNConnUpgradeRequired
+	if c.TLSRoutingEnabled && c.IsALPNConnUpgradeRequiredFunc == nil {
+		return trace.BadParameter("missing parameter IsALPNConnUpgradeRequiredFunc when TLS Routing is enabled")
 	}
 
 	if c.TLSConfig != nil {
