@@ -498,7 +498,7 @@ func createReporterMocks() (reporterMocks, error) {
 	apiGetters := &MockedResourceGetter{}
 	client := &cloud.MockedClient{}
 	reporter, err := New(Config{
-		Clock:          clockwork.NewFakeClock(),
+		Clock:          clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)),
 		CloudClient:    client,
 		ResourceGetter: apiGetters,
 		BackendGetter:  NewMockedBackendGetter(),

@@ -71,7 +71,9 @@ func newWebSuite(t *testing.T) *webSuite {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &webSuite{
-		clock:  clockwork.NewFakeClock(),
+		// Old versions of clockwork used this as the initial time, setting it
+		// explicitly as a quick fix.
+		clock:  clockwork.NewFakeClockAt(time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)),
 		user:   u.Username,
 		ctx:    ctx,
 		cancel: cancel,
