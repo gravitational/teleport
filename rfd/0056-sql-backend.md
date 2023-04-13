@@ -1,6 +1,6 @@
 ---
 authors: Jim Bishopp (jim@goteleport.com)
-state: draft
+state: deprecated
 ---
 
 # RFD 56 - SQL Backend
@@ -10,8 +10,8 @@ state: draft
 
 A Teleport Backend is a pluggable interface for storing core cluster state.
 This RFD proposes the addition of a new backend supporting SQL database platforms.
-The initial supported platforms for the SQL Backend will be PostgreSQL and 
-CockroachDB. Support will include self-hosted PostgreSQL/CockroachDB or 
+The initial supported platforms for the SQL Backend will be PostgreSQL and
+CockroachDB. Support will include self-hosted PostgreSQL/CockroachDB or
 hosting the database on a cloud provider platform (AWS/GCP).
 
 
@@ -24,7 +24,7 @@ allowing them to use existing infrastructure.
 ## Scope
 
 This RFD focuses on implementing a SQL Backend for PostgreSQL and CockroachDB
-where the database is either self-hosted or cloud-hosted. The implementation's 
+where the database is either self-hosted or cloud-hosted. The implementation's
 design will be extensible to allow future work that supports other SQL databases
 such as MySQL.
 
@@ -53,7 +53,7 @@ configuration file to enable mTLS.
 
 ## UX
 
-Teleport users must first configure the instance and database where Teleport will 
+Teleport users must first configure the instance and database where Teleport will
 store its data. A new database instance and user must be created. The new user
 should be granted ownership of the new database and have the ability to login.
 And cloud-hosted configurations must configure and enable IAM.
@@ -125,12 +125,12 @@ The `SERIALIZABLE` isolation level guarantees that even though transactions may
 execute in parallel, the result is the same as if they had executed one at a time,
 without any concurrency.
 
-The SQL Backend will enforce `SERIALIZABLE` transaction isolation for all database 
+The SQL Backend will enforce `SERIALIZABLE` transaction isolation for all database
 platforms. The trade-off is data consistency versus slower execution and the need
 to retry transactions when a conflict occurs. Teleport's Backend interface assumes
 consistency. E.g. the `Create` function requires the new record does not exist, and
 `CompareAndSwap` requires the previous record has a specific value. Using
-`SERIALIZABLE` is the desirable isolation level for the majority of Teleport Backend 
+`SERIALIZABLE` is the desirable isolation level for the majority of Teleport Backend
 functionality.
 
 [1]: https://www.cockroachlabs.com/docs/stable/demo-serializable.html
