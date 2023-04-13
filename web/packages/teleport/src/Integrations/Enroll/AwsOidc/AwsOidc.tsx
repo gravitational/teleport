@@ -40,6 +40,7 @@ import { SixthStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/ins
 
 import { SeventhStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/SeventhStageInstructions';
 import { IAMRoles } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMRoles';
+import useTeleport from 'teleport/useTeleport';
 
 import { Stage, STAGES } from './stages';
 
@@ -103,6 +104,9 @@ enum InstructionStep {
 }
 
 export function AwsOidc() {
+  const ctx = useTeleport();
+  let clusterPublicUri = ctx.storeUser.state.cluster.publicURL;
+
   const [stage, setStage] = useState(Stage.Initial);
   const [showRestartAnimation, setShowRestartAnimation] = useState(false);
 
@@ -167,6 +171,7 @@ export function AwsOidc() {
                     onNext={() => {
                       setStage(Stage.NewProviderFullScreen);
                     }}
+                    clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
@@ -175,6 +180,7 @@ export function AwsOidc() {
                     onNext={() => {
                       setStage(Stage.AddProvider);
                     }}
+                    clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
@@ -183,6 +189,7 @@ export function AwsOidc() {
                     onNext={() => {
                       setStage(Stage.CreateNewRole);
                     }}
+                    clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
@@ -191,6 +198,7 @@ export function AwsOidc() {
                     onNext={() => {
                       setStage(Stage.CreatePolicy);
                     }}
+                    clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
@@ -199,6 +207,7 @@ export function AwsOidc() {
                     onNext={() => {
                       setStage(Stage.AssignPolicyToRole);
                     }}
+                    clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
@@ -207,6 +216,7 @@ export function AwsOidc() {
                     onNext={() => {
                       setStage(Stage.ListRoles);
                     }}
+                    clusterPublicUri={clusterPublicUri}
                   />
                 )}
                 {currentStageConfig.instructionStep ===
@@ -223,7 +233,7 @@ export function AwsOidc() {
               left={currentStage.cursor.left}
               click={currentStage.cursor.click}
             />
-            {getStageComponent(stage)}
+            {getStageComponent(stage, clusterPublicUri)}
           </Browser>
 
           <RestartAnimation
@@ -238,51 +248,58 @@ export function AwsOidc() {
   );
 }
 
-function getStageComponent(stage: Stage) {
+function getStageComponent(stage: Stage, uri: string) {
+  let clusterPublicUri = uri;
+  // Truncate long URI's so it doesn't mess up the animation screens.
+  if (clusterPublicUri.length > 30) {
+    clusterPublicUri = `${clusterPublicUri.substring(0, 30)}...`;
+  }
+  const props = { stage, clusterPublicUri };
+
   if (stage >= Stage.Initial && stage <= Stage.ClickIdentityProviders) {
     return <IAMHomeScreen />;
   }
 
   if (stage >= Stage.IdentityProviders && stage <= Stage.ClickAddProvider) {
-    return <IAMIdentityProvidersScreen stage={stage} />;
+    return <IAMIdentityProvidersScreen {...props} />;
   }
 
   if (stage >= Stage.NewProvider && stage <= Stage.AddProvider) {
-    return <IAMNewProviderScreen stage={stage} />;
+    return <IAMNewProviderScreen {...props} />;
   }
 
   if (stage >= Stage.ProviderAdded && stage <= Stage.SelectProvider) {
-    return <IAMIdentityProvidersScreen stage={stage} />;
+    return <IAMIdentityProvidersScreen {...props} />;
   }
 
   if (stage >= Stage.ProviderView && stage <= Stage.ClickCreateNewRole) {
-    return <IAMProvider stage={stage} />;
+    return <IAMProvider {...props} />;
   }
 
   if (stage >= Stage.CreateNewRole && stage <= Stage.ClickNextPermissions) {
-    return <IAMCreateNewRole stage={stage} />;
+    return <IAMCreateNewRole {...props} />;
   }
 
   if (
     stage >= Stage.ConfigureRolePermissions &&
     stage <= Stage.ClickCreatePolicy
   ) {
-    return <IAMCreateNewRolePermissions stage={stage} />;
+    return <IAMCreateNewRolePermissions {...props} />;
   }
 
   if (stage >= Stage.CreatePolicy && stage <= Stage.ClickCreatePolicyButton) {
-    return <IAMCreateNewPolicy stage={stage} />;
+    return <IAMCreateNewPolicy {...props} />;
   }
 
   if (
     stage >= Stage.AssignPolicyToRole &&
     stage <= Stage.ClickCreateRoleButton
   ) {
-    return <IAMCreateNewRolePermissions stage={stage} />;
+    return <IAMCreateNewRolePermissions {...props} />;
   }
 
   if (stage >= Stage.ListRoles) {
-    return <IAMRoles stage={stage} />;
+    return <IAMRoles {...props} />;
   }
 }
 

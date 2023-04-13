@@ -69,7 +69,7 @@ export function IAMIdentityProvidersScreen(props: CommonIAMProps) {
               <ProviderSection>
                 <ProviderSectionTitle>Provider</ProviderSectionTitle>
 
-                <ProviderTitle>teleport.lol</ProviderTitle>
+                <ProviderTitle>{props.clusterPublicUri}</ProviderTitle>
               </ProviderSection>
               <ProviderSection>
                 <ProviderSectionTitle>Type</ProviderSectionTitle>

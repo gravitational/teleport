@@ -64,7 +64,9 @@ export function IAMProvider(props: CommonIAMProps) {
   return (
     <AWSWrapper>
       <Page>
-        {showAssignRoleModal && <AssignRoleModal />}
+        {showAssignRoleModal && (
+          <AssignRoleModal clusterPublicUri={props.clusterPublicUri} />
+        )}
 
         <Content>
           <Breadcrumb>
@@ -72,7 +74,9 @@ export function IAMProvider(props: CommonIAMProps) {
             <BreadcrumbArrow />
             <BreadcrumbItem>Identity providers</BreadcrumbItem>
             <BreadcrumbArrow />
-            <BreadcrumbItemActive>teleport.lol</BreadcrumbItemActive>
+            <BreadcrumbItemActive>
+              {props.clusterPublicUri}
+            </BreadcrumbItemActive>
           </Breadcrumb>
 
           <Flex
@@ -81,7 +85,7 @@ export function IAMProvider(props: CommonIAMProps) {
             justifyContent="space-between"
             mb={5}
           >
-            <Title style={{ marginBottom: 0 }}>teleport.lol</Title>
+            <Title style={{ marginBottom: 0 }}>{props.clusterPublicUri}</Title>
 
             <RoleButton>Assign role</RoleButton>
           </Flex>
@@ -91,7 +95,7 @@ export function IAMProvider(props: CommonIAMProps) {
           <SummaryContent>
             <SummaryItem>
               Provider
-              <div style={{ marginTop: 10 }}>teleport.lol</div>
+              <div style={{ marginTop: 10 }}>{props.clusterPublicUri}</div>
             </SummaryItem>
             <SummaryItem>
               Provider Type

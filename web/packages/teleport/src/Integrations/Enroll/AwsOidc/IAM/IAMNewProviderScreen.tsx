@@ -149,7 +149,12 @@ export function IAMNewProviderScreen(props: CommonIAMProps) {
             </ProviderType>
           </Flex>
 
-          {openIDSelected && <OpenIDForm stage={props.stage} />}
+          {openIDSelected && (
+            <OpenIDForm
+              stage={props.stage}
+              clusterPublicUri={props.clusterPublicUri}
+            />
+          )}
         </Content>
       </SlideOutPage>
     </AWSWrapper>

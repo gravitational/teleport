@@ -64,4 +64,5 @@ export const ConfirmDialogFromDiscover = () => (
 
 const props = {
   onNext: () => null,
+  clusterPublicUri: 'gravitationalwashington.cloud.gravitional.io:4444',
 };

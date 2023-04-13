@@ -103,13 +103,17 @@ const AssignRoleOptionDescription = styled.div`
   color: #999;
 `;
 
-export function AssignRoleModal() {
+export function AssignRoleModal({
+  clusterPublicUri,
+}: {
+  clusterPublicUri: string;
+}) {
   return (
     <Modal>
       <div>
         <AssignRole>
           <AssignRoleHeader>
-            Assign role for teleport.lol
+            Assign role for {clusterPublicUri}
             <AssignRoleClose>
               <AddIcon fill="#444444" size={16} />
             </AssignRoleClose>

@@ -2,6 +2,7 @@ import styled from 'styled-components';
 
 export interface CommonInstructionsProps {
   onNext: () => void;
+  clusterPublicUri: string;
 }
 
 export const InstructionsContainer = styled.div`

@@ -24,7 +24,8 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
       return;
     }
 
-    // TODO(lisa): validate thumbprint
+    // TODO(lisa): validate thumbprint with the back.
+    // This is a nice to have, so not a blocker.
     props.onNext();
   }
 
@@ -43,7 +44,7 @@ export function SecondStageInstructions(props: CommonInstructionsProps) {
           bash={false}
           lines={[
             {
-              text: 'https://teleport.lol', // TODO: replace all instances of this URL with the actual hostname:port
+              text: `https://${props.clusterPublicUri}`,
             },
           ]}
         />

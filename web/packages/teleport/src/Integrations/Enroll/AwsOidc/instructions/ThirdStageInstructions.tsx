@@ -18,7 +18,7 @@ export function ThirdStageInstructions(props: CommonInstructionsProps) {
 
       <Text mt={5}>
         Select the Identity provider that you just created{' '}
-        <strong>(teleport.lol)</strong>
+        <strong>({props.clusterPublicUri})</strong>
       </Text>
 
       <Text mt={5}>

@@ -111,7 +111,7 @@ export function IAMCreateNewRole(props: CommonIAMProps) {
             <SectionContent>
               <SectionDropdown>
                 <SectionDropdownSelected>
-                  teleport.lol:aud
+                  {props.clusterPublicUri}:aud
                 </SectionDropdownSelected>
               </SectionDropdown>
             </SectionContent>

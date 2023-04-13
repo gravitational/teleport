@@ -68,7 +68,7 @@ const Buttons = styled.div`
 export function OpenIDForm(props: CommonIAMProps) {
   const providerURL =
     props.stage >= Stage.PastedProviderURL
-      ? 'https://teleport.lol'
+      ? `https://${props.clusterPublicUri}`
       : 'https://';
   const audience =
     props.stage >= Stage.PastedAudience ? 'discover.teleport' : '';

@@ -4,6 +4,7 @@ import { Stage } from '../stages';
 
 export interface CommonIAMProps {
   stage: Stage;
+  clusterPublicUri: string;
 }
 
 export const Header = styled.div`
@@ -119,6 +120,8 @@ export const RoleButton = styled.div`
   font-weight: 700;
   border-radius: 4px;
   border: 1px solid #b8b8b8;
+  width: 100px;
+  text-align: center;
 `;
 
 export const Section = styled.div`
