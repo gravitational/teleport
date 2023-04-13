@@ -105,7 +105,7 @@ message DeviceCredential {
   string tpm_serial = 4;
   // If the device is a TPM device, stores the public AK in PKIX, ASN.1 DER
   // form.
-  bytes tpm_attestation_key = 5;
+  bytes tpm_attestation_key_der = 5;
 }
 
 // AttestationType indicates the degree to which the device credential has
