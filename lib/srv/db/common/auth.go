@@ -614,6 +614,10 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 		//
 		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
 		return true
+
+	case types.DatabaseTypeOpenSearch:
+		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
+		return true
 	}
 	return false
 }

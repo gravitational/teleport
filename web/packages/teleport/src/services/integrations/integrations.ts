@@ -17,7 +17,7 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { Integration } from './types';
+import { Integration, IntegrationStatusCode } from './types';
 
 export const integrationService = {
   fetchIntegration(clusterId: string, name: string): Promise<Integration> {
@@ -51,6 +51,6 @@ function makeIntegration(json: any): Integration {
     // integration resources together. As discussed, the only
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
-    statusCode: 'Running',
+    statusCode: IntegrationStatusCode.Running,
   };
 }
