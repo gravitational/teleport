@@ -121,7 +121,7 @@ spec:
         {{- end }}
         env:
         # This variable is set for telemetry purposes.
-        # Telemetry is opt-in and controlled at the auth level.
+        # Telemetry is opt-in for oss users and controlled at the auth level.
         - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
           value: "true"
         {{- if .Values.updater.enabled }}
