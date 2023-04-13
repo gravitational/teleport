@@ -8981,7 +8981,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-udpater-oci.yml
+    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-updater-oci.yml
     -workflow-ref=${DRONE_TAG} -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -20343,6 +20343,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c3ec624a7d78b178fb297fe3fc3b1b8ffb06d8028c1428c4b95ba0328b234ea1
+hmac: 2b0baa890b89809154cbdae3134c92f8ad3d221bf4b205c6ce858eed78e536ab
 
 ...
