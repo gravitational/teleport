@@ -1844,6 +1844,56 @@ func TestS_EnrollDevice(t *testing.T) {
 	}
 }
 
+func TestS_EnrollDevice_reEnroll(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	clock := env.Clock
+	ctx := context.Background()
+
+	// Device is created and enrolled.
+	dev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama1",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+	clock.Advance(1 * time.Second)
+
+	// Record some additional data for good measure.
+	if err := s.RecordDeviceAuthnData(ctx, dev.Id, collectedDataForDevice(dev)); err != nil {
+		t.Fatalf("RecordDeviceAuthnData failed: %v", err)
+	}
+	clock.Advance(1 * time.Second)
+	if err := s.RecordDeviceAuthnData(ctx, dev.Id, collectedDataForDevice(dev)); err != nil {
+		t.Fatalf("RecordDeviceAuthnData failed: %v", err)
+	}
+	clock.Advance(1 * time.Second)
+
+	assertCD := func(dev *devicepb.Device, want int) {
+		dev, err = s.GetDeviceByID(ctx, dev.Id)
+		if err != nil {
+			t.Fatalf("GetDeviceByID failed: %v", err)
+		}
+		if got := len(dev.CollectedData); got != want {
+			t.Errorf("GetDeviceByID: got %v instances of collected data, want %v", got, want)
+		}
+	}
+	// Sanity check: we collected data 3 times.
+	assertCD(dev, 3)
+
+	// Re-enroll.
+	dev, _, err = enroll(ctx, s, dev)
+	if err != nil {
+		t.Fatalf("enroll failed: %v", err)
+	}
+
+	// Verify that collected data was "reset".
+	assertCD(dev, 1) // enroll data only
+}
+
 func TestS_EnrollDevice_errors(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
@@ -2501,7 +2551,10 @@ func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*
 	if err != nil {
 		return nil, nil, fmt.Errorf("calling CreateDevice: %v", err)
 	}
+	return enroll(ctx, s, dev)
+}
 
+func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.Device, crypto.PrivateKey, error) {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, fmt.Errorf("calling GenerateKey: %v", err)

@@ -879,6 +879,22 @@ func (s *S) EnrollDevice(
 		return nil, trace.Wrap(err, "marshal device")
 	}
 
+	// Clear previous collected data.
+	// A newly-enrolled device is a blank slate.
+	cdKeyStart := collectedDataKeyStart(dev.Id)
+	if err := s.backend.DeleteRange(ctx, cdKeyStart, backend.RangeEnd(cdKeyStart)); err != nil {
+		s.logger.
+			WithFields(log.Fields{
+				"DeviceID": dev.Id,
+				"AssetTag": dev.AssetTag,
+			}).
+			WithError(err).
+			Warn("" +
+				"Failed to clear device collected data during enrollment. " +
+				"This could lead to difficulties in device authentication, if that happens try enrolling the device again. " +
+				"Proceeding.")
+	}
+
 	// Marshal and write collected data.
 	if err := s.recordCollectedData(ctx, deviceID, cd, originEnrollment, now); err != nil {
 		return nil, trace.Wrap(err)
