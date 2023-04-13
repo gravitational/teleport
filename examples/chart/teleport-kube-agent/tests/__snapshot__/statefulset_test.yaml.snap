@@ -4,6 +4,8 @@ sets Pod annotations when specified:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -70,6 +72,8 @@ sets Pod labels when specified:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -160,6 +164,8 @@ sets StatefulSet labels when specified:
           - args:
             - --diag-addr=0.0.0.0:3000
             env:
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
             - name: TELEPORT_REPLICA_NAME
               valueFrom:
                 fieldRef:
@@ -254,6 +260,8 @@ should add insecureSkipProxyTLSVerify to args when set in values:
       - --diag-addr=0.0.0.0:3000
       - --insecure
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -320,6 +328,8 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -406,6 +416,8 @@ should add volumeClaimTemplate for data volume when using StatefulSet and is Fre
           - args:
             - --diag-addr=0.0.0.0:3000
             env:
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
             - name: TELEPORT_REPLICA_NAME
               valueFrom:
                 fieldRef:
@@ -482,6 +494,8 @@ should add volumeMount for data volume when using StatefulSet:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -548,6 +562,8 @@ should expose diag port:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -614,6 +630,8 @@ should generate Statefulset when storage is disabled and mode is a Upgrade:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -694,6 +712,8 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -772,6 +792,8 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -838,6 +860,8 @@ should have one replica when replicaCount is not set:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -904,6 +928,8 @@ should install Statefulset when storage is disabled and mode is a Fresh Install:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -972,6 +998,8 @@ should mount extraVolumes and extraVolumeMounts:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1043,6 +1071,8 @@ should mount tls.existingCASecretName and set environment when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1119,6 +1149,8 @@ should mount tls.existingCASecretName and set extra environment when set in valu
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1197,6 +1229,8 @@ should not add emptyDir for data when using StatefulSet:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1263,6 +1297,8 @@ should provision initContainer correctly when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1365,6 +1401,8 @@ should set SecurityContext:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1451,6 +1489,8 @@ should set affinity when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1517,6 +1557,8 @@ should set default serviceAccountName when not set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1594,6 +1636,8 @@ should set environment when extraEnv set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1662,6 +1706,8 @@ should set image and tag correctly:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1728,6 +1774,8 @@ should set imagePullPolicy when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1794,6 +1842,8 @@ should set nodeSelector if set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1874,6 +1924,8 @@ should set preferred affinity when more than one replica is used:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -1940,6 +1992,8 @@ should set probeTimeoutSeconds when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2016,6 +2070,8 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2082,6 +2138,8 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2155,6 +2213,8 @@ should set serviceAccountName when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2221,6 +2281,8 @@ should set storage.requests when set in values and action is an Upgrade:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2287,6 +2349,8 @@ should set storage.storageClassName when set in values and action is an Upgrade:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
@@ -2353,6 +2417,8 @@ should set tolerations when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: TELEPORT_REPLICA_NAME
         valueFrom:
           fieldRef:
