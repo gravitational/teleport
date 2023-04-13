@@ -836,6 +836,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
@@ -846,7 +847,9 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Dynamodb.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Azure SQL Server.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
@@ -894,6 +897,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify discovery.
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
+        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
