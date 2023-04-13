@@ -19,7 +19,6 @@ package srv
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -278,9 +277,6 @@ func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferParams, e
 		Size:      r.Size,
 		Direction: r.Direction,
 	}
-	fmt.Println("-----")
-	fmt.Printf("%+v\n", params)
-	fmt.Println("-----")
 	return params, nil
 }
 
