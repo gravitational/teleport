@@ -14,8 +14,19 @@
  * limitations under the License.
  */
 
-// export as default for use with React.lazy
-export { IntegrationEnroll as default } from './IntegrationEnroll';
-export { IntegrationTiles } from './IntegrationTiles';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
-export * from './common';
+import cfg from 'teleport/config';
+
+import { IntegrationEnroll } from './IntegrationEnroll';
+
+export default {
+  title: 'Teleport/Integrations/Enroll',
+};
+
+export const Picker = () => (
+  <MemoryRouter initialEntries={[cfg.routes.integrationEnroll]}>
+    <IntegrationEnroll />
+  </MemoryRouter>
+);
