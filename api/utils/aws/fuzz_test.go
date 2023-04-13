@@ -25,7 +25,7 @@ import (
 func FuzzParseRDSEndpoint(f *testing.F) {
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
-			ParseRDSEndpoint(endpoint)
+			_, _ = ParseRDSEndpoint(endpoint)
 		})
 	})
 }
@@ -33,7 +33,7 @@ func FuzzParseRDSEndpoint(f *testing.F) {
 func FuzzParseRedshiftEndpoint(f *testing.F) {
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
-			ParseRedshiftEndpoint(endpoint)
+			_, _, _ = ParseRedshiftEndpoint(endpoint)
 		})
 	})
 }
@@ -41,7 +41,7 @@ func FuzzParseRedshiftEndpoint(f *testing.F) {
 func FuzzParseElastiCacheEndpoint(f *testing.F) {
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
-			ParseElastiCacheEndpoint(endpoint)
+			_, _ = ParseElastiCacheEndpoint(endpoint)
 		})
 	})
 }
@@ -49,7 +49,15 @@ func FuzzParseElastiCacheEndpoint(f *testing.F) {
 func FuzzParseDynamoDBEndpoint(f *testing.F) {
 	f.Fuzz(func(t *testing.T, endpoint string) {
 		require.NotPanics(t, func() {
-			ParseDynamoDBEndpoint(endpoint)
+			_, _ = ParseDynamoDBEndpoint(endpoint)
+		})
+	})
+}
+
+func FuzzParseOpensearchEndpoint(f *testing.F) {
+	f.Fuzz(func(t *testing.T, endpoint string) {
+		require.NotPanics(t, func() {
+			_, _ = ParseOpensearchEndpoint(endpoint)
 		})
 	})
 }
