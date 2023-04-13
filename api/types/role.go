@@ -731,9 +731,9 @@ func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
 	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
-		r.Spec.Allow.DesktopGroups = ncopy
+		r.Spec.Allow.HostGroups = ncopy
 	} else {
-		r.Spec.Deny.DesktopGroups = ncopy
+		r.Spec.Deny.HostGroups = ncopy
 	}
 }
 
@@ -749,9 +749,9 @@ func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
 func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
 	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
-		r.Spec.Allow.HostGroups = ncopy
+		r.Spec.Allow.DesktopGroups = ncopy
 	} else {
-		r.Spec.Deny.HostGroups = ncopy
+		r.Spec.Deny.DesktopGroups = ncopy
 	}
 }
 
