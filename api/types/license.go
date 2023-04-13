@@ -103,34 +103,6 @@ type License interface {
 	// generate licenses that support older versions of Teleport
 	SetSupportsResourceAccessRequests(Bool)
 
-	// GetSupportsOIDC returns OIDC connectors support flag.
-	// Note: this flag is unused at the moment
-	GetSupportsOIDC() Bool
-	// SetSupportsOIDC sets OIDC connectors support flag.
-	// Note: this flag is unused at the moment
-	SetSupportsOIDC(Bool)
-
-	// GetSupportsSAML returns SAML connectors support flag
-	// Note: this flag is unused at the moment
-	GetSupportsSAML() Bool
-	// SetSupportsSAML sets SAML connectors support flag
-	// Note: this flag is unused at the moment
-	SetSupportsSAML(Bool)
-
-	// GetSupportsAccessControls returns FIPS access controls support flag
-	// Note: this flag is unused at the moment
-	GetSupportsAccessControls() Bool
-	// SetSupportsAccessControls sets FIPS access controls support flag
-	// Note: this flag is unused at the moment
-	SetSupportsAccessControls(Bool)
-
-	// GetSupportsHSM returns hardware security modules support flag
-	// Note: this flag is unused at the moment
-	GetSupportsHSM() Bool
-	// SetSupportsHSM sets hardware security modules support flag
-	// Note: this flag is unused at the moment
-	SetSupportsHSM(Bool)
-
 	// GetTrial returns the trial flag.
 	//  Note: This is not applicable to Cloud licenses
 	GetTrial() Bool
@@ -298,6 +270,9 @@ func (c *LicenseV3) setStaticFields() {
 // CheckAndSetDefaults verifies the constraints for License.
 func (c *LicenseV3) CheckAndSetDefaults() error {
 	c.setStaticFields()
+	if c.Spec.FeatureSource == "" {
+		c.Spec.FeatureSource = FeatureSourceLicense
+	}
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -407,54 +382,6 @@ func (c *LicenseV3) SetSupportsResourceAccessRequests(value Bool) {
 	c.Spec.SupportsResourceAccessRequests = value
 }
 
-// GetSupportsOIDC returns OIDC connectors support flag.
-// Note: this flag is unused at the moment
-func (c *LicenseV3) GetSupportsOIDC() Bool {
-	return c.Spec.SupportsOIDC
-}
-
-// SetSupportsOIDC sets OIDC connectors support flag.
-// Note: this flag is unused at the moment
-func (c *LicenseV3) SetSupportsOIDC(value Bool) {
-	c.Spec.SupportsOIDC = value
-}
-
-// GetSupportsSAML returns SAML connectors support flag
-// Note: this flag is unused at the moment
-func (c *LicenseV3) GetSupportsSAML() Bool {
-	return c.Spec.SupportsSAML
-}
-
-// SetSupportsSAML sets SAML connectors support flag
-// Note: this flag is unused at the moment
-func (c *LicenseV3) SetSupportsSAML(value Bool) {
-	c.Spec.SupportsSAML = value
-}
-
-// GetSupportsAccessControls returns FIPS access controls support flag
-// Note: this flag is unused at the moment
-func (c *LicenseV3) GetSupportsAccessControls() Bool {
-	return c.Spec.SupportsAccessControls
-}
-
-// SetSupportsAccessControls sets FIPS access controls support flag
-// Note: this flag is unused at the moment
-func (c *LicenseV3) SetSupportsAccessControls(value Bool) {
-	c.Spec.SupportsAccessControls = value
-}
-
-// GetSupportsHSM returns hardware security modules support flag
-// Note: this flag is unused at the moment
-func (c *LicenseV3) GetSupportsHSM() Bool {
-	return c.Spec.SupportsHSM
-}
-
-// SetSupportsHSM sets hardware security modules support flag
-// Note: this flag is unused at the moment
-func (c *LicenseV3) SetSupportsHSM(value Bool) {
-	c.Spec.SupportsHSM = value
-}
-
 // GetTrial returns the trial flag
 func (c *LicenseV3) GetTrial() Bool {
 	return c.Spec.Trial
@@ -504,7 +431,7 @@ func (c *LicenseV3) String() string {
 	return strings.Join(features, ",")
 }
 
-// GetFeatureSource returns the source Teleport should use to
+// GetFeatureSource returns the source Teleport should use toapi/types/license_test.go
 // read the features
 func (c *LicenseV3) GetFeatureSource() FeatureSource {
 	// defaults to License for backward compatibility
@@ -547,16 +474,6 @@ type LicenseSpecV3 struct {
 	SupportsMachineID Bool `json:"machine_id,omitempty"`
 	// SupportsResourceAccessRequests turns resource access request support on or off
 	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
-	// SupportsDeviceTrust turns Device Trust on or off
-	SupportsDeviceTrust Bool `json:"device_trust,omitempty"`
-	// SupportsOIDC turns OIDC connectors on or off
-	SupportsOIDC Bool `json:"oidc"`
-	// SupportsSAML turns SAML connectors on or off
-	SupportsSAML Bool `json:"saml"`
-	// SupportsAccessControls turns FIPS access controls on or off
-	SupportsAccessControls Bool `json:"access_controls"`
-	// SupportsHSM turns hardware security modules on or off
-	SupportsHSM Bool `json:"hsm"`
 	// Trial is true for trial licenses
 	Trial Bool `json:"trial,omitempty"`
 	// FeatureSource is the source of the set of enabled feature

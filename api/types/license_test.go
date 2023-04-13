@@ -37,10 +37,6 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 		License.GetSupportsModeratedSessions,
 		License.GetSupportsMachineID,
 		License.GetSupportsResourceAccessRequests,
-		License.GetSupportsOIDC,
-		License.GetSupportsSAML,
-		License.GetSupportsAccessControls,
-		License.GetSupportsHSM,
 		License.GetTrial,
 	}
 
@@ -123,30 +119,6 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 			unsetFields: unsetFields(License.GetSupportsResourceAccessRequests),
 		},
 		{
-			name:        "Set OIDC",
-			setter:      License.SetSupportsOIDC,
-			getter:      License.GetSupportsOIDC,
-			unsetFields: unsetFields(License.GetSupportsOIDC),
-		},
-		{
-			name:        "Set SAML",
-			setter:      License.SetSupportsSAML,
-			getter:      License.GetSupportsSAML,
-			unsetFields: unsetFields(License.GetSupportsSAML),
-		},
-		{
-			name:        "Set Access Controls",
-			setter:      License.SetSupportsAccessControls,
-			getter:      License.GetSupportsAccessControls,
-			unsetFields: unsetFields(License.GetSupportsAccessControls),
-		},
-		{
-			name:        "Set Resource HSM",
-			setter:      License.SetSupportsHSM,
-			getter:      License.GetSupportsHSM,
-			unsetFields: unsetFields(License.GetSupportsHSM),
-		},
-		{
 			name:        "Set Trial Support",
 			setter:      License.SetTrial,
 			getter:      License.GetTrial,
@@ -182,10 +154,6 @@ func TestLicenseSettersAndGetters(t *testing.T) {
 	require.False(t, bool(license.GetSupportsModeratedSessions()))
 	require.False(t, bool(license.GetSupportsMachineID()))
 	require.False(t, bool(license.GetSupportsResourceAccessRequests()))
-	require.False(t, bool(license.GetSupportsOIDC()))
-	require.False(t, bool(license.GetSupportsSAML()))
-	require.False(t, bool(license.GetSupportsAccessControls()))
-	require.False(t, bool(license.GetSupportsHSM()))
 	require.False(t, bool(license.GetTrial()))
 }
 
