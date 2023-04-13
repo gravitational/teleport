@@ -951,6 +951,36 @@ func (c *installerCollection) writeText(w io.Writer) error {
 	return nil
 }
 
+type integrationCollection struct {
+	integrations []types.Integration
+}
+
+func (c *integrationCollection) resources() (r []types.Resource) {
+	for _, ig := range c.integrations {
+		r = append(r, ig)
+	}
+	return r
+}
+func (c *integrationCollection) writeText(w io.Writer) error {
+	sort.Sort(types.Integrations(c.integrations))
+	var rows [][]string
+	for _, ig := range c.integrations {
+		specProps := []string{}
+		switch ig.GetSubKind() {
+		case types.IntegrationSubKindAWSOIDC:
+			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
+		}
+
+		rows = append(rows, []string{
+			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
+		})
+	}
+	headers := []string{"Name", "Type", "Spec"}
+	t := asciitable.MakeTable(headers, rows...)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type databaseServiceCollection struct {
 	databaseServices []types.DatabaseService
 }
