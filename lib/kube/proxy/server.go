@@ -306,9 +306,11 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 func (t *TLSServer) close(ctx context.Context) error {
 	var errs []error
 	// Stop the legacy heartbeat resource watcher.
+	t.mu.Lock()
 	if t.legacyHeartbeat != nil {
 		errs = append(errs, t.legacyHeartbeat.Close())
 	}
+	t.mu.Unlock()
 	for _, kubeCluster := range t.fwd.kubeClusters() {
 		errs = append(errs, t.unregisterKubeCluster(ctx, kubeCluster.GetName()))
 	}
@@ -495,7 +497,7 @@ func (t *TLSServer) stopHeartbeat(name string) error {
 // so older clients can still look into kube clusters.
 // DELETE IN 12.0.0
 func (t *TLSServer) startLegacyHeartbeat() (err error) {
-	t.legacyHeartbeat, err = srv.NewHeartbeat(srv.HeartbeatConfig{
+	legacyHeartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
 		Mode:            srv.HeartbeatModeKube,
 		Context:         t.Context,
 		Component:       t.Component,
@@ -511,7 +513,10 @@ func (t *TLSServer) startLegacyHeartbeat() (err error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	go t.legacyHeartbeat.Run()
+	t.mu.Lock()
+	t.legacyHeartbeat = legacyHeartbeat
+	t.mu.Unlock()
+	go legacyHeartbeat.Run()
 	return nil
 }
 
