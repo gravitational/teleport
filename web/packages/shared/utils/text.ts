@@ -28,3 +28,7 @@ export function pluralize(num: number, word: string) {
 
   return word;
 }
+
+export function firstLowerCase(string: string) {
+  return string.charAt(0).toLowerCase() + string.slice(1);
+}

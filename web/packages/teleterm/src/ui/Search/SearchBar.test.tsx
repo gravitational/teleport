@@ -20,6 +20,7 @@ import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
@@ -141,6 +142,64 @@ it('does display empty results copy and excluded clusters after providing search
   expect(results).toHaveTextContent(
     'The cluster teleport-12-ent.asteroid.earth was excluded from the search because you are not logged in to it.'
   );
+});
+
+it('notifies about resource search errors and allows to display details', () => {
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = '/clusters/foo';
+  });
+
+  const resourceSearchError = new ResourceSearchError(
+    '/clusters/foo',
+    'server',
+    new Error('whoops')
+  );
+
+  const mockActionAttempts = {
+    filterActionsAttempt: makeSuccessAttempt([]),
+    resourceActionsAttempt: makeSuccessAttempt([]),
+    resourceSearchAttempt: makeSuccessAttempt({
+      results: [],
+      errors: [resourceSearchError],
+      search: '',
+    }),
+  };
+  jest
+    .spyOn(useActionAttempts, 'useActionAttempts')
+    .mockImplementation(() => mockActionAttempts);
+  const mockedSearchContext = {
+    ...getMockedSearchContext(),
+    inputValue: 'foo',
+  };
+  jest
+    .spyOn(SearchContext, 'useSearchContext')
+    .mockImplementation(() => mockedSearchContext);
+  jest.spyOn(appContext.modalsService, 'openRegularDialog');
+  jest.spyOn(mockedSearchContext, 'lockOpen');
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <SearchBarConnected />
+    </MockAppContextProvider>
+  );
+
+  const results = screen.getByRole('menu');
+  expect(results).toHaveTextContent(
+    'Some of the search results are incomplete.'
+  );
+  expect(results).toHaveTextContent('Could not fetch servers from foo');
+  expect(results).not.toHaveTextContent(resourceSearchError.cause['message']);
+
+  screen.getByText('Show details').click();
+
+  expect(appContext.modalsService.openRegularDialog).toHaveBeenCalledWith(
+    expect.objectContaining({
+      kind: 'resource-search-errors',
+      errors: [resourceSearchError],
+    })
+  );
+  expect(mockedSearchContext.lockOpen).toHaveBeenCalled();
 });
 
 const getMockedSearchContext = () => ({

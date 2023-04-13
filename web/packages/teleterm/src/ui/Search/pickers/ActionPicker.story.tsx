@@ -26,11 +26,17 @@ import {
   makeServer,
   makeLabelsList,
 } from 'teleterm/services/tshd/testHelpers';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
 import { SearchResult } from '../searchResult';
 import { makeResourceResult } from '../testHelpers';
 
-import { ComponentMap, NoResultsItem, TypeToSearchItem } from './ActionPicker';
+import {
+  ComponentMap,
+  NoResultsItem,
+  ResourceSearchErrorsItem,
+  TypeToSearchItem,
+} from './ActionPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -356,6 +362,39 @@ const AuxiliaryItems = () => (
               proxyHost: 'test:3030',
               authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
             },
+          ]}
+        />
+        <ResourceSearchErrorsItem
+          getClusterName={routing.parseClusterName}
+          onShowDetails={() => window.alert('Error details')}
+          errors={[
+            new ResourceSearchError(
+              '/clusters/foo',
+              'server',
+              new Error(
+                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+              )
+            ),
+          ]}
+        />
+        <ResourceSearchErrorsItem
+          getClusterName={routing.parseClusterName}
+          onShowDetails={() => window.alert('Error details')}
+          errors={[
+            new ResourceSearchError(
+              '/clusters/bar',
+              'database',
+              new Error(
+                '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
+              )
+            ),
+            new ResourceSearchError(
+              '/clusters/foo',
+              'server',
+              new Error(
+                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+              )
+            ),
           ]}
         />
         <TypeToSearchItem />

@@ -145,10 +145,7 @@ export const NonInteractiveItem = styled.div`
 
   padding: ${props => props.theme.space[2]}px;
   color: ${props => props.theme.colors.text.contrast};
-  background: ${props =>
-    props.$active
-      ? props.theme.colors.levels.elevated
-      : props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.surface};
 `;
 
 const InteractiveItem = styled(NonInteractiveItem)`
@@ -157,6 +154,11 @@ const InteractiveItem = styled(NonInteractiveItem)`
     cursor: pointer;
     background: ${props => props.theme.colors.levels.elevated};
   }
+
+  background: ${props =>
+    props.$active
+      ? props.theme.colors.levels.elevated
+      : props.theme.colors.levels.surface};
 `;
 
 function getNext(selectedIndex = 0, max = 0) {

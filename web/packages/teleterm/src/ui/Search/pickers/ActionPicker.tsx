@@ -16,10 +16,18 @@
 
 import React, { ReactElement, useCallback } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Flex, Label as DesignLabel, Text } from 'design';
+import {
+  Box,
+  ButtonBorder,
+  ButtonPrimary,
+  Flex,
+  Label as DesignLabel,
+  Text,
+} from 'design';
 import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import { hasFinished } from 'shared/hooks/useAsync';
+import { firstLowerCase } from 'shared/utils/text';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -34,6 +42,7 @@ import {
 } from 'teleterm/ui/Search/searchResult';
 import * as tsh from 'teleterm/services/tshd/types';
 import * as uri from 'teleterm/ui/uri';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
 import { SearchAction } from '../actions';
 import { useSearchContext } from '../SearchContext';
@@ -45,11 +54,12 @@ import { PickerContainer } from './PickerContainer';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
-  const { clustersService } = ctx;
+  const { clustersService, modalsService } = ctx;
   ctx.clustersService.useState();
 
   const {
     changeActivePicker,
+    lockOpen,
     close,
     inputValue,
     resetInput,
@@ -57,7 +67,11 @@ export function ActionPicker(props: { input: ReactElement }) {
     filters,
     removeFilter,
   } = useSearchContext();
-  const { filterActionsAttempt, resourceActionsAttempt } = useActionAttempts();
+  const {
+    filterActionsAttempt,
+    resourceActionsAttempt,
+    resourceSearchAttempt,
+  } = useActionAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
 
   const getClusterName = useCallback(
@@ -146,6 +160,35 @@ export function ActionPicker(props: { input: ReactElement }) {
 
   if (!inputValue && noRemainingFilters) {
     ExtraComponent = <TypeToSearchItem />;
+  }
+
+  if (
+    resourceSearchAttempt.status === 'success' &&
+    resourceSearchAttempt.data.errors.length > 0
+  ) {
+    const showErrorsInModal = () => {
+      lockOpen(
+        new Promise(resolve => {
+          modalsService.openRegularDialog({
+            kind: 'resource-search-errors',
+            errors: resourceSearchAttempt.data.errors,
+            getClusterName,
+            onCancel: () => resolve(undefined),
+          });
+        })
+      );
+    };
+
+    ExtraComponent = (
+      <>
+        <ResourceSearchErrorsItem
+          errors={resourceSearchAttempt.data.errors}
+          getClusterName={getClusterName}
+          onShowDetails={showErrorsInModal}
+        />
+        {ExtraComponent}
+      </>
+    );
   }
 
   return (
@@ -420,9 +463,7 @@ export function NoResultsItem(props: { clusters: tsh.Cluster[] }) {
       <Item Icon={icons.Info} iconColor="text.primary">
         <Text typography="body1">No matching results found.</Text>
         {excludedClustersCopy && (
-          <Text typography="body1" color="text.primary">
-            {excludedClustersCopy}
-          </Text>
+          <Text typography="body2">{excludedClustersCopy}</Text>
         )}
       </Item>
     </NonInteractiveItem>
@@ -439,7 +480,61 @@ export function TypeToSearchItem() {
   );
 }
 
+export function ResourceSearchErrorsItem(props: {
+  errors: ResourceSearchError[];
+  getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string;
+  onShowDetails: () => void;
+}) {
+  const { errors, getClusterName } = props;
+
+  let shortDescription: string;
+
+  if (errors.length === 1) {
+    const firstErrorMessage = errors[0].messageWithClusterName(getClusterName);
+    shortDescription = `${firstErrorMessage}.`;
+  } else {
+    const allErrorMessages = errors
+      .map(err => firstLowerCase(err.messageWithClusterName(getClusterName)))
+      .join(', ');
+    shortDescription = `Ran into ${errors.length} errors: ${allErrorMessages}.`;
+  }
+
+  return (
+    <NonInteractiveItem>
+      <Item Icon={icons.Warning} iconColor="#f3af3d">
+        <Text typography="body1">
+          Some of the search results are incomplete.
+        </Text>
+
+        <Flex gap={2} justifyContent="space-between" alignItems="baseline">
+          <span
+            css={`
+              text-overflow: ellipsis;
+              white-space: nowrap;
+              overflow: hidden;
+            `}
+          >
+            <Text typography="body2">{shortDescription}</Text>
+          </span>
+
+          <ButtonBorder
+            type="button"
+            size="small"
+            css={`
+              flex-shrink: 0;
+            `}
+            onClick={props.onShowDetails}
+          >
+            Show details
+          </ButtonBorder>
+        </Flex>
+      </Item>
+    </NonInteractiveItem>
+  );
+}
+
 function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
+  // TODO(ravicious): Include leaf clusters.
   const excludedClusters = allClusters.filter(c => !c.connected);
   const excludedClustersString = excludedClusters.map(c => c.name).join(', ');
   if (excludedClusters.length === 0) {
