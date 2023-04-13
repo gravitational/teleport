@@ -447,23 +447,21 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 	c := &enrollCeremony{
 		logger:  s.logger,
 		storage: s.storage,
+		auditCallback: func(dev *devicepb.Device, err error) {
+			s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+				Metadata: apievents.Metadata{
+					Type: events.DeviceEvent,
+					Code: events.DeviceEnrollCode,
+				},
+				Status: &apievents.Status{
+					Success: err == nil,
+				},
+				Device: getDeviceMetadata(dev),
+				User:   getUserMetadata(ctx),
+			})
+		},
 	}
 	dev, err = c.EnrollDevice(stream)
-	// err handled below.
-
-	// Emit audit event.
-	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
-		Metadata: apievents.Metadata{
-			Type: events.DeviceEvent,
-			Code: events.DeviceEnrollCode,
-		},
-		Status: &apievents.Status{
-			Success: err == nil,
-		},
-		Device: getDeviceMetadata(dev),
-		User:   getUserMetadata(ctx),
-	})
-
 	return trace.Wrap(err)
 }
 
@@ -514,23 +512,21 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 			certs, err := s.authServer.AugmentContextUserCertificates(ctx, authCtx, opts)
 			return certs, trace.Wrap(err)
 		},
+		auditCallback: func(dev *devicepb.Device, err error) {
+			s.emitAuditEvent(ctx, &apievents.DeviceEvent{
+				Metadata: apievents.Metadata{
+					Type: events.DeviceEvent,
+					Code: events.DeviceAuthenticateCode,
+				},
+				Status: &apievents.Status{
+					Success: err == nil,
+				},
+				Device: getDeviceMetadata(dev),
+				User:   getUserMetadata(ctx),
+			})
+		},
 	}
 	dev, err = c.AuthenticateDevice(stream)
-	// err handled below.
-
-	// Emit audit event.
-	s.emitAuditEvent(ctx, &apievents.DeviceEvent{
-		Metadata: apievents.Metadata{
-			Type: events.DeviceEvent,
-			Code: events.DeviceAuthenticateCode,
-		},
-		Status: &apievents.Status{
-			Success: err == nil,
-		},
-		Device: getDeviceMetadata(dev),
-		User:   getUserMetadata(ctx),
-	})
-
 	return trace.Wrap(err)
 }
 

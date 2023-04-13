@@ -16,8 +16,9 @@ import (
 )
 
 type enrollCeremony struct {
-	logger  *log.Entry
-	storage *storage.S
+	logger        *log.Entry
+	storage       *storage.S
+	auditCallback func(d *devicepb.Device, err error)
 }
 
 // EnrollDevice implements the device enrollment ceremony, as described by
@@ -26,9 +27,30 @@ type enrollCeremony struct {
 // Returns the enrolled device and an error.
 //
 // As long as any device information is acquired from the stream, a non-nil
-// device is returned, even if the ceremony itself failed. This allows callers
-// to write audit information about the device.
+// device is returned, even if the ceremony itself failed.
+//
+// The ceremony auditCallback is guaranteed to be called exactly once, either
+// after the first error or before the last Send of the stream.
+// The outcome of the last Send is not considered for audit purposes.
 func (c *enrollCeremony) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) (*devicepb.Device, error) {
+	dev, err := c.enrollDevice(stream)
+	c.auditCallback(dev, err)
+	if err != nil {
+		return dev, trace.Wrap(err)
+	}
+
+	// Success (only send after audit).
+	err = stream.Send(&devicepb.EnrollDeviceResponse{
+		Payload: &devicepb.EnrollDeviceResponse_Success{
+			Success: &devicepb.EnrollDeviceSuccess{
+				Device: dev,
+			},
+		},
+	})
+	return dev, trace.Wrap(err)
+}
+
+func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) (*devicepb.Device, error) {
 	// 1. Init.
 	req, err := stream.Recv()
 	if err != nil {
@@ -96,14 +118,6 @@ func (c *enrollCeremony) EnrollDevice(stream devicepb.DeviceTrustService_EnrollD
 		return dev, trace.Wrap(err)
 	}
 
-	// Success.
-	err = stream.Send(&devicepb.EnrollDeviceResponse{
-		Payload: &devicepb.EnrollDeviceResponse_Success{
-			Success: &devicepb.EnrollDeviceSuccess{
-				Device: enrolled,
-			},
-		},
-	})
 	return enrolled, trace.Wrap(err)
 }
 

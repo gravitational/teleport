@@ -420,7 +420,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			assertAudit := false
 			defer func() {
 				if assertAudit {
-					assertEventsEmitter(t, emitter, test.wantAuditEvents)
+					assertEvents(t, emitter.Events(), test.wantAuditEvents)
 				}
 			}()
 

@@ -1717,23 +1717,6 @@ type wantEvent struct {
 	WantFail   bool
 }
 
-type mockEmitter interface {
-	Events() []apievents.AuditEvent
-}
-
-// assertEventsEmitter waits for the emitter to have at least the number of
-// wanted events, then calls assertEvents.
-func assertEventsEmitter(t *testing.T, emitter mockEmitter, want []wantEvent) {
-	t.Helper()
-	assert.Eventually(
-		t,
-		func() bool { return len(emitter.Events()) >= len(want) },
-		2*time.Second,
-		10*time.Millisecond,
-		"Timed out waiting for emitter events")
-	assertEvents(t, emitter.Events(), want)
-}
-
 func assertEvents(t *testing.T, got []apievents.AuditEvent, want []wantEvent) {
 	t.Helper()
 
