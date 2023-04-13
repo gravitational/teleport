@@ -2314,7 +2314,6 @@ func TestMotD(t *testing.T) {
 
 // TestPingAutomaticUpgrades ensures /webapi/ping returns whether AutomaticUpgrades are enabled.
 func TestPingAutomaticUpgrades(t *testing.T) {
-
 	t.Run("Automatic Upgrades are enabled", func(t *testing.T) {
 		// Enable Automatic Upgrades
 		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
