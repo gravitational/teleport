@@ -38,7 +38,6 @@ test('undefined values in context response gives proper default values', async (
         edit: true,
         create: true,
         remove: true,
-        use: true,
       },
     },
   };
@@ -56,7 +55,6 @@ test('undefined values in context response gives proper default values', async (
         edit: true,
         create: true,
         remove: true,
-        use: true,
       },
       // Test that undefined acl booleans are set to default false.
       trustedClusters: {
@@ -65,7 +63,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       nodes: {
         create: false,
@@ -73,7 +70,6 @@ test('undefined values in context response gives proper default values', async (
         list: false,
         read: false,
         remove: false,
-        use: false,
       },
       plugins: {
         create: false,
@@ -81,7 +77,6 @@ test('undefined values in context response gives proper default values', async (
         list: false,
         read: false,
         remove: false,
-        use: false,
       },
       integrations: {
         list: false,
@@ -97,7 +92,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       recordedSessions: {
         list: false,
@@ -105,7 +99,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       desktops: {
         create: false,
@@ -113,7 +106,6 @@ test('undefined values in context response gives proper default values', async (
         list: false,
         read: false,
         remove: false,
-        use: false,
       },
       events: {
         list: false,
@@ -121,7 +113,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       users: {
         list: false,
@@ -129,7 +120,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       activeSessions: {
         create: false,
@@ -137,7 +127,6 @@ test('undefined values in context response gives proper default values', async (
         list: false,
         read: false,
         remove: false,
-        use: false,
       },
       appServers: {
         list: false,
@@ -145,7 +134,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       kubeServers: {
         list: false,
@@ -153,7 +141,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       license: {
         list: false,
@@ -161,7 +148,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       download: {
         list: false,
@@ -169,7 +155,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       tokens: {
         list: false,
@@ -177,7 +162,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       accessRequests: {
         list: false,
@@ -185,7 +169,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       billing: {
         list: false,
@@ -193,7 +176,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       dbServers: {
         list: false,
@@ -201,7 +183,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       db: {
         list: false,
@@ -209,7 +190,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       connectionDiagnostic: {
         list: false,
@@ -217,7 +197,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       deviceTrust: {
         list: false,
@@ -225,7 +204,6 @@ test('undefined values in context response gives proper default values', async (
         edit: false,
         create: false,
         remove: false,
-        use: false,
       },
       clipboardSharingEnabled: true,
       desktopSessionRecordingEnabled: true,

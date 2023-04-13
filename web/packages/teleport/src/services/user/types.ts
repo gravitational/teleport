@@ -45,7 +45,10 @@ export interface Access {
   edit: boolean;
   create: boolean;
   remove: boolean;
-  use?: boolean;
+}
+
+export interface AccessWithUse extends Access {
+  use: boolean;
 }
 
 export interface Acl {
@@ -72,7 +75,7 @@ export interface Acl {
   license: Access;
   download: Access;
   plugins: Access;
-  integrations: Access;
+  integrations: AccessWithUse;
   deviceTrust: Access;
 }
 
