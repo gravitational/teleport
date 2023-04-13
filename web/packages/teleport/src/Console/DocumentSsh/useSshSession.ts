@@ -19,11 +19,14 @@ import React from 'react';
 import { context, trace } from '@opentelemetry/api';
 
 import cfg from 'teleport/config';
-import { TermEvent } from 'teleport/lib/term/enums';
+import { EventType, TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentSsh } from 'teleport/Console/stores';
+import useWebAuthn from 'teleport/lib/useWebAuthn';
+
+import { useFileTransfer } from './useFileTransfer';
 
 import type {
   ParticipantMode,
@@ -36,10 +39,27 @@ const tracer = trace.getTracer('TTY');
 export default function useSshSession(doc: DocumentSsh) {
   const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
+  const user = ctx.getStoreUser();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
+  const webauthn = useWebAuthn(tty);
   const [session, setSession] = React.useState<Session>(null);
   const [status, setStatus] = React.useState<Status>('loading');
+
+  const {
+    download,
+    upload,
+    getMfaResponseAttempt,
+    fileTransferRequests,
+    handleFileTransferApproval,
+    handleFileTransferDenied,
+    filesStore,
+    updateFileTransferRequests,
+  } = useFileTransfer({
+    doc,
+    user,
+    addMfaToScpUrls: webauthn.addMfaToScpUrls,
+  });
 
   function closeDocument() {
     ctx.closeTab(doc);
@@ -68,6 +88,16 @@ export default function useSshSession(doc: DocumentSsh) {
             data.session.resourceName = data.session.server_hostname;
             handleTtyConnect(ctx, data.session, doc.id);
           });
+
+          tty.on(EventType.FILE_TRANSFER_REQUEST, updateFileTransferRequests);
+          tty.on(
+            EventType.FILE_TRANSFER_REQUEST_APPROVE,
+            handleFileTransferApproval
+          );
+          tty.on(
+            EventType.FILE_TRANSFER_REQUEST_DENY,
+            handleFileTransferDenied
+          );
 
           // assign tty reference so it can be passed down to xterm
           ttyRef.current = tty;
@@ -104,6 +134,12 @@ export default function useSshSession(doc: DocumentSsh) {
     status,
     session,
     closeDocument,
+    webauthn,
+    getMfaResponseAttempt,
+    download,
+    upload,
+    fileTransferRequests,
+    filesStore,
   };
 }
 
