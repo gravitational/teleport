@@ -205,8 +205,12 @@ class Tty extends EventEmitterWebAuthnSender {
       this.emit(EventType.FILE_TRANSFER_REQUEST, event);
     }
     if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVE) {
-      const pendingFile = this._getPendingFile(event.location, event.filename);
-      this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
+      const locationAndName = event.location + event.filename;
+      const pendingFile = this._getPendingFile(locationAndName);
+      if (pendingFile) {
+        this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
+        delete this._pendingUploads[locationAndName];
+      }
     }
     if (event.event === EventType.FILE_TRANSFER_REQUEST_DENY) {
       this.emit(EventType.FILE_TRANSFER_REQUEST_DENY, event);
@@ -219,13 +223,8 @@ class Tty extends EventEmitterWebAuthnSender {
     }
   }
 
-  _getPendingFile(location: string, name: string) {
-    const locationAndName = location + name;
-    const file = this._pendingUploads[locationAndName];
-    if (file) {
-      delete this._pendingUploads[locationAndName];
-    }
-    return file;
+  _getPendingFile(location: string) {
+    return this._pendingUploads[location];
   }
 }
 
