@@ -7,17 +7,24 @@ In this guide, we'll explain how to set up a Teleport cluster in Kubernetes
 with a custom [`teleport.yaml`](../../reference/config.mdx) config file
 using Teleport Helm charts.
 
+(!docs/pages/includes/cloud/call-to-action.mdx!)
+
 This setup can be useful when you already have an existing Teleport cluster and would
 like to start running it in Kubernetes, or when migrating your setup from a legacy
 version of the Helm charts.
+
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
+
+## Prerequisites
 
 <Admonition type="warning">
 Those instructions are both for v12 Teleport and the v12 `teleport-cluster` chart.
 If you are running an older Teleport version, use the version selector at the top
 of this page to choose the correct version.
 </Admonition>
-
-## Prerequisites
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 

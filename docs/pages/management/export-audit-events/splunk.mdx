@@ -65,37 +65,7 @@ We'll re-purpose the files generated for Fluentd in our Universal Forwarder conf
 
 ### Define RBAC resources
 
-The `teleport-event-handler configure` command generated a file called
-`teleport-event-handler-role.yaml`. This file defines a `teleport-event-handler`
-role and a user with read-only access to the `event` API:
-
-```yaml
-kind: role
-metadata:
-  name: teleport-event-handler
-spec:
-  allow:
-    rules:
-      - resources: ['event', 'session']
-        verbs: ['list','read']
-version: v5
----
-kind: user
-metadata:
-  name: teleport-event-handler
-spec:
-  roles: ['teleport-event-handler']
-version: v2
-```
-
-Move this file to your workstation (or recreate it by pasting the snippet above)
-and use `tctl` on your workstation to create the role and the user:
-
-```code
-$ tctl create -f teleport-event-handler-role.yaml
-# user "teleport-event-handler" has been created
-# role 'teleport-event-handler' has been created
-```
+(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
 ### Enable impersonation of the Teleport Event Handler plugin user
 

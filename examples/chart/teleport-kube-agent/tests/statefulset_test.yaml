@@ -678,3 +678,15 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext
           value: null
+
+  - it: should enable maintenance schedule export when updater is enabled
+    template: statefulset.yaml
+    values:
+      - ../.lint/existing-tls-secret-with-ca.yaml
+      - ../.lint/updater.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_EXT_UPGRADER
+            value: kube
