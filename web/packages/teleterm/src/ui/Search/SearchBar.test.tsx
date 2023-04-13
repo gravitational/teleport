@@ -46,23 +46,12 @@ it('does not display empty results copy after selecting two filters', () => {
     .spyOn(useActionAttempts, 'useActionAttempts')
     .mockImplementation(() => mockActionAttempts);
   jest.spyOn(SearchContext, 'useSearchContext').mockImplementation(() => ({
+    ...getMockedSearchContext(),
     filters: [
       { filter: 'cluster', clusterUri: '/clusters/foo' },
       { filter: 'resource-type', resourceType: 'servers' },
     ],
     inputValue: '',
-    setFilter: () => {},
-    removeFilter: () => {},
-    isOpen: true,
-    open: () => {},
-    lockOpen: async () => {},
-    close: () => {},
-    closeAndResetInput: () => {},
-    resetInput: () => {},
-    changeActivePicker: () => {},
-    onInputValueChange: () => {},
-    activePicker: pickers.actionPicker,
-    inputRef: undefined,
   }));
 
   render(
@@ -95,7 +84,7 @@ it('does display empty results copy after providing search query for which there
     .mockImplementation(() => mockActionAttempts);
   jest
     .spyOn(SearchContext, 'useSearchContext')
-    .mockImplementation(() => mockedSearchContext);
+    .mockImplementation(getMockedSearchContext);
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -139,7 +128,7 @@ it('does display empty results copy and excluded clusters after providing search
     .mockImplementation(() => mockActionAttempts);
   jest
     .spyOn(SearchContext, 'useSearchContext')
-    .mockImplementation(() => mockedSearchContext);
+    .mockImplementation(getMockedSearchContext);
 
   render(
     <MockAppContextProvider appContext={appContext}>
@@ -154,7 +143,7 @@ it('does display empty results copy and excluded clusters after providing search
   );
 });
 
-const mockedSearchContext = {
+const getMockedSearchContext = () => ({
   inputValue: 'foo',
   filters: [],
   setFilter: () => {},
@@ -169,4 +158,4 @@ const mockedSearchContext = {
   onInputValueChange: () => {},
   activePicker: pickers.actionPicker,
   inputRef: undefined,
-};
+});
