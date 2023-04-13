@@ -557,10 +557,21 @@ const cfg = {
     });
   },
 
-  getScpUrl({ webauthn, ...params }: UrlScpParams) {
+  getScpUrl({
+    webauthn,
+    moderatedSessonId,
+    fileTransferRequestId,
+    ...params
+  }: UrlScpParams) {
     let path = generatePath(cfg.api.scp, {
       ...params,
     });
+
+    // only set if both are params are present
+    if (moderatedSessonId && fileTransferRequestId) {
+      path = `${path}&file_transfer_request_id=${fileTransferRequestId}&moderated_session_id=${moderatedSessonId}`;
+    }
+
     if (!webauthn) {
       return path;
     }
@@ -651,6 +662,8 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
+  moderatedSessonId?: string;
+  fileTransferRequestId?: string;
   webauthn?: WebauthnAssertionResponse;
 }
 
