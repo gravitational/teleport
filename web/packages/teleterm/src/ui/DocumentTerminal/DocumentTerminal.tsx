@@ -21,6 +21,7 @@ import {
   FileTransferActionBar,
   FileTransfer,
   FileTransferContextProvider,
+  FileTransferContainer,
 } from 'shared/components/FileTransfer';
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -65,44 +66,45 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
 
   const $fileTransfer = doc.kind === 'doc.terminal_tsh_node' && (
     <FileTransferContextProvider>
-      <FileTransferActionBar isConnected={doc.status === 'connected'} />
-      {isDocumentTshNodeWithServerId(doc) && (
-        <FileTransfer
-          beforeClose={() =>
-            // TODO (gzdunek): replace with a native dialog
-            window.confirm('Are you sure you want to cancel file transfers?')
-          }
-          transferHandlers={{
-            getDownloader: async (sourcePath, abortController) => {
-              const fileDialog = await ctx.mainProcessClient.showFileSaveDialog(
-                sourcePath
-              );
-              if (fileDialog.canceled) {
-                return;
-              }
-              return download(
-                {
-                  serverUri: doc.serverUri,
-                  login: doc.login,
-                  source: sourcePath,
-                  destination: fileDialog.filePath,
-                },
-                abortController
-              );
-            },
-            getUploader: async (destinationPath, file, abortController) =>
-              upload(
-                {
-                  serverUri: doc.serverUri,
-                  login: doc.login,
-                  source: file.path,
-                  destination: destinationPath,
-                },
-                abortController
-              ),
-          }}
-        />
-      )}
+      <FileTransferContainer>
+        <FileTransferActionBar isConnected={doc.status === 'connected'} />
+        {isDocumentTshNodeWithServerId(doc) && (
+          <FileTransfer
+            beforeClose={() =>
+              // TODO (gzdunek): replace with a native dialog
+              window.confirm('Are you sure you want to cancel file transfers?')
+            }
+            transferHandlers={{
+              getDownloader: async (sourcePath, abortController) => {
+                const fileDialog =
+                  await ctx.mainProcessClient.showFileSaveDialog(sourcePath);
+                if (fileDialog.canceled) {
+                  return;
+                }
+                return download(
+                  {
+                    serverUri: doc.serverUri,
+                    login: doc.login,
+                    source: sourcePath,
+                    destination: fileDialog.filePath,
+                  },
+                  abortController
+                );
+              },
+              getUploader: async (destinationPath, file, abortController) =>
+                upload(
+                  {
+                    serverUri: doc.serverUri,
+                    login: doc.login,
+                    source: file.path,
+                    destination: destinationPath,
+                  },
+                  abortController
+                ),
+            }}
+          />
+        )}
+      </FileTransferContainer>
     </FileTransferContextProvider>
   );
 
