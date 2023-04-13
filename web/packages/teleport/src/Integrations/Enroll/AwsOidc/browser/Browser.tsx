@@ -32,7 +32,7 @@ import {
   BrowserURL,
   BrowserURLContainer,
   BrowserURLIcon,
-} from 'teleport/Integrations/Enroll/AwsOidc/Browser/BrowserComponents';
+} from 'teleport/Integrations/Enroll/AwsOidc/browser/BrowserComponents';
 
 import { Stage } from 'teleport/Integrations/Enroll/AwsOidc/stages';
 

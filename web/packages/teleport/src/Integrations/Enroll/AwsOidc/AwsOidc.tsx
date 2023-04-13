@@ -20,9 +20,9 @@ import styled from 'styled-components';
 import { SwitchTransition, Transition } from 'react-transition-group';
 
 import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
-import { Browser } from 'teleport/Integrations/Enroll/AwsOidc/Browser/Browser';
+import { Browser } from 'teleport/Integrations/Enroll/AwsOidc/browser/Browser';
 import { IAMHomeScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMHomeScreen';
-import { Cursor } from 'teleport/Integrations/Enroll/AwsOidc/Browser/Cursor';
+import { Cursor } from 'teleport/Integrations/Enroll/AwsOidc/browser/Cursor';
 import { IAMIdentityProvidersScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMIdentityProvidersScreen';
 import { IAMNewProviderScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMNewProviderScreen';
 import { FirstStageInstructions } from 'teleport/Integrations/Enroll/AwsOidc/instructions/FirstStageInstructions';
