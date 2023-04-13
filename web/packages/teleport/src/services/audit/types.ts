@@ -895,40 +895,40 @@ export type RawEvents = {
     }
   >;
   [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: RawEvent<
-      typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE,
-      {
-        name: string;
-        db_service: string;
-        db_name: string;
-        category: number;
-        target: string;
-        query: string;
-        path: string;
-      }
+    typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
   >;
   [eventCodes.OPENSEARCH_REQUEST]: RawEvent<
-      typeof eventCodes.OPENSEARCH_REQUEST,
-      {
-        name: string;
-        db_service: string;
-        db_name: string;
-        category: number;
-        target: string;
-        query: string;
-        path: string;
-      }
+    typeof eventCodes.OPENSEARCH_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
   >;
   [eventCodes.OPENSEARCH_REQUEST_FAILURE]: RawEvent<
-      typeof eventCodes.OPENSEARCH_REQUEST_FAILURE,
-      {
-        name: string;
-        db_service: string;
-        db_name: string;
-        category: number;
-        target: string;
-        query: string;
-        path: string;
-      }
+    typeof eventCodes.OPENSEARCH_REQUEST_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
   >;
   [eventCodes.DYNAMODB_REQUEST]: RawEvent<
     typeof eventCodes.DYNAMODB_REQUEST,
