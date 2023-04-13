@@ -10,57 +10,9 @@ work with Teleport Database Access.
 
 ### Prerequisites
 
-Ensure that your environment includes the following:
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-<Tabs>
-<TabItem scope={["oss"]} label="Open Source">
-
-- A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](/docs/getting-started) guides.
-
-- The `tsh` client tool version >= (=teleport.version=).
-
-  ```code
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](/docs/installation.mdx) for details.
-
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](/docs/enterprise/getting-started) guide.
-
-- The `tsh` client tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-<TabItem scope={["cloud"]}
-  label="Teleport Cloud">
-
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
-
-- The `tsh` client tool version >= (=cloud.version=). To download these tools,
-  visit the [Downloads](../choose-an-edition/teleport-cloud/downloads.mdx) page.
-
-  ```code
-  $ tsh version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
-
-</TabItem>
-</Tabs>
-
+- (!docs/pages/includes/tctl.mdx!)
 - The Teleport Database Service configured to access a database. See one of our
   [guides](../database-access/guides.mdx) for how to set up Teleport Database Access for your
   database.
