@@ -82,9 +82,9 @@ type ClientConfig struct {
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
 	DialOpts []grpc.DialOption
-	// IsALPNConnUpgradeRequiredFunc is a callback function to check whether
-	// connection upgrade is required for TLS Routing.
-	IsALPNConnUpgradeRequiredFunc func(addr string, insecure bool) bool
+	// ALPNConnUpgradeRequired indicates that ALPN connection upgrades are
+	// required for making TLS routing requests.
+	ALPNConnUpgradeRequired bool
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
@@ -113,10 +113,6 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
 	}
-	if c.TLSRoutingEnabled && c.IsALPNConnUpgradeRequiredFunc == nil {
-		return trace.BadParameter("missing parameter IsALPNConnUpgradeRequiredFunc when TLS Routing is enabled")
-	}
-
 	if c.TLSConfig != nil {
 		c.clientCreds = func() client.Credentials {
 			return client.LoadTLS(c.TLSConfig.Clone())
@@ -346,17 +342,11 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 }
 
 func newDialerForGRPCClient(ctx context.Context, cfg *ClientConfig) func(context.Context, string) (net.Conn, error) {
-	dialOpts := []client.DialOption{
+	return client.GRPCContextDialer(client.NewDialer(ctx, defaults.DefaultIdleTimeout, cfg.DialTimeout,
 		client.WithInsecureSkipVerify(cfg.InsecureSkipVerify),
-	}
-
-	if cfg.TLSRoutingEnabled {
-		dialOpts = append(dialOpts,
-			client.WithALPNConnUpgrade(cfg.IsALPNConnUpgradeRequiredFunc(cfg.ProxyWebAddress, cfg.InsecureSkipVerify)),
-			client.WithALPNConnUpgradePing(true),
-		)
-	}
-	return client.GRPCContextDialer(client.NewDialer(ctx, defaults.DefaultIdleTimeout, cfg.DialTimeout, dialOpts...))
+		client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
+		client.WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+	))
 }
 
 // teleportAuthority is the extension set by the server
@@ -463,12 +453,12 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 	switch {
 	case c.cfg.TLSRoutingEnabled:
 		return client.Config{
-			Context:                       ctx,
-			Addrs:                         []string{c.cfg.ProxyWebAddress},
-			Credentials:                   []client.Credentials{c.cfg.clientCreds()},
-			ALPNSNIAuthDialClusterName:    cluster,
-			CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
-			IsALPNConnUpgradeRequiredFunc: c.cfg.IsALPNConnUpgradeRequiredFunc,
+			Context:                    ctx,
+			Addrs:                      []string{c.cfg.ProxyWebAddress},
+			Credentials:                []client.Credentials{c.cfg.clientCreds()},
+			ALPNSNIAuthDialClusterName: cluster,
+			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+			ALPNConnUpgradeRequired:    c.cfg.ALPNConnUpgradeRequired,
 		}
 	case c.sshClient != nil:
 		return client.Config{

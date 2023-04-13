@@ -159,39 +159,26 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 //
 // If ALPNSNIAuthDialClusterName is given, the address is expected to be a web
 // proxy address and the client will connect auth through the web proxy server
-// using TLS Routing. cfg.IsALPNConnUpgradeRequiredFunc must also be provided
-// in this case assuming the caller has the context on whether ALPN connection
-// upgrade is required.
+// using TLS Routing.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	tlsConfig, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Dialer connect.
 	if cfg.Dialer != nil {
-		client, err := dialerConnect(ctx, connectParams{
+		return dialerConnect(ctx, connectParams{
 			cfg:       cfg,
 			tlsConfig: tlsConfig,
 			dialer:    cfg.Dialer,
 		})
-		return client, trace.Wrap(err)
+	} else if len(cfg.Addrs) != 0 {
+		return authConnect(ctx, connectParams{
+			cfg:       cfg,
+			tlsConfig: tlsConfig,
+			addr:      cfg.Addrs[0],
+		})
 	}
-
-	// Auth connect.
-	if len(cfg.Addrs) == 0 {
-		return nil, trace.BadParameter("must provide Dialer or Addrs in config")
-	}
-	if cfg.ALPNSNIAuthDialClusterName != "" && cfg.IsALPNConnUpgradeRequiredFunc == nil {
-		return nil, trace.BadParameter("must provide IsALPNConnUpgradeRequiredFunc for authConnect using TLS Routing")
-	}
-
-	client, err := authConnect(ctx, connectParams{
-		cfg:       cfg,
-		tlsConfig: tlsConfig,
-		addr:      cfg.Addrs[0],
-	})
-	return client, trace.Wrap(err)
+	return nil, trace.BadParameter("must provide Dialer or Addrs in config")
 }
 
 // connect connects the client to the server using the Credentials and
@@ -278,7 +265,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect} {
+					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
 							tlsConfig: tlsConfig,
@@ -346,18 +333,12 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly or through Proxy.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	opts := []DialOption{
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout,
 		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
-	}
+		WithALPNConnUpgrade(params.cfg.ALPNConnUpgradeRequired),
+		WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+	)
 
-	if params.cfg.IsALPNConnUpgradeRequiredFunc != nil {
-		opts = append(opts,
-			WithALPNConnUpgrade(params.cfg.IsALPNConnUpgradeRequiredFunc(params.addr, params.cfg.InsecureAddressDiscovery)),
-			WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
-		)
-	}
-
-	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, opts...)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -396,10 +377,24 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params)
+	dialer := newTLSRoutingTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
+	}
+	return clt, nil
+}
+
+// tlsRoutingWithConnUpgradeConnect connects to the Teleport Auth Server
+// through the proxy using TLS Routing with ALPN connection upgrade.
+func tlsRoutingWithConnUpgradeConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTLSRoutingWithConnUpgradeDialer(*params.sshConfig, params)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing with ALPN connection upgrade dialer", params.addr)
 	}
 	return clt, nil
 }
@@ -555,9 +550,10 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
-	// IsALPNConnUpgradeRequiredFunc is a callback function to check whether
-	// connection upgrade is required for TLS Routing.
-	IsALPNConnUpgradeRequiredFunc func(addr string, insecure bool) bool
+	// ALPNConnUpgradeRequired indicates that ALPN connection upgrades are
+	// required for making TLS routing requests. Only used in auth background
+	// dial.
+	ALPNConnUpgradeRequired bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.

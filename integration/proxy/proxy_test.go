@@ -1251,9 +1251,7 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 				InsecureAddressDiscovery:   true,
 				DialInBackground:           true,
 				ALPNSNIAuthDialClusterName: cfg.ClusterName,
-				IsALPNConnUpgradeRequiredFunc: func(addr string, insecure bool) bool {
-					return addr == albProxy.Addr().String()
-				},
+				ALPNConnUpgradeRequired:    true,
 			},
 		},
 	}

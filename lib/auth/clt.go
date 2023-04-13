@@ -103,7 +103,7 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 			for _, addr := range cfg.Addrs {
 				contextDialer := client.NewDialer(cfg.Context, cfg.KeepAlivePeriod, cfg.DialTimeout,
 					client.WithInsecureSkipVerify(httpTLS.InsecureSkipVerify),
-					client.WithALPNConnUpgrade(cfg.IsALPNConnUpgradeRequiredFunc != nil && cfg.IsALPNConnUpgradeRequiredFunc(addr, httpTLS.InsecureSkipVerify)),
+					client.WithALPNConnUpgrade(cfg.ALPNConnUpgradeRequired),
 				)
 				conn, err = contextDialer.DialContext(ctx, network, addr)
 				if err == nil {
