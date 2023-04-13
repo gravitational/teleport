@@ -35,7 +35,7 @@ import (
 const (
 	payloadTypeAttr          = "payload_type"
 	payloadTypeRawProtoEvent = "raw_proto_event"
-	payloadTypeS3Based       = "s3_based_payload"
+	payloadTypeS3Based       = "s3_event"
 
 	// maxSNSMessageSize defines maximum size of SNS message. AWS allows 256KB
 	// however it counts also headers. We round it to 250KB, just to be sure.

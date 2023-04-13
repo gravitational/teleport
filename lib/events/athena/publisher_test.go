@@ -49,7 +49,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 			},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
-				require.Contains(t, *out[0].attributes["payload_type"].StringValue, payloadTypeRawProtoEvent)
+				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeRawProtoEvent)
 			},
 		},
 		{
@@ -65,7 +65,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 			},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
-				require.Contains(t, *out[0].attributes["payload_type"].StringValue, payloadTypeRawProtoEvent)
+				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeRawProtoEvent)
 			},
 		},
 		{
@@ -80,7 +80,7 @@ func Test_EmitAuditEvent(t *testing.T) {
 			uploader: mockUploader{},
 			wantCheck: func(t *testing.T, out []fakeQueueMessage) {
 				require.Len(t, out, 1)
-				require.Contains(t, *out[0].attributes["payload_type"].StringValue, payloadTypeS3Based)
+				require.Contains(t, *out[0].attributes[payloadTypeAttr].StringValue, payloadTypeS3Based)
 			},
 		},
 	}

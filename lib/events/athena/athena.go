@@ -325,8 +325,9 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	l := &Log{}
-	l.publisher = newPublisher(cfg)
+	l := &Log{
+		publisher: newPublisher(cfg),
+	}
 
 	// TODO(tobiaszheller): initialize batcher
 	// TODO(tobiaszheller): initialize querier
