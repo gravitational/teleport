@@ -64,8 +64,8 @@ type ProxyConfig struct {
 	// MySQLAddr is address of MySQL proxy.
 	MySQLAddr utils.NetAddr
 
-	// MySQLEngineVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
-	MySQLEngineVersion string
+	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
+	MySQLServerVersion string
 
 	// PostgresAddr is address of Postgres proxy.
 	PostgresAddr utils.NetAddr

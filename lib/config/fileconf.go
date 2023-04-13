@@ -2017,8 +2017,8 @@ type Proxy struct {
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
 
-	// MySQLEngineVersion allow to overwrite proxy default mysql engine version reported by Teleport proxy.
-	MySQLEngineVersion string `yaml:"mysql_engine_version,omitempty"`
+	// MySQLServerVersion allow to overwrite proxy default mysql engine version reported by Teleport proxy.
+	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
 
 	// PostgresAddr is Postgres proxy listen address.
 	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`

@@ -55,9 +55,9 @@ type Proxy struct {
 	Limiter *limiter.Limiter
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
-	// EngineVersion allows to overwrite the default Proxy MySQL Engine Version. Note that for TLS Routing connection
-	// the dynamic service version propagation by ALPN extension will take precedes over Proxy EngineVersion.
-	EngineVersion string
+	// ServerVersion allows to overwrite the default Proxy MySQL Engine Version. Note that for TLS Routing connection
+	// the dynamic service version propagation by ALPN extension will take precedes over Proxy ServerVersion.
+	ServerVersion string
 }
 
 // HandleConnection accepts connection from a MySQL client, authenticates
@@ -72,7 +72,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err 
 	// by peeking into the first few bytes. This is needed to be able to detect
 	// proxy protocol which otherwise would interfere with MySQL protocol.
 	conn := multiplexer.NewConn(clientConn)
-	mysqlServerVersion := getServerVersionFromCtx(ctx, p.EngineVersion)
+	mysqlServerVersion := getServerVersionFromCtx(ctx, p.ServerVersion)
 
 	mysqlServer := p.makeServer(conn, mysqlServerVersion)
 	// If any error happens, make sure to send it back to the client, so it

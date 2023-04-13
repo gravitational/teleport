@@ -66,7 +66,7 @@ func TestDatabaseAccess(t *testing.T) {
 		WithRootConfig(func(config *servicecfg.Config) {
 			config.PollingPeriod = 5 * time.Second
 			config.RotationConnectionInterval = 2 * time.Second
-			config.Proxy.MySQLEngineVersion = "8.0.1"
+			config.Proxy.MySQLServerVersion = "8.0.1"
 		}),
 	)
 	pack.WaitForLeaf(t)

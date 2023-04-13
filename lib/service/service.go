@@ -4141,7 +4141,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				Limiter:            connLimiter,
 				IngressReporter:    ingressReporter,
 				ConnectionMonitor:  connMonitor,
-				MySQLEngineVersion: process.Config.Proxy.MySQLEngineVersion,
+				MySQLServerVersion: process.Config.Proxy.MySQLServerVersion,
 			})
 		if err != nil {
 			return trace.Wrap(err)
