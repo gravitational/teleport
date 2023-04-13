@@ -128,8 +128,8 @@ events:
 
 For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration
 (which we will describe in more detail in the [Configuration](#configuration)
-section) names a table or collection where Teleport stores cluster state and
-audit events. 
+section) names the two tables or collections where Teleport stores cluster state
+and audit events. 
 
 The Auth Service can also store cluster state in self-hosted
 [etcd](https://etcd.io/) deployments. In this case, Teleport uses namespaces
@@ -176,7 +176,7 @@ In Google Cloud Storage, Auth Service instances also need permissions to delete
 objects. 
 
 Unless you plan to configure the Auth Service to access a pre-existing bucket,
-you must also assign Auth Service instances permissions to create buckets
+you must also assign Auth Service instances permissions to create buckets.
 
 </Admonition>
 
