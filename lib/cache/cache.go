@@ -113,6 +113,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
+		{Kind: types.KindIntegration},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -156,6 +157,7 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
 		{Kind: types.KindUserGroup},
+		{Kind: types.KindIntegration},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -369,6 +371,7 @@ func ForDiscovery(cfg Config) Config {
 func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindClusterName},
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindUser},
 		{Kind: types.KindAppServer},
@@ -460,6 +463,7 @@ type Cache struct {
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
+	integrationsCache            services.Integrations
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -527,6 +531,7 @@ func (c *Cache) read() (readGuard, error) {
 			samlIdPServiceProviders: c.samlIdPServiceProvidersCache,
 			userGroups:              c.userGroupsCache,
 			okta:                    c.oktaCache,
+			integrations:            c.integrationsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -552,6 +557,7 @@ func (c *Cache) read() (readGuard, error) {
 		samlIdPServiceProviders: c.Config.SAMLIdPServiceProviders,
 		userGroups:              c.Config.UserGroups,
 		okta:                    c.Config.Okta,
+		integrations:            c.Config.Integrations,
 		release:                 nil,
 	}, nil
 }
@@ -582,6 +588,7 @@ type readGuard struct {
 	samlIdPServiceProviders services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroups              services.UserGroups
 	okta                    services.Okta
+	integrations            services.Integrations
 	release                 func()
 	released                bool
 }
@@ -655,6 +662,8 @@ type Config struct {
 	UserGroups services.UserGroups
 	// Okta is an Okta service.
 	Okta services.Okta
+	// Integrations is an Integrations service.
+	Integrations services.Integrations
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -814,6 +823,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	integrationsCache, err := local.NewIntegrationsService(config.Backend)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -841,6 +856,7 @@ func New(config Config) (*Cache, error) {
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
+		integrationsCache:            integrationsCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2387,6 +2403,32 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 	}
 	defer rg.Release()
 	return rg.okta.GetOktaAssignment(ctx, name)
+}
+
+// ListIntegrations returns a paginated list of all Integrations resources.
+func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.integrations.ListIntegrations(ctx, pageSize, nextKey)
+}
+
+// GetIntegration returns the specified Integration resources.
+func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.integrations.GetIntegration(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sftp handles file transfers client-side via SFTP
+// Package sftp handles file transfers client-side via SFTP.
 package sftp
 
 import (
@@ -24,10 +24,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/user"
 	"path" // SFTP requires UNIX-style path separators
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -85,7 +87,7 @@ type FileSystem interface {
 	// Open opens a file
 	Open(ctx context.Context, path string) (fs.File, error)
 	// Create creates a new file
-	Create(ctx context.Context, path string) (io.WriteCloser, error)
+	Create(ctx context.Context, path string, size int64) (io.WriteCloser, error)
 	// Mkdir creates a directory
 	Mkdir(ctx context.Context, path string) error
 	// Chmod sets file permissions
@@ -94,7 +96,7 @@ type FileSystem interface {
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
 }
 
-// CreateUploadConfig returns a Config ready to upload files
+// CreateUploadConfig returns a Config ready to upload files over SFTP.
 func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error) {
 	for _, srcPath := range src {
 		if srcPath == "" {
@@ -117,7 +119,7 @@ func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error)
 	return c, nil
 }
 
-// CreateDownloadConfig returns a Config ready to download files
+// CreateDownloadConfig returns a Config ready to download files over SFTP.
 func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 	if src == "" {
 		return nil, trace.BadParameter("source path is empty")
@@ -138,6 +140,85 @@ func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 	return c, nil
 }
 
+// HTTPTransferRequest describes file transfer request over HTTP.
+type HTTPTransferRequest struct {
+	// Src is the source file name
+	Src string
+	// Dst is the destination file name
+	Dst string
+	// HTTPRequest is where the source file will be read from for
+	// file upload transfers
+	HTTPRequest *http.Request
+	// HTTPResponse is where the destination file will be written to for
+	// file download transfers
+	HTTPResponse http.ResponseWriter
+}
+
+// CreateHTTPUploadConfig returns a Config ready to upload a file from
+// a HTTP request over SFTP.
+func CreateHTTPUploadConfig(req HTTPTransferRequest) (*Config, error) {
+	if err := req.checkDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.HTTPRequest == nil {
+		return nil, trace.BadParameter("HTTP request is empty")
+	}
+
+	contentLength := req.HTTPRequest.Header.Get("Content-Length")
+	fileSize, err := strconv.ParseInt(contentLength, 10, 0)
+	if err != nil {
+		return nil, trace.Errorf("failed to parse Content-Length header: %w", err)
+	}
+
+	c := &Config{
+		srcPaths: []string{req.Src},
+		dstPath:  req.Dst,
+		srcFS: &httpFS{
+			reader:   req.HTTPRequest.Body,
+			fileName: req.Src,
+			fileSize: fileSize,
+		},
+		dstFS: &remoteFS{},
+	}
+	c.setDefaults()
+
+	return c, nil
+}
+
+// CreateHTTPDownloadConfig returns a Config ready to download a file
+// from over SFTP and write it to a HTTP response.
+func CreateHTTPDownloadConfig(req HTTPTransferRequest) (*Config, error) {
+	if err := req.checkDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.HTTPResponse == nil {
+		return nil, trace.BadParameter("HTTP response is empty")
+	}
+
+	c := &Config{
+		srcPaths: []string{req.Src},
+		dstPath:  req.Dst,
+		srcFS:    &remoteFS{},
+		dstFS: &httpFS{
+			writer:   req.HTTPResponse,
+			fileName: req.Dst,
+		},
+	}
+	c.setDefaults()
+
+	return c, nil
+}
+
+func (h HTTPTransferRequest) checkDefaults() error {
+	if h.Src == "" {
+		return trace.BadParameter("source path is empty")
+	}
+	if h.Dst == "" {
+		return trace.BadParameter("destination path is empty")
+	}
+	return nil
+}
+
 // setDefaults sets default values
 func (c *Config) setDefaults() {
 	logger := c.Log
@@ -156,16 +237,60 @@ func (c *Config) setDefaults() {
 }
 
 // TransferFiles transfers files from the configured source paths to the
-// configured destination path over SFTP
+// configured destination path over SFTP or HTTP depending on the Config.
 func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error {
-	sftpClient, err := sftp.NewClient(sshClient,
-		// Use concurrent stream to speed up transfer on slow networks as described in
-		// https://github.com/gravitational/teleport/issues/20579
-		sftp.UseConcurrentReads(true),
-		sftp.UseConcurrentWrites(true))
+	s, err := sshClient.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer s.Close()
+
+	// File transfers in a moderated session require these two variables
+	// to check for approval on the ssh server. If they exist in the
+	// context, set them in our env vars
+	if moderatedSessionID, ok := ctx.Value(ModeratedSessionID).(string); ok {
+		s.Setenv(string(ModeratedSessionID), moderatedSessionID)
+	}
+	if fileTransferRequestID, ok := ctx.Value(FileTransferRequestID).(string); ok {
+		s.Setenv(string(FileTransferRequestID), fileTransferRequestID)
+	}
+
+	pe, err := s.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.RequestSubsystem("sftp"); err != nil {
+		// If the subsystem request failed and a generic error is
+		// returned, return the session's stderr as the error if it's
+		// non-empty, as the session's stderr may have a more useful
+		// error message. String comparison is only used here because
+		// the error is not exported.
+		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
+			var sb strings.Builder
+			if n, _ := io.Copy(&sb, pe); n > 0 {
+				return trace.Wrap(errors.New(sb.String()))
+			}
+		}
+		return trace.Wrap(err)
+	}
+	pw, err := s.StdinPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pr, err := s.StdoutPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sftpClient, err := sftp.NewClientPipe(pr, pw,
+		// Use concurrent stream to speed up transfer on slow networks as described in
+		// https://github.com/gravitational/teleport/issues/20579
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := c.initFS(sshClient, sftpClient); err != nil {
 		return trace.Wrap(err)
 	}
@@ -182,7 +307,6 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 // initFS ensures the source and destination filesystems are ready to transfer
 func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 	var haveRemoteFS bool
-
 	srcFS, srcOK := c.srcFS.(*remoteFS)
 	if srcOK {
 		srcFS.c = client
@@ -295,10 +419,19 @@ func (c *Config) transfer(ctx context.Context) error {
 	matchedPaths := make([]string, 0, len(c.srcPaths))
 	fileInfos := make([]os.FileInfo, 0, len(c.srcPaths))
 	for _, srcPath := range c.srcPaths {
+		// This source path may or may not contain a glob pattern, but
+		// try and glob just in case. It is also possible the user
+		// specified a file path containing glob pattern characters but
+		// means the literal path without globbing, in which case we'll
+		// use the raw source path as the sole match below.
 		matches, err := c.srcFS.Glob(ctx, srcPath)
 		if err != nil {
 			return trace.Wrap(err, "error matching glob pattern %q", srcPath)
 		}
+		if len(matches) == 0 {
+			matches = []string{srcPath}
+		}
+
 		// clean match paths to ensure they are separated by backslashes, as
 		// SFTP requires that
 		for i := range matches {
@@ -428,7 +561,7 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(ctx, dstPath)
+	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Size())
 	if err != nil {
 		return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
@@ -444,7 +577,6 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 
 	reader, writer := prepareStreams(ctx, srcFile, dstFile, progressBar)
-
 	if err := assertStreamsType(reader, writer); err != nil {
 		return trace.Wrap(err)
 	}
@@ -483,18 +615,16 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 // assertStreamsType checks if reader or writer implements correct interface to utilize concurrent SFTP streams.
 func assertStreamsType(reader io.Reader, writer io.Writer) error {
 	_, okReader := reader.(io.WriterTo)
-
 	if okReader {
 		_, okStat := reader.(interface{ Stat() (os.FileInfo, error) })
 		if !okStat {
-			return trace.Errorf("sftp read stream must implement Sync() method")
+			return trace.Errorf("sftp read stream must implement Stat() method")
 		}
 
 		return nil
 	}
 
 	_, okWriter := writer.(io.ReaderFrom)
-
 	if !okWriter && !okReader {
 		return trace.Errorf("reader and writer are not implementing concurrent interfaces %T %T", reader, writer)
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport/api/client"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -51,18 +52,18 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := listResources(clt, r, types.KindAppServer)
+	req, err := convertListResourcesRequest(r, types.KindAppServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
+	page, err := client.GetResourcePage[types.AppServer](r.Context(), clt, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var apps types.Apps
-	for _, server := range appServers {
+	for _, server := range page.Resources {
 		apps = append(apps, server.GetApp())
 	}
 
@@ -74,8 +75,8 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			Identity:          identity,
 			Apps:              apps,
 		}),
-		StartKey:   resp.NextKey,
-		TotalCount: resp.TotalCount,
+		StartKey:   page.NextKey,
+		TotalCount: page.Total,
 	}, nil
 }
 

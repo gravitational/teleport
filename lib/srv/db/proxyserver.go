@@ -93,6 +93,8 @@ type ProxyServerConfig struct {
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
+	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
+	MySQLServerVersion string
 }
 
 // ShuffleFunc defines a function that shuffles a list of database servers.
@@ -402,6 +404,7 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		Limiter:         s.cfg.Limiter,
 		Log:             s.log,
 		IngressReporter: s.cfg.IngressReporter,
+		ServerVersion:   s.cfg.MySQLServerVersion,
 	}
 }
 

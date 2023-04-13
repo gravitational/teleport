@@ -62,9 +62,7 @@ func (s SSHBenchmark) random(ctx context.Context, tc *client.TeleportClient) (Wo
 	}
 	defer clt.Close()
 
-	filter := tc.DefaultResourceFilter()
-	filter.ResourceType = types.KindNode
-	resources, err := apiclient.GetResourcesWithFilters(ctx, clt.AuthClient, *filter)
+	resources, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, tc.ResourceFilter(types.KindNode))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -79,7 +77,7 @@ func (s SSHBenchmark) random(ctx context.Context, tc *client.TeleportClient) (Wo
 }
 
 // chooseRandomHost returns a random hostport from the given slice.
-func chooseRandomHost(hosts []types.ResourceWithLabels) string {
+func chooseRandomHost(hosts []types.Server) string {
 	switch len(hosts) {
 	case 0:
 		return ""

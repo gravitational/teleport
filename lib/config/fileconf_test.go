@@ -1008,6 +1008,47 @@ func TestDiscoveryConfig(t *testing.T) {
 			expectedDiscoverySection: Discovery{},
 		},
 		{
+			desc:          "AWS section is filled with external_id but empty assume_role_arn is ok for redshift serverless",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"redshift-serverless"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "",
+						"external_id":     "externalid123",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						Types:   []string{"redshift-serverless"},
+						Regions: []string{"us-west-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "aws-discovery-iam-token",
+								Method:    types.JoinMethodIAM,
+							},
+							SSHDConfig: "/etc/ssh/sshd_config",
+							ScriptName: "default-installer",
+						},
+						SSM:           AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+						AssumeRoleARN: "",
+						ExternalID:    "externalid123",
+					},
+				},
+			},
+		},
+		{
 			desc:          "AWS section is filled with invalid assume_role_arn",
 			expectError:   require.Error,
 			expectEnabled: require.True,

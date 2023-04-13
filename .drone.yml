@@ -119,17 +119,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -239,17 +238,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -363,17 +361,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -483,17 +480,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -574,17 +570,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -725,28 +720,6 @@ steps:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
-- name: Build Windows Authentication Package
-  commands:
-  - $ErrorActionPreference = 'Stop'
-  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $Env:GOCACHE = "$Workspace/gocache"
-  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Go -ToolchainDir "$Workspace/toolchains"
-  - cd $TeleportSrc
-  - $TeleportVersion=$(make print-version).Trim()
-  - cd "$TeleportSrc\e\windowsauth"
-  - make VERSION=v$TeleportVersion  all
-  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
-    windows-signing-cert.pfx -Encoding Byte
-  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
-    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
-  - rm -r windows-signing-cert.pfx
-  environment:
-    WINDOWS_SIGNING_CERT:
-      from_secret: WINDOWS_SIGNING_CERT
-    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -782,7 +755,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
 trigger:
   event:
     include:
@@ -865,7 +838,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_destroy -f -v 6
+      $RELCLI_IMAGE auto_destroy -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -990,28 +963,6 @@ steps:
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
-- name: Build Windows Authentication Package
-  commands:
-  - $ErrorActionPreference = 'Stop'
-  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
-  - $Env:GOCACHE = "$Workspace/gocache"
-  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
-  - . "$TeleportSrc/build.assets/windows/build.ps1"
-  - Enable-Go -ToolchainDir "$Workspace/toolchains"
-  - cd $TeleportSrc
-  - $TeleportVersion=$(make print-version).Trim()
-  - cd "$TeleportSrc\e\windowsauth"
-  - make VERSION=v$TeleportVersion  all
-  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
-    windows-signing-cert.pfx -Encoding Byte
-  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
-    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
-    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
-  - rm -r windows-signing-cert.pfx
-  environment:
-    WINDOWS_SIGNING_CERT:
-      from_secret: WINDOWS_SIGNING_CERT
-    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -1091,8 +1042,6 @@ steps:
   - Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release
   - Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect
     Setup*.exe" -Destination $OutputsDir
-  - Copy-Item -Path "$TeleportSrc/e/windowsauth/build/teleport-windows-auth-setup-*.exe"
-    -Destination $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
   - Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket
@@ -1109,8 +1058,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-master-e148541-20230331T1403513-windows.exe'
-  - $relcliSha256 = '6e2ba2275d5d2bdd1c29def84d2de7d11149a9044c4fdca7c8d87c8e3fb8a91c'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.76-windows.exe'
+  - $relcliSha256 = '56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -1223,17 +1172,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -1314,17 +1262,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -4417,17 +4364,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -9035,7 +8981,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-udpater-oci.yml
+    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-updater-oci.yml
     -workflow-ref=${DRONE_TAG} -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -20268,7 +20214,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
 trigger:
   event:
     include:
@@ -20358,7 +20304,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_publish -f -v 6
+      $RELCLI_IMAGE auto_publish -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -20397,6 +20343,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 9c9cb03f22864ab63a62c0182738234b1deb0848c57e8f1036bd5e96c11d9ad5
+hmac: 2b0baa890b89809154cbdae3134c92f8ad3d221bf4b205c6ce858eed78e536ab
 
 ...

@@ -21,11 +21,9 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
@@ -764,8 +761,7 @@ func (proxy *ProxyClient) GetClusterAlerts(ctx context.Context, req types.GetClu
 }
 
 // FindNodesByFiltersForCluster returns list of the nodes in a specified cluster which have filters matched.
-func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
-	req.ResourceType = types.KindNode
+func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req *proto.ListResourcesRequest, cluster string) ([]types.Server, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindNodesByFiltersForCluster",
@@ -785,17 +781,8 @@ func (proxy *ProxyClient) FindNodesByFiltersForCluster(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := client.GetResourcesWithFilters(ctx, site, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	servers, err := client.GetAllResources[types.Server](ctx, site, req)
+	return servers, trace.Wrap(err)
 }
 
 // FindAppServersByFilters returns a list of application servers in the current cluster which have filters matched.
@@ -833,23 +820,13 @@ func (proxy *ProxyClient) FindAppServersByFiltersForCluster(ctx context.Context,
 	)
 	defer span.End()
 
-	req.ResourceType = types.KindAppServer
 	authClient, err := proxy.ConnectToCluster(ctx, cluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsAppServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	servers, err := client.GetAllResources[types.AppServer](ctx, authClient, &req)
+	return servers, trace.Wrap(err)
 }
 
 // CreateAppSession creates a new application access session.
@@ -980,7 +957,6 @@ func (proxy *ProxyClient) FindDatabaseServersByFilters(ctx context.Context, req 
 
 // FindDatabaseServersByFiltersForCluster returns all registered database proxy servers in the provided cluster.
 func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Context, req proto.ListResourcesRequest, cluster string) ([]types.DatabaseServer, error) {
-	req.ResourceType = types.KindDatabaseServer
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/FindDatabaseServersByFiltersForCluster",
@@ -1000,16 +976,8 @@ func (proxy *ProxyClient) FindDatabaseServersByFiltersForCluster(ctx context.Con
 		return nil, trace.Wrap(err)
 	}
 
-	resources, err := client.GetResourcesWithFilters(ctx, authClient, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return servers, nil
+	servers, err := client.GetAllResources[types.DatabaseServer](ctx, authClient, &req)
+	return servers, trace.Wrap(err)
 }
 
 // FindDatabasesByFilters returns registered databases that match the provided
@@ -1764,106 +1732,6 @@ func newClientConn(
 // Close closes the proxy and auth clients
 func (proxy *ProxyClient) Close() error {
 	return trace.NewAggregate(proxy.Client.Close(), proxy.currentCluster.Close())
-}
-
-// ExecuteSCP runs remote scp command(shellCmd) on the remote server and
-// runs local scp handler using SCP Command
-func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
-	ctx, span := c.Tracer.Start(
-		ctx,
-		"nodeClient/ExecuteSCP",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	shellCmd, err := cmd.GetRemoteShellCmd()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s, err := c.Client.NewSession(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer s.Close()
-
-	// File transfers in a moderated session require these two variablesto check for
-	// approval on the ssh server. If they exist in the context, set them in our env vars
-	if moderatedSessionID, ok := ctx.Value(scp.ModeratedSessionID).(string); ok {
-		s.Setenv(ctx, string(scp.ModeratedSessionID), moderatedSessionID)
-	}
-	if fileTransferRequestID, ok := ctx.Value(scp.FileTransferRequestID).(string); ok {
-		s.Setenv(ctx, string(scp.FileTransferRequestID), fileTransferRequestID)
-	}
-
-	stdin, err := s.StdinPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	stdout, err := s.StdoutPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Stream scp's stderr so tsh gets the verbose remote error
-	// if the command fails
-	stderr, err := s.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go io.Copy(os.Stderr, stderr)
-
-	ch := utils.NewPipeNetConn(
-		stdout,
-		stdin,
-		utils.MultiCloser(),
-		&net.IPAddr{},
-		&net.IPAddr{},
-	)
-
-	execC := make(chan error, 1)
-	go func() {
-		err := cmd.Execute(ch)
-		if err != nil && !trace.IsEOF(err) {
-			log.WithError(err).Warn("Failed to execute SCP command.")
-		}
-		stdin.Close()
-		execC <- err
-	}()
-
-	runC := make(chan error, 1)
-	go func() {
-		err := s.Run(ctx, shellCmd)
-		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
-			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
-			// the remote side cannot send exit-status and this error results.
-			// To abort the session properly, Teleport needs to support `signal` request
-			err = nil
-		}
-		runC <- err
-	}()
-
-	var runErr error
-	select {
-	case <-ctx.Done():
-		if err := s.Close(); err != nil {
-			log.WithError(err).Debug("Failed to close the SSH session.")
-		}
-		err, runErr = <-execC, <-runC
-	case err = <-execC:
-		runErr = <-runC
-	case runErr = <-runC:
-		err = <-execC
-	}
-
-	if runErr != nil && (err == nil || trace.IsEOF(err)) {
-		err = runErr
-	}
-	if trace.IsEOF(err) {
-		err = nil
-	}
-	return trace.Wrap(err)
 }
 
 // TransferFiles transfers files over SFTP.
