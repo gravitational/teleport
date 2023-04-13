@@ -1,6 +1,6 @@
 ---
 authors: Andrew Lytvynov (andrew@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 37 - Desktop Access - Desktop protocol
@@ -255,5 +255,3 @@ Per-session MFA for desktop access works the same way as it does for SSH
 sessions. A JSON-encoded challenge is sent over websocket to the user's browser.
 The only difference is that SSH sessions wrap the MFA JSON in a protobuf
 encoding, where desktop sessions wrap the MFA JSON in a TDP message.
-
-
