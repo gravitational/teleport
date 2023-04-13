@@ -297,7 +297,7 @@ func ResourceAttestationTypeFromString(
 	attestationType string,
 ) (devicepb.AttestationType, error) {
 	switch attestationType {
-	case "unspecified":
+	case "unspecified", "":
 		return devicepb.AttestationType_ATTESTATION_TYPE_UNSPECIFIED, nil
 	case "hw_key":
 		return devicepb.AttestationType_ATTESTATION_TYPE_HW_KEY, nil
