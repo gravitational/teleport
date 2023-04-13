@@ -4,8 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "vite",
-    "build": "vite build",
+    "start": "yarn build-wasm && vite",
+    "build-wasm": "wasm-pack build ./src/ironrdp --target web",
+    "build": "yarn build-wasm && vite build",
     "test": "npx jest",
     "tdd": "jest . --watch"
   },

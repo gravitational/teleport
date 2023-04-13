@@ -14,6 +14,8 @@ pub fn init_ironrdp(log_level: &str) {
     if let Ok(level) = log_level.parse::<log::Level>() {
         console_log::init_with_level(level).unwrap();
     }
+
+    debug!("IronRDP initialized");
 }
 
 #[wasm_bindgen]
