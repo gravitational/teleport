@@ -220,7 +220,7 @@ func tagPipelines() []pipeline {
 		buildType:    buildType{os: "linux", fips: false},
 		trigger:      triggerTag,
 		pipelineName: "build-teleport-kube-agent-updater-oci-images",
-		ghaWorkflow:  "release-teleport-kube-agent-udpater-oci.yml",
+		ghaWorkflow:  "release-teleport-kube-agent-updater-oci.yml",
 		srcRefVar:    "DRONE_TAG",
 		workflowRef:  "${DRONE_TAG}",
 		timeout:      60 * time.Minute,
