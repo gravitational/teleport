@@ -52,7 +52,7 @@ type OktaImportRules interface {
 	DeleteAllOktaImportRules(context.Context) error
 }
 
-// OktaAssignmentGetter defines an interface for reading OktaAssignments.
+// OktaAssignmentsGetter defines an interface for reading OktaAssignments.
 type OktaAssignmentsGetter interface {
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
