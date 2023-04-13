@@ -115,12 +115,16 @@ spec:
       {{- end }}
       containers:
       - name: "teleport"
-        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
+        image: {{ include "teleport-kube-agent.image" . | quote }}
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
-        {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
+        {{- if or .Values.extraEnv .Values.tls.existingCASecretName .Values.updater.enabled }}
         env:
+        {{- if .Values.updater.enabled }}
+        - name: TELEPORT_EXT_UPGRADER
+          value: kube
+        {{- end }}
         {{- if (gt (len .Values.extraEnv) 0) }}
           {{- toYaml .Values.extraEnv | nindent 8 }}
         {{- end }}
@@ -206,5 +210,5 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
 {{- end }}

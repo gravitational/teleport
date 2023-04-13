@@ -15,13 +15,14 @@
  */
 
 import React, { useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useHistory } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Text, Popover, Link } from 'design';
+import { Box, Flex, Text, Link } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
+import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
 import {
   ResourceKind,
@@ -44,6 +45,7 @@ interface SelectResourceProps {
 export function SelectResource(props: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<{ entity: AddButtonResourceKind }>();
+  const history = useHistory();
 
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
@@ -60,6 +62,11 @@ export function SelectResource(props: SelectResourceProps) {
     });
     setResources(foundResources);
     setSearch(s);
+  }
+
+  function onClearSearch() {
+    history.replace({ state: {} }); // Clear any loc state.
+    onSearch('');
   }
 
   React.useEffect(() => {
@@ -115,7 +122,7 @@ export function SelectResource(props: SelectResourceProps) {
             max={100}
           />
         </InputWrapper>
-        {search && <ClearSearch onClick={() => onSearch('')} />}
+        {search && <ClearSearch onClick={onClearSearch} />}
       </Box>
       {resources.length > 0 && (
         <>
@@ -123,8 +130,6 @@ export function SelectResource(props: SelectResourceProps) {
             {resources.map((r, index) => {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
-              const selectResourceFn =
-                r.unguidedLink || !r.hasAccess ? null : () => props.onSelect(r);
 
               // There can be two types of click behavior with the resource cards:
               //  1) If the resource has no interactive UI flow ("unguided"),
@@ -140,14 +145,14 @@ export function SelectResource(props: SelectResourceProps) {
                   as={r.unguidedLink ? Link : null}
                   href={r.hasAccess ? r.unguidedLink : null}
                   target={r.unguidedLink ? '_blank' : null}
-                  onClick={selectResourceFn}
+                  onClick={() => r.hasAccess && props.onSelect(r)}
                   className={r.unguidedLink ? 'unguided' : ''}
                 >
                   {!r.unguidedLink && r.hasAccess && (
                     <BadgeGuided>Guided</BadgeGuided>
                   )}
                   {!r.hasAccess && (
-                    <ToolTip
+                    <ToolTipNoPermBadge
                       children={
                         <PermissionsErrorMessage resourceKind={r.kind} />
                       }
@@ -221,59 +226,6 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
       </Box>
       <Text>Clear search</Text>
     </Flex>
-  );
-};
-
-const ToolTip: React.FC = ({ children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <div
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-        css={`
-          position: absolute;
-          background: red;
-          padding: 0px 6px;
-          border-top-right-radius: 8px;
-          border-bottom-left-radius: 8px;
-          top: 0px;
-          right: 0px;
-          font-size: 10px;
-        `}
-      >
-        Lacking Permissions
-      </div>
-      <Popover
-        modalCss={() => `pointer-events: none;`}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={3} py={2}>
-          {children}
-        </StyledOnHover>
-      </Popover>
-    </>
   );
 };
 
@@ -391,12 +343,6 @@ const BadgeGuided = styled.div`
   top: 0px;
   right: 0px;
   font-size: 10px;
-`;
-
-const StyledOnHover = styled(Text)`
-  background-color: white;
-  color: black;
-  max-width: 350px;
 `;
 
 const InputWrapper = styled.div`

@@ -347,20 +347,16 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 	ctx, cancel := context.WithTimeout(ctx, defaults.CallbackTimeout)
 	defer cancel()
 
-	headlessAuthn := &types.HeadlessAuthentication{
-		ResourceHeader: types.ResourceHeader{
-			Metadata: types.Metadata{
-				Name: req.HeadlessAuthenticationID,
-			},
-		},
-		User:            req.Username,
-		PublicKey:       req.PublicKey,
-		ClientIpAddress: req.ClientMetadata.RemoteAddr,
+	// Headless Authentication should expire when the callback expires.
+	expires := s.clock.Now().Add(defaults.CallbackTimeout)
+	headlessAuthn, err := types.NewHeadlessAuthenticationStub(req.HeadlessAuthenticationID, expires)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	// Headless Authentication should expire when the callback expires.
-	headlessAuthn.SetExpiry(s.clock.Now().Add(defaults.CallbackTimeout))
-
+	headlessAuthn.User = req.Username
+	headlessAuthn.PublicKey = req.PublicKey
+	headlessAuthn.ClientIpAddress = req.ClientMetadata.RemoteAddr
 	if err := services.ValidateHeadlessAuthentication(headlessAuthn); err != nil {
 		return nil, trace.Wrap(err)
 	}

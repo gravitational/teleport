@@ -1920,12 +1920,11 @@ func TestWebAgentForward(t *testing.T) {
 }
 
 func TestActiveSessions(t *testing.T) {
-	t.Parallel()
-	s := newWebSuite(t)
-	pack := s.authPack(t, "foo")
-
 	// Use enterprise license (required for moderated sessions).
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	s := newWebSuite(t)
+	pack := s.authPack(t, "foo")
 
 	start := time.Now()
 	kinds := []types.SessionKind{
@@ -2355,6 +2354,32 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
+	t.Run("documented variables are injected", func(t *testing.T) {
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+		wc := s.client(t)
+		// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+		err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
+echo {{ .PublicProxyAddr }}
+echo Teleport-{{ .MajorVersion }}
+echo Repository Channel: {{ .RepoChannel }}
+		`))
+		require.NoError(t, err)
+
+		re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "custom"), url.Values{})
+		require.NoError(t, err)
+
+		responseString := string(re.Bytes())
+
+		// Variables must be injected
+		require.Contains(t, responseString, "echo Teleport-v")
+		require.Contains(t, responseString, "echo Repository Channel: stable/v")
+	})
 	t.Run("cloud with automatic upgrades", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
 			Cloud:             true,
@@ -6741,6 +6766,10 @@ func (mock authProviderMock) GenerateUserSingleUseCerts(ctx context.Context) (au
 	return nil, nil
 }
 
+func (mock authProviderMock) GenerateOpenSSHCert(ctx context.Context, req *authproto.OpenSSHCertRequest) (*authproto.OpenSSHCert, error) {
+	return nil, nil
+}
+
 type terminalOpt func(t *TerminalRequest)
 
 func withSessionID(sid session.ID) terminalOpt {
@@ -7912,7 +7941,8 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
 			},
-			Clock: clockwork.NewRealClock(),
+			ConnTLSConfig: tlsConfig,
+			Clock:         clockwork.NewRealClock(),
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   client,

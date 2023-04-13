@@ -1,10 +1,10 @@
 ---
 title: Server Access Getting Started Guide
-description: Getting started with Teleport Server Access.
+description: Getting started with Teleport server access.
 videoBanner: 8aiVin0LvmE
 ---
 
-Server Access involves managing your resources, configuring new clusters, and
+Server access involves managing your resources, configuring new clusters, and
 issuing commands through a CLI or programmatically to an API.
 
 This guide introduces some of these common scenarios and how to interact with
@@ -63,7 +63,7 @@ Next, create a join token so you can add the Node to your Teleport cluster.
 
 ```code
 Let's save the token to a file
-$ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+$ tctl tokens add --type=node --format=text > token.file
 ```
 
 </TabItem>
@@ -71,7 +71,7 @@ $ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 
 ```code
 Let's save the token to a file
-$ tctl tokens add --type=node | grep -o 'token: .*' | cut -d' ' -f2 > token.file
+$ tctl tokens add --type=node --format=text > token.file
 ```
 
 </TabItem>
@@ -125,10 +125,7 @@ The `teleport node configure` command above placed a configuration file at
 `/etc/teleport.yaml`. The last step is to start Teleport, pointing it at this
 configuration:
 
-```
-# Start Teleport
-$ sudo teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport SSH Service"!)
 
 ### Access the Web UI
 
@@ -209,7 +206,6 @@ Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 
 In this example, `tele-admin` is now logged into the `tele.example.com` cluster
 through Teleport SSH.
-
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>

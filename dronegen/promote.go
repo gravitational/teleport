@@ -35,11 +35,26 @@ func promoteBuildPipelines() []pipeline {
 
 	promotePipelines = append(promotePipelines, ociPipeline)
 
+	updaterPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-teleport-kube-agent-updater-oci-images",
+		ghaWorkflow:  "promote-teleport-kube-agent-updater-oci.yml",
+		timeout:      60 * time.Minute,
+		workflowRef:  "${DRONE_TAG}",
+		inputs: map[string]string{
+			"release-source-tag": "${DRONE_TAG}",
+		},
+	})
+	updaterPipeline.Trigger.Target.Include = append(updaterPipeline.Trigger.Target.Include, "promote-updater")
+
+	promotePipelines = append(promotePipelines, updaterPipeline)
+
 	return promotePipelines
 }
 
 func publishReleasePipeline() pipeline {
-	p := relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "relcli auto_publish -f -v 6")
+	p := relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "auto_publish -f -v 6")
 
 	p.DependsOn = []string{"promote-build"} // Manually written pipeline
 

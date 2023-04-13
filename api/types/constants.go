@@ -338,6 +338,16 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindIntegration is a connection to a 3rd party system API.
+	KindIntegration = "integration"
+
+	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
+	KindClusterMaintenanceConfig = "cluster_maintenance_config"
+
+	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
+	// window singleton resource.
+	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -391,6 +401,10 @@ const (
 	// VerbEnroll allows enrollment of trusted devices.
 	// Device Trust is a Teleport Enterprise feature.
 	VerbEnroll = "enroll"
+
+	// VerbUse allows the usage of an Integration.
+	// Roles with this verb can issue API calls using the integration.
+	VerbUse = "use"
 )
 
 const (
