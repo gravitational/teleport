@@ -145,11 +145,10 @@ func (t *TermHandlers) HandleFileTransferRequestResponse(ctx context.Context, ch
 	}
 
 	if params.Approved {
-		req, err := session.approveFileTransferRequest(params, scx)
+		_, err := session.approveFileTransferRequest(params, scx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		t.SessionRegistry.NotifyFileTransferRequest(req, FileTransferApproved, scx)
 	} else {
 		_, err := session.denyFileTransferRequest(params, scx)
 		if err != nil {

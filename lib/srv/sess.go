@@ -654,6 +654,7 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		id:                             id,
 		registry:                       r,
 		parties:                        make(map[rsession.ID]*party),
+		fileTransferRequests:           make(map[string]*fileTransferRequest),
 		participants:                   make(map[rsession.ID]*party),
 		login:                          scx.Identity.Login,
 		stopC:                          make(chan struct{}),

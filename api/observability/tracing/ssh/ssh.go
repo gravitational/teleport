@@ -63,7 +63,6 @@ type FileTransferReq struct {
 	Location  string
 	Filename  string
 	Size      string
-	ShellCmd  string
 }
 
 type FileTransferResponseReq struct {
