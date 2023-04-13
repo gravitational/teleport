@@ -29,6 +29,7 @@ import {
   getStatusCodeTitle,
   Integration,
   IntegrationStatusCode,
+  IntegrationKind,
   Plugin,
 } from 'teleport/services/integrations';
 
@@ -168,7 +169,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
   } else {
     // Default is integration.
     switch (item.kind) {
-      case 'aws-oidc':
+      case IntegrationKind.AwsOidc:
         formattedText = 'Amazon Web Services (OIDC)';
         icon = <IconContainer src={awsIcon} />;
         break;

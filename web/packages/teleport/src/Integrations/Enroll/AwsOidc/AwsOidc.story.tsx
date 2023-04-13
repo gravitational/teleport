@@ -15,27 +15,29 @@
  */
 
 import React from 'react';
-import { Box } from 'design';
+import { MemoryRouter } from 'react-router';
 
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
 
-import { IntegrationTiles } from './IntegrationTiles';
-import { NoCodeIntegrationDescription } from './common';
+import { AwsOidc } from './AwsOidc';
 
-export function IntegrationEnroll() {
+export default {
+  title: 'Teleport/Integrations/Enroll/AwsOidc',
+};
+
+export const Flow = () => (
+  <Provider>
+    <AwsOidc />
+  </Provider>
+);
+
+const Provider = props => {
+  const ctx = createTeleportContext({ customAcl: props.customAcl });
+
   return (
-    <FeatureBox>
-      <FeatureHeader>
-        <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
-      </FeatureHeader>
-      <Box>
-        <NoCodeIntegrationDescription />
-        <IntegrationTiles />
-      </Box>
-    </FeatureBox>
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>{props.children}</ContextProvider>
+    </MemoryRouter>
   );
-}
+};
