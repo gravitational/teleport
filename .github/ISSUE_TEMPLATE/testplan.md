@@ -824,6 +824,7 @@ tsh bench web sessions --max=5000 --web user ls
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
+    - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
