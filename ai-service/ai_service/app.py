@@ -1,4 +1,5 @@
 import json
+import logging
 from flask import Flask, request
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
@@ -17,7 +18,7 @@ chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.5)
 
 @app.route("/assistant_query", methods=["POST"])
 def assistant_query():
-    print(request.json)
+    logging.debug(request.json)
     if request.json["messages"] is None:
         return {
             "kind": "chat",
