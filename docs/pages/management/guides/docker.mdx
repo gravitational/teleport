@@ -11,7 +11,9 @@ images and execute commands on that container via Teleport's `tsh` client.
 
 Since all of Teleport's services are run from the same binary, you can
 use our Docker image to run Node services (e.g., the Database Service or App
-Service) or explore the Auth and Proxy Services locally.
+Service) or explore the Auth and Proxy Services locally. The distroless container
+does not allow running shells by default so an example of adding another Ubuntu container for
+server access is given.
 
 </Notice>
 
@@ -81,12 +83,12 @@ $ mkdir -p ~/teleport/config ~/teleport/data
 # This container will write the config and immediately exit--this is expected.
 $ docker run --hostname localhost --rm \
   --entrypoint=/usr/local/bin/teleport \
-  ${TELEPORT_DOCKER_IMAGE} configure > ~/teleport/config/teleport.yaml
+  ${TELEPORT_DOCKER_IMAGE} configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
 # Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
-  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  -p 3025:3025 -p 3080:3080 \
   ${TELEPORT_DOCKER_IMAGE}
 ```
 
@@ -115,12 +117,12 @@ Move your `license.pem` file to `~/teleport/data`.
 # This container will write the config and immediately exit--this is expected.
 $ docker run --hostname localhost --rm \
   --entrypoint=/usr/local/bin/teleport \
-  ${TELEPORT_DOCKER_IMAGE} configure > ~/teleport/config/teleport.yaml
+  ${TELEPORT_DOCKER_IMAGE} configure --roles=proxy,auth > ~/teleport/config/teleport.yaml
 # Start Teleport with mounted config and data directories, plus all ports
 $ docker run --hostname localhost --name teleport \
   -v ~/teleport/config:/etc/teleport \
   -v ~/teleport/data:/var/lib/teleport \
-  -p 3023:3023 -p 3025:3025 -p 3080:3080 \
+  -p 3025:3025 -p 3080:3080 \
   ${TELEPORT_DOCKER_IMAGE}
 ```
 
@@ -149,10 +151,104 @@ The Web UI will be available at the displayed URL.
 
 (!docs/pages/includes/insecure-certificate.mdx!)
 
-## Step 4/4. tsh into your Teleport container
+## Step 4/4. Try Server Access
 
-After you have finished creating your user, open a second terminal and issue the
-command, which will log in to your Teleport cluster via the Proxy Service at
+This docker installation includes just the Teleport Proxy and Auth Service.  You can try
+accessing a server through Teleport by installing the Teleport SSH Service
+on a Ubuntu docker container. Here are the steps.
+
+First start a Ubuntu image:
+```code
+$ docker run -it --name=example-server --hostname=example-server ubuntu:latest bash
+```
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+```code
+# Docker container will start and you can install Teleport
+$ apt update && apt install curl -y
+# Download Teleport's PGP public key
+
+$ curl https://apt.releases.teleport.dev/gpg \
+-o /usr/share/keyrings/teleport-archive-keyring.asc
+# Source variables about OS version
+
+$ source /etc/os-release
+# Add the Teleport APT repository for v12. You'll need to update this
+# file for each major release of Teleport.
+# Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+# and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
+# Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
+
+$ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v12" \
+| tee /etc/apt/sources.list.d/teleport.list > /dev/null
+$ apt-get update
+$ apt-get install teleport
+```
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Enterprise">
+```code
+# Docker container will start and you can install Teleport
+$ apt update && apt install curl -y
+# Download Teleport's PGP public key
+
+$ curl https://apt.releases.teleport.dev/gpg \
+-o /usr/share/keyrings/teleport-archive-keyring.asc
+# Source variables about OS version
+
+$ source /etc/os-release
+# Add the Teleport APT repository for v12. You'll need to update this
+# file for each major release of Teleport.
+# Note: if using a fork of Debian or Ubuntu you may need to use '$ID_LIKE'
+# and the codename your distro was forked from instead of '$ID' and '$VERSION_CODENAME'.
+# Supported versions are listed here: https://github.com/gravitational/teleport/blob/master/build.assets/tooling/cmd/build-os-package-repos/runners.go#L42-L67
+
+$ echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
+https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} stable/v12" \
+| tee /etc/apt/sources.list.d/teleport.list > /dev/null
+$ apt-get update
+$ apt-get install teleport-ent
+```
+</TabItem>
+</Tabs>
+
+
+Keep the docker `example-server` Terminal running and run a separate command
+in another terminal to add a node.
+
+```code
+$ docker exec teleport tctl nodes add
+# The invite token: 02adc78db14c4958a94a78e216fba689
+# This token will expire in 30 minutes.
+
+# Run this on the new node to join the cluster:
+
+# > teleport start \
+   --roles=node \
+   --token=02adc78db14c4958a94a78e216fba689 \
+   --ca-pin=sha256:51c0e24825fae3133da0d8659f4dd533808e2dc92c000b577c8725b6cbcb66ae \
+   --auth-server=172.17.0.2:3025
+
+# Please note:
+
+#   - This invitation token will expire in 30 minutes
+#   - 172.17.0.2:3025 must be reachable from the new node
+  ```
+
+Copy the full `teleport start` command and run in the `example-server` docker terminal.
+
+Open another terminal windows and confirm the node was added
+ with `tctl nodes ls` on the `teleport` container.
+
+```code
+$ docker exec teleport tctl nodes ls
+# Host           UUID                Public Address  Labels Version
+# -------------- ------------------- --------------- ------ -------
+# example-server edc6b7ae-0ae5-43... 172.17.0.3:3022        12.2.2
+```
+
+Issue this command, which will log in to your Teleport cluster via the Proxy Service at
 `localhost`.
 
 ```code
@@ -189,23 +285,92 @@ Running the next command will display all Teleport Nodes you're connected to:
 
 ```code
 $ tsh ls
-
-# Node Name Address        Labels                          
-# --------- -------------- ------------------------------- 
-# localhost 127.0.0.1:3022 env=example, hostname=localhost 
+# Node Name      Address         Labels
+# -------------- --------------- ------
+# example-server 172.17.0.3:3022
 ```
 
-To SSH into the local Node called `localhost`:
+To SSH into the local Node called `example-server`:
 
 ```code
-$ tsh ssh root@localhost
+$ tsh ssh root@example-server
 ```
 
 This will bring up the Linux command prompt where you can issue Bash commands, traverse the directory tree, and explore the container contents:
 
 ```txt
-root@localhost:~# 
+root@example-server:~# 
 ```
+
+After exiting the session you can replay the interaction from the command line:
+
+```code
+$ tsh recordings ls
+# ID                                   Type Participants Hostname       Timestamp
+# ------------------------------------ ---- ------------ -------------- ------------------------
+# 1da4faa9-01e9-4241-875f-4143f302c9c4 ssh  testuser     example-server Apr 13 2023 16:46:59 UTC
+$ tsh play 1da4faa9-01e9-4241-875f-4143f302c9c4
+```
+
+## Troubleshooting
+
+Teleport provides a debug version that includes a Busybox shell. These are not intended
+for production. You will need to stop the non-debug container and start again with the
+debug version to use.
+
+```code
+# Stop teleport container
+$ docker stop teleport
+# Remove teleport container so another can be started with the same name
+$ docker rm teleport
+```
+
+<Tabs>
+<TabItem scope={["oss"]} label="Open Source">
+
+Use the debug image with the same data and configuration.
+
+```code
+# Debug Docker image to use. Defaults to the host architecture. Use the `--platform`
+# option in `docker run` to override.
+$ TELEPORT_DOCKER_IMAGE=(=teleport.latest_oss_debug_docker_image=)
+# Start Teleport with mounted config and data directories, plus all ports
+$ docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3025:3025 -p 3080:3080 \
+  ${TELEPORT_DOCKER_IMAGE}
+```
+
+</TabItem>
+<TabItem scope={["enterprise", "cloud"]} label="Enterprise">
+
+
+Use the debug image with the same data and configuration.
+
+```code
+# Debug Docker image to use. Defaults to the host architecture. Use the `--platform`
+# option in `docker run` to override.
+$ TELEPORT_DOCKER_IMAGE=(=teleport.latest_ent_debug_docker_image=)
+# Start Teleport with mounted config and data directories, plus all ports
+$ docker run --hostname localhost --name teleport \
+  -v ~/teleport/config:/etc/teleport \
+  -v ~/teleport/data:/var/lib/teleport \
+  -p 3025:3025 -p 3080:3080 \
+  ${TELEPORT_DOCKER_IMAGE}
+```
+
+</TabItem>
+</Tabs>
+
+Now you can open a `sh` shell within the docker container to perform any troubleshooting.
+
+```code
+$ docker exec -it teleport sh
+$ tctl status
+```
+
+
 
 ## Next steps
 
