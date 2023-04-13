@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -125,4 +126,19 @@ func TestResolveAlert(t *testing.T) {
 		`"note":"Access request has been approved\n` +
 		`Reason: someReason"}`
 	assert.Equal(t, expected, recievedReq)
+}
+
+func TestCreateAlertError(t *testing.T) {
+	testServer := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		res.WriteHeader(http.StatusForbidden)
+	}))
+	defer func() { testServer.Close() }()
+
+	c, err := NewClient(ClientConfig{
+		APIEndpoint: testServer.URL,
+	})
+	assert.NoError(t, err)
+
+	_, err = c.CreateAlert(context.Background(), "someRequestID", RequestData{})
+	assert.True(t, trace.IsAccessDenied(err))
 }

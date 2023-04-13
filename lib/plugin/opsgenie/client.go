@@ -88,14 +88,15 @@ func NewClient(conf ClientConfig) (*Client, error) {
 	}, nil
 }
 
-func errWrapper(statusCode int, err error) error {
+func errWrapper(statusCode int) error {
 	switch statusCode {
 	case http.StatusForbidden:
-		return trace.AccessDenied("opsgenie API access denied: %v", err)
+		return trace.AccessDenied("opsgenie API access denied: status code %v", statusCode)
 	case http.StatusRequestTimeout:
-		return trace.ConnectionProblem(err, "connecting to opsgenie API")
+		return trace.ConnectionProblem(trace.Errorf("status code %v", statusCode),
+			"connecting to opsgenie API")
 	}
-	return trace.Wrap(err)
+	return trace.Errorf("connecting to opsgenie API status code %v", statusCode)
 }
 
 // CreateAlert creates an opsgenie alert.
@@ -114,14 +115,19 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	}
 
 	var result AlertResult
-	if resp, err := og.client.NewRequest().
+	resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetResult(&result).
-		Post("alerts"); err != nil {
-		return OpsgenieData{}, errWrapper(resp.StatusCode(), err)
-	}
+		Post("alerts")
 
+	if err != nil {
+		return OpsgenieData{}, trace.Wrap(err)
+	}
+	if resp.IsError() {
+		return OpsgenieData{}, errWrapper(resp.StatusCode())
+	}
+	defer resp.RawResponse.Body.Close()
 	return OpsgenieData{
 		AlertID: result.Alert.ID,
 	}, nil
@@ -151,14 +157,20 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 	body := AlertNote{
 		Note: note,
 	}
-	if resp, err := og.client.NewRequest().
+	resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
-		Post("alerts/{alertID}/notes"); err != nil {
-		return errWrapper(resp.StatusCode(), err)
+		Post("alerts/{alertID}/notes")
+
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	if resp.IsError() {
+		return errWrapper(resp.StatusCode())
+	}
+	defer resp.RawResponse.Body.Close()
 	return nil
 }
 
@@ -171,21 +183,26 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 	body := AlertNote{
 		Note: note,
 	}
-	if resp, err := og.client.NewRequest().
+	resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetBody(body).
 		SetPathParams(map[string]string{"alertID": alertID}).
 		SetQueryParams(map[string]string{"identifierType": "id"}).
-		Post("alerts/{alertID}/close"); err != nil {
-		return errWrapper(resp.StatusCode(), err)
+		Post("alerts/{alertID}/close")
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	if resp.IsError() {
+		return errWrapper(resp.StatusCode())
+	}
+	defer resp.RawResponse.Body.Close()
 	return nil
 }
 
 // GetOnCall returns the list of responders on-call for a schedule.
 func (og Client) GetOnCall(ctx context.Context, scheduleName string) (RespondersResult, error) {
 	var result RespondersResult
-	if resp, err := og.client.NewRequest().
+	resp, err := og.client.NewRequest().
 		SetContext(ctx).
 		SetPathParams(map[string]string{"scheduleName": scheduleName}).
 		SetQueryParams(map[string]string{
@@ -194,9 +211,14 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 			"flat": "true",
 		}).
 		SetResult(&result).
-		Post("schedules/{scheduleName}/on-calls"); err != nil {
-		return RespondersResult{}, errWrapper(resp.StatusCode(), err)
+		Post("schedules/{scheduleName}/on-calls")
+	if err != nil {
+		return RespondersResult{}, trace.Wrap(err)
 	}
+	if resp.IsError() {
+		return RespondersResult{}, errWrapper(resp.StatusCode())
+	}
+	defer resp.RawResponse.Body.Close()
 	return result, nil
 }
 
