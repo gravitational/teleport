@@ -261,6 +261,15 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("actions is empty")
 	}
 
+	if o.Spec.CleanupTime != nil {
+		utcTime := o.Spec.CleanupTime.UTC()
+		o.Spec.CleanupTime = &utcTime
+	}
+
+	for _, action := range o.Spec.Actions {
+		action.LastTransition = action.LastTransition.UTC()
+	}
+
 	return nil
 }
 
@@ -424,7 +433,7 @@ func (o *OktaAssignmentActionV1) GetID() string {
 
 // SetLastTransition sets the last transition time.
 func (o *OktaAssignmentActionV1) SetLastTransition(time time.Time) {
-	o.LastTransition = time
+	o.LastTransition = time.UTC()
 }
 
 // GetLastTransition returns the optional time that the action last transitioned.
