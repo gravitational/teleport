@@ -225,6 +225,9 @@ const (
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
 
+	// MetaNameWatchStatus is the name of a watch status resource name.
+	MetaNameWatchStatus = "watch-status"
+
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 

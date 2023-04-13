@@ -108,7 +108,7 @@ func NewWatchStatus(kinds []WatchKind) *WatchStatusV1 {
 		Kind:    KindWatchStatus,
 		Version: V1,
 		Metadata: Metadata{
-			Name:      "watch_status",
+			Name:      MetaNameWatchStatus,
 			Namespace: defaults.Namespace,
 		},
 		Spec: WatchStatusSpecV1{
