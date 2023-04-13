@@ -197,6 +197,10 @@ type FileTransferParams struct {
 	Direction string `json:"direction"`
 	// Location is location of file to download, or where to put an upload
 	Location string `json:"location"`
+	// Filename is the name of the file to be uploaded
+	Filename string `json:"filename"`
+	// Size is the size of the file to be uploaded
+	Size string `json:"size"`
 	// ShellCmd is the string representation of the requested remote shell command
 	ShellCmd string `json:"shellCmd"`
 	// Requster is the authenticated Teleport user who requested the file transfer
@@ -215,10 +219,12 @@ func UnmarshalFileTransferResponseParams(requestId string, approved bool) (*File
 
 // UnmarshalFileTransferParams takes a serialized string that contains the
 // file transfer parameters and returns a *FileTransferParams.
-func UnmarshalFileTransferParams(location string, direction string) (*FileTransferParams, error) {
+func UnmarshalFileTransferParams(location string, direction string, filename string, size string) (*FileTransferParams, error) {
 	return &FileTransferParams{
 		Location:  location,
 		Direction: direction,
+		Filename:  filename,
+		Size:      size,
 	}, nil
 }
 

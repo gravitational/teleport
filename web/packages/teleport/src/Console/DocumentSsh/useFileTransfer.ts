@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import { FileTransferRequest } from 'shared/components/FileTransfer/FileTransferRequests/FileTransferRequests';
 import { useFilesStore } from 'shared/components/FileTransfer/useFilesStore';
 
@@ -11,7 +11,7 @@ import useGetScpUrl from './useGetScpUrl';
 
 export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
   const filesStore = useFilesStore();
-  const [fileTransferRequests, setFileTransferRequests] = React.useState<
+  const [fileTransferRequests, setFileTransferRequests] = useState<
     FileTransferRequest[]
   >([]);
   const { getScpUrl, attempt: getMfaResponseAttempt } =
@@ -46,7 +46,10 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
     removeFileTransferRequest(request.requestId);
   }
 
-  function handleFileTransferApproval(request: FileTransferRequest) {
+  function handleFileTransferApproval(
+    request: FileTransferRequest,
+    file?: File
+  ) {
     removeFileTransferRequest(request.requestId);
     if (request.requester !== user.username) {
       return;
@@ -57,6 +60,21 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
         name: request.location,
         runFileTransfer: abortController =>
           download(request.location, abortController, {
+            fileRequestId: request.requestId,
+            moderatedSessionId: request.sid,
+          }),
+      });
+    }
+    if (request.direction === 'upload') {
+      if (!file) {
+        throw new Error('Approved file not found for upload.');
+      }
+      const locationAndName = request.location + request.filename;
+      filesStore.removePendingUpload(locationAndName);
+      return filesStore.start({
+        name: request.location,
+        runFileTransfer: abortController =>
+          upload(request.location, file, abortController, {
             fileRequestId: request.requestId,
             moderatedSessionId: request.sid,
           }),
@@ -105,10 +123,11 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
       clusterId: doc.clusterId,
       serverId: doc.serverId,
       login: doc.login,
-      filename: location,
+      filename: file.name,
       moderatedSessonId: moderatedSessionParams?.moderatedSessionId,
       fileTransferRequestId: moderatedSessionParams?.fileRequestId,
     });
+    console.log('url', url);
     if (!url) {
       // if we return nothing here, the file transfer will not be added to the
       // file transfer list. If we add it to the list, the file will continue to

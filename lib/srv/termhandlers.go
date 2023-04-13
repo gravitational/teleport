@@ -263,6 +263,8 @@ func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferParams, e
 
 	params := &rsession.FileTransferParams{
 		Location:  r.Location,
+		Filename:  r.Filename,
+		Size:      r.Size,
 		Direction: r.Direction,
 		ShellCmd:  r.ShellCmd,
 	}

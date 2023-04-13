@@ -42,6 +42,8 @@ type WinChangeReqParams struct {
 type FileTransferReqParams struct {
 	Direction string
 	Location  string
+	Filename  string
+	Size      string
 	ShellCmd  string
 }
 

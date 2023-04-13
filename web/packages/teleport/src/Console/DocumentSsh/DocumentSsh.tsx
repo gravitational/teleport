@@ -109,6 +109,10 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
                 return download(location, abortController);
               },
               getUploader: async (location, file, abortController) => {
+                if (session.isModeratedSession) {
+                  tty.sendFileTransferRequest(location, 'upload', file);
+                  return;
+                }
                 return upload(location, file, abortController);
               },
             }}

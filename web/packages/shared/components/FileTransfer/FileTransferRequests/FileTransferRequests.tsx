@@ -92,7 +92,9 @@ export type FileTransferRequest = {
   approvers: string[];
   shellCmd: string;
   location: string;
-  direction: string;
+  filename?: string;
+  size?: string;
+  direction: 'download' | 'upload';
   isOwnRequest?: boolean;
 };
 

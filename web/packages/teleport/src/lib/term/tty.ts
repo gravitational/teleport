@@ -36,6 +36,7 @@ class Tty extends EventEmitterWebAuthnSender {
   _attachSocketBuffer: string;
   _addressResolver = null;
   _proto = new Protobuf();
+  _pendingUploads = {};
 
   constructor(addressResolver, props = {}) {
     super();
@@ -80,11 +81,21 @@ class Tty extends EventEmitterWebAuthnSender {
     this.send(JSON.stringify(data));
   }
 
-  sendFileTransferRequest(location: string, direction: 'upload' | 'download') {
+  sendFileTransferRequest(
+    location: string,
+    direction: 'upload' | 'download',
+    file?: File
+  ) {
+    if (file) {
+      const locationAndName = location + file.name;
+      this._pendingUploads[locationAndName] = file;
+    }
     const message = JSON.stringify({
       event: EventType.FILE_TRANSFER_REQUEST,
       direction,
       location,
+      filename: file?.name,
+      size: file?.size.toString(),
     });
     const encoded = this._proto.encodeFileTransferRequest(message);
     const bytearray = new Uint8Array(encoded);
@@ -194,7 +205,8 @@ class Tty extends EventEmitterWebAuthnSender {
       this.emit(EventType.FILE_TRANSFER_REQUEST, event);
     }
     if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVE) {
-      this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event);
+      const pendingFile = this._getPendingFile(event.location, event.filename);
+      this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
     }
     if (event.event === EventType.FILE_TRANSFER_REQUEST_DENY) {
       this.emit(EventType.FILE_TRANSFER_REQUEST_DENY, event);
@@ -205,6 +217,10 @@ class Tty extends EventEmitterWebAuthnSender {
       h = Number(h);
       this.emit(TermEvent.RESIZE, { w, h });
     }
+  }
+
+  _getPendingFile(location: string, name: string) {
+    return this._pendingUploads[location + name];
   }
 }
 

@@ -22,9 +22,18 @@ import {
   TransferState,
 } from './FileTransferStateless';
 
+// LocationAndName is a string, but naming it here to be more explicit elsewhere
+// in the codebase. example: ~/Documents/myfile.png
+type LocationAndName = string;
+type PendingUpload = {
+  id: LocationAndName;
+  file: File;
+};
 type FilesStoreState = {
   ids: string[];
   filesById: Record<string, TransferredFile>;
+  pendingIds: string[];
+  pendingUploadsById: Record<LocationAndName, PendingUpload>;
 };
 
 type FilesStoreActions =
@@ -38,11 +47,18 @@ type FilesStoreActions =
         id: string;
         transferState: TransferState;
       };
-    };
+    }
+  | {
+      type: 'addPendingUpload';
+      payload: { file: File; location: LocationAndName };
+    }
+  | { type: 'removePendingUpload'; payload: { location: LocationAndName } };
 
 const initialState: FilesStoreState = {
   ids: [],
   filesById: {},
+  pendingIds: [],
+  pendingUploadsById: {},
 };
 
 function reducer(
@@ -52,6 +68,7 @@ function reducer(
   switch (action.type) {
     case 'add': {
       return {
+        ...state,
         ids: [action.payload.id, ...state.ids],
         filesById: {
           ...state.filesById,
@@ -89,6 +106,30 @@ function reducer(
         },
       };
     }
+    case 'addPendingUpload':
+      const newFile = {
+        id: action.payload.location,
+        file: action.payload.file,
+      };
+      return {
+        ...state,
+        pendingIds: [...state.pendingIds, newFile.id],
+        pendingUploadsById: {
+          ...state.pendingUploadsById,
+          [newFile.id]: newFile,
+        },
+      };
+    case 'removePendingUpload': {
+      const newState = { ...state.pendingUploadsById };
+      delete newState[action.payload.location];
+      return {
+        ...state,
+        pendingIds: state.pendingIds.filter(
+          id => id !== action.payload.location
+        ),
+        pendingUploadsById: newState,
+      };
+    }
     default:
       throw new Error('Unhandled action', action);
   }
@@ -97,6 +138,14 @@ function reducer(
 export const useFilesStore = () => {
   const [state, dispatch] = useReducer(reducer, initialState);
   const abortControllers = useRef(new Map<string, AbortController>());
+
+  const addPendingUpload = (file: File, location: LocationAndName) => {
+    dispatch({ type: 'addPendingUpload', payload: { location, file } });
+  };
+
+  const removePendingUpload = (location: LocationAndName) => {
+    dispatch({ type: 'removePendingUpload', payload: { location } });
+  };
 
   const start = async (options: {
     name: string;
@@ -147,6 +196,21 @@ export const useFilesStore = () => {
     abortControllers.current?.get(id).abort();
   }, []);
 
+  const getPendingUpload = useCallback(
+    (location: string) => {
+      console.log('pu', state.pendingIds);
+      const pu = state.pendingIds.map(id => state.pendingUploadsById[id]);
+      const file = pu.find(f => {
+        console.log(f);
+        if (f.id === location) {
+          return file;
+        }
+      });
+      return pu.find(f => (f.id = location));
+    },
+    [state.pendingIds, state.pendingUploadsById]
+  );
+
   const files = useMemo(
     () => state.ids.map(id => state.filesById[id]),
     [state.ids, state.filesById]
@@ -161,6 +225,9 @@ export const useFilesStore = () => {
     files,
     start,
     cancel,
+    addPendingUpload,
+    removePendingUpload,
+    getPendingUpload,
     isAnyTransferInProgress,
   };
 };

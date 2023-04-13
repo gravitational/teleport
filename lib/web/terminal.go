@@ -55,7 +55,6 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -882,16 +881,12 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileT
 		case transferRequest := <-fileTransferC:
 			// if not response, this is a new file transfer request
 			if !transferRequest.Response {
-				shellCmd, err := t.getRemoteShellCmd(transferRequest)
-				if err != nil {
-					t.log.Error(err)
-					return
-				}
 				t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
 					Direction: transferRequest.Direction,
 					Location:  transferRequest.Location,
-					ShellCmd:  shellCmd,
-				}, shellCmd)
+					Filename:  transferRequest.Filename,
+					Size:      transferRequest.Size,
+				})
 			} else {
 				// if response exists, this contains an Approved bool and we handle accordingly
 				t.sshSession.FileTransferRespond(t.terminalContext, tracessh.FileTransferResponseReq{
@@ -900,29 +895,6 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileT
 				})
 			}
 		}
-	}
-}
-
-// getRemoteShellCmd will create an scp command and return it's remote shell command
-func (t *TerminalHandler) getRemoteShellCmd(req *session.FileTransferParams) (string, error) {
-	if req.Direction == "download" {
-		cmd, err := scp.CreateHTTPDownload(scp.HTTPTransferRequest{
-			RemoteLocation: req.Location,
-			User:           t.ctx.GetUser(),
-		})
-		if err != nil {
-			return "", err
-		}
-		return cmd.GetRemoteShellCmd()
-	} else {
-		cmd, err := scp.CreateHTTPUpload(scp.HTTPTransferRequest{
-			RemoteLocation: req.Location,
-			User:           t.ctx.GetUser(),
-		})
-		if err != nil {
-			return "", err
-		}
-		return cmd.GetRemoteShellCmd()
 	}
 }
 
@@ -1234,10 +1206,13 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
-		params, err := session.UnmarshalFileTransferParams(e.GetString("location"), e.GetString("direction"))
+		params, err := session.UnmarshalFileTransferParams(e.GetString("location"), e.GetString("direction"), e.GetString("filename"), e.GetString("size"))
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
+		fmt.Println("-----")
+		fmt.Printf("paramsparams: %+v\n", params)
+		fmt.Println("-----")
 		select {
 		case t.fileTransferC <- params:
 		default:

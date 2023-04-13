@@ -61,6 +61,8 @@ type EnvsReq struct {
 type FileTransferReq struct {
 	Direction string
 	Location  string
+	Filename  string
+	Size      string
 	ShellCmd  string
 }
 

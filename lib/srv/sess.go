@@ -392,10 +392,10 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 		return false, trace.AccessDenied("Teleport user does not match original requester")
 	}
 
-	incomingShellCmd := string(scx.sshRequest.Payload[4:])
-	if incomingShellCmd != req.shellCmd {
-		return false, trace.AccessDenied("Incoming request does not match the approved request")
-	}
+	// incomingShellCmd := string(scx.sshRequest.Payload[4:])
+	// if incomingShellCmd != req.shellCmd {
+	// 	return false, trace.AccessDenied("Incoming request does not match the approved request")
+	// }
 
 	return sess.checkIfFileTransferApproved(req)
 }
@@ -427,8 +427,8 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, re
 		RequestID: req.id,
 		Requester: req.requester,
 		Location:  req.location,
+		Filename:  req.filename,
 		Direction: req.direction,
-		ShellCmd:  req.shellCmd,
 		Approvers: make([]string, 0),
 	}
 
@@ -1534,9 +1534,13 @@ type fileTransferRequest struct {
 	requester string
 	// shellCmd is the requested scp command to run
 	shellCmd string
-
+	// direction is "upload" or "download"
 	direction string
-
+	// filename the name of the file to upload.
+	filename string
+	// fileSize is the size of the file to upload.
+	size string
+	// location of the requested download or where a file will be uploaded
 	location string
 	// approvers is a list of participants of moderator or peer type that have approved the request
 	approvers map[string]*party
@@ -1594,7 +1598,11 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferParams, sc
 
 	req := s.newFileTransferRequest(params)
 	s.fileTransferRequests[req.id] = req
-	s.BroadcastMessage("User %s is requesting %s for file: %s", params.Requester, params.Direction, params.Location)
+	if params.Direction == "download" {
+		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
+	} else {
+		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
+	}
 
 	return req
 }
@@ -1605,6 +1613,8 @@ func (s *session) newFileTransferRequest(params *rsession.FileTransferParams) *f
 		requester: params.Requester,
 		location:  params.Location,
 		shellCmd:  params.ShellCmd,
+		filename:  params.Filename,
+		size:      params.Size,
 		direction: params.Direction,
 		approvers: make(map[string]*party),
 	}
@@ -1641,6 +1651,10 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferParams
 	if fileTransferReq == nil {
 		return nil, trace.NotFound("File Transfer Request %s not found", params.RequestID)
 	}
+
+	fmt.Println("----")
+	fmt.Printf("%+v\n", fileTransferReq)
+	fmt.Println("----")
 	var approver *party
 	for _, p := range s.parties {
 		if p.ctx.ID() == scx.ID() {

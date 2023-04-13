@@ -626,7 +626,7 @@ message FileTransferRequestEvent {
 
   string Direction = 6 [(gogoproto.jsontag) = "direction"];
 
-  string ShellCmd = 7 [(gogoproto.jsontag) = "shellCmd"];
+  string Filename = 7 [(gogoproto.jsontag) = "filename"];
 }
 
 // Resize means that some user resized PTY on the client

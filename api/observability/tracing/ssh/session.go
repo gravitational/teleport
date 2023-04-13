@@ -224,12 +224,12 @@ func (s *Session) FileTransferRespond(ctx context.Context, req FileTransferRespo
 	return err
 }
 
-func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferReq, cmd string) error {
+func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferReq) error {
 	const request = "file-transfer-request"
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.FileTransferRequest/%s", cmd),
+		fmt.Sprintf("ssh.FileTransferRequest/%s", req.Direction),
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),
