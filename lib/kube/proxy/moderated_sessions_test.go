@@ -118,9 +118,7 @@ func TestModeratedSessions(t *testing.T) {
 		t,
 		moderatorUsername,
 		roleSpec{
-			name:       moderatorRoleName,
-			kubeUsers:  roleKubeUsers,
-			kubeGroups: roleKubeGroups,
+			name: moderatorRoleName,
 			// sessionJoin:
 			sessionJoin: []*types.SessionJoinPolicy{
 				{

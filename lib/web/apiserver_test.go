@@ -1097,11 +1097,13 @@ func TestClusterNodesGet(t *testing.T) {
 			Labels:      []ui.Label{},
 			SSHLogins:   []string{pack.login},
 		},
-		{ClusterName: clusterName,
-			Name:      "server2",
-			Labels:    []ui.Label{{Name: "test-field", Value: "test-value"}},
-			Tunnel:    false,
-			SSHLogins: []string{pack.login}},
+		{
+			ClusterName: clusterName,
+			Name:        "server2",
+			Labels:      []ui.Label{{Name: "test-field", Value: "test-value"}},
+			Tunnel:      false,
+			SSHLogins:   []string{pack.login},
+		},
 	})
 
 	// Get nodes using shortcut.
@@ -1716,7 +1718,6 @@ func TestTerminalNameResolution(t *testing.T) {
 			require.Equal(t, tt.port, resp.ServerHostPort)
 		})
 	}
-
 }
 
 func TestTerminalRequireSessionMfa(t *testing.T) {
@@ -2952,7 +2953,7 @@ func TestSignMTLS(t *testing.T) {
 		}
 		require.NoError(t, err)
 		require.Equal(t, byte(tar.TypeReg), header.Typeflag)
-		require.Equal(t, int64(0600), header.Mode)
+		require.Equal(t, int64(0o600), header.Mode)
 		tarContentFileNames = append(tarContentFileNames, header.Name)
 	}
 
@@ -3372,7 +3373,6 @@ func TestClusterDatabasesGet(t *testing.T) {
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
 	}})
-
 }
 
 func TestClusterDatabaseGet(t *testing.T) {
@@ -3709,7 +3709,8 @@ func TestClusterAppsGet(t *testing.T) {
 		App: &types.AppV3{
 			Metadata: types.Metadata{Name: "app2"},
 			Spec:     types.AppSpecV3{URI: "uri", PublicAddr: "publicaddrs"},
-		}})
+		},
+	})
 	require.NoError(t, err)
 
 	// Register apps.
@@ -3746,7 +3747,6 @@ func TestClusterAppsGet(t *testing.T) {
 		PublicAddr: "publicaddrs",
 		AWSConsole: false,
 	}})
-
 }
 
 // TestApplicationAccessDisabled makes sure application access can be disabled
@@ -5538,7 +5538,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 }
 
 func TestDiagnoseKubeConnection(t *testing.T) {
-
 	var (
 		validKubeUsers              = []string{}
 		multiKubeUsers              = []string{"user1", "user2"}
