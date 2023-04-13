@@ -329,7 +329,7 @@ const SearchResultItems = () => {
           Component: (
             <Component
               searchResult={searchResult}
-              getClusterName={routing.parseClusterName}
+              getOptionalClusterName={routing.parseClusterName}
             />
           ),
         };

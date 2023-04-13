@@ -62,16 +62,18 @@ export function ActionPicker(props: { input: ReactElement }) {
 
   const getClusterName = useCallback(
     (resourceUri: uri.ClusterOrResourceUri) => {
-      if (totalCountOfClusters === 1) {
-        return;
-      }
-
       const clusterUri = uri.routing.ensureClusterUri(resourceUri);
       const cluster = clustersService.findCluster(clusterUri);
 
       return cluster ? cluster.name : uri.routing.parseClusterName(resourceUri);
     },
-    [clustersService, totalCountOfClusters]
+    [clustersService]
+  );
+
+  const getOptionalClusterName = useCallback(
+    (resourceUri: uri.ClusterOrResourceUri) =>
+      totalCountOfClusters === 1 ? undefined : getClusterName(resourceUri),
+    [getClusterName, totalCountOfClusters]
   );
 
   const onPick = useCallback(
@@ -166,7 +168,7 @@ export function ActionPicker(props: { input: ReactElement }) {
             Component: (
               <Component
                 searchResult={item.searchResult}
-                getClusterName={getClusterName}
+                getOptionalClusterName={getOptionalClusterName}
               />
             ),
           };
@@ -207,7 +209,7 @@ export const ComponentMap: Record<
 
 type SearchResultItem<T> = {
   searchResult: T;
-  getClusterName: (uri: uri.ResourceUri) => string;
+  getOptionalClusterName: (uri: uri.ResourceUri) => string;
 };
 
 function Item(
@@ -288,7 +290,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
         </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
-            {props.getClusterName(server.uri)}
+            {props.getOptionalClusterName(server.uri)}
           </Text>
         </Box>
       </Flex>
@@ -362,7 +364,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
         </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
-            {props.getClusterName(db.uri)}
+            {props.getOptionalClusterName(db.uri)}
           </Text>
         </Box>
       </Flex>
@@ -401,7 +403,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
         </Text>
         <Box ml="auto">
           <Text typography="body2" fontSize={0}>
-            {props.getClusterName(searchResult.resource.uri)}
+            {props.getOptionalClusterName(searchResult.resource.uri)}
           </Text>
         </Box>
       </Flex>
