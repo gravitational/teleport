@@ -429,7 +429,7 @@ message TPMEnrollChallenge {
 message TPMEnrollChallengeResponse {
   // The challenge secret once decrypted by the client to prove possession of
   // the EK and AK.
-  bytes decrypted_secret = 2;
+  bytes decrypted_secret = 1;
 }
 
 // Request for AuthenticateDevice.
