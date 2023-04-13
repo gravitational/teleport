@@ -39,7 +39,7 @@ jobs:
         run: 'echo "{\"versions\": [{\"name\": \"docs\", \"branch\": \"$GITHUB_REF_NAME\", \"deprecated\": false}]}" > /src/config.json'
 
       - name: Check spelling
-        run: cd /src && yarn spellcheck /src/content/docs
+        run: cd /src && yarn install && yarn spellcheck /src/content/docs
 
       - name: Lint the docs
         run: cd /src && yarn markdown-lint
