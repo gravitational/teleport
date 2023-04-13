@@ -65,6 +65,26 @@ export default function useSshSession(doc: DocumentSsh) {
     ctx.closeTab(doc);
   }
 
+  function handleDownload(location: string, abortController: AbortController) {
+    if (session.moderated) {
+      tty.sendFileTransferRequest(location, 'download');
+      return;
+    }
+    return download(location, abortController);
+  }
+
+  function handleUpload(
+    location: string,
+    file: File,
+    abortController: AbortController
+  ) {
+    if (session.moderated) {
+      tty.sendFileTransferRequest(location, 'upload', file);
+      return;
+    }
+    return upload(location, file, abortController);
+  }
+
   React.useEffect(() => {
     // initializes tty instances
     function initTty(session, mode?: ParticipantMode) {
@@ -86,6 +106,10 @@ export default function useSshSession(doc: DocumentSsh) {
             const data = JSON.parse(payload);
             data.session.kind = 'ssh';
             data.session.resourceName = data.session.server_hostname;
+            setSession(prev => ({
+              ...prev,
+              moderated: data.session.moderated,
+            }));
             handleTtyConnect(ctx, data.session, doc.id);
           });
 
@@ -136,8 +160,8 @@ export default function useSshSession(doc: DocumentSsh) {
     closeDocument,
     webauthn,
     getMfaResponseAttempt,
-    download,
-    upload,
+    handleDownload,
+    handleUpload,
     fileTransferRequests,
     filesStore,
   };

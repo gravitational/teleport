@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import { FileTransferRequest } from 'shared/components/FileTransfer/FileTransferRequests';
+import {
+  FileTransferDirection,
+  FileTransferRequest,
+} from 'shared/components/FileTransfer/FileTransferRequests';
 import { useFilesStore } from 'shared/components/FileTransfer/useFilesStore';
 
 import { UserContext } from 'teleport/services/user';
@@ -18,6 +21,7 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
     useGetScpUrl(addMfaToScpUrls);
 
   function updateFileTransferRequests(data: FileTransferRequest) {
+    console.log('data', data);
     const newFileTransferRequest: FileTransferRequest = {
       ...data,
       isOwnRequest: user?.username === data.requester,
@@ -27,13 +31,13 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
       // when an update event happens. Check if we already have this request in our list. If not
       // in our list, we add it
       const foundRequest = prevstate.find(
-        ft => ft.requestId === newFileTransferRequest.requestId
+        ft => ft.requestID === newFileTransferRequest.requestID
       );
       if (!foundRequest) {
         return [...prevstate, newFileTransferRequest];
       } else {
         return prevstate.map(ft => {
-          if (ft.requestId === newFileTransferRequest.requestId) {
+          if (ft.requestID === newFileTransferRequest.requestID) {
             return newFileTransferRequest;
           }
           return ft;
@@ -43,29 +47,29 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
   }
 
   function handleFileTransferDenied(request: FileTransferRequest) {
-    removeFileTransferRequest(request.requestId);
+    removeFileTransferRequest(request.requestID);
   }
 
   function handleFileTransferApproval(
     request: FileTransferRequest,
     file?: File
   ) {
-    removeFileTransferRequest(request.requestId);
+    removeFileTransferRequest(request.requestID);
     if (request.requester !== user.username) {
       return;
     }
 
-    if (request.direction === 'download') {
+    if (request.direction === FileTransferDirection.DOWNLOAD) {
       return filesStore.start({
         name: request.location,
         runFileTransfer: abortController =>
           download(request.location, abortController, {
-            fileRequestId: request.requestId,
+            fileRequestId: request.requestID,
             moderatedSessionId: request.sid,
           }),
       });
     }
-    if (request.direction === 'upload') {
+    if (request.direction === FileTransferDirection.UPLOAD) {
       if (!file) {
         throw new Error('Approved file not found for upload.');
       }
@@ -73,7 +77,7 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
         name: request.location,
         runFileTransfer: abortController =>
           upload(request.location, file, abortController, {
-            fileRequestId: request.requestId,
+            fileRequestId: request.requestID,
             moderatedSessionId: request.sid,
           }),
       });
@@ -82,7 +86,7 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
 
   function removeFileTransferRequest(requestId: string) {
     setFileTransferRequests(prevstate =>
-      prevstate.filter(ft => ft.requestId !== requestId)
+      prevstate.filter(ft => ft.requestID !== requestId)
     );
   }
 

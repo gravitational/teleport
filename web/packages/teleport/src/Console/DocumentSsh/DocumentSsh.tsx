@@ -23,31 +23,42 @@ import {
   FileTransfer,
   FileTransferContextProvider,
   FileTransferContainer,
+  FileTransferRequests,
 } from 'shared/components/FileTransfer';
 
 import * as stores from 'teleport/Console/stores';
 import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
-import useWebAuthn from 'teleport/lib/useWebAuthn';
 
 import Document from '../Document';
 
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
-import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
-import useGetScpUrl from './useGetScpUrl';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
-  const { tty, status, closeDocument } = useSshSession(doc);
-  const webauthn = useWebAuthn(tty);
-  const { getScpUrl, attempt: getMfaResponseAttempt } = useGetScpUrl(
-    webauthn.addMfaToScpUrls
-  );
+  const {
+    tty,
+    status,
+    closeDocument,
+    webauthn,
+    getMfaResponseAttempt,
+    fileTransferRequests,
+    handleDownload,
+    handleUpload,
+    filesStore,
+  } = useSshSession(doc);
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
+  }
+
+  function handleFileTransferRequestResponse(
+    requestId: string,
+    approve: boolean
+  ) {
+    tty.approveFileTransferRequest(requestId, approve);
   }
 
   useEffect(() => {
@@ -75,7 +86,15 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
         )}
         {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
         <FileTransferContainer>
+          {fileTransferRequests.length > 0 && (
+            <FileTransferRequests
+              onDeny={handleFileTransferRequestResponse}
+              onApprove={handleFileTransferRequestResponse}
+              requests={fileTransferRequests}
+            />
+          )}
           <FileTransfer
+            filesStore={filesStore}
             beforeClose={() =>
               window.confirm('Are you sure you want to cancel file transfers?')
             }
@@ -87,43 +106,8 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
             afterClose={handleCloseFileTransfer}
             backgroundColor={colors.levels.surface}
             transferHandlers={{
-              getDownloader: async (location, abortController) => {
-                const url = await getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: location,
-                });
-                if (!url) {
-                  // if we return nothing here, the file transfer will not be added to the
-                  // file transfer list. If we add it to the list, the file will continue to
-                  // start the download and return another here. This prevents a second network
-                  // request that we know will fail.
-                  return;
-                }
-                return getHttpFileTransferHandlers().download(
-                  url,
-                  abortController
-                );
-              },
-              getUploader: async (location, file, abortController) => {
-                const url = await getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: file.name,
-                });
-                if (!url) {
-                  return;
-                }
-                return getHttpFileTransferHandlers().upload(
-                  url,
-                  file,
-                  abortController
-                );
-              },
+              getDownloader: handleDownload,
+              getUploader: handleUpload,
             }}
           />
         </FileTransferContainer>

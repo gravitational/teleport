@@ -5,16 +5,20 @@ import * as Icons from 'design/Icon';
 
 const OwnForm = ({ request, onCancel }: OwnFormProps) => {
   return (
-    <Box mt={3} key={request.requestId}>
+    <Box mt={3} key={request.requestID}>
       <Flex alignItems="middle" justifyContent="space-between">
         <Text
           style={{
             wordBreak: 'break-word',
           }}
           mb={2}
-        >{`Pending ${request.direction}: ${request.location}`}</Text>
+        >{`Pending ${
+          request.direction === FileTransferDirection.DOWNLOAD
+            ? 'download'
+            : 'upload'
+        }: ${request.location}${request.filename}`}</Text>
 
-        <ButtonBorder onClick={() => onCancel(request.requestId, false)}>
+        <ButtonBorder onClick={() => onCancel(request.requestID, false)}>
           <Icons.Cross fontSize="16px" />
         </ButtonBorder>
       </Flex>
@@ -24,19 +28,23 @@ const OwnForm = ({ request, onCancel }: OwnFormProps) => {
 
 const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
   return (
-    <Box mt={3} key={request.requestId}>
+    <Box mt={3} key={request.requestID}>
       <Text
         style={{
           wordBreak: 'break-word',
         }}
         mb={2}
-      >{`${request.requester} is requesting ${request.direction} of file ${request.location}`}</Text>
+      >{`${request.requester} is requesting ${
+        request.direction === FileTransferDirection.DOWNLOAD
+          ? 'download'
+          : 'upload'
+      } of file ${request.location}${request.filename}`}</Text>
       <Flex gap={2}>
-        <ButtonBorder block onClick={() => onApprove(request.requestId, true)}>
+        <ButtonBorder block onClick={() => onApprove(request.requestID, true)}>
           <Icons.Check fontSize="16px" mr={2} />
           Approve
         </ButtonBorder>
-        <ButtonBorder block onClick={() => onDeny(request.requestId, false)}>
+        <ButtonBorder block onClick={() => onDeny(request.requestID, false)}>
           <Icons.Cross fontSize="16px" mr={2} />
           Deny
         </ButtonBorder>
@@ -69,13 +77,13 @@ export const FileTransferRequests = (props: FileTransferRequestsProps) => {
       {requests.map(request =>
         request.isOwnRequest ? (
           <OwnForm
-            key={request.requestId}
+            key={request.requestID}
             request={request}
             onCancel={props.onDeny}
           />
         ) : (
           <ResponseForm
-            key={request.requestId}
+            key={request.requestID}
             request={request}
             onApprove={props.onApprove}
             onDeny={props.onDeny}
@@ -88,15 +96,20 @@ export const FileTransferRequests = (props: FileTransferRequestsProps) => {
 
 export type FileTransferRequest = {
   sid: string;
-  requestId: string;
+  requestID: string;
   requester: string;
   approvers: string[];
   location: string;
   filename?: string;
   size?: string;
-  direction: 'download' | 'upload';
+  direction: FileTransferDirection;
   isOwnRequest?: boolean;
 };
+
+export enum FileTransferDirection {
+  DOWNLOAD = 0,
+  UPLOAD = 1,
+}
 
 type FileTransferRequestsProps = {
   requests: FileTransferRequest[];

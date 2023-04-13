@@ -17,7 +17,7 @@
 import React from 'react';
 
 import { useFileTransferContext } from './FileTransferContextProvider';
-import { FilesStore, useFilesStore } from './useFilesStore';
+import { FilesStore } from './useFilesStore';
 import {
   FileTransferDialogDirection,
   FileTransferListeners,
@@ -29,6 +29,8 @@ interface FileTransferProps {
   transferHandlers: TransferHandlers;
   // errorText is any general error that isn't related to a specific transfer
   errorText?: string;
+
+  filesStore: FilesStore;
 
   /**
    * `beforeClose` is called when an attempt to close the dialog was made
@@ -92,6 +94,7 @@ export function FileTransfer(props: FileTransferProps) {
 
   return (
     <FileTransferDialog
+      filesStore={props.filesStore}
       errorText={props.errorText}
       openedDialog={openedDialog}
       backgroundColor={props.backgroundColor}
@@ -104,13 +107,13 @@ export function FileTransfer(props: FileTransferProps) {
 export function FileTransferDialog(
   props: Pick<
     FileTransferProps,
-    'transferHandlers' | 'backgroundColor' | 'errorText'
+    'transferHandlers' | 'backgroundColor' | 'errorText' | 'filesStore'
   > & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;
   }
 ) {
-  const filesStore = useFilesStore();
+  const filesStore = props.filesStore;
 
   function handleAddDownload(sourcePath: string): void {
     filesStore.start({
