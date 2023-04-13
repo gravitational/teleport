@@ -11,33 +11,24 @@ that can be rotated, audited, and managed with the same access controls that
 Teleport provides for human users.
 
 <Figure align="left" bordered caption="Machine ID and Database Access Deployment">
-  ![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-access.svg)
+![Machine ID and Database Access Deployment](../../../img/machine-id/machine-id-database-access.svg)
 </Figure>
 
 ## Prerequisites
 
-<ScopedBlock scope={["cloud"]}>
-You will need Teleport Cloud 9.3.0 or later.
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
-You will need to be running the Teleport Proxy and Auth Services, version 9.3.0 or
-later.
-</ScopedBlock>
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-If you have not already put your database behind Teleport Database Access,
-follow the [Database Access Getting Started Guide](../../database-access/getting-started.mdx).
-Database Access supports databases like PostgreSQL, MongoDB, Redis, and much
-more. See our [Database Access Guides](../../database-access/guides.mdx) for
-a complete list.
-
-If you have not already set up Machine ID, follow the [Machine ID Getting
-Started Guide](../getting-started.mdx) to familiarize yourself with Machine ID.
-You'll need `tctl` access to initially configure the bot.
-
-(!docs/pages/includes/tctl.mdx!)
-
-Lastly, ensure both the `tbot` and `tsh` executables are available on your
-application host. See [Installation](../../installation.mdx) for details.
+- If you have not already put your database behind the Teleport Database Service,
+  follow the [database access getting started guide](../../database-access/getting-started.mdx).
+  The Teleport Database Service supports databases like PostgreSQL, MongoDB,
+  Redis, and much more. See our [database access
+  guides](../../database-access/guides.mdx) for a complete list.
+- If you have not already set up Machine ID, follow the [Machine ID getting
+  started guide](../getting-started.mdx) to familiarize yourself with Machine ID.
+  You'll need `tctl` access to initially configure the bot.
+- (!docs/pages/includes/tctl.mdx!)
+- Ensure both the `tbot` and `tsh` executables are available on your
+  application host. See [Installation](../../installation.mdx) for details.
 
 ## Step 1/3. Create a Machine ID bot and assign permissions
 

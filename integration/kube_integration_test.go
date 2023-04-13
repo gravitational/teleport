@@ -1053,12 +1053,14 @@ loop:
 func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 	testCases := []disconnectTestCase{
 		{
+			name: "idle timeout",
 			options: types.RoleOptions{
 				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
 			},
 			disconnectTimeout: 2 * time.Second,
 		},
 		{
+			name: "expired cert",
 			options: types.RoleOptions{
 				DisconnectExpiredCert: types.NewBool(true),
 				MaxSessionTTL:         types.NewDuration(3 * time.Second),
@@ -1066,12 +1068,15 @@ func testKubeDisconnect(t *testing.T, suite *KubeSuite) {
 			disconnectTimeout: 6 * time.Second,
 		},
 	}
+
 	for i := 0; i < utils.GetIterations(); i++ {
-		for j, tc := range testCases {
-			t.Run(fmt.Sprintf("#%02d_iter_%d", j, i), func(t *testing.T) {
-				runKubeDisconnectTest(t, suite, tc)
-			})
-		}
+		t.Run(fmt.Sprintf("Iteration=%d", i), func(t *testing.T) {
+			for _, tc := range testCases {
+				t.Run(tc.name, func(t *testing.T) {
+					runKubeDisconnectTest(t, suite, tc)
+				})
+			}
+		})
 	}
 }
 

@@ -1,4 +1,4 @@
-//go:build eimports
+//go:build e_imports && !e_imports
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -49,6 +49,7 @@ import (
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/gravitational/form"
 	_ "github.com/okta/okta-sdk-golang/v2/okta"
+	_ "golang.org/x/time/rate"
 	_ "google.golang.org/api/admin/directory/v1"
 	_ "google.golang.org/api/cloudidentity/v1"
 	_ "google.golang.org/genproto/googleapis/rpc/status"

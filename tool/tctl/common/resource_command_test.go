@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -320,6 +321,120 @@ func TestDatabaseServiceResource(t *testing.T) {
 	})
 }
 
+// TestIntegrationResource tests tctl integration commands.
+func TestIntegrationResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
+	ctx := context.Background()
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	t.Run("get", func(t *testing.T) {
+
+		var out []types.IntegrationV1
+
+		// Add a lot of Integrations to test pagination
+		ig1, err := types.NewIntegrationAWSOIDC(
+			types.Metadata{Name: uuid.NewString()},
+			&types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+			},
+		)
+		require.NoError(t, err)
+
+		randomIntegrationName := ""
+		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
+		for i := 0; i < totalIntegrations; i++ {
+			ig1.SetName(uuid.NewString())
+			if i == apidefaults.DefaultChunkSize { // A "random" integration name
+				randomIntegrationName = ig1.GetName()
+			}
+			_, err = auth.GetAuthServer().CreateIntegration(ctx, ig1)
+			require.NoError(t, err)
+		}
+
+		t.Run("test pagination of integrations ", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindIntegration, "--format=json"})
+			require.NoError(t, err)
+			mustDecodeJSON(t, buff, &out)
+			require.Len(t, out, totalIntegrations)
+		})
+
+		igName := fmt.Sprintf("%v/%v", types.KindIntegration, randomIntegrationName)
+
+		t.Run("get specific integration", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", igName, "--format=json"})
+			require.NoError(t, err)
+			mustDecodeJSON(t, buff, &out)
+			require.Len(t, out, 1)
+			require.Equal(t, randomIntegrationName, out[0].GetName())
+		})
+
+		t.Run("get unknown integration", func(t *testing.T) {
+			unknownIntegration := fmt.Sprintf("%v/%v", types.KindIntegration, "unknown")
+			_, err := runResourceCommand(t, fileConfig, []string{"get", unknownIntegration, "--format=json"})
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+		})
+
+		t.Run("get specific integration with human output", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", igName, "--format=text"})
+			require.NoError(t, err)
+			outputString := buff.String()
+			require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/OpsTeam")
+			require.Contains(t, outputString, randomIntegrationName)
+		})
+	})
+
+	t.Run("create", func(t *testing.T) {
+		integrationYAMLPath := filepath.Join(t.TempDir(), "integration.yaml")
+		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAML), 0644))
+		_, err := runResourceCommand(t, fileConfig, []string{"create", integrationYAMLPath})
+		require.NoError(t, err)
+
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", "integration/myawsint", "--format=text"})
+		require.NoError(t, err)
+		outputString := buff.String()
+		require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/OpsTeam")
+		require.Contains(t, outputString, "myawsint")
+
+		// Update the RoleARN to another role
+		integrationYAMLV2 := strings.ReplaceAll(integrationYAML, "OpsTeam", "DevTeam")
+		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAMLV2), 0644))
+
+		// Trying to create it again should return an error
+		_, err = runResourceCommand(t, fileConfig, []string{"create", integrationYAMLPath})
+		require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+
+		// Using the force should be ok and replace the current object
+		_, err = runResourceCommand(t, fileConfig, []string{"create", "--force", integrationYAMLPath})
+		require.NoError(t, err)
+
+		// The RoleARN must be updated
+		buff, err = runResourceCommand(t, fileConfig, []string{"get", "integration/myawsint", "--format=text"})
+		require.NoError(t, err)
+		outputString = buff.String()
+		require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/DevTeam")
+	})
+}
+
 // TestAppResource tests tctl commands that manage application resources.
 func TestAppResource(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
@@ -327,6 +442,9 @@ func TestAppResource(t *testing.T) {
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
+			Logger: config.Log{
+				Severity: "debug",
+			},
 		},
 		Apps: config.Apps{
 			Service: config.Service{
@@ -561,6 +679,16 @@ spec:
   target:
     user: "bad@actor"
   message: "Come see me"`
+
+	integrationYAML = `kind: integration
+sub_kind: aws-oidc
+version: v1
+metadata:
+  name: myawsint
+spec:
+  aws_oidc:
+    role_arn: "arn:aws:iam::123456789012:role/OpsTeam"
+`
 )
 
 func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {

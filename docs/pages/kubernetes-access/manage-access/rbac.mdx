@@ -20,7 +20,7 @@ Kubernetes clusers, groups, users, and resources.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 To run the local demo environment, ensure that you have the following tools
 installed on your workstation:
@@ -213,7 +213,7 @@ Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
 
 ```code
-$ tctl nodes add --roles=kube --ttl=1h --format=json
+$ tctl tokens add --type=kube --ttl=1h --format=text
 ```
 
 Copy this token so you can use it when running the Teleport Kubernetes Service.
@@ -234,7 +234,7 @@ $ helm install teleport-agent teleport/teleport-kube-agent \
   --version (=teleport.version=)
 ```
 
-This `tctl nodes add` command supplies the soon-to-be-added Kubernetes Service
+This `helm install` command supplies the soon-to-be-added Kubernetes Service
 instance with two labels: `region:local` and `platform:minikube`. We will use
 these to configure access controls for the cluster later in this guide.
 
