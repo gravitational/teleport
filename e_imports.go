@@ -49,7 +49,6 @@ import (
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/gravitational/form"
 	_ "github.com/okta/okta-sdk-golang/v2/okta"
-	_ "golang.org/x/time"
 	_ "google.golang.org/api/admin/directory/v1"
 	_ "google.golang.org/api/cloudidentity/v1"
 	_ "google.golang.org/genproto/googleapis/rpc/status"
