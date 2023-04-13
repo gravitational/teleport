@@ -429,6 +429,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] OIDC install instructions work
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
+- [ ] Login Rules work to transform traits from SSO provider
 
 ### GitHub External SSO
 
@@ -696,6 +697,26 @@ These tests should be carried out sequentially. `tsh` tests should be carried ou
 Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
 
 - [ ] Database Access: `tsh proxy db --tunnel`
+
+### HSM Support
+
+[Docs](https://goteleport.com/docs/choose-an-edition/teleport-enterprise/hsm/)
+
+- [ ] YubiHSM2 Support (@nklaassen has hardware)
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with YubiHSM2 CA works
+  - [ ] Migrating a software cluster to YubiHSM2 works
+  - [ ] CA rotation works
+- [ ] AWS CloudHSM Support
+  - [ ] Make sure docs/links are up to date (they currently aren't https://github.com/gravitational/teleport/issues/24503)
+  - [ ] New cluster with CloudHSM CA works
+  - [ ] Migrating a software cluster to CloudHSM works
+  - [ ] CA rotation works
+- [ ] GCP KMS Support
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with GCP KMS CA works
+  - [ ] Migrating a software cluster to GCP KMS works
+  - [ ] CA rotation works
 
 ## Moderated session
 
