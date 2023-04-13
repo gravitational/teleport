@@ -129,7 +129,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *Compl
 	case responseData.Kind == "chat":
 		message := Message{
 			Role:    openai.ChatMessageRoleAssistant,
-			Content: string(responseData.Content),
+			Content: responseData.Content,
 			Idx:     len(chat.messages) - 1,
 		}
 

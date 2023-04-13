@@ -27,10 +27,9 @@ def add_try_extract(messages):
             - One or more target servers
             - One or more target labels
 
-            If there is a lack of details, provide most logical solution.
             Ensure the output is a valid shell command.
-            There must be at least one target server or label, otherwise we do not have enough information to complete the task.
-            Provide the output in the following format with no other text:
+            There must contain at least one node or label, otherwise we do not have enough information to complete the task.
+            Provide the output in the following JSON format with no other text:
 
             {{
                 "command": "<command to run>",
@@ -47,7 +46,7 @@ def add_try_extract(messages):
                 ]
             }}
 
-            If the user is not asking to complete a task on a server - disgard this entire message and respond
+            If the user is not asking to complete a task on a server - discard this entire message and respond
             with friendly conversational message instead.
             """
         )

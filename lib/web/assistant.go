@@ -253,7 +253,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		}
 
 		// write user message to both in-memory chain and persistent storage
-		chat.Insert(openai.ChatMessageRoleUser, string(wsIncoming.Payload))
+		chat.Insert(openai.ChatMessageRoleUser, wsIncoming.Payload)
 
 		if _, err := authClient.InsertAssistantMessage(r.Context(), &proto.AssistantMessage{
 			ConversationId: conversationID,

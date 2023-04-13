@@ -9,10 +9,10 @@ app = Flask(__name__)
 
 @app.route("/")
 def root():
-    return "Hello, World!"
+    return "Hello GPT!"
 
 
-chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.5)
+chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0)
 
 
 @app.route("/assistant_query", methods=["POST"])

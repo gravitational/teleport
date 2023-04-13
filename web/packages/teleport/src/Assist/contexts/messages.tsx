@@ -66,17 +66,44 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
         return;
       }
 
-      if (value.type === 'CHAT_TEXT_MESSAGE') {
-        const msg = JSON.parse(atob(value.payload));
-
-        const author = msg.role === 'user' ? Author.User : Author.Teleport;
+      console.log(value);
+      if (value.type === 'CHAT_MESSAGE_ASSISTANT') {
         setMessages(prev =>
           prev.concat({
-            author: author,
+            author: Author.Teleport,
             content: [
               {
                 type: Type.Message,
-                value: msg.content,
+                value: value.payload,
+              },
+            ],
+          })
+        );
+      }
+
+      if (value.type === 'CHAT_MESSAGE_USER') {
+        setMessages(prev =>
+          prev.concat({
+            author: Author.User,
+            content: [
+              {
+                type: Type.Message,
+                value: value.payload,
+              },
+            ],
+          })
+        );
+      }
+
+      if (value.type === 'COMMAND') {
+        const execCmd = JSON.parse(value.payload);
+        setMessages(prev =>
+          prev.concat({
+            author: Author.Teleport,
+            content: [
+              {
+                type: Type.Exec,
+                value: execCmd.command,
               },
             ],
           })
@@ -97,7 +124,7 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
 
       setMessages(newMessages);
 
-      const data = JSON.stringify({ content: message });
+      const data = JSON.stringify({ payload: message });
       sendMessage(data);
     },
     [messages]
