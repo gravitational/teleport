@@ -38,13 +38,16 @@ jobs:
         # single version of the docs.
         run: 'echo "{\"versions\": [{\"name\": \"docs\", \"branch\": \"$GITHUB_REF_NAME\", \"deprecated\": false}]}" > /src/config.json'
 
-      - name: Test the docs build
-        run: cd /src && yarn install && yarn build
         
       - name: Check spelling
-        run: cd /src && yarn install && yarn spellcheck /src/content/docs
+        run: cd /src && yarn install && yarn spellcheck /src/content/docs/docs
+       
 
       - name: Lint the docs
         run: cd /src && yarn markdown-lint
+        
+      - name: Test the docs build
+        run: cd /src && yarn install && yarn build        
+        
 
 
