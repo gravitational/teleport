@@ -54,28 +54,55 @@ func randomID() ([]byte, error) {
 	return bytes[:], nil
 }
 
-// AcquireLock grabs a lock that will be released automatically in TTL
-func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time.Duration) (Lock, error) {
-	if lockName == "" {
-		return Lock{}, trace.BadParameter("missing parameter lock name")
+type LockConfiguration struct {
+	Backend  Backend
+	LockName string
+	// TTL defines when lock will be released automatically
+	TTL time.Duration
+	// RetryAcquireLockTimeout defines which is used to retry locking after
+	// initial lock failed due to someone else holding lock.
+	RetryAcquireLockTimeout time.Duration
+}
+
+func (l *LockConfiguration) CheckAndSetDefaults() error {
+	if l.Backend == nil {
+		return trace.BadParameter("missing Backend")
 	}
-	key := lockKey(lockName)
+	if l.LockName == "" {
+		return trace.BadParameter("missing LockName")
+	}
+	if l.TTL == 0 {
+		return trace.BadParameter("missing TTL")
+	}
+	if l.RetryAcquireLockTimeout == 0 {
+		l.RetryAcquireLockTimeout = 250 * time.Millisecond
+	}
+	return nil
+}
+
+// AcquireLock grabs a lock that will be released automatically in TTL
+func AcquireLock(ctx context.Context, cfg LockConfiguration) (Lock, error) {
+	err := cfg.CheckAndSetDefaults()
+	if err != nil {
+		return Lock{}, trace.Wrap(err)
+	}
+	key := lockKey(cfg.LockName)
 	id, err := randomID()
 	if err != nil {
 		return Lock{}, trace.Wrap(err)
 	}
 	for {
 		// Get will clear TTL on a lock
-		backend.Get(ctx, key)
+		cfg.Backend.Get(ctx, key)
 
 		// CreateVal is atomic:
-		_, err = backend.Create(ctx, Item{Key: key, Value: id, Expires: backend.Clock().Now().UTC().Add(ttl)})
+		_, err = cfg.Backend.Create(ctx, Item{Key: key, Value: id, Expires: cfg.Backend.Clock().Now().UTC().Add(cfg.TTL)})
 		if err == nil {
 			break // success
 		}
 		if trace.IsAlreadyExists(err) { // locked? wait and repeat:
 			select {
-			case <-backend.Clock().After(250 * time.Millisecond):
+			case <-cfg.Backend.Clock().After(cfg.RetryAcquireLockTimeout):
 				// OK, go around and try again
 				continue
 
@@ -86,7 +113,7 @@ func AcquireLock(ctx context.Context, backend Backend, lockName string, ttl time
 		}
 		return Lock{}, trace.ConvertSystemError(err)
 	}
-	return Lock{key: key, id: id, ttl: ttl}, nil
+	return Lock{key: key, id: id, ttl: cfg.TTL}, nil
 }
 
 // Release forces lock release
@@ -136,7 +163,11 @@ func (l *Lock) resetTTL(ctx context.Context, backend Backend) error {
 
 // RunWhileLocked allows you to run a function while a lock is held.
 func RunWhileLocked(ctx context.Context, backend Backend, lockName string, ttl time.Duration, fn func(context.Context) error) error {
-	lock, err := AcquireLock(ctx, backend, lockName, ttl)
+	lock, err := AcquireLock(ctx, LockConfiguration{
+		Backend:  backend,
+		LockName: lockName,
+		TTL:      ttl,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
