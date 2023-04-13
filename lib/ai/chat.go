@@ -56,19 +56,6 @@ func (chat *Chat) Insert(role string, content string) Message {
 	}
 }
 
-type completionRequest struct {
-	Username string                         `json:"username"`
-	Messages []openai.ChatCompletionMessage `json:"messages"`
-}
-
-type completionResponse struct {
-	Kind    string   `json:"kind"`
-	Content string   `json:"content,omitempty"`
-	Command string   `json:"command,omitempty"`
-	Nodes   []string `json:"nodes,omitempty"`
-	Labels  []Label  `json:"labels,omitempty"`
-}
-
 type Label struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
@@ -80,7 +67,7 @@ type CompletionCommand struct {
 	Labels  []Label  `json:"labels,omitempty"`
 }
 
-func labelToPB(vals []*assistantservice.Label) []Label {
+func labelsToPbLabels(vals []*assistantservice.Label) []Label {
 	ret := make([]Label, 0, len(vals))
 	for _, v := range vals {
 		ret = append(ret, Label{
@@ -98,8 +85,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *Compl
 
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
-	//chat.client.apiURL
-	conn, err := grpc.Dial("localhost:50052", opts...)
+	conn, err := grpc.Dial(chat.client.apiURL, opts...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -120,7 +106,7 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *Compl
 		command := CompletionCommand{
 			Command: response.Command,
 			Nodes:   response.Nodes,
-			Labels:  labelToPB(response.Labels),
+			Labels:  labelsToPbLabels(response.Labels),
 		}
 
 		return nil, &command, nil
