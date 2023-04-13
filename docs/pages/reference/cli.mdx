@@ -32,7 +32,7 @@ The primary commands for the `teleport` CLI are as follows:
 | Command | Description |
 | - | - |
 | `teleport help` | Outputs guidance for using Teleport commands. |
-| `teleport start` | Starts the `teleport` process in the foregound using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
+| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport configure` | Generates and writes a [configuration YAML file](config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
@@ -142,12 +142,13 @@ information about the cluster.
 | `-i, --identity` | none | **string** filepath | Identity file |
 | `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
+| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
 | `--headless` | none | none | Use Headless WebAuthn for authentication |
+| `--mlock` | `auto` | `auto`, `off`, `best_effort`, `strict` | Lock process memory to protect client secrets stored in memory from being swapped to disk. |
 
 ### tsh help
 
@@ -1261,7 +1262,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or GitHub auth connector | okta |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector (or a local user) | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |

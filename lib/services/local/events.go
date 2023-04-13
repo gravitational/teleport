@@ -156,6 +156,8 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newOktaImportRuleParser()
 		case types.KindOktaAssignment:
 			parser = newOktaAssignmentParser()
+		case types.KindIntegration:
+			parser = newIntegrationParser()
 		default:
 			return nil, trace.BadParameter("watcher on object kind %q is not supported", kind.Kind)
 		}
@@ -1530,6 +1532,30 @@ func (p *oktaAssignmentParser) parse(event backend.Event) (types.Resource, error
 		return resourceHeader(event, types.KindOktaAssignment, types.V1, 0)
 	case types.OpPut:
 		return services.UnmarshalOktaAssignment(event.Item.Value,
+			services.WithResourceID(event.Item.ID),
+			services.WithExpires(event.Item.Expires),
+		)
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+}
+
+func newIntegrationParser() *integrationParser {
+	return &integrationParser{
+		baseParser: newBaseParser(backend.Key(integrationsPrefix)),
+	}
+}
+
+type integrationParser struct {
+	baseParser
+}
+
+func (p *integrationParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		return resourceHeader(event, types.KindIntegration, types.V1, 0)
+	case types.OpPut:
+		return services.UnmarshalIntegration(event.Item.Value,
 			services.WithResourceID(event.Item.ID),
 			services.WithExpires(event.Item.Expires),
 		)

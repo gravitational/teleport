@@ -219,6 +219,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Integrations == nil {
+		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -267,6 +273,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
+		Integrations:            cfg.Integrations,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 
@@ -361,6 +368,7 @@ type Services struct {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.StatusInternal
+	services.Integrations
 	usagereporter.UsageReporter
 	types.Events
 	events.IAuditLog
@@ -4225,6 +4233,25 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	return nil
 }
 
+// Ping gets basic info about the auth server.
+// Please note that Ping is publicly accessible (not protected by any RBAC) by design,
+// and thus PingResponse must never contain any sensitive information.
+func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
+	cn, err := a.GetClusterName()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+
+	return proto.PingResponse{
+		ClusterName:     cn.GetClusterName(),
+		ServerVersion:   teleport.Version,
+		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ProxyPublicAddr: a.getProxyPublicAddr(),
+		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:      a.loadAllCAs,
+	}, nil
+}
+
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
@@ -4793,6 +4820,25 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// getProxyPublicAddr returns the first valid, non-empty proxy public address it
+// finds, or empty otherwise.
+func (a *Server) getProxyPublicAddr() string {
+	if proxies, err := a.GetProxies(); err == nil {
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				continue
+			}
+			if _, err := utils.ParseAddr(addr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				continue
+			}
+			return addr
+		}
+	}
+	return ""
 }
 
 // authKeepAliver is a keep aliver using auth server directly

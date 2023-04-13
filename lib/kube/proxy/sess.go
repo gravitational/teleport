@@ -828,11 +828,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 // join attempts to connect a party to the session.
 func (s *session) join(p *party) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roleNames := p.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		roles := p.Ctx.Checker.Roles()
 
 		accessContext := auth.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),

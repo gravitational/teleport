@@ -17,10 +17,12 @@ This guide will explain how to:
 
 ## Prerequisites
 
-- A running Teleport cluster, either self hosted or in Teleport Cloud.
-- A host running the `teleport` daemon with Application Access enabled. Follow
-  the [Getting Started](../getting-started.mdx) or
-  [Connecting Apps](../guides/connecting-apps.mdx) guides to get it running.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A host running the `teleport` daemon with the Teleport Application Service
+  enabled. Follow the [Getting Started](../getting-started.mdx) or [Connecting
+  Apps](../guides/connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
 - AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
 - `aws` command line interface (CLI) tool in PATH. [Installing or updating the latest version of the AWS CLI

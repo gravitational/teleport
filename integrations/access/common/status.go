@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,39 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package services
+package common
 
 import (
+	"context"
+
 	"github.com/gravitational/teleport/api/types"
 )
 
-// Services collects all services
-type Services interface {
-	UsersService
-	Provisioner
-	Trust
-	types.Events
-	ClusterConfiguration
-	Access
-	DynamicAccessCore
-	Presence
-	Restrictions
-	Apps
-	Databases
-	DatabaseServices
-	Kubernetes
-	AppSession
-	SnowflakeSession
-	SAMLIdPSession
-	types.WebSessionsGetter
-	types.WebTokensGetter
-	WindowsDesktops
-	SAMLIdPServiceProviders
-	UserGroups
-	Integrations
-
-	OktaClient() Okta
+// StatusSink defines a destination for PluginStatus
+type StatusSink interface {
+	Emit(ctx context.Context, s types.PluginStatus) error
 }
-
-// RotationGetter returns the rotation state.
-type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
