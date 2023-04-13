@@ -371,6 +371,7 @@ func ForDiscovery(cfg Config) Config {
 func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindClusterName},
 		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindUser},
 		{Kind: types.KindAppServer},
