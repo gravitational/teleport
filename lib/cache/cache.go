@@ -2486,7 +2486,7 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindIntegration, "")
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2499,7 +2499,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindIntegration, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
