@@ -58,6 +58,19 @@ type EnvsReq struct {
 	EnvsJSON []byte `json:"envs"`
 }
 
+type FileTransferReq struct {
+	Direction string
+	Location  string
+	Filename  string
+	Size      string
+	ShellCmd  string
+}
+
+type FileTransferResponseReq struct {
+	RequestID string
+	Approved  bool
+}
+
 // ContextFromRequest extracts any tracing data provided via an Envelope
 // in the ssh.Request payload. If the payload contains an Envelope, then
 // the context returned will have tracing data populated from the remote
