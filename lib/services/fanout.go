@@ -110,7 +110,7 @@ func (f *Fanout) SetInit(confirmedKinds []types.WatchKind) {
 		return
 	}
 
-	f.confirmedKinds = make(map[kindSubKind]types.WatchKind)
+	f.confirmedKinds = make(map[kindSubKind]types.WatchKind, len(confirmedKinds))
 	for _, kind := range confirmedKinds {
 		f.confirmedKinds[kindSubKind{kind: kind.Kind, subKind: kind.SubKind}] = kind
 	}
