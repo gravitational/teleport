@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1214,55 +1213,60 @@ func TestALPNProxyAuthClientConnectWithUserIdentity(t *testing.T) {
 	// client can point to this ALB instead.
 	albProxy := mustStartMockALBProxy(t, rc.Web)
 
-	connectTypes := []struct {
+	tests := []struct {
 		name         string
 		clientConfig client.Config
 	}{
 		{
-			name: "sync",
+			name: "sync connect to Proxy",
 			clientConfig: client.Config{
+				Addrs:                    []string{rc.Web},
 				Credentials:              []client.Credentials{identity},
 				InsecureAddressDiscovery: true,
 			},
 		},
 		{
-			name: "background",
+			name: "sync connect to Proxy behind ALB",
 			clientConfig: client.Config{
+				Addrs:                    []string{albProxy.Addr().String()},
+				Credentials:              []client.Credentials{identity},
+				InsecureAddressDiscovery: true,
+			},
+		},
+		{
+			name: "background connect to Proxy",
+			clientConfig: client.Config{
+				Addrs:                      []string{rc.Web},
 				Credentials:                []client.Credentials{identity},
 				InsecureAddressDiscovery:   true,
 				DialInBackground:           true,
 				ALPNSNIAuthDialClusterName: cfg.ClusterName,
 			},
 		},
+		{
+			name: "background connect to Proxy behind ALB",
+			clientConfig: client.Config{
+				Addrs:                      []string{albProxy.Addr().String()},
+				Credentials:                []client.Credentials{identity},
+				InsecureAddressDiscovery:   true,
+				DialInBackground:           true,
+				ALPNSNIAuthDialClusterName: cfg.ClusterName,
+				IsALPNConnUpgradeRequiredFunc: func(addr string, insecure bool) bool {
+					return addr == albProxy.Addr().String()
+				},
+			},
+		},
 	}
 
-	targets := []struct {
-		name string
-		addr string
-	}{
-		{
-			name: "web",
-			addr: rc.Web,
-		},
-		{
-			name: "alb",
-			addr: albProxy.Addr().String(),
-		},
-	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tc, err := client.New(context.Background(), test.clientConfig)
+			require.NoError(t, err)
 
-	for _, target := range targets {
-		for _, connectType := range connectTypes {
-			t.Run(fmt.Sprintf("%v/%v", target.name, connectType.name), func(t *testing.T) {
-				connectType.clientConfig.WebProxyAddr = target.addr
-
-				tc, err := client.New(context.Background(), connectType.clientConfig)
-				require.NoError(t, err)
-
-				resp, err := tc.Ping(context.Background())
-				require.NoError(t, err)
-				require.Equal(t, rc.Secrets.SiteName, resp.ClusterName)
-			})
-		}
+			resp, err := tc.Ping(context.Background())
+			require.NoError(t, err)
+			require.Equal(t, rc.Secrets.SiteName, resp.ClusterName)
+		})
 	}
 }
 

@@ -82,9 +82,9 @@ type ClientConfig struct {
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
 	DialOpts []grpc.DialOption
-	// IsALPNConnUpgradeRequired is a callback function to check whether
+	// IsALPNConnUpgradeRequiredFunc is a callback function to check whether
 	// connection upgrade is required for TLS Routing.
-	IsALPNConnUpgradeRequired func(addr string, insecure bool) bool
+	IsALPNConnUpgradeRequiredFunc func(addr string, insecure bool) bool
 	// InsecureSkipVerify is an option to skip HTTPS cert check
 	InsecureSkipVerify bool
 
@@ -113,8 +113,8 @@ func (c *ClientConfig) CheckAndSetDefaults() error {
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
 	}
-	if c.IsALPNConnUpgradeRequired == nil {
-		c.IsALPNConnUpgradeRequired = client.IsALPNConnUpgradeRequired
+	if c.IsALPNConnUpgradeRequiredFunc == nil {
+		c.IsALPNConnUpgradeRequiredFunc = client.IsALPNConnUpgradeRequired
 	}
 
 	if c.TLSConfig != nil {
@@ -352,7 +352,7 @@ func newDialerForGRPCClient(ctx context.Context, cfg *ClientConfig) func(context
 
 	if cfg.TLSRoutingEnabled {
 		dialOpts = append(dialOpts,
-			client.WithALPNConnUpgrade(cfg.IsALPNConnUpgradeRequired(cfg.ProxyWebAddress, cfg.InsecureSkipVerify)),
+			client.WithALPNConnUpgrade(cfg.IsALPNConnUpgradeRequiredFunc(cfg.ProxyWebAddress, cfg.InsecureSkipVerify)),
 			client.WithALPNConnUpgradePing(true),
 		)
 	}
@@ -463,12 +463,12 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 	switch {
 	case c.cfg.TLSRoutingEnabled:
 		return client.Config{
-			Context:                    ctx,
-			WebProxyAddr:               c.cfg.ProxyWebAddress,
-			Credentials:                []client.Credentials{c.cfg.clientCreds()},
-			ALPNSNIAuthDialClusterName: cluster,
-			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
-			IsALPNConnUpgradeRequired:  c.cfg.IsALPNConnUpgradeRequired,
+			Context:                       ctx,
+			Addrs:                         []string{c.cfg.ProxyWebAddress},
+			Credentials:                   []client.Credentials{c.cfg.clientCreds()},
+			ALPNSNIAuthDialClusterName:    cluster,
+			CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
+			IsALPNConnUpgradeRequiredFunc: c.cfg.IsALPNConnUpgradeRequiredFunc,
 		}
 	case c.sshClient != nil:
 		return client.Config{

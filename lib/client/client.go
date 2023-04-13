@@ -1158,14 +1158,14 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 
 	tlsConfig.InsecureSkipVerify = proxy.teleportClient.InsecureSkipVerify
 	clt, err := auth.NewClient(client.Config{
-		Context:      ctx,
-		WebProxyAddr: proxyAddr,
+		Context: ctx,
+		Addrs:   []string{proxyAddr},
 		Credentials: []client.Credentials{
 			client.LoadTLS(tlsConfig),
 		},
-		ALPNSNIAuthDialClusterName: clusterName,
-		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
-		IsALPNConnUpgradeRequired:  proxy.teleportClient.IsALPNConnUpgradeRequired,
+		ALPNSNIAuthDialClusterName:    clusterName,
+		CircuitBreakerConfig:          breaker.NoopBreakerConfig(),
+		IsALPNConnUpgradeRequiredFunc: proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

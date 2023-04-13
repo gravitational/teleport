@@ -2790,9 +2790,9 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 			clt, err := makeProxySSHClient(ctx, tc, config)
 			return clt, trace.Wrap(err)
 		}),
-		SSHConfig:                 cfg.ClientConfig,
-		IsALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired,
-		InsecureSkipVerify:        tc.InsecureSkipVerify,
+		SSHConfig:                     cfg.ClientConfig,
+		IsALPNConnUpgradeRequiredFunc: tc.IsALPNConnUpgradeRequiredForWebProxy,
+		InsecureSkipVerify:            tc.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3043,7 +3043,7 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
 	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(client.ALPNDialerConfig{
 		TLSConfig:               tlsConfig,
-		ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequired(proxyAddr, tlsConfig.InsecureSkipVerify),
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
 		DialTimeout:             sshConfig.Timeout,
 	}))
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
@@ -4617,15 +4617,16 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 	return kubeproto.NewKubeServiceClient(clt.GetConnection()), nil
 }
 
-// IsALPNConnUpgradeRequired returns true if connection upgrade is required for
-// provided addr.
-func (tc *TeleportClient) IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
+// IsALPNConnUpgradeRequiredForWebProxy returns true if connection upgrade is
+// required for provided addr. The provided address must be a web proxy
+// address.
+func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(proxyAddr string, insecure bool) bool {
 	// Use cached value.
-	if addr == tc.WebProxyAddr {
+	if proxyAddr == tc.WebProxyAddr {
 		return tc.TLSRoutingConnUpgradeRequired
 	}
 	// Do a test for other addresses.
-	return client.IsALPNConnUpgradeRequired(addr, insecure)
+	return client.IsALPNConnUpgradeRequired(proxyAddr, insecure)
 }
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.

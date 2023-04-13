@@ -37,8 +37,13 @@ import (
 )
 
 type dialConfig struct {
-	tlsConfig               *tls.Config
+	tlsConfig *tls.Config
+	// alpnConnUpgradeRequired specifies if ALPN connection upgrade is
+	// required.
 	alpnConnUpgradeRequired bool
+	// alpnConnUpgradeWithPing specifies if Ping is required during ALPN
+	// connection upgrade. This is only effective when alpnConnUpgradeRequired
+	// is true.
 	alpnConnUpgradeWithPing bool
 }
 
@@ -58,7 +63,8 @@ func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialOption {
 	}
 }
 
-// WithALPNConnUpgradePing specifies if Ping is required during ALPN connection upgrade.
+// WithALPNConnUpgradePing specifies if Ping is required during ALPN connection
+// upgrade. This is only effective when alpnConnUpgradeRequired is true.
 func WithALPNConnUpgradePing(alpnConnUpgradeWithPing bool) DialOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.alpnConnUpgradeWithPing = alpnConnUpgradeWithPing
@@ -223,6 +229,12 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
+		isALPNConnUpgradeRequiredFunc := params.cfg.IsALPNConnUpgradeRequiredFunc
+		if isALPNConnUpgradeRequiredFunc == nil {
+			isALPNConnUpgradeRequiredFunc = IsALPNConnUpgradeRequired
+		}
+
 		conn, err := DialALPN(ctx, tunnelAddr, ALPNDialerConfig{
 			DialTimeout:     params.cfg.DialTimeout,
 			KeepAlivePeriod: params.cfg.KeepAlivePeriod,
@@ -231,7 +243,7 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, params connectParams) Conte
 				InsecureSkipVerify: insecure,
 				ServerName:         host,
 			},
-			ALPNConnUpgradeRequired: params.cfg.IsALPNConnUpgradeRequired(tunnelAddr, insecure),
+			ALPNConnUpgradeRequired: isALPNConnUpgradeRequiredFunc(tunnelAddr, insecure),
 			GetClusterCAs: func(_ context.Context) (*x509.CertPool, error) {
 				tlsConfig, err := params.cfg.Credentials[0].TLSConfig()
 				if err != nil {

@@ -326,26 +326,23 @@ type (
 
 // authConnect connects to the Teleport Auth Server directly or through Proxy.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout,
+	opts := []DialOption{
 		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
-		WithALPNConnUpgrade(IsWebProxyAndConnUpgradeRequired(ctx, params.addr, &params.cfg)),
-	)
+	}
 
+	if params.cfg.IsALPNConnUpgradeRequiredFunc != nil {
+		opts = append(opts,
+			WithALPNConnUpgrade(params.cfg.IsALPNConnUpgradeRequiredFunc(params.addr, params.cfg.InsecureAddressDiscovery)),
+			WithALPNConnUpgradePing(true), // Use ping for long-lived connections.
+		)
+	}
+
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, opts...)
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
 	}
 	return clt, nil
-}
-
-// IsWebProxyAndConnUpgradeRequired returns true if targetAddr is a Teleport
-// web proxy address and ALPN connection upgrade is required for it. If no
-// cluster name is provided for ALPN, assume dialer is not trying to connect
-// Auth through Proxy using TLS Routing.
-func IsWebProxyAndConnUpgradeRequired(ctx context.Context, targetAddr string, cfg *Config) bool {
-	return cfg.ALPNSNIAuthDialClusterName != "" &&
-		cfg.WebProxyAddr == targetAddr &&
-		cfg.IsALPNConnUpgradeRequired(targetAddr, cfg.InsecureAddressDiscovery)
 }
 
 // tunnelConnect connects to the Teleport Auth Server through the proxy's reverse tunnel.
@@ -507,8 +504,6 @@ func (c *Client) waitForConnectionReady(ctx context.Context) error {
 type Config struct {
 	// Addrs is a list of teleport auth/proxy server addresses to dial.
 	Addrs []string
-	// WebProxyAddr is the Teleport Proxy web address.
-	WebProxyAddr string
 	// Credentials are a list of credentials to use when attempting
 	// to connect to the server.
 	Credentials []Credentials
@@ -540,9 +535,9 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
-	// IsALPNConnUpgradeRequired is a callback function to check whether
+	// IsALPNConnUpgradeRequiredFunc is a callback function to check whether
 	// connection upgrade is required for TLS Routing.
-	IsALPNConnUpgradeRequired func(addr string, insecure bool) bool
+	IsALPNConnUpgradeRequiredFunc func(addr string, insecure bool) bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -575,12 +570,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	}))
 	if !c.DialInBackground {
 		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
-	}
-	if c.IsALPNConnUpgradeRequired == nil {
-		c.IsALPNConnUpgradeRequired = IsALPNConnUpgradeRequired
-	}
-	if c.WebProxyAddr != "" {
-		c.Addrs = utils.Deduplicate(append(c.Addrs, c.WebProxyAddr))
 	}
 	return nil
 }
