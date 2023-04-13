@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import type { ResourceTypeSearchFilter } from 'teleterm/ui/Search/searchResult';
+import { pluralize } from 'shared/utils/text';
 
+import type { ResourceTypeSearchFilter } from 'teleterm/ui/Search/searchResult';
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 
@@ -72,6 +73,8 @@ export class ResourcesService {
   async searchResources(
     clusterUri: uri.ClusterUri,
     search: string,
+    // TODO(ravicious): Accept just `server | database | kube` as searchFilter here, wrap it in a
+    // variant of a discriminated union in searchResult.ts.
     searchFilter: ResourceTypeSearchFilter | undefined
   ): Promise<PromiseSettledResult<SearchResult[]>[]> {
     const params = { search, clusterUri, sort: null, limit: 100 };
@@ -141,6 +144,23 @@ export class ResourceSearchError extends Error {
     this.name = 'ResourceSearchError';
     this.clusterUri = clusterUri;
     this.resourceKind = resourceKind;
+  }
+
+  messageWithClusterName(
+    getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string
+  ) {
+    const resource = pluralize(2, this.resourceKind);
+    const cluster = getClusterName(this.clusterUri);
+
+    return `Could not fetch ${resource} from ${cluster}`;
+  }
+
+  messageAndCauseWithClusterName(
+    getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string
+  ) {
+    return `${this.messageWithClusterName(getClusterName)}:\n${
+      this.cause['message']
+    }`;
   }
 }
 
