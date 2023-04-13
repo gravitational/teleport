@@ -34,7 +34,10 @@ import { requiredField } from 'shared/components/Validation/rules';
 import TextEditor from 'shared/components/TextEditor';
 
 import cfg from 'teleport/config';
-import { integrationService } from 'teleport/services/integrations';
+import {
+  IntegrationKind,
+  integrationService,
+} from 'teleport/services/integrations';
 import { integrationRWE } from 'teleport/Discover/yamlTemplates';
 import useTeleport from 'teleport/useTeleport';
 
@@ -65,9 +68,7 @@ export function ConnectAwsAccount() {
 
   function fetchAwsIntegrations() {
     run(() =>
-      // TODO(lisa): in a pending work, clusterId (the expected param for fetchIntegrations)
-      // is hardcoded to root clusterId in the service level so no other param is expected.
-      integrationService.fetchIntegrations('').then(res => {
+      integrationService.fetchIntegrations().then(res => {
         const options = res.map(i => {
           if (i.kind === 'aws-oidc') {
             return {
@@ -142,9 +143,7 @@ export function ConnectAwsAccount() {
 
   const hasAwsIntegrations = awsIntegrations.length > 0;
   const locationState = {
-    // TODO(lisa): use the enum defined in another pending work
-    // in place of hard coded "aws-oidc".
-    pathname: cfg.getIntegrationEnrollRoute('aws-oidc'),
+    pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc),
     state: { discoverEventId: eventState?.id },
   };
   return (
