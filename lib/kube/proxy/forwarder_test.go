@@ -80,7 +80,8 @@ var (
 )
 
 func TestRequestCertificate(t *testing.T) {
-	cl, err := newMockCSRClient()
+	clock := clockwork.NewFakeClock()
+	cl, err := newMockCSRClient(clock)
 	require.NoError(t, err)
 	f := &Forwarder{
 		cfg: ForwarderConfig{
@@ -1246,11 +1247,12 @@ func TestKubeFwdHTTPProxyEnv(t *testing.T) {
 }
 
 func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
-	clientCreds, err := ttlmap.New(defaults.ClientCacheSize)
+	clock := clockwork.NewFakeClock()
+	clientCreds, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(clock))
 	require.NoError(t, err)
-	cachedTransport, err := ttlmap.New(defaults.ClientCacheSize)
+	cachedTransport, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(clock))
 	require.NoError(t, err)
-	csrClient, err := newMockCSRClient()
+	csrClient, err := newMockCSRClient(clock)
 	require.NoError(t, err)
 
 	return &Forwarder{
@@ -1260,7 +1262,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 			Keygen:            testauthority.New(),
 			AuthClient:        csrClient,
 			CachingAuthClient: mockAccessPoint{},
-			Clock:             clockwork.NewFakeClock(),
+			Clock:             clock,
 			Context:           ctx,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
@@ -1277,17 +1279,18 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 type mockCSRClient struct {
 	auth.ClientI
 
+	clock    clockwork.Clock
 	ca       *tlsca.CertAuthority
 	gotCSR   auth.KubeCSR
 	lastCert *x509.Certificate
 }
 
-func newMockCSRClient() (*mockCSRClient, error) {
+func newMockCSRClient(clock clockwork.Clock) (*mockCSRClient, error) {
 	ca, err := tlsca.FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	if err != nil {
 		return nil, err
 	}
-	return &mockCSRClient{ca: ca}, nil
+	return &mockCSRClient{ca: ca, clock: clock}, nil
 }
 
 func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse, error) {
@@ -1298,11 +1301,11 @@ func (c *mockCSRClient) ProcessKubeCSR(csr auth.KubeCSR) (*auth.KubeCSRResponse,
 		return nil, err
 	}
 	caCSR := tlsca.CertificateRequest{
-		Clock:     clockwork.NewFakeClock(),
+		Clock:     c.clock,
 		PublicKey: x509CSR.PublicKey.(crypto.PublicKey),
 		Subject:   x509CSR.Subject,
 		// getClientCreds requires sessions to be valid for at least 1 minute
-		NotAfter: time.Now().Add(2 * time.Minute),
+		NotAfter: c.clock.Now().Add(2 * time.Minute),
 		DNSNames: x509CSR.DNSNames,
 	}
 	cert, err := c.ca.GenerateCertificate(caCSR)
@@ -1564,17 +1567,19 @@ func newKubeServersFromKubeClusters(t *testing.T, kubeClusters ...*types.Kuberne
 func TestForwarder_clientCreds_cache(t *testing.T) {
 	now := time.Now()
 
-	cache, err := ttlmap.New(10)
+	clock := clockwork.NewFakeClockAt(now.Add(-2 * time.Minute))
+
+	cache, err := ttlmap.New(10, ttlmap.Clock(clock))
 	require.NoError(t, err)
 
-	cl, err := newMockCSRClient()
+	cl, err := newMockCSRClient(clock)
 	require.NoError(t, err)
 
 	f := &Forwarder{
 		cfg: ForwarderConfig{
 			Keygen:         testauthority.New(),
 			AuthClient:     cl,
-			Clock:          clockwork.NewFakeClockAt(time.Now().Add(-2 * time.Minute)),
+			Clock:          clock,
 			TracerProvider: otel.GetTracerProvider(),
 			tracer:         otel.Tracer(teleport.ComponentKube),
 		},
