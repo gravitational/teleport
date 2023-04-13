@@ -424,6 +424,17 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			},
 		},
 		{
+			role: types.RoleOkta,
+			wantPrincipals: []string{
+				"global-hostname",
+				"global-uuid",
+			},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
+		},
+		{
 			role: types.SystemRole("unknown"),
 			wantPrincipals: []string{
 				"global-hostname",
