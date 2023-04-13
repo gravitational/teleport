@@ -1129,6 +1129,129 @@ func TestResolveServerHostPort(t *testing.T) {
 	}
 }
 
+func isFileTransferRequest(e *Envelope) bool {
+	if e.GetType() != defaults.WebsocketAudit {
+		return false
+	}
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return false
+	}
+	return ef.GetType() == string(srv.FileTransferUpdate)
+}
+
+func isFileTransferDecision(e *Envelope) bool {
+	if e.GetType() != defaults.WebsocketAudit {
+		return false
+	}
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return false
+	}
+	return ef.GetType() == string(srv.FileTransferApproved)
+}
+
+func getRequestId(e *Envelope) (string, error) {
+	var ef events.EventFields
+	if err := json.Unmarshal([]byte(e.GetPayload()), &ef); err != nil {
+		return "", err
+	}
+	return ef.GetString("requestID"), nil
+}
+
+func TestFileTransferEvents(t *testing.T) {
+	t.Parallel()
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+
+	errs := make(chan error, 2)
+	readLoop := func(ctx context.Context, ws *websocket.Conn, ch chan<- *Envelope) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+
+			typ, b, err := ws.ReadMessage()
+			if err != nil {
+				errs <- err
+				return
+			}
+			if typ != websocket.BinaryMessage {
+				errs <- trace.BadParameter("expected binary message, got %v", typ)
+				return
+			}
+			var envelope Envelope
+			if err := proto.Unmarshal(b, &envelope); err != nil {
+				errs <- trace.Wrap(err)
+				return
+			}
+			ch <- &envelope
+		}
+	}
+
+	// Create a new user "foo", open a terminal to a new session
+	pack := s.authPack(t, "foo")
+	ws, _, err := s.makeTerminal(t, pack)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, ws.Close()) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	wsMessages := make(chan *Envelope)
+	go readLoop(ctx, ws, wsMessages)
+
+	// Create file transfer event
+	data, err := json.Marshal(events.EventFields{
+		"download": true,
+		"location": "~/myfile.txt",
+	})
+
+	require.NoError(t, err)
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketFileTransferRequest,
+		Payload: string(data),
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	require.NoError(t, err)
+	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+	require.NoError(t, err)
+
+	done := time.After(5 * time.Second)
+	for {
+		select {
+		case <-done:
+			require.FailNow(t, "expected to receive a file transfer event")
+		case err := <-errs:
+			require.NoError(t, err)
+		case e := <-wsMessages:
+			if isFileTransferRequest(e) {
+				requestId, err := getRequestId(e)
+				require.NoError(t, err)
+				data, err := json.Marshal(events.EventFields{
+					"requestId": requestId,
+					"approved":  true,
+				})
+				require.NoError(t, err)
+				envelope := &Envelope{
+					Version: defaults.WebsocketVersion,
+					Type:    defaults.WebsocketFileTransferDecision,
+					Payload: string(data),
+				}
+				envelopeBytes, err := proto.Marshal(envelope)
+				require.NoError(t, err)
+				err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
+				require.NoError(t, err)
+			}
+
+			if isFileTransferDecision(e) {
+				return
+			}
+		}
+	}
+}
+
 func TestNewTerminalHandler(t *testing.T) {
 	ctx := context.Background()
 
