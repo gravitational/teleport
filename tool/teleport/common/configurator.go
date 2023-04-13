@@ -289,6 +289,12 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		return trace.Wrap(err)
 	}
 
+	// Check if configurator actions is empty.
+	if configurator.IsEmpty() {
+		fmt.Println("The agent doesn't require any extra configuration.")
+		return nil
+	}
+
 	actions := configurator.Actions()
 	printDiscoveryConfiguratorActions(actions)
 	fmt.Print("\n")
@@ -302,12 +308,6 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		if !confirmed {
 			return nil
 		}
-	}
-
-	// Check if configurator actions is empty.
-	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn't require any extra configuration.")
-		return nil
 	}
 
 	err = executeDiscoveryConfiguratorActions(ctx, configurator.Name(), actions)
