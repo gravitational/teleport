@@ -643,24 +643,39 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.
 	), nil
 }
 
-func getProxyAddrFromFileConfig(fc *config.FileConfig) (string, error) {
+func getProxyAddrFromConfig(fc *config.FileConfig, flags configurators.BootstrapFlags) (string, error) {
+	if flags.Proxy != "" {
+		addr, err := utils.ParseHostPortAddr(flags.Proxy, defaults.HTTPListenPort)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("https://%s", addr.String()), nil
+	}
+
 	addrs, err := utils.AddrsFromStrings(fc.Proxy.PublicAddr, defaults.HTTPListenPort)
 	if err != nil {
 		return "", err
 	}
-	if len(addrs) == 0 {
-		return fmt.Sprintf("https://<proxy address>:%d", defaults.HTTPListenPort), nil
+	if len(addrs) != 0 {
+		return fmt.Sprintf("https://%s", addrs[0].String()), nil
 	}
-	addr := addrs[0]
 
-	return fmt.Sprintf("https://%s", addr.String()), nil
+	if fc.ProxyServer != "" {
+		addr, err := utils.ParseHostPortAddr(fc.ProxyServer, defaults.HTTPListenPort)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("https://%s", addr.String()), nil
+	}
+
+	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_service or proxy_service.public_addr in the teleport config")
 }
 
 func buildSSMDocuments(ssm ssmiface.SSMAPI, flags configurators.BootstrapFlags, fileConfig *config.FileConfig) ([]configurators.ConfiguratorAction, error) {
 	var creators []configurators.ConfiguratorAction
-	proxyAddr, err := getProxyAddrFromFileConfig(fileConfig)
+	proxyAddr, err := getProxyAddrFromConfig(fileConfig, flags)
 	if err != nil {
-		return nil, err
+		return nil, trace.Wrap(err)
 	}
 	for _, matcher := range fileConfig.Discovery.AWSMatchers {
 		if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
