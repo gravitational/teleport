@@ -662,6 +662,13 @@ const (
 	// WebsocketResize is receiving a resize request.
 	WebsocketResize = "w"
 
+	// WebsocketFileTransferRequest is received when a new file transfer has been requested
+	WebsocketFileTransferRequest = "f"
+
+	// WebsocketFileTransferRequestResponse is received when a response (approve/deny) has been
+	// made for an existing file transfer request
+	WebsocketFileTransferRequestResponse = "t"
+
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"
 

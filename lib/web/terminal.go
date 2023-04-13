@@ -394,7 +394,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
 	resizeC := make(chan *session.TerminalParams, 1)
-	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC))
+	fileTransferC := make(chan *session.FileTransferParams)
+	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandler((fileTransferC)))
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -433,6 +434,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 
 	// process window resizing
 	go t.handleWindowResize(resizeC)
+
+	// process file transfer requests
+	go t.handleFileTransfer(fileTransferC)
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
@@ -853,6 +857,33 @@ func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
 	}
 }
 
+// handleFileTransfer receives file transfer requests and responses and forwards them
+// to the SSh session
+func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileTransferParams) {
+	for {
+		select {
+		case <-t.terminalContext.Done():
+			return
+		case transferRequest := <-fileTransferC:
+			// if not response, this is a new file transfer request
+			if !transferRequest.Response {
+				t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
+					Direction: transferRequest.Direction,
+					Location:  transferRequest.Location,
+					Filename:  transferRequest.Filename,
+					Size:      transferRequest.Size,
+				})
+			} else {
+				// if response exists, this contains an Approved bool and we handle accordingly
+				t.sshSession.FileTransferRequestResponse(t.terminalContext, tracessh.FileTransferResponseReq{
+					RequestID: transferRequest.RequestID,
+					Approved:  transferRequest.Approved,
+				})
+			}
+		}
+	}
+}
+
 // handleWindowResize receives window resize events and forwards
 // them to the SSH session.
 func (t *TerminalHandler) handleWindowResize(resizeC <-chan *session.TerminalParams) {
@@ -953,6 +984,12 @@ func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) fun
 	}
 }
 
+func WithTerminalStreamFileTransferHandler(fileTransferC chan<- *session.FileTransferParams) func(stream *TerminalStream) {
+	return func(stream *TerminalStream) {
+		stream.fileTransferC = fileTransferC
+	}
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
 func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
@@ -991,6 +1028,9 @@ type TerminalStream struct {
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
 	resizeC chan<- *session.TerminalParams
+	// fileTransferC is a channel to facilitate requesting a file transfer
+	// as well as approving/denying file transfer requests
+	fileTransferC chan<- *session.FileTransferParams
 
 	// mu protects writes to ws
 	mu sync.Mutex
@@ -1169,6 +1209,40 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		}
 
 		return 0, nil
+	case defaults.WebsocketFileTransferRequestResponse:
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		approved, ok := e["approved"].(bool)
+		if !ok {
+			return 0, trace.BadParameter("Unable to find approved status on response")
+		}
+		params, err := session.UnmarshalFileTransferResponseParams(e.GetString("requestId"), approved)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		select {
+		case t.fileTransferC <- params:
+		default:
+		}
+		return 0, nil
+	case defaults.WebsocketFileTransferRequest:
+		var e events.EventFields
+		err := json.Unmarshal(data, &e)
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		params, err := session.UnmarshalFileTransferParams(e.GetString("location"), e.GetString("direction"), e.GetString("filename"), e.GetString("size"))
+		if err != nil {
+			return 0, trace.Wrap(err)
+		}
+		select {
+		case t.fileTransferC <- params:
+		default:
+		}
+		return 0, nil
 	default:
 		return 0, trace.BadParameter("unknown prefix type: %v", envelope.GetType())
 	}
@@ -1180,6 +1254,12 @@ func (t *TerminalStream) Close() error {
 	if t.resizeC != nil {
 		t.once.Do(func() {
 			close(t.resizeC)
+		})
+	}
+
+	if t.fileTransferC != nil {
+		t.once.Do(func() {
+			close(t.fileTransferC)
 		})
 	}
 
