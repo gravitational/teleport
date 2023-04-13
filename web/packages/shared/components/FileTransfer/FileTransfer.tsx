@@ -17,7 +17,7 @@
 import React from 'react';
 
 import { useFileTransferContext } from './FileTransferContextProvider';
-import { useFilesStore } from './useFilesStore';
+import { FilesStore, useFilesStore } from './useFilesStore';
 import {
   FileTransferDialogDirection,
   FileTransferListeners,
@@ -39,6 +39,15 @@ interface FileTransferProps {
 
   afterClose?(): void;
 }
+
+export type FileTransferRequest = {
+  id: string;
+  requester: string;
+  shellCmd: string;
+  direction: string;
+  location: string;
+  approvers: string[];
+};
 
 /**
  * Both `getDownloader` and `getUploader` can return a promise containing `FileTransferListeners` function or nothing.

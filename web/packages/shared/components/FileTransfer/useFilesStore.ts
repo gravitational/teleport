@@ -164,3 +164,5 @@ export const useFilesStore = () => {
     isAnyTransferInProgress,
   };
 };
+
+export type FilesStore = ReturnType<typeof useFilesStore>;

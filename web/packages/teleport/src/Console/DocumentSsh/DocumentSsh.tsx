@@ -22,6 +22,7 @@ import {
   FileTransferActionBar,
   FileTransfer,
   FileTransferContextProvider,
+  FileTransferContainer,
 } from 'shared/components/FileTransfer';
 
 import * as stores from 'teleport/Console/stores';
@@ -73,57 +74,59 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
           />
         )}
         {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
-        <FileTransfer
-          beforeClose={() =>
-            window.confirm('Are you sure you want to cancel file transfers?')
-          }
-          errorText={
-            getMfaResponseAttempt.status === 'failed'
-              ? getMfaResponseAttempt.statusText
-              : null
-          }
-          afterClose={handleCloseFileTransfer}
-          backgroundColor={colors.levels.surface}
-          transferHandlers={{
-            getDownloader: async (location, abortController) => {
-              const url = await getScpUrl({
-                location,
-                clusterId: doc.clusterId,
-                serverId: doc.serverId,
-                login: doc.login,
-                filename: location,
-              });
-              if (!url) {
-                // if we return nothing here, the file transfer will not be added to the
-                // file transfer list. If we add it to the list, the file will continue to
-                // start the download and return another here. This prevents a second network
-                // request that we know will fail.
-                return;
-              }
-              return getHttpFileTransferHandlers().download(
-                url,
-                abortController
-              );
-            },
-            getUploader: async (location, file, abortController) => {
-              const url = await getScpUrl({
-                location,
-                clusterId: doc.clusterId,
-                serverId: doc.serverId,
-                login: doc.login,
-                filename: file.name,
-              });
-              if (!url) {
-                return;
-              }
-              return getHttpFileTransferHandlers().upload(
-                url,
-                file,
-                abortController
-              );
-            },
-          }}
-        />
+        <FileTransferContainer>
+          <FileTransfer
+            beforeClose={() =>
+              window.confirm('Are you sure you want to cancel file transfers?')
+            }
+            errorText={
+              getMfaResponseAttempt.status === 'failed'
+                ? getMfaResponseAttempt.statusText
+                : null
+            }
+            afterClose={handleCloseFileTransfer}
+            backgroundColor={colors.levels.surface}
+            transferHandlers={{
+              getDownloader: async (location, abortController) => {
+                const url = await getScpUrl({
+                  location,
+                  clusterId: doc.clusterId,
+                  serverId: doc.serverId,
+                  login: doc.login,
+                  filename: location,
+                });
+                if (!url) {
+                  // if we return nothing here, the file transfer will not be added to the
+                  // file transfer list. If we add it to the list, the file will continue to
+                  // start the download and return another here. This prevents a second network
+                  // request that we know will fail.
+                  return;
+                }
+                return getHttpFileTransferHandlers().download(
+                  url,
+                  abortController
+                );
+              },
+              getUploader: async (location, file, abortController) => {
+                const url = await getScpUrl({
+                  location,
+                  clusterId: doc.clusterId,
+                  serverId: doc.serverId,
+                  login: doc.login,
+                  filename: file.name,
+                });
+                if (!url) {
+                  return;
+                }
+                return getHttpFileTransferHandlers().upload(
+                  url,
+                  file,
+                  abortController
+                );
+              },
+            }}
+          />
+        </FileTransferContainer>
       </FileTransferContextProvider>
     </Document>
   );

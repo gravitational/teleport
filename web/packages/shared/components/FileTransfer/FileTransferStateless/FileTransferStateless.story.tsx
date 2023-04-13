@@ -16,6 +16,8 @@
 
 import React from 'react';
 
+import { FileTransferContainer } from '../FileTransferContainer';
+
 import {
   FileTransferStateless,
   FileTransferStatelessProps,
@@ -49,14 +51,16 @@ function GetFileTransfer(
   props: Pick<FileTransferStatelessProps, 'openedDialog' | 'files'>
 ) {
   return (
-    <FileTransferStateless
-      openedDialog={props.openedDialog}
-      files={props.files}
-      onClose={() => undefined}
-      onAddDownload={() => undefined}
-      onAddUpload={() => undefined}
-      onCancel={() => undefined}
-    />
+    <FileTransferContainer>
+      <FileTransferStateless
+        openedDialog={props.openedDialog}
+        files={props.files}
+        onClose={() => undefined}
+        onAddDownload={() => undefined}
+        onAddUpload={() => undefined}
+        onCancel={() => undefined}
+      />
+    </FileTransferContainer>
   );
 }
 
