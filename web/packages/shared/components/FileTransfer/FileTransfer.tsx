@@ -45,7 +45,6 @@ interface FileTransferProps {
 export type FileTransferRequest = {
   id: string;
   requester: string;
-  shellCmd: string;
   direction: string;
   location: string;
   approvers: string[];
