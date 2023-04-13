@@ -601,7 +601,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
 		sshCert, tlsCert, err := sas.auth.CreateSessionCert(user, params.SessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
-			request.KubernetesCluster, keys.AttestationStatementFromProto(request.AttestationStatement))
+			request.KubernetesCluster, request.ClientLoginIP, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}

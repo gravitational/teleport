@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"net"
 	"net/http"
 
 	"github.com/gravitational/form"
@@ -25,6 +26,12 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 		return client.LoginFailedRedirectURL
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return client.LoginFailedRedirectURL
+	}
+
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
 		CSRFToken:         req.CSRFToken,
@@ -33,6 +40,7 @@ func (p *Plugin) oidcLoginWeb(w http.ResponseWriter, r *http.Request, params htt
 		ClientRedirectURL: req.ClientRedirectURL,
 		CheckUser:         true,
 		ProxyAddress:      r.Host,
+		ClientLoginIP:     remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -59,6 +67,12 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+	}
+
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateOIDCAuthRequest(r.Context(), types.OIDCAuthRequest{
 		ConnectorID:          req.ConnectorID,
@@ -71,6 +85,7 @@ func (p *Plugin) oidcLoginConsole(w http.ResponseWriter, r *http.Request, params
 		KubernetesCluster:    req.KubernetesCluster,
 		ProxyAddress:         r.Host,
 		AttestationStatement: req.AttestationStatement.ToProto(),
+		ClientLoginIP:        remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create OIDC auth request.")
@@ -167,12 +182,19 @@ func (p *Plugin) samlSSO(w http.ResponseWriter, r *http.Request, params httprout
 		return client.LoginFailedRedirectURL
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return client.LoginFailedRedirectURL
+	}
+
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
 		ConnectorID:       req.ConnectorID,
 		CSRFToken:         req.CSRFToken,
 		CreateWebSession:  true,
 		ClientRedirectURL: req.ClientRedirectURL,
+		ClientLoginIP:     remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Error creating auth request.")
@@ -199,6 +221,12 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
 	}
 
+	remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		logger.WithError(err).Error("Failed to parse request remote address.")
+		return nil, trace.AccessDenied(web.SSOLoginFailureMessage)
+	}
+
 	proxyClient := p.h.GetProxyClient()
 	response, err := proxyClient.CreateSAMLAuthRequest(r.Context(), types.SAMLAuthRequest{
 		ConnectorID:          req.ConnectorID,
@@ -209,6 +237,7 @@ func (p *Plugin) samlSSOConsole(w http.ResponseWriter, r *http.Request, params h
 		RouteToCluster:       req.RouteToCluster,
 		KubernetesCluster:    req.KubernetesCluster,
 		AttestationStatement: req.AttestationStatement.ToProto(),
+		ClientLoginIP:        remoteAddr,
 	})
 	if err != nil {
 		logger.WithError(err).Error("Failed to create SAML auth request.")

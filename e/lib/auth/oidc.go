@@ -608,7 +608,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 	// If a public key was provided, sign it and return a certificate.
 	if len(req.PublicKey) != 0 {
 		sshCert, tlsCert, err := oas.auth.CreateSessionCert(user, params.SessionTTL, req.PublicKey, req.Compatibility, req.RouteToCluster,
-			req.KubernetesCluster, keys.AttestationStatementFromProto(req.AttestationStatement))
+			req.KubernetesCluster, req.ClientLoginIP, keys.AttestationStatementFromProto(req.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
