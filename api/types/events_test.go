@@ -24,9 +24,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestWatchKindIsSupersetOf tests that the WatchKind::IsSupersetOf method correctly detects superset relationship
-// between its receiver and its argument.
-func TestWatchKindIsSupersetOf(t *testing.T) {
+// TestWatchKindContains tests that the WatchKind.Contains method correctly detects whether its receiver contains its
+// argument.
+func TestWatchKindContains(t *testing.T) {
 	testCases := []struct {
 		name           string
 		kind           WatchKind
@@ -194,7 +194,7 @@ func TestWatchKindIsSupersetOf(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expectedResult, tc.kind.IsSupersetOf(tc.other))
+			require.Equal(t, tc.expectedResult, tc.kind.Contains(tc.other))
 		})
 	}
 }

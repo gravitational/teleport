@@ -351,7 +351,7 @@ func (w *fanoutWatcher) init(confirmedKinds map[kindSubKind]types.WatchKind) (er
 		var validKinds []types.WatchKind
 		for _, requested := range w.watch.Kinds {
 			k := kindSubKind{kind: requested.Kind, subKind: requested.SubKind}
-			if configured, ok := confirmedKinds[k]; !ok || !configured.IsSupersetOf(requested) {
+			if configured, ok := confirmedKinds[k]; !ok || !configured.Contains(requested) {
 				if w.watch.AllowPartialSuccess {
 					continue
 				}

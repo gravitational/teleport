@@ -155,17 +155,16 @@ func (kind WatchKind) IsTrivial() bool {
 	return kind.SubKind == "" && kind.Name == "" && kind.Version == "" && !kind.LoadSecrets && len(kind.Filter) == 0
 }
 
-// IsSupersetOf determines whether kind (receiver) targets exactly the same or a wider scope of events
-// as the given subset kind.
+// Contains determines whether kind (receiver) targets exactly the same or a wider scope of events as the given subset kind.
 // Generally this means that if kind specifies a filter, its subset must have exactly the same or a narrower one.
-func (kind WatchKind) IsSupersetOf(subset WatchKind) bool {
+func (kind WatchKind) Contains(subset WatchKind) bool {
 	// kind and subkind must always be equal
 	if kind.Kind != subset.Kind || kind.SubKind != subset.SubKind {
 		return false
 	}
 
 	// exception to the general rule: we don't fail in the situation where `kind.Version != "" && subset.Version == ""`
-	// because we assume that subset is version-agnostic and will be satisfied with the version filtered by the superset.
+	// because we assume that subset is version-agnostic and will be satisfied with the version filtered by the receiver.
 	if kind.Version != "" && subset.Version != "" && kind.Version != subset.Version {
 		return false
 	}

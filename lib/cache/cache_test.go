@@ -2388,7 +2388,7 @@ func TestSetupConfigFns(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			for _, wk := range f(Config{}).Watches {
 				authWK, ok := authKindMap[kindSubKind{kind: wk.Kind, subKind: wk.SubKind}]
-				if !ok || !authWK.IsSupersetOf(wk) {
+				if !ok || !authWK.Contains(wk) {
 					t.Errorf("%s includes WatchKind %s that is missing from ForAuth", name, wk.String())
 				}
 			}

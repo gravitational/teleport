@@ -951,7 +951,7 @@ Outer:
 			// if cache has been initialized, we already know which kinds are confirmed by the event source
 			// and can validate the kinds requested for fanout against that.
 			key := kindSubKind{kind: requested.Kind, subKind: requested.SubKind}
-			if confirmed, ok := confirmedKinds[key]; !ok || !confirmed.IsSupersetOf(requested) {
+			if confirmed, ok := confirmedKinds[key]; !ok || !confirmed.Contains(requested) {
 				if watch.AllowPartialSuccess {
 					continue
 				}
@@ -962,7 +962,7 @@ Outer:
 			// otherwise, we can only perform preliminary validation against the kinds that cache has been configured for,
 			// and the returned fanout watcher might fail later when cache receives and propagates its OpInit event.
 			for _, configured := range c.Config.Watches {
-				if requested.Kind == configured.Kind && requested.SubKind == configured.SubKind && configured.IsSupersetOf(requested) {
+				if requested.Kind == configured.Kind && requested.SubKind == configured.SubKind && configured.Contains(requested) {
 					validKinds = append(validKinds, requested)
 					continue Outer
 				}
