@@ -386,6 +386,17 @@ If Installs are showing failed or instances are failing to appear check the
 Command history in AWS System Manager -> Node Management -> Run Command.
 Select the instance-id of the Target to review Errors.
 
+### `cannot unmarshal object into Go struct field`
+
+If you encounter an error similar to the following:
+
+```text
+invalid format in plugin properties map[destinationPath:/tmp/installTeleport.sh sourceInfo:map[url:[https://example.teleport.sh:443/webapi/scripts/installer/preprod-installer](https://example.teleport.sh/webapi/scripts/installer/preprod-installer)] sourceType:HTTP];
+error json: cannot unmarshal object into Go struct field DownloadContentPlugin.sourceInfo of type string
+```
+
+It is likely that you're running an older SSM agent version. Upgrade to SSM agent version 3.1 or greater to resolve.
+
 ## Next steps
 
 - Read [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
