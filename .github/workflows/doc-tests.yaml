@@ -40,7 +40,7 @@ jobs:
 
         
       - name: Check spelling
-        run: cd /src && yarn spellcheck /src/content/docs/docs
+        run: cd /src && yarn spellcheck /src/content
        
 
       - name: Lint the docs
