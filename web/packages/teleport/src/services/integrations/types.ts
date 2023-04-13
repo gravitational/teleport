@@ -40,7 +40,12 @@ export type Integration<
   details?: string;
   statusCode: IntegrationStatusCode;
 };
-export type IntegrationKind = 'aws-oidc';
+// IntegrationKind string values should be in sync
+// with the backend value for defining the integration
+// resource's subKind field.
+export enum IntegrationKind {
+  AwsOidc = 'aws-oidc',
+}
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
 };
@@ -86,3 +91,9 @@ export function getStatusCodeDescription(
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
 export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
 export type PluginKind = 'slack';
+
+export type IntegrationCreateRequest = {
+  name: string;
+  subKind: IntegrationKind;
+  awsoidc?: IntegrationSpecAwsOidc;
+};

@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { MemoryRouter } from 'react-router';
+import styled from 'styled-components';
 
-import { IntegrationEnroll } from './IntegrationEnroll';
+export interface CommonInstructionsProps {
+  onNext: () => void;
+  clusterPublicUri: string;
+}
 
-export default {
-  title: 'Teleport/Integrations',
-};
-
-export const Enroll = () => (
-  <MemoryRouter>
-    <IntegrationEnroll />
-  </MemoryRouter>
-);
+export const InstructionsContainer = styled.div`
+  flex: 0 0 600px;
+  padding-right: 100px;
+`;
