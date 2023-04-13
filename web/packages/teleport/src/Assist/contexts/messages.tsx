@@ -59,6 +59,62 @@ interface MessagesContextProviderProps {
   conversationId: string;
 }
 
+function convertServerMessage(message: ServerMessage) {
+  if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
+    return {
+      author: Author.Teleport,
+      content: [
+        {
+          type: Type.Message,
+          value: message.payload,
+        },
+      ],
+    };
+  }
+
+  if (message.type === 'CHAT_MESSAGE_USER') {
+    return {
+      author: Author.User,
+      content: [
+        {
+          type: Type.Message,
+          value: message.payload,
+        },
+      ],
+    };
+  }
+
+  if (message.type === 'COMMAND') {
+    const execCmd = JSON.parse(message.payload);
+    const content = [];
+
+    if (execCmd.labels || execCmd.nodes) {
+      const labels = (execCmd.labels || []).map(
+        label => `${label.key}:${label.value}`
+      );
+      const nodes = execCmd.nodes || [];
+
+      content.push({
+        type: Type.Connect,
+        value: [...labels, ...nodes],
+      });
+    }
+
+    if (execCmd.command) {
+      content.push({
+        type: Type.Exec,
+        value: execCmd.command,
+      });
+    }
+
+    return {
+      author: Author.Teleport,
+      isNew: true,
+      content,
+    };
+  }
+}
+
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {
@@ -85,50 +141,7 @@ export function MessagesContextProvider(
       return;
     }
 
-    for (const message of res.Messages) {
-      if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
-        setMessages(prev =>
-          prev.concat({
-            author: Author.Teleport,
-            content: [
-              {
-                type: Type.Message,
-                value: message.payload,
-              },
-            ],
-          })
-        );
-      }
-
-      if (message.type === 'CHAT_MESSAGE_USER') {
-        setMessages(prev =>
-          prev.concat({
-            author: Author.User,
-            content: [
-              {
-                type: Type.Message,
-                value: message.payload,
-              },
-            ],
-          })
-        );
-      }
-
-      if (message.type === 'COMMAND') {
-        const execCmd = JSON.parse(message.payload);
-        setMessages(prev =>
-          prev.concat({
-            author: Author.Teleport,
-            content: [
-              {
-                type: Type.Exec,
-                value: execCmd.command,
-              },
-            ],
-          })
-        );
-      }
-    }
+    setMessages(res.Messages.map(convertServerMessage));
   }, [props.conversationId]);
 
   useEffect(() => {
@@ -141,25 +154,8 @@ export function MessagesContextProvider(
     if (lastMessage !== null) {
       const value = JSON.parse(lastMessage.data) as ServerMessage;
 
-      if (value.type === 'CHAT_TEXT_MESSAGE') {
-        const msg = JSON.parse(atob(value.payload));
-
-        const author = msg.role === 'user' ? Author.User : Author.Teleport;
-        setMessages(prev =>
-          prev.concat({
-            author: author,
-            isNew: true,
-            content: [
-              {
-                type: Type.Message,
-                value: msg.content,
-              },
-            ],
-          })
-        );
-
-        setResponding(false);
-      }
+      setMessages(prev => prev.concat(convertServerMessage(value)));
+      setResponding(false);
     }
   }, [lastMessage, setMessages, conversationId]);
 
