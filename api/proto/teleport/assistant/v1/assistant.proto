@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package teleport.assistant.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1";
+
+// ChatCompletionMessage ...
+message ChatCompletionMessage {
+  string role = 1;
+  string content = 2;
+  string name = 3;
+}
+
+// CompletionRequest ...
+message CompleteRequest {
+  string username = 1;
+  repeated ChatCompletionMessage messages = 2;
+}
+
+// Label ...
+message Label {
+  string key = 1;
+  string value = 2;
+}
+
+// CompletionResponse ...
+message CompletionResponse {
+  string kind = 1;
+  string content = 2;
+  string command = 3;
+  repeated string nodes = 4;
+  repeated Label labels = 5;
+}
+
+// AssistantService ...
+service AssistantService {
+  // Complete ...
+  rpc Complete(CompleteRequest) returns (CompletionResponse);
+}
