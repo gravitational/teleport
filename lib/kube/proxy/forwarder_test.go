@@ -178,6 +178,7 @@ func TestAuthenticate(t *testing.T) {
 			return filtered, nil
 		},
 	}
+	f.isClusterKubernetesLicensed.Store(true)
 
 	const remoteAddr = "user.example.com"
 	activeAccessRequests := []string{uuid.NewString(), uuid.NewString()}
