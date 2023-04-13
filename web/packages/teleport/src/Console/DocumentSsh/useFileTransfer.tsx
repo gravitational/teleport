@@ -21,7 +21,6 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
     useGetScpUrl(addMfaToScpUrls);
 
   function updateFileTransferRequests(data: FileTransferRequest) {
-    console.log('data', data);
     const newFileTransferRequest: FileTransferRequest = {
       ...data,
       isOwnRequest: user?.username === data.requester,
