@@ -1155,6 +1155,177 @@ func (k *kubeCollector) processEventAndUpdateCurrent(ctx context.Context, event 
 
 func (*kubeCollector) notifyStale() {}
 
+// KubeServerWatcherConfig is an KubeServerWatcher configuration.
+type KubeServerWatcherConfig struct {
+	// ResourceWatcherConfig is the resource watcher configuration.
+	ResourceWatcherConfig
+	// KubernetesServerGetter is responsible for fetching kube_server resources.
+	KubernetesServerGetter
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *KubeServerWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.KubernetesServerGetter == nil {
+		getter, ok := cfg.Client.(KubernetesServerGetter)
+		if !ok {
+			return trace.BadParameter("missing parameter KubernetesServerGetter and Client not usable as KubernetesServerGetter")
+		}
+		cfg.KubernetesServerGetter = getter
+	}
+	return nil
+}
+
+// NewKubeServerWatcher returns a new instance of KubeServerWatcher.
+func NewKubeServerWatcher(ctx context.Context, cfg KubeServerWatcherConfig) (*KubeServerWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &kubeServerCollector{
+		KubeServerWatcherConfig: cfg,
+		initializationC:         make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &KubeServerWatcher{watcher, collector}, nil
+}
+
+// KubeServerWatcher is built on top of resourceWatcher to monitor kube_server resources.
+type KubeServerWatcher struct {
+	*resourceWatcher
+	*kubeServerCollector
+}
+
+// GetKubeServersByClusterName returns a list of kubernetes servers for the specified cluster.
+func (k *KubeServerWatcher) GetKubeServersByClusterName(clusterName string) ([]types.KubeServer, error) {
+	k.lock.RLock()
+	defer k.lock.RUnlock()
+	servers := make([]types.KubeServer, 0, len(k.current))
+	for _, server := range k.current {
+		if server.GetCluster().GetName() == clusterName {
+			servers = append(servers, server)
+		}
+	}
+	if len(servers) == 0 {
+		return nil, trace.NotFound("no kubernetes servers found for cluster %q", clusterName)
+	}
+
+	return servers, nil
+}
+
+// GetKubernetesServers returns a list of kubernetes servers for all clusters.
+func (k *KubeServerWatcher) GetKubernetesServers() ([]types.KubeServer, error) {
+	k.lock.RLock()
+	defer k.lock.RUnlock()
+	servers := make([]types.KubeServer, 0, len(k.current))
+	for _, server := range k.current {
+		servers = append(servers, server)
+	}
+	return servers, nil
+}
+
+// kubeServerCollector accompanies resourceWatcher when monitoring kube_server resources.
+type kubeServerCollector struct {
+	// KubeServerWatcherConfig is the watcher configuration.
+	KubeServerWatcherConfig
+	// current holds a map of the currently known kube_server resources.
+	current map[kubeServersKey]types.KubeServer
+	// lock protects the "current" map.
+	lock sync.RWMutex
+	// initializationC is used to check whether the initial sync has completed
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// kubeServersKey is used to uniquely identify a kube_server resource.
+type kubeServersKey struct {
+	hostID       string
+	resourceName string
+}
+
+// isInitialized is used to check that the cache has done its initial
+// sync
+func (k *kubeServerCollector) initializationChan() <-chan struct{} {
+	return k.initializationC
+}
+
+// resourceKind specifies the resource kind to watch.
+func (k *kubeServerCollector) resourceKind() string {
+	return types.KindKubeServer
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (k *kubeServerCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	servers, err := k.KubernetesServerGetter.GetKubernetesServers(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	newCurrent := make(map[kubeServersKey]types.KubeServer, len(servers))
+	for _, server := range servers {
+		key := kubeServersKey{
+			hostID:       server.GetHostID(),
+			resourceName: server.GetName(),
+		}
+		newCurrent[key] = server
+	}
+	k.lock.Lock()
+	defer k.lock.Unlock()
+	k.current = newCurrent
+
+	k.defineCollectorAsInitialized()
+
+	return nil
+}
+
+func (k *kubeServerCollector) defineCollectorAsInitialized() {
+	k.once.Do(func() {
+		// mark watcher as initialized.
+		close(k.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (k *kubeServerCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindKubeServer {
+		k.Log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+
+	server, ok := event.Resource.(types.KubeServer)
+	if !ok {
+		k.Log.Warnf("Unexpected resource type %T.", event.Resource)
+		return
+	}
+
+	k.lock.Lock()
+	defer k.lock.Unlock()
+
+	switch event.Type {
+	case types.OpDelete:
+		key := kubeServersKey{
+			// On delete events, the server description is populated with the host ID.
+			hostID:       server.GetMetadata().Description,
+			resourceName: server.GetName(),
+		}
+		delete(k.current, key)
+	case types.OpPut:
+		key := kubeServersKey{
+			hostID:       server.GetHostID(),
+			resourceName: server.GetName(),
+		}
+		k.current[key] = server
+	default:
+		k.Log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*kubeServerCollector) notifyStale() {}
+
 // CertAuthorityWatcherConfig is a CertAuthorityWatcher configuration.
 type CertAuthorityWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
