@@ -54,10 +54,12 @@ The top bar of Teleport Connect consists of:
   Teleport clusters as well as log in or out of the clusters.
 - The **connection list** (the top left) showing recent connections, allowing you to seamlessly switch
   between them.
-- The **command bar** (in the middle), which launches any command you input in a new terminal tab.
-- The **cluster selector** (to the left of the command bar), which shows up only if you have set up
+- The **search bar** (in the middle), which allows you to search for resources across clusters.
+- The **cluster selector** (to the left of the search bar), which shows up only if you have set up
   Trusted Clusters and there are leaf clusters connected to the root cluster. It lets you browse
-  leaf cluster resources. It also changes which cluster the commands in the command bar are going to target.
+  leaf cluster resources.
+- The **more options menu** (to the left of the profile selector), containing options such as
+  opening a config file or creating an access request (if you are connected to an Enterprise cluster).
 
 ## Connecting to an SSH server
 
@@ -67,8 +69,7 @@ The top bar of Teleport Connect consists of:
 3. Select or enter the SSH user you wish to log in as and press `Enter`.
 4. A new tab will open with a shell session on the chosen server.
 
-Alternatively, you can type `tsh ssh` into the command bar in the Teleport Connect window, and the autocompletion will help
-you connect to a server.
+Alternatively, you can look for the server in the search bar and press `Enter` to connect to it.
 
 ## Connecting to a Kubernetes cluster
 
@@ -81,6 +82,8 @@ you connect to a server.
    the `$KUBECONFIG` environment variable (`kubectl`, `helm`, etc.) will work without additional configuration.
    To identify the path to this config for use in other tools, run `echo $KUBECONFIG`.
 
+Alternatively, you can look for the cluster in the search bar and press `Enter` to connect to it.
+
 ## Connecting to a database
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
@@ -89,6 +92,8 @@ you connect to a server.
 3. Look for the database server you wish to connect to and click the Connect button to the right.
 4. Select or enter the database user you with to use and press `Enter`.
 5. A new tab will open with a new connection established between your device and the database server.
+
+Alternatively, you can look for the database in the search bar and press `Enter` to connect to it.
 
 This connection will remain active until you click the Close Connection button or close Teleport
 Connect. The port number will persist between app restarts—you can set up your favorite client
@@ -141,8 +146,8 @@ through tsh will not make that cluster show up in Teleport Connect.
 
 <Tabs>
 <TabItem label="macOS">
-To add tsh to `PATH`, execute `tsh install` from the command bar in Teleport Connect. This will
-symlink tsh to `/usr/local/bin`. You can remove the symlink with `tsh uninstall`.
+To add tsh to `PATH`, click the More Options icon `⋮` -> Install tsh in PATH. This will
+symlink tsh to `/usr/local/bin`. You can remove the symlink by clicking Remove tsh from PATH.
 
 If you used the tsh macOS .pkg installer before, this will overwrite the symlink made by that installer.
 </TabItem>
@@ -178,12 +183,13 @@ Below is the list of the supported config properties.
 | `keymap.tab1` - `keymap.tab9` | `Command+1` - `Command+9` on macOS <br/> `Ctrl+1` - `Ctrl+9` on Windows<br/>`Alt+1` - `Alt+9` on Linux               | Shortcut to open tab 1–9.                                              |
 | `keymap.closeTab`             | `Command+W` on macOS<br/>`Ctrl+W` on Windows/Linux                                                                   | Shortcut to close a tab.                                               |
 | `keymap.newTab`               | `Command+T` on macOS<br/>`Ctrl+T` on Windows/Linux                                                                   | Shortcut to open a new tab.                                            |
+| `keymap.newTerminalTab`       | `Shift+Command+T` on macOS<br/>`Ctrl+Shift+T` on Windows/Linux                                                       | Shortcut to open a new terminal tab.                                   |
 | `keymap.previousTab`          | `Shift+Command+Tab` on macOS<br/>`Ctrl+Shift+Tab` on Windows/Linux                                                   | Shortcut to go to the previous tab.                                    |
 | `keymap.nextTab`              | `Command+Tab` on macOS<br/>`Ctrl+Tab` on Windows/Linux                                                               | Shortcut to go to the next tab.                                        |
 | `keymap.openConnections`      | `Command+P` on macOS<br/>`Ctrl+P` on Windows/Linux                                                                   | Shortcut to open the connection list.                                  |
 | `keymap.openClusters`         | `Command+E` on macOS<br/>`Ctrl+E` on Windows/Linux                                                                   | Shortcut to open the cluster selector.                                 |
 | `keymap.openProfiles`         | `Command+I` on macOS<br/>`Ctrl+I` on Windows/Linux                                                                   | Shortcut to open the profile selector.                                 |
-| `keymap.openCommandBar`       | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                   | Shortcut to open the command bar.                                      |
+| `keymap.openSearchBar`        | `Command+K` on macOS<br/>`Ctrl+K` on Windows/Linux                                                                   | Shortcut to open the search bar.                                       |
 | `terminal.fontFamily`         | `Menlo, Monaco, monospace` on macOS<br/>`Consolas, monospace` on Windows<br/>`'Droid Sans Mono', monospace` on Linux | Font family for the terminal.                                          |
 | `terminal.fontSize`           | 15                                                                                                                   | Font size for the terminal.                                            |
 
@@ -330,7 +336,7 @@ To remove the local user data directory:
 
 ```code
 $ sudo rm -rf ~/Library/Application\ Support/Teleport\ Connect
-``` 
+```
 
 </TabItem>
 <TabItem label="Windows">
