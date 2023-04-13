@@ -220,7 +220,12 @@ class Tty extends EventEmitterWebAuthnSender {
   }
 
   _getPendingFile(location: string, name: string) {
-    return this._pendingUploads[location + name];
+    const locationAndName = location + name;
+    const file = this._pendingUploads[locationAndName];
+    if (file) {
+      delete this._pendingUploads[locationAndName];
+    }
+    return file;
   }
 }
 
