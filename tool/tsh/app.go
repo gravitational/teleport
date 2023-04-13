@@ -266,6 +266,7 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
 		apps, err = tc.ListApps(cf.Context, &proto.ListResourcesRequest{
 			Namespace:           tc.Namespace,
+			ResourceType:        types.KindAppServer,
 			PredicateExpression: fmt.Sprintf(`name == "%s"`, cf.AppName),
 		})
 		return trace.Wrap(err)

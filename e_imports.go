@@ -1,4 +1,4 @@
-//go:build eimports
+//go:build e_imports && !e_imports
 
 // Copyright 2022 Gravitational, Inc
 //

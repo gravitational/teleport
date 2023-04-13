@@ -38,6 +38,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiaws "github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
@@ -57,9 +58,6 @@ func NewEngine(ec common.EngineConfig) common.Engine {
 // Engine handles connections from DynamoDB clients coming from Teleport
 // proxy over reverse tunnel.
 type Engine struct {
-	// signingSvc will be used by the engine to provide the AWS sigv4 authorization header
-	// required by AWS for request validation: https://docs.aws.amazon.com/general/latest/gr/signing-elements.html
-	signingSvc *libaws.SigningService
 	// EngineConfig is the common database engine configuration.
 	common.EngineConfig
 	// clientConn is a client connection.
@@ -79,19 +77,6 @@ var _ common.Engine = (*Engine)(nil)
 func (e *Engine) InitializeConnection(clientConn net.Conn, sessionCtx *common.Session) error {
 	e.clientConn = clientConn
 	e.sessionCtx = sessionCtx
-	awsSession, err := e.CloudClients.GetAWSSession(sessionCtx.Database.GetAWS().Region)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	svc, err := libaws.NewSigningService(libaws.SigningServiceConfig{
-		Clock:                 e.Clock,
-		Session:               awsSession,
-		GetSigningCredentials: e.GetSigningCredsFn,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	e.signingSvc = svc
 	return nil
 }
 
@@ -150,6 +135,20 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 	}
 	defer e.Audit.OnSessionEnd(e.Context, e.sessionCtx)
 
+	meta := e.sessionCtx.Database.GetAWS()
+	awsSession, err := e.CloudClients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	signer, err := libaws.NewSigningService(libaws.SigningServiceConfig{
+		Clock:                 e.Clock,
+		Session:               awsSession,
+		GetSigningCredentials: e.GetSigningCredsFn,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	clientConnReader := bufio.NewReader(e.clientConn)
 	for {
 		req, err := http.ReadRequest(clientConnReader)
@@ -157,7 +156,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 			return trace.Wrap(err)
 		}
 
-		if err := e.process(ctx, req); err != nil {
+		if err := e.process(ctx, req, signer); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -165,7 +164,7 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 
 // process reads request from connected dynamodb client, processes the requests/responses and sends data back
 // to the client.
-func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
+func (e *Engine) process(ctx context.Context, req *http.Request, signer *libaws.SigningService) (err error) {
 	if req.Body != nil {
 		// make sure we close the incoming request's body. ignore any close error.
 		defer req.Body.Close()
@@ -199,20 +198,23 @@ func (e *Engine) process(ctx context.Context, req *http.Request) (err error) {
 		return trace.Wrap(err)
 	}
 
+	meta := e.sessionCtx.Database.GetAWS()
 	roleArn, err := libaws.BuildRoleARN(e.sessionCtx.DatabaseUser,
-		re.SigningRegion, e.sessionCtx.Database.GetAWS().AccountID)
+		re.SigningRegion, meta.AccountID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signedReq, err := e.signingSvc.SignRequest(e.Context, outReq,
-		&libaws.SigningCtx{
-			SigningName:   re.SigningName,
-			SigningRegion: re.SigningRegion,
-			Expiry:        e.sessionCtx.Identity.Expires,
-			SessionName:   e.sessionCtx.Identity.Username,
-			AWSRoleArn:    roleArn,
-			AWSExternalID: e.sessionCtx.Database.GetAWS().ExternalID,
-		})
+	signingCtx := &libaws.SigningCtx{
+		SigningName:   re.SigningName,
+		SigningRegion: re.SigningRegion,
+		Expiry:        e.sessionCtx.Identity.Expires,
+		SessionName:   e.sessionCtx.Identity.Username,
+		AWSRoleArn:    roleArn,
+	}
+	if meta.AssumeRoleARN == "" {
+		signingCtx.AWSExternalID = meta.ExternalID
+	}
+	signedReq, err := signer.SignRequest(e.Context, outReq, signingCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

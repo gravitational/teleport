@@ -73,7 +73,7 @@ created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invitation token for a new node:
-$ tctl nodes add --ttl=5m --roles=node
+$ tctl tokens add --ttl=5m --type=node
 # The invite token: (=presets.tokens.first=)
 
 # You can also list all generated non-expired tokens:
@@ -378,7 +378,6 @@ If this doesn't work, delete the directory your Node uses to maintain its state,
 `/var/lib/teleport`, and try again.
 
 </Details>
-
 
 ## Next steps: Using labels
 

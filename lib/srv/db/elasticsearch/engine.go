@@ -33,7 +33,6 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
@@ -146,36 +145,24 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
-	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reqCopy.Header = req.Header.Clone()
-
-	return reqCopy, nil
-}
-
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client) error {
-	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	body, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	reqCopy, err := copyRequest(ctx, req, bytes.NewReader(body))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer req.Body.Close()
-
-	e.emitAuditEvent(reqCopy, body)
+	reqCopy := req.Clone(ctx)
+	reqCopy.RequestURI = ""
+	reqCopy.Body = io.NopCloser(bytes.NewReader(body))
 
 	// force HTTPS, set host URL.
 	reqCopy.URL.Scheme = "https"
 	reqCopy.URL.Host = sessionCtx.Database.GetURI()
+	reqCopy.Host = sessionCtx.Database.GetURI()
+
+	e.emitAuditEvent(reqCopy, body)
 
 	// Send the request to elasticsearch API
 	resp, err := client.Do(reqCopy)
