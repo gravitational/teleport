@@ -3269,14 +3269,18 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		}
 	}
 
+	_, icsSpan := cf.tracer.Start(ctx, "makeClientForProxy/initClientStore")
 	c.ClientStore, err = initClientStore(cf, proxy)
+	icsSpan.End()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// load profile. if no --proxy is given the currently active profile is used, otherwise
 	// fetch profile for exact proxy we are trying to connect to.
+	_, lpSpan := cf.tracer.Start(ctx, "makeClientForProxy/loadProfile")
 	profileErr := c.LoadProfile(c.ClientStore, proxy)
+	lpSpan.End()
 	if profileErr != nil && !trace.IsNotFound(profileErr) {
 		fmt.Printf("WARNING: Failed to load tsh profile for %q: %v\n", proxy, profileErr)
 	}
@@ -3298,10 +3302,12 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	if c.ExtraProxyHeaders == nil {
 		c.ExtraProxyHeaders = map[string]string{}
 	}
+	_, gehSpan := cf.tracer.Start(ctx, "makeClientForProxy/globExtraHeaders")
 	for _, proxyHeaders := range cf.TshConfig.ExtraHeaders {
 		proxyGlob := utils.GlobToRegexp(proxyHeaders.Proxy)
 		proxyRegexp, err := regexp.Compile(proxyGlob)
 		if err != nil {
+			gehSpan.End()
 			return nil, trace.Wrap(err, "invalid proxy glob %q in tsh configuration file", proxyGlob)
 		}
 		if proxyRegexp.MatchString(c.WebProxyAddr) {
@@ -3310,6 +3316,7 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			}
 		}
 	}
+	gehSpan.End()
 
 	if len(fPorts) > 0 {
 		c.LocalForwardPorts = fPorts
@@ -3425,7 +3432,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 		c.NonInteractive = true
 	}
 
+	_, ncSpan := cf.tracer.Start(ctx, "makeClientForProxy/newClient")
 	tc, err := client.NewClient(c)
+	ncSpan.End()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
