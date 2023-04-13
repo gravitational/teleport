@@ -164,18 +164,6 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			reqID:          "123",
 			req: &fileTransferRequest{
 				requester: "michael",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
-				approvers: make(map[string]*party),
-			},
-		},
-		{
-			name:           "current payload does not match original payload",
-			expectedResult: false,
-			expectedError:  "Incoming request does not match the approved request",
-			reqID:          "123",
-			req: &fileTransferRequest{
-				requester: "teleportUser",
-				shellCmd:  "badcommand",
 				approvers: make(map[string]*party),
 			},
 		},
@@ -186,7 +174,6 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			reqID:          "123",
 			req: &fileTransferRequest{
 				requester: "teleportUser",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
 				approvers: approvers,
 			},
 		},
@@ -204,10 +191,6 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 
 			// new exec request context
 			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
-			scx.sshRequest = &ssh.Request{
-				Payload: []byte("/usr/bin/scp -f ~/logs.txt"),
-			}
-
 			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
 			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
 			result, err := reg.isApprovedFileTransfer(scx)

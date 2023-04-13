@@ -110,6 +110,48 @@ type Session struct {
 	Moderated bool `json:"moderated"`
 }
 
+// FileTransferParams contain parameters for requesting a file transfer
+type FileTransferParams struct {
+	RequestID string `json:"requestId"`
+	Approved  bool   `json:"approved"`
+	// Response denotes if this is a response to a file transfer request.
+	// If true, the Approved field will be set. True = approved
+	Response bool `json:"response"`
+	// Direction is either upload or download
+	Direction string `json:"direction"`
+	// Location is location of file to download, or where to put an upload
+	Location string `json:"location"`
+	// Filename is the name of the file to be uploaded
+	Filename string `json:"filename"`
+	// Size is the size of the file to be uploaded
+	Size string `json:"size"`
+	// Requster is the authenticated Teleport user who requested the file transfer
+	Requester string `json:"requester"`
+	// Approvers is a list of teleport users who have approved the file transfer request
+	Approvers []Party `json:"approvers"`
+}
+
+// UnmarshalFileTransferResponseParams takes a serialized string that contains the
+// file transfer request response parameters and returns a *FileTransferParams.
+func UnmarshalFileTransferResponseParams(requestId string, approved bool) (*FileTransferParams, error) {
+	return &FileTransferParams{
+		RequestID: requestId,
+		Approved:  approved,
+		Response:  true,
+	}, nil
+}
+
+// UnmarshalFileTransferParams takes a serialized string that contains the
+// file transfer parameters and returns a *FileTransferParams.
+func UnmarshalFileTransferParams(location string, direction string, filename string, size string) (*FileTransferParams, error) {
+	return &FileTransferParams{
+		Location:  location,
+		Direction: direction,
+		Filename:  filename,
+		Size:      size,
+	}, nil
+}
+
 // Participants returns the usernames of the current session participants.
 func (s *Session) Participants() []string {
 	participants := make([]string, 0, len(s.Parties))
