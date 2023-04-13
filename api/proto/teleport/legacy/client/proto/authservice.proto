@@ -2266,7 +2266,7 @@ message AssistantMessage {
   ];
 
   // payload is a JSON message
-  bytes payload = 4;
+  string payload = 4;
 }
 
 message GetAssistantMessagesResponse {
