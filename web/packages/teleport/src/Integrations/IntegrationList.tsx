@@ -22,8 +22,15 @@ import awsIcon from 'design/assets/images/icons/aws.svg';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import type { Integration, Plugin } from 'teleport/services/integrations';
+import {
+  getStatusCodeDescription,
+  getStatusCodeTitle,
+  Integration,
+  IntegrationStatusCode,
+  Plugin,
+} from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
@@ -75,12 +82,18 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
   const status = getStatus(item);
+  const statusDescription = getStatusCodeDescription(item.statusCode);
 
   return (
     <Cell>
       <Flex alignItems="center">
         <StatusLight status={status} />
-        {item.statusCode}
+        {getStatusCodeTitle(item.statusCode)}
+        {statusDescription && (
+          <Box mx="1">
+            <ToolTipInfo>{statusDescription}</ToolTipInfo>
+          </Box>
+        )}
       </Flex>
     </Cell>
   );
@@ -106,17 +119,20 @@ enum Status {
   Error,
 }
 
-function getStatus(item: IntegrationLike) {
+function getStatus(item: IntegrationLike): Status | null {
+  if (item.resourceType !== 'plugin') {
+    return Status.Success;
+  }
+
   switch (item.statusCode) {
-    case 'Running':
+    case IntegrationStatusCode.Unknown:
+      return null;
+    case IntegrationStatusCode.Running:
       return Status.Success;
-
-    case 'Unauthorized':
-    case 'Unknown error':
-      return Status.Error;
-
-    case 'Bot not invited to channel':
+    case IntegrationStatusCode.SlackNotInChannel:
       return Status.Warning;
+    default:
+      return Status.Error;
   }
 }
 
