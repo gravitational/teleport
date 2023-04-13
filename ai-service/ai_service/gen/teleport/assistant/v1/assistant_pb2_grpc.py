@@ -6,7 +6,7 @@ from ai_service.gen.teleport.assistant.v1 import assistant_pb2 as teleport_dot_a
 
 
 class AssistantServiceStub(object):
-    """AssistantService ...
+    """AssistantService is the GRPC service used by Teleport and Assist service.
     """
 
     def __init__(self, channel):
@@ -23,11 +23,11 @@ class AssistantServiceStub(object):
 
 
 class AssistantServiceServicer(object):
-    """AssistantService ...
+    """AssistantService is the GRPC service used by Teleport and Assist service.
     """
 
     def Complete(self, request, context):
-        """Complete ...
+        """Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -49,7 +49,7 @@ def add_AssistantServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class AssistantService(object):
-    """AssistantService ...
+    """AssistantService is the GRPC service used by Teleport and Assist service.
     """
 
     @staticmethod

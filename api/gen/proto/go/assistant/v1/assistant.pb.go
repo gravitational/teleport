@@ -26,7 +26,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
-// ChatCompletionMessage ...
+// ChatCompletionMessage is a message in the OpenAI format.
 type ChatCompletionMessage struct {
 	Role                 string   `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	Content              string   `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
@@ -90,7 +90,7 @@ func (m *ChatCompletionMessage) GetName() string {
 	return ""
 }
 
-// CompletionRequest ...
+// CompletionRequest is a request
 type CompleteRequest struct {
 	Username             string                   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Messages             []*ChatCompletionMessage `protobuf:"bytes,2,rep,name=messages,proto3" json:"messages,omitempty"`
@@ -146,7 +146,7 @@ func (m *CompleteRequest) GetMessages() []*ChatCompletionMessage {
 	return nil
 }
 
-// Label ...
+// Label are Teleport resource labels.
 type Label struct {
 	Key                  string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
@@ -202,7 +202,7 @@ func (m *Label) GetValue() string {
 	return ""
 }
 
-// CompletionResponse ...
+// CompletionResponse is a response in Complete method.
 type CompletionResponse struct {
 	Kind                 string   `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	Content              string   `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
@@ -333,7 +333,7 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type AssistantServiceClient interface {
-	// Complete ...
+	// Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
 	Complete(ctx context.Context, in *CompleteRequest, opts ...grpc.CallOption) (*CompletionResponse, error)
 }
 
@@ -356,7 +356,7 @@ func (c *assistantServiceClient) Complete(ctx context.Context, in *CompleteReque
 
 // AssistantServiceServer is the server API for AssistantService service.
 type AssistantServiceServer interface {
-	// Complete ...
+	// Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
 	Complete(context.Context, *CompleteRequest) (*CompletionResponse, error)
 }
 

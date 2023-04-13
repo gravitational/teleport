@@ -6,20 +6,27 @@ import grpc
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
-import ai_service.gen.teleport.assistant.v1.assistant_pb2 as assistant_pb2
-import ai_service.gen.teleport.assistant.v1.assistant_pb2_grpc as assistant_pb2_grpc
+from ai_service.gen.teleport.assistant.v1.assistant_pb2 import (
+    CompleteRequest,
+    CompletionResponse,
+)
+import ai_service.gen.teleport.assistant.v1.assistant_pb2_grpc as assistant_grpc
 import ai_service.model as model
 
 chat_llm = ChatOpenAI(model_name="gpt-4", temperature=0.5)
 
+DEFAULT_HELLO_MESSAGE = "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT."
 
-def assistant_query(request: assistant_pb2.CompleteRequest):
+
+def assistant_query(
+    request: CompleteRequest,
+) -> CompletionResponse:
     logging.debug(request)
     if request.messages is None:
-        return {
-            "kind": "chat",
-            "content": "Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via ChatGPT.",
-        }
+        return CompletionResponse(
+            kind="chat",
+            content=DEFAULT_HELLO_MESSAGE,
+        )
 
     messages = model.context(username=request.username)
     for raw_message in request.messages:
@@ -33,37 +40,34 @@ def assistant_query(request: assistant_pb2.CompleteRequest):
 
     model.add_try_extract(messages)
     completion = chat_llm(messages).content
+
     try:
         data = json.loads(completion)
-        return {
-            "kind": "command",
-            "command": data["command"],
-            "nodes": data["nodes"],
-            "labels": data["labels"],
-        }
+        return CompletionResponse(
+            kind="command",
+            command=data["command"],
+            nodes=data["nodes"],
+            labels=data["labels"],
+        )
     except json.JSONDecodeError:
-        return {"kind": "chat", "content": completion}
+        return CompletionResponse(kind="chat", content=completion)
 
 
-class AssistantServicer(assistant_pb2_grpc.AssistantServiceServicer):
-
+class AssistantServicer(assistant_grpc.AssistantServiceServicer):
     def Complete(self, request, context):
-        resp = assistant_query(request)
-        return assistant_pb2.CompletionResponse(**resp)
-
-    def __init__(self) -> None:
-        super().__init__()
+        return assistant_query(request)
 
 
 def serve():
+    logging.info("Assist service started")
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    assistant_pb2_grpc.add_AssistantServiceServicer_to_server(
-        AssistantServicer(), server)
-    server.add_insecure_port('[::]:50052')
+    assistant_grpc.add_AssistantServiceServicer_to_server(AssistantServicer(), server)
+    server.add_insecure_port("127.0.0.1:50052")
     server.start()
     server.wait_for_termination()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     serve()
