@@ -49,7 +49,7 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 		d.Spec.EnrollStatus = ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
 	}
 	if d.Spec.Credential != nil && d.Spec.Credential.AttestationType == "" {
-		d.Spec.Credential.AttestationType = ResourceAttestationTypeToString(devicepb.AttestationType_ATTESTATION_TYPE_UNSPECIFIED)
+		d.Spec.Credential.AttestationType = ResourceDeviceAttestationTypeToString(devicepb.AttestationType_ATTESTATION_TYPE_UNSPECIFIED)
 	}
 
 	// Validate Header/Metadata.
@@ -73,7 +73,7 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if d.Spec.Credential != nil {
-		if _, err := ResourceAttestationTypeFromString(d.Spec.Credential.AttestationType); err != nil {
+		if _, err := ResourceDeviceAttestationTypeFromString(d.Spec.Credential.AttestationType); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -115,7 +115,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 
 	var cred *devicepb.DeviceCredential
 	if res.Spec.Credential != nil {
-		attestationType, err := ResourceAttestationTypeFromString(
+		attestationType, err := ResourceDeviceAttestationTypeFromString(
 			res.Spec.Credential.AttestationType,
 		)
 		if err != nil {
@@ -178,8 +178,8 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 		cred = &DeviceCredential{
 			Id:           dev.Credential.Id,
 			PublicKeyDer: dev.Credential.PublicKeyDer,
-			AttestationType: ResourceAttestationTypeToString(
-				dev.Credential.AttestationType,
+			DeviceAttestationType: ResourceDeviceAttestationTypeToString(
+				dev.Credential.DeviceAttestationType,
 			),
 			TpmSerial:            dev.Credential.TpmSerial,
 			TpmAttestationKeyDer: dev.Credential.TpmAttestationKeyDer,
@@ -278,32 +278,32 @@ func ResourceEnrollStatusFromString(enrollStatus string) (devicepb.DeviceEnrollS
 	}
 }
 
-func ResourceAttestationTypeToString(
-	attestationType devicepb.AttestationType,
+func ResourceDeviceAttestationTypeToString(
+	attestationType devicepb.DeviceAttestationType,
 ) string {
 	switch attestationType {
-	case devicepb.AttestationType_ATTESTATION_TYPE_UNSPECIFIED:
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED:
 		return "unspecified"
-	case devicepb.AttestationType_ATTESTATION_TYPE_HW_KEY:
-		return "hw_key"
-	case devicepb.AttestationType_ATTESTATION_TYPE_HW_CERT:
-		return "hw_cert"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM:
+		return "tpm"
+	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT:
+		return "tpm_ekcert"
 	default:
 		return attestationType.String()
 	}
 }
 
-func ResourceAttestationTypeFromString(
+func ResourceDeviceAttestationTypeFromString(
 	attestationType string,
-) (devicepb.AttestationType, error) {
+) (devicepb.DeviceAttestationType, error) {
 	switch attestationType {
 	case "unspecified", "":
-		return devicepb.AttestationType_ATTESTATION_TYPE_UNSPECIFIED, nil
-	case "hw_key":
-		return devicepb.AttestationType_ATTESTATION_TYPE_HW_KEY, nil
-	case "hw_cert":
-		return devicepb.AttestationType_ATTESTATION_TYPE_HW_CERT, nil
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, nil
+	case "tpm":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM, nil
+	case "tpm_ekcert":
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT, nil
 	default:
-		return devicepb.AttestationType_ATTESTATION_TYPE_UNSPECIFIED, trace.BadParameter("unknown attestation type %q", attestationType)
+		return devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED, trace.BadParameter("unknown attestation type %q", attestationType)
 	}
 }

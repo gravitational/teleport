@@ -115,11 +115,11 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 		UpdateTime:   timestamppb.New(t2),
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
 		Credential: &devicepb.DeviceCredential{
-			Id:                   "557762f0-4cd4-4b75-aaee-575c57237c0b",
-			PublicKeyDer:         []byte("insert public key here"),
-			AttestationType:      devicepb.AttestationType_ATTESTATION_TYPE_HW_KEY,
-			TpmSerial:            "1234-5678",
-			TpmAttestationKeyDer: []byte("insert public key here"),
+			Id:                    "557762f0-4cd4-4b75-aaee-575c57237c0b",
+			PublicKeyDer:          []byte("insert public key here"),
+			DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM,
+			TpmSerial:             "1234-5678",
+			TpmAttestationKeyDer:  []byte("insert public key here"),
 		},
 		CollectedData: []*devicepb.DeviceCollectedData{
 			{
@@ -162,10 +162,10 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 			attestationType: "unspecified",
 		},
 		{
-			attestationType: "hw_key",
+			attestationType: "tpm",
 		},
 		{
-			attestationType: "hw_cert",
+			attestationType: "tpm_ekcert",
 		},
 		{
 			attestationType: "quantum_entanglement",
@@ -174,12 +174,12 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.attestationType, func(t *testing.T) {
-			asEnum, err := ResourceAttestationTypeFromString(tt.attestationType)
+			asEnum, err := ResourceDeviceAttestationTypeFromString(tt.attestationType)
 			if tt.errorContains != "" {
 				require.ErrorContains(t, err, tt.errorContains)
 				return
 			}
-			got := ResourceAttestationTypeToString(asEnum)
+			got := ResourceDeviceAttestationTypeToString(asEnum)
 			require.Equal(t, tt.attestationType, got)
 		})
 	}
