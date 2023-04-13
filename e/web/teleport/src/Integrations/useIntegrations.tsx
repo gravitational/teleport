@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { integrationService } from 'teleport/services/integrations';
-import cfg from 'teleport/config';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
@@ -39,7 +38,7 @@ export function useIntegrations() {
       setAttempt({ status: 'processing' });
       Promise.allSettled([
         ctx.pluginsService.fetchPlugins(),
-        integrationService.fetchIntegrations(cfg.proxyCluster),
+        integrationService.fetchIntegrations(),
       ]).then(responses => {
         const plugins = responses[0];
         const integrations = responses[1];
@@ -99,9 +98,7 @@ export function useIntegrations() {
     }
 
     if (hasIntegrationAccess) {
-      run(() =>
-        integrationService.fetchIntegrations(cfg.proxyCluster).then(setItems)
-      );
+      run(() => integrationService.fetchIntegrations().then(setItems));
       return;
     }
   }, []);

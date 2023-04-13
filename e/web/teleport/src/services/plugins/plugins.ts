@@ -30,9 +30,7 @@ function makePlugin(json: any): Plugin {
     resourceType: 'plugin',
     name,
     details,
-    spec: {
-      statusDescription: status.description,
-    },
+    spec: {},
     kind: type,
     statusCode: status.code,
   };

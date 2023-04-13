@@ -6,7 +6,7 @@ import {
   IntegrationTile,
   IntegrationTiles,
   NoCodeIntegrationDescription,
-} from 'teleport/IntegrationEnroll';
+} from 'teleport/Integrations/Enroll';
 
 import cfg from 'e-teleport/config';
 

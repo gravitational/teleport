@@ -22,9 +22,10 @@ import {
   FeatureHeader,
   FeatureHeaderTitle,
 } from 'teleport/components/Layout';
-
+import { Switch } from 'teleport/components/Router';
 import { getXCSRFToken } from 'teleport/services/api';
-import { IntegrationTypes } from 'teleport/IntegrationEnroll';
+import { IntegrationKind } from 'teleport/services/integrations';
+import { getRoutesToEnrollIntegrations } from 'teleport/Integrations/Enroll';
 
 import cfg from 'e-teleport/config';
 
@@ -47,12 +48,15 @@ export function IntegrationEnroll(props: State) {
     hasIntegrationAccess,
   } = props;
   const { type: selectedType } =
-    useParams<{ type: PluginTypes | IntegrationTypes }>();
+    useParams<{ type: PluginTypes | IntegrationKind }>();
 
   if (selectedType) {
-    if (selectedType === 'aws-oidc') {
-      // TODO(lisa): add the component for AWS integration.
-      return;
+    if (selectedType === IntegrationKind.AwsOidc) {
+      return (
+        <FeatureBox>
+          <Switch>{getRoutesToEnrollIntegrations()}</Switch>
+        </FeatureBox>
+      );
     }
 
     return (
