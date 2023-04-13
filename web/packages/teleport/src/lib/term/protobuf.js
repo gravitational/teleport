@@ -27,6 +27,8 @@ export const MessageTypeEnum = {
   SESSION_DATA: 's',
   SESSION_END: 'c',
   RESIZE: 'w',
+  FILE_TRANSFER_REQUEST: 'f',
+  FILE_TRANSFER_REQUEST_RESPONSE: 't',
   WEBAUTHN_CHALLENGE: 'n',
 };
 
@@ -48,6 +50,8 @@ export const messageFields = {
     code: 0x12,
     values: {
       resize: MessageTypeEnum.RESIZE.charCodeAt(0),
+      fileTransferRequest: MessageTypeEnum.FILE_TRANSFER_REQUEST.charCodeAt(0),
+      fileTransferRequestResponse: MessageTypeEnum.FILE_TRANSFER_REQUEST_RESPONSE.charCodeAt(0),
       data: MessageTypeEnum.RAW.charCodeAt(0),
       event: MessageTypeEnum.AUDIT.charCodeAt(0),
       close: MessageTypeEnum.SESSION_END.charCodeAt(0),
@@ -66,6 +70,14 @@ export class Protobuf {
 
   encodeResizeMessage(message) {
     return this.encode(messageFields.type.values.resize, message);
+  }
+
+  encodeFileTransferRequest(message) {
+    return this.encode(messageFields.type.values.fileTransferRequest, message)
+  }
+
+  encodeFileTransferRequestResponse(message) {
+    return this.encode(messageFields.type.values.fileTransferRequestResponse, message)
   }
 
   encodeRawMessage(message) {

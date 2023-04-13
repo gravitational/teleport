@@ -36,6 +36,7 @@ class Tty extends EventEmitterWebAuthnSender {
   _attachSocketBuffer: string;
   _addressResolver = null;
   _proto = new Protobuf();
+  _pendingUploads = {};
 
   constructor(addressResolver, props = {}) {
     super();
@@ -78,6 +79,38 @@ class Tty extends EventEmitterWebAuthnSender {
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
     this.send(JSON.stringify(data));
+  }
+
+  sendFileTransferRequest(
+    location: string,
+    direction: 'upload' | 'download',
+    file?: File
+  ) {
+    if (file) {
+      const locationAndName = location + file.name;
+      this._pendingUploads[locationAndName] = file;
+    }
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_REQUEST,
+      direction,
+      location,
+      filename: file?.name,
+      size: file?.size.toString(),
+    });
+    const encoded = this._proto.encodeFileTransferRequest(message);
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  approveFileTransferRequest(requestId: string, approved: boolean) {
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_REQUEST_RESPONSE,
+      requestId,
+      approved,
+    });
+    const encoded = this._proto.encodeFileTransferRequestResponse(message);
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
   }
 
   // part of the flow control
@@ -168,12 +201,26 @@ class Tty extends EventEmitterWebAuthnSender {
 
   _processAuditPayload(payload) {
     const event = JSON.parse(payload);
+    if (event.event === EventType.FILE_TRANSFER_REQUEST) {
+      this.emit(EventType.FILE_TRANSFER_REQUEST, event);
+    }
+    if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVE) {
+      const pendingFile = this._getPendingFile(event.location, event.filename);
+      this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
+    }
+    if (event.event === EventType.FILE_TRANSFER_REQUEST_DENY) {
+      this.emit(EventType.FILE_TRANSFER_REQUEST_DENY, event);
+    }
     if (event.event === EventType.RESIZE) {
       let [w, h] = event.size.split(':');
       w = Number(w);
       h = Number(h);
       this.emit(TermEvent.RESIZE, { w, h });
     }
+  }
+
+  _getPendingFile(location: string, name: string) {
+    return this._pendingUploads[location + name];
   }
 }
 
