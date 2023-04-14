@@ -1,0 +1,6 @@
+[Unit]
+Description=automatic teleport upgrader
+
+[Service]
+Environment="TELEPORT_EXT_UPGRADER=unit"
+ExecStart=/usr/sbin/teleport-upgrade

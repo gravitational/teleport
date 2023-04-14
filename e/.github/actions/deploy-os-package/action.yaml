@@ -8,10 +8,9 @@ inputs:
   environment:
     description: "What environment the package should be deployed to. Valid values are \"development\" and \"production\"."
     required: true
-  enterprise-only:
-    description: "True to only deploy enterprise (and FIPS) artifacts, false otherwise"
-    default: "false"
-    required: true
+  package-name-filter:
+    description: "Filter that limits what packages will be deployed. This is evalulated in a shell context, applied following the s3 sync include rules."
+    required: false
   artifact-tag:
     description: "The tag associated with the artifact to deploy (eg. v1.2.3)"
     required: true
@@ -24,7 +23,7 @@ inputs:
     default: "stable"
   package-to-test:
     description: "The package to install and test during the smoke test"
-    required: true
+    required: false
     default: teleport-ent
   # This is primarily used for development and testing
   workflow-git-reference:
@@ -45,7 +44,7 @@ runs:
       env:
         INPUT_REPO-TYPE: ${{ inputs.repo-type }}
         INPUT_ENVIRONMENT: ${{ inputs.environment }}
-        INPUT_ENTERPRISE-ONLY: ${{ inputs.enterprise-only }}
+        INPUT_PACKAGE-NAME-FILTER: ${{ inputs.package-name-filter }}
         INPUT_ARTIFACT-TAG: ${{ inputs.artifact-tag }}
         INPUT_VERSION-CHANNEL: ${{ inputs.version-channel }}
         INPUT_RELEASE-CHANNEL: ${{ inputs.release-channel }}
@@ -82,11 +81,11 @@ runs:
             const workflowInputs = {
               "repo-type": core.getInput("repo-type", { required: true }),
               "environment": getWorkflowEnvironment(),
-              "enterprise-only": core.getBooleanInput("enterprise-only", { required: true }),
+              "package-name-filter": core.getInput("package-name-filter", { required: false }),
               "artifact-tag": core.getInput("artifact-tag", { required: true }),
               "version-channel": core.getInput("version-channel", { required: true }),
               "release-channel": core.getInput("release-channel", { required: true }),
-              "package-to-test": core.getInput("package-to-test", { required: true }),
+              "package-to-test": core.getInput("package-to-test", { required: false }),
               "workflow-run-identifier": workflowRunUniqueIdentifier
             };
 
@@ -120,8 +119,9 @@ runs:
                 continue;
               }
 
-              process.stdout.write(`Found matching workflow run (${workflowRun.id}) for ${workflowRunUniqueIdentifier}:\n`);
+              process.stdout.write(`::group::Found matching workflow run (${workflowRun.id}) for ${workflowRunUniqueIdentifier}:\n`);
               process.stdout.write(`${JSON.stringify(workflowRun, null, 2)}\n`);
+              process.stdout.write("::endgroup::\n");
 
               return workflowRun.id;
             }
@@ -153,17 +153,19 @@ runs:
                 })).data;
 
                 const elapsedTimeSeconds = iterationCount * sleepTimeMilliseconds / 1000;
-                iterationCount++;
 
                 const runStatusFields = [workflowRun.status, workflowRun.conclusion];
 
                 // Case where workflow is not yet done
                 if (findArrayIntersection(runStatusFields, ["action_required", "neutral", "in_progress", "queued", "requested", "waiting", "pending"])) {
-                  if (iterationCount !== 0) {
-                    process.stdout.write(`Workflow ${workflowRunId} still in progress (${elapsedTimeToString(elapsedTimeSeconds)} elappsed), waiting another ${sleepTimeMilliseconds / 1000}s...\n`);
+                  if (iterationCount === 0) {
+                    process.stdout.write(`Workflow ${workflowRunId} started\n`)
+                  } else {
+                    process.stdout.write(`Workflow still in progress (${elapsedTimeToString(elapsedTimeSeconds)} elappsed), waiting another ${sleepTimeMilliseconds / 1000}s...\n`);
                   }
 
                   await sleep(sleepTimeMilliseconds);
+                  iterationCount++;
                   continue;
                 }
 
@@ -179,8 +181,9 @@ runs:
 
                 // Case where workflow has ran, and the conclusion is not a failure state
                 process.stdout.write(`Workflow run ${workflowRunId} succeeded with status ${workflowRun.status} and conclusion in ${elapsedTimeSeconds} seconds!\n`)
-                process.stderr.write("Workflow details:\n");
+                process.stderr.write("::group::Workflow details:\n");
                 process.stderr.write(`${JSON.stringify(workflowRun, null, 2)}\n`);
+                process.stderr.write("::endgroup::");
                 return;
               }
           }

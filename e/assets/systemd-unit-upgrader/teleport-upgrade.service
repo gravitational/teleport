@@ -1,5 +1,0 @@
-[Unit]
-Description=automatic teleport upgrader
-
-[Service]
-ExecStart=/usr/local/bin/teleport-upgrade

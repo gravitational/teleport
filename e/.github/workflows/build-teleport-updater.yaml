@@ -1,0 +1,260 @@
+---
+name: Package the Teleport updater
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    paths:
+      - .github/workflows/package-teleport-updater.yaml
+      - .github/actions/load-gpg-key/action.yaml
+      - .github/actions/deploy-os-package/action.yaml
+      - assets/systemd-unit-upgrader/**
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  VERSION_CHANNEL: cloud
+
+jobs:
+  setup-build:
+    name: Determine variables for the build environment
+    runs-on: ubuntu-latest
+    outputs:
+      should-target-production: ${{ steps.set-variables.outputs.should-target-production }}
+      package-environment: ${{ steps.set-variables.outputs.package-environment }}
+      artifact-version: ${{ steps.set-variables.outputs.artifact-version }}
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Set environment output values
+        id: set-variables
+        env:
+          GITHUB_EVENT_REF: ${{ github.event.ref }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: |
+          REF_TYPE=$(echo "$GITHUB_EVENT_REF" | cut -d'/' -f2)  # This will be empty for PR triggers
+
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$REF_TYPE" = "tags" ]; then
+            echo "package-environment=promote" >> "$GITHUB_OUTPUT"
+            echo "should-target-production=true" >> "$GITHUB_OUTPUT"
+            echo "artifact-version=${GITHUB_EVENT_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "package-environment=build" >> "$GITHUB_OUTPUT"
+            echo "should-target-production=false" >> "$GITHUB_OUTPUT"
+            echo "artifact-version=$(git describe --tags)" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Set job summary
+          echo "Built config:" | tee -a "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_OUTPUT" | while read line; do
+            echo "* $line" | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+  package-artifacts:
+    name: Package the Teleport updater
+    needs: setup-build
+    permissions:
+      contents: read
+      id-token: write   # Required for aws-actions/configure-aws-credentials
+    runs-on: ubuntu-latest
+    environment: ${{ needs.setup-build.outputs.package-environment }}
+    strategy:
+      fail-fast: true
+      matrix:
+        package:
+          - file-extension: deb
+            manager: apt
+          - file-extension: rpm
+            manager: yum
+          - file-extension: tar
+            manager: tarball
+        architecture:
+          - amd64
+          - i386
+          - arm64
+          - arm
+    env:
+      GNUPGHOME: /tmp/gnupg
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+      - name: Install fpm and dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y ruby binutils rpm gpg
+          sudo gem install fpm
+      - name: Create the default package configuration for the package manager type (${{ matrix.package.manager }}) that the service should use 
+        working-directory: ./assets/systemd-unit-upgrader/
+        env:
+          CONFIG_FOLDER_PATH: "rootfs/etc/teleport-upgrade.d"
+        run: |
+          INSTALLER_CONFIG_PATH="$CONFIG_FOLDER_PATH/installer"
+          mkdir -pv -m755 "$CONFIG_FOLDER_PATH"
+          echo "${{ matrix.package.manager }}" > "$INSTALLER_CONFIG_PATH"
+          chmod -R 755 "$CONFIG_FOLDER_PATH"
+          sudo chown -R "root:root" "$CONFIG_FOLDER_PATH"
+
+          echo "$INSTALLER_CONFIG_PATH contents:"
+          sudo cat "$INSTALLER_CONFIG_PATH"
+      - name: Package the Teleport updater into ${{ matrix.package.file-extension }}s for ISA ${{ matrix.architecture }}
+        working-directory: ./assets/systemd-unit-upgrader/
+        env:
+          VERSION: ${{ needs.setup-build.outputs.artifact-version }}
+        id: build-package
+        # This must be ran as root because the directories are owned by root
+        run: |
+          PACKAGE_NAME="teleport-ent-updater-${VERSION#v}.${{ matrix.architecture }}.${{ matrix.package.file-extension }}"
+          sudo fpm \
+            --output-type "${{ matrix.package.file-extension }}" \
+            --architecture "${{ matrix.architecture }}" \
+            --version "$VERSION" \
+            --package "$PACKAGE_NAME"
+          echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
+      - name: Update package file ownership
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: sudo chown -Rv "$(id -un):$(id -gn)" *.${{ matrix.package.file-extension }}
+      - name: Log created file info
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: ls -laht "$PACKAGE_NAME"
+      # When RPM artifact, sign the RPM
+      - name: Setup GPG signing key for rpm signing
+        if: matrix.package.file-extension == 'rpm'
+        uses: gravitational/teleport.e/.github/actions/load-gpg-key@master
+        with:
+          gpg-signing-archive: ${{ secrets.GPG_SIGNING_ARCHIVE }}
+          gnupghome: ${{ env.GNUPGHOME }}
+      - name: Configure RPM signing
+        if: matrix.package.file-extension == 'rpm'
+        run: |
+          # Setup the RPM macros
+          MACRO_FILE="$HOME/.rpmmacros"
+          SIGNING_KEY_NAME=$(gpg --list-secret-keys --with-colons | grep uid | cut -d':' -f10 | cut -d'<' -f1 | sed 's/ $//')
+
+          echo "Using signing key named \"$SIGNING_KEY_NAME\""
+
+          # Contents are pulled from `gravitational/teleport/build.assets/rpm-sign/rpmmacros` but modified to fit this use case
+          echo "RPM macro file contents:"
+          cat <<EOF | tee "$MACRO_FILE"
+          %_signature gpg
+          %_gpg_path $GNUPGHOME
+          %_gpg_name $SIGNING_KEY_NAME
+          %_gpgbin $(which gpg)
+          %_gpg_pass -
+          # Use SHA512 to sign RPMs
+          %__gpg_sign_cmd %{__gpg} gpg --no-verbose --no-armor --batch --pinentry-mode loopback --passphrase '' --no-secmem-warning -u "%{_gpg_name}" --digest-algo sha512 -sbo %{__signature_filename} %{__plaintext_filename}
+          # Don't include build-id artifacts
+          %_build_id_links none
+          EOF
+
+          # Import the GPG key to RPM
+          echo
+          echo "Importing public key for $SIGNING_KEY_NAME"
+          SIGNING_KEY_PATH="signing.gpg"
+          gpg --export -a "$SIGNING_KEY_NAME" | tee "$SIGNING_KEY_PATH"
+          rpm --import "$SIGNING_KEY_PATH"
+          rm -fv "$SIGNING_KEY_PATH"
+      - name: Sign the RPM
+        if: matrix.package.file-extension == 'rpm'
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: |
+          export GPG_TTY=$(tty)
+          echo "Signing $PACKAGE_NAME"
+          rpm --addsign "$PACKAGE_NAME"
+          echo "Validating signature:"
+          rpm --checksig "$PACKAGE_NAME"
+      # When tarball artifact, gzip the tarchive
+      - name: GZip the tarchive
+        if: matrix.package.file-extension == 'tar'
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: |
+          GZ_PACKAGE_NAME="$PACKAGE_NAME.gz"
+          echo "GZipping $PACKAGE_NAME to $GZ_PACKAGE_NAME"
+          gzip "$PACKAGE_NAME" -n
+          echo "PACKAGE_NAME=$GZ_PACKAGE_NAME" >> "$GITHUB_ENV"
+      # Generate a checksum of the final artifact
+      - name: Generate the sha256 checksum
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: |
+          PACKAGE_CHECKSUM_NAME="$PACKAGE_NAME.sha256"
+          sha256sum "$PACKAGE_NAME" > "$PACKAGE_CHECKSUM_NAME"
+          echo "SHA-256 checksum value: $(cat "$PACKAGE_CHECKSUM_NAME")"
+          echo "PACKAGE_CHECKSUM_NAME=$PACKAGE_CHECKSUM_NAME" >> "$GITHUB_ENV"
+      # Upload the artifact
+      - name: Set artifact bucket paths
+        env:
+          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
+        run: |
+          ARTIFACT_BUCKET_PATH="s3://${{ vars.ARTIFACT_SOURCE_BUCKET }}/teleport/tag/${ARTIFACT_VERSION#v}/$PACKAGE_NAME"
+          ARTIFACT_CHECKSUM_BUCKET_PATH="$ARTIFACT_BUCKET_PATH.sha256"
+          echo "Setting artifact bucket upload path to $ARTIFACT_BUCKET_PATH and checksum upload path to $ARTIFACT_CHECKSUM_BUCKET_PATH"
+          echo "ARTIFACT_BUCKET_PATH=$ARTIFACT_BUCKET_PATH" >> "$GITHUB_ENV"
+          echo "ARTIFACT_CHECKSUM_BUCKET_PATH=$ARTIFACT_CHECKSUM_BUCKET_PATH" >> "$GITHUB_ENV"
+      - name: Assume AWS role for uploading the artifacts
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          role-to-assume: ${{ vars.ARTIFACT_UPLOAD_AWS_ROLE }}
+          role-session-name: "gha-package-auto-updater-upload-${{ matrix.architecture }}-${{ matrix.package.file-extension }}-${{ github.run_number }}"
+          role-duration-seconds: 900
+          # Given that the repo is private this should have a low security impact while making debugging easier
+          mask-aws-account-id: false
+      - name: Log the AWS role assumed
+        run: aws sts get-caller-identity
+      - name: Upload the artifact to S3
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: aws s3 cp "$PACKAGE_NAME" "$ARTIFACT_BUCKET_PATH"
+      - name: Upload the artifact checksum to S3
+        working-directory: ./assets/systemd-unit-upgrader/
+        run: aws s3 cp "$PACKAGE_CHECKSUM_NAME" "$ARTIFACT_CHECKSUM_BUCKET_PATH"
+  # This job will deploy artifacts when not targeting production to facilitate easier development and testing
+  deploy-artifacts:
+    name: Deploy the Teleport updater packages
+    permissions:
+      contents: read
+      actions: write
+    runs-on: ubuntu-latest
+    needs:
+      - setup-build
+      - package-artifacts
+    if: needs.setup-build.outputs.should-target-production == 'false'
+    environment: ${{ needs.setup-build.outputs.package-environment }}
+    concurrency: Only allow a single deployment at a time
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        repo-type:
+          - apt
+          - yum
+    steps:
+      - name: Map current environment to deployment environment
+        env:
+          CURRENT_ENVIRONMENT: ${{ needs.setup-build.outputs.package-environment }}
+        run: |
+          echo "Current environment: $CURRENT_ENVIRONMENT"
+          if [ -z "$CURRENT_ENVIRONMENT" ]; then
+            echo "Current environment value is empty or unset!"
+            exit 1
+          fi
+
+          if [ "$CURRENT_ENVIRONMENT" = "build" ]; then
+            echo "DEPLOY_ENVIRONMENT=development" >> "$GITHUB_ENV"
+          elif [ "$CURRENT_ENVIRONMENT" =  "promote" ]; then
+            echo "DEPLOY_ENVIRONMENT=production" >> "$GITHUB_ENV"
+          else
+            echo "Current environment value is unknown or invalid! Accepted values are build and promote."
+          fi
+
+          echo "Deployment environment: $DEPLOY_ENVIRONMENT"
+      - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos
+        uses: gravitational/teleport.e/.github/actions/deploy-os-package@master
+        with:
+          environment: ${{ env.DEPLOY_ENVIRONMENT }}
+          repo-type: ${{ matrix.repo-type }}
+          artifact-tag: ${{ needs.setup-build.outputs.artifact-version }}
+          version-channel: ${{ env.VERSION_CHANNEL }}
+          package-to-test: ""
+    
