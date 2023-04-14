@@ -21,7 +21,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 import { Attempt } from 'shared/hooks/useAsync';
 
@@ -35,16 +35,16 @@ type ResultListProps<T> = {
    */
   attempts: Attempt<T[]>[];
   /**
-   * ExtraComponent is the element that is rendered above the items.
+   * ExtraTopComponent is the element that is rendered above the items.
    */
-  ExtraComponent?: ReactElement;
+  ExtraTopComponent?: ReactElement;
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, ExtraComponent, onPick, onBack } = props;
+  const { attempts, ExtraTopComponent, onPick, onBack } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
 
@@ -110,7 +110,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
         )}
       </Separator>
       <Overflow role="menu">
-        {ExtraComponent}
+        {ExtraTopComponent}
         {items.map((r, index) => {
           const isActive = index === activeItemIndex;
           const { Component, key } = props.render(r);
@@ -119,7 +119,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
             <InteractiveItem
               ref={isActive ? activeItemRef : null}
               role="menuitem"
-              $active={isActive}
+              active={isActive}
               key={key}
               onClick={() => props.onPick(r)}
             >
@@ -149,16 +149,20 @@ export const NonInteractiveItem = styled.div`
 `;
 
 const InteractiveItem = styled(NonInteractiveItem)`
+  cursor: pointer;
+
   &:hover,
   &:focus {
-    cursor: pointer;
     background: ${props => props.theme.colors.levels.elevated};
   }
 
-  background: ${props =>
-    props.$active
-      ? props.theme.colors.levels.elevated
-      : props.theme.colors.levels.surface};
+  ${props => {
+    if (props.active) {
+      return css`
+        background: ${props => props.theme.colors.levels.elevated};
+      `;
+    }
+  }}
 `;
 
 function getNext(selectedIndex = 0, max = 0) {

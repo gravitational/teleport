@@ -141,7 +141,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     }
   }
 
-  let ExtraComponent = null;
+  let ExtraTopComponent = null;
   // The order of attempts is important. Filter actions should be displayed before resource actions.
   const actionAttempts = [filterActionsAttempt, resourceActionsAttempt];
   const attemptsHaveFinishedWithoutActions = actionAttempts.every(
@@ -152,13 +152,13 @@ export function ActionPicker(props: { input: ReactElement }) {
     filterActionsAttempt.data.length === 0;
 
   if (inputValue && attemptsHaveFinishedWithoutActions) {
-    ExtraComponent = (
+    ExtraTopComponent = (
       <NoResultsItem clusters={clustersService.getRootClusters()} />
     );
   }
 
   if (!inputValue && noRemainingFilters) {
-    ExtraComponent = <TypeToSearchItem />;
+    ExtraTopComponent = <TypeToSearchItem />;
   }
 
   if (
@@ -178,14 +178,14 @@ export function ActionPicker(props: { input: ReactElement }) {
       );
     };
 
-    ExtraComponent = (
+    ExtraTopComponent = (
       <>
         <ResourceSearchErrorsItem
           errors={resourceSearchAttempt.data.errors}
           getClusterName={getClusterName}
           onShowDetails={showErrorsInModal}
         />
-        {ExtraComponent}
+        {ExtraTopComponent}
       </>
     );
   }
@@ -215,7 +215,7 @@ export function ActionPicker(props: { input: ReactElement }) {
             ),
           };
         }}
-        ExtraComponent={ExtraComponent}
+        ExtraTopComponent={ExtraTopComponent}
       />
     </PickerContainer>
   );

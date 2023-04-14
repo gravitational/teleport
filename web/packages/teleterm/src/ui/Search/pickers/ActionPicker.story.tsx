@@ -350,7 +350,7 @@ const AuxiliaryItems = () => (
     onBack={() => {}}
     render={() => null}
     attempts={[]}
-    ExtraComponent={
+    ExtraTopComponent={
       <>
         <NoResultsItem
           clusters={[

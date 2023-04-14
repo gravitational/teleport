@@ -14,28 +14,4 @@
  * limitations under the License.
  */
 
-import React from 'react';
-import { Box } from 'design';
-
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout';
-
-import { IntegrationTiles } from './IntegrationTiles';
-import { NoCodeIntegrationDescription } from './common';
-
-export function IntegrationEnroll() {
-  return (
-    <FeatureBox>
-      <FeatureHeader>
-        <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
-      </FeatureHeader>
-      <Box>
-        <NoCodeIntegrationDescription />
-        <IntegrationTiles />
-      </Box>
-    </FeatureBox>
-  );
-}
+export { ConnectAwsAccount } from './ConnectAwsAccount';

@@ -29,7 +29,9 @@ import {
 import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
 
 import { makeResourceResult } from './testHelpers';
-import { rankResults, useResourceSearch } from './useSearch';
+import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
+
+import type * as tsh from 'teleterm/services/tshd/types';
 
 describe('rankResults', () => {
   it('uses the displayed resource name as the tie breaker if the scores are equal', () => {
@@ -153,5 +155,70 @@ describe('useResourceSearch', () => {
     });
     const searchResult = await result.current('foo', []);
     expect(searchResult.results).toEqual(servers);
+  });
+});
+
+describe('useFiltersSearch', () => {
+  it('does not return cluster filters if there is only one cluster', () => {
+    const appContext = new MockAppContext();
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set('/clusters/teleport-local', {
+        connected: true,
+        authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+        leaf: false,
+        name: 'teleport-local',
+        proxyHost: 'localhost:3080',
+        uri: '/clusters/teleport-local',
+      });
+    });
+
+    const { result } = renderHook(() => useFilterSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    const clusterFilters = result
+      .current('', [])
+      .filter(f => f.kind === 'cluster-filter');
+    expect(clusterFilters).toHaveLength(0);
+  });
+
+  it('returns one cluster filter if the search term matches it', () => {
+    const appContext = new MockAppContext();
+    const clusterA: tsh.Cluster = {
+      connected: true,
+      authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+      leaf: false,
+      name: 'teleport-a',
+      proxyHost: 'localhost:3080',
+      uri: '/clusters/teleport-a',
+    };
+    const clusterB: tsh.Cluster = {
+      connected: true,
+      authClusterId: '73c4746b-d956-4f16-1848-4e3469f70762',
+      leaf: false,
+      name: 'teleport-b',
+      proxyHost: 'localhost:3080',
+      uri: '/clusters/teleport-b',
+    };
+    appContext.clustersService.setState(draftState => {
+      draftState.clusters.set(clusterA.uri, clusterA);
+      draftState.clusters.set(clusterB.uri, clusterB);
+    });
+
+    const { result } = renderHook(() => useFilterSearch(), {
+      wrapper: ({ children }) => (
+        <MockAppContextProvider appContext={appContext}>
+          {children}
+        </MockAppContextProvider>
+      ),
+    });
+    const clusterFilters = result
+      .current('teleport-a', [])
+      .filter(f => f.kind === 'cluster-filter');
+    expect(clusterFilters).toHaveLength(1);
+    expect(clusterFilters[0].resource).toEqual(clusterA);
   });
 });

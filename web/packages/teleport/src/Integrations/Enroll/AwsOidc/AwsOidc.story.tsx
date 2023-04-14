@@ -14,8 +14,30 @@
  * limitations under the License.
  */
 
-// export as default for use with React.lazy
-export { IntegrationEnroll as default } from './IntegrationEnroll';
-export { IntegrationTiles } from './IntegrationTiles';
+import React from 'react';
+import { MemoryRouter } from 'react-router';
 
-export * from './common';
+import { createTeleportContext } from 'teleport/mocks/contexts';
+import { ContextProvider } from 'teleport';
+
+import { AwsOidc } from './AwsOidc';
+
+export default {
+  title: 'Teleport/Integrations/Enroll/AwsOidc',
+};
+
+export const Flow = () => (
+  <Provider>
+    <AwsOidc />
+  </Provider>
+);
+
+const Provider = props => {
+  const ctx = createTeleportContext({ customAcl: props.customAcl });
+
+  return (
+    <MemoryRouter>
+      <ContextProvider ctx={ctx}>{props.children}</ContextProvider>
+    </MemoryRouter>
+  );
+};

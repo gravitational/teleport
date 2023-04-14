@@ -132,16 +132,16 @@ export function useFilterSearch() {
     (search: string, restrictions: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
+        // Cluster filter should not be visible if there is only one cluster
+        if (clusters.length === 1) {
+          return [];
+        }
         if (search) {
           clusters = clusters.filter(cluster =>
             cluster.name
               .toLocaleLowerCase()
               .includes(search.toLocaleLowerCase())
           );
-        }
-        // Cluster filter should not be visible if there is only one cluster
-        if (clusters.length === 1) {
-          return [];
         }
         return clusters.map(cluster => {
           let score = getLengthScore(search, cluster.name);
