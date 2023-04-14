@@ -1333,7 +1333,7 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		return nil, trace.AccessDenied("can't setup global watch")
 	}
 
-	var validKinds []types.WatchKind
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
 		// Check the permissions for data of each kind. For watching, most
 		// kinds of data just need a Read permission, but some have more

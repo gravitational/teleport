@@ -348,7 +348,7 @@ func (w *fanoutWatcher) init(confirmedKinds map[kindSubKind]types.WatchKind) (er
 	w.initOnce.Do(func() {
 		w.initOk = false
 
-		var validKinds []types.WatchKind
+		validKinds := make([]types.WatchKind, 0, len(w.watch.Kinds))
 		for _, requested := range w.watch.Kinds {
 			k := kindSubKind{kind: requested.Kind, subKind: requested.SubKind}
 			if configured, ok := confirmedKinds[k]; !ok || !configured.Contains(requested) {

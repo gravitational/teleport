@@ -51,7 +51,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.BadParameter("global watches are not supported yet")
 	}
 
-	var validKinds []types.WatchKind
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	var parsers []resourceParser
 	var prefixes [][]byte
 	for _, kind := range watch.Kinds {

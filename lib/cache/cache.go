@@ -946,7 +946,7 @@ func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watche
 	confirmedKinds := c.confirmedKinds
 	c.rw.RUnlock()
 
-	var validKinds []types.WatchKind
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 Outer:
 	for _, requested := range watch.Kinds {
 		if cacheOK {
