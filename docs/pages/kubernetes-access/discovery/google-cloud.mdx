@@ -307,8 +307,13 @@ $ tctl tokens add --type=discovery --format=text
 (=presets.tokens.second=)
 ```
 
-Copy each token (e.g., `(=presets.tokens.first=)` and
-`(=presets.tokens.second=)` above) and save it in `/tmp/token` on the machine
+```code
+$ tctl tokens add --type=kube --format=text
+(=presets.tokens.third=)
+```
+
+Copy each token (e.g., `(=presets.tokens.second=)` and
+`(=presets.tokens.third=)` above) and save it in `/tmp/token` on the machine
 that will run the appropriate service. 
 
 </Details>
