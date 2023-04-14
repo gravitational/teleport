@@ -76,7 +76,7 @@ func TestSynchronizeGroups(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, group3.GetMetadata().Description)
 
-	require.NoError(t, svc.startReconcilers(ctx))
+	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
 
 	require.NoError(t, svc.synchronize(ctx))
 
@@ -110,7 +110,7 @@ func TestSynchronizeApplications(t *testing.T) {
 	ctx := context.Background()
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client := newTestService(t, ap)
-	require.NoError(t, svc.startReconcilers(ctx))
+	require.NoError(t, svc.startSynchronizerReconcilers(ctx))
 
 	// Add a few apps that should be deleted since they're not present in the client.
 	addApp(t, "app1", types.OriginOkta, svc.orgURL, svc)

@@ -182,7 +182,7 @@ func (s *Service) seedGroupReconciler(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) startReconcilers(ctx context.Context) error {
+func (s *Service) startSynchronizerReconcilers(ctx context.Context) error {
 	var err error
 
 	if err := s.seedGroupReconciler(ctx); err != nil {

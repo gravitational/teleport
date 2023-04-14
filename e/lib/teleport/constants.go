@@ -24,4 +24,7 @@ const (
 
 	// ComponentOkta is an Okta service component.
 	ComponentOkta = "okta"
+
+	// ComponentOktaAssignmentReconciler is an Okta assignment reconciler component.
+	ComponentOktaAssignmentReconciler = "okta:assignment-reconciler"
 )

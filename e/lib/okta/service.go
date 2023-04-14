@@ -234,6 +234,8 @@ type Service struct {
 
 	timeBetweenSyncs time.Duration
 
+	assignmentReconciler *assignmentReconciler
+
 	syncStoppedChCloser sync.Once
 	syncStoppedCh       chan struct{}
 
@@ -316,16 +318,23 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaClient
 	s.httpServer = &http.Server{Handler: httplib.MakeTracingHandler(authMiddleware, eteleport.ComponentOkta),
 		TLSConfig: s.tlsConfig}
 
+	s.assignmentReconciler = newAssignmentReconciler(ctx, s)
+
 	return s, nil
 }
 
 // Start will start the Okta service.
 func (s *Service) Start(ctx context.Context) error {
-	if err := s.startReconcilers(ctx); err != nil {
+	if err := s.startSynchronizerReconcilers(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
 	go s.synchronizeLoop(ctx)
+
+	if err := s.assignmentReconciler.start(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -334,7 +343,10 @@ func (s *Service) Wait(ctx context.Context) {
 	select {
 	case <-s.syncStoppedCh:
 	case <-ctx.Done():
+		return
 	}
+
+	s.assignmentReconciler.wait(ctx)
 }
 
 // Shutdown will stop any processes that are currently running.
@@ -344,6 +356,8 @@ func (s *Service) Shutdown() error {
 
 	s.heartbeatsMu.Lock()
 	defer s.heartbeatsMu.Unlock()
+
+	s.assignmentReconciler.stop()
 
 	var errs []error
 	for _, heartbeat := range s.heartbeats {
