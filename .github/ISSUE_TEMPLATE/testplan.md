@@ -873,6 +873,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Dynamodb.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Azure SQL Server.
+  - [ ] Oracle.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -899,6 +900,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
   - [ ] Azure SQL Server.
+  - [ ] Oracle.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -993,6 +995,7 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] Snowflake
     - [ ] Elasticsearch.
     - [ ] Cassandra/ScyllaDB.
+    - [ ] Oracle.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
   - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access
