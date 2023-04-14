@@ -16,7 +16,7 @@ limitations under the License.
 import { Server, GetResourcesParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { makeServer } from 'teleterm/ui/services/clusters';
-import { connectToNode } from 'teleterm/ui/services/workspacesService';
+import { connectToServer } from 'teleterm/ui/services/workspacesService';
 
 import { useServerSideResources } from '../useServerSideResources';
 
@@ -39,7 +39,7 @@ export function useServers() {
 
   function connect(server: ReturnType<typeof makeServer>, login: string): void {
     const { uri, hostname } = server;
-    connectToNode(
+    connectToServer(
       appContext,
       { uri, hostname, login },
       {

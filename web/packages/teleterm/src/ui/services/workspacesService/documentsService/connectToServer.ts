@@ -19,7 +19,7 @@ import { IAppContext } from 'teleterm/ui/types';
 
 import { DocumentOrigin } from './types';
 
-export async function connectToNode(
+export async function connectToServer(
   ctx: IAppContext,
   target: {
     uri: ServerUri;

@@ -18,5 +18,5 @@ export * from './documentsService';
 export * from './types';
 export * from './documentsUtils';
 export * from './connectToDatabase';
-export * from './connectToNode';
+export * from './connectToServer';
 export * from './connectToKube';

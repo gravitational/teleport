@@ -20,7 +20,7 @@ import { SearchContext } from 'teleterm/ui/Search/SearchContext';
 import {
   connectToDatabase,
   connectToKube,
-  connectToNode,
+  connectToServer,
 } from 'teleterm/ui/services/workspacesService';
 
 export interface SimpleAction {
@@ -63,7 +63,7 @@ export function mapToActions(
         },
         perform: login => {
           const { uri, hostname } = result.resource;
-          return connectToNode(
+          return connectToServer(
             ctx,
             { uri, hostname, login },
             {
