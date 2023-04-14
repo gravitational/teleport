@@ -23,7 +23,7 @@ Service, plus the infrastructure required to support each pool.
 
 Infrastructure components include:
 - A **public Layer 4 load balancer** to direct traffic from users and services
-  to an available `teleport` process.
+  to an available Proxy Service instance.
 - A **private Layer 4 load balancer** to direct traffic from the Proxy Service
   to the Auth Service's gRPC API, which is how Teleport manages the Auth
   Service's backend state and provides credentials to users and services in your
@@ -103,20 +103,20 @@ Routing:
 <Tabs>
 <TabItem label="TLS Routing">
 
-| Port | Description |
-| - | - |
-| `443` | ALPN port for TLS Routing. |
+| Load Balancer Port | Proxy Service Port | Description |
+| - | - | - |
+| `443` | `3080` | ALPN port for TLS Routing. |
 
 </TabItem>
 <TabItem label="Separate Ports">
 
 These ports are required:
 
-| Port | Description |
-| - | - |
-| <nobr>`3023`</nobr> | SSH port for clients connect to. |
-| `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
-| `443` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| Load Balancer Port | Proxy Service Port | Description |
+| - | - | - |
+| <nobr>`3023`</nobr> | <nobr>`3023`</nobr> | SSH port for clients connect to. |
+| `3024` | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
+| `443` | `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
 You can leave these ports closed if you are not using their corresponding
 services:
@@ -139,9 +139,9 @@ Auth Service instance.
 
 If you are running your Teleport cluster on Kubernetes, you can configure your
 load balancer to forward traffic from port `3026` on the Auth Service load
-balancer to port `3026` on an Auth Service instance, which you can configure to
-run the Teleport Kubernetes Service as well to let operators securely access
-your Kubernetes cluster via Teleport.
+balancer to port `3026` on an Auth Service instance, then configure each Auth
+Service instance to run the Teleport Kubernetes Service as well to let operators
+securely access your Kubernetes cluster via Teleport.
 
 ## Cluster state backend
 
@@ -288,7 +288,7 @@ records.
 ## Teleport instances
 
 Run the Teleport Auth Service and Proxy Service as two scalable groups of
-compute resources, for example, using Kubernetes `Deployment`s or AWS Auto
+compute resources, for example, using Kubernetes Deployments or AWS Auto
 Scaling groups. This requires running the `teleport` binary on each Kubernetes
 pod or virtual machine in your group. 
 
@@ -320,7 +320,7 @@ Teleport instances depend on whether you will enable TLS Routing:
 
 | Port | Description |
 | - | - |
-| `443` | ALPN port for TLS Routing. |
+| `3080` | ALPN port for TLS Routing. |
 
 </TabItem>
 <TabItem label="Separate Ports">
@@ -331,7 +331,7 @@ These ports are required:
 | - | - |
 | `3023` | SSH port for clients connect to. |
 | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
-| `443` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
 You can leave these ports closed if you are not using their corresponding
 services:
@@ -374,7 +374,7 @@ auth_service:
   enabled: false
 proxy_service:
   enabled: true
-  public_addr: "mycluster.example.com:443"
+  public_addr: "mycluster.example.com:3080"
   https_keypairs:
   - key_file: /etc/teleport-tls/tls.key
     cert_file: /etc/teleport-tls/tls.crt
@@ -398,7 +398,7 @@ proxy_service:
   enabled: true
   listen_addr: 0.0.0.0:3023
   tunnel_listen_addr: 0.0.0.0:3024
-  public_addr: "mycluster.example.com:443"
+  public_addr: "mycluster.example.com:3080"
   https_keypairs:
   - key_file: /etc/teleport-tls/tls.key
     cert_file: /etc/teleport-tls/tls.crt
