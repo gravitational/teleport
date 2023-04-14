@@ -1147,7 +1147,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 				rejectedKinds = append(rejectedKinds, key.String())
 			}
 		}
-		c.Logger.WithField("kinds", rejectedKinds).Warn("Some resource kinds unsupported by the server cannot be cached")
+		c.Logger.WithField("rejected", rejectedKinds).Warn("Some resource kinds unsupported by the server cannot be cached")
 	}
 
 	apply, err := c.fetch(ctx, confirmedKindsMap)
