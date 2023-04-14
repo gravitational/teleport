@@ -416,20 +416,31 @@ message TPMCertificationParameters {
 
 // The enrollment challenge sent to the client by the server in order to
 // validate it has possession of the EK and AK.
+//
+// These values are used by the TPM2.0 `ActivateCredential` command to produce
+// the solution which proves possession.
+//
+// For a more in-depth description see:
+// - https://trustedcomputinggroup.org/wp-content/uploads/TCG_TPM2_r1p59_Part3_Commands_code_pub.pdf (Heading 12.5.1 "TPM2_ActivateCredential" "General Description")
+// - https://github.com/google/go-attestation/blob/v0.4.3/attest/activation.go#L199
+// - https://github.com/google/go-tpm/blob/v0.3.3/tpm2/credactivation/credential_activation.go#L61
 message TPMEnrollChallenge {
-  // A handle to the attestation key that should be used for the challenge.
-  bytes credential = 1;
-  // The encrypted challenge secret that the TPM must decrypt to prove
-  // possession of both EK and AK.
-  bytes encrypted_secret = 2;
+  // The `credential_blob` parameter to be used with the `ActivateCredential`
+  // command. This is used with the decrypted value of `secret` in a
+  // cryptographic process to decrypt the solution.
+  bytes credential_blob = 1;
+  // The `secret` parameter to be used with `ActivateCredential`. This is a
+  // seed which can be decrypted with the EK. The decrypted seed is then used
+  // when decrypting `credential_blob`.
+  bytes secret = 2;
 }
 
-// The enrollment challenge response from the client to the server with the
-// decrypted secret that proves it has possession of the EK and AK.
+// The enrollment challenge response containing the solution returned by
+// calling the TPM2.0 `ActivateCredential` command on the client with the
+// parameters provided in `TPMEnrollChallenge`.
 message TPMEnrollChallengeResponse {
-  // The challenge secret once decrypted by the client to prove possession of
-  // the EK and AK.
-  bytes decrypted_secret = 1;
+  // The proof of possession of both the EK and AK.
+  bytes solution = 1;
 }
 
 // Request for AuthenticateDevice.
