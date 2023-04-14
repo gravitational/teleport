@@ -59,9 +59,9 @@ type LockConfiguration struct {
 	LockName string
 	// TTL defines when lock will be released automatically
 	TTL time.Duration
-	// RetryAcquireLockTimeout defines which is used to retry locking after
+	// RetryInterval defines interval which is used to retry locking after
 	// initial lock failed due to someone else holding lock.
-	RetryAcquireLockTimeout time.Duration
+	RetryInterval time.Duration
 }
 
 func (l *LockConfiguration) CheckAndSetDefaults() error {
@@ -74,8 +74,8 @@ func (l *LockConfiguration) CheckAndSetDefaults() error {
 	if l.TTL == 0 {
 		return trace.BadParameter("missing TTL")
 	}
-	if l.RetryAcquireLockTimeout == 0 {
-		l.RetryAcquireLockTimeout = 250 * time.Millisecond
+	if l.RetryInterval == 0 {
+		l.RetryInterval = 250 * time.Millisecond
 	}
 	return nil
 }
@@ -102,7 +102,7 @@ func AcquireLock(ctx context.Context, cfg LockConfiguration) (Lock, error) {
 		}
 		if trace.IsAlreadyExists(err) { // locked? wait and repeat:
 			select {
-			case <-cfg.Backend.Clock().After(cfg.RetryAcquireLockTimeout):
+			case <-cfg.Backend.Clock().After(cfg.RetryInterval):
 				// OK, go around and try again
 				continue
 
