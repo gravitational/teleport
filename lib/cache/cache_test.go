@@ -2421,10 +2421,6 @@ func (p *proxyEvents) closeWatchers() {
 }
 
 func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
-	if !watch.AllowPartialSuccess {
-		return nil, trace.BadParameter("AllowPartialSuccess flag is expected to be set")
-	}
-
 	var effectiveKinds []types.WatchKind
 	for _, requested := range watch.Kinds {
 		if _, ok := p.ignoreKinds[kindSubKind{kind: requested.Kind, subKind: requested.SubKind}]; ok {
