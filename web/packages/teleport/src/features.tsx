@@ -24,6 +24,7 @@ import {
   AuthConnectorsIcon,
   DatabasesIcon,
   DesktopsIcon,
+  IntegrationsIcon,
   KubernetesIcon,
   ManageClustersIcon,
   RolesIcon,
@@ -91,6 +92,13 @@ const Desktops = React.lazy(
 );
 const Discover = React.lazy(
   () => import(/* webpackChunkName: "discover" */ './Discover')
+);
+const Integrations = React.lazy(
+  () => import(/* webpackChunkName: "integrations" */ './Integrations')
+);
+const IntegrationEnroll = React.lazy(
+  () =>
+    import(/* webpackChunkName: "integration-enroll" */ './IntegrationEnroll')
 );
 
 // ****************************
@@ -347,6 +355,65 @@ export class FeatureDiscover implements TeleportFeature {
   }
 }
 
+export class FeatureIntegrations implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.integrations;
+  }
+
+  route = {
+    title: 'Manage Integrations',
+    path: cfg.routes.integrations,
+    exact: true,
+    component: () => <Integrations />,
+  };
+
+  navigationItem = {
+    title: 'Integrations',
+    icon: <IntegrationsIcon />,
+    exact: true,
+    getLink() {
+      return cfg.routes.integrations;
+    },
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureIntegrationEnroll implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Enroll New Integration',
+    path: cfg.routes.integrationEnroll,
+    exact: false,
+    component: () => <IntegrationEnroll />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.enrollIntegrations;
+  }
+
+  navigationItem = {
+    title: 'Enroll New Integration',
+    icon: <AddIcon />,
+    getLink() {
+      return cfg.getIntegrationEnrollRoute(null);
+    },
+  };
+
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
+  }
+}
+
 // - Activity
 
 export class FeatureRecordings implements TeleportFeature {
@@ -509,7 +576,9 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureUsers(),
     new FeatureRoles(),
     new FeatureAuthConnectors(),
+    new FeatureIntegrations(),
     new FeatureDiscover(),
+    new FeatureIntegrationEnroll(),
 
     // - Activity
     new FeatureRecordings(),

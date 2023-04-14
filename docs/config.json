@@ -2372,6 +2372,76 @@
       "source": "/kubernetes-access/guides/",
       "destination": "/kubernetes-access/introduction/",
       "permanent": true
+    },
+    {
+      "source": "/access-controls/faq/",
+      "destination": "/access-controls/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/try-out-teleport/",
+      "destination": "/try-out-teleport/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/",
+      "destination": "/choose-an-edition/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/deploy-a-cluster/",
+      "destination": "/deploy-a-cluster/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/",
+      "destination": "/access-controls/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/management/",
+      "destination": "/management/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/connect-your-client/",
+      "destination": "/connect-your-client/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/server-access/",
+      "destination": "/server-access/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/machine-id/",
+      "destination": "/machine-id/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/api/",
+      "destination": "/api/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/preview/",
+      "destination": "/preview/upcoming-releases/",
+      "permanent": true
+    },
+    {
+      "source": "/reference/",
+      "destination": "/reference/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/architecture/",
+      "destination": "/architecture/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/contributing/",
+      "destination": "/contributing/documentation/",
+      "permanent": true
     }
   ]
 }

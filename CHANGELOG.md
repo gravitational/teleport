@@ -1,5 +1,18 @@
 # Changelog
 
+## 12.2.3 (04/13/23)
+
+This release of Teleport contains multiple bug fixes.
+
+* CLI
+  * Fixed potential panic in `tsh ssh`. [#24490](https://github.com/gravitational/teleport/pull/24490)
+* Performance & Scalability
+  * Improved `tsh ssh` latency. [#24371](https://github.com/gravitational/teleport/pull/24371)
+* Kubernetes Access
+  * Fixed issue with moderator joining session on a cluster they don't have access to. [#23993](https://github.com/gravitational/teleport/pull/23993)
+* Security
+  * Added IP pinning support to SSO users. [#24541](https://github.com/gravitational/teleport/pull/24541)
+
 ## 12.2.2 (04/12/23)
 
 This release of Teleport contains multiple improvements and bug fixes.
