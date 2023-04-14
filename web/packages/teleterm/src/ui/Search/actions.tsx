@@ -61,24 +61,32 @@ export function mapToActions(
               ?.loggedInUser?.sshLoginsList,
           placeholder: 'Provide login',
         },
-        perform: login =>
-          connectToNode(
+        perform: login => {
+          const { uri, hostname } = result.resource;
+          return connectToNode(
             ctx,
-            { ...result.resource, login },
+            { uri, hostname, login },
             {
               origin: 'search_bar',
             }
-          ),
+          );
+        },
       };
     }
     if (result.kind === 'kube') {
       return {
         type: 'simple-action',
         searchResult: result,
-        perform: () =>
-          connectToKube(ctx, result.resource, {
-            origin: 'search_bar',
-          }),
+        perform: () => {
+          const { uri } = result.resource;
+          return connectToKube(
+            ctx,
+            { uri },
+            {
+              origin: 'search_bar',
+            }
+          );
+        },
       };
     }
     if (result.kind === 'database') {
@@ -90,17 +98,21 @@ export function mapToActions(
             ctx.resourcesService.getDbUsers(result.resource.uri),
           placeholder: 'Provide db username',
         },
-        perform: dbUser =>
-          connectToDatabase(
+        perform: dbUser => {
+          const { uri, name, protocol } = result.resource;
+          return connectToDatabase(
             ctx,
             {
-              ...result.resource,
+              uri,
+              name,
+              protocol,
               dbUser,
             },
             {
               origin: 'search_bar',
             }
-          ),
+          );
+        },
       };
     }
     if (result.kind === 'resource-type-filter') {

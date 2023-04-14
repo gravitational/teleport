@@ -38,9 +38,10 @@ export function useServers() {
   }
 
   function connect(server: ReturnType<typeof makeServer>, login: string): void {
+    const { uri, hostname } = server;
     connectToNode(
       appContext,
-      { ...server, login },
+      { uri, hostname, login },
       {
         origin: 'resource_table',
       }

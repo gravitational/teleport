@@ -32,9 +32,10 @@ export function useDatabases() {
     );
 
   function connect(db: ReturnType<typeof makeDatabase>, dbUser: string): void {
+    const { uri, name, protocol } = db;
     connectToDatabase(
       appContext,
-      { ...db, dbUser },
+      { uri, name, protocol, dbUser },
       { origin: 'resource_table' }
     );
   }
