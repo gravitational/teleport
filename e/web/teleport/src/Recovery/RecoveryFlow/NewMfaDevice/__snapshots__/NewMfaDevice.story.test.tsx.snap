@@ -45,8 +45,8 @@ exports[`render correct form to add TOTP device 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -54,22 +54,19 @@ exports[`render correct form to add TOTP device 1`] = `
   width: 100%;
 }
 
-.c17:active {
-  opacity: 0.56;
-}
-
 .c17:hover,
 .c17:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c17:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -78,7 +75,7 @@ exports[`render correct form to add TOTP device 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -120,9 +117,8 @@ exports[`render correct form to add TOTP device 1`] = `
 
 .c15 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -130,9 +126,15 @@ exports[`render correct form to add TOTP device 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c15:hover,
+.c15:focus,
+.c15:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c15::-ms-clear {
@@ -140,7 +142,7 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c15::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c15:read-only {
@@ -148,7 +150,8 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c15:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c11 {
@@ -172,7 +175,7 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c8 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -185,19 +188,6 @@ exports[`render correct form to add TOTP device 1`] = `
   width: 152px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  background-color: #1C254D;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
 .c9 {
   box-sizing: border-box;
   display: flex;
@@ -205,57 +195,137 @@ exports[`render correct form to add TOTP device 1`] = `
 }
 
 .c12 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control,
-.c12 .react-select__control--is-focused {
+.c12 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c12 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c12 .react-select__control:hover,
-.c12 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c12 .react-select__control:focus,
+.c12 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c12 .react-select__control:hover .react-select__dropdown-indicator,
+.c12 .react-select__control:focus .react-select__dropdown-indicator,
+.c12 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control .react-select__indicator:hover,
+.c12 .react-select__control .react-select__dropdown-indicator:hover,
+.c12 .react-select__control .react-select__indicator:focus,
+.c12 .react-select__control .react-select__dropdown-indicator:focus,
+.c12 .react-select__control .react-select__indicator:active,
+.c12 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c12 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c12 .react-select__clear-indicator:hover,
+.c12 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__clear-indicator:hover svg,
+.c12 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -266,13 +336,35 @@ exports[`render correct form to add TOTP device 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c12 .react-select--is-disabled,
+.c12 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select__control--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder,
+.c12 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c12 .react-select--is-disabled .react-select__indicator,
+.c12 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(255,255,255,0.07);
 }
 
 <form
@@ -281,7 +373,7 @@ exports[`render correct form to add TOTP device 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Enroll New Two-Factor Device
   </div>
@@ -408,7 +500,6 @@ exports[`render correct form to add TOTP device 1`] = `
           <input
             autocomplete="one-time-code"
             class="c15"
-            color="text.primaryInverse"
             inputmode="numeric"
             placeholder="123 456"
             type="text"
@@ -429,7 +520,6 @@ exports[`render correct form to add TOTP device 1`] = `
         <input
           autocomplete="off"
           class="c15"
-          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"
@@ -488,8 +578,8 @@ exports[`render correct form to add Webauthn device 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -497,22 +587,19 @@ exports[`render correct form to add Webauthn device 1`] = `
   width: 100%;
 }
 
-.c14:active {
-  opacity: 0.56;
-}
-
 .c14:hover,
 .c14:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c14:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -521,7 +608,7 @@ exports[`render correct form to add Webauthn device 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -554,9 +641,8 @@ exports[`render correct form to add Webauthn device 1`] = `
 
 .c13 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -564,9 +650,15 @@ exports[`render correct form to add Webauthn device 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c13:hover,
+.c13:focus,
+.c13:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c13::-ms-clear {
@@ -574,7 +666,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c13::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c13:read-only {
@@ -582,7 +674,8 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c13:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -611,19 +704,6 @@ exports[`render correct form to add Webauthn device 1`] = `
   width: 152px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  background-color: #1C254D;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
 .c7 {
   box-sizing: border-box;
   display: flex;
@@ -631,57 +711,137 @@ exports[`render correct form to add Webauthn device 1`] = `
 }
 
 .c10 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c10 .react-select__control,
-.c10 .react-select__control--is-focused {
+.c10 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c10 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c10 .react-select__control:hover,
-.c10 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c10 .react-select__control:focus,
+.c10 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c10 .react-select__control:hover .react-select__dropdown-indicator,
+.c10 .react-select__control:focus .react-select__dropdown-indicator,
+.c10 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__control .react-select__indicator:hover,
+.c10 .react-select__control .react-select__dropdown-indicator:hover,
+.c10 .react-select__control .react-select__indicator:focus,
+.c10 .react-select__control .react-select__dropdown-indicator:focus,
+.c10 .react-select__control .react-select__indicator:active,
+.c10 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c10 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c10 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c10 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c10 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c10 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c10 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c10 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c10 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c10 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c10 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c10 .react-select__clear-indicator:hover,
+.c10 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c10 .react-select__clear-indicator:hover svg,
+.c10 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c10 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c10 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c10 .react-select__indicator-separator {
@@ -692,13 +852,35 @@ exports[`render correct form to add Webauthn device 1`] = `
   display: none;
 }
 
-.c10 .react-select--is-disabled .react-select__single-value,
-.c10 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c10 .react-select--is-disabled,
+.c10 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c10 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select__control--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder,
+.c10 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator,
+.c10 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(255,255,255,0.07);
 }
 
 <form
@@ -707,7 +889,7 @@ exports[`render correct form to add Webauthn device 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Enroll New Two-Factor Device
   </div>
@@ -816,7 +998,6 @@ exports[`render correct form to add Webauthn device 1`] = `
         <input
           autocomplete="off"
           class="c13"
-          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"
@@ -875,8 +1056,8 @@ exports[`render correct form to add with multi option 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -884,22 +1065,19 @@ exports[`render correct form to add with multi option 1`] = `
   width: 100%;
 }
 
-.c14:active {
-  opacity: 0.56;
-}
-
 .c14:hover,
 .c14:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c14:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -908,7 +1086,7 @@ exports[`render correct form to add with multi option 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -941,9 +1119,8 @@ exports[`render correct form to add with multi option 1`] = `
 
 .c13 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -951,9 +1128,15 @@ exports[`render correct form to add with multi option 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c13:hover,
+.c13:focus,
+.c13:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c13::-ms-clear {
@@ -961,7 +1144,7 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c13::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c13:read-only {
@@ -969,7 +1152,8 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c13:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -998,19 +1182,6 @@ exports[`render correct form to add with multi option 1`] = `
   width: 152px;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  background-color: #1C254D;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
 .c7 {
   box-sizing: border-box;
   display: flex;
@@ -1018,57 +1189,137 @@ exports[`render correct form to add with multi option 1`] = `
 }
 
 .c10 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c10 .react-select__control,
-.c10 .react-select__control--is-focused {
+.c10 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c10 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c10 .react-select__control:hover,
-.c10 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c10 .react-select__control:focus,
+.c10 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c10 .react-select__control:hover .react-select__dropdown-indicator,
+.c10 .react-select__control:focus .react-select__dropdown-indicator,
+.c10 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__control .react-select__indicator:hover,
+.c10 .react-select__control .react-select__dropdown-indicator:hover,
+.c10 .react-select__control .react-select__indicator:focus,
+.c10 .react-select__control .react-select__dropdown-indicator:focus,
+.c10 .react-select__control .react-select__indicator:active,
+.c10 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c10 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c10 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c10 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c10 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c10 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c10 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c10 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c10 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c10 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c10 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c10 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c10 .react-select__clear-indicator:hover,
+.c10 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c10 .react-select__clear-indicator:hover svg,
+.c10 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c10 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c10 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c10 .react-select__indicator-separator {
@@ -1079,13 +1330,35 @@ exports[`render correct form to add with multi option 1`] = `
   display: none;
 }
 
-.c10 .react-select--is-disabled .react-select__single-value,
-.c10 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c10 .react-select--is-disabled,
+.c10 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c10 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c10 .react-select--is-disabled .react-select__single-value,
+.c10 .react-select__control--is-disabled .react-select__single-value,
+.c10 .react-select--is-disabled .react-select__placeholder,
+.c10 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c10 .react-select--is-disabled .react-select__indicator,
+.c10 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(255,255,255,0.07);
 }
 
 <form
@@ -1094,7 +1367,7 @@ exports[`render correct form to add with multi option 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Enroll New Two-Factor Device
   </div>
@@ -1203,7 +1476,6 @@ exports[`render correct form to add with multi option 1`] = `
         <input
           autocomplete="off"
           class="c13"
-          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"
@@ -1237,8 +1509,8 @@ exports[`render failed state for form to add with multi option 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
   width: 100%;
 }
 
@@ -1284,8 +1556,8 @@ exports[`render failed state for form to add with multi option 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1293,22 +1565,19 @@ exports[`render failed state for form to add with multi option 1`] = `
   width: 100%;
 }
 
-.c15:active {
-  opacity: 0.56;
-}
-
 .c15:hover,
 .c15:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c15:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -1317,7 +1586,7 @@ exports[`render failed state for form to add with multi option 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -1350,9 +1619,8 @@ exports[`render failed state for form to add with multi option 1`] = `
 
 .c14 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -1360,9 +1628,15 @@ exports[`render failed state for form to add with multi option 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c14:hover,
+.c14:focus,
+.c14:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c14::-ms-clear {
@@ -1370,7 +1644,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c14::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c14:read-only {
@@ -1378,7 +1652,8 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c14:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c10 {
@@ -1407,19 +1682,6 @@ exports[`render failed state for form to add with multi option 1`] = `
   width: 152px;
 }
 
-.c5 {
-  box-sizing: border-box;
-  margin-bottom: 24px;
-  padding: 16px;
-  height: 256px;
-  background-color: #1C254D;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-}
-
 .c8 {
   box-sizing: border-box;
   display: flex;
@@ -1427,57 +1689,137 @@ exports[`render failed state for form to add with multi option 1`] = `
 }
 
 .c11 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c11 .react-select__control,
-.c11 .react-select__control--is-focused {
+.c11 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c11 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c11 .react-select__control:hover,
-.c11 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator,
+.c11 .react-select__control:focus .react-select__dropdown-indicator,
+.c11 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover,
+.c11 .react-select__control .react-select__indicator:focus,
+.c11 .react-select__control .react-select__dropdown-indicator:focus,
+.c11 .react-select__control .react-select__indicator:active,
+.c11 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c11 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c11 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c11 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__clear-indicator:hover,
+.c11 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__clear-indicator:hover svg,
+.c11 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c11 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c11 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c11 .react-select__indicator-separator {
@@ -1488,13 +1830,35 @@ exports[`render failed state for form to add with multi option 1`] = `
   display: none;
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c11 .react-select--is-disabled,
+.c11 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select__control--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator,
+.c11 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c5 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  padding: 16px;
+  height: 256px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(255,255,255,0.07);
 }
 
 <form
@@ -1503,7 +1867,7 @@ exports[`render failed state for form to add with multi option 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Enroll New Two-Factor Device
   </div>
@@ -1619,7 +1983,6 @@ exports[`render failed state for form to add with multi option 1`] = `
         <input
           autocomplete="off"
           class="c14"
-          color="text.primaryInverse"
           inputmode="text"
           placeholder="Name"
           type="text"

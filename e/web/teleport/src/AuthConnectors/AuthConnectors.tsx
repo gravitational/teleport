@@ -89,7 +89,7 @@ export function AuthConnectors(props: State) {
               Please{' '}
               <Text
                 as="a"
-                color="light"
+                color="text.primary"
                 href="https://goteleport.com/docs/enterprise/sso/"
                 target="_blank"
               >

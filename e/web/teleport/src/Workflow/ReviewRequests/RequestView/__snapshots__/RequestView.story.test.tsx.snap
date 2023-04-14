@@ -28,7 +28,8 @@ exports[`loaded approved role based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
-  background-color: #2C3A73;
+  padding-left: 4px;
+  background-color: #344179;
   border-radius: 50%;
 }
 
@@ -37,7 +38,8 @@ exports[`loaded approved role based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
-  background-color: #00bfa5;
+  padding-left: 4px;
+  background-color: #00BFA5;
   border-radius: 50%;
 }
 
@@ -45,13 +47,13 @@ exports[`loaded approved role based request state 1`] = `
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c26 {
   box-sizing: border-box;
   padding: 16px;
-  background-color: #2C3A73;
+  background-color: #344179;
 }
 
 .c28 {
@@ -85,10 +87,9 @@ exports[`loaded approved role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
@@ -96,24 +97,20 @@ exports[`loaded approved role based request state 1`] = `
   width: 60px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c13:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c27 {
@@ -135,35 +132,33 @@ exports[`loaded approved role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-top: 24px;
 }
 
-.c27:active {
-  opacity: 0.56;
-}
-
 .c27:hover,
 .c27:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c27:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c27:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c18 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }
@@ -171,6 +166,7 @@ exports[`loaded approved role based request state 1`] = `
 .c22 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   color: #FFFFFF;
   font-size: 26px;
 }
@@ -262,8 +258,9 @@ exports[`loaded approved role based request state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -284,9 +281,8 @@ exports[`loaded approved role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background: #00bfa5;
-  color: #FFFFFF;
-  color: #FFFFFF;
+  background: #00BFA5;
+  color: #000000;
   font-size: 10px;
 }
 
@@ -303,10 +299,9 @@ exports[`loaded approved role based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #00bfa5;
-  color: #FFFFFF;
+  background: #00BFA5;
+  color: #000000;
   width: 10px;
-  color: #FFFFFF;
   font-size: 10px;
 }
 
@@ -323,24 +318,14 @@ exports[`loaded approved role based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
+  background: #FFAB00;
+  color: #000000;
   width: 10px;
-  color: #FFFFFF;
   font-size: 10px;
 }
 
 .c0 {
   box-sizing: border-box;
-  display: flex;
-}
-
-.c2 {
-  box-sizing: border-box;
-  padding: 16px;
-  background-color: #2C3A73;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
   display: flex;
 }
 
@@ -392,18 +377,27 @@ exports[`loaded approved role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
   display: flex;
   align-items: baseline;
 }
 
-.c29 {
+.c15 {
+  position: absolute;
+  height: calc(100% - 24px);
+  width: 2px;
+  top: 0;
+  left: 55px;
+  border-left: 2px solid rgba(255,255,255,0.07);
+}
+
+.c2 {
   box-sizing: border-box;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid;
-  border-color: #1C254D;
+  padding: 16px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
   display: flex;
+  background: #344179;
 }
 
 .c31 {
@@ -413,22 +407,22 @@ exports[`loaded approved role based request state 1`] = `
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
-  background-color: #1C254D;
   border: 1px solid;
   border-radius: 2px;
   border-color: #222C59;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: rgba(255,255,255,0.07);
 }
 
-.c15 {
-  position: absolute;
-  height: calc(100% - 24px);
-  width: 2px;
-  top: 0;
-  left: 55px;
-  border-left: 2px solid #2C3A73;
+.c29 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  display: flex;
+  border-color: rgba(255,255,255,0.13);
 }
 
 <div>
@@ -447,7 +441,6 @@ exports[`loaded approved role based request state 1`] = `
         >
           <span
             class="c4"
-            color="light"
             font-size="0"
             font-weight="bold"
             kind="success"
@@ -683,7 +676,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c33"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="success"
@@ -703,7 +695,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c34"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="warning"
@@ -723,7 +714,6 @@ exports[`loaded approved role based request state 1`] = `
         </div>
         <span
           class="c33"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="success"
@@ -775,7 +765,8 @@ exports[`loaded denied role based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
-  background-color: #2C3A73;
+  padding-left: 4px;
+  background-color: #344179;
   border-radius: 50%;
 }
 
@@ -783,13 +774,13 @@ exports[`loaded denied role based request state 1`] = `
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c24 {
   box-sizing: border-box;
   padding: 16px;
-  background-color: #2C3A73;
+  background-color: #344179;
 }
 
 .c25 {
@@ -797,7 +788,8 @@ exports[`loaded denied role based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
-  background-color: #f50057;
+  padding-left: 4px;
+  background-color: #FF6257;
   border-radius: 50%;
 }
 
@@ -832,10 +824,9 @@ exports[`loaded denied role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
@@ -843,29 +834,26 @@ exports[`loaded denied role based request state 1`] = `
   width: 60px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c13:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c18 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }
@@ -873,6 +861,7 @@ exports[`loaded denied role based request state 1`] = `
 .c26 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   color: #FFFFFF;
   font-size: 26px;
 }
@@ -964,8 +953,9 @@ exports[`loaded denied role based request state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -986,9 +976,8 @@ exports[`loaded denied role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background: #f50057;
-  color: #FFFFFF;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
   font-size: 10px;
 }
 
@@ -1005,10 +994,9 @@ exports[`loaded denied role based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #9F85FF;
+  color: #000000;
   width: 10px;
-  color: #FFFFFF;
   font-size: 10px;
 }
 
@@ -1025,24 +1013,14 @@ exports[`loaded denied role based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
+  background: #FFAB00;
+  color: #000000;
   width: 10px;
-  color: #FFFFFF;
   font-size: 10px;
 }
 
 .c0 {
   box-sizing: border-box;
-  display: flex;
-}
-
-.c2 {
-  box-sizing: border-box;
-  padding: 16px;
-  background-color: #2C3A73;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
   display: flex;
 }
 
@@ -1094,18 +1072,27 @@ exports[`loaded denied role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
   display: flex;
   align-items: baseline;
 }
 
-.c28 {
+.c15 {
+  position: absolute;
+  height: calc(100% - 24px);
+  width: 2px;
+  top: 0;
+  left: 55px;
+  border-left: 2px solid rgba(255,255,255,0.07);
+}
+
+.c2 {
   box-sizing: border-box;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid;
-  border-color: #1C254D;
+  padding: 16px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
   display: flex;
+  background: #344179;
 }
 
 .c30 {
@@ -1115,22 +1102,22 @@ exports[`loaded denied role based request state 1`] = `
   padding-right: 16px;
   padding-top: 8px;
   padding-bottom: 8px;
-  background-color: #1C254D;
   border: 1px solid;
   border-radius: 2px;
   border-color: #222C59;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  background: rgba(255,255,255,0.07);
 }
 
-.c15 {
-  position: absolute;
-  height: calc(100% - 24px);
-  width: 2px;
-  top: 0;
-  left: 55px;
-  border-left: 2px solid #2C3A73;
+.c28 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  display: flex;
+  border-color: rgba(255,255,255,0.13);
 }
 
 <div>
@@ -1149,7 +1136,6 @@ exports[`loaded denied role based request state 1`] = `
         >
           <span
             class="c4"
-            color="light"
             font-size="0"
             font-weight="bold"
             kind="danger"
@@ -1364,10 +1350,9 @@ exports[`loaded denied role based request state 1`] = `
         </div>
         <span
           class="c32"
-          color="light"
           font-size="0"
           font-weight="bold"
-          kind="danger"
+          kind="error"
           style="min-height: 10px; min-width: 10px;"
           width="10px"
         />
@@ -1384,7 +1369,6 @@ exports[`loaded denied role based request state 1`] = `
         </div>
         <span
           class="c33"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="warning"
@@ -1436,7 +1420,8 @@ exports[`loaded pending role based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
-  background-color: #2C3A73;
+  padding-left: 4px;
+  background-color: #344179;
   border-radius: 50%;
 }
 
@@ -1444,20 +1429,20 @@ exports[`loaded pending role based request state 1`] = `
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c24 {
   box-sizing: border-box;
   padding: 16px;
-  background-color: #2C3A73;
+  background-color: #344179;
 }
 
 .c25 {
   box-sizing: border-box;
   margin-top: 48px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c26 {
@@ -1466,7 +1451,7 @@ exports[`loaded pending role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
 }
 
 .c28 {
@@ -1478,15 +1463,6 @@ exports[`loaded pending role based request state 1`] = `
 .c31 {
   box-sizing: border-box;
   margin-bottom: 24px;
-}
-
-.c32 {
-  box-sizing: border-box;
-  max-width: 500px;
-  padding: 8px;
-  height: 150px;
-  width: 100%;
-  border-radius: 4px;
 }
 
 .c34 {
@@ -1520,10 +1496,9 @@ exports[`loaded pending role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
@@ -1531,24 +1506,20 @@ exports[`loaded pending role based request state 1`] = `
   width: 60px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c13:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c33 {
@@ -1570,34 +1541,32 @@ exports[`loaded pending role based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c33:active {
-  opacity: 0.56;
-}
-
 .c33:hover,
 .c33:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c33:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c33:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c18 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }
@@ -1699,8 +1668,9 @@ exports[`loaded pending role based request state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -1731,9 +1701,8 @@ exports[`loaded pending role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background: #ff9100;
-  color: #FFFFFF;
-  color: #FFFFFF;
+  background: #FFAB00;
+  color: #000000;
   font-size: 10px;
 }
 
@@ -1750,24 +1719,14 @@ exports[`loaded pending role based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
+  background: #FFAB00;
+  color: #000000;
   width: 10px;
-  color: #FFFFFF;
   font-size: 10px;
 }
 
 .c0 {
   box-sizing: border-box;
-  display: flex;
-}
-
-.c2 {
-  box-sizing: border-box;
-  padding: 16px;
-  background-color: #2C3A73;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
   display: flex;
 }
 
@@ -1819,88 +1778,143 @@ exports[`loaded pending role based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
   display: flex;
   align-items: baseline;
 }
 
-.c35 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid;
-  border-color: #1C254D;
-  display: flex;
-}
-
-.c37 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  background-color: #1C254D;
-  border: 1px solid;
-  border-radius: 2px;
-  border-color: #222C59;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .c30 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c30 .react-select__control,
-.c30 .react-select__control--is-focused {
+.c30 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c30 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c30 .react-select__control:hover,
-.c30 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c30 .react-select__control:focus,
+.c30 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c30 .react-select__control:hover .react-select__dropdown-indicator,
+.c30 .react-select__control:focus .react-select__dropdown-indicator,
+.c30 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c30 .react-select__control .react-select__indicator:hover,
+.c30 .react-select__control .react-select__dropdown-indicator:hover,
+.c30 .react-select__control .react-select__indicator:focus,
+.c30 .react-select__control .react-select__dropdown-indicator:focus,
+.c30 .react-select__control .react-select__indicator:active,
+.c30 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c30 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c30 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c30 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c30 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c30 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c30 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c30 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c30 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c30 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c30 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c30 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c30 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c30 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c30 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c30 .react-select__clear-indicator:hover,
+.c30 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c30 .react-select__clear-indicator:hover svg,
+.c30 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c30 .react-select__menu {
   margin-top: 0px;
+  background-color: #344179;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c30 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c30 .react-select__indicator-separator {
@@ -1911,13 +1925,46 @@ exports[`loaded pending role based request state 1`] = `
   display: none;
 }
 
-.c30 .react-select--is-disabled .react-select__single-value,
-.c30 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c30 .react-select--is-disabled,
+.c30 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c30 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c30 .react-select--is-disabled .react-select__single-value,
+.c30 .react-select__control--is-disabled .react-select__single-value,
+.c30 .react-select--is-disabled .react-select__placeholder,
+.c30 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c30 .react-select--is-disabled .react-select__indicator,
+.c30 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c32 {
+  box-sizing: border-box;
+  max-width: 500px;
+  padding: 8px;
+  height: 150px;
+  width: 100%;
+  color: #FFFFFF;
+  border: 1px solid;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
+  outline: none;
+  background: transparent;
+}
+
+.c32::placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c32:hover,
+.c32:focus,
+.c32:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c15 {
@@ -1926,7 +1973,41 @@ exports[`loaded pending role based request state 1`] = `
   width: 2px;
   top: 0;
   left: 55px;
-  border-left: 2px solid #2C3A73;
+  border-left: 2px solid rgba(255,255,255,0.07);
+}
+
+.c2 {
+  box-sizing: border-box;
+  padding: 16px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: flex;
+  background: #344179;
+}
+
+.c37 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border: 1px solid;
+  border-radius: 2px;
+  border-color: #222C59;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.07);
+}
+
+.c35 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  display: flex;
+  border-color: rgba(255,255,255,0.13);
 }
 
 <div>
@@ -1945,7 +2026,6 @@ exports[`loaded pending role based request state 1`] = `
         >
           <span
             class="c4"
-            color="light"
             font-size="0"
             font-weight="bold"
             kind="warning"
@@ -2161,9 +2241,9 @@ exports[`loaded pending role based request state 1`] = `
               </label>
               <textarea
                 class="c32"
+                color="text.primary"
                 height="150px"
                 placeholder="Optional message..."
-                style="outline: none; font-family: theme.font;"
                 width="100%"
               />
             </div>
@@ -2201,7 +2281,6 @@ exports[`loaded pending role based request state 1`] = `
         </div>
         <span
           class="c39"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="warning"
@@ -2221,7 +2300,6 @@ exports[`loaded pending role based request state 1`] = `
         </div>
         <span
           class="c39"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="warning"
@@ -2273,7 +2351,8 @@ exports[`loaded pending search based request state 1`] = `
   margin-left: 16px;
   margin-right: 8px;
   padding: 3px;
-  background-color: #2C3A73;
+  padding-left: 4px;
+  background-color: #344179;
   border-radius: 50%;
 }
 
@@ -2281,20 +2360,20 @@ exports[`loaded pending search based request state 1`] = `
   box-sizing: border-box;
   margin-top: 16px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c25 {
   box-sizing: border-box;
   padding: 16px;
-  background-color: #2C3A73;
+  background-color: #344179;
 }
 
 .c29 {
   box-sizing: border-box;
   margin-top: 48px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c30 {
@@ -2303,7 +2382,7 @@ exports[`loaded pending search based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
 }
 
 .c32 {
@@ -2315,15 +2394,6 @@ exports[`loaded pending search based request state 1`] = `
 .c35 {
   box-sizing: border-box;
   margin-bottom: 24px;
-}
-
-.c36 {
-  box-sizing: border-box;
-  max-width: 500px;
-  padding: 8px;
-  height: 150px;
-  width: 100%;
-  border-radius: 4px;
 }
 
 .c38 {
@@ -2357,10 +2427,9 @@ exports[`loaded pending search based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
@@ -2368,24 +2437,20 @@ exports[`loaded pending search based request state 1`] = `
   width: 60px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c13:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c37 {
@@ -2407,34 +2472,32 @@ exports[`loaded pending search based request state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c37:active {
-  opacity: 0.56;
-}
-
 .c37:hover,
 .c37:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c37:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c37:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c19 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   color: rgba(255,255,255,0.24);
   font-size: 26px;
 }
@@ -2536,8 +2599,9 @@ exports[`loaded pending search based request state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -2568,9 +2632,8 @@ exports[`loaded pending search based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background: #ff9100;
-  color: #FFFFFF;
-  color: #FFFFFF;
+  background: #FFAB00;
+  color: #000000;
   font-size: 10px;
 }
 
@@ -2587,24 +2650,14 @@ exports[`loaded pending search based request state 1`] = `
   font-weight: 500;
   text-transform: uppercase;
   padding: 0px;
-  background: #ff9100;
-  color: #FFFFFF;
+  background: #FFAB00;
+  color: #000000;
   width: 10px;
-  color: #FFFFFF;
   font-size: 10px;
 }
 
 .c0 {
   box-sizing: border-box;
-  display: flex;
-}
-
-.c2 {
-  box-sizing: border-box;
-  padding: 16px;
-  background-color: #2C3A73;
-  border-top-left-radius: 4px;
-  border-top-right-radius: 4px;
   display: flex;
 }
 
@@ -2656,39 +2709,13 @@ exports[`loaded pending search based request state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
   display: flex;
   align-items: baseline;
 }
 
-.c39 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid;
-  border-color: #1C254D;
-  display: flex;
-}
-
-.c41 {
-  box-sizing: border-box;
-  margin-bottom: 8px;
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 8px;
-  padding-bottom: 8px;
-  background-color: #1C254D;
-  border: 1px solid;
-  border-radius: 2px;
-  border-color: #222C59;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .c27 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -2728,7 +2755,7 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c27 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -2748,70 +2775,150 @@ exports[`loaded pending search based request state 1`] = `
 }
 
 .c27 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c27 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c27 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c34 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c34 .react-select__control,
-.c34 .react-select__control--is-focused {
+.c34 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c34 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c34 .react-select__control:hover,
-.c34 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c34 .react-select__control:focus,
+.c34 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c34 .react-select__control:hover .react-select__dropdown-indicator,
+.c34 .react-select__control:focus .react-select__dropdown-indicator,
+.c34 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c34 .react-select__control .react-select__indicator:hover,
+.c34 .react-select__control .react-select__dropdown-indicator:hover,
+.c34 .react-select__control .react-select__indicator:focus,
+.c34 .react-select__control .react-select__dropdown-indicator:focus,
+.c34 .react-select__control .react-select__indicator:active,
+.c34 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c34 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c34 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c34 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c34 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c34 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c34 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c34 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c34 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c34 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c34 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c34 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c34 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c34 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c34 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c34 .react-select__clear-indicator:hover,
+.c34 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c34 .react-select__clear-indicator:hover svg,
+.c34 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c34 .react-select__menu {
   margin-top: 0px;
+  background-color: #344179;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c34 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c34 .react-select__indicator-separator {
@@ -2822,13 +2929,46 @@ exports[`loaded pending search based request state 1`] = `
   display: none;
 }
 
-.c34 .react-select--is-disabled .react-select__single-value,
-.c34 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c34 .react-select--is-disabled,
+.c34 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c34 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c34 .react-select--is-disabled .react-select__single-value,
+.c34 .react-select__control--is-disabled .react-select__single-value,
+.c34 .react-select--is-disabled .react-select__placeholder,
+.c34 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c34 .react-select--is-disabled .react-select__indicator,
+.c34 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c36 {
+  box-sizing: border-box;
+  max-width: 500px;
+  padding: 8px;
+  height: 150px;
+  width: 100%;
+  color: #FFFFFF;
+  border: 1px solid;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
+  outline: none;
+  background: transparent;
+}
+
+.c36::placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c36:hover,
+.c36:focus,
+.c36:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c15 {
@@ -2837,7 +2977,7 @@ exports[`loaded pending search based request state 1`] = `
   width: 2px;
   top: 0;
   left: 55px;
-  border-left: 2px solid #2C3A73;
+  border-left: 2px solid rgba(255,255,255,0.07);
 }
 
 .c28 {
@@ -2848,14 +2988,48 @@ exports[`loaded pending search based request state 1`] = `
   vertical-align: middle;
 }
 
+.c2 {
+  box-sizing: border-box;
+  padding: 16px;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  display: flex;
+  background: #344179;
+}
+
 .c26 {
   box-sizing: border-box;
   padding-bottom: 16px;
   padding-left: 16px;
   padding-right: 0px;
   padding-top: 0px;
-  background-color: #2C3A73;
+  background-color: #344179;
   margin: 0 auto;
+}
+
+.c41 {
+  box-sizing: border-box;
+  margin-bottom: 8px;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  border: 1px solid;
+  border-radius: 2px;
+  border-color: #222C59;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255,255,255,0.07);
+}
+
+.c39 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid;
+  display: flex;
+  border-color: rgba(255,255,255,0.13);
 }
 
 <div>
@@ -2874,7 +3048,6 @@ exports[`loaded pending search based request state 1`] = `
         >
           <span
             class="c4"
-            color="light"
             font-size="0"
             font-weight="bold"
             kind="warning"
@@ -3174,9 +3347,9 @@ exports[`loaded pending search based request state 1`] = `
               </label>
               <textarea
                 class="c36"
+                color="text.primary"
                 height="150px"
                 placeholder="Optional message..."
-                style="outline: none; font-family: theme.font;"
                 width="100%"
               />
             </div>
@@ -3214,7 +3387,6 @@ exports[`loaded pending search based request state 1`] = `
         </div>
         <span
           class="c43"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="warning"
@@ -3234,7 +3406,6 @@ exports[`loaded pending search based request state 1`] = `
         </div>
         <span
           class="c43"
-          color="light"
           font-size="0"
           font-weight="bold"
           kind="warning"

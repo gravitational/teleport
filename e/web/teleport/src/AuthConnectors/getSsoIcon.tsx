@@ -1,9 +1,8 @@
 import React from 'react';
 import * as Icons from 'design/Icon';
-import Image from 'design/Image';
 import { AuthProviderType } from 'shared/services';
 
-import samlSvg from './saml-logo.svg';
+import { SamlIcon } from './SamlIcon';
 
 export default function getSsoIcon(kind: AuthProviderType) {
   const desc = formatConnectorTypeDesc(kind);
@@ -23,9 +22,7 @@ export default function getSsoIcon(kind: AuthProviderType) {
 
   if (kind === 'saml') {
     return {
-      SsoIcon: props => (
-        <Image height="50px" width="100px" src={samlSvg} {...props} />
-      ),
+      SsoIcon: props => <SamlIcon height={50} width={100} {...props} />,
       desc,
     };
   }

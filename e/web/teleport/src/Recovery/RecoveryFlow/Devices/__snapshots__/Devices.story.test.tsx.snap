@@ -29,8 +29,8 @@ exports[`render device list 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -38,22 +38,19 @@ exports[`render device list 1`] = `
   width: 100%;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c12:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c11 {
@@ -75,33 +72,28 @@ exports[`render device list 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
 }
 
-.c11:active {
-  opacity: 0.56;
-}
-
 .c11:hover,
 .c11:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c11:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c9 {
@@ -116,7 +108,7 @@ exports[`render device list 1`] = `
   margin-right: auto;
   width: 604px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -160,7 +152,6 @@ exports[`render device list 1`] = `
 
 .c6 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -200,7 +191,7 @@ exports[`render device list 1`] = `
 }
 
 .c6 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -220,21 +211,35 @@ exports[`render device list 1`] = `
 }
 
 .c6 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c6 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c6 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c7 {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
 }
 
 .c7 > tbody > tr td {
   vertical-align: middle;
   height: 32px;
+}
+
+.c7 > tbody {
+  background: #344179;
+}
+
+.c7 > thead > tr > th {
+  background: rgba(255,255,255,0.13);
 }
 
 <div
@@ -243,7 +248,7 @@ exports[`render device list 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Device Successfully Enrolled
   </div>
@@ -286,7 +291,6 @@ exports[`render device list 1`] = `
                 Registered
                 <span
                   class="c8 c9 icon icon-chevron-down "
-                  color="light"
                   title="sort items desc"
                 />
               </a>
@@ -296,7 +300,6 @@ exports[`render device list 1`] = `
                 Last Used
                 <span
                   class="c8 c9 icon icon-chevrons-expand-vertical "
-                  color="light"
                   title="sort items"
                 />
               </a>
@@ -462,26 +465,27 @@ exports[`render device removal dialog 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #d50000;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #FF6257;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #ff1744;
+  background: #FF8179;
+}
+
+.c9:active {
+  background: #FFA19A;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c10 {
@@ -503,25 +507,26 @@ exports[`render device removal dialog 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c10:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -588,8 +593,8 @@ exports[`render device removal dialog 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -644,7 +649,7 @@ exports[`render device removal dialog 1`] = `
            
           <span
             class="c7"
-            color="text.contrast"
+            color="text.primary"
           >
             yubikey
           </span>
@@ -688,8 +693,8 @@ exports[`render failed state for device list 1`] = `
   word-break: break-word;
   line-height: 1.5;
   margin: 0px;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c6 a {
@@ -724,8 +729,8 @@ exports[`render failed state for device list 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -733,22 +738,19 @@ exports[`render failed state for device list 1`] = `
   width: 100%;
 }
 
-.c7:active {
-  opacity: 0.56;
-}
-
 .c7:hover,
 .c7:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c7:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -757,7 +759,7 @@ exports[`render failed state for device list 1`] = `
   margin-right: auto;
   width: 604px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -799,7 +801,7 @@ exports[`render failed state for device list 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Device Successfully Enrolled
   </div>

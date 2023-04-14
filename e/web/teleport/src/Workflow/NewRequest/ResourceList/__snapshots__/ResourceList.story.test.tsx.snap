@@ -20,34 +20,29 @@ exports[`render Apps 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 134px;
 }
 
-.c7:active {
-  opacity: 0.56;
-}
-
 .c7:hover,
 .c7:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c7:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c4 {
@@ -64,7 +59,6 @@ exports[`render Apps 1`] = `
 
 .c1 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -104,7 +98,7 @@ exports[`render Apps 1`] = `
 }
 
 .c1 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -124,16 +118,16 @@ exports[`render Apps 1`] = `
 }
 
 .c1 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c1 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c1 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c6 {
@@ -145,10 +139,15 @@ exports[`render Apps 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
   cursor: pointer;
+}
+
+.c6:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 > tbody > tr > td {
@@ -178,7 +177,6 @@ exports[`render Apps 1`] = `
               Name
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -188,7 +186,6 @@ exports[`render Apps 1`] = `
               Description
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -269,34 +266,29 @@ exports[`render Databases 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 134px;
 }
 
-.c7:active {
-  opacity: 0.56;
-}
-
 .c7:hover,
 .c7:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c7:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c4 {
@@ -313,7 +305,6 @@ exports[`render Databases 1`] = `
 
 .c1 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -353,7 +344,7 @@ exports[`render Databases 1`] = `
 }
 
 .c1 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -373,16 +364,16 @@ exports[`render Databases 1`] = `
 }
 
 .c1 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c1 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c1 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c6 {
@@ -394,10 +385,15 @@ exports[`render Databases 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
   cursor: pointer;
+}
+
+.c6:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 > tbody > tr > td {
@@ -427,7 +423,6 @@ exports[`render Databases 1`] = `
               Name
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -437,7 +432,6 @@ exports[`render Databases 1`] = `
               Description
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -447,7 +441,6 @@ exports[`render Databases 1`] = `
               Type
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -523,34 +516,29 @@ exports[`render Desktops 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 134px;
 }
 
-.c7:active {
-  opacity: 0.56;
-}
-
 .c7:hover,
 .c7:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c7:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c4 {
@@ -567,7 +555,6 @@ exports[`render Desktops 1`] = `
 
 .c1 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -607,7 +594,7 @@ exports[`render Desktops 1`] = `
 }
 
 .c1 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -627,16 +614,16 @@ exports[`render Desktops 1`] = `
 }
 
 .c1 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c1 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c1 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c6 {
@@ -648,10 +635,15 @@ exports[`render Desktops 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
   cursor: pointer;
+}
+
+.c6:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 > tbody > tr > td {
@@ -686,7 +678,6 @@ exports[`render Desktops 1`] = `
               Name
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -759,34 +750,29 @@ exports[`render Kubes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 134px;
 }
 
-.c7:active {
-  opacity: 0.56;
-}
-
 .c7:hover,
 .c7:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c7:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c4 {
@@ -803,7 +789,6 @@ exports[`render Kubes 1`] = `
 
 .c1 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -843,7 +828,7 @@ exports[`render Kubes 1`] = `
 }
 
 .c1 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -863,16 +848,16 @@ exports[`render Kubes 1`] = `
 }
 
 .c1 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c1 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c1 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c6 {
@@ -884,10 +869,15 @@ exports[`render Kubes 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
   cursor: pointer;
+}
+
+.c6:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 > tbody > tr > td {
@@ -917,7 +907,6 @@ exports[`render Kubes 1`] = `
               Name
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -987,34 +976,29 @@ exports[`render Nodes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 134px;
 }
 
-.c7:active {
-  opacity: 0.56;
-}
-
 .c7:hover,
 .c7:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c7:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c7:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c4 {
@@ -1031,7 +1015,6 @@ exports[`render Nodes 1`] = `
 
 .c1 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -1071,7 +1054,7 @@ exports[`render Nodes 1`] = `
 }
 
 .c1 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -1091,16 +1074,16 @@ exports[`render Nodes 1`] = `
 }
 
 .c1 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c1 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c1 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c6 {
@@ -1112,10 +1095,15 @@ exports[`render Nodes 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
   cursor: pointer;
+}
+
+.c6:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c2 > tbody > tr > td {
@@ -1145,7 +1133,6 @@ exports[`render Nodes 1`] = `
               Hostname
               <span
                 class="c3 c4 icon icon-chevrons-expand-vertical "
-                color="light"
                 title="sort items"
               />
             </a>
@@ -1223,34 +1210,29 @@ exports[`render Roles 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 134px;
 }
 
-.c5:active {
-  opacity: 0.56;
-}
-
 .c5:hover,
 .c5:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c5:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c5:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c4 {
@@ -1261,7 +1243,6 @@ exports[`render Roles 1`] = `
 
 .c1 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -1301,7 +1282,7 @@ exports[`render Roles 1`] = `
 }
 
 .c1 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -1321,16 +1302,16 @@ exports[`render Roles 1`] = `
 }
 
 .c1 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c1 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c1 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c2 > tbody > tr > td {
@@ -1360,7 +1341,6 @@ exports[`render Roles 1`] = `
               Role Name
               <span
                 class="c3 c4 icon icon-chevron-up "
-                color="light"
                 title="sort items asc"
               />
             </a>

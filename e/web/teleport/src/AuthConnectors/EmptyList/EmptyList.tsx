@@ -45,7 +45,9 @@ function renderItem(kind: AuthProviderType, onClick: Props['onCreate']) {
       as="button"
       onClick={onBtnClick}
     >
-      <SsoIcon fontSize="50px" my={2} />
+      <Flex my={2}>
+        <SsoIcon fontSize="50px" />
+      </Flex>
       <Text typography="body2" bold>
         {desc}
       </Text>
@@ -61,13 +63,13 @@ const ConnectorBox = styled(Box)(
   transition: all 0.3s;
   border-radius: 4px;
   width: 160px;
-  border: 2px solid ${props.theme.colors.levels.surfaceSecondary};
+  border: 2px solid ${props.theme.colors.spotBackground[2]};
   &:focus {
     opacity: .24;
     box-shadow: none;
   }
   &:hover {
-    border: 2px solid ${props.theme.colors.brand.main};
+    border: 2px solid ${props.theme.colors.brand};
     background: ${props.theme.colors.levels.elevated};
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.56);
   }

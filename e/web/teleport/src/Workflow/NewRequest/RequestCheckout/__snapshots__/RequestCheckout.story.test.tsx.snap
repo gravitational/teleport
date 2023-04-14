@@ -14,8 +14,8 @@ exports[`failed state 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c8 a {
@@ -56,34 +56,29 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 50px;
 }
 
-.c19:active {
-  opacity: 0.56;
-}
-
 .c19:hover,
 .c19:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c19:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c24 {
@@ -105,45 +100,42 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 100%;
 }
 
-.c24:active {
-  opacity: 0.56;
-}
-
 .c24:hover,
 .c24:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c24:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c24:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 16px;
   color: #FFFFFF;
+  margin-right: 16px;
   font-size: 25px;
 }
 
 .c11 {
   display: inline-block;
   transition: color 0.3s;
-  padding: 8px;
   color: #FFFFFF;
+  padding: 8px;
   font-size: 13px;
 }
 
@@ -192,22 +184,8 @@ exports[`failed state 1`] = `
   align-items: center;
 }
 
-.c17 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  height: 34px;
-  width: 260px;
-  border-bottom: 1px solid;
-  border-color: #1C254D;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .c9 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -247,7 +225,7 @@ exports[`failed state 1`] = `
 }
 
 .c9 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -267,16 +245,16 @@ exports[`failed state 1`] = `
 }
 
 .c9 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c9 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c9 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c14 {
@@ -378,7 +356,7 @@ exports[`failed state 1`] = `
 }
 
 .c14 .react-select__selected .icon-checkmark-circle {
-  color: #00bfa5;
+  color: #00BFA5;
 }
 
 .c14 .react-select__selected .icon-cross {
@@ -399,13 +377,26 @@ exports[`failed state 1`] = `
   padding: 3px 15px;
 }
 
+.c17 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  height: 34px;
+  width: 260px;
+  border-bottom: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-color: rgba(255,255,255,0.13);
+}
+
 .c2 {
   box-sizing: border-box;
   position: absolute;
   z-index: 11;
   top: 0px;
   right: 0px;
-  background: #111B48;
+  background: #0C143D;
   min-height: 100%;
   width: 500px;
   padding: 20px;
@@ -441,8 +432,18 @@ exports[`failed state 1`] = `
   z-index: 10;
 }
 
+.c10 {
+  border-radius: 8px;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
 .c10 > tbody > tr > td {
   vertical-align: middle;
+}
+
+.c10 > thead > tr > th {
+  background: rgba(255,255,255,0.13);
 }
 
 .c0 {
@@ -456,12 +457,12 @@ exports[`failed state 1`] = `
 
 .c12 {
   cursor: pointer;
-  background-color: #2e3860;
+  background-color: rgba(255,255,255,0.07);
   border-radius: 2px;
 }
 
 .c12:hover {
-  background-color: #414b70;
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c23 {
@@ -470,7 +471,7 @@ exports[`failed state 1`] = `
   padding-bottom: 24px;
   position: sticky;
   bottom: 0;
-  background: #111B48;
+  background: #0C143D;
 }
 
 .c22 {
@@ -478,15 +479,22 @@ exports[`failed state 1`] = `
   padding: 8px;
   height: 80px;
   width: 100%;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: #222C59;
-  background: #1C254D;
+  border-color: rgba(255,255,255,0.24);
+  outline: none;
+  background: transparent;
 }
 
 .c22::placeholder {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.24);
+}
+
+.c22:hover,
+.c22:focus,
+.c22:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 <div>
@@ -504,7 +512,6 @@ exports[`failed state 1`] = `
       >
         <span
           class="c4 c5 icon icon-arrow_back "
-          color="light"
           font-size="25"
           style="cursor: pointer;"
         />
@@ -513,7 +520,7 @@ exports[`failed state 1`] = `
         >
           <div
             class="c7"
-            color="light"
+            color="text.primary"
           >
             4
              
@@ -561,7 +568,6 @@ exports[`failed state 1`] = `
             >
               <span
                 class="c4 c11 icon icon-trash2 c12"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -578,7 +584,6 @@ exports[`failed state 1`] = `
             >
               <span
                 class="c4 c11 icon icon-trash2 c12"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -595,7 +600,6 @@ exports[`failed state 1`] = `
             >
               <span
                 class="c4 c11 icon icon-trash2 c12"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -612,7 +616,6 @@ exports[`failed state 1`] = `
             >
               <span
                 class="c4 c11 icon icon-trash2 c12"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -793,7 +796,6 @@ exports[`failed state 1`] = `
           color="text.primary"
           height="80px"
           placeholder="Describe your request... (optional)"
-          style="outline: none;"
           width="100%"
         />
       </div>
@@ -848,34 +850,29 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 50px;
 }
 
-.c18:active {
-  opacity: 0.56;
-}
-
 .c18:hover,
 .c18:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid undefined;
 }
 
 .c18:active {
-  opacity: 0.24;
+  background: rgba(255,255,255,0.13);
 }
 
 .c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c23 {
@@ -897,45 +894,42 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 100%;
 }
 
-.c23:active {
-  opacity: 0.56;
-}
-
 .c23:hover,
 .c23:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c23:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c23:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 16px;
   color: #FFFFFF;
+  margin-right: 16px;
   font-size: 25px;
 }
 
 .c10 {
   display: inline-block;
   transition: color 0.3s;
-  padding: 8px;
   color: #FFFFFF;
+  padding: 8px;
   font-size: 13px;
 }
 
@@ -984,22 +978,8 @@ exports[`loaded state 1`] = `
   align-items: center;
 }
 
-.c16 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  padding-bottom: 16px;
-  height: 34px;
-  width: 260px;
-  border-bottom: 1px solid;
-  border-color: #1C254D;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 .c8 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
   font-size: 12px;
@@ -1039,7 +1019,7 @@ exports[`loaded state 1`] = `
 }
 
 .c8 > thead > tr > th {
-  background: #111B48;
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -1059,16 +1039,16 @@ exports[`loaded state 1`] = `
 }
 
 .c8 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   line-height: 16px;
 }
 
 .c8 tbody tr {
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid #0C143D;
 }
 
 .c8 tbody tr:hover {
-  background-color: rgb(37,49,98);
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c13 {
@@ -1170,7 +1150,7 @@ exports[`loaded state 1`] = `
 }
 
 .c13 .react-select__selected .icon-checkmark-circle {
-  color: #00bfa5;
+  color: #00BFA5;
 }
 
 .c13 .react-select__selected .icon-cross {
@@ -1191,13 +1171,26 @@ exports[`loaded state 1`] = `
   padding: 3px 15px;
 }
 
+.c16 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  height: 34px;
+  width: 260px;
+  border-bottom: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-color: rgba(255,255,255,0.13);
+}
+
 .c2 {
   box-sizing: border-box;
   position: absolute;
   z-index: 11;
   top: 0px;
   right: 0px;
-  background: #111B48;
+  background: #0C143D;
   min-height: 100%;
   width: 500px;
   padding: 20px;
@@ -1233,8 +1226,18 @@ exports[`loaded state 1`] = `
   z-index: 10;
 }
 
+.c9 {
+  border-radius: 8px;
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  overflow: hidden;
+}
+
 .c9 > tbody > tr > td {
   vertical-align: middle;
+}
+
+.c9 > thead > tr > th {
+  background: rgba(255,255,255,0.13);
 }
 
 .c0 {
@@ -1248,12 +1251,12 @@ exports[`loaded state 1`] = `
 
 .c11 {
   cursor: pointer;
-  background-color: #2e3860;
+  background-color: rgba(255,255,255,0.07);
   border-radius: 2px;
 }
 
 .c11:hover {
-  background-color: #414b70;
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c22 {
@@ -1262,7 +1265,7 @@ exports[`loaded state 1`] = `
   padding-bottom: 24px;
   position: sticky;
   bottom: 0;
-  background: #111B48;
+  background: #0C143D;
 }
 
 .c21 {
@@ -1270,15 +1273,22 @@ exports[`loaded state 1`] = `
   padding: 8px;
   height: 80px;
   width: 100%;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   border: 1px solid;
   border-radius: 4px;
-  border-color: #222C59;
-  background: #1C254D;
+  border-color: rgba(255,255,255,0.24);
+  outline: none;
+  background: transparent;
 }
 
 .c21::placeholder {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.24);
+}
+
+.c21:hover,
+.c21:focus,
+.c21:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 <div>
@@ -1296,7 +1306,6 @@ exports[`loaded state 1`] = `
       >
         <span
           class="c4 c5 icon icon-arrow_back "
-          color="light"
           font-size="25"
           style="cursor: pointer;"
         />
@@ -1305,7 +1314,7 @@ exports[`loaded state 1`] = `
         >
           <div
             class="c7"
-            color="light"
+            color="text.primary"
           >
             4
              
@@ -1347,7 +1356,6 @@ exports[`loaded state 1`] = `
             >
               <span
                 class="c4 c10 icon icon-trash2 c11"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -1364,7 +1372,6 @@ exports[`loaded state 1`] = `
             >
               <span
                 class="c4 c10 icon icon-trash2 c11"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -1381,7 +1388,6 @@ exports[`loaded state 1`] = `
             >
               <span
                 class="c4 c10 icon icon-trash2 c11"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -1398,7 +1404,6 @@ exports[`loaded state 1`] = `
             >
               <span
                 class="c4 c10 icon icon-trash2 c11"
-                color="light"
                 font-size="13"
               />
             </td>
@@ -1579,7 +1584,6 @@ exports[`loaded state 1`] = `
           color="text.primary"
           height="80px"
           placeholder="Describe your request..."
-          style="outline: none;"
           width="100%"
         />
       </div>
@@ -1635,8 +1639,8 @@ exports[`success state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1645,22 +1649,19 @@ exports[`success state 1`] = `
   width: 100%;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c10:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c11 {
@@ -1682,16 +1683,12 @@ exports[`success state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+  color: rgba(255,255,255,0.87);
   background: none;
   text-transform: none;
-  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
-}
-
-.c11:active {
-  opacity: 0.56;
 }
 
 .c11:hover,
@@ -1703,6 +1700,7 @@ exports[`success state 1`] = `
 .c11:disabled {
   background: none;
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -1745,7 +1743,7 @@ exports[`success state 1`] = `
   z-index: 11;
   top: 0px;
   right: 0px;
-  background: #111B48;
+  background: #0C143D;
   min-height: 100%;
   width: 500px;
   padding: 20px;
@@ -1808,7 +1806,7 @@ exports[`success state 1`] = `
         >
           <div
             class="c5"
-            color="light"
+            color="text.primary"
           >
             Resources Requested Successfully
           </div>
@@ -1842,7 +1840,6 @@ exports[`success state 1`] = `
           kind="primary"
           mb="3"
           mt="5"
-          theme="[object Object]"
           width="100%"
         >
           Back to Listings

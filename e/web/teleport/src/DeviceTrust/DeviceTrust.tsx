@@ -67,7 +67,7 @@ export const DeviceTrust = (props: State) => {
                 <Text typography="subtitle1">
                   Please{' '}
                   <Link
-                    color="light"
+                    color="text.primary"
                     href="https://goteleport.com/docs/access-controls/guides/device-trust/"
                     target="_blank"
                   >

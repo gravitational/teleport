@@ -14,8 +14,8 @@ exports[`failed state 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c4 a {
@@ -26,7 +26,7 @@ exports[`failed state 1`] = `
   box-sizing: border-box;
   margin-top: 48px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c1 {
@@ -35,13 +35,13 @@ exports[`failed state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
 }
 
 .c3 {
   box-sizing: border-box;
   padding: 16px;
-  background-color: #2C3A73;
+  background-color: #344179;
 }
 
 .c5 {
@@ -53,15 +53,6 @@ exports[`failed state 1`] = `
 .c8 {
   box-sizing: border-box;
   margin-bottom: 24px;
-}
-
-.c9 {
-  box-sizing: border-box;
-  max-width: 500px;
-  padding: 8px;
-  height: 150px;
-  width: 100%;
-  border-radius: 4px;
 }
 
 .c10 {
@@ -83,29 +74,26 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c10:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c2 {
@@ -129,57 +117,137 @@ exports[`failed state 1`] = `
 }
 
 .c7 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c7 .react-select__control,
-.c7 .react-select__control--is-focused {
+.c7 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c7 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c7 .react-select__control:hover,
-.c7 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c7 .react-select__control:focus,
+.c7 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c7 .react-select__control:hover .react-select__dropdown-indicator,
+.c7 .react-select__control:focus .react-select__dropdown-indicator,
+.c7 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c7 .react-select__control .react-select__indicator:hover,
+.c7 .react-select__control .react-select__dropdown-indicator:hover,
+.c7 .react-select__control .react-select__indicator:focus,
+.c7 .react-select__control .react-select__dropdown-indicator:focus,
+.c7 .react-select__control .react-select__indicator:active,
+.c7 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c7 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c7 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c7 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c7 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c7 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c7 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c7 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c7 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c7 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c7 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c7 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c7 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c7 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c7 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c7 .react-select__clear-indicator:hover,
+.c7 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c7 .react-select__clear-indicator:hover svg,
+.c7 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c7 .react-select__menu {
   margin-top: 0px;
+  background-color: #344179;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c7 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c7 .react-select__indicator-separator {
@@ -190,13 +258,46 @@ exports[`failed state 1`] = `
   display: none;
 }
 
-.c7 .react-select--is-disabled .react-select__single-value,
-.c7 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c7 .react-select--is-disabled,
+.c7 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c7 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c7 .react-select--is-disabled .react-select__single-value,
+.c7 .react-select__control--is-disabled .react-select__single-value,
+.c7 .react-select--is-disabled .react-select__placeholder,
+.c7 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c7 .react-select--is-disabled .react-select__indicator,
+.c7 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c9 {
+  box-sizing: border-box;
+  max-width: 500px;
+  padding: 8px;
+  height: 150px;
+  width: 100%;
+  color: #FFFFFF;
+  border: 1px solid;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
+  outline: none;
+  background: transparent;
+}
+
+.c9::placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c9:hover,
+.c9:focus,
+.c9:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 <div>
@@ -299,9 +400,9 @@ exports[`failed state 1`] = `
         </label>
         <textarea
           class="c9"
+          color="text.primary"
           height="150px"
           placeholder="Optional message..."
-          style="outline: none; font-family: theme.font;"
           width="100%"
         />
       </div>
@@ -321,7 +422,7 @@ exports[`loaded state 1`] = `
   box-sizing: border-box;
   margin-top: 48px;
   border: 1px solid;
-  border-color: #111B48;
+  border-color: #0C143D;
 }
 
 .c1 {
@@ -330,13 +431,13 @@ exports[`loaded state 1`] = `
   padding-right: 16px;
   padding-top: 4px;
   padding-bottom: 4px;
-  background-color: #111B48;
+  background-color: #0C143D;
 }
 
 .c3 {
   box-sizing: border-box;
   padding: 16px;
-  background-color: #2C3A73;
+  background-color: #344179;
 }
 
 .c4 {
@@ -348,15 +449,6 @@ exports[`loaded state 1`] = `
 .c7 {
   box-sizing: border-box;
   margin-bottom: 24px;
-}
-
-.c8 {
-  box-sizing: border-box;
-  max-width: 500px;
-  padding: 8px;
-  height: 150px;
-  width: 100%;
-  border-radius: 4px;
 }
 
 .c9 {
@@ -378,29 +470,26 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c9:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c2 {
@@ -424,57 +513,137 @@ exports[`loaded state 1`] = `
 }
 
 .c6 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c6 .react-select__control,
-.c6 .react-select__control--is-focused {
+.c6 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c6 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c6 .react-select__control:hover,
-.c6 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c6 .react-select__control:focus,
+.c6 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c6 .react-select__control:hover .react-select__dropdown-indicator,
+.c6 .react-select__control:focus .react-select__dropdown-indicator,
+.c6 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c6 .react-select__control .react-select__indicator:hover,
+.c6 .react-select__control .react-select__dropdown-indicator:hover,
+.c6 .react-select__control .react-select__indicator:focus,
+.c6 .react-select__control .react-select__dropdown-indicator:focus,
+.c6 .react-select__control .react-select__indicator:active,
+.c6 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c6 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c6 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c6 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c6 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c6 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c6 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c6 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c6 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c6 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c6 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c6 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c6 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c6 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c6 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c6 .react-select__clear-indicator:hover,
+.c6 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c6 .react-select__clear-indicator:hover svg,
+.c6 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c6 .react-select__menu {
   margin-top: 0px;
+  background-color: #344179;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c6 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c6 .react-select__indicator-separator {
@@ -485,13 +654,46 @@ exports[`loaded state 1`] = `
   display: none;
 }
 
-.c6 .react-select--is-disabled .react-select__single-value,
-.c6 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c6 .react-select--is-disabled,
+.c6 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c6 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c6 .react-select--is-disabled .react-select__single-value,
+.c6 .react-select__control--is-disabled .react-select__single-value,
+.c6 .react-select--is-disabled .react-select__placeholder,
+.c6 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c6 .react-select--is-disabled .react-select__indicator,
+.c6 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
+}
+
+.c8 {
+  box-sizing: border-box;
+  max-width: 500px;
+  padding: 8px;
+  height: 150px;
+  width: 100%;
+  color: #FFFFFF;
+  border: 1px solid;
+  border-radius: 4px;
+  border-color: rgba(255,255,255,0.24);
+  outline: none;
+  background: transparent;
+}
+
+.c8::placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c8:hover,
+.c8:focus,
+.c8:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 <div>
@@ -588,9 +790,9 @@ exports[`loaded state 1`] = `
         </label>
         <textarea
           class="c8"
+          color="text.primary"
           height="150px"
           placeholder="Optional message..."
-          style="outline: none; font-family: theme.font;"
           width="100%"
         />
       </div>

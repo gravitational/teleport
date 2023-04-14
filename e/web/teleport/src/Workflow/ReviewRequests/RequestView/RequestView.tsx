@@ -91,10 +91,15 @@ export function RequestView({
         >
           {/* First half of this box contains status, roles, expiry, and delete btn */}
           <Flex
-            bg="levels.elevated"
             p={3}
             borderTopLeftRadius={2}
             borderTopRightRadius={2}
+            css={`
+              background: ${props =>
+                props.theme.name === 'light'
+                  ? props.theme.colors.spotBackground[0]
+                  : props.theme.colors.levels.elevated};
+            `}
           >
             <Flex alignItems="center">
               <StateLabel
@@ -214,7 +219,7 @@ const Timeline = styled.div`
   width: 2px;
   top: 0;
   left: 55px;
-  border-left: 2px solid ${props => props.theme.colors.levels.elevated};
+  border-left: 2px solid ${props => props.theme.colors.spotBackground[0]};
 `;
 
 function RequestorTimestamp({
@@ -263,7 +268,7 @@ function Timestamp({
   }
 
   if (state === 'DENIED') {
-    iconBgColor = 'danger';
+    iconBgColor = 'error.main';
     $icon = <CircleCross fontSize={8} color="light" />;
     verb = 'denied';
   }
@@ -275,6 +280,7 @@ function Timestamp({
         mr={2}
         bg={iconBgColor}
         p="3px"
+        pl="4px"
         borderRadius="50%"
         style={{ display: 'flex' }}
       >
@@ -306,11 +312,11 @@ function Comment({
   return (
     <Box
       border="1px solid"
-      borderColor="levels.sunkenSecondary"
+      borderColor="levels.sunken"
       mt={3}
       style={{ position: 'relative' }}
     >
-      <Flex bg="levels.sunkenSecondary" py={1} px={3} alignItems="baseline">
+      <Flex bg="levels.sunken" py={1} px={3} alignItems="baseline">
         <Text typography="body2" bold mr={2}>
           {author}
         </Text>
@@ -374,7 +380,7 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
     if (reviewer.state === 'APPROVED') {
       kind = 'success';
     } else if (reviewer.state === 'DENIED') {
-      kind = 'danger';
+      kind = 'error';
     }
 
     return (
@@ -385,10 +391,12 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
         px={3}
         py={2}
         mb={2}
-        bg="levels.surfaceSecondary"
         alignItems="center"
         justifyContent="space-between"
         key={index}
+        css={`
+          background: ${props => props.theme.colors.spotBackground[0]};
+        `}
       >
         <Text
           typography="body2"
@@ -414,9 +422,11 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
       <>
         <Flex
           borderBottom={1}
-          borderColor="levels.surfaceSecondary"
           mb={3}
           pb={3}
+          css={`
+            border-color: ${props => props.theme.colors.spotBackground[1]};
+          `}
         >
           <Text typography="h6" mr={2}>
             No Reviewers Yet
@@ -431,9 +441,11 @@ function Reviewers({ reviewers }: { reviewers: AccessRequestReviewer[] }) {
     <>
       <Flex
         borderBottom={1}
-        borderColor="levels.surfaceSecondary"
         mb={3}
         pb={3}
+        css={`
+          border-color: ${props => props.theme.colors.spotBackground[1]};
+        `}
       >
         <Text typography="h6" mr={2}>
           Reviewers

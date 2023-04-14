@@ -1,7 +1,7 @@
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import React from 'react';
-import Select, { DarkStyledSelect, Option } from 'shared/components/Select';
+import Select, { Option } from 'shared/components/Select';
 
 import Indicator from 'design/Indicator';
 
@@ -62,7 +62,7 @@ export const TeleportReleases = ({
         </Text>
         <Text mt={3} mb={5}>
           You will also need the binaries below for{' '}
-          <Link href={GETTING_STARTED_LINK} color="light" about="_blank">
+          <Link href={GETTING_STARTED_LINK} color="text.primary" about="_blank">
             Getting Started with Teleport Enterprise
           </Link>
           {':'}
@@ -81,7 +81,7 @@ export const TeleportReleases = ({
             {attempt.status === 'success' && (
               <>
                 <Flex alignItems="center">
-                  <DarkStyledSelect width="210px">
+                  <Box width="210px">
                     <Select
                       isSearchable={false}
                       options={[
@@ -99,8 +99,8 @@ export const TeleportReleases = ({
                       }
                       value={{ label: selectedKind, value: selectedKind }}
                     />
-                  </DarkStyledSelect>
-                  <DarkStyledSelect width="210px" ml={3}>
+                  </Box>
+                  <Box width="210px" ml={3}>
                     <Select
                       isSearchable={false}
                       options={versionOptions}
@@ -109,7 +109,7 @@ export const TeleportReleases = ({
                       }
                       value={{ label: selectedVersion, value: selectedVersion }}
                     />
-                  </DarkStyledSelect>
+                  </Box>
                   <Flex ml="auto">
                     <OsToggle onClick={setSelectedOS} selectedOS={selectedOS} />
                   </Flex>

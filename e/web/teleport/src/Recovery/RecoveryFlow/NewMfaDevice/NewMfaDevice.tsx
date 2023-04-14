@@ -80,7 +80,12 @@ export function NewMfaDevice({
       <Validation>
         {({ validator }) => (
           <>
-            <Text typography="h3" pt={5} textAlign="center" color="light">
+            <Text
+              typography="h3"
+              pt={5}
+              textAlign="center"
+              color="text.primary"
+            >
               Enroll New Two-Factor Device
             </Text>
             <Text textAlign="center" color="text.secondary">
@@ -94,11 +99,13 @@ export function NewMfaDevice({
                 flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
-                bg="levels.surfaceSecondary"
                 borderRadius={8}
                 height="256px"
                 p={3}
                 mb={4}
+                css={`
+                  background: ${props => props.theme.colors.spotBackground[0]};
+                `}
               >
                 <Image
                   src={imgSrc}
@@ -134,6 +141,7 @@ export function NewMfaDevice({
                   onChange={(o: MfaOption) => onSetMfaOption(o, validator)}
                   mr={3}
                   isDisabled={attempt.status === 'processing'}
+                  elevated={true}
                 />
                 {mfaOption.value === 'otp' && (
                   <FieldInput

@@ -69,10 +69,10 @@ export const SupportE = ({
 };
 
 const EditLink = styled(Edit)`
-  color: ${props => props.theme.colors.light};
+  color: ${props => props.theme.colors.text.secondary};
   ${props => props.theme.typography.body2}
   &:hover, &:focus {
-    background: ${props => props.theme.colors.levels.elevated};
+    color: ${props => props.theme.colors.text.primary};
     cursor: pointer;
   }
 `;

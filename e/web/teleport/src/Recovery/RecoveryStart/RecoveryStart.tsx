@@ -58,7 +58,12 @@ export function RecoveryStart({ submit, attempt, recoveryType }: State) {
       <Validation>
         {({ validator }) => (
           <>
-            <Text typography="h3" pt={5} textAlign="center" color="light">
+            <Text
+              typography="h3"
+              pt={5}
+              textAlign="center"
+              color="text.primary"
+            >
               {title}
             </Text>
             <Box p={5}>

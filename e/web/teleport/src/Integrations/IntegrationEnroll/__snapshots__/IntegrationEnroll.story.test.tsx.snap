@@ -14,8 +14,8 @@ exports[`render Failed 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c4 a {
@@ -32,7 +32,7 @@ exports[`render Failed 1`] = `
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -138,7 +138,7 @@ exports[`render NoPluginsEnrolled 1`] = `
 }
 
 .c17 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -187,7 +187,7 @@ exports[`render NoPluginsEnrolled 1`] = `
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -231,14 +231,14 @@ exports[`render NoPluginsEnrolled 1`] = `
   border-radius: 4px;
   height: 170px;
   width: 170px;
-  background-color: #222C59;
+  background-color: rgba(255,255,255,0.07);
   text-align: center;
   cursor: pointer;
   opacity: 1;
 }
 
 .c10:hover {
-  background-color: #2C3A73;
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c12 {
@@ -296,7 +296,6 @@ exports[`render NoPluginsEnrolled 1`] = `
               class="c10"
               data-testid="tile"
               href="/web/integrations/new/slack"
-              theme="[object Object]"
             >
               <img
                 class="c11 c12"
@@ -316,7 +315,6 @@ exports[`render NoPluginsEnrolled 1`] = `
               class="c10"
               data-testid="tile"
               href="/web/integrations/new/aws-oidc"
-              theme="[object Object]"
             >
               <img
                 class="c15"
@@ -512,7 +510,7 @@ exports[`render Processing 1`] = `
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -582,8 +580,9 @@ exports[`render SlackAlreadyEnrolled 1`] = `
 .c16 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   margin-left: 4px;
-  color: #00bfa5;
+  color: #00BFA5;
 }
 
 .c7 {
@@ -622,7 +621,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
 }
 
 .c10 {
-  color: #03a9f4;
+  color: #009EFF;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -671,7 +670,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -715,7 +714,7 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   border-radius: 4px;
   height: 170px;
   width: 170px;
-  background-color: #222C59;
+  background-color: rgba(255,255,255,0.07);
   text-align: center;
   cursor: pointer;
 }
@@ -731,14 +730,14 @@ exports[`render SlackAlreadyEnrolled 1`] = `
   border-radius: 4px;
   height: 170px;
   width: 170px;
-  background-color: #222C59;
+  background-color: rgba(255,255,255,0.07);
   text-align: center;
   cursor: pointer;
   opacity: 1;
 }
 
 .c18:hover {
-  background-color: #2C3A73;
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c13 {
@@ -830,7 +829,6 @@ exports[`render SlackAlreadyEnrolled 1`] = `
               class="c18"
               data-testid="tile"
               href="/web/integrations/new/aws-oidc"
-              theme="[object Object]"
             >
               <img
                 class="c19"

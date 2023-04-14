@@ -1,4 +1,5 @@
 import React from 'react';
+import styled from 'styled-components';
 import Table, { Cell } from 'design/DataTable';
 
 import Link from 'design/Link';
@@ -15,9 +16,9 @@ export const ReleasesList = ({
   emptyText = 'No Downloads Found',
 }: ReleasesListProps) => {
   return (
-    <Table
+    <StyledTable
       style={{
-        borderRadius: '4px',
+        borderRadius: '8px',
       }}
       data={assets}
       columns={[
@@ -54,3 +55,12 @@ export const ReleasesList = ({
     />
   );
 };
+
+const StyledTable = styled(Table)`
+  & > thead > tr > th {
+    background: ${props => props.theme.colors.spotBackground[1]};
+  }
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: ${props => props.theme.boxShadow[0]};
+` as typeof Table;

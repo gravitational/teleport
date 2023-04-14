@@ -37,11 +37,11 @@ export default function RequestReview({ attempt, submitReview, user }: Props) {
       {({ validator }) => (
         <Box
           border="1px solid"
-          borderColor="levels.sunkenSecondary"
+          borderColor="levels.sunken"
           mt={7}
           style={{ position: 'relative' }}
         >
-          <Box bg="levels.sunkenSecondary" py={1} px={3} alignItems="center">
+          <Box bg="levels.sunken" py={1} px={3} alignItems="center">
             <Text typography="h6" mr={3}>
               {user} - add a review
             </Text>
@@ -69,10 +69,25 @@ export default function RequestReview({ attempt, submitReview, user }: Props) {
                 p={2}
                 borderRadius={2}
                 placeholder="Optional message..."
+                color="text.primary"
+                border="1px solid"
+                borderColor="text.placeholder"
                 value={reason}
                 onChange={e => setReason(e.target.value)}
                 autoFocus
-                style={{ outline: 'none', fontFamily: 'theme.font' }}
+                css={`
+                  outline: none;
+                  background: transparent;
+                  ::placeholder {
+                    color: ${({ theme }) => theme.colors.text.placeholder};
+                  }
+                  &:hover,
+                  &:focus,
+                  &:active {
+                    border: 1px solid
+                      ${props => props.theme.colors.text.secondary};
+                  }
+                `}
               />
             </Box>
             <ButtonPrimary

@@ -188,7 +188,7 @@ export function RequestCheckout({
         {createAttempt.status === 'success' ? (
           <Box>
             <Box mt={2} mb={7} textAlign="center">
-              <Text typography="h4" color="light" bold>
+              <Text typography="h4" color="text.primary" bold>
                 Resources Requested Successfully
               </Text>
               <Text typography="subtitle1" color="text.secondary">
@@ -209,7 +209,7 @@ export function RequestCheckout({
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text typography="h4" color="light" bold>
+              <Text typography="h4" color="text.primary" bold>
                 {data.length} {pluralize(data.length, 'Resource')} Selected
               </Text>
             </Box>
@@ -296,8 +296,7 @@ export function RequestCheckout({
                     css={`
                       position: sticky;
                       bottom: 0;
-                      background: ${({ theme }) =>
-                        theme.colors.levels.sunkenSecondary};
+                      background: ${({ theme }) => theme.colors.levels.sunken};
                     `}
                   >
                     <ButtonPrimary
@@ -350,8 +349,10 @@ function ResourceRequestRoles({
           justifyContent="space-between"
           width="100%"
           borderBottom={1}
-          borderColor="levels.surfaceSecondary"
           onClick={() => setExpanded(!expanded)}
+          css={`
+            border-color: ${props => props.theme.colors.spotBackground[1]};
+          `}
         >
           <Flex flexDirection="column" width="100%">
             <LabelInput mb={0} style={{ cursor: 'pointer' }}>
@@ -424,7 +425,7 @@ function ResourceRequestRoles({
                 background: ${({ theme }) => theme.colors.levels.surface};
               `}
             >
-              <Warning mr={3} fontSize="16px" color="warning" />
+              <Warning mr={3} fontSize="16px" color="warning.main" />
               <Text typography="subtitle2">
                 Modifying this role set may disable access to some of the above
                 resources. Use with caution.
@@ -462,17 +463,22 @@ function TextBox({
         width="100%"
         borderRadius={2}
         p={2}
-        color={'text.primary'}
+        color="text.primary"
         border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.dark' : 'levels.surface'}
-        style={{ outline: 'none' }}
+        borderColor={hasError ? 'error.main' : 'text.placeholder'}
         placeholder={placeholder}
         value={reason}
         onChange={e => updateReason(e.target.value)}
         css={`
-          background: ${({ theme }) => theme.colors.levels.surfaceSecondary};
+          outline: none;
+          background: transparent;
           ::placeholder {
-            color: ${({ theme }) => theme.colors.text.secondary};
+            color: ${({ theme }) => theme.colors.text.placeholder};
+          }
+          &:hover,
+          &:focus,
+          &:active {
+            border: 1px solid ${props => props.theme.colors.text.secondary};
           }
         `}
       />
@@ -495,7 +501,7 @@ const SidePanel = styled(Box)`
   z-index: 11;
   top: 0px;
   right: 0px;
-  background: ${({ theme }) => theme.colors.levels.sunkenSecondary};
+  background: ${({ theme }) => theme.colors.levels.sunken};
   min-height: 100%;
   width: 500px;
   padding: 20px;
@@ -531,6 +537,12 @@ const StyledTable = styled(Table)`
   & > tbody > tr > td {
     vertical-align: middle;
   }
+  & > thead > tr > th {
+    background: ${props => props.theme.colors.spotBackground[1]};
+  }
+  border-radius: 8px;
+  box-shadow: ${props => props.theme.boxShadow[0]};
+  overflow: hidden;
 ` as typeof Table;
 
 type Props = {

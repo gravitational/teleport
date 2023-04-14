@@ -138,7 +138,7 @@ const CollapseButton = styled(Flex)`
   border-radius: 50%;
   &:hover {
     cursor: pointer;
-    background: ${props => props.theme.colors.brand.main};
+    background: ${props => props.theme.colors.brand};
   }
   transition: background linear 0.1s;
 `;

@@ -14,8 +14,8 @@ exports[`render failed state for recovery codes 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c0 a {
@@ -65,29 +65,26 @@ exports[`render recovery codes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c13:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c15 {
@@ -109,30 +106,27 @@ exports[`render recovery codes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-top: 8px;
 }
 
-.c15:active {
-  opacity: 0.56;
-}
-
 .c15:hover,
 .c15:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c15:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c16 {
@@ -154,8 +148,8 @@ exports[`render recovery codes 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -163,22 +157,19 @@ exports[`render recovery codes 1`] = `
   width: 100%;
 }
 
-.c16:active {
-  opacity: 0.56;
-}
-
 .c16:hover,
 .c16:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c16:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c2 {
@@ -190,7 +181,7 @@ exports[`render recovery codes 1`] = `
   background-color: #222C59;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -257,7 +248,7 @@ exports[`render recovery codes 1`] = `
   min-width: 584px;
   margin-left: auto;
   margin-right: auto;
-  background-color: #222C59;
+  background-color: levels.surface;
   border-radius: 8px;
   overflow: hidden;
   display: flex;
@@ -279,7 +270,7 @@ exports[`render recovery codes 1`] = `
   padding: 8px;
   padding-bottom: 24px;
   padding-left: 16px;
-  background-color: #111B48;
+  background-color: #0C143D;
   border-radius: 8px;
   display: flex;
   justify-content: space-between;
@@ -288,16 +279,6 @@ exports[`render recovery codes 1`] = `
 .c12 {
   box-sizing: border-box;
   margin-left: 8px;
-  display: flex;
-  flex-direction: column;
-}
-
-.c17 {
-  box-sizing: border-box;
-  min-width: 384px;
-  padding: 32px;
-  background-color: #1C254D;
-  flex: 2;
   display: flex;
   flex-direction: column;
 }
@@ -316,6 +297,16 @@ exports[`render recovery codes 1`] = `
   padding: 4px 8px;
   min-height: 10px;
   font-size: 10px;
+}
+
+.c17 {
+  box-sizing: border-box;
+  min-width: 384px;
+  padding: 32px;
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.07);
 }
 
 @media print {
@@ -352,7 +343,7 @@ exports[`render recovery codes 1`] = `
       >
         <div
           class="c5"
-          color="light"
+          color="text.primary"
         >
           New Backup & Recovery Codes
         </div>

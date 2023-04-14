@@ -12,7 +12,6 @@ import {
   ButtonBorder,
   Button,
 } from 'design';
-import theme from 'design/theme';
 import { kinds } from 'design/Button/Button';
 import { StyledPanel } from 'design/DataTable/StyledTable';
 import { StyledArrowBtn } from 'design/DataTable/Pager/StyledPager';
@@ -196,6 +195,9 @@ export function NewRequest(props: State) {
               options={resourceOptions}
               onChange={o => handleOnChangeResourceOption(o as ResourceOption)}
               isDisabled={fetchStatus === 'loading'}
+              css={`
+                text-transform: capitalize;
+              `}
             />
           </Box>
         )}
@@ -206,84 +208,89 @@ export function NewRequest(props: State) {
         )}
         {!nonRecoverableError && attempt.status !== 'processing' && (
           <>
-            <SearchPanel
-              updateQuery={updateQuery}
-              updateSearch={updateSearch}
-              pageIndicators={pageCount}
-              filter={agentFilter}
-              showSearchBar={currResourceOpt.value !== 'role'}
-              disableSearch={fetchStatus === 'loading'}
-              extraChildren={
-                currResourceOpt.value !== 'role' && (
-                  <AddPageButton
-                    toggleAddCurrentPage={toggleAddCurrentPage}
+            <StyledWrapper>
+              <SearchPanel
+                updateQuery={updateQuery}
+                updateSearch={updateSearch}
+                pageIndicators={pageCount}
+                filter={agentFilter}
+                showSearchBar={currResourceOpt.value !== 'role'}
+                disableSearch={fetchStatus === 'loading'}
+                extraChildren={
+                  currResourceOpt.value !== 'role' && (
+                    <AddPageButton
+                      toggleAddCurrentPage={toggleAddCurrentPage}
+                      toggleAddAllPages={toggleAddAllPages}
+                      agentOption={currResourceOpt}
+                      areAllPagesAdded={addedAll[currResourceOpt.value]}
+                      numAdded={
+                        addedAll[currResourceOpt.value]
+                          ? Object.keys(addedResources[currResourceOpt.value])
+                              .length
+                          : numAddedOnPage
+                      }
+                    />
+                  )
+                }
+              />
+              <Transition
+                in={showAddAllPagesPanel}
+                timeout={50}
+                mountOnEnter
+                unmountOnExit
+                enter
+                exit
+              >
+                {transitionState => (
+                  <AddAllPagesPanel
                     toggleAddAllPages={toggleAddAllPages}
-                    agentOption={currResourceOpt}
+                    totalCount={pageCount.total}
+                    pageCount={numOfPages}
                     areAllPagesAdded={addedAll[currResourceOpt.value]}
-                    numAdded={
-                      addedAll[currResourceOpt.value]
-                        ? Object.keys(addedResources[currResourceOpt.value])
-                            .length
-                        : numAddedOnPage
-                    }
+                    numAddedOnPage={numAddedOnPage}
+                    agentOption={currResourceOpt}
+                    attempt={addAllFetchAttempt}
+                    transitionState={transitionState}
                   />
-                )
-              }
-            />
-            <Transition
-              in={showAddAllPagesPanel}
-              timeout={50}
-              mountOnEnter
-              unmountOnExit
-              enter
-              exit
-            >
-              {transitionState => (
-                <AddAllPagesPanel
-                  toggleAddAllPages={toggleAddAllPages}
-                  totalCount={pageCount.total}
-                  pageCount={numOfPages}
-                  areAllPagesAdded={addedAll[currResourceOpt.value]}
-                  numAddedOnPage={numAddedOnPage}
-                  agentOption={currResourceOpt}
-                  attempt={addAllFetchAttempt}
-                  transitionState={transitionState}
-                />
-              )}
-            </Transition>
-            <ResourceList
-              agents={agents}
-              selectedResource={selectedResource}
-              customSort={customSort}
-              onLabelClick={onAgentLabelClick}
-              addedResources={addedResources}
-              addOrRemoveResource={addOrRemoveResource}
-              requestableRoles={requestableRoles}
-              disableRows={fetchStatus === 'loading'}
-            />
-            <StyledPanel borderBottomLeftRadius={3} borderBottomRightRadius={3}>
-              <Flex justifyContent="flex-end" width="100%">
-                <Flex alignItems="center" mr={2}></Flex>
-                <Flex>
-                  <StyledArrowBtn
-                    onClick={prevPage}
-                    title="Previous page"
-                    disabled={!prevPage || fetchStatus === 'loading'}
-                    mx={0}
-                  >
-                    <CircleArrowLeft fontSize="3" />
-                  </StyledArrowBtn>
-                  <StyledArrowBtn
-                    ml={0}
-                    onClick={nextPage}
-                    title="Next page"
-                    disabled={!nextPage || fetchStatus === 'loading'}
-                  >
-                    <CircleArrowRight fontSize="3" />
-                  </StyledArrowBtn>
+                )}
+              </Transition>
+              <ResourceList
+                agents={agents}
+                selectedResource={selectedResource}
+                customSort={customSort}
+                onLabelClick={onAgentLabelClick}
+                addedResources={addedResources}
+                addOrRemoveResource={addOrRemoveResource}
+                requestableRoles={requestableRoles}
+                disableRows={fetchStatus === 'loading'}
+              />
+              <StyledPanel
+                borderBottomLeftRadius={3}
+                borderBottomRightRadius={3}
+              >
+                <Flex justifyContent="flex-end" width="100%">
+                  <Flex alignItems="center" mr={2}></Flex>
+                  <Flex>
+                    <StyledArrowBtn
+                      onClick={prevPage}
+                      title="Previous page"
+                      disabled={!prevPage || fetchStatus === 'loading'}
+                      mx={0}
+                    >
+                      <CircleArrowLeft fontSize="3" />
+                    </StyledArrowBtn>
+                    <StyledArrowBtn
+                      ml={0}
+                      onClick={nextPage}
+                      title="Next page"
+                      disabled={!nextPage || fetchStatus === 'loading'}
+                    >
+                      <CircleArrowRight fontSize="3" />
+                    </StyledArrowBtn>
+                  </Flex>
                 </Flex>
-              </Flex>
-            </StyledPanel>
+              </StyledPanel>
+            </StyledWrapper>
             <Flex
               data-testid="checkout-footer"
               alignItems="center"
@@ -292,8 +299,7 @@ export function NewRequest(props: State) {
               p={3}
               mt={5}
               css={`
-                background: ${({ theme }) =>
-                  theme.colors.levels.surfaceSecondary};
+                background: ${({ theme }) => theme.colors.spotBackground[0]};
               `}
             >
               <Text bold>Resources Added ({numTotalSelections})</Text>
@@ -350,6 +356,12 @@ export function NewRequest(props: State) {
     </FeatureBox>
   );
 }
+
+const StyledWrapper = styled.div`
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: ${props => props.theme.boxShadow[0]};
+`;
 
 function AddPageButton({
   toggleAddCurrentPage,
@@ -470,7 +482,7 @@ const StyledSelectAllPanel = styled(StyledPanel)`
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  border-top: 2px solid ${props => props.theme.colors.levels.elevated};
+  border-top: 2px solid ${props => props.theme.colors.spotBackground[0]};
 
   &.entering {
     height: 24px;
@@ -510,8 +522,8 @@ const StyledSelectAllPanelContent = styled(Flex)`
   }
 `;
 
-const ButtonBorderStyles = { ...kinds({ kind: 'border', theme }) };
-const ButtonPrimaryStyles = { ...kinds({ kind: 'primary', theme }) };
+const ButtonBorderStyles = theme => ({ ...kinds({ kind: 'border', theme }) });
+const ButtonPrimaryStyles = theme => ({ ...kinds({ kind: 'primary', theme }) });
 
 const AnimatedButton = styled(Button)`
   white-space: nowrap;
@@ -519,14 +531,14 @@ const AnimatedButton = styled(Button)`
     width: 224px;
     transition: all 50ms ease-in;
 
-    ${ButtonPrimaryStyles}
+    ${props => ButtonPrimaryStyles(props.theme)}
   }
 
   &.border {
     width: 120px;
     transition: all 50ms ease-in;
 
-    ${ButtonBorderStyles}
+    ${props => ButtonBorderStyles(props.theme)}
   }
 `;
 

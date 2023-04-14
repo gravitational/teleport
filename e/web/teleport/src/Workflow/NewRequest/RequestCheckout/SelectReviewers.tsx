@@ -165,10 +165,12 @@ function Reviewers({
         px={3}
         py={2}
         mb={2}
-        bg="levels.surfaceSecondary"
         alignItems="center"
         justifyContent="space-between"
         key={index}
+        css={`
+          background: ${props => props.theme.colors.spotBackground[0]};
+        `}
       >
         <Text
           typography="body2"
@@ -186,13 +188,15 @@ function Reviewers({
     <>
       <Flex
         borderBottom={1}
-        borderColor="levels.surfaceSecondary"
         mb={3}
         pb={3}
         width="260px"
         justifyContent="space-between"
         alignItems="center"
         height="34px"
+        css={`
+          border-color: ${props => props.theme.colors.spotBackground[1]};
+        `}
       >
         <Text mr={2} fontSize="11px" fontWeight="500" caps>
           Reviewers (optional)

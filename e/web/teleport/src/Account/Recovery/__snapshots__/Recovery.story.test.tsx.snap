@@ -14,8 +14,8 @@ exports[`render failed state for recovery tab in account settings 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
   width: 900px;
 }
 
@@ -63,29 +63,26 @@ exports[`render screen for first timer recovery tab in account settings 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
 }
 
-.c3:active {
-  opacity: 0.56;
-}
-
 .c3:hover,
 .c3:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c3:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c1 {
@@ -197,29 +194,26 @@ exports[`render screen for recovery tab in account settings 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
 }
 
-.c5:active {
-  opacity: 0.56;
-}
-
 .c5:hover,
 .c5:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c5:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c5:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c1 {

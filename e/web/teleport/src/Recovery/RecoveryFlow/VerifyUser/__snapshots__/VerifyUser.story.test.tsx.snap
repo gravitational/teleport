@@ -14,8 +14,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
   width: 100%;
 }
 
@@ -60,8 +60,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -69,22 +69,19 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   width: 100%;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c13:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -93,7 +90,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -128,9 +125,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 
 .c8 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -138,9 +134,15 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c8:hover,
+.c8:focus,
+.c8:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c8::-ms-clear {
@@ -148,7 +150,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c8::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c8:read-only {
@@ -156,7 +158,8 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c7 {
@@ -186,57 +189,137 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 }
 
 .c12 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control,
-.c12 .react-select__control--is-focused {
+.c12 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c12 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c12 .react-select__control:hover,
-.c12 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c12 .react-select__control:focus,
+.c12 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c12 .react-select__control:hover .react-select__dropdown-indicator,
+.c12 .react-select__control:focus .react-select__dropdown-indicator,
+.c12 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control .react-select__indicator:hover,
+.c12 .react-select__control .react-select__dropdown-indicator:hover,
+.c12 .react-select__control .react-select__indicator:focus,
+.c12 .react-select__control .react-select__dropdown-indicator:focus,
+.c12 .react-select__control .react-select__indicator:active,
+.c12 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c12 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c12 .react-select__clear-indicator:hover,
+.c12 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__clear-indicator:hover svg,
+.c12 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -247,13 +330,22 @@ exports[`render failed state form for authenticating with multi option 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c12 .react-select--is-disabled,
+.c12 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select__control--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder,
+.c12 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c12 .react-select--is-disabled .react-select__indicator,
+.c12 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
 }
 
 <form
@@ -262,7 +354,7 @@ exports[`render failed state form for authenticating with multi option 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Password Recovery
   </div>
@@ -300,7 +392,6 @@ exports[`render failed state form for authenticating with multi option 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -403,8 +494,8 @@ exports[`render failed state form for authenticating with password 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
   width: 100%;
 }
 
@@ -441,8 +532,8 @@ exports[`render failed state form for authenticating with password 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -450,22 +541,19 @@ exports[`render failed state form for authenticating with password 1`] = `
   width: 100%;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c9:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -474,7 +562,7 @@ exports[`render failed state form for authenticating with password 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -509,9 +597,8 @@ exports[`render failed state form for authenticating with password 1`] = `
 
 .c8 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -519,9 +606,15 @@ exports[`render failed state form for authenticating with password 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c8:hover,
+.c8:focus,
+.c8:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c8::-ms-clear {
@@ -529,7 +622,7 @@ exports[`render failed state form for authenticating with password 1`] = `
 }
 
 .c8::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c8:read-only {
@@ -537,7 +630,8 @@ exports[`render failed state form for authenticating with password 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c7 {
@@ -556,7 +650,7 @@ exports[`render failed state form for authenticating with password 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Two-Factor Device Recovery
   </div>
@@ -594,7 +688,6 @@ exports[`render failed state form for authenticating with password 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -613,7 +706,6 @@ exports[`render failed state form for authenticating with password 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.primaryInverse"
           inputmode="text"
           placeholder="Password"
           type="password"
@@ -647,8 +739,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
   width: 100%;
 }
 
@@ -699,8 +791,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -708,22 +800,19 @@ exports[`render failed state form for authenticating with totp 1`] = `
   width: 100%;
 }
 
-.c14:active {
-  opacity: 0.56;
-}
-
 .c14:hover,
 .c14:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c14:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -732,7 +821,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -767,9 +856,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
 
 .c8 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -777,9 +865,15 @@ exports[`render failed state form for authenticating with totp 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c8:hover,
+.c8:focus,
+.c8:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c8::-ms-clear {
@@ -787,7 +881,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c8::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c8:read-only {
@@ -795,7 +889,8 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c7 {
@@ -825,57 +920,137 @@ exports[`render failed state form for authenticating with totp 1`] = `
 }
 
 .c12 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control,
-.c12 .react-select__control--is-focused {
+.c12 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c12 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c12 .react-select__control:hover,
-.c12 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c12 .react-select__control:focus,
+.c12 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c12 .react-select__control:hover .react-select__dropdown-indicator,
+.c12 .react-select__control:focus .react-select__dropdown-indicator,
+.c12 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control .react-select__indicator:hover,
+.c12 .react-select__control .react-select__dropdown-indicator:hover,
+.c12 .react-select__control .react-select__indicator:focus,
+.c12 .react-select__control .react-select__dropdown-indicator:focus,
+.c12 .react-select__control .react-select__indicator:active,
+.c12 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c12 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c12 .react-select__clear-indicator:hover,
+.c12 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__clear-indicator:hover svg,
+.c12 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -886,13 +1061,22 @@ exports[`render failed state form for authenticating with totp 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c12 .react-select--is-disabled,
+.c12 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select__control--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder,
+.c12 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c12 .react-select--is-disabled .react-select__indicator,
+.c12 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
 }
 
 <form
@@ -901,7 +1085,7 @@ exports[`render failed state form for authenticating with totp 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Password Recovery
   </div>
@@ -939,7 +1123,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1027,7 +1210,6 @@ exports[`render failed state form for authenticating with totp 1`] = `
           <input
             autocomplete="one-time-code"
             class="c8"
-            color="text.primaryInverse"
             inputmode="numeric"
             placeholder="123 456"
             type="text"
@@ -1062,8 +1244,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
   width: 100%;
 }
 
@@ -1108,8 +1290,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1117,22 +1299,19 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   width: 100%;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c13:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -1141,7 +1320,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -1176,9 +1355,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 
 .c8 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -1186,9 +1364,15 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c8:hover,
+.c8:focus,
+.c8:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c8::-ms-clear {
@@ -1196,7 +1380,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c8::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c8:read-only {
@@ -1204,7 +1388,8 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c8:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c7 {
@@ -1234,57 +1419,137 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 }
 
 .c12 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control,
-.c12 .react-select__control--is-focused {
+.c12 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c12 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c12 .react-select__control:hover,
-.c12 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c12 .react-select__control:focus,
+.c12 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c12 .react-select__control:hover .react-select__dropdown-indicator,
+.c12 .react-select__control:focus .react-select__dropdown-indicator,
+.c12 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control .react-select__indicator:hover,
+.c12 .react-select__control .react-select__dropdown-indicator:hover,
+.c12 .react-select__control .react-select__indicator:focus,
+.c12 .react-select__control .react-select__dropdown-indicator:focus,
+.c12 .react-select__control .react-select__indicator:active,
+.c12 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c12 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c12 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c12 .react-select__clear-indicator:hover,
+.c12 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c12 .react-select__clear-indicator:hover svg,
+.c12 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -1295,13 +1560,22 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c12 .react-select--is-disabled,
+.c12 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c12 .react-select--is-disabled .react-select__single-value,
+.c12 .react-select__control--is-disabled .react-select__single-value,
+.c12 .react-select--is-disabled .react-select__placeholder,
+.c12 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c12 .react-select--is-disabled .react-select__indicator,
+.c12 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
 }
 
 <form
@@ -1310,7 +1584,7 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Password Recovery
   </div>
@@ -1348,7 +1622,6 @@ exports[`render failed state form for authenticating with webauthn 1`] = `
         <input
           autocomplete="off"
           class="c8"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1475,8 +1748,8 @@ exports[`render form for authenticating with multi option 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1484,22 +1757,19 @@ exports[`render form for authenticating with multi option 1`] = `
   width: 100%;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c12:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -1508,7 +1778,7 @@ exports[`render form for authenticating with multi option 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -1543,9 +1813,8 @@ exports[`render form for authenticating with multi option 1`] = `
 
 .c7 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -1553,9 +1822,15 @@ exports[`render form for authenticating with multi option 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -1563,7 +1838,7 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c7::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c7:read-only {
@@ -1571,7 +1846,8 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -1601,57 +1877,137 @@ exports[`render form for authenticating with multi option 1`] = `
 }
 
 .c11 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c11 .react-select__control,
-.c11 .react-select__control--is-focused {
+.c11 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c11 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c11 .react-select__control:hover,
-.c11 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator,
+.c11 .react-select__control:focus .react-select__dropdown-indicator,
+.c11 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover,
+.c11 .react-select__control .react-select__indicator:focus,
+.c11 .react-select__control .react-select__dropdown-indicator:focus,
+.c11 .react-select__control .react-select__indicator:active,
+.c11 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c11 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c11 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c11 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__clear-indicator:hover,
+.c11 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__clear-indicator:hover svg,
+.c11 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c11 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c11 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c11 .react-select__indicator-separator {
@@ -1662,13 +2018,22 @@ exports[`render form for authenticating with multi option 1`] = `
   display: none;
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c11 .react-select--is-disabled,
+.c11 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select__control--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator,
+.c11 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
 }
 
 <form
@@ -1677,7 +2042,7 @@ exports[`render form for authenticating with multi option 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Password Recovery
   </div>
@@ -1708,7 +2073,6 @@ exports[`render form for authenticating with multi option 1`] = `
         <input
           autocomplete="off"
           class="c7"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1827,8 +2191,8 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1836,22 +2200,19 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   width: 100%;
 }
 
-.c8:active {
-  opacity: 0.56;
-}
-
 .c8:hover,
 .c8:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c8:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -1860,7 +2221,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -1895,9 +2256,8 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 
 .c7 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -1905,9 +2265,15 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -1915,7 +2281,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 }
 
 .c7::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c7:read-only {
@@ -1923,7 +2289,8 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 }
 
 .c7:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -1942,7 +2309,7 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Two-Factor Device Recovery
   </div>
@@ -1973,7 +2340,6 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
         <input
           autocomplete="off"
           class="c7"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -1992,7 +2358,6 @@ exports[`render form for authenticating with password to recover mfa device 1`] 
         <input
           autocomplete="off"
           class="c7"
-          color="text.primaryInverse"
           inputmode="text"
           placeholder="Password"
           type="password"
@@ -2056,8 +2421,8 @@ exports[`render form for authenticating with totp 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -2065,22 +2430,19 @@ exports[`render form for authenticating with totp 1`] = `
   width: 100%;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c13:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -2089,7 +2451,7 @@ exports[`render form for authenticating with totp 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -2124,9 +2486,8 @@ exports[`render form for authenticating with totp 1`] = `
 
 .c7 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -2134,9 +2495,15 @@ exports[`render form for authenticating with totp 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -2144,7 +2511,7 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c7::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c7:read-only {
@@ -2152,7 +2519,8 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -2182,57 +2550,137 @@ exports[`render form for authenticating with totp 1`] = `
 }
 
 .c11 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c11 .react-select__control,
-.c11 .react-select__control--is-focused {
+.c11 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c11 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c11 .react-select__control:hover,
-.c11 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator,
+.c11 .react-select__control:focus .react-select__dropdown-indicator,
+.c11 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover,
+.c11 .react-select__control .react-select__indicator:focus,
+.c11 .react-select__control .react-select__dropdown-indicator:focus,
+.c11 .react-select__control .react-select__indicator:active,
+.c11 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c11 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c11 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c11 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__clear-indicator:hover,
+.c11 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__clear-indicator:hover svg,
+.c11 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c11 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c11 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c11 .react-select__indicator-separator {
@@ -2243,13 +2691,22 @@ exports[`render form for authenticating with totp 1`] = `
   display: none;
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c11 .react-select--is-disabled,
+.c11 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select__control--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator,
+.c11 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
 }
 
 <form
@@ -2258,7 +2715,7 @@ exports[`render form for authenticating with totp 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Password Recovery
   </div>
@@ -2289,7 +2746,6 @@ exports[`render form for authenticating with totp 1`] = `
         <input
           autocomplete="off"
           class="c7"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"
@@ -2377,7 +2833,6 @@ exports[`render form for authenticating with totp 1`] = `
           <input
             autocomplete="one-time-code"
             class="c7"
-            color="text.primaryInverse"
             inputmode="numeric"
             placeholder="123 456"
             type="text"
@@ -2436,8 +2891,8 @@ exports[`render form for authenticating with webauthn 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -2445,22 +2900,19 @@ exports[`render form for authenticating with webauthn 1`] = `
   width: 100%;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c12:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
@@ -2469,7 +2921,7 @@ exports[`render form for authenticating with webauthn 1`] = `
   margin-right: auto;
   width: 512px;
   background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
 }
 
@@ -2504,9 +2956,8 @@ exports[`render form for authenticating with webauthn 1`] = `
 
 .c7 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -2514,9 +2965,15 @@ exports[`render form for authenticating with webauthn 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
+}
+
+.c7:hover,
+.c7:focus,
+.c7:active {
+  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -2524,7 +2981,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c7::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.24);
 }
 
 .c7:read-only {
@@ -2532,7 +2989,8 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c7:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -2562,57 +3020,137 @@ exports[`render form for authenticating with webauthn 1`] = `
 }
 
 .c11 .react-select-container {
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
-  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: rgba(0,0,0,0.87);
-  background-color: #ffffff;
+  color: #FFFFFF;
+  background-color: transparent;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c11 .react-select__control,
-.c11 .react-select__control--is-focused {
+.c11 .react-select__control {
+  outline: none;
   min-height: 40px;
   height: fit-content;
-  background-color: transparent;
-  border-color: transparent;
+  border: 1px solid rgba(255,255,255,0.24);
   border-radius: 4px;
-  border-style: solid;
-  border-width: 1px;
+  background-color: transparent;
   box-shadow: none;
 }
 
+.c11 .react-select__control .react-select__dropdown-indicator {
+  color: rgba(255,255,255,0.24);
+}
+
 .c11 .react-select__control:hover,
-.c11 .react-select__control--is-focused:hover {
-  border-color: transparent;
+.c11 .react-select__control:focus,
+.c11 .react-select__control:active {
+  border: 1px solid rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
   cursor: pointer;
+}
+
+.c11 .react-select__control:hover .react-select__dropdown-indicator,
+.c11 .react-select__control:focus .react-select__dropdown-indicator,
+.c11 .react-select__control:active .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control .react-select__indicator:hover,
+.c11 .react-select__control .react-select__dropdown-indicator:hover,
+.c11 .react-select__control .react-select__indicator:focus,
+.c11 .react-select__control .react-select__dropdown-indicator:focus,
+.c11 .react-select__control .react-select__indicator:active,
+.c11 .react-select__control .react-select__dropdown-indicator:active {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__control--is-focused {
+  border-color: rgba(255,255,255,0.56);
+  background-color: rgba(255,255,255,0.07);
+  cursor: pointer;
+}
+
+.c11 .react-select__control--is-focused .react-select__dropdown-indicator {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__single-value {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__placeholder {
+  color: rgba(255,255,255,0.24);
+}
+
+.c11 .react-select__multi-value {
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__label {
+  color: #FFFFFF;
+  padding: 0 6px;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove {
+  color: #FFFFFF;
+}
+
+.c11 .react-select__multi-value .react-select__multi-value__remove:hover {
+  background-color: rgba(255,255,255,0.07);
+  color: #FF6257;
 }
 
 .c11 .react-select__option:hover {
   cursor: pointer;
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-focused {
-  background-color: #eceff1;
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__option--is-focused:hover {
+  cursor: pointer;
+  background-color: rgba(255,255,255,0.07);
 }
 
 .c11 .react-select__option--is-selected {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
   color: inherit;
+  font-weight: 500;
 }
 
 .c11 .react-select__option--is-selected:hover {
-  background-color: #cfd8dc;
+  background-color: rgba(255,255,255,0.13);
+}
+
+.c11 .react-select__clear-indicator {
+  color: rgba(255,255,255,0.56);
+}
+
+.c11 .react-select__clear-indicator:hover,
+.c11 .react-select__clear-indicator:focus {
+  background-color: rgba(255,255,255,0.07);
+}
+
+.c11 .react-select__clear-indicator:hover svg,
+.c11 .react-select__clear-indicator:focus svg {
+  color: #FF6257;
 }
 
 .c11 .react-select__menu {
   margin-top: 0px;
+  background-color: #4A5688;
+  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
+}
+
+.c11 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.13);
+  border-radius: 4px;
 }
 
 .c11 .react-select__indicator-separator {
@@ -2623,13 +3161,22 @@ exports[`render form for authenticating with webauthn 1`] = `
   display: none;
 }
 
-.c11 .react-select--is-disabled .react-select__single-value,
-.c11 .react-select--is-disabled .react-select__placeholder {
-  color: rgba(0,0,0,0.24);
+.c11 .react-select--is-disabled,
+.c11 .react-select__control--is-disabled {
+  color: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.18);
 }
 
-.c11 .react-select--is-disabled .react-select__indicator {
-  color: rgba(0,0,0,0.14);
+.c11 .react-select--is-disabled .react-select__single-value,
+.c11 .react-select__control--is-disabled .react-select__single-value,
+.c11 .react-select--is-disabled .react-select__placeholder,
+.c11 .react-select__control--is-disabled .react-select__placeholder {
+  color: rgba(255,255,255,0.18);
+}
+
+.c11 .react-select--is-disabled .react-select__indicator,
+.c11 .react-select__control--is-disabled .react-select__indicator {
+  color: rgba(255,255,255,0.18);
 }
 
 <form
@@ -2638,7 +3185,7 @@ exports[`render form for authenticating with webauthn 1`] = `
 >
   <div
     class="c1"
-    color="light"
+    color="text.primary"
   >
     Password Recovery
   </div>
@@ -2669,7 +3216,6 @@ exports[`render form for authenticating with webauthn 1`] = `
         <input
           autocomplete="off"
           class="c7"
-          color="text.primaryInverse"
           inputmode="text"
           readonly=""
           type="text"

@@ -1,9 +1,8 @@
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import theme from 'design/theme';
 import React from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import type { OS } from 'e-teleport/services/downloads';
 
@@ -18,6 +17,8 @@ type OsButtonProps = {
 };
 
 export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
+  const theme = useTheme();
+
   const buttons: OsButtonProps[] = [
     { icon: <Icons.Linux />, value: 'Linux' },
     { icon: <Icons.Apple />, value: 'macOS' },
@@ -36,7 +37,12 @@ export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
       p="1"
       borderRadius="8px"
       style={{
-        backgroundColor: '#16204a',
+        backgroundColor: theme.colors.levels.surface,
+        border: `${
+          theme.name === 'light'
+            ? `1px solid ${theme.colors.spotBackground[2]}`
+            : ''
+        }`,
       }}
     >
       {buttons.map(button => {
@@ -51,13 +57,23 @@ export const OsToggle = ({ selectedOS, onClick }: OsToggleProps) => {
             style={
               isSelected
                 ? {
-                    backgroundColor: theme.colors.brand.main,
-                    color: 'white',
+                    backgroundColor: theme.colors.brand,
+                    color: theme.colors.text.primaryInverse,
                   }
-                : {}
+                : { color: theme.colors.text.primary }
             }
           >
-            <StyledIconContainer>{button.icon}</StyledIconContainer>
+            <StyledIconContainer
+              css={`
+                .icon {
+                  color: ${isSelected
+                    ? theme.colors.text.primaryInverse
+                    : theme.colors.text.primary};
+                }
+              `}
+            >
+              {button.icon}
+            </StyledIconContainer>
             {button.value}
           </StyledButton>
         );
@@ -72,12 +88,15 @@ const StyledButton = styled('button')`
   background-color: transparent;
   border: none;
   border-radius: 4px;
-  color: gray;
   cursor: pointer;
   display: flex;
   height: 36px;
   transition: all 0.3s;
   width: 90px;
+
+  &:hover {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
 `;
 
 const StyledIconContainer = styled(Box)`

@@ -29,29 +29,26 @@ exports[`approved role escalation 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c17:active {
-  opacity: 0.56;
-}
-
 .c17:hover,
 .c17:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c17:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c17:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c19 {
@@ -73,26 +70,27 @@ exports[`approved role escalation 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #d50000;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #FF6257;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c19:active {
-  opacity: 0.56;
-}
-
 .c19:hover,
 .c19:focus {
-  background: #ff1744;
+  background: #FF8179;
+}
+
+.c19:active {
+  background: #FFA19A;
 }
 
 .c19:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c20 {
@@ -114,25 +112,26 @@ exports[`approved role escalation 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c20:active {
-  opacity: 0.56;
-}
-
 .c20:hover,
 .c20:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c20:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c20:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -143,7 +142,7 @@ exports[`approved role escalation 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c9 {
@@ -186,8 +185,9 @@ exports[`approved role escalation 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -208,6 +208,7 @@ exports[`approved role escalation 1`] = `
   box-sizing: border-box;
   margin-top: 8px;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -257,8 +258,8 @@ exports[`approved role escalation 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -361,6 +362,7 @@ exports[`approved role escalation 1`] = `
         </div>
         <div
           class="c14"
+          color="light"
         >
           <div
             class="c15"
@@ -420,8 +422,8 @@ exports[`failed state 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c7 a {
@@ -451,26 +453,27 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #d50000;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #FF6257;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c15:active {
-  opacity: 0.56;
-}
-
 .c15:hover,
 .c15:focus {
-  background: #ff1744;
+  background: #FF8179;
+}
+
+.c15:active {
+  background: #FFA19A;
 }
 
 .c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c16 {
@@ -492,25 +495,26 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c16:active {
-  opacity: 0.56;
-}
-
 .c16:hover,
 .c16:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c16:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c16:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -521,7 +525,7 @@ exports[`failed state 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c10 {
@@ -553,8 +557,9 @@ exports[`failed state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -607,8 +612,8 @@ exports[`failed state 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -756,26 +761,27 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #d50000;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #FF6257;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c14:active {
-  opacity: 0.56;
-}
-
 .c14:hover,
 .c14:focus {
-  background: #ff1744;
+  background: #FF8179;
+}
+
+.c14:active {
+  background: #FFA19A;
 }
 
 .c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c15 {
@@ -797,25 +803,26 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c15:active {
-  opacity: 0.56;
-}
-
 .c15:hover,
 .c15:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -826,7 +833,7 @@ exports[`loaded state 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c9 {
@@ -858,8 +865,9 @@ exports[`loaded state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -912,8 +920,8 @@ exports[`loaded state 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -1055,26 +1063,27 @@ exports[`processing state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #d50000;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #FF6257;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c14:active {
-  opacity: 0.56;
-}
-
 .c14:hover,
 .c14:focus {
-  background: #ff1744;
+  background: #FF8179;
+}
+
+.c14:active {
+  background: #FFA19A;
 }
 
 .c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c15 {
@@ -1096,25 +1105,26 @@ exports[`processing state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c15:active {
-  opacity: 0.56;
-}
-
 .c15:hover,
 .c15:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c15:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -1125,7 +1135,7 @@ exports[`processing state 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c9 {
@@ -1157,8 +1167,9 @@ exports[`processing state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
 }
 
@@ -1211,8 +1222,8 @@ exports[`processing state 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;

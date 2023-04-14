@@ -31,7 +31,7 @@ export function Devices({
 
   return (
     <Card bg="levels.surface" mx="auto" width="604px">
-      <Text typography="h3" pt={5} textAlign="center" color="light">
+      <Text typography="h3" pt={5} textAlign="center" color="text.primary">
         Device Successfully Enrolled
       </Text>
       <Text textAlign="center" color="text.secondary">

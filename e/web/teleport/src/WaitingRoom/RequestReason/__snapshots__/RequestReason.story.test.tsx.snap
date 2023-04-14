@@ -14,8 +14,8 @@ exports[`failed 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c7 a {
@@ -48,30 +48,27 @@ exports[`failed 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c12:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c13 {
@@ -93,25 +90,26 @@ exports[`failed 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c13:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -122,7 +120,7 @@ exports[`failed 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c8 {
@@ -178,8 +176,8 @@ exports[`failed 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -314,30 +312,27 @@ exports[`loaded with custom prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c11:active {
-  opacity: 0.56;
-}
-
 .c11:hover,
 .c11:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c11:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c12 {
@@ -359,25 +354,26 @@ exports[`loaded with custom prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c12:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -388,7 +384,7 @@ exports[`loaded with custom prompt 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c7 {
@@ -444,8 +440,8 @@ exports[`loaded with custom prompt 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -574,30 +570,27 @@ exports[`loaded without custom prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c11:active {
-  opacity: 0.56;
-}
-
 .c11:hover,
 .c11:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c11:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c12 {
@@ -619,25 +612,26 @@ exports[`loaded without custom prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
   color: rgba(255,255,255,0.87);
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c12:active {
-  opacity: 0.56;
-}
-
 .c12:hover,
 .c12:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c12:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -648,7 +642,7 @@ exports[`loaded without custom prompt 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c7 {
@@ -704,8 +698,8 @@ exports[`loaded without custom prompt 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;

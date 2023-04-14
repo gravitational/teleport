@@ -1,13 +1,14 @@
 import React from 'react';
+import { useTheme } from 'styled-components';
 import { Box, Card, Flex, Text, Link } from 'design';
-import theme from 'design/theme';
 import { DevicesIcon } from 'design/SVGIcon';
 
 export const EmptyList = () => {
+  const theme = useTheme();
   return (
-    <Card maxWidth="700px" p={6} as={Flex} alignItems="center">
+    <Card maxWidth="700px" p={4} as={Flex} alignItems="center">
       <Box style={{ textAlign: 'center' }} mr={5}>
-        <DevicesIcon size={150} fill={theme.colors.levels.elevated} />
+        <DevicesIcon size={150} fill={theme.colors.spotBackground[2]} />
       </Box>
 
       <Box>
@@ -24,7 +25,7 @@ export const EmptyList = () => {
           Furthermore, users using a trusted device leave audit trails that
           include the device's information. Please{' '}
           <Link
-            color="light"
+            color="text.primary"
             href="https://goteleport.com/docs/access-controls/guides/device-trust/"
             target="_blank"
           >

@@ -3,7 +3,7 @@ import { Link as InternalLink } from 'react-router-dom';
 
 import {
   ButtonPrimary,
-  ButtonOutlined,
+  ButtonBorder,
   Flex,
   Image,
   Link as ExternalLink,
@@ -36,7 +36,7 @@ export function IntegrationsSplash() {
           href="https://goteleport.com/docs/access-controls/access-request-plugins/"
           target="_blank"
         >
-          <ButtonOutlined width="240px">View documentation</ButtonOutlined>
+          <ButtonBorder width="240px">View documentation</ButtonBorder>
         </ExternalLink>
       </Flex>
     </Flex>

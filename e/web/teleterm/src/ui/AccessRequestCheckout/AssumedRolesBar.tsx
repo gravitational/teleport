@@ -35,7 +35,7 @@ export function AssumedRolesBar({ assumedRolesRequest }: Props) {
             py={1}
             px={3}
             mr={2}
-            color="brand.main"
+            color="brand"
             bg="light"
             style={{
               fontWeight: '500',

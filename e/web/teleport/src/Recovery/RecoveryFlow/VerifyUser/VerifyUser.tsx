@@ -92,7 +92,12 @@ export function VerifyUser({
       <Validation>
         {({ validator }) => (
           <>
-            <Text typography="h3" pt={5} textAlign="center" color="light">
+            <Text
+              typography="h3"
+              pt={5}
+              textAlign="center"
+              color="text.primary"
+            >
               {title}
             </Text>
             <Text textAlign="center" color="text.secondary">
@@ -132,6 +137,7 @@ export function VerifyUser({
                     onChange={(o: MfaOption) => setMfaOption(o)}
                     mr={3}
                     isDisabled={attempt.status === 'processing'}
+                    elevated={true}
                   />
                   {mfaOption.value === 'otp' && (
                     <FieldInput
