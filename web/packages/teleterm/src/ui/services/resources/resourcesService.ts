@@ -138,7 +138,7 @@ export class ResourceSearchError extends Error {
     cause: Error
   ) {
     super(
-      `Error while fetching resources of type ${resourceKind} from a cluster`,
+      `Error while fetching resources of type ${resourceKind} from cluster ${clusterUri}`,
       { cause }
     );
     this.name = 'ResourceSearchError';

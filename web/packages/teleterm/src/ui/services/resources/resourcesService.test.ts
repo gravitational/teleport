@@ -200,6 +200,9 @@ describe('searchResources', () => {
       reason: new ResourceSearchError('/clusters/foo', 'kube', expectedCause),
     });
 
+    expect((actualServers as PromiseRejectedResult).reason).toBeInstanceOf(
+      ResourceSearchError
+    );
     expect((actualServers as PromiseRejectedResult).reason.cause).toEqual(
       expectedCause
     );
