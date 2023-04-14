@@ -20,6 +20,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 )
 
 // IntegrationAWSOIDCSpec contain the specific fields for the `aws-oidc` subkind integration.
@@ -101,4 +102,62 @@ func MakeIntegration(ig types.Integration) Integration {
 			RoleARN: ig.GetAWSOIDCIntegrationSpec().RoleARN,
 		},
 	}
+}
+
+// AWSOIDCListDatabasesRequest is a request to ListDatabases using the AWS OIDC Integration.
+type AWSOIDCListDatabasesRequest struct {
+	// RDSType is either `instance` or `cluster`.
+	RDSType string `json:"rdsType"`
+	// Engines filters the returned Databases based on their engine.
+	// Eg, mysql, postgres, mariadb, aurora, aurora-mysql, aurora-postgresql
+	Engines []string `json:"engines"`
+	// Region is the AWS Region.
+	Region string `json:"region"`
+	// NextToken is the token to be used to fetch the next page.
+	// If empty, the first page is fetched.
+	NextToken string `json:"nextToken"`
+}
+
+// MakeAWSOIDCListDatabase creates a UI representation of a Database coming from the ListDatabases request.
+func MakeAWSOIDCListDatabasesResponse(in *awsoidc.ListDatabasesResponse) *AWSOIDCListDatabasesResponse {
+	ret := &AWSOIDCListDatabasesResponse{
+		NextToken: in.NextToken,
+	}
+
+	ret.Databases = make([]AWSDatabase, 0, len(in.Databases))
+	for _, d := range in.Databases {
+		ret.Databases = append(ret.Databases, AWSDatabase{
+			Name:     d.Name,
+			Engine:   d.Engine,
+			Status:   d.Status,
+			Endpoint: d.Endpoint,
+			Labels:   makeLabels(d.Labels),
+		})
+	}
+
+	return ret
+}
+
+// AWSOIDCListDatabasesResponse contains a list of databases and a next token is more pages are available.
+type AWSOIDCListDatabasesResponse struct {
+	// Databases contains the page of Databases
+	Databases []AWSDatabase `json:"databases"`
+
+	// NextToken is used for pagination.
+	// If non-empty, it can be used to request the next page.
+	NextToken string `json:"nextToken,omitempty"`
+}
+
+// AWSDatabase is a representation of an AWS RDS Database
+type AWSDatabase struct {
+	// Name is the the Database's name.
+	Name string `json:"name,omitempty"`
+	// Engine of the database. Eg, aurora-mysql
+	Engine string `json:"engine,omitempty"`
+	// Status contains the Instance status. Eg, available (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html)
+	Status string `json:"status,omitempty"`
+	// Endpoint contains the URI for connecting to this Database
+	Endpoint string `json:"endpoint,omitempty"`
+	// Labels contains the Instance tags.
+	Labels []Label `json:"labels,omitempty"`
 }

@@ -870,6 +870,152 @@ func TestAppTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestOIDCIdPTokenRotation checks that OIDC IdP JWT tokens can be rotated and tokens can
+// be validated at the appropriate phase.
+func TestOIDCIdPTokenRotation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+
+	clt, err := tt.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
+		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
+	})
+	require.NoError(t, err)
+
+	client, err := tt.server.NewClient(TestUser(user1.GetName()))
+	require.NoError(t, err)
+
+	// Create a JWT using the current CA, this will become the "old" CA during
+	// rotation.
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx,
+		types.GenerateAWSOIDCTokenRequest{
+			Issuer: "http://localhost:8080",
+		},
+	)
+	require.NoError(t, err)
+
+	// Check that the "old" CA can be used to verify tokens.
+	oldCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 1)
+
+	// Verify that the JWT token validates with the JWT authority.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err, tt.clock.Now())
+
+	// Start rotation and move to initial phase. A new CA will be added (for
+	// verification), but requests will continue to be signed by the old CA.
+	gracePeriod := time.Hour
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// At this point in rotation, two JWT key pairs should exist.
+	oldCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, oldCA.GetRotation().Phase, types.RotationPhaseInit)
+	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Verify that the JWT token validates with the JWT authority.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+
+	// Move rotation into the update client phase. In this phase, requests will
+	// be signed by the new CA, but the old CA will be around to verify requests.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseUpdateClients,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// New tokens should now fail to validate with the old key.
+	newJWT, err := client.GenerateAWSOIDCToken(ctx,
+		types.GenerateAWSOIDCTokenRequest{
+			Issuer: "http://localhost:8080",
+		},
+	)
+	require.NoError(t, err)
+
+	// New tokens will validate with the new key.
+	newCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateClients)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Both JWT should now validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+
+	// Move rotation into update servers phase.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseUpdateServers,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// At this point only the phase on the CA should have changed.
+	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateServers)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Both JWT should continue to validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+
+	// Complete rotation. The old CA will be removed.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseStandby,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// The new CA should now only have a single key.
+	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseStandby)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
+
+	// Old token should no longer validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.Error(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+}
+
 // TestRemoteUser tests scenario when remote user connects to the local
 // auth server and some edge cases.
 func TestRemoteUser(t *testing.T) {
@@ -1745,6 +1891,12 @@ func TestGetCertAuthority(t *testing.T) {
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
 		Type:       types.DatabaseCA,
+	}, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
 	}, true)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -4145,6 +4297,39 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 			RawToken: token,
 			Username: "foo",
 			URI:      "http://localhost:8080",
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		return claims, nil
+	}
+	return nil, trace.NewAggregate(errs...)
+}
+
+// verifyJWTAWSOIDC verifies that the token was signed by one the passed in key pair.
+func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
+	errs := []error{}
+	for _, pair := range pairs {
+		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+
+		key, err := jwt.New(&jwt.Config{
+			Clock:       clock,
+			PublicKey:   publicKey,
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
+			ClusterName: clusterName,
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		claims, err := key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: token,
+			Issuer:   "http://localhost:8080",
 		})
 		if err != nil {
 			errs = append(errs, trace.Wrap(err))
