@@ -27,7 +27,6 @@ import {
 import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
 import { hasFinished } from 'shared/hooks/useAsync';
-import { firstLowerCase } from 'shared/utils/text';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -494,7 +493,9 @@ export function ResourceSearchErrorsItem(props: {
     shortDescription = `${firstErrorMessage}.`;
   } else {
     const allErrorMessages = errors
-      .map(err => firstLowerCase(err.messageWithClusterName(getClusterName)))
+      .map(err =>
+        err.messageWithClusterName(getClusterName, { capitalize: false })
+      )
       .join(', ');
     shortDescription = `Ran into ${errors.length} errors: ${allErrorMessages}.`;
   }

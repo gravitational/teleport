@@ -147,12 +147,15 @@ export class ResourceSearchError extends Error {
   }
 
   messageWithClusterName(
-    getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string
+    getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string,
+    opts = { capitalize: true }
   ) {
     const resource = pluralize(2, this.resourceKind);
     const cluster = getClusterName(this.clusterUri);
 
-    return `Could not fetch ${resource} from ${cluster}`;
+    return `${
+      opts.capitalize ? 'Could' : 'could'
+    } not fetch ${resource} from ${cluster}`;
   }
 
   messageAndCauseWithClusterName(
