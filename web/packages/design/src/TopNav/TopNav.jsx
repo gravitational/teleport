@@ -23,7 +23,6 @@ export default function TopNav(props) {
     <Flex
       flex="0 0 auto"
       as="nav"
-      bg="levels.surfaceSecondary"
       flexDirection="row"
       alignItems="center"
       {...props}
