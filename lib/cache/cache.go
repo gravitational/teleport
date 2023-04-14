@@ -116,6 +116,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIntegration},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
+	// We don't want to enable partial health for auth cache because auth uses an event stream
+	// from the local backend which must support all resource kinds. We want to catch it early if it doesn't.
+	cfg.DisablePartialHealth = true
 	return cfg
 }
 
@@ -718,6 +721,10 @@ type Config struct {
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
+	// DisablePartialHealth disables the default mode in which cache can become
+	// healthy even if some of the requested resource kinds aren't
+	// supported by the event source.
+	DisablePartialHealth bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -1075,7 +1082,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		Kinds:               requestKinds,
 		QueueSize:           c.QueueSize,
 		MetricComponent:     c.MetricComponent,
-		AllowPartialSuccess: true,
+		AllowPartialSuccess: !c.DisablePartialHealth,
 	})
 	if err != nil {
 		c.notify(c.ctx, Event{Type: WatcherFailed})
