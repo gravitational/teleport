@@ -1051,25 +1051,25 @@ func TestKubeServerWatcher(t *testing.T) {
 	}
 
 	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers()
+		filtered, err := w.GetKubernetesServers(context.Background())
 		assert.NoError(t, err)
 		return len(filtered) == len(kubeServers)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
-	filtered, err := w.GetKubeServersByClusterName(kubeServers[0].GetName())
+	filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
 	require.NoError(t, err)
 	require.Len(t, filtered, 1)
 
 	// Test Deleting a kube server.
 	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
 	require.Eventually(t, func() bool {
-		kube, err := w.GetKubernetesServers()
+		kube, err := w.GetKubernetesServers(context.Background())
 		assert.NoError(t, err)
 		return len(kube) == len(kubeServers)-1
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
-	filtered, err = w.GetKubeServersByClusterName(kubeServers[0].GetName())
+	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[0].GetName())
 	require.Error(t, err)
 	require.Empty(t, filtered)
 
@@ -1078,25 +1078,25 @@ func TestKubeServerWatcher(t *testing.T) {
 	_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(kubeServers[1].GetName())
+		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
 		assert.NoError(t, err)
 		return len(filtered) == 2
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
-	filtered, err = w.GetKubeServersByClusterName(kubeServers[1].GetName())
+	filtered, err = w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
 	assert.NoError(t, err)
 	for _, server := range filtered {
 		require.NoError(t, presence.DeleteKubernetesServer(ctx, server.GetHostID(), server.GetName()))
 	}
 	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubeServersByClusterName(kubeServers[1].GetName())
+		filtered, err := w.GetKubeServersByClusterName(context.Background(), kubeServers[1].GetName())
 		return len(filtered) == 0 && err != nil
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
 
 	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
 	require.Eventually(t, func() bool {
-		filtered, err := w.GetKubernetesServers()
+		filtered, err := w.GetKubernetesServers(context.Background())
 		assert.NoError(t, err)
 		return len(filtered) == 0
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")

@@ -257,6 +257,7 @@ func (s *TLSServer) startKubeServerResourceWatcher(ctx context.Context) (*servic
 			Component: s.Component,
 			Log:       s.log,
 			Client:    s.AccessPoint,
+			Clock:     s.Clock,
 		},
 	})
 	return watcher, trace.Wrap(err)

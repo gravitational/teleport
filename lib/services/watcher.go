@@ -19,6 +19,7 @@ package services
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -1183,10 +1184,21 @@ func NewKubeServerWatcher(ctx context.Context, cfg KubeServerWatcherConfig) (*Ku
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{
+		Context: ctx,
+		TTL:     3 * time.Second,
+		Clock:   cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	collector := &kubeServerCollector{
 		KubeServerWatcherConfig: cfg,
 		initializationC:         make(chan struct{}),
+		cache:                   cache,
 	}
+	// start the collector as staled.
+	collector.stale.Store(true)
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1201,13 +1213,15 @@ type KubeServerWatcher struct {
 }
 
 // GetKubeServersByClusterName returns a list of kubernetes servers for the specified cluster.
-func (k *KubeServerWatcher) GetKubeServersByClusterName(clusterName string) ([]types.KubeServer, error) {
+func (k *KubeServerWatcher) GetKubeServersByClusterName(ctx context.Context, clusterName string) ([]types.KubeServer, error) {
+	k.refreshStaleKubeServers(ctx)
+
 	k.lock.RLock()
 	defer k.lock.RUnlock()
-	servers := make([]types.KubeServer, 0, len(k.current))
+	var servers []types.KubeServer
 	for _, server := range k.current {
 		if server.GetCluster().GetName() == clusterName {
-			servers = append(servers, server)
+			servers = append(servers, server.Copy())
 		}
 	}
 	if len(servers) == 0 {
@@ -1218,12 +1232,14 @@ func (k *KubeServerWatcher) GetKubeServersByClusterName(clusterName string) ([]t
 }
 
 // GetKubernetesServers returns a list of kubernetes servers for all clusters.
-func (k *KubeServerWatcher) GetKubernetesServers() ([]types.KubeServer, error) {
+func (k *KubeServerWatcher) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
+	k.refreshStaleKubeServers(ctx)
+
 	k.lock.RLock()
 	defer k.lock.RUnlock()
 	servers := make([]types.KubeServer, 0, len(k.current))
 	for _, server := range k.current {
-		servers = append(servers, server)
+		servers = append(servers, server.Copy())
 	}
 	return servers, nil
 }
@@ -1239,6 +1255,12 @@ type kubeServerCollector struct {
 	// initializationC is used to check whether the initial sync has completed
 	initializationC chan struct{}
 	once            sync.Once
+	// stale is used to indicate that the watcher is stale and needs to be
+	// refreshed.
+	stale atomic.Bool
+	// cache is a helper for temporarily storing the results of GetKubernetesServers.
+	// It's used to limit the ammount of calls to the backend.
+	cache *utils.FnCache
 }
 
 // kubeServersKey is used to uniquely identify a kube_server resource.
@@ -1260,25 +1282,36 @@ func (k *kubeServerCollector) resourceKind() string {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (k *kubeServerCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	servers, err := k.KubernetesServerGetter.GetKubernetesServers(ctx)
+	newCurrent, err := k.getResources(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newCurrent := make(map[kubeServersKey]types.KubeServer, len(servers))
+
+	k.lock.Lock()
+	k.current = newCurrent
+	k.lock.Unlock()
+
+	k.stale.Store(false)
+
+	k.defineCollectorAsInitialized()
+	return nil
+}
+
+// getResourcesAndUpdateCurrent gets the list of current resources.
+func (k *kubeServerCollector) getResources(ctx context.Context) (map[kubeServersKey]types.KubeServer, error) {
+	servers, err := k.KubernetesServerGetter.GetKubernetesServers(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	current := make(map[kubeServersKey]types.KubeServer, len(servers))
 	for _, server := range servers {
 		key := kubeServersKey{
 			hostID:       server.GetHostID(),
 			resourceName: server.GetName(),
 		}
-		newCurrent[key] = server
+		current[key] = server
 	}
-	k.lock.Lock()
-	defer k.lock.Unlock()
-	k.current = newCurrent
-
-	k.defineCollectorAsInitialized()
-
-	return nil
+	return current, nil
 }
 
 func (k *kubeServerCollector) defineCollectorAsInitialized() {
@@ -1324,7 +1357,38 @@ func (k *kubeServerCollector) processEventAndUpdateCurrent(ctx context.Context, 
 	}
 }
 
-func (*kubeServerCollector) notifyStale() {}
+func (k *kubeServerCollector) notifyStale() {
+	k.stale.Store(true)
+}
+
+// refreshStaleKubeServers attempts to reload kube servers from the cache if
+// the collecter is stale. This ensures that no matter the health of
+// the collecter callers will be returned the most up to date node
+// set as possible.
+func (k *kubeServerCollector) refreshStaleKubeServers(ctx context.Context) error {
+	if !k.stale.Load() {
+		return nil
+	}
+
+	_, err := utils.FnCacheGet(ctx, k.cache, "kube_servers", func(ctx context.Context) (any, error) {
+		current, err := k.getResources(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// There is a chance that the watcher reinitialized while
+		// getting kube servers happened above. Check if we are still stale
+		if k.stale.CompareAndSwap(true, false) {
+			k.lock.Lock()
+			k.current = current
+			k.lock.Unlock()
+		}
+
+		return nil, nil
+	})
+
+	return trace.Wrap(err)
+}
 
 // CertAuthorityWatcherConfig is a CertAuthorityWatcher configuration.
 type CertAuthorityWatcherConfig struct {

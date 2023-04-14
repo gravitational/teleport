@@ -603,8 +603,8 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return func(_ context.Context, name string) ([]types.KubeServer, error) {
-			servers, err := t.kubeServerWatcher.GetKubeServersByClusterName(name)
+		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			servers, err := t.kubeServerWatcher.GetKubeServersByClusterName(ctx, name)
 			return servers, trace.Wrap(err)
 		}, nil
 	case LegacyProxyService:
@@ -620,7 +620,7 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
 			kube, err := t.getKubeClusterWithServiceLabels(name)
 			if err != nil {
-				servers, err := t.kubeServerWatcher.GetKubeServersByClusterName(name)
+				servers, err := t.kubeServerWatcher.GetKubeServersByClusterName(ctx, name)
 				return servers, trace.Wrap(err)
 			}
 			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
