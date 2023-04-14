@@ -17,15 +17,13 @@ limitations under the License.
 package ai
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
 
+	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 	"github.com/gravitational/trace"
-	openai "github.com/sashabaranov/go-openai"
+	"github.com/sashabaranov/go-openai"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Message represents a message within a live conversation.
@@ -40,13 +38,13 @@ type Message struct {
 type Chat struct {
 	client   *Client
 	username string
-	messages []openai.ChatCompletionMessage
+	messages []*assistantservice.ChatCompletionMessage
 }
 
 // Insert inserts a message into the conversation. This is commonly in the
 // form of a user's input but may also take the form of a system messages used for instructions.
 func (chat *Chat) Insert(role string, content string) Message {
-	chat.messages = append(chat.messages, openai.ChatCompletionMessage{
+	chat.messages = append(chat.messages, &assistantservice.ChatCompletionMessage{
 		Role:    role,
 		Content: content,
 	})
@@ -56,19 +54,6 @@ func (chat *Chat) Insert(role string, content string) Message {
 		Content: content,
 		Idx:     len(chat.messages) - 1,
 	}
-}
-
-type completionRequest struct {
-	Username string                         `json:"username"`
-	Messages []openai.ChatCompletionMessage `json:"messages"`
-}
-
-type completionResponse struct {
-	Kind    string   `json:"kind"`
-	Content string   `json:"content,omitempty"`
-	Command string   `json:"command,omitempty"`
-	Nodes   []string `json:"nodes,omitempty"`
-	Labels  []Label  `json:"labels,omitempty"`
 }
 
 type Label struct {
@@ -82,9 +67,33 @@ type CompletionCommand struct {
 	Labels  []Label  `json:"labels,omitempty"`
 }
 
+func labelsToPbLabels(vals []*assistantservice.Label) []Label {
+	ret := make([]Label, 0, len(vals))
+	for _, v := range vals {
+		ret = append(ret, Label{
+			Key:   v.Key,
+			Value: v.Value,
+		})
+	}
+
+	return ret
+}
+
 // Complete completes the conversation with a message from the assistant based on the current context.
 func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *CompletionCommand, error) {
-	payload, err := json.Marshal(completionRequest{
+	var opts []grpc.DialOption
+
+	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+
+	conn, err := grpc.Dial(chat.client.apiURL, opts...)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	assistantClient := assistantservice.NewAssistantServiceClient(conn)
+
+	response, err := assistantClient.Complete(ctx, &assistantservice.CompleteRequest{
 		Username: chat.username,
 		Messages: chat.messages,
 	})
@@ -92,49 +101,24 @@ func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *Compl
 		return nil, nil, trace.Wrap(err)
 	}
 
-	// TODO(joel): respond with configuration status of api url at features endpoint
-	request, err := http.NewRequest("POST", chat.client.apiURL+"/assistant_query", bytes.NewBuffer(payload))
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-	defer response.Body.Close()
-
-	raw, err := io.ReadAll(response.Body)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
-	fmt.Println(string(raw))
-	var responseData completionResponse
-	if err := json.Unmarshal(raw, &responseData); err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
-
 	switch {
-	case responseData.Kind == "command":
+	case response.Kind == "command":
 		command := CompletionCommand{
-			Command: responseData.Command,
-			Nodes:   responseData.Nodes,
-			Labels:  responseData.Labels,
+			Command: response.Command,
+			Nodes:   response.Nodes,
+			Labels:  labelsToPbLabels(response.Labels),
 		}
 
 		return nil, &command, nil
-	case responseData.Kind == "chat":
+	case response.Kind == "chat":
 		message := Message{
 			Role:    openai.ChatMessageRoleAssistant,
-			Content: string(responseData.Content),
+			Content: response.Content,
 			Idx:     len(chat.messages) - 1,
 		}
 
 		return &message, nil, nil
 	default:
-		return nil, nil, trace.BadParameter("unknown completion kind: %s", responseData.Kind)
+		return nil, nil, trace.BadParameter("unknown completion kind: %s", response.Kind)
 	}
 }

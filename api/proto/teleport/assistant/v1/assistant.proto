@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package teleport.assistant.v1;
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1";
+
+// ChatCompletionMessage is a message in the OpenAI format.
+message ChatCompletionMessage {
+  string role = 1;
+  string content = 2;
+  string name = 3;
+}
+
+// CompletionRequest is a request
+message CompleteRequest {
+  string username = 1;
+  repeated ChatCompletionMessage messages = 2;
+}
+
+// Label are Teleport resource labels.
+message Label {
+  string key = 1;
+  string value = 2;
+}
+
+// CompletionResponse is a response in Complete method.
+message CompletionResponse {
+  string kind = 1;
+  string content = 2;
+  string command = 3; // Command should be probably replaced by oneof in the future to support more commands.
+  repeated string nodes = 4;
+  repeated Label labels = 5;
+}
+
+// AssistantService is the GRPC service used by Teleport and Assist service.
+service AssistantService {
+  // Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
+  rpc Complete(CompleteRequest) returns (CompletionResponse);
+}
