@@ -426,11 +426,14 @@ func (e *systemdDriver) Sync(ctx context.Context, rsp proto.ExportUpgradeWindows
 }
 
 func (e *systemdDriver) Reset(_ context.Context) error {
-	if err := os.Remove(e.scheduleFile()); err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
+	if _, err := os.Stat(e.scheduleFile()); os.IsNotExist(err) {
+		return nil
+	}
 
+	// note that we blank the file rather than deleting it, this is intended to allow us to
+	// preserve custom file permissions, such as those that might be used in a scenario where
+	// teleport is operating with limited privileges.
+	if err := os.WriteFile(e.scheduleFile(), []byte{}, teleport.FileMaskOwnerOnly); err != nil {
 		return trace.Errorf("failed to reset schedule file: %v", err)
 	}
 
