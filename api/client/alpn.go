@@ -25,11 +25,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
 // GetClusterCAsFunc is a function to fetch cluster CAs.
@@ -78,10 +76,22 @@ func NewALPNDialer(cfg ALPNDialerConfig) ContextDialer {
 func (d *ALPNDialer) shouldUpdateTLSConfig() bool {
 	return d.shouldUpdateServerName() || d.shouldGetClusterCAs()
 }
+
+// shouldUpdateServerName returns true if ServerName is not in the provided TLS
+// config. It will default to the host of the dialing address.
 func (d *ALPNDialer) shouldUpdateServerName() bool {
 	return d.cfg.TLSConfig.ServerName == ""
 }
 
+// shouldGetClusterCAs returns true if RootCAs of the provided TLS config needs
+// to be set to the Teleport cluster CAs.
+//
+// When Teleport Proxy is behind a L7 load balancer, the load balancer
+// usually terminates TLS with public certs, and the Proxy is usually in
+// private subnets with self-signed web certs. During the connection
+// upgrade flow for TLS Routing, instead of serving these self-signed web
+// certs, the TLS Routing handler at the Proxy server will present the
+// Cluster CAs so clients here can still verify the server.
 func (d *ALPNDialer) shouldGetClusterCAs() bool {
 	return d.cfg.ALPNConnUpgradeRequired && d.cfg.TLSConfig.RootCAs == nil && d.cfg.GetClusterCAs != nil
 }
@@ -96,20 +106,12 @@ func (d *ALPNDialer) getTLSConfig(ctx context.Context, addr string) (*tls.Config
 
 	var err error
 	tlsConfig := d.cfg.TLSConfig.Clone()
-
-	// When Teleport Proxy is behind a L7 load balancer, the load balancer
-	// usually terminates TLS with public certs, and the Proxy is usually in
-	// private subnets with self-signed web certs. During the connection
-	// upgrade flow for TLS Routing, instead of serving these self-signed web
-	// certs, the TLS Routing handler at the Proxy server will present the
-	// Cluster CAs so clients here can still verify the server.
 	if d.shouldGetClusterCAs() {
 		tlsConfig.RootCAs, err = d.cfg.GetClusterCAs(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	if d.shouldUpdateServerName() {
 		tlsConfig.ServerName, _, err = webclient.ParseHostPort(addr)
 		if err != nil {
@@ -142,18 +144,21 @@ func (d *ALPNDialer) DialContext(ctx context.Context, network, addr string) (net
 		defer tlsConn.Close()
 		return nil, trace.Wrap(err)
 	}
-
-	if IsALPNPingProtocol(tlsConn.ConnectionState().NegotiatedProtocol) {
-		logrus.Debugf("Using ping connection for protocol %v.", tlsConn.ConnectionState().NegotiatedProtocol)
-		return pingconn.NewTLS(tlsConn), nil
-	}
 	return tlsConn, nil
 }
 
-// DialALPN a helper to dial using an ALPNDialer.
-func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (net.Conn, error) {
+// DialALPN a helper to dial using an ALPNDialer and returns a tls.Conn if
+// successful.
+func DialALPN(ctx context.Context, addr string, cfg ALPNDialerConfig) (*tls.Conn, error) {
 	conn, err := NewALPNDialer(cfg).DialContext(ctx, "tcp", addr)
-	return conn, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsConn, ok := conn.(*tls.Conn)
+	if !ok {
+		return nil, trace.BadParameter("failed to convert to tls.Conn")
+	}
+	return tlsConn, nil
 }
 
 // IsALPNPingProtocol checks if the provided protocol is suffixed with Ping.

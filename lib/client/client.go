@@ -33,6 +33,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/moby/term"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -1255,6 +1256,7 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 // It returns a connected and authenticated tracing.Client that will export spans
 // to the auth server, where they will be forwarded onto the configured exporter.
 func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName string) (*tracing.Client, error) {
+	logrus.Debugf("=== new tracing client")
 	tlsConfig, err := proxy.loadTLS(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1269,6 +1271,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 
 	switch {
 	case proxy.teleportClient.TLSRoutingEnabled:
+		logrus.Debugf("=== new tracing client tls")
 		clientConfig.Addrs = []string{proxy.teleportClient.WebProxyAddr}
 		clientConfig.ALPNSNIAuthDialClusterName = clusterName
 		clientConfig.ALPNConnUpgradeRequired = proxy.teleportClient.TLSRoutingConnUpgradeRequired
@@ -1279,6 +1282,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 	}
 
 	clt, err := client.NewTracingClient(ctx, clientConfig)
+	logrus.Debugf("=== new tracing client err %v", err)
 	return clt, trace.Wrap(err)
 }
 

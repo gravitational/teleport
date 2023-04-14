@@ -35,6 +35,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	commonApp "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -219,11 +220,17 @@ func (l *LocalProxy) handleDownstreamConnection(ctx context.Context, downstreamC
 		return trace.Wrap(err)
 	}
 
-	upstreamConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
+	tlsConn, err := client.DialALPN(ctx, l.cfg.RemoteProxyAddr, l.getALPNDialerConfig(certs))
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer upstreamConn.Close()
+	defer tlsConn.Close()
+
+	var upstreamConn net.Conn = tlsConn
+	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
+		l.cfg.Log.Debug("Using ping connection")
+		upstreamConn = pingconn.NewTLS(tlsConn)
+	}
 
 	return trace.Wrap(utils.ProxyConn(ctx, downstreamConn, upstreamConn))
 }

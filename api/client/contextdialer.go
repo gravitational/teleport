@@ -214,9 +214,11 @@ func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeou
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		if !resp.Proxy.TLSRoutingEnabled {
 			return nil, trace.NotImplemented("TLS routing is not enabled")
 		}
+
 		tunnelAddr, err := resp.Proxy.TunnelAddr()
 		if err != nil {
 			return nil, trace.Wrap(err)

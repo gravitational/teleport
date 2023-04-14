@@ -551,8 +551,15 @@ type Config struct {
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
 	// ALPNConnUpgradeRequired indicates that ALPN connection upgrades are
-	// required for making TLS routing requests. Only used in auth background
-	// dial.
+	// required for making TLS Routing requests.
+	//
+	// In DialInBackground mode without a Dialer, a valid value must be
+	// provided as it's assumed that the caller knows the context if connection
+	// upgrades are required for TLS Routing.
+	//
+	// In default mode, this value is optional as some of the connect methods
+	// will perform necessary tests to decide if connection upgrade is
+	// required.
 	ALPNConnUpgradeRequired bool
 }
 

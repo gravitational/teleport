@@ -631,13 +631,21 @@ func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
 	return c.tunnelStrategyType == types.ProxyPeering
 }
 
+// useReverseTunnelV2Locked returns true if reverse tunnel should be used.
+func (c *agentPoolRuntimeConfig) useReverseTunnelV2Locked() bool {
+	if c.isRemoteCluster {
+		return false
+	}
+	return c.tunnelStrategyType == types.ProxyPeering
+}
+
 // alpnDialerConfig creates a config for ALPN dialer.
 func (c *agentPoolRuntimeConfig) alpnDialerConfig(getClusterCAs client.GetClusterCAsFunc) client.ALPNDialerConfig {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	protocols := []alpncommon.Protocol{alpncommon.ProtocolReverseTunnel}
-	if !c.isRemoteCluster && c.tunnelStrategyType == types.ProxyPeering {
+	if c.useReverseTunnelV2Locked() {
 		protocols = []alpncommon.Protocol{alpncommon.ProtocolReverseTunnelV2, alpncommon.ProtocolReverseTunnel}
 	}
 
