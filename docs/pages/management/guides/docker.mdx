@@ -151,13 +151,13 @@ The Web UI will be available at the displayed URL.
 
 (!docs/pages/includes/insecure-certificate.mdx!)
 
-## Step 4/4. Try Server Access
+## Step 4/4. Try server access
 
-This docker installation includes just the Teleport Proxy and Auth Service.  You can try
+The Teleport container we spun up earlier runs the Teleport Proxy and Auth Services.  You can try
 accessing a server through Teleport by installing the Teleport SSH Service
-on a Ubuntu docker container. Here are the steps.
+on an Ubuntu Docker container. Here are the steps.
 
-First start a Ubuntu image:
+First start an Ubuntu container:
 ```code
 $ docker run -it --name=example-server --hostname=example-server ubuntu:latest bash
 ```
@@ -238,7 +238,7 @@ $ docker exec teleport tctl nodes add
 
 Copy the full `teleport start` command and run in the `example-server` docker terminal.
 
-Open another terminal windows and confirm the node was added
+Open another terminal window and confirm the node was added
  with `tctl nodes ls` on the `teleport` container.
 
 ```code
@@ -314,7 +314,7 @@ $ tsh play 1da4faa9-01e9-4241-875f-4143f302c9c4
 
 ## Troubleshooting
 
-Teleport provides a debug version that includes a Busybox shell. These are not intended
+Teleport provides a container image that includes a Busybox shell. This image is not intended
 for production. You will need to stop the non-debug container and start again with the
 debug version to use.
 
@@ -363,7 +363,7 @@ $ docker run --hostname localhost --name teleport \
 </TabItem>
 </Tabs>
 
-Now you can open a `sh` shell within the docker container to perform any troubleshooting.
+Now you can open a `sh` shell within the Docker container to perform any troubleshooting.
 
 ```code
 $ docker exec -it teleport sh
