@@ -51,7 +51,7 @@ export const fullAcl: Acl = {
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,
-  integrations: fullAccess,
+  integrations: { ...fullAccess, use: true },
 };
 
 export const userContext = makeUserContext({
