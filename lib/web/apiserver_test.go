@@ -7263,6 +7263,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	handler.handler.cfg.ProxyKubeAddr = utils.FromAddr(kubeProxyAddr)
 	url, err := url.Parse("https://" + webServer.Listener.Addr().String())
 	require.NoError(t, err)
+	handler.handler.cfg.PublicProxyAddr = url.String()
 
 	return &testProxy{
 		clock:   clock,
