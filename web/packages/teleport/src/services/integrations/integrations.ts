@@ -17,17 +17,38 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { Integration, IntegrationStatusCode } from './types';
+import {
+  Integration,
+  IntegrationCreateRequest,
+  IntegrationStatusCode,
+  IntegrationListResponse,
+} from './types';
 
 export const integrationService = {
-  fetchIntegration(clusterId: string, name: string): Promise<Integration> {
-    return api
-      .get(cfg.getIntegrationsUrl(clusterId, name))
-      .then(makeIntegration);
+  fetchIntegration(name: string): Promise<Integration> {
+    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
   },
 
-  fetchIntegrations(clusterId: string): Promise<Integration[]> {
-    return api.get(cfg.getIntegrationsUrl(clusterId)).then(makeIntegrations);
+  fetchIntegrations(): Promise<IntegrationListResponse> {
+    return api.get(cfg.getIntegrationsUrl()).then(resp => {
+      const integrations = resp?.items ?? [];
+      return {
+        items: integrations.map(makeIntegration),
+        nextKey: resp?.nextKey,
+      };
+    });
+  },
+
+  createIntegration(req: IntegrationCreateRequest): Promise<void> {
+    return api.post(cfg.getIntegrationsUrl(), req);
+  },
+
+  updateIntegration(name: string): Promise<void> {
+    return api.put(cfg.getIntegrationsUrl(name));
+  },
+
+  deleteIntegration(name: string): Promise<void> {
+    return api.delete(cfg.getIntegrationsUrl(name));
   },
 };
 
