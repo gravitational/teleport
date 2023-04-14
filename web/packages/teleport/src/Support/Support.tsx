@@ -23,6 +23,7 @@ import styled from 'styled-components';
 import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 export default function Container({
   children,
@@ -38,6 +39,7 @@ export default function Container({
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
+      isTeamPlan={cfg.isTeams}
       children={children}
     />
   );
@@ -51,6 +53,7 @@ export const Support = ({
   tunnelPublicAddress,
   isCloud,
   children,
+  isTeamPlan,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
 
@@ -78,6 +81,11 @@ export const Support = ({
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
+            {isEnterprise && isTeamPlan && (
+              <ButtonLockedFeature>
+                Unlock Premium Support w/Enterprise
+              </ButtonLockedFeature>
+            )}
           </Box>
           <Box>
             <Header title="Resources" icon={<Icons.ListCheck />} />
@@ -242,4 +250,5 @@ export type Props = {
   isCloud: boolean;
   tunnelPublicAddress?: string;
   children?: React.ReactNode;
+  isTeamPlan: boolean;
 };

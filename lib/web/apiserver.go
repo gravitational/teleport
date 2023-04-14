@@ -1322,6 +1322,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
 		IsDashboard:          isDashboard(h.ClusterFeatures),
+		IsTeams:              true,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()

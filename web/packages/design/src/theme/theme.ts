@@ -36,7 +36,7 @@ const colors = {
   The further back an element is, the more "sunken" it is, and the more forwards it is, the more "elevated" it is (think CSS z-index).
 
   A `sunken` colour would be used to represent something like the background of the app.
-  While `surface` would be the color of the primary surface where most content is located (such as tables).
+  While `surface` would be the color of the primary surface where most content is located (such as ta3es).
   Any colors more "elevated" than that would be used for things such as popovers, menus, and dialogs.
 
   `...Secondary` colours are used to differentiate different colors that represent the same depth.
@@ -76,6 +76,8 @@ const colors = {
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
     primaryInverse: '#324148',
+    // Black text
+    black: '#000000',
   },
 
   buttons: {
@@ -123,6 +125,11 @@ const colors = {
     trashButton: {
       default: '#2e3860',
       hover: '#414b70',
+    },
+
+    cta: {
+      text: '#222C59',
+      default: '#9F85FF',
     },
   },
 

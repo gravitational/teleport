@@ -61,6 +61,8 @@ type WebConfig struct {
 	// The web UI for dashboards provides functionality for downloading self-hosted licenses and
 	// Teleport Enterprise binaries.
 	IsDashboard bool `json:"isDashboard,omitempty"`
+	// TODO
+	IsTeams bool `json:"isTeams,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

@@ -40,6 +40,7 @@ const cfg = {
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
+  isTeams: false,
 
   configDir: '$HOME/.config',
 
