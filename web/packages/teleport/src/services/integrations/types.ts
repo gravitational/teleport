@@ -97,3 +97,8 @@ export type IntegrationCreateRequest = {
   subKind: IntegrationKind;
   awsoidc?: IntegrationSpecAwsOidc;
 };
+
+export type IntegrationListResponse = {
+  items: Integration[];
+  nextKey?: string;
+};
