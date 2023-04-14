@@ -26,7 +26,7 @@ export async function connectToNode(
     hostname: string;
     login: string;
   },
-  params: {
+  telemetry: {
     origin: DocumentOrigin;
   }
 ): Promise<void> {
@@ -35,7 +35,7 @@ export async function connectToNode(
     routing.ensureRootClusterUri(target.uri)
   );
   const doc = documentsService.createTshNodeDocument(target.uri, {
-    origin: params.origin,
+    origin: telemetry.origin,
   });
   doc.title = `${target.login}@${target.hostname}`;
   doc.login = target.login;

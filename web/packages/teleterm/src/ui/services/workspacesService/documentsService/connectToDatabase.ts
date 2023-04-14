@@ -28,7 +28,7 @@ export async function connectToDatabase(
     protocol: string;
     dbUser: string;
   },
-  params: {
+  telemetry: {
     origin: DocumentOrigin;
   }
 ): Promise<void> {
@@ -45,14 +45,14 @@ export async function connectToDatabase(
       target.protocol as GatewayProtocol,
       target.dbUser
     ),
-    origin: params.origin,
+    origin: telemetry.origin,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);
 
   if (connectionToReuse) {
     await ctx.connectionTracker.activateItem(connectionToReuse.id, {
-      origin: params.origin,
+      origin: telemetry.origin,
     });
   } else {
     await ctx.workspacesService.setActiveWorkspace(rootClusterUri);

@@ -23,14 +23,14 @@ import { DocumentOrigin } from './types';
 export async function connectToKube(
   ctx: IAppContext,
   target: { uri: KubeUri },
-  params: { origin: DocumentOrigin }
+  telemetry: { origin: DocumentOrigin }
 ): Promise<void> {
   const rootClusterUri = routing.ensureRootClusterUri(target.uri);
   const documentsService =
     ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
   const kubeDoc = documentsService.createTshKubeDocument({
     kubeUri: target.uri,
-    origin: params.origin,
+    origin: telemetry.origin,
   });
   const connection = ctx.connectionTracker.findConnectionByDocument(
     kubeDoc
