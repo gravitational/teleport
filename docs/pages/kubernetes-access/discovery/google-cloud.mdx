@@ -169,7 +169,8 @@ Stop your VM so you can attach your service account to it:
 $ gcloud compute instances stop <Var name="vm-name" /> --zone=<Var name="google-cloud-region" />
 ```
 
-Attach your service account to the instance:
+Attach your service account to the instance, assigning the name of your VM to <Var name="vm-name" />
+and the name of your Google Cloud region to <Var name="google-cloud-region" />:
 
 ```code
 $ gcloud compute instances set-service-account <Var name="vm-name" /> \
