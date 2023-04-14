@@ -48,7 +48,6 @@ type KubernetesServerGetter interface {
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 }
 
-// Kubernet
 
 // Kubernetes defines an interface for managing kubernetes clusters resources.
 type Kubernetes interface {
