@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	awssession "github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/kms"
 	"github.com/aws/aws-sdk-go/service/secretsmanager"
 	"github.com/aws/aws-sdk-go/service/ssm"
@@ -144,6 +145,8 @@ type ConfiguratorConfig struct {
 	AWSSession *awssession.Session
 	// AWSSTSClient AWS STS client.
 	AWSSTSClient stsiface.STSAPI
+	// AWSIAMClient AWS IAM client.
+	AWSIAMClient iamiface.IAMAPI
 	// AWSSSMClient AWS SSM Client
 	AWSSSMClient ssmiface.SSMAPI
 	// Policies instance of the `Policies` that the actions use.
@@ -174,11 +177,13 @@ func (c *ConfiguratorConfig) CheckAndSetDefaults() error {
 			}
 		}
 
+		if c.AWSSTSClient == nil {
+			c.AWSSTSClient = sts.New(c.AWSSession)
+		}
+		if c.AWSIAMClient == nil {
+			c.AWSIAMClient = iam.New(c.AWSSession)
+		}
 		if c.Identity == nil {
-			if c.AWSSTSClient == nil {
-				c.AWSSTSClient = sts.New(c.AWSSession)
-			}
-
 			c.Identity, err = awslib.GetIdentityWithClient(context.Background(), c.AWSSTSClient)
 			if err != nil {
 				return trace.Wrap(err)
@@ -393,7 +398,7 @@ func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction
 	}
 
 	// Define the target and target type.
-	target, err := policiesTarget(config.Flags, accountID, partitionID, config.Identity)
+	target, err := policiesTarget(config.Flags, accountID, partitionID, config.Identity, config.AWSIAMClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -406,11 +411,11 @@ func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction
 
 // policiesTarget defines which target and its type the policies will be
 // attached to.
-func policiesTarget(flags configurators.BootstrapFlags, accountID string, partitionID string, identity awslib.Identity) (awslib.Identity, error) {
+func policiesTarget(flags configurators.BootstrapFlags, accountID string, partitionID string, identity awslib.Identity, iamClient iamiface.IAMAPI) (awslib.Identity, error) {
 	if flags.AttachToUser != "" {
 		userArn := flags.AttachToUser
 		if !arn.IsARN(flags.AttachToUser) {
-			userArn = fmt.Sprintf("arn:%s:iam::%s:user/%s", partitionID, accountID, flags.AttachToUser)
+			userArn = buildIAMARN(partitionID, accountID, "user", flags.AttachToUser)
 		}
 
 		return awslib.IdentityFromArn(userArn)
@@ -419,20 +424,66 @@ func policiesTarget(flags configurators.BootstrapFlags, accountID string, partit
 	if flags.AttachToRole != "" {
 		roleArn := flags.AttachToRole
 		if !arn.IsARN(flags.AttachToRole) {
-			roleArn = fmt.Sprintf("arn:%s:iam::%s:role/%s", partitionID, accountID, flags.AttachToRole)
+			roleArn = buildIAMARN(partitionID, accountID, "role", flags.AttachToRole)
 		}
 
 		return awslib.IdentityFromArn(roleArn)
 	}
 
 	if identity == nil {
-		return awslib.IdentityFromArn(fmt.Sprintf("arn:%s:iam::%s:user/%s", partitionID, accountID, defaultAttachUser))
+		return awslib.IdentityFromArn(buildIAMARN(partitionID, accountID, "user", defaultAttachUser))
+	}
+
+	if identity.GetType() == awslib.ResourceTypeAssumedRole {
+		roleIdentity, err := getRoleARNForAssumedRole(iamClient, identity)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return roleIdentity, nil
 	}
 
 	return identity, nil
 }
 
-// buildPolicyBoundaryDocument builds the policy document.
+// buildIAMARN constructs an AWS IAM ARN string from the given partition,
+// account, resource type, and resource.
+// If the resource starts with the "/" prefix, this function takes care not to
+// add an additional "/" prefix to the constructed ARN.
+// This handles resource names that include a path correctly. Example:
+// resource input: "/some/path/to/rolename"
+// arn output: "arn:aws:iam::123456789012:role/some/path/to/rolename"
+func buildIAMARN(partitionID, accountID, resourceType, resource string) string {
+	if strings.HasPrefix(resource, "/") {
+		return fmt.Sprintf("arn:%s:iam::%s:%s%s", partitionID, accountID, resourceType, resource)
+	} else {
+		return fmt.Sprintf("arn:%s:iam::%s:%s/%s", partitionID, accountID, resourceType, resource)
+	}
+}
+
+// failedToResolveAssumeRoleARN is an error message returned when an
+// assumed-role identity cannot be resolved to the role ARN that it assumes,
+// which is necessary to attach policies to the identity.
+// Rather than returning errors about why it failed, this message suggests a
+// simple fix for the user to specify a role or user to attach policies to.
+const failedToResolveAssumeRoleARN = "Running with assumed-role credentials. Policies cannot be attached to an assumed-role. Provide the name or ARN of the IAM user or role to attach policies to."
+
+// getRoleARNForAssumedRole attempts to resolve assumed-role credentials to
+// the underlying role ARN using IAM API.
+// This is necessary since the assumed-role ARN does not include the role path,
+// so we cannot reliably reconstruct the role ARN from the assumed-role ARN.
+func getRoleARNForAssumedRole(iamClient iamiface.IAMAPI, identity awslib.Identity) (awslib.Identity, error) {
+	roleOutput, err := iamClient.GetRole(&iam.GetRoleInput{RoleName: aws.String(identity.GetName())})
+	if err != nil || roleOutput == nil || roleOutput.Role == nil || roleOutput.Role.Arn == nil {
+		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
+	}
+	roleIdentity, err := awslib.IdentityFromArn(*roleOutput.Role.Arn)
+	if err != nil {
+		return nil, trace.BadParameter(failedToResolveAssumeRoleARN)
+	}
+	return roleIdentity, nil
+}
+
+// buildPolicyDocument builds the policy document.
 func buildPolicyDocument(flags configurators.BootstrapFlags, fileConfig *config.FileConfig, target awslib.Identity) (*awslib.Policy, error) {
 	var statements []*awslib.Statement
 	if flags.DiscoveryService {

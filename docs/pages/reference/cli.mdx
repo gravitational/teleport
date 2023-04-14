@@ -311,7 +311,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 # join session using teleport user joe as ec2-user
 $ tsh --user=joe --login=ec2-user join <session-id>
 ```
- 
+
 ### tsh recordings ls
 
 List recorded sessions.
@@ -348,7 +348,7 @@ d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16
 $ tsh play c0a02222-70dc-4be8-9308-7b7901d2d60
 # List recorded sessions that occurred between Nov 1, 2022 to Nov 3, 2022
 $ tsh recordings ls --from-utc=2022-11-01 --to-utc=2022-11-3
-# Retrieve recorded sessions in the last 6 hours 
+# Retrieve recorded sessions in the last 6 hours
 $ tsh recordings ls --last=6h0m0s
 ```
 
@@ -474,7 +474,7 @@ Use the following command to connect to the database:
 ### tsh proxy ssh
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
-This is typically used as part of the SSH client configuration to use `ssh` as a client 
+This is typically used as part of the SSH client configuration to use `ssh` as a client
 through Teleport.  See the [OpenSSH Guide](../server-access/guides/openssh.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
@@ -505,7 +505,7 @@ Run the following command to generate an OpenSSH client configuration:
 $ tsh config
 ```
 
-This command produces the following configuration: 
+This command produces the following configuration:
 
 ```
 # Common flags for all example.com hosts
@@ -575,7 +575,7 @@ Start a local proxy for AWS access. The user must already be logged in to at
 least one AWS application via Teleport before the proxy can start.
 
 ```code
-$ tsh proxy aws [<flags>] 
+$ tsh proxy aws [<flags>]
 ```
 
 #### Flags
@@ -857,9 +857,9 @@ $ kubectl config get-contexts
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--all` | false | Boolean | Whether to generate a kubeconfig for every Kubernetes cluster the current Teleport user has access to. If this is false, `tsh` will only generate a kubeconfig for the cluster specified in the `tsh kube login` command.|  
+| `--all` | false | Boolean | Whether to generate a kubeconfig for every Kubernetes cluster the current Teleport user has access to. If this is false, `tsh` will only generate a kubeconfig for the cluster specified in the `tsh kube login` command.|
 | `--as` | none | string | The Kubernetes user that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target user. |
-| `--as-groups` | none | string | A Kubernetes group that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target group. <br /><br/>You can include this flag multiple times to enable impersonation of multiple Kubernetes groups. | 
+| `--as-groups` | none | string | A Kubernetes group that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target group. <br /><br/>You can include this flag multiple times to enable impersonation of multiple Kubernetes groups. |
 | `--cluster` | none | string | Name of the Teleport cluster to log into in order to connect to the given Kubernetes cluster. |
 | `-n`, `--kube-namespace` | none | string | The name of the Kubernetes namespace to configure as the default within the cluster the user is logging into. |
 
@@ -2025,7 +2025,7 @@ $ tctl sso configure oidc ... | tctl sso test
 
 Configure the SAML auth connector, optionally using a preset.
 
-The flag `--attributes-to-roles/-r` can be provided multiple times. 
+The flag `--attributes-to-roles/-r` can be provided multiple times.
 
 To avoid errors when pasting XML to a YAML file, we encourage the usage of the flag `--entity-descriptor`/`-e`.
 
@@ -2316,6 +2316,170 @@ $ tctl alerts create \
     --severity=low \
     --ttl=4h \
     "The system is under maintenance, functionality may be limited."
+```
+
+### tctl alerts list
+
+Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info |
+| `--labels` | none | Comma-separated strings | A list of labels to filter by |
+
+### tctl alerts ack
+
+Temporarily acknowledges a cluster alert, preventing the alert from being
+displayed to users. Acknowledgements last for 24 hours by default. Users
+will begin seeing the alert again when the acknowledgement expires.
+
+```code
+$ tctl alerts ack [<flags>] <id>
+```
+
+#### Arguments
+
+- `<id>`: the ID of the cluster alert to acknowledge
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
+| `--clear` | none | | Clear an existing alert acknowledgement |
+| `--reason` | none | | An optional reason for suppressing this alert |
+
+#### Examples
+
+Suppress the cluster alert notifying users that an upgrade is available:
+
+```code
+$ tctl alerts ack --reason="upgrade scheduled" upgrade-suggestion
+Successfully acknowledged alert 'upgrade-suggestion'. Alerts with this ID won't be pushed for 24h0m0s.
+```
+
+Clear an existing alert acknowledgement:
+
+```code
+$ tctl alerts ack --clear upgrade-suggestion
+```
+
+### tctl alerts ack ls
+
+Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls
+ID                 Reason                 Expires
+------------------ ---------------------- --------------------
+upgrade-suggestion "upgrade is scheduled" Wed Apr 12 16:52 UTC
+```
+
+### tctl devices add
+
+Register a device.
+
+```code
+$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--os` | none | `linux`, `macos`, `windows` | Device operating system |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+| `--enroll` | false | boolean | If set, creates a device enrollment token |
+
+#### Examples
+
+```code
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=)
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=) --enroll
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+### tctl devices enroll
+
+Create an enrollment token for a device.
+
+```code
+$ tctl devices enroll [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+#### Examples
+
+```code
+$ tctl devices enroll --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Run the command below on device "d40f2ee4-856d-4aef-b784-c4371e39c036" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+
+$ tctl devices enroll --asset-tag=(=devicetrust.asset_tag=)
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+### tctl devices ls
+
+List registered devices.
+
+```code
+$ tctl devices ls
+```
+
+#### Examples
+
+```code
+$ tctl devices ls
+
+Asset Tag    OS    Enroll Status Device ID
+------------ ----- ------------- ------------------------------------
+(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+```
+
+### tctl devices rm
+
+Removes a registered device.
+
+A removed device is not considered a trusted device for future device
+authentication attempts.
+
+```code
+$ tctl devices rm [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+#### Examples
+
+```code
+$ tctl devices rm --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Device "ac3590ec-87d4-4519-8e9e-2f35af0a9f85" removed
+
+$ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
+Device "(=devicetrust.asset_tag=)" removed
 ```
 
 ### tctl top
