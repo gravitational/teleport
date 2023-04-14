@@ -83,11 +83,11 @@ func (s *Service) getServerInfo(name string) (types.Resource, error) {
 	// check for app in memory
 	s.appsMu.RLock()
 	originalApp, ok := s.apps[name]
+	s.appsMu.RUnlock()
 	if !ok {
 		return nil, trace.NotFound("unable to find app %s", name)
 	}
 	app := originalApp.Copy()
-	s.appsMu.RUnlock()
 
 	expires := s.clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	appServer, err := types.NewAppServerV3(
