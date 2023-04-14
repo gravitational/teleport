@@ -413,16 +413,12 @@ func buildDiscoveryActions(config ConfiguratorConfig, targetCfg targetConfig) ([
 		return nil, trace.Wrap(err)
 	}
 
-	proxyAddr, err := getProxyAddrFromConfig(config.ServiceConfig)
+	proxyAddr, err := getProxyAddrFromConfig(config.ServiceConfig, config.Flags)
 	if err != nil {
 		return nil, err
 	}
-	ssmDocumentCreators, err := buildSSMDocuments(config.AWSSSMClient, targetCfg, proxyAddr)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	actions = append(actions, ssmDocumentCreators...)
+	actions = append(actions, buildSSMDocumentCreators(config.AWSSSMClient, targetCfg, proxyAddr)...)
 	return actions, nil
 }
 
@@ -663,14 +659,27 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 	), nil
 }
 
-func getProxyAddrFromConfig(cfg *servicecfg.Config) (string, error) {
-	if len(cfg.Proxy.PublicAddrs) == 0 {
-		return fmt.Sprintf("https://<proxy address>:%d", defaults.HTTPListenPort), nil
+func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.BootstrapFlags) (string, error) {
+	if flags.Proxy != "" {
+		addr, err := utils.ParseHostPortAddr(flags.Proxy, defaults.HTTPListenPort)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return fmt.Sprintf("https://%s", addr.String()), nil
 	}
-	return fmt.Sprintf("https://%s", cfg.Proxy.PublicAddrs[0].String()), nil
+
+	if len(cfg.Proxy.PublicAddrs) != 0 {
+		return fmt.Sprintf("https://%s", cfg.Proxy.PublicAddrs[0].String()), nil
+	}
+
+	if !cfg.ProxyServer.IsEmpty() {
+		return fmt.Sprintf("https://%s", cfg.ProxyServer.String()), nil
+	}
+
+	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_server or proxy_service.public_addr in the teleport config")
 }
 
-func buildSSMDocuments(ssm ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) ([]configurators.ConfiguratorAction, error) {
+func buildSSMDocumentCreators(ssm ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr string) []configurators.ConfiguratorAction {
 	var creators []configurators.ConfiguratorAction
 	for _, matcher := range targetCfg.awsMatchers {
 		if !slices.Contains(matcher.Types, services.AWSMatcherEC2) {
@@ -683,7 +692,7 @@ func buildSSMDocuments(ssm ssmiface.SSMAPI, targetCfg targetConfig, proxyAddr st
 		}
 		creators = append(creators, &ssmCreator)
 	}
-	return creators, nil
+	return creators
 }
 
 func isEC2AutoDiscoveryEnabled(flags configurators.BootstrapFlags, matchers []services.AWSMatcher) bool {

@@ -380,15 +380,6 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return watcher.Error()
 		case event := <-watcher.Events():
-			switch r := event.Resource.(type) {
-			case *types.RoleV6:
-				downgraded, err := maybeDowngradeRole(stream.Context(), r)
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				event.Resource = downgraded
-			}
-
 			out, err := client.EventToGRPC(event)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1962,39 +1953,6 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *proto.
 	return &emptypb.Empty{}, nil
 }
 
-var MinSupportedKubePodAccessRequestsVersion = semver.New(utils.VersionBeforeAlpha("12.0.0"))
-
-// maybeDowngradeRole tests the client version passed through the GRPC metadata, and
-// if the client version is unknown or less than the minimum supported version
-// for V6 roles returns a shallow copy of the given role downgraded to V5, If
-// the passed in role is already V5, it is returned unmodified.
-func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
-	if role.Version != types.V6 {
-		// role is already <V6, no need to downgrade
-		return role, nil
-	}
-
-	var clientVersion *semver.Version
-	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
-	if ok {
-		var err error
-		clientVersion, err = semver.NewVersion(clientVersionString)
-		if err != nil {
-			return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
-		}
-	}
-
-	if clientVersion == nil || clientVersion.LessThan(*MinSupportedKubePodAccessRequestsVersion) {
-		log.Debugf(`Client version "%s" is unknown or less than 12.0.0, converting role to v5`, clientVersionString)
-		downgraded, err := services.DowngradeRoleToV5(role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return downgraded, nil
-	}
-	return role, nil
-}
-
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -2009,11 +1967,8 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected role type: %T", role)
 	}
-	downgraded, err := maybeDowngradeRole(ctx, roleV6)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return downgraded, nil
+
+	return roleV6, nil
 }
 
 // GetRoles retrieves all roles.
@@ -2032,11 +1987,7 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*proto.Get
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
-		downgraded, err := maybeDowngradeRole(ctx, role)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		rolesV6 = append(rolesV6, downgraded)
+		rolesV6 = append(rolesV6, role)
 	}
 	return &proto.GetRolesResponse{
 		Roles: rolesV6,
@@ -2486,9 +2437,26 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 		return trace.Wrap(err)
 	}
 
+	mfaRequired := proto.MFARequired_MFA_REQUIRED_UNSPECIFIED
+	if required, err := isMFARequiredForSingleUseCertRequest(ctx, actx, initReq); err == nil {
+		// If MFA is not required to gain access to the resource then let the client
+		// know and abort the ceremony.
+		if !required {
+			return trace.Wrap(stream.Send(&proto.UserSingleUseCertsResponse{
+				Response: &proto.UserSingleUseCertsResponse_MFAChallenge{
+					MFAChallenge: &proto.MFAAuthenticateChallenge{
+						MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+					},
+				},
+			}))
+		}
+
+		mfaRequired = proto.MFARequired_MFA_REQUIRED_YES
+	}
+
 	// 2. send MFAChallenge
 	// 3. receive and validate MFAResponse
-	mfaDev, err := userSingleUseCertsAuthChallenge(actx, stream)
+	mfaDev, err := userSingleUseCertsAuthChallenge(actx, stream, mfaRequired)
 	if err != nil {
 		g.Entry.Debugf("Failed to perform single-use cert challenge: %v", err)
 		return trace.Wrap(err)
@@ -2557,6 +2525,38 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 	return nil
 }
 
+// isMFARequiredForSingleUseCertRequest validates that mfa is actually required for
+// the target of the single-use user cert.
+func isMFARequiredForSingleUseCertRequest(ctx context.Context, actx *grpcContext, req *proto.UserCertsRequest) (bool, error) {
+	mfaReq := &proto.IsMFARequiredRequest{}
+
+	switch req.Usage {
+	case proto.UserCertsRequest_SSH:
+		// An old or non-conforming client did not provide a login which means rbac
+		// won't be able to accurately determine if mfa is required.
+		if req.SSHLogin == "" {
+			return false, trace.BadParameter("no ssh login provided")
+		}
+
+		mfaReq.Target = &proto.IsMFARequiredRequest_Node{Node: &proto.NodeLogin{Node: req.NodeName, Login: req.SSHLogin}}
+	case proto.UserCertsRequest_Kubernetes:
+		mfaReq.Target = &proto.IsMFARequiredRequest_KubernetesCluster{KubernetesCluster: req.KubernetesCluster}
+	case proto.UserCertsRequest_Database:
+		mfaReq.Target = &proto.IsMFARequiredRequest_Database{Database: &req.RouteToDatabase}
+	case proto.UserCertsRequest_WindowsDesktop:
+		mfaReq.Target = &proto.IsMFARequiredRequest_WindowsDesktop{WindowsDesktop: &req.RouteToWindowsDesktop}
+	default:
+		return false, trace.BadParameter("unknown certificate Usage %q", req.Usage)
+	}
+
+	resp, err := actx.IsMFARequired(ctx, mfaReq)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return resp.Required, nil
+}
+
 // isDBLocalProxyTunnelCertReq returns whether a cert request is for
 // a database cert and the requester is a local proxy tunnel.
 func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
@@ -2564,7 +2564,7 @@ func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
 		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
 }
 
-func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer) (*types.MFADevice, error) {
+func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer, mfaRequired proto.MFARequired) (*types.MFADevice, error) {
 	ctx := stream.Context()
 	auth := gctx.authServer
 	user := gctx.User.GetName()
@@ -2577,6 +2577,9 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
 		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 	}
+
+	challenge.MFARequired = mfaRequired
+
 	if err := stream.Send(&proto.UserSingleUseCertsResponse{
 		Response: &proto.UserSingleUseCertsResponse_MFAChallenge{MFAChallenge: challenge},
 	}); err != nil {

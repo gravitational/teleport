@@ -1446,6 +1446,7 @@ func TestAWSConfigurator(t *testing.T) {
 
 	config.Flags.DiscoveryService = true
 	config.Flags.ForceEC2Permissions = true
+	config.Flags.Proxy = "proxy.xyz"
 
 	configurator, err = NewAWSConfigurator(config)
 	require.NoError(t, err)

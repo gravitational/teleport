@@ -528,6 +528,86 @@ export namespace UIDiscoverResourceSelectionEvent {
     }
 }
 
+export class UIDiscoverIntegrationAWSOIDCConnectEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverIntegrationAWSOIDCConnectEvent): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverIntegrationAWSOIDCConnectEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverIntegrationAWSOIDCConnectEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverIntegrationAWSOIDCConnectEvent, reader: jspb.BinaryReader): UIDiscoverIntegrationAWSOIDCConnectEvent;
+}
+
+export namespace UIDiscoverIntegrationAWSOIDCConnectEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverDatabaseRDSEnrollEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseRDSEnrollEvent;
+
+    getSelectedResourcesCount(): number;
+    setSelectedResourcesCount(value: number): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverDatabaseRDSEnrollEvent): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverDatabaseRDSEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverDatabaseRDSEnrollEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverDatabaseRDSEnrollEvent, reader: jspb.BinaryReader): UIDiscoverDatabaseRDSEnrollEvent;
+}
+
+export namespace UIDiscoverDatabaseRDSEnrollEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+        selectedResourcesCount: number,
+    }
+}
+
 export class UIDiscoverDeployServiceEvent extends jspb.Message { 
 
     hasMetadata(): boolean;
@@ -1359,6 +1439,18 @@ export class SubmitEventRequest extends jspb.Message {
     setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverIntegrationAwsOidcConnectEvent(): boolean;
+    clearUiDiscoverIntegrationAwsOidcConnectEvent(): void;
+    getUiDiscoverIntegrationAwsOidcConnectEvent(): UIDiscoverIntegrationAWSOIDCConnectEvent | undefined;
+    setUiDiscoverIntegrationAwsOidcConnectEvent(value?: UIDiscoverIntegrationAWSOIDCConnectEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverDatabaseRdsEnrollEvent(): boolean;
+    clearUiDiscoverDatabaseRdsEnrollEvent(): void;
+    getUiDiscoverDatabaseRdsEnrollEvent(): UIDiscoverDatabaseRDSEnrollEvent | undefined;
+    setUiDiscoverDatabaseRdsEnrollEvent(value?: UIDiscoverDatabaseRDSEnrollEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1411,6 +1503,8 @@ export namespace SubmitEventRequest {
         sftp?: SFTPEvent.AsObject,
         agentMetadataEvent?: AgentMetadataEvent.AsObject,
         resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
+        uiDiscoverIntegrationAwsOidcConnectEvent?: UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject,
+        uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1487,6 +1581,10 @@ export namespace SubmitEventRequest {
     AGENT_METADATA_EVENT = 38,
 
     RESOURCE_HEARTBEAT = 39,
+
+    UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT = 40,
+
+    UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
 
     }
 
