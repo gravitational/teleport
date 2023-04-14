@@ -151,9 +151,16 @@ func newClient(cfg Config, dialer ContextDialer, tlsConfig *tls.Config) *Client 
 }
 
 // connectInBackground connects the client to the server in the background.
-// The client will use the first credentials and the given dialer. If
-// no dialer is given, the first address will be used. This address must
-// be an auth server address.
+//
+// The client will use the first credentials and the given dialer.
+//
+// If no dialer is given, the first address will be used. If no
+// ALPNSNIAuthDialClusterName is given, this address must be an auth server
+// address.
+//
+// If ALPNSNIAuthDialClusterName is given, the address is expected to be a web
+// proxy address and the client will connect auth through the web proxy server
+// using TLS Routing.
 func connectInBackground(ctx context.Context, cfg Config) (*Client, error) {
 	tlsConfig, err := cfg.Credentials[0].TLSConfig()
 	if err != nil {
@@ -259,7 +266,7 @@ func connect(ctx context.Context, cfg Config) (*Client, error) {
 					addr:      addr,
 				})
 				if sshConfig != nil {
-					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect} {
+					for _, cf := range []connectFunc{proxyConnect, tunnelConnect, tlsRoutingConnect, tlsRoutingWithConnUpgradeConnect} {
 						syncConnect(ctx, cf, connectParams{
 							cfg:       cfg,
 							tlsConfig: tlsConfig,
@@ -325,9 +332,14 @@ type (
 	}
 )
 
-// authConnect connects to the Teleport Auth Server directly.
+// authConnect connects to the Teleport Auth Server directly or through Proxy.
 func authConnect(ctx context.Context, params connectParams) (*Client, error) {
-	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
+	dialer := NewDialer(ctx, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout,
+		WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery),
+		WithALPNConnUpgrade(params.cfg.ALPNConnUpgradeRequired),
+		WithALPNConnUpgradePing(true), // Use Ping protocol for long-lived connections.
+	)
+
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as an auth server", params.addr)
@@ -340,7 +352,7 @@ func tunnelConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithTLSConfig(params.tlsConfig))
+	dialer := newTunnelDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a reverse tunnel proxy", params.addr)
@@ -353,7 +365,7 @@ func proxyConnect(ctx context.Context, params connectParams) (*Client, error) {
 	if params.sshConfig == nil {
 		return nil, trace.BadParameter("must provide ssh client config")
 	}
-	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithTLSConfig(params.tlsConfig))
+	dialer := NewProxyDialer(*params.sshConfig, params.cfg.KeepAlivePeriod, params.cfg.DialTimeout, params.addr, params.cfg.InsecureAddressDiscovery, WithInsecureSkipVerify(params.cfg.InsecureAddressDiscovery))
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v as a web proxy", params.addr)
@@ -370,6 +382,20 @@ func tlsRoutingConnect(ctx context.Context, params connectParams) (*Client, erro
 	clt := newClient(params.cfg, dialer, params.tlsConfig)
 	if err := clt.dialGRPC(ctx, params.addr); err != nil {
 		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing dialer", params.addr)
+	}
+	return clt, nil
+}
+
+// tlsRoutingWithConnUpgradeConnect connects to the Teleport Auth Server
+// through the proxy using TLS Routing with ALPN connection upgrade.
+func tlsRoutingWithConnUpgradeConnect(ctx context.Context, params connectParams) (*Client, error) {
+	if params.sshConfig == nil {
+		return nil, trace.BadParameter("must provide ssh client config")
+	}
+	dialer := newTLSRoutingWithConnUpgradeDialer(*params.sshConfig, params)
+	clt := newClient(params.cfg, dialer, params.tlsConfig)
+	if err := clt.dialGRPC(ctx, params.addr); err != nil {
+		return nil, trace.Wrap(err, "failed to connect to addr %v with TLS Routing with ALPN connection upgrade dialer", params.addr)
 	}
 	return clt, nil
 }
@@ -525,6 +551,17 @@ type Config struct {
 	CircuitBreakerConfig breaker.Config
 	// Context is the base context to use for dialing. If not provided context.Background is used
 	Context context.Context
+	// ALPNConnUpgradeRequired indicates that ALPN connection upgrades are
+	// required for making TLS Routing requests.
+	//
+	// In DialInBackground mode without a Dialer, a valid value must be
+	// provided as it's assumed that the caller knows the context if connection
+	// upgrades are required for TLS Routing.
+	//
+	// In default mode, this value is optional as some of the connect methods
+	// will perform necessary tests to decide if connection upgrade is
+	// required.
+	ALPNConnUpgradeRequired bool
 }
 
 // CheckAndSetDefaults checks and sets default config values.
@@ -558,7 +595,6 @@ func (c *Config) CheckAndSetDefaults() error {
 	if !c.DialInBackground {
 		c.DialOpts = append(c.DialOpts, grpc.WithBlock())
 	}
-
 	return nil
 }
 
