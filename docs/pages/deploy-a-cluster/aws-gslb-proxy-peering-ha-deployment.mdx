@@ -41,8 +41,7 @@ entry while also ensuring minimal latency when accessing connected resources.
   scale with an organization’s needs.
 - All required Teleport components can be provisioned within the AWS ecosystem.
 - Using load balancers for the Proxy and Auth services allows for increased availability 
-  during Teleport Cluster upgrades. Instances can easily be removed and added while 
-  limiting impact to active users.
+  during Teleport Cluster upgrades.
 
 ## Disadvantages of this deployment architecture
 - When Teleport Auth servers are limited to a single region, there is a higher likelihood 
@@ -71,7 +70,7 @@ traffic across multiple zones. Doing this improves resiliency against localized 
 ### Configure the Proxy Service NLBs
 Configure the load balancer to forward traffic from the following ports on the
 load balancer to the corresponding port on an available Teleport instance. The
-configuration depends on whether you route Proxy Peering GRPC traffic over 
+configuration depends on whether you route Proxy Peering traffic over 
 the public internet:
 
 <Tabs>
@@ -113,40 +112,9 @@ Internal NLB Auth Service ports
 | - | - |
 | `3025` | TLS port used by the Auth Service to serve its API to other Nodes in a cluster |
 
-## Cluster state backend
-
-The Teleport Auth Service stores cluster state (such as dynamic configuration
-resources) and audit events as key/value pairs. In high-availability
-deployments, you must configure the Auth Service to manage this data in a
-key-value store that runs outside of your cluster of Teleport instances.
-
-The Teleport Auth Service manages the creation of any required DynamoDB tables itself, 
-and does not require them to exist in advance.
-
-<Admonition title="Required permissions">
-
-The Auth Service instances needs [permissions to read from and write to DynamoDB](https://goteleport.com/docs/reference/backends/#dynamodb), 
-as well as to create tables.
-
-</Admonition>
-
-## Session recording backend
-
-Highly available Teleport deployments use an object storage service for
-persisting session recordings.
-
-Depeding on how you choose to deploy the Teleport cluster, the Teleport Auth Service can create the required S3 bucket if it doens't already exist.
-
-<Admonition title="Required permissions">
-
-The Auth Service instances [need permissions to get S3 buckets](https://goteleport.com/docs/reference/backends/#s3) as well as to create, get, list, 
-and update objects.
-
-</Admonition>
-
 ## TLS credential provisioning 
 
-High-availability Teleport deployments require a  system to fetch TLS
+High-availability Teleport deployments require a system to fetch TLS
 credentials from a certificate authority like Let's Encrypt, AWS Certificate
 Manager, Digicert, or a trusted internal authority. The system must then
 provision Teleport Proxy Service instances with these credentials and renew them
@@ -160,14 +128,10 @@ challenge to demonstrate domain name ownership to Let's Encrypt. In this
 challenge, your TLS credential provisioning system creates a DNS TXT record with
 a value expected by Let's Encrypt.
 
-Each Teleport Proxy Service instance expects TLS credentials for HTTPS to be available at the file
-paths `/etc/teleport-tls/tls.key` (private key) and `/etc/teleport-tls/tls.crt`
-(certificate).
-
 ## Global Server Load Balancing with Route 53
 
 [Latency-based routing](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy-latency.html) 
-in a private hosted zone must be used to ensure traffic from Teleport 
+in a public hosted zone must be used to ensure traffic from Teleport 
 resources are routed to the closest or lowest latency path Proxy NLB based on the region of 
 the VPC the resource is connecting from.
 
@@ -211,6 +175,7 @@ the GSLB domain configured in Route53 _not the specific proxy NLB address_.
 For example:
 
 ```
+version: v3
 teleport:
     nodename: ssh-node
     ...
@@ -252,6 +217,9 @@ Proxies must advertise a peer address which can be configured to use one of the 
 method for lowest latency and most reliable connection.
 
 ```
+version: v3
+teleport:
+...
 proxy_service:
   ...
   peer_public_addr: teleport.example.com:3021
@@ -265,6 +233,9 @@ they establish connection to the correct peer target.
 
 
 ```
+version: v3
+teleport:
+...
 proxy_service:
   ...
   peer_public_addr: teleport-example-nlb-us-east-1.amazonaws.com:3021
