@@ -48,14 +48,13 @@ func TestAWSIAMDocuments(t *testing.T) {
 	userTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:user/example-user")
 	require.NoError(t, err)
 
-	internalAssumeRole1 := "arn:aws:iam::123456789012:role/internal-role-1"
-	internalAssumeRole2 := "arn:aws:iam::123456789012:role/internal-role-2"
-	internalAssumeRole3 := "arn:aws:iam::123456789012:role/internal-role-3"
-	externalAssumeRole1 := "arn:aws:iam::222222222222:role/external-role-1"
-	externalAssumeRole2 := "arn:aws:iam::222222222222:role/external-role-2"
-	externalAssumeRole3 := "arn:aws:iam::222222222222:role/external-role-3"
+	role1 := "arn:aws:iam::123456789012:role/role-1"
+	role2 := "arn:aws:iam::123456789012:role/role-2"
+	role3 := "arn:aws:iam::123456789012:role/role-3"
+	role4 := "arn:aws:iam::123456789012:role/role-4"
+	role5 := "arn:aws:iam::123456789012:role/role-5"
 
-	roleTarget, err := awslib.IdentityFromArn(internalAssumeRole1)
+	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:role/target-role")
 	require.NoError(t, err)
 
 	unknownIdentity, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:ec2/example-ec2")
@@ -154,7 +153,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"rds:DescribeDBInstances", "rds:ModifyDBInstance",
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
 				}},
-				{Effect: awslib.EffectAllow, Resources: []string{internalAssumeRole1}, Actions: []string{
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
 				}},
 			},
@@ -164,7 +163,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					"rds:DescribeDBClusters", "rds:ModifyDBCluster",
 					"rds-db:connect",
 				}},
-				{Effect: awslib.EffectAllow, Resources: []string{internalAssumeRole1}, Actions: []string{
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
 					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
 				}},
 			},
@@ -738,9 +737,8 @@ func TestAWSIAMDocuments(t *testing.T) {
 				},
 			},
 		},
-		"target not in assume role": {
+		"target in assume role": {
 			target: roleTarget,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: externalAssumeRole1},
 			fileConfig: &config.FileConfig{
 				Databases: config.Databases{
 					Service: config.Service{EnabledFlag: "true"},
@@ -750,7 +748,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 							Protocol: "postgres",
 							URI:      "aurora-instance-2.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 							AWS: config.DatabaseAWS{
-								AssumeRoleARN: internalAssumeRole2,
+								AssumeRoleARN: role2,
 							},
 						},
 						{
@@ -758,21 +756,70 @@ func TestAWSIAMDocuments(t *testing.T) {
 							Protocol: "postgres",
 							URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
 							AWS: config.DatabaseAWS{
-								AssumeRoleARN: externalAssumeRole2,
+								AssumeRoleARN: role3,
 								ExternalID:    "someID",
 							},
 						},
 					},
 					AWSMatchers: []config.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: internalAssumeRole3},
-						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: externalAssumeRole3, ExternalID: "foo"},
+						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
+						{Types: []string{services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}, AssumeRoleARN: roleTarget.String(), ExternalID: "foo"},
+					},
+				},
+			},
+			statements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
+			},
+			boundaryStatements: []*awslib.Statement{
+				{Effect: awslib.EffectAllow, Resources: []string{"*"}, Actions: []string{
+					"rds:DescribeDBProxies", "rds:DescribeDBProxyEndpoints", "rds:DescribeDBProxyTargets", "rds:ListTagsForResource",
+					"rds-db:connect",
+				}},
+				{Effect: awslib.EffectAllow, Resources: []string{roleTarget.String()}, Actions: []string{
+					"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy",
+				}},
+			},
+		},
+		"target not in assume role": {
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1},
+			fileConfig: &config.FileConfig{
+				Databases: config.Databases{
+					Service: config.Service{EnabledFlag: "true"},
+					Databases: []*config.Database{
+						{
+							Name:     "aurora-2",
+							Protocol: "postgres",
+							URI:      "aurora-instance-2.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+							AWS: config.DatabaseAWS{
+								AssumeRoleARN: role2,
+							},
+						},
+						{
+							Name:     "aurora-1",
+							Protocol: "postgres",
+							URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+							AWS: config.DatabaseAWS{
+								AssumeRoleARN: role3,
+								ExternalID:    "someID",
+							},
+						},
+					},
+					AWSMatchers: []config.AWSMatcher{
+						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role4},
+						{Types: []string{services.AWSMatcherRDS}, Regions: []string{"us-west-2"}, AssumeRoleARN: role5, ExternalID: "foo"},
 					},
 				},
 			},
 			statements: []*awslib.Statement{
 				{
 					Effect:    awslib.EffectAllow,
-					Resources: awslib.SliceOrString{internalAssumeRole2, internalAssumeRole3, externalAssumeRole1, externalAssumeRole2, externalAssumeRole3},
+					Resources: awslib.SliceOrString{role1, role2, role3, role4, role5},
 					Actions:   awslib.SliceOrString{"sts:AssumeRole"},
 				},
 			},
@@ -931,7 +978,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						AWSMatchers: []config.AWSMatcher{
 							{Types: []string{services.AWSMatcherRedshift}, Regions: []string{"us-west-1"}},
 							{Types: []string{services.AWSMatcherRedshift, services.AWSMatcherRDS, services.AWSMatcherRDSProxy}, Regions: []string{"us-west-2"}},
-							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: externalAssumeRole1, ExternalID: "foo"},
+							{Types: []string{services.AWSMatcherElastiCache}, Regions: []string{"us-west-2"}, AssumeRoleARN: role1, ExternalID: "foo"},
 						},
 					},
 				},
@@ -953,7 +1000,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 					},
 					{
 						Effect:    awslib.EffectAllow,
-						Resources: awslib.SliceOrString{externalAssumeRole1},
+						Resources: awslib.SliceOrString{role1},
 						Actions:   awslib.SliceOrString{"sts:AssumeRole"},
 					},
 				},
@@ -1415,15 +1462,13 @@ func TestAWSConfigurator(t *testing.T) {
 
 func TestExtractTargetConfig(t *testing.T) {
 	t.Parallel()
-	internalRole1 := "arn:aws:iam::123456789012:role/internal-role-1"
-	internalRole2 := "arn:aws:iam::123456789012:role/internal-role-2"
-	internalRole3 := "arn:aws:iam::123456789012:role/internal-role-3"
-	internalRole4 := "arn:aws:iam::123456789012:role/internal-role-4"
-	internalRole5 := "arn:aws:iam::123456789012:role/internal-role-5"
-	externalRole1 := "arn:aws:iam::222222222222:role/external-role-1"
-	externalRole2 := "arn:aws:iam::222222222222:role/external-role-2"
-	externalRole3 := "arn:aws:iam::222222222222:role/external-role-3"
-	roleTarget1, err := awslib.IdentityFromArn(internalRole1)
+	role1 := "arn:aws:iam::123456789012:role/role-1"
+	role2 := "arn:aws:iam::123456789012:role/role-2"
+	role3 := "arn:aws:iam::123456789012:role/role-3"
+	role4 := "arn:aws:iam::123456789012:role/role-4"
+	role5 := "arn:aws:iam::123456789012:role/role-5"
+	role6 := "arn:aws:iam::123456789012:role/role-6"
+	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:role/target-role")
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -1433,70 +1478,70 @@ func TestExtractTargetConfig(t *testing.T) {
 		want   targetConfig
 	}{
 		"target in assume roles": {
-			target: roleTarget1,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: externalRole1},
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1},
 			cfg: &servicecfg.Config{
 				// check discovery resources are not included
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []services.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: internalRole1}},
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				Databases: servicecfg.DatabasesConfig{
 					Databases: []servicecfg.Database{
-						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: internalRole3}},
-						{Name: "db2", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: externalRole2, ExternalID: "foo"}},
+						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role2}},
+						{Name: "db2", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role3, ExternalID: "foo"}},
 						{Name: "db3"},
-						{Name: "db4", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: internalRole1}},
+						{Name: "db4", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}},
 					},
 					AWSMatchers: []services.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: internalRole4}},
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: externalRole3, ExternalID: "foo"}},
-						{Types: []string{services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: internalRole5}},
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: role4}},
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: role5, ExternalID: "foo"}},
+						{Types: []string{services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: role6}},
 						{Types: []string{services.AWSMatcherElastiCache}},
-						{Types: []string{services.AWSMatcherRedshift}, AssumeRole: services.AssumeRole{RoleARN: internalRole1}},
+						{Types: []string{services.AWSMatcherRedshift}, AssumeRole: services.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget1,
-				assumesAWSRoles: []string{externalRole1},
-				databases:       []*servicecfg.Database{{Name: "db4", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: internalRole1}}},
+				identity:        roleTarget,
+				assumesAWSRoles: []string{role1},
+				databases:       []*servicecfg.Database{{Name: "db4", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}}},
 				awsMatchers: []services.AWSMatcher{
-					{Types: []string{services.AWSMatcherRedshift}, AssumeRole: services.AssumeRole{RoleARN: internalRole1}},
+					{Types: []string{services.AWSMatcherRedshift}, AssumeRole: services.AssumeRole{RoleARN: roleTarget.String()}},
 				},
 			},
 		},
 		"target in discovery assume roles": {
-			target: roleTarget1,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: externalRole1, DiscoveryService: true},
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, DiscoveryService: true},
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []services.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: internalRole1}},
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 				// check that database service resources are not included.
 				Databases: servicecfg.DatabasesConfig{
 					Databases: []servicecfg.Database{
-						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: internalRole1}},
+						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: roleTarget.String()}},
 					},
 					AWSMatchers: []services.AWSMatcher{
-						{Types: []string{services.AWSMatcherRedshift}, AssumeRole: services.AssumeRole{RoleARN: internalRole1}},
+						{Types: []string{services.AWSMatcherRedshift}, AssumeRole: services.AssumeRole{RoleARN: roleTarget.String()}},
 					},
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget1,
-				assumesAWSRoles: []string{externalRole1},
+				identity:        roleTarget,
+				assumesAWSRoles: []string{role1},
 				awsMatchers: []services.AWSMatcher{
-					{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: internalRole1}},
+					{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: roleTarget.String()}},
 				},
 			},
 		},
 		"target not in assume roles": {
-			target: roleTarget1,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: externalRole1},
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1},
 			cfg: &servicecfg.Config{
 				// check that discovery service resources are not included.
 				Discovery: servicecfg.DiscoveryConfig{
@@ -1506,24 +1551,24 @@ func TestExtractTargetConfig(t *testing.T) {
 				},
 				Databases: servicecfg.DatabasesConfig{
 					Databases: []servicecfg.Database{
-						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: internalRole2}},
-						{Name: "db2", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: externalRole2, ExternalID: "foo"}},
+						{Name: "db1", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role2}},
+						{Name: "db2", AWS: servicecfg.DatabaseAWS{AssumeRoleARN: role3, ExternalID: "foo"}},
 						{Name: "db3"},
 					},
 					AWSMatchers: []services.AWSMatcher{
 						// rds/ec2 matcher's assume role should be added because rds assume role is supported.
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: internalRole3}},
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: role4}},
 						// ec2-only matcher's assume role should not be added because it's not supported.
-						{Types: []string{services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: internalRole4}},
-						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: externalRole3, ExternalID: "foo"}},
+						{Types: []string{services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: role5}},
+						{Types: []string{services.AWSMatcherRDS, services.AWSMatcherEC2}, AssumeRole: services.AssumeRole{RoleARN: role6, ExternalID: "foo"}},
 						// matcher without assume role should be added to matchers
 						{Types: []string{services.AWSMatcherElastiCache}},
 					},
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget1,
-				assumesAWSRoles: []string{internalRole2, internalRole3, externalRole1, externalRole2, externalRole3},
+				identity:        roleTarget,
+				assumesAWSRoles: []string{role1, role2, role3, role4, role6},
 				databases:       []*servicecfg.Database{{Name: "db3"}},
 				awsMatchers: []services.AWSMatcher{
 					{Types: []string{services.AWSMatcherElastiCache}},
@@ -1531,13 +1576,13 @@ func TestExtractTargetConfig(t *testing.T) {
 			},
 		},
 		"target not in discovery roles": {
-			target: roleTarget1,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: externalRole1, DiscoveryService: true},
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, DiscoveryService: true},
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []services.AWSMatcher{
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: internalRole2}},
-						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: externalRole2, ExternalID: "foo"}},
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: role2}},
+						{Types: []string{services.AWSMatcherRDSProxy}, AssumeRole: services.AssumeRole{RoleARN: role3, ExternalID: "foo"}},
 						{Types: []string{services.AWSMatcherEC2}},
 					},
 				},
@@ -1547,13 +1592,13 @@ func TestExtractTargetConfig(t *testing.T) {
 						{Name: "db3"},
 					},
 					AWSMatchers: []services.AWSMatcher{
-						{Types: []string{services.AWSMatcherElastiCache}},
+						{Types: []string{services.AWSMatcherElastiCache}, AssumeRole: services.AssumeRole{RoleARN: role4}},
 					},
 				},
 			},
 			want: targetConfig{
-				identity:        roleTarget1,
-				assumesAWSRoles: []string{internalRole2, externalRole1, externalRole2},
+				identity:        roleTarget,
+				assumesAWSRoles: []string{role1, role2, role3},
 				awsMatchers: []services.AWSMatcher{
 					{Types: []string{services.AWSMatcherEC2}},
 				},
@@ -1582,9 +1627,8 @@ func TestIsTargetAssumeRole(t *testing.T) {
 	t.Parallel()
 	userTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:user/example-user")
 	require.NoError(t, err)
-	role1 := "arn:aws:iam::123456789012:role/test-role-1"
-	role2 := "arn:aws:iam::123456789012:role/test-role-2"
-	roleTarget1, err := awslib.IdentityFromArn(role1)
+	role1 := "arn:aws:iam::123456789012:role/role-1"
+	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:role/target-role")
 	require.NoError(t, err)
 
 	tests := map[string]struct {
@@ -1595,19 +1639,19 @@ func TestIsTargetAssumeRole(t *testing.T) {
 		want      bool
 	}{
 		"target in matchers": {
-			target: roleTarget1,
+			target: roleTarget,
 			matchers: []services.AWSMatcher{{
 				Types:      []string{services.AWSMatcherRDS},
 				Regions:    []string{"us-west-1"},
-				AssumeRole: services.AssumeRole{RoleARN: role1},
+				AssumeRole: services.AssumeRole{RoleARN: roleTarget.String()},
 			}},
 			want: true,
 		},
 		"target in databases": {
-			target: roleTarget1,
+			target: roleTarget,
 			databases: []*servicecfg.Database{{
 				AWS: servicecfg.DatabaseAWS{
-					AssumeRoleARN: role1,
+					AssumeRoleARN: roleTarget.String(),
 				},
 			}},
 			want: true,
@@ -1617,16 +1661,16 @@ func TestIsTargetAssumeRole(t *testing.T) {
 			want:   false,
 		},
 		"target not in anything": {
-			target: roleTarget1,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role2},
+			target: roleTarget,
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1},
 			matchers: []services.AWSMatcher{{
 				Types:      []string{services.AWSMatcherRDS},
 				Regions:    []string{"us-west-1"},
-				AssumeRole: services.AssumeRole{RoleARN: role2},
+				AssumeRole: services.AssumeRole{RoleARN: role1},
 			}},
 			databases: []*servicecfg.Database{{
 				AWS: servicecfg.DatabaseAWS{
-					AssumeRoleARN: role2,
+					AssumeRoleARN: role1,
 				},
 			}},
 			want: false,
