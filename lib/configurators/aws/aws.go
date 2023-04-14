@@ -668,7 +668,7 @@ func getProxyAddrFromConfig(fc *config.FileConfig, flags configurators.Bootstrap
 		return fmt.Sprintf("https://%s", addr.String()), nil
 	}
 
-	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_service or proxy_service.public_addr in the teleport config")
+	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_server or proxy_service.public_addr in the teleport config")
 }
 
 func buildSSMDocuments(ssm ssmiface.SSMAPI, flags configurators.BootstrapFlags, fileConfig *config.FileConfig) ([]configurators.ConfiguratorAction, error) {
