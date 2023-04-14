@@ -21,8 +21,8 @@ runs:
         GNUPGHOME: ${{ inputs.gnupghome }}
       run: |
         # Load the GPG key from the input archive
-        [ -n "$GNUPGHOME" ] || { echo "GNUPGHOME input is unset or empty, aborting"; exit 1 }
-        [ -n "$GPG_SIGNING_ARCHIVE" ] || { echo "GPG signing archive input is unset or empty, aborting"; exit 1 }
+        [ -n "$GNUPGHOME" ] || { echo "GNUPGHOME input is unset or empty, aborting"; exit 1; }
+        [ -n "$GPG_SIGNING_ARCHIVE" ] || { echo "GPG signing archive input is unset or empty, aborting"; exit 1; }
 
         echo "Extracting the GPG signing key to GNUPGHOME at $GNUPGHOME"
         mkdir -pv -m0700 "$GNUPGHOME"
