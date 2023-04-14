@@ -1579,8 +1579,8 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		AccessRequestID: accessReq.GetMetadata().Name,
 	})
 	require.NoError(t, err)
-	require.Equal(t, sess1.Expiry(), tt.clock.Now().Add(time.Minute*10))
-	require.Equal(t, sess1.GetLoginTime(), initialSession.GetLoginTime())
+	require.WithinDuration(t, tt.clock.Now().Add(time.Minute*10), sess1.Expiry(), time.Second)
+	require.WithinDuration(t, sess1.GetLoginTime(), initialSession.GetLoginTime(), time.Second)
 
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	require.NoError(t, err)
@@ -1884,6 +1884,8 @@ func TestGenerateCerts(t *testing.T) {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
+	clock := srv.Auth().GetClock()
+
 	// make sure we can parse the private and public key
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -1972,7 +1974,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = nopClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -1989,7 +1991,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -2000,10 +2002,9 @@ func TestGenerateCerts(t *testing.T) {
 		parsedCert, err := sshutils.ParseCertificate(sshCert)
 		require.NoError(t, err)
 		validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
-		return parsedCert, time.Until(validBefore)
+		return parsedCert, validBefore.Sub(clock.Now())
 	}
 
-	clock := srv.Auth().GetClock()
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
@@ -2054,7 +2055,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(iUser.TTL))
+		require.LessOrEqual(t, diff, maxSessionTTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
@@ -2062,8 +2063,8 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Because the original request has maxed out the possible max
-		// session TTL, it will be adjusted to exactly the value
-		require.Equal(t, identity.Expires.Sub(clock.Now()), maxSessionTTL)
+		// session TTL, it will be adjusted to exactly the value (within rounding errors)
+		require.WithinDuration(t, clock.Now().Add(maxSessionTTL), identity.Expires, time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 
@@ -2089,7 +2090,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -2115,7 +2116,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 		identity, err = tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.Equal(t, identity.Expires.Sub(clock.Now()), time.Hour)
+		require.WithinDuration(t, identity.Expires, clock.Now().Add(time.Hour), time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 	})
@@ -2137,20 +2138,20 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc1.GetName(),
 		})
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(testUser2.TTL))
+		require.LessOrEqual(t, diff, testUser2.TTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
 		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.True(t, identity.Expires.Before(time.Now().Add(testUser2.TTL)))
+		require.WithinDuration(t, clock.Now().Add(testUser2.TTL), identity.Expires, time.Second)
 		require.Equal(t, identity.RouteToCluster, rc1.GetName())
 	})
 
@@ -2162,13 +2163,13 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(40 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(40 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
 		parsedCert, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(apidefaults.MaxCertDuration), int64(diff))
+		require.Less(t, apidefaults.MaxCertDuration, diff)
 
 		// user should have agent forwarding (default setting)
 		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
@@ -2187,7 +2188,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(1 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(1 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2203,7 +2204,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2217,7 +2218,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: "unknown_cluster",
 		})
@@ -2236,7 +2237,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
@@ -2250,7 +2251,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
@@ -4070,7 +4071,7 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 func newTestTLSServer(t testing.TB) *TestTLSServer {
 	as, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 

@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
@@ -60,6 +61,7 @@ import (
 func init() {
 	common.RegisterEngine(cassandra.NewEngine, defaults.ProtocolCassandra)
 	common.RegisterEngine(elasticsearch.NewEngine, defaults.ProtocolElasticsearch)
+	common.RegisterEngine(opensearch.NewEngine, defaults.ProtocolOpenSearch)
 	common.RegisterEngine(mongodb.NewEngine, defaults.ProtocolMongoDB)
 	common.RegisterEngine(mysql.NewEngine, defaults.ProtocolMySQL)
 	common.RegisterEngine(postgres.NewEngine, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
@@ -378,9 +380,11 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
-		// TODO: Remove UserCA in Teleport 11.
-		types.UserCA, types.DatabaseCA)
+		server.cfg.TLSConfig,
+		server.cfg.AccessPoint,
+		server.log,
+		types.DatabaseCA,
+	)
 
 	return server, nil
 }

@@ -21,10 +21,9 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import styled from 'styled-components';
+import styled, { css } from 'styled-components';
 
 import { Attempt } from 'shared/hooks/useAsync';
-import { Box } from 'design';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
 
@@ -36,22 +35,18 @@ type ResultListProps<T> = {
    */
   attempts: Attempt<T[]>[];
   /**
-   * NoResultsComponent is the element that's going to be rendered instead of the list if the
-   * attempt has successfully finished but there's no results to show.
+   * ExtraTopComponent is the element that is rendered above the items.
    */
-  NoResultsComponent?: ReactElement;
+  ExtraTopComponent?: ReactElement;
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, NoResultsComponent, onPick, onBack } = props;
+  const { attempts, ExtraTopComponent, onPick, onBack } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
-  const shouldShowNoResultsCopy =
-    NoResultsComponent &&
-    attempts.every(a => a.status === 'success' && a.data.length === 0);
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -108,76 +103,66 @@ export function ResultList<T>(props: ResultListProps<T>) {
   }, [items, onPick, onBack, activeItemIndex]);
 
   return (
-    <StyledGlobalSearchResults role="menu">
-      {attempts.some(a => a.status === 'processing') && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            height: '1px',
-            left: 0,
-            right: 0,
-          }}
-        >
+    <>
+      <Separator>
+        {attempts.some(a => a.status === 'processing') && (
           <LinearProgress transparentBackground={true} />
-        </div>
-      )}
-      {items.map((r, index) => {
-        const isActive = index === activeItemIndex;
-        const { Component, key } = props.render(r);
+        )}
+      </Separator>
+      <Overflow role="menu">
+        {ExtraTopComponent}
+        {items.map((r, index) => {
+          const isActive = index === activeItemIndex;
+          const { Component, key } = props.render(r);
 
-        return (
-          <StyledItem
-            ref={isActive ? activeItemRef : null}
-            role="menuitem"
-            $active={isActive}
-            key={key}
-            onClick={() => props.onPick(r)}
-          >
-            {Component}
-          </StyledItem>
-        );
-      })}
-      {shouldShowNoResultsCopy && NoResultsComponent}
-    </StyledGlobalSearchResults>
+          return (
+            <InteractiveItem
+              ref={isActive ? activeItemRef : null}
+              role="menuitem"
+              active={isActive}
+              key={key}
+              onClick={() => props.onPick(r)}
+            >
+              {Component}
+            </InteractiveItem>
+          );
+        })}
+      </Overflow>
+    </>
   );
 }
 
-const StyledItem = styled.div`
-  &:hover,
-  &:focus {
-    cursor: pointer;
-    background: ${props => props.theme.colors.levels.elevated};
-  }
-
+export const NonInteractiveItem = styled.div`
   & mark {
     color: inherit;
     background-color: ${props => props.theme.colors.brand.accent};
   }
 
   :not(:last-of-type) {
-    border-bottom: 2px solid
+    border-bottom: 1px solid
       ${props => props.theme.colors.levels.surfaceSecondary};
   }
 
   padding: ${props => props.theme.space[2]}px;
   color: ${props => props.theme.colors.text.contrast};
-  background: ${props =>
-    props.$active
-      ? props.theme.colors.levels.elevated
-      : props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.surface};
 `;
 
-export const EmptyListCopy = styled(Box)`
-  width: 100%;
-  height: 100%;
-  padding: ${props => props.theme.space[2]}px;
-  line-height: 1.5em;
+const InteractiveItem = styled(NonInteractiveItem)`
+  cursor: pointer;
 
-  ul {
-    margin: 0;
-    padding-inline-start: 2em;
+  &:hover,
+  &:focus {
+    background: ${props => props.theme.colors.levels.elevated};
   }
+
+  ${props => {
+    if (props.active) {
+      return css`
+        background: ${props => props.theme.colors.levels.elevated};
+      `;
+    }
+  }}
 `;
 
 function getNext(selectedIndex = 0, max = 0) {
@@ -188,26 +173,17 @@ function getNext(selectedIndex = 0, max = 0) {
   return index;
 }
 
-const StyledGlobalSearchResults = styled.div(({ theme }) => {
-  return {
-    boxShadow: '8px 8px 18px rgb(0 0 0)',
-    color: theme.colors.text.contrast,
-    background: theme.colors.levels.surface,
-    boxSizing: 'border-box',
-    // Account for border.
-    width: 'calc(100% + 2px)',
-    // Careful, this is hardcoded based on the input height.
-    marginTop: '38px',
-    display: 'block',
-    position: 'absolute',
-    border: '1px solid ' + theme.colors.action.hover,
-    fontSize: '12px',
-    listStyle: 'none outside none',
-    textShadow: 'none',
-    zIndex: '1000',
-    maxHeight: '350px',
-    overflow: 'auto',
-    // Hardcoded to height of the shortest item.
-    minHeight: '42px',
-  };
-});
+const Separator = styled.div`
+  position: relative;
+  background: ${props => props.theme.colors.action.hover};
+  height: 1px;
+`;
+
+const Overflow = styled.div`
+  overflow: auto;
+  height: 100%;
+  list-style: none outside none;
+  max-height: 350px;
+  // Hardcoded to height of the shortest item.
+  min-height: 40px;
+`;
