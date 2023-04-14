@@ -3390,7 +3390,6 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		watch                  types.Watch
-		identity               TestIdentity
 		expectedConfirmedKinds []types.WatchKind
 	}{
 		{
@@ -3402,7 +3401,6 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 				},
 				AllowPartialSuccess: true,
 			},
-			identity: TestBuiltin(types.RoleDiscovery),
 		},
 		{
 			name: "has permission only for some of the requested kinds",
@@ -3410,13 +3408,12 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 				Kinds: []types.WatchKind{
 					{Kind: types.KindUser},
 					{Kind: types.KindRole},
-					{Kind: types.KindNode},
+					{Kind: types.KindStaticTokens},
 				},
 				AllowPartialSuccess: true,
 			},
-			identity: TestBuiltin(types.RoleDiscovery),
 			expectedConfirmedKinds: []types.WatchKind{
-				{Kind: types.KindNode},
+				{Kind: types.KindStaticTokens},
 			},
 		},
 		{
@@ -3425,22 +3422,24 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 				Kinds: []types.WatchKind{
 					{Kind: types.KindUser},
 					{Kind: types.KindRole},
-					{Kind: types.KindNode},
+					{Kind: types.KindStaticTokens},
 				},
 			},
-			identity: TestBuiltin(types.RoleDiscovery),
 		},
 	}
 
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+	testUser, testRole, err := CreateUserAndRole(tt.server.Auth(), "test", nil, []types.Rule{
+		types.NewRule(types.KindStaticTokens, services.RO()),
+	})
+	require.NoError(t, err)
+	require.NoError(t, tt.server.Auth().UpsertRole(ctx, testRole))
+	testIdentity := TestUser(testUser.GetName())
+
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx := context.Background()
-			tt := setupAuthContext(ctx, t)
-
-			client, err := tt.server.NewClient(tc.identity)
+			client, err := tt.server.NewClient(testIdentity)
 			require.NoError(t, err)
 			defer client.Close()
 
