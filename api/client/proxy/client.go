@@ -297,10 +297,16 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 	dialCtx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
 	defer cancel()
 
+	// Dial web proxy with TLS Routing.
+	addr := cfg.ProxySSHAddress
+	if cfg.TLSRoutingEnabled {
+		addr = cfg.ProxyWebAddress
+	}
+
 	c := &clusterName{}
 	conn, err := grpc.DialContext(
 		dialCtx,
-		cfg.ProxySSHAddress,
+		addr,
 		append([]grpc.DialOption{
 			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
