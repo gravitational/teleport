@@ -46,6 +46,8 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
   const history = useHistory();
 
   const [messages, setMessages] = useState<Message[]>([]);
+  // Part of a bigger hack.
+  const [streamingCommand, setStreamingCommand] = useState<boolean>(false);
 
   let socketUrl = `wss://${getHostName()}/v1/webapi/assistant?access_token=${getAccessToken()}`;
   if (conversationId) {
@@ -55,62 +57,100 @@ export function MessagesContextProvider(props: PropsWithChildren<unknown>) {
   const { sendMessage, lastMessage } = useWebSocket(socketUrl);
 
   useEffect(() => {
-    if (lastMessage !== null) {
-      const value = JSON.parse(lastMessage.data);
+    if (lastMessage === null) {
+      return;
+    }
 
-      if (value.conversation_id && !conversationId && !value.type) {
-        setMessages([]);
+    const value = JSON.parse(lastMessage.data);
 
-        history.replace(`/web/assist/${value.conversation_id}`);
+    if (value.conversation_id && !conversationId && !value.type) {
+      setMessages([]);
 
+      history.replace(`/web/assist/${value.conversation_id}`);
+
+      return;
+    }
+
+    console.log(value);
+    if (value.type === 'CHAT_MESSAGE_ASSISTANT') {
+      if (streamingCommand) {
         return;
       }
+      let payload = value?.payload ?? '';
 
-      console.log(value);
-      if (value.type === 'CHAT_MESSAGE_ASSISTANT') {
-        setMessages(prev =>
-          prev.concat({
+      // ChatGPT shouldn't talk to us in JSON without a reason. As we now stream the response, the backend
+      // doesn't know if the output is correct command until the streaming ends. That would stop the "message flow"
+      //  and the UI would freeze. Instead, we check if the first character looks like JSON, and if so, we will
+      // display some stub message and wait for the command. There is a chance that the command won't arrive,
+      // but let's be optimistic now.
+      if (payload.startsWith('{')) {
+        setStreamingCommand(true);
+        // Here we should return, but the UI has already displayed the stub for an AI message.
+        // Change the payload to let the user know what something is happening.
+        payload = "Magic is happening. Please wait..."
+      }
+
+      setMessages(prev => {
+        if (prev.length == 0) {
+          return prev.concat({
             author: Author.Teleport,
             content: [
               {
                 type: Type.Message,
-                value: value.payload,
+                value: payload,
               },
             ],
-          })
-        );
-      }
+          });
+        }
+        const last = prev.at(-1);
 
-      if (value.type === 'CHAT_MESSAGE_USER') {
-        setMessages(prev =>
-          prev.concat({
-            author: Author.User,
-            content: [
-              {
-                type: Type.Message,
-                value: value.payload,
-              },
-            ],
-          })
-        );
-      }
-
-      if (value.type === 'COMMAND') {
-        const execCmd = JSON.parse(value.payload);
-        setMessages(prev =>
-          prev.concat({
+        if (last.author != Author.Teleport) {
+          return prev.concat({
             author: Author.Teleport,
             content: [
               {
-                type: Type.Exec,
-                value: execCmd.command,
+                type: Type.Message,
+                value: payload,
               },
             ],
-          })
-        );
-      }
+          });
+        }
+
+        last.content[0].value += payload;
+
+        return prev;
+      });
     }
-  }, [lastMessage, setMessages, conversationId]);
+
+    if (value.type === 'CHAT_MESSAGE_USER') {
+      setMessages(prev =>
+        prev.concat({
+          author: Author.User,
+          content: [
+            {
+              type: Type.Message,
+              value: value.payload,
+            },
+          ],
+        })
+      );
+    }
+
+    if (value.type === 'COMMAND') {
+      const execCmd = JSON.parse(value.payload);
+      setMessages(prev =>
+        prev.concat({
+          author: Author.Teleport,
+          content: [
+            {
+              type: Type.Exec,
+              value: execCmd.command,
+            },
+          ],
+        })
+      );
+    }
+  }, [lastMessage, conversationId, streamingCommand]);
 
   const send = useCallback(
     async (message: string) => {

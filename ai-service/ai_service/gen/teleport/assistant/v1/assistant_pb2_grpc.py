@@ -15,7 +15,7 @@ class AssistantServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.Complete = channel.unary_unary(
+        self.Complete = channel.unary_stream(
                 '/teleport.assistant.v1.AssistantService/Complete',
                 request_serializer=teleport_dot_assistant_dot_v1_dot_assistant__pb2.CompleteRequest.SerializeToString,
                 response_deserializer=teleport_dot_assistant_dot_v1_dot_assistant__pb2.CompletionResponse.FromString,
@@ -36,7 +36,7 @@ class AssistantServiceServicer(object):
 
 def add_AssistantServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'Complete': grpc.unary_unary_rpc_method_handler(
+            'Complete': grpc.unary_stream_rpc_method_handler(
                     servicer.Complete,
                     request_deserializer=teleport_dot_assistant_dot_v1_dot_assistant__pb2.CompleteRequest.FromString,
                     response_serializer=teleport_dot_assistant_dot_v1_dot_assistant__pb2.CompletionResponse.SerializeToString,
@@ -63,7 +63,7 @@ class AssistantService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.unary_unary(request, target, '/teleport.assistant.v1.AssistantService/Complete',
+        return grpc.experimental.unary_stream(request, target, '/teleport.assistant.v1.AssistantService/Complete',
             teleport_dot_assistant_dot_v1_dot_assistant__pb2.CompleteRequest.SerializeToString,
             teleport_dot_assistant_dot_v1_dot_assistant__pb2.CompletionResponse.FromString,
             options, channel_credentials,

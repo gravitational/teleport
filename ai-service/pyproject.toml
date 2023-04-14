@@ -13,6 +13,7 @@ langchain = "^0.0.137"
 grpcio-tools = "^1.53.0"
 grpcio = "^1.53.0"
 black = "^23.3.0"
+python-dotenv = "^1.0.0"
 
 [build-system]
 requires = ["poetry-core"]

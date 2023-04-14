@@ -35,5 +35,5 @@ message CompletionResponse {
 // AssistantService is the GRPC service used by Teleport and Assist service.
 service AssistantService {
   // Complete is the main method used to exchange messages between Teleport and AI backend (currently OpenAI).
-  rpc Complete(CompleteRequest) returns (CompletionResponse);
+  rpc Complete(CompleteRequest) returns (stream CompletionResponse);
 }

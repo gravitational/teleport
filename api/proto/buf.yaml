@@ -53,6 +53,7 @@ lint:
       - teleport/devicetrust/v1/devicetrust_service.proto
       - teleport/legacy/client/proto/joinservice.proto
       - teleport/transport/v1/transport_service.proto
+      - teleport/assistant/v1/assistant.proto
 breaking:
   use:
     - FILE

@@ -18,6 +18,7 @@ package ai
 
 import (
 	"context"
+	"io"
 
 	assistantservice "github.com/gravitational/teleport/api/gen/proto/go/assistant/v1"
 	"github.com/gravitational/trace"
@@ -80,45 +81,60 @@ func labelsToPbLabels(vals []*assistantservice.Label) []Label {
 }
 
 // Complete completes the conversation with a message from the assistant based on the current context.
-func (chat *Chat) Complete(ctx context.Context, maxTokens int) (*Message, *CompletionCommand, error) {
+func (chat *Chat) Complete(ctx context.Context, maxTokens int, onMessage func(*Message, *CompletionCommand) error) error {
 	var opts []grpc.DialOption
 
 	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 
 	conn, err := grpc.Dial(chat.client.apiURL, opts...)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 	defer conn.Close()
 
 	assistantClient := assistantservice.NewAssistantServiceClient(conn)
 
-	response, err := assistantClient.Complete(ctx, &assistantservice.CompleteRequest{
+	responseStream, err := assistantClient.Complete(ctx, &assistantservice.CompleteRequest{
 		Username: chat.username,
 		Messages: chat.messages,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	switch {
-	case response.Kind == "command":
-		command := CompletionCommand{
-			Command: response.Command,
-			Nodes:   response.Nodes,
-			Labels:  labelsToPbLabels(response.Labels),
+	for {
+		response, err := responseStream.Recv()
+		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
+
+			return trace.Wrap(err)
 		}
 
-		return nil, &command, nil
-	case response.Kind == "chat":
-		message := Message{
-			Role:    openai.ChatMessageRoleAssistant,
-			Content: response.Content,
-			Idx:     len(chat.messages) - 1,
+		switch {
+		case response.Kind == "command":
+			command := CompletionCommand{
+				Command: response.Command,
+				Nodes:   response.Nodes,
+				Labels:  labelsToPbLabels(response.Labels),
+			}
+
+			err = onMessage(nil, &command)
+		case response.Kind == "chat":
+			message := Message{
+				Role:    openai.ChatMessageRoleAssistant,
+				Content: response.Content,
+				Idx:     len(chat.messages) - 1,
+			}
+
+			err = onMessage(&message, nil)
+		default:
+			err = trace.BadParameter("unknown completion kind: %s", response.Kind)
 		}
 
-		return &message, nil, nil
-	default:
-		return nil, nil, trace.BadParameter("unknown completion kind: %s", response.Kind)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 }

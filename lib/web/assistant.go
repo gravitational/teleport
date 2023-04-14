@@ -195,13 +195,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 		}
 	}
 
-	for {
-		// query the assistant and fetch an answer
-		message, completion, err := chat.Complete(r.Context(), 500)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	onMessage := func(message *ai.Message, completion *ai.CompletionCommand) error {
 		if message != nil {
 			// write assistant message to both in-memory chain and persistent storage
 			chat.Insert(message.Role, message.Content)
@@ -246,6 +240,16 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request, sctx *Sess
 			if err := ws.WriteJSON(msg); err != nil {
 				return trace.Wrap(err)
 			}
+		}
+
+		return nil
+	}
+
+	for {
+		// query the assistant and fetch an answer
+		err := chat.Complete(r.Context(), 500, onMessage)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		_, payload, err := ws.ReadMessage()
