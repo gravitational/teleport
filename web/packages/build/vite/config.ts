@@ -26,7 +26,7 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
 
-import type { UserConfig } from 'vite';
+import type { RollupCommonJSOptions, UserConfig } from 'vite';
 
 export function createViteConfig(
   rootDirectory: string,
@@ -62,6 +62,23 @@ export function createViteConfig(
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
+        commonjsOptions: {
+          // this fixes an issue with react-day-picker in production builds - https://github.com/vitejs/vite/issues/2139
+          defaultIsModuleExports(id) {
+            try {
+              const module = require(id);
+
+              if (module?.default) {
+                return false;
+              }
+
+              return 'auto';
+            } catch {
+              return 'auto';
+            }
+          },
+          transformMixedEsModules: true,
+        } as RollupCommonJSOptions,
       },
       plugins: [
         react({
