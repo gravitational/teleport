@@ -200,7 +200,7 @@ behaves the same as before, but now you provide the email associated with an
 Okta account:
 
 ```code
-$ tsh login --proxy=proxy.example.com --user=alice@example.com
+$ tsh login --proxy=proxy.example.com
 ```
 
 This command prints the SSO login URL (and will try to open it automatically
@@ -211,7 +211,7 @@ Teleport can use multiple SAML connectors. In this case a connector name
 can be passed via the `--auth` flag. For the connector we created above:
 
 ```code
-$ tsh login --proxy=proxy.example.com --user=alice@example.com --auth=okta
+$ tsh login --proxy=proxy.example.com --auth=okta
 ```
 
 </Admonition>
