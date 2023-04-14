@@ -11,6 +11,7 @@ import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButt
 
 import { useIntegrations, State } from './useIntegrations';
 import { PluginDelete } from './PluginDelete';
+import { IntegrationsSplash } from './IntegrationsSplash';
 
 export default function Container() {
   const state = useIntegrations();
@@ -29,11 +30,15 @@ export function Integrations(props: State) {
     canCreateIntegrations,
   } = props;
 
+  const hasItems = items.length !== 0;
+
   return (
     <FeatureBox>
       <FeatureHeader>
         <FeatureHeaderTitle>Integrations</FeatureHeaderTitle>
-        <IntegrationsAddButton canCreate={canCreateIntegrations} />
+        {hasItems && (
+          <IntegrationsAddButton canCreate={canCreateIntegrations} />
+        )}
       </FeatureHeader>
       {warning && <Alert kind="warning" children={warning} />}
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
@@ -42,10 +47,12 @@ export function Integrations(props: State) {
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'success' && (
-        /* TODO(justinas): redirect to "new integration" when 'items' empty*/
-        <IntegrationList list={items} onDelete={onStartDelete} />
-      )}
+      {attempt.status === 'success' &&
+        (hasItems ? (
+          <IntegrationList list={items} onDelete={onStartDelete} />
+        ) : (
+          <IntegrationsSplash />
+        ))}
       {operation.type === 'delete' && (
         <PluginDelete
           onClose={onCancelDelete}

@@ -1,6 +1,5 @@
 import React, { FormEvent } from 'react';
 
-import { useParams } from 'react-router';
 import { Link } from 'react-router-dom';
 
 import styled from 'styled-components';
@@ -29,10 +28,12 @@ import { getRoutesToEnrollIntegrations } from 'teleport/Integrations/Enroll';
 
 import cfg from 'e-teleport/config';
 
-import { pluginTypeMap, PluginTypes } from '../data';
+import { PluginType, pluginTypeMap } from '../data';
 
 import { State, useIntegrationEnroll } from './useIntegrationEnroll';
 import { IntegrationPick } from './IntegrationPick';
+import { PluginEnrollSuccess } from './PluginEnrollSuccess';
+import { PluginEnrollFailedDialog } from './PluginEnrollFailedDialog';
 
 export function Container() {
   const state = useIntegrationEnroll();
@@ -46,9 +47,9 @@ export function IntegrationEnroll(props: State) {
     existingTypes,
     hasPluginAccess,
     hasIntegrationAccess,
+    selectedType,
+    enrollResponse,
   } = props;
-  const { type: selectedType } =
-    useParams<{ type: PluginTypes | IntegrationKind }>();
 
   if (selectedType) {
     if (selectedType === IntegrationKind.AwsOidc) {
@@ -59,9 +60,39 @@ export function IntegrationEnroll(props: State) {
       );
     }
 
+    const resolvedType = pluginTypeMap[selectedType];
+    if (!resolvedType || !resolvedType.hosted) {
+      return <NotFound message="not found" />;
+    }
+
+    // If we're coming back from enrollment flow
+    // (there is either a "success" or an "error" result,
+    // display the result.
+    if (enrollResponse.success) {
+      return (
+        <PluginEnrollSuccess
+          resolvedType={resolvedType}
+          success={enrollResponse.success}
+        />
+      );
+    }
+    if (enrollResponse.error) {
+      return (
+        <FeatureBox>
+          <PluginEnrollFailedDialog
+            resolvedType={resolvedType}
+            error={enrollResponse.error}
+            errorDescription={enrollResponse.errorDescription}
+            clearError={enrollResponse.clearError}
+          />
+          <PluginForm resolvedType={resolvedType} />
+        </FeatureBox>
+      );
+    }
+
     return (
       <FeatureBox>
-        <PluginForm selectedType={selectedType} />
+        <PluginForm resolvedType={resolvedType} />
       </FeatureBox>
     );
   }
@@ -96,8 +127,7 @@ export function IntegrationEnroll(props: State) {
   );
 }
 
-function PluginForm({ selectedType }: { selectedType: string }) {
-  const resolvedType = pluginTypeMap[selectedType];
+function PluginForm({ resolvedType }: { resolvedType: PluginType }) {
   if (!resolvedType || !resolvedType.hosted) {
     return <NotFound message="not found" />;
   }
@@ -115,7 +145,7 @@ function PluginForm({ selectedType }: { selectedType: string }) {
       </Text>
       {resolvedType.Description && <resolvedType.Description />}
       {resolvedType.permissions?.length && (
-        <Flex gap={6} p={4} bg="primary.light">
+        <Flex gap={6} p={4} bg="levels.surface">
           {resolvedType.permissions.map((perm, index) => (
             <Box key={index}>
               <Text fontWeight="bold" typography="h6">

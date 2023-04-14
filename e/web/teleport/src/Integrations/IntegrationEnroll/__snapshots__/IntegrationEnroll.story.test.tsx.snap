@@ -403,6 +403,90 @@ exports[`render NoPluginsEnrolled 1`] = `
                 </div>
               </div>
             </a>
+            <a
+              class="c17 c10"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/jira"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c11 c12"
+                src="file_stub"
+              />
+              <div
+                class="c13"
+              >
+                <div
+                  class="c14"
+                >
+                  Jira
+                </div>
+              </div>
+            </a>
+            <a
+              class="c17 c10"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/discord"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c11 c12"
+                src="file_stub"
+              />
+              <div
+                class="c13"
+              >
+                <div
+                  class="c14"
+                >
+                  Discord
+                </div>
+              </div>
+            </a>
+            <a
+              class="c17 c10"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c11 c12"
+                src="file_stub"
+              />
+              <div
+                class="c13"
+              >
+                <div
+                  class="c14"
+                >
+                  Mattermost
+                </div>
+              </div>
+            </a>
+            <a
+              class="c17 c10"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c11 c12"
+                src="file_stub"
+              />
+              <div
+                class="c13"
+              >
+                <div
+                  class="c14"
+                >
+                  Microsoft Teams
+                </div>
+              </div>
+            </a>
           </div>
         </div>
       </div>
@@ -830,6 +914,90 @@ exports[`render SlackAlreadyEnrolled 1`] = `
                   class="c15"
                 >
                   Email
+                </div>
+              </div>
+            </a>
+            <a
+              class="c10 c18"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/jira"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c12 c13"
+                src="file_stub"
+              />
+              <div
+                class="c14"
+              >
+                <div
+                  class="c15"
+                >
+                  Jira
+                </div>
+              </div>
+            </a>
+            <a
+              class="c10 c18"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/discord"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c12 c13"
+                src="file_stub"
+              />
+              <div
+                class="c14"
+              >
+                <div
+                  class="c15"
+                >
+                  Discord
+                </div>
+              </div>
+            </a>
+            <a
+              class="c10 c18"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c12 c13"
+                src="file_stub"
+              />
+              <div
+                class="c14"
+              >
+                <div
+                  class="c15"
+                >
+                  Mattermost
+                </div>
+              </div>
+            </a>
+            <a
+              class="c10 c18"
+              data-testid="tile"
+              href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
+              rel="noreferrer"
+              target="_blank"
+            >
+              <img
+                class="c12 c13"
+                src="file_stub"
+              />
+              <div
+                class="c14"
+              >
+                <div
+                  class="c15"
+                >
+                  Microsoft Teams
                 </div>
               </div>
             </a>

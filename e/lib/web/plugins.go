@@ -53,6 +53,10 @@ type pluginOnboardingCookie struct {
 	// OAuth2 "state" parameter
 	State string `json:"state"`
 
+	pluginOnboardingCookieNonSensitiveData
+}
+
+type pluginOnboardingCookieNonSensitiveData struct {
 	Name string `json:"name"`
 
 	// "sum type": provider-specific settings required for onboarding
@@ -152,9 +156,8 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 	pluginType := r.FormValue("type")
 
 	// Set cookie info
-	cookie := pluginOnboardingCookie{
-		Name: r.FormValue("name"),
-	}
+	cookie := pluginOnboardingCookie{}
+	cookie.Name = r.FormValue("name")
 	switch pluginType {
 	case types.PluginTypeSlack:
 		cookie.Slack = &pluginOnboardingParamsSlack{
@@ -237,6 +240,28 @@ func (p *Plugin) deletePluginHandle(w http.ResponseWriter, r *http.Request, para
 
 func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
 	clearPluginOnboardingCookie(w)
+	typ := params.ByName("type")
+	if typ == "" {
+		return nil, trace.BadParameter("empty type")
+	}
+
+	// Where to finally redirect the user with either the success status,
+	// or an error from the 3rd party provider.
+	// Internal errors (such as "bad state", or CreatePlugin() failure)
+	// are currently not handled with a graceful redirect.
+	destURL := url.URL{
+		Path: path.Join("/web/integrations/new", typ),
+	}
+
+	code := r.URL.Query().Get("code")
+	if code == "" {
+		destURL.RawQuery = url.Values{
+			"error":             {r.URL.Query().Get("error")},
+			"error_description": {r.URL.Query().Get("error_description")},
+		}.Encode()
+		http.Redirect(w, r, destURL.String(), http.StatusFound)
+		return nil, nil
+	}
 
 	state := r.URL.Query().Get("state")
 	if state == "" {
@@ -247,8 +272,6 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 	if err != nil || subtle.ConstantTimeCompare([]byte(cookie.State), []byte(state)) == 0 {
 		return nil, trace.AccessDenied("bad state")
 	}
-
-	typ := params.ByName("type")
 
 	req := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
@@ -263,7 +286,7 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		BootstrapCredentials: &types.PluginBootstrapCredentialsV1{
 			Credentials: &types.PluginBootstrapCredentialsV1_Oauth2AuthorizationCode{
 				Oauth2AuthorizationCode: &types.PluginOAuth2AuthorizationCodeCredentials{
-					AuthorizationCode: r.URL.Query().Get("code"),
+					AuthorizationCode: code,
 					// Reconstructs the original callback URL
 					RedirectUri: p.getPluginCallbackURL(r, typ),
 				},
@@ -297,9 +320,14 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(justinas): redirect to a dedicated "success" page instead,
-	// once it exists on the frontend.
-	http.Redirect(w, r, "/web/integrations", http.StatusFound)
+	successData, err := json.Marshal(cookie.pluginOnboardingCookieNonSensitiveData)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	destURL.RawQuery = url.Values{
+		"success": {string(successData)},
+	}.Encode()
+	http.Redirect(w, r, destURL.String(), http.StatusFound)
 	return nil, nil
 }
 

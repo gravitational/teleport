@@ -45,6 +45,83 @@ export const NoAccessToIntegrations = () => (
   </MemoryRouter>
 );
 
+export const SlackChosen = function () {
+  return (
+    <MemoryRouter>
+      <IntegrationEnroll {...sample} selectedType="slack" />
+    </MemoryRouter>
+  );
+};
+
+export const SlackEnrollSuccess = () => {
+  const enrollResponse = {
+    ...sample.enrollResponse,
+    success: JSON.stringify({
+      slack: {
+        fallback_channel: '#access-requests',
+      },
+    }),
+  };
+  return (
+    <MemoryRouter>
+      <IntegrationEnroll
+        {...sample}
+        selectedType="slack"
+        enrollResponse={enrollResponse}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const SlackEnrollSuccessMalformed = () => {
+  const enrollResponse = {
+    ...sample.enrollResponse,
+    success: 'foo', // not valid JSON
+  };
+  return (
+    <MemoryRouter>
+      <IntegrationEnroll
+        {...sample}
+        selectedType="slack"
+        enrollResponse={enrollResponse}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const SlackEnrollSuccessInternallyMalformed = () => {
+  const enrollResponse = {
+    ...sample.enrollResponse,
+    success: JSON.stringify({}), // missing required properties
+  };
+  return (
+    <MemoryRouter>
+      <IntegrationEnroll
+        {...sample}
+        selectedType="slack"
+        enrollResponse={enrollResponse}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const SlackEnrollError = () => {
+  const enrollResponse = {
+    ...sample.enrollResponse,
+    error: 'access_denied',
+    errorDescription: 'This is an extended error description from the provider',
+  };
+  return (
+    <MemoryRouter>
+      <IntegrationEnroll
+        {...sample}
+        selectedType="slack"
+        enrollResponse={enrollResponse}
+      />
+    </MemoryRouter>
+  );
+};
+
 export const Failed = () => (
   <MemoryRouter>
     <IntegrationEnroll
@@ -61,6 +138,13 @@ const sample = {
   availableTypes: ['slack'],
   existingTypes: [],
   run: () => Promise.resolve(true),
+  selectedType: null,
+  enrollResponse: {
+    success: null,
+    error: null,
+    errorDescription: null,
+    clearError: () => {},
+  },
   hasPluginAccess: true,
   hasIntegrationAccess: true,
 };

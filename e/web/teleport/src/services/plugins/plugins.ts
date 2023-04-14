@@ -25,13 +25,13 @@ export function makePlugins(json: any): Plugin[] {
 
 function makePlugin(json: any): Plugin {
   json = json || {};
-  const { name, details, status, type } = json;
+  const { name, details, statusCode, type } = json;
   return {
     resourceType: 'plugin',
     name,
     details,
     spec: {},
     kind: type,
-    statusCode: status.code,
+    statusCode,
   };
 }

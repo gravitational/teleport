@@ -2,10 +2,15 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 
 import { Box, Text } from 'design';
+import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
 import emailIcon from 'design/assets/images/icons/email.svg';
+import jiraIcon from 'design/assets/images/icons/jira.svg';
+import discordIcon from 'design/assets/images/icons/discord.svg';
+import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
+import msteamsIcon from 'design/assets/images/icons/msteams.svg';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 
@@ -19,6 +24,15 @@ type CategoryPermissions = {
   permissions: Permission[];
 };
 
+// EnrollSuccessResponse contains the necessary data to guide the user
+// after the plugin is connected (in `NextSteps` component).
+// This is equivalent to `pluginOnboardingCookieNonSensitiveData` in e/lib/web/plugins.go
+export type EnrollSuccessResponse = {
+  slack?: {
+    fallback_channel: string;
+  };
+};
+
 type HostedPluginData = {
   hosted: true;
 
@@ -26,10 +40,18 @@ type HostedPluginData = {
   fullName: string;
   Description?: () => JSX.Element;
   FormMixin?: () => JSX.Element;
+  NextSteps?: (props: { successData?: EnrollSuccessResponse }) => JSX.Element;
   permissions?: CategoryPermissions[];
 };
 
-export type PluginTypes = 'slack' | 'pagerduty' | 'email';
+export type PluginTypes =
+  | 'slack'
+  | 'pagerduty'
+  | 'email'
+  | 'jira'
+  | 'discord'
+  | 'mattermost'
+  | 'msteams';
 
 export type PluginType = {
   type: PluginTypes;
@@ -104,6 +126,18 @@ export const pluginTypes: PluginType[] = [
         </InputIconContainer>
       );
     },
+    NextSteps: ({ successData }) => {
+      const fallbackChannel = successData.slack?.fallback_channel;
+      if (!fallbackChannel) {
+        return <CardError>Failed to parse the response.</CardError>;
+      }
+      return (
+        <Text typography="body1">
+          As the final step, you should invite the "Teleport Cloud" application
+          to channel <strong>{fallbackChannel}</strong> in your Slack workspace.
+        </Text>
+      );
+    },
   },
   {
     type: 'pagerduty',
@@ -119,7 +153,34 @@ export const pluginTypes: PluginType[] = [
     url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/email',
     hosted: false,
   },
-  // TODO(justinas): add remaining self-hosted plugins
+  {
+    type: 'jira',
+    name: 'Jira',
+    icon: jiraIcon,
+    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/jira',
+    hosted: false,
+  },
+  {
+    type: 'discord',
+    name: 'Discord',
+    icon: discordIcon,
+    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/discord',
+    hosted: false,
+  },
+  {
+    type: 'mattermost',
+    name: 'Mattermost',
+    icon: mattermostIcon,
+    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost',
+    hosted: false,
+  },
+  {
+    type: 'msteams',
+    name: 'Microsoft Teams',
+    icon: msteamsIcon,
+    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/msteams',
+    hosted: false,
+  },
 ];
 
 export const pluginTypeMap = Object.fromEntries(
