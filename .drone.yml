@@ -7196,7 +7196,7 @@ image_pull_secrets:
 
 kind: pipeline
 type: kubernetes
-name: publish-apt-new-repos
+name: publish-normal-apt-new-repos
 trigger:
   event:
     include:
@@ -7244,9 +7244,9 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "version-channel=${DRONE_TAG}"
-    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent" || echo "")"
-    -input "repo-type=apt" -input "environment=$(cat "/go/vars/release-environment.txt")" '
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "version-channel=${DRONE_TAG}"
+    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
+    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "repo-type=apt" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -7262,7 +7262,7 @@ image_pull_secrets:
 
 kind: pipeline
 type: kubernetes
-name: publish-yum-new-repos
+name: publish-normal-yum-new-repos
 trigger:
   event:
     include:
@@ -7310,9 +7310,141 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent" || echo "")"
-    -input "repo-type=yum" -input "environment=$(cat "/go/vars/release-environment.txt")"
-    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "version-channel=${DRONE_TAG}" '
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "version-channel=${DRONE_TAG}"
+    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
+    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "repo-type=yum" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-teleport-ent-updater-apt-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
+    "promote") > "/go/vars/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "version-channel=cloud" -input "package-name-filter=teleport-ent-updater*"
+    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "repo-type=apt"
+    -input "environment=$(cat "/go/vars/release-environment.txt")" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-teleport-ent-updater-yum-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
+    "promote") > "/go/vars/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "package-name-filter=teleport-ent-updater*" -input "artifact-tag=${DRONE_TAG}"
+    -input "release-channel=stable" -input "repo-type=yum" -input "environment=$(cat
+    "/go/vars/release-environment.txt")" -input "version-channel=cloud" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -20853,8 +20985,10 @@ clone:
 depends_on:
 - promote-build
 - teleport-container-images-branch-promote
-- publish-apt-new-repos
-- publish-yum-new-repos
+- publish-normal-apt-new-repos
+- publish-normal-yum-new-repos
+- publish-teleport-ent-updater-apt-new-repos
+- publish-teleport-ent-updater-yum-new-repos
 - promote-teleport-oci-distroless-images
 - promote-teleport-kube-agent-updater-oci-images
 steps:
@@ -20966,6 +21100,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: ed6bb87491745dda61702d437a0997732331ee9c187661234cea7a949f983a62
+hmac: 2824d79a70dff49f036a05aaceb93f7fecfadf47856ac2a9ed52162cf157431e
 
 ...

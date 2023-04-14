@@ -27,19 +27,31 @@ func buildOsRepoPipelines() []pipeline {
 }
 
 func promoteBuildOsRepoPipelines() []pipeline {
+	pipelines := []pipeline{}
+
+	// Normal release pipelines
+	pipelines = append(pipelines, buildPromoteOsPackagePipelines("${DRONE_TAG}", `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`, "normal")...)
+
+	// teleport-ent-updater to stable/cloud only pipelines
+	pipelines = append(pipelines, buildPromoteOsPackagePipelines("cloud", "teleport-ent-updater*", "teleport-ent-updater")...)
+
+	return pipelines
+}
+
+func buildPromoteOsPackagePipelines(versionChannel, packageNameFilter, pipelineNameSuffix string) []pipeline {
 	return []pipeline{
-		buildPromoteOsPackagePipeline("apt"),
-		buildPromoteOsPackagePipeline("yum"),
+		buildPromoteOsPackagePipeline("apt", versionChannel, packageNameFilter, pipelineNameSuffix),
+		buildPromoteOsPackagePipeline("yum", versionChannel, packageNameFilter, pipelineNameSuffix),
 	}
 }
 
-func buildPromoteOsPackagePipeline(repoType string) pipeline {
+func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, pipelineNameSuffix string) pipeline {
 	releaseEnvironmentFilePath := "/go/vars/release-environment.txt"
 	clonePath := "/go/src/github.com/gravitational/teleport"
 
 	pipeline := ghaBuildPipeline(ghaBuildType{
 		trigger:      triggerPromote,
-		pipelineName: fmt.Sprintf("publish-%s-new-repos", repoType),
+		pipelineName: fmt.Sprintf("publish-%s-%s-new-repos", pipelineNameSuffix, repoType),
 		ghaWorkflow:  "deploy-packages.yaml",
 		timeout:      12 * time.Hour, // DR takes a long time
 		workflowRef:  "refs/heads/master",
@@ -48,8 +60,8 @@ func buildPromoteOsPackagePipeline(repoType string) pipeline {
 			"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
 			"artifact-tag":        "${DRONE_TAG}",
 			"release-channel":     "stable",
-			"version-channel":     "${DRONE_TAG}",
-			"package-name-filter": `$($DRONE_REPO_PRIVATE && echo "*ent" || echo "")`,
+			"version-channel":     versionChannel,
+			"package-name-filter": packageNameFilter,
 		},
 	})
 
