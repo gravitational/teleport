@@ -44,12 +44,12 @@ func buildPromoteOsPackagePipeline(repoType string) pipeline {
 		timeout:      12 * time.Hour, // DR takes a long time
 		workflowRef:  "refs/heads/master",
 		inputs: map[string]string{
-			"repo-type":       repoType,
-			"environment":     fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
-			"artifact-tag":    "${DRONE_TAG}",
-			"release-channel": "stable",
-			"version-channel": "${DRONE_TAG}",
-			"enterprise-only": "${DRONE_REPO_PRIVATE}",
+			"repo-type":           repoType,
+			"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
+			"artifact-tag":        "${DRONE_TAG}",
+			"release-channel":     "stable",
+			"version-channel":     "${DRONE_TAG}",
+			"package-name-filter": `$($DRONE_REPO_PRIVATE && echo "*ent" || echo "")`,
 		},
 	})
 
