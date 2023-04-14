@@ -14,7 +14,6 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
-	apitypes "github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
 	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
@@ -26,7 +25,6 @@ import (
 	lrstorage "github.com/gravitational/teleport/e/lib/loginrule/storage"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
-	"github.com/gravitational/teleport/integrations/access/slack"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -242,14 +240,7 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 		return trace.Wrap(err)
 	}
 
-	authorizers := plugins.NewAuthorizerSet()
-	if c := cfg.OAuthProviders.Slack; c != nil {
-		authorizers.Add(apitypes.PluginTypeSlack, &plugins.Authorizer{
-			Authorizer: slack.NewAuthorizer(c.ID, c.Secret),
-			ClientID:   c.ID,
-		})
-	}
-
+	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
 	backendService := local.NewPluginsService(server.GetBackend())
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:        p.authorizer,

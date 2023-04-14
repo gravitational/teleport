@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth"
 	"github.com/gravitational/teleport/e/lib/cloud/usagereporter"
 	"github.com/gravitational/teleport/e/lib/licensefile"
+	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/prehog"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/events"
@@ -136,6 +137,28 @@ func NewTeleport(cfg Config) (*Process, error) {
 
 	// Start usage reporting
 	go usageReporter.Run(process.ExitContext())
+
+	if cfg.AuthPlugin.HostedPlugins.Enabled {
+		// Start plugin manager
+		authorizers := plugins.NewAuthorizerSetFromConfig(cfg.AuthPlugin.HostedPlugins.OAuthProviders)
+		pluginManager, err := plugins.NewManager(plugins.ManagerConfig{
+			Authorizers:    authorizers,
+			Backend:        local.NewPluginsService(process.GetBackend()),
+			Events:         process.GetAuthServer().Services,
+			TeleportClient: process.GetAuthServer(),
+
+			Log: logrus.WithFields(logrus.Fields{
+				trace.Component: "pluginmanager",
+			}),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		process.Supervisor.RegisterFunc("pluginmanager", func() error {
+			return trace.Wrap(pluginManager.Run(process.ExitContext()))
+		})
+	}
 
 	if err := prehog.InitStreamingUsageReporting(
 		process.ExitContext(),

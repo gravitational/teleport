@@ -1,0 +1,44 @@
+package plugins
+
+import (
+	"context"
+	"testing"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/services/local"
+)
+
+func TestStatusSink(t *testing.T) {
+	const pluginName = "foo"
+
+	ctx := context.Background()
+	mem, err := memory.New(memory.Config{
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, mem.Close()) })
+
+	backendService := local.NewPluginsService(mem)
+	initialPlugin := createSlackPlugin(t, pluginName).(*types.PluginV1)
+	require.NoError(t, backendService.CreatePlugin(ctx, initialPlugin))
+	statusSink := newStatusSink(backendService, pluginName, string(initialPlugin.GetType()))
+
+	newStatus := types.PluginStatusV1{
+		Code: types.PluginStatusCode_UNAUTHORIZED,
+	}
+	err = statusSink.Emit(ctx, newStatus)
+	require.NoError(t, err)
+
+	gotPlugin, err := backendService.GetPlugin(ctx, pluginName, true)
+	require.NoError(t, err)
+	require.Equal(t, newStatus, gotPlugin.GetStatus())
+
+	// Other fields of the plugin resource should remain untouched
+	require.Equal(t, initialPlugin.Metadata, gotPlugin.GetMetadata())
+	require.Equal(t, initialPlugin.Spec, gotPlugin.(*types.PluginV1).Spec)
+	require.Equal(t, initialPlugin.Credentials, gotPlugin.GetCredentials())
+}

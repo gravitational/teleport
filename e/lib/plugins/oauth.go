@@ -5,6 +5,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
+	"github.com/gravitational/teleport/integrations/access/slack"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // Authorizer wraps oauth.Authorizer
@@ -18,6 +20,20 @@ type AuthorizerSet struct {
 	Authorizers map[types.PluginType]*Authorizer
 }
 
+// NewAuthorizerSetFromConfig creates an AuthorizerSet,
+// and automatically adds Authorizers from the service config to it
+func NewAuthorizerSetFromConfig(cfg servicecfg.PluginOAuthProviders) *AuthorizerSet {
+	a := NewAuthorizerSet()
+	if cfg.Slack != nil {
+		a.Add(types.PluginTypeSlack, &Authorizer{
+			Authorizer: slack.NewAuthorizer(cfg.Slack.ID, cfg.Slack.Secret),
+			ClientID:   cfg.Slack.ID,
+		})
+	}
+	return a
+}
+
+// NewAuthorizerSet creates an empty AuthorizerSet
 func NewAuthorizerSet() *AuthorizerSet {
 	return &AuthorizerSet{
 		Authorizers: make(map[types.PluginType]*Authorizer),
