@@ -14406,6 +14406,7 @@ func (m *HeadlessAuthentication) XXX_DiscardUnknown() {
 var xxx_messageInfo_HeadlessAuthentication proto.InternalMessageInfo
 
 // WatchKind specifies resource kind to watch
+// When adding fields to this struct, make sure to review/update WatchKind.Contains method.
 type WatchKind struct {
 	// Kind is a resource kind to watch
 	Kind string `protobuf:"bytes,1,opt,name=Kind,proto3" json:"kind"`

@@ -27,9 +27,10 @@ import (
 // WatchStatus contains information about a successful Watch request.
 type WatchStatus interface {
 	Resource
+	// GetKinds returns the list of kinds confirmed by the Watch request.
 	GetKinds() []WatchKind
+	// SetKinds sets the list of kinds confirmed by the Watch request.
 	SetKinds([]WatchKind)
-	String() string
 }
 
 // GetKind returns the watch status resource kind.
