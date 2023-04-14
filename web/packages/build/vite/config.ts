@@ -62,6 +62,23 @@ export function createViteConfig(
         outDir: outputDirectory,
         assetsDir: 'app',
         emptyOutDir: true,
+        commonjsOptions: {
+          // this fixes an issue with react-day-picker in production builds - https://github.com/vitejs/vite/issues/2139
+          defaultIsModuleExports(id) {
+            try {
+              const module = require(id);
+
+              if (module?.default) {
+                return false;
+              }
+
+              return 'auto';
+            } catch {
+              return 'auto';
+            }
+          },
+          transformMixedEsModules: true,
+        },
       },
       plugins: [
         react({
