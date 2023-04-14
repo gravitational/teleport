@@ -26,7 +26,7 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 import { htmlPlugin, transformPlugin } from './html';
 import { getStyledComponentsConfig } from './styled';
 
-import type { RollupCommonJSOptions, UserConfig } from 'vite';
+import type { UserConfig } from 'vite';
 
 export function createViteConfig(
   rootDirectory: string,
@@ -78,7 +78,7 @@ export function createViteConfig(
             }
           },
           transformMixedEsModules: true,
-        } as RollupCommonJSOptions,
+        },
       },
       plugins: [
         react({
