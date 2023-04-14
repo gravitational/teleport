@@ -31,7 +31,7 @@ export const integrationService = {
 
   fetchIntegrations(): Promise<IntegrationListResponse> {
     return api.get(cfg.getIntegrationsUrl()).then(resp => {
-      const integrations = resp.items ?? [];
+      const integrations = resp?.items ?? [];
       return {
         items: integrations.map(makeIntegration),
         nextKey: resp?.nextKey,
