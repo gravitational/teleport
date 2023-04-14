@@ -119,17 +119,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -239,17 +238,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -363,17 +361,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -483,17 +480,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -516,11 +512,11 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go (main.newDarwinPipeline)
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
 ################################################
 
 kind: pipeline
-type: exec
+type: kubernetes
 name: push-build-darwin-amd64
 trigger:
   event:
@@ -536,165 +532,59 @@ trigger:
     - master
     - branch/*
 workspace:
-  path: /tmp/push-build-darwin-amd64
-platform:
-  os: darwin
-  arch: amd64
+  path: /go
 clone:
   disable: true
-concurrency:
-  limit: 1
 steps:
-- name: Set up exec runner storage
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
 - name: Check out code
+  image: docker:git
+  pull: if-not-exists
   commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/cache
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
-- name: Install Go Toolchain
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
-  - set -u
-  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
-  - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
-  - rm -rf $RUNTIME.darwin-amd64.tar.gz
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 1h0m0s -workflow release-mac-amd64.yaml -workflow-ref=${DRONE_BRANCH}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_COMMIT}
+    -input "build-packages=false" -input "release-artifacts=false" '
   environment:
-    RUNTIME: go1.20.3
-- name: Install Rust Toolchain
-  commands:
-  - set -u
-  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
-  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-rust-version)
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
-  - export RUST_HOME=$CARGO_HOME
-  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - rustup toolchain install $RUST_VERSION
-  environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
-- name: Build Mac artifacts (binaries and Teleport Connect)
-  commands:
-  - set -u
-  - export HOME=/Users/$(whoami)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - export PATH=$NODE_HOME/bin:$PATH
-  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-rust-version)
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
-  - export RUST_HOME=$CARGO_HOME
-  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - export PATH=$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
-  - rustup override set $RUST_VERSION
-  - export PATH=$TOOLCHAIN_DIR/go/bin:$PATH
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - build.assets/build-fido2-macos.sh build
-  - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes
-  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-    print-version)
-  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
-  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - export CONNECT_TSH_BIN_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build/tsh
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
-  environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
-    ARCH: amd64
-    BUILDBOX_PASSWORD:
-      from_secret: BUILDBOX_PASSWORD
-    GOCACHE: /tmp/push-build-darwin-amd64/go/cache
-    GOPATH: /tmp/push-build-darwin-amd64/go
-    OS: darwin
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
-- name: Clean up toolchains (post)
-  commands:
-  - set -u
-  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
-  - export RUST_HOME=$CARGO_HOME
-  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-rust-version)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - rustup override unset
-  - rustup toolchain uninstall $RUST_VERSION
-  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
-  environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
-  when:
-    status:
-    - success
-    - failure
-- name: Clean up exec runner storage (post)
-  commands:
-  - set -u
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/push-build-darwin-amd64
-- name: Send Slack notification (exec)
-  commands:
-  - |2
-
-    export DRONE_BUILD_LINK="${DRONE_SYSTEM_PROTO}://${DRONE_SYSTEM_HOSTNAME}/${DRONE_REPO_OWNER}/${DRONE_REPO_NAME}/${DRONE_BUILD_NUMBER}"
-    export GOOS=$(go env GOOS)
-    export GOARCH=$(go env GOARCH)
-  - |2-
-
-    curl -sL -X POST -H 'Content-type: application/json' --data "{\"text\":\"Warning: \`${GOOS}-${GOARCH}\` artifact build failed for [\`${DRONE_REPO_NAME}\`] - please investigate immediately!\nBranch: \`${DRONE_BRANCH}\`\nCommit: \`${DRONE_COMMIT_SHA}\`\nLink: $DRONE_BUILD_LINK\"}" $SLACK_WEBHOOK_DEV_TELEPORT
-  environment:
-    SLACK_WEBHOOK_DEV_TELEPORT:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+- name: Send Slack notification
+  image: plugins/slack
+  settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
+    webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
     status:
     - failure
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -865,7 +755,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
 trigger:
   event:
     include:
@@ -948,7 +838,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_destroy -f -v 6
+      $RELCLI_IMAGE auto_destroy -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -1282,17 +1172,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -1373,17 +1262,16 @@ steps:
 - name: Send Slack notification
   image: plugins/slack
   settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
     webhook:
       from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-  template:
-  - |
-    *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-    `${DRONE_STAGE_NAME}` artifact build failed.
-    *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-    Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-    Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-    Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-    <{{ build.link }}|Visit Drone build page ↗>
   when:
     status:
     - failure
@@ -4421,11 +4309,11 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go (main.newDarwinPipeline)
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
 ################################################
 
 kind: pipeline
-type: exec
+type: kubernetes
 name: build-darwin-amd64
 trigger:
   event:
@@ -4438,634 +4326,59 @@ trigger:
     include:
     - gravitational/*
 workspace:
-  path: /tmp/build-darwin-amd64
-platform:
-  os: darwin
-  arch: amd64
+  path: /go
 clone:
   disable: true
-depends_on:
-- clean-up-previous-build
-concurrency:
-  limit: 1
 steps:
-- name: Set up exec runner storage
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
 - name: Check out code
+  image: docker:git
+  pull: if-not-exists
   commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/cache
-  - mkdir -p $WORKSPACE_DIR/go/artifacts
-  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-  - cat $WORKSPACE_DIR/go/.version.txt
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
   environment:
     GITHUB_PRIVATE_KEY:
       from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Install Go Toolchain
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
-  - set -u
-  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - curl --silent -O https://dl.google.com/go/$RUNTIME.darwin-amd64.tar.gz
-  - tar -C  /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains -xzf $RUNTIME.darwin-amd64.tar.gz
-  - rm -rf $RUNTIME.darwin-amd64.tar.gz
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -timeout 1h0m0s -workflow release-mac-amd64.yaml -workflow-ref=${DRONE_TAG}
+    -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} -input
+    "build-packages=true" -input "release-artifacts=true" '
   environment:
-    RUNTIME: go1.20.3
-- name: Install Rust Toolchain
-  commands:
-  - set -u
-  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
-  - mkdir -p /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-rust-version)
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
-  - export RUST_HOME=$CARGO_HOME
-  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - rustup toolchain install $RUST_VERSION
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Build Mac artifacts (binaries)
-  commands:
-  - set -u
-  - export HOME=/Users/$(whoami)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - export PATH=$NODE_HOME/bin:$PATH
-  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-rust-version)
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
-  - export RUST_HOME=$CARGO_HOME
-  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - export PATH=$CARGO_HOME/bin:/Users/build/.cargo/bin:$PATH
-  - rustup override set $RUST_VERSION
-  - export PATH=$TOOLCHAIN_DIR/go/bin:$PATH
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - build.assets/build-fido2-macos.sh build
-  - export PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)"
-  - make clean release OS=$OS ARCH=$ARCH FIDO2=yes TOUCHID=yes PIV=yes
-  environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
-    ARCH: amd64
-    BUILDBOX_PASSWORD:
-      from_secret: BUILDBOX_PASSWORD
-    GOCACHE: /tmp/build-darwin-amd64/go/cache
-    GOPATH: /tmp/build-darwin-amd64/go
-    OS: darwin
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Copy Mac artifacts
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cp teleport*.tar.gz $WORKSPACE_DIR/go/artifacts
-  - cp e/teleport-ent*.tar.gz $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in teleport*.tar.gz; do shasum -a 256
-    $FILE > $FILE.sha256; done && ls -l
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Assume AWS Role
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /tmp/build-darwin-amd64/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64/credentials
-- name: Upload to S3
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64/credentials
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Register artifacts
-  commands:
-  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
-  - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
-  - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
-  - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
-  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - which curl || apk add --no-cache curl
-  - |-
-    cd "$WORKSPACE_DIR/go/artifacts"
-    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
-      # Skip files that are not results of this build
-      # (e.g. tarballs from which OS packages are made)
-      [ -f "$file.sha256" ] || continue
-
-      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      description="MacOS Intel"
-      products="$name"
-      if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
-        description="Teleport Connect"
-        products="teleport teleport-ent"
-      fi
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-
-      release_params="" # List of "-F releaseId=XXX" parameters to curl
-
-      for product in $products; do
-        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-          echo "curl HTTP status: $status_code"
-          cat $WORKSPACE_DIR/curl_out.txt
-          exit 1
-        fi
-
-        release_params="$release_params -F releaseId=$product@$VERSION"
-      done
-
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
-    done
-  environment:
-    RELEASES_CERT:
-      from_secret: RELEASES_CERT
-    RELEASES_KEY:
-      from_secret: RELEASES_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-- name: Clean up toolchains (post)
-  commands:
-  - set -u
-  - export PATH=/Users/$(whoami)/.cargo/bin:$PATH
-  - export CARGO_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/cargo
-  - export RUST_HOME=$CARGO_HOME
-  - export RUSTUP_HOME=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains/rustup
-  - export RUST_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-rust-version)
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - rustup override unset
-  - rustup toolchain uninstall $RUST_VERSION
-  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+- name: Send Slack notification
+  image: plugins/slack
+  settings:
+    template: |
+      *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
+      `${DRONE_STAGE_NAME}` artifact build failed.
+      *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
+      Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
+      Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
+      Author: <https://github.com/{{ build.author }}|{{ build.author }}>
+      <{{ build.link }}|Visit Drone build page ↗>
+    webhook:
+      from_secret: SLACK_WEBHOOK_DEV_TELEPORT
   when:
     status:
-    - success
     - failure
-- name: Clean up exec runner storage (post)
-  commands:
-  - set -u
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/mac.go (main.newDarwinPipeline)
-################################################
-
-kind: pipeline
-type: exec
-name: build-darwin-amd64-pkg
-trigger:
-  event:
-    include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /tmp/build-darwin-amd64-pkg
-platform:
-  os: darwin
-  arch: amd64
-clone:
-  disable: true
-depends_on:
-- build-darwin-amd64
-concurrency:
-  limit: 1
-steps:
-- name: Set up exec runner storage
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Check out code
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/cache
-  - mkdir -p $WORKSPACE_DIR/go/artifacts
-  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-  - cat $WORKSPACE_DIR/go/.version.txt
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Assume AWS Role
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /tmp/build-darwin-amd64-pkg/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
-- name: Download built tarball artifacts from S3
-  commands:
-  - set -u
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export S3_PATH="tag/$${DRONE_TAG##v}/"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz
-    $WORKSPACE_DIR/go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz
-    $WORKSPACE_DIR/go/artifacts/
-  environment:
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Build Mac pkg release artifacts
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export HOME=/Users/build
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
-  - make pkg OS=$OS ARCH=$ARCH
-  environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
-    ARCH: amd64
-    BUILDBOX_PASSWORD:
-      from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
-    OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg/go/artifacts
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Copy Mac pkg artifacts
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
-  - cp build/teleport*.pkg e/build/teleport-ent*.pkg $WORKSPACE_DIR/go/artifacts/
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.pkg; do shasum -a 256 $FILE >
-    $FILE.sha256; done && ls -l
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Upload to S3
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg/credentials
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Register artifacts
-  commands:
-  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
-  - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
-  - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
-  - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
-  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - which curl || apk add --no-cache curl
-  - |-
-    cd "$WORKSPACE_DIR/go/artifacts"
-    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
-      # Skip files that are not results of this build
-      # (e.g. tarballs from which OS packages are made)
-      [ -f "$file.sha256" ] || continue
-
-      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      description="MacOS Intel .pkg installer"
-      products="$name"
-      if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
-        description="Teleport Connect"
-        products="teleport teleport-ent"
-      fi
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-
-      release_params="" # List of "-F releaseId=XXX" parameters to curl
-
-      for product in $products; do
-        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-          echo "curl HTTP status: $status_code"
-          cat $WORKSPACE_DIR/curl_out.txt
-          exit 1
-        fi
-
-        release_params="$release_params -F releaseId=$product@$VERSION"
-      done
-
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
-    done
-  environment:
-    RELEASES_CERT:
-      from_secret: RELEASES_CERT
-    RELEASES_KEY:
-      from_secret: RELEASES_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-- name: Clean up exec runner storage (post)
-  commands:
-  - set -u
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/mac.go (main.newDarwinPipeline)
-################################################
-
-kind: pipeline
-type: exec
-name: build-darwin-amd64-pkg-tsh
-trigger:
-  event:
-    include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /tmp/build-darwin-amd64-pkg-tsh
-platform:
-  os: darwin
-  arch: amd64
-clone:
-  disable: true
-depends_on:
-- build-darwin-amd64
-concurrency:
-  limit: 1
-steps:
-- name: Set up exec runner storage
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Check out code
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/cache
-  - mkdir -p $WORKSPACE_DIR/go/artifacts
-  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-  - cat $WORKSPACE_DIR/go/.version.txt
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Assume AWS Role
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /tmp/build-darwin-amd64-pkg-tsh/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
-- name: Download built tarball artifacts from S3
-  commands:
-  - set -u
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export S3_PATH="tag/$${DRONE_TAG##v}/"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-v$${VERSION}-darwin-amd64-bin.tar.gz
-    $WORKSPACE_DIR/go/artifacts/
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}teleport-ent-v$${VERSION}-darwin-amd64-bin.tar.gz
-    $WORKSPACE_DIR/go/artifacts/
-  environment:
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Build Mac pkg release artifacts
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export HOME=/Users/build
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
-  - make pkg-tsh OS=$OS ARCH=$ARCH
-  environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
-    ARCH: amd64
-    BUILDBOX_PASSWORD:
-      from_secret: BUILDBOX_PASSWORD
-    ENT_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
-    OS: darwin
-    OSS_TARBALL_PATH: /tmp/build-darwin-amd64-pkg-tsh/go/artifacts
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Copy Mac pkg artifacts
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - rm -rf $WORKSPACE_DIR/go/artifacts/*.tar.gz
-  - cp build/tsh*.pkg $WORKSPACE_DIR/go/artifacts/
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.pkg; do shasum -a 256 $FILE >
-    $FILE.sha256; done && ls -l
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Upload to S3
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-pkg-tsh/credentials
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Register artifacts
-  commands:
-  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
-  - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
-  - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
-  - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
-  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - which curl || apk add --no-cache curl
-  - |-
-    cd "$WORKSPACE_DIR/go/artifacts"
-    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
-      # Skip files that are not results of this build
-      # (e.g. tarballs from which OS packages are made)
-      [ -f "$file.sha256" ] || continue
-
-      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      description="MacOS Intel .pkg installer (tsh client only)"
-      products="$name"
-      if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
-        description="Teleport Connect"
-        products="teleport teleport-ent"
-      fi
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-
-      release_params="" # List of "-F releaseId=XXX" parameters to curl
-
-      for product in $products; do
-        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-          echo "curl HTTP status: $status_code"
-          cat $WORKSPACE_DIR/curl_out.txt
-          exit 1
-        fi
-
-        release_params="$release_params -F releaseId=$product@$VERSION"
-      done
-
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
-    done
-  environment:
-    RELEASES_CERT:
-      from_secret: RELEASES_CERT
-    RELEASES_KEY:
-      from_secret: RELEASES_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
-- name: Clean up exec runner storage (post)
-  commands:
-  - set -u
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-pkg-tsh
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
 
 ---
 ################################################
@@ -8270,239 +7583,6 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/mac.go (main.newDarwinPipeline)
-################################################
-
-kind: pipeline
-type: exec
-name: build-darwin-amd64-connect
-trigger:
-  event:
-    include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /tmp/build-darwin-amd64-connect
-platform:
-  os: darwin
-  arch: amd64
-clone:
-  disable: true
-depends_on:
-- build-darwin-amd64-pkg-tsh
-concurrency:
-  limit: 1
-steps:
-- name: Set up exec runner storage
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Check out code
-  commands:
-  - set -u
-  - mkdir -p $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - git clone https://github.com/gravitational/${DRONE_REPO_NAME}.git .
-  - git checkout ${DRONE_TAG:-$DRONE_COMMIT}
-  - mkdir -m 0700 $WORKSPACE_DIR/.ssh && echo "$GITHUB_PRIVATE_KEY" > $WORKSPACE_DIR/.ssh/id_rsa
-    && chmod 600 $WORKSPACE_DIR/.ssh/id_rsa
-  - ssh-keyscan -H github.com > $WORKSPACE_DIR/.ssh/known_hosts 2>/dev/null
-  - chmod 600 $WORKSPACE_DIR/.ssh/known_hosts
-  - GIT_SSH_COMMAND='ssh -i $WORKSPACE_DIR/.ssh/id_rsa -o UserKnownHostsFile=$WORKSPACE_DIR/.ssh/known_hosts
-    -F /dev/null' git submodule update --init e
-  - rm -rf $WORKSPACE_DIR/.ssh
-  - mkdir -p $WORKSPACE_DIR/go/cache
-  - mkdir -p $WORKSPACE_DIR/go/artifacts
-  - echo "${DRONE_TAG##v}" > $WORKSPACE_DIR/go/.version.txt
-  - cat $WORKSPACE_DIR/go/.version.txt
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Install Node Toolchain
-  commands:
-  - set -u
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_DIR=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - mkdir -p $TOOLCHAIN_DIR
-  - curl --silent -O https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-darwin-x64.tar.gz
-  - tar -C $TOOLCHAIN_DIR -xzf node-v$NODE_VERSION-darwin-x64.tar.gz
-  - rm -f node-v$NODE_VERSION-darwin-x64.tar.gz
-  - export PATH=$NODE_DIR/bin:$PATH
-  - corepack enable yarn
-  - echo Node reporting version $(node --version)
-  - echo Yarn reporting version $(yarn --version)
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Assume AWS Role
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /tmp/build-darwin-amd64-connect/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-connect/credentials
-- name: Download tsh.pkg artifact from S3
-  commands:
-  - set -u
-  - export VERSION=$(cat $WORKSPACE_DIR/go/.version.txt)
-  - export S3_PATH="tag/$${DRONE_TAG##v}/"
-  - aws s3 cp s3://$AWS_S3_BUCKET/teleport/$${S3_PATH}tsh-$${VERSION}.pkg $WORKSPACE_DIR/go/src/github.com/gravitational/
-  environment:
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-connect/credentials
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Build Mac artifacts (Teleport Connect)
-  commands:
-  - set -u
-  - export HOME=/Users/$(whoami)
-  - export TOOLCHAIN_DIR=/tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED/toolchains
-  - export NODE_VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/build.assets
-    print-node-version)
-  - export NODE_HOME=$TOOLCHAIN_DIR/node-v$NODE_VERSION-darwin-x64
-  - export PATH=$NODE_HOME/bin:$PATH
-  - export VERSION=$(make -C $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-    print-version)
-  - export BUILD_NUMBER=$DRONE_BUILD_NUMBER
-  - security unlock-keychain -p $${BUILDBOX_PASSWORD} login.keychain
-  - security find-identity -v
-  - export CSC_NAME=0FFD3E3413AB4C599C53FBB1D8CA690915E33D83
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational
-  - pkgutil --expand-full tsh-$${VERSION}.pkg tsh
-  - export CONNECT_TSH_APP_PATH=$WORKSPACE_DIR/go/src/github.com/gravitational/tsh/Payload/tsh.app
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport
-  - yarn install && yarn build-term && yarn package-term -c.extraMetadata.version=$VERSION
-  environment:
-    APPLE_PASSWORD:
-      from_secret: APPLE_PASSWORD
-    APPLE_USERNAME:
-      from_secret: APPLE_USERNAME
-    ARCH: amd64
-    BUILDBOX_PASSWORD:
-      from_secret: BUILDBOX_PASSWORD
-    GOCACHE: /tmp/build-darwin-amd64-connect/go/cache
-    GOPATH: /tmp/build-darwin-amd64-connect/go
-    OS: darwin
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Copy dmg artifact
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/src/github.com/gravitational/teleport/web/packages/teleterm/build/release
-  - cp *.dmg $WORKSPACE_DIR/go/artifacts
-  - cd $WORKSPACE_DIR/go/artifacts && for FILE in *.dmg; do shasum -a 256 "$FILE"
-    > "$FILE.sha256"; done && ls -l
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Upload to S3
-  commands:
-  - set -u
-  - cd $WORKSPACE_DIR/go/artifacts
-  - aws s3 sync . s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}
-  environment:
-    AWS_REGION: us-west-2
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-    AWS_SHARED_CREDENTIALS_FILE: /tmp/build-darwin-amd64-connect/credentials
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Register artifact
-  commands:
-  - WORKSPACE_DIR=$${WORKSPACE_DIR:-/}
-  - VERSION=$(cat "$WORKSPACE_DIR/go/.version.txt")
-  - RELEASES_HOST='https://releases-prod.platform.teleport.sh'
-  - echo "$RELEASES_CERT" | base64 -d > "$WORKSPACE_DIR/releases.crt"
-  - echo "$RELEASES_KEY" | base64 -d > "$WORKSPACE_DIR/releases.key"
-  - trap "rm -f '$WORKSPACE_DIR/releases.crt' '$WORKSPACE_DIR/releases.key'" EXIT
-  - CREDENTIALS="--cert $WORKSPACE_DIR/releases.crt --key $WORKSPACE_DIR/releases.key"
-  - which curl || apk add --no-cache curl
-  - |-
-    cd "$WORKSPACE_DIR/go/artifacts"
-    find . -type f ! -iname '*.sha256' ! -iname '*-unsigned.zip*' | while read -r file; do
-      # Skip files that are not results of this build
-      # (e.g. tarballs from which OS packages are made)
-      [ -f "$file.sha256" ] || continue
-
-      name="$(basename "$file" | sed -E 's/(-|_)v?[0-9].*$//')" # extract part before -vX.Y.Z
-      description="MacOS Intel"
-      products="$name"
-      if [ "$name" = "tsh" ]; then
-        products="teleport teleport-ent"
-      elif [ "$name" = "Teleport Connect" -o "$name" = "teleport-connect" ]; then
-        description="Teleport Connect"
-        products="teleport teleport-ent"
-      fi
-      shasum="$(cat "$file.sha256" | cut -d ' ' -f 1)"
-
-      release_params="" # List of "-F releaseId=XXX" parameters to curl
-
-      for product in $products; do
-        status_code=$(curl $CREDENTIALS -o "$WORKSPACE_DIR/curl_out.txt" -w "%{http_code}" -F "product=$product" -F "version=$VERSION" -F notesMd="# Teleport $VERSION" -F status=draft "$RELEASES_HOST/releases")
-        if [ $status_code -ne 200 ] && [ $status_code -ne 409 ]; then
-          echo "curl HTTP status: $status_code"
-          cat $WORKSPACE_DIR/curl_out.txt
-          exit 1
-        fi
-
-        release_params="$release_params -F releaseId=$product@$VERSION"
-      done
-
-      curl $CREDENTIALS --fail -o /dev/null -F description="$description" -F os="darwin" -F arch="amd64" -F "file=@$file" -F "sha256=$shasum" $release_params "$RELEASES_HOST/assets";
-    done
-  environment:
-    RELEASES_CERT:
-      from_secret: RELEASES_CERT
-    RELEASES_KEY:
-      from_secret: RELEASES_KEY
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-- name: Clean up toolchains (post)
-  commands:
-  - set -u
-  - rm -rf /tmp/build-$DRONE_BUILD_NUMBER-$DRONE_BUILD_CREATED
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-  when:
-    status:
-    - success
-    - failure
-- name: Clean up exec runner storage (post)
-  commands:
-  - set -u
-  - chmod -R u+rw $WORKSPACE_DIR
-  - rm -rf $WORKSPACE_DIR/go $WORKSPACE_DIR/.ssh
-  environment:
-    WORKSPACE_DIR: /tmp/build-darwin-amd64-connect
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
 # Generated at dronegen/container_images_release_version.go (main.(*ReleaseVersion).buildVersionPipeline)
 ################################################
 
@@ -9901,7 +8981,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-udpater-oci.yml
+    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-updater-oci.yml
     -workflow-ref=${DRONE_TAG} -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
   environment:
     GHA_APP_KEY:
@@ -21134,7 +20214,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
 trigger:
   event:
     include:
@@ -21224,7 +20304,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_publish -f -v 6
+      $RELCLI_IMAGE auto_publish -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -21263,6 +20343,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c255d7bcc4b43ec74779c9871d4e62027758bf42023e4144c59a4fb5116a96f8
+hmac: 2b0baa890b89809154cbdae3134c92f8ad3d221bf4b205c6ce858eed78e536ab
 
 ...

@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import { Box, ButtonPrimary, Flex, Label as DesignLabel, Text } from 'design';
 import * as icons from 'design/Icon';
 import { Highlight } from 'shared/components/Highlight';
+import { hasFinished } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
@@ -39,7 +40,8 @@ import { useSearchContext } from '../SearchContext';
 
 import { useSearchAttempts } from './useSearchAttempts';
 import { getParameterPicker } from './pickers';
-import { ResultList, EmptyListCopy } from './ResultList';
+import { ResultList, NonInteractiveItem } from './ResultList';
+import { PickerContainer } from './PickerContainer';
 
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
@@ -55,7 +57,7 @@ export function ActionPicker(props: { input: ReactElement }) {
     filters,
     removeFilter,
   } = useSearchContext();
-  const attempts = useSearchAttempts();
+  const { filterActionsAttempt, resourceActionsAttempt } = useSearchAttempts();
   const totalCountOfClusters = clustersService.getClusters().length;
 
   const getClusterName = useCallback(
@@ -95,51 +97,24 @@ export function ActionPicker(props: { input: ReactElement }) {
     [changeActivePicker, closeAndResetInput, resetInput]
   );
 
-  // If the input is empty, we don't want to say "No matching results found" if the user is yet to
-  // type anything. This can happen e.g. after selecting two filters.
-  const NoResultsComponent =
-    inputValue.length > 0 ? (
-      <EmptyListCopy>
-        <Text>No matching results found.</Text>
-      </EmptyListCopy>
-    ) : null;
-
   const filterButtons = filters.map(s => {
     if (s.filter === 'resource-type') {
       return (
-        <ButtonPrimary
-          m={1}
-          mr={0}
-          px={2}
-          size="small"
+        <FilterButton
           key="resource-type"
+          text={s.resourceType}
           onClick={() => removeFilter(s)}
-        >
-          {s.resourceType}
-        </ButtonPrimary>
+        />
       );
     }
     if (s.filter === 'cluster') {
       const clusterName = getClusterName(s.clusterUri);
       return (
-        <ButtonPrimary
-          m={1}
-          mr={0}
-          px={2}
-          size="small"
-          title={clusterName}
-          css={`
-            max-width: 130px;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            overflow: hidden;
-            display: block;
-          `}
+        <FilterButton
           key="cluster"
+          text={clusterName}
           onClick={() => removeFilter(s)}
-        >
-          {clusterName}
-        </ButtonPrimary>
+        />
       );
     }
   });
@@ -151,12 +126,32 @@ export function ActionPicker(props: { input: ReactElement }) {
     }
   }
 
+  let ExtraTopComponent = null;
+  // The order of attempts is important. Filter actions should be displayed before resource actions.
+  const attempts = [filterActionsAttempt, resourceActionsAttempt];
+  const attemptsHaveFinishedWithoutActions = attempts.every(
+    a => hasFinished(a) && a.data.length === 0
+  );
+  const noRemainingFilters =
+    filterActionsAttempt.status === 'success' &&
+    filterActionsAttempt.data.length === 0;
+
+  if (inputValue && attemptsHaveFinishedWithoutActions) {
+    ExtraTopComponent = (
+      <NoResultsItem clusters={clustersService.getRootClusters()} />
+    );
+  }
+
+  if (!inputValue && noRemainingFilters) {
+    ExtraTopComponent = <TypeToSearchItem />;
+  }
+
   return (
-    <>
-      <Flex flex={1} onKeyDown={handleKeyDown}>
+    <PickerContainer>
+      <InputWrapper onKeyDown={handleKeyDown}>
         {filterButtons}
         {props.input}
-      </Flex>
+      </InputWrapper>
       <ResultList<SearchAction>
         attempts={attempts}
         onPick={onPick}
@@ -176,11 +171,28 @@ export function ActionPicker(props: { input: ReactElement }) {
             ),
           };
         }}
-        NoResultsComponent={NoResultsComponent}
+        ExtraTopComponent={ExtraTopComponent}
       />
-    </>
+    </PickerContainer>
   );
 }
+
+export const InputWrapper = styled(Flex).attrs({ px: 2 })`
+  row-gap: ${props => props.theme.space[2]}px;
+  column-gap: ${props => props.theme.space[2]}px;
+  align-items: center;
+  flex-wrap: wrap;
+  // account for border
+  padding-block: calc(${props => props.theme.space[2]}px - 1px);
+  // input height without border
+  min-height: 38px;
+
+  & > input {
+    height: unset;
+    padding-inline: 0;
+    flex: 1;
+  }
+`;
 
 export const ComponentMap: Record<
   SearchResult['kind'],
@@ -399,6 +411,44 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   );
 }
 
+export function NoResultsItem(props: { clusters: tsh.Cluster[] }) {
+  const excludedClustersCopy = getExcludedClustersCopy(props.clusters);
+  return (
+    <NonInteractiveItem>
+      <Item Icon={icons.Info} iconColor="text.primary">
+        <Text typography="body1">No matching results found.</Text>
+        {excludedClustersCopy && (
+          <Text typography="body1" color="text.primary">
+            {excludedClustersCopy}
+          </Text>
+        )}
+      </Item>
+    </NonInteractiveItem>
+  );
+}
+
+export function TypeToSearchItem() {
+  return (
+    <NonInteractiveItem>
+      <Text typography="body1" color="text.primary">
+        Type something to search.
+      </Text>
+    </NonInteractiveItem>
+  );
+}
+
+function getExcludedClustersCopy(allClusters: tsh.Cluster[]): string {
+  const excludedClusters = allClusters.filter(c => !c.connected);
+  const excludedClustersString = excludedClusters.map(c => c.name).join(', ');
+  if (excludedClusters.length === 0) {
+    return '';
+  }
+  if (excludedClusters.length === 1) {
+    return `The cluster ${excludedClustersString} was excluded from the search because you are not logged in to it.`;
+  }
+  return `Clusters ${excludedClustersString} were excluded from the search because you are not logged in to them.`;
+}
+
 function Labels(
   props: React.PropsWithChildren<{
     searchResult: ResourceSearchResult;
@@ -497,5 +547,27 @@ function HighlightField(props: {
       text={props.searchResult.resource[props.field]}
       keywords={keywords}
     />
+  );
+}
+
+function FilterButton(props: { text: string; onClick(): void }) {
+  return (
+    <ButtonPrimary
+      px={2}
+      size="small"
+      title={props.text}
+      onClick={props.onClick}
+    >
+      <span
+        css={`
+          max-width: calc(${props => props.theme.space[9]}px * 2);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          overflow: hidden;
+        `}
+      >
+        {props.text}
+      </span>
+    </ButtonPrimary>
   );
 }

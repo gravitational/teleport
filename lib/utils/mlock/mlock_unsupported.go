@@ -18,8 +18,13 @@ limitations under the License.
 
 package mlock
 
+import (
+	"github.com/gravitational/trace"
+)
+
+var unsupportedOSError = trace.Errorf("memory locking is not supported on non-linux operating systems")
+
 // LockMemory locks the process memory to prevent secrets from being exposed in a swap.
-// This is a noop on unsupported systems (non-linux).
 func LockMemory() error {
-	return nil
+	return unsupportedOSError
 }

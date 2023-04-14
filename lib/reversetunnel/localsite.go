@@ -454,7 +454,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 	// over a direct dial.
 	switch params.ConnType {
 	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
-	case types.AppTunnel, types.DatabaseTunnel:
+	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel:
 		return true, nil
 	default:
 		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)

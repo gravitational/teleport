@@ -214,15 +214,19 @@ const (
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
-func (a *testAuth) GetRDSAuthToken(sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating RDS auth token for %v.", sessionCtx)
 	return rdsAuthToken, nil
 }
 
 // GetRedshiftAuthToken generates Redshift auth token.
-func (a *testAuth) GetRedshiftAuthToken(sessionCtx *common.Session) (string, string, error) {
+func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
 	a.Infof("Generating Redshift auth token for %v.", sessionCtx)
 	return redshiftAuthUser, redshiftAuthToken, nil
+}
+
+func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
+	return "", "", trace.NotImplemented("GetRedshiftServerlessAuthToken is not implemented")
 }
 
 // GetCloudSQLAuthToken generates Cloud SQL auth token.

@@ -17,7 +17,6 @@ limitations under the License.
 package postgres
 
 import (
-	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -25,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
@@ -42,7 +42,7 @@ type ServiceFile struct {
 func Load() (*ServiceFile, error) {
 	// Default location is .pg_service.conf file in the user's home directory.
 	// TODO(r0mant): Check PGSERVICEFILE and PGSYSCONFDIR env vars as well.
-	user, err := user.Current()
+	user, err := utils.CurrentUser()
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}

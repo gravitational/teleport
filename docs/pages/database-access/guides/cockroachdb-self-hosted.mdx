@@ -1,6 +1,6 @@
 ---
 title: Database Access with Self-Hosted CockroachDB
-description: How to configure Teleport Database Access with self-hosted CockroachDB.
+description: How to configure Teleport database access with self-hosted CockroachDB.
 ---
 
 <Details
@@ -43,7 +43,6 @@ Install Teleport on the host where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-
 <Tabs>
 <TabItem label="Self-Hosted" scope={["enterprise","oss"]}>
 Start the Teleport Database Service, pointing the `--auth-server` flag to the address of your Teleport Proxy Service:
@@ -81,7 +80,6 @@ $ teleport db start \
 
 </TabItem>
 </Tabs>
-
 
 <Admonition type="tip">
   You can start the Database Service using a configuration file instead of CLI flags.

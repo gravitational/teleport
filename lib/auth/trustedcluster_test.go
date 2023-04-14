@@ -360,7 +360,7 @@ func TestValidateTrustedCluster(t *testing.T) {
 		require.Equal(t, localClusterName, osshCAs[0].GetName())
 	})
 
-	t.Run("only Host and User CA are returned for v9", func(t *testing.T) {
+	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
 		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
 			Token:           validToken,
@@ -369,10 +369,10 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, resp.CAs, 2)
+		require.Len(t, resp.CAs, 3)
 		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
+			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
 		)
 	})
 
