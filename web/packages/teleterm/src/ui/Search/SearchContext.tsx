@@ -51,7 +51,7 @@ export const SearchContextProvider: FC = props => {
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
   const [isOpen, setIsOpen] = useState(false);
-  const isLockedOpenRef = useRef(false);
+  const [isLockedOpen, setIsLockedOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);
   // TODO(ravicious): Consider using another data structure for search filters as we know that we
@@ -69,7 +69,7 @@ export const SearchContextProvider: FC = props => {
   }
 
   const close = useCallback(() => {
-    if (isLockedOpenRef.current) {
+    if (isLockedOpen) {
       return;
     }
 
@@ -78,16 +78,16 @@ export const SearchContextProvider: FC = props => {
     if (previouslyActive.current instanceof HTMLElement) {
       previouslyActive.current.focus();
     }
-  }, []);
+  }, [isLockedOpen]);
 
   const closeAndResetInput = useCallback(() => {
-    if (isLockedOpenRef.current) {
+    if (isLockedOpen) {
       return;
     }
 
     close();
     setInputValue('');
-  }, [close]);
+  }, [isLockedOpen, close]);
 
   const resetInput = useCallback(() => {
     setInputValue('');
@@ -105,18 +105,14 @@ export const SearchContextProvider: FC = props => {
    * lockOpen forces the search bar to stay open for the duration of the action.
    * This is useful in situations where want the search bar to not close when the user interacts
    * with modals shown from the search bar.
-   *
-   * Calling lockOpen concurrently is not safe, so make sure to structure the UI in such a way
-   * that it doesn't happen. lockOpen was made for cases like opening a modal where after a modal is
-   * open it guarantees that the user won't be able to interact with the search bar.
    */
   async function lockOpen(action: Promise<any>): Promise<void> {
-    isLockedOpenRef.current = true;
+    setIsLockedOpen(true);
 
     try {
       await action;
     } finally {
-      isLockedOpenRef.current = false;
+      setIsLockedOpen(false);
     }
   }
 
