@@ -30,6 +30,11 @@ export default function makeAcl(json): Acl {
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
+  const plugins = json.plugins || defaultAccess;
+  // TODO(lisa): requires backend changes to user context.
+  // Feature is off until all TODO related to integrations is done.
+  // const integrations = json.integrations || defaultAccess;
+  const integrations = defaultAccess;
   const dbServers = json.dbServers || defaultAccess;
   const db = json.db || defaultAccess;
   const desktops = json.desktops || defaultAccess;
@@ -66,6 +71,8 @@ export default function makeAcl(json): Acl {
     tokens,
     accessRequests,
     billing,
+    plugins,
+    integrations,
     dbServers,
     db,
     desktops,
