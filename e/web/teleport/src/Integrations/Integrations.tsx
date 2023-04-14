@@ -8,6 +8,8 @@ import {
 } from 'teleport/components/Layout';
 import { IntegrationList } from '@gravitational/teleport/src/Integrations';
 import { IntegrationsAddButton } from 'teleport/Integrations/IntegrationsAddButton';
+import { Plugin } from 'teleport/services/integrations';
+import { DeleteIntegrationDialog } from 'teleport/Integrations/DeleteIntegrationDialog';
 
 import { useIntegrations, State } from './useIntegrations';
 import { PluginDelete } from './PluginDelete';
@@ -22,10 +24,9 @@ export function Integrations(props: State) {
   const {
     attempt,
     items,
-    onCancelDelete,
-    onDelete,
-    onStartDelete,
-    operation,
+    pluginOps,
+    integrationOps,
+    deleteIntegration,
     warning,
     canCreateIntegrations,
   } = props;
@@ -49,14 +50,25 @@ export function Integrations(props: State) {
       )}
       {attempt.status === 'success' &&
         (hasItems ? (
-          <IntegrationList list={items} onDelete={onStartDelete} />
+          <IntegrationList
+            list={items}
+            onDeletePlugin={pluginOps.onStartDelete}
+            onDeleteIntegration={integrationOps.onRemove}
+          />
         ) : (
           <IntegrationsSplash />
         ))}
-      {operation.type === 'delete' && (
+      {pluginOps.type === 'delete' && (
         <PluginDelete
-          onClose={onCancelDelete}
-          onDelete={() => onDelete(operation.plugin)}
+          onClose={pluginOps.onCancelDelete}
+          onDelete={() => pluginOps.onDelete(pluginOps.item as Plugin)}
+        />
+      )}
+      {integrationOps.type === 'delete' && (
+        <DeleteIntegrationDialog
+          name={integrationOps.item.name}
+          onClose={integrationOps.clear}
+          onDelete={deleteIntegration}
         />
       )}
     </FeatureBox>

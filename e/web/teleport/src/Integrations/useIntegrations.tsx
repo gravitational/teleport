@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { integrationService } from 'teleport/services/integrations';
+import {
+  Operation,
+  useIntegrationOperation,
+} from 'teleport/Integrations/useIntegrationOperation';
 
 import useTeleport from 'e-teleport/useTeleportE';
 
@@ -8,6 +12,7 @@ import type { Integration, Plugin } from 'teleport/services/integrations';
 
 export function useIntegrations() {
   const ctx = useTeleport();
+  const integrationOps = useIntegrationOperation();
   const [items, setItems] = useState<(Plugin | Integration)[]>([]);
   const { attempt, run, setAttempt } = useAttempt('processing');
   // warning is used when a user has permissions to list both the
@@ -15,7 +20,7 @@ export function useIntegrations() {
   // only one resolved. This lets the user know why the listing
   // may not be complete.
   const [warning, setWarning] = useState('');
-  const [operation, setOperation] = useState({
+  const [pluginOps, setPluginOps] = useState({
     type: 'none',
   } as Operation);
 
@@ -40,6 +45,10 @@ export function useIntegrations() {
         ctx.pluginsService.fetchPlugins(),
         integrationService.fetchIntegrations(),
       ]).then(responses => {
+        // TODO(lisa): handle paginating as a follow up polish.
+        // Default fetch is 1k of integrations, which is plenty for beginning.
+        // Currently only integration resource has pagination, check up on
+        // plugins.
         const plugins = responses[0];
         const integrations = responses[1];
         let fetchedItems;
@@ -49,7 +58,7 @@ export function useIntegrations() {
           integrations.status === 'fulfilled'
         ) {
           // Merge the responses into one
-          fetchedItems = [...plugins.value, ...integrations.value];
+          fetchedItems = [...plugins.value, ...integrations.value.items];
         } else if (
           plugins.status === 'fulfilled' &&
           integrations.status === 'rejected'
@@ -61,7 +70,7 @@ export function useIntegrations() {
           integrations.status === 'fulfilled' &&
           plugins.status === 'rejected'
         ) {
-          fetchedItems = integrations.value;
+          fetchedItems = integrations.value.items;
           setWarning(`Failed to fetch plugin integrations (try refreshing browser or \
                   check your "plugin" access): ${plugins.reason}`);
         } else if (
@@ -98,35 +107,55 @@ export function useIntegrations() {
     }
 
     if (hasIntegrationAccess) {
-      run(() => integrationService.fetchIntegrations().then(setItems));
+      run(() =>
+        integrationService.fetchIntegrations().then(res => setItems(res.items))
+      );
       return;
     }
   }, []);
 
   function onCancelDelete() {
-    setOperation({ type: 'none' });
+    setPluginOps({ type: 'none' });
   }
 
   function onDelete(plugin: Plugin) {
     return ctx.pluginsService.deletePlugin(plugin.name).then(() => {
-      const updatedItems = items.filter(p => p.name !== plugin.name);
+      const updatedItems = items.filter(
+        p => p.resourceType === 'plugin' && p.name !== plugin.name
+      );
       setItems(updatedItems);
     });
   }
 
   function onStartDelete(plugin: Plugin) {
-    setOperation({ type: 'delete', plugin });
+    setPluginOps({ type: 'delete', item: plugin });
+  }
+
+  function deleteIntegration() {
+    return integrationOps.remove().then(() => {
+      const updatedItems = items.filter(
+        i =>
+          i.resourceType === 'integration' &&
+          i.name !== integrationOps.item.name
+      );
+      setItems(updatedItems);
+      integrationOps.clear();
+    });
   }
 
   return {
     items,
     attempt,
     run,
-    operation,
+    pluginOps: {
+      ...pluginOps,
+      onCancelDelete,
+      onDelete,
+      onStartDelete,
+    },
+    integrationOps,
+    deleteIntegration,
     warning,
-    onCancelDelete,
-    onDelete,
-    onStartDelete,
     canCreateIntegrations:
       ctx.storeUser.getPluginsAccess().create ||
       ctx.storeUser.getIntegrationsAccess().create,
@@ -134,5 +163,3 @@ export function useIntegrations() {
 }
 
 export type State = ReturnType<typeof useIntegrations>;
-
-type Operation = { type: 'delete'; plugin: Plugin } | { type: 'none' };
