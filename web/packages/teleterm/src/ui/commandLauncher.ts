@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, KubeUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
+import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { Platform } from 'teleterm/mainProcess/types';
 import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
