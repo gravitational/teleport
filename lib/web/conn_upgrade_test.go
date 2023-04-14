@@ -81,7 +81,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		r.Header.Add("Upgrade", "unsupported-protocol")
 
 		_, err = h.connectionUpgrade(httptest.NewRecorder(), r, nil)
-		require.True(t, trace.IsBadParameter(err))
+		require.True(t, trace.IsNotFound(err))
 	})
 
 	t.Run("upgraded to ALPN", func(t *testing.T) {

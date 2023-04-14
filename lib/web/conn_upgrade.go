@@ -45,7 +45,7 @@ func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHa
 		}
 	}
 
-	return "", nil, trace.BadParameter("unsupported upgrade types: %v", upgrades)
+	return "", nil, trace.NotFound("unsupported upgrade types: %v", upgrades)
 }
 
 // connectionUpgrade handles connection upgrades.
