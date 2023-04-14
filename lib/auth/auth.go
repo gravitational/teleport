@@ -4803,9 +4803,6 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	// wait for the headless authentication to be updated with valid login details
-	// by the login process. If the headless authentication is already updated,
-	// Wait will return it immediately.
 	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4815,6 +4812,9 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
 	defer cancel()
 
+	// wait for the headless authentication to be updated with valid login details
+	// by the login process. If the headless authentication is already updated,
+	// Wait will return it immediately.
 	headlessAuthn, err := a.headlessAuthenticationWatcher.WaitForUpdate(waitCtx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})

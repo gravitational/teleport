@@ -377,6 +377,9 @@ func (s *Server) authenticateHeadless(ctx context.Context, req AuthenticateUserR
 		}
 		return true, nil
 	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	// Update headless authentication with login details.
 	if _, err := s.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthnStub, headlessAuthn); err != nil {
