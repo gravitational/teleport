@@ -837,7 +837,7 @@ kind: pipeline
 type: kubernetes
 name: clean-up-previous-build
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
 trigger:
   event:
     include:
@@ -920,7 +920,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_destroy -f -v 6
+      $RELCLI_IMAGE auto_destroy -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -20120,7 +20120,7 @@ kind: pipeline
 type: kubernetes
 name: publish-rlz
 environment:
-  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:v1.1.76-35e77b7-20221117T1411084
+  RELCLI_IMAGE: 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/relcli:master-57a5d42-20230412T1204687
 trigger:
   event:
     include:
@@ -20208,7 +20208,7 @@ steps:
   - |-
     docker run -i -v /tmpfs/creds:/tmpfs/creds \
       -e DRONE_REPO -e DRONE_TAG -e RELCLI_BASE_URL -e RELCLI_CERT -e RELCLI_KEY \
-      $RELCLI_IMAGE relcli auto_publish -f -v 6
+      $RELCLI_IMAGE auto_publish -f -v 6
   environment:
     RELCLI_BASE_URL: https://releases-prod.platform.teleport.sh
     RELCLI_CERT: /tmpfs/creds/releases.crt
@@ -20247,6 +20247,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 5b265b1d78fc019bc93b7bc45bb1784c28848399c6deb916ee5b659767a95763
+hmac: c033b7e21ecf8503a8e5125e0e0d5b127dab1948f71c1f757788141e733045bd
 
 ...
