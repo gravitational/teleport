@@ -135,12 +135,11 @@ export function ResultList<T>(props: ResultListProps<T>) {
 export const NonInteractiveItem = styled.div`
   & mark {
     color: inherit;
-    background-color: ${props => props.theme.colors.brand.accent};
+    background-color: rgba(0, 158, 255, 0.4); // Accent/Link at 40%
   }
 
   :not(:last-of-type) {
-    border-bottom: 1px solid
-      ${props => props.theme.colors.levels.surfaceSecondary};
+    border-bottom: 1px solid ${props => props.theme.colors.levels.surfaceSecondary};
   }
 
   padding: ${props => props.theme.space[2]}px;
