@@ -74,7 +74,7 @@ created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invitation token for a new node:
-$ tctl nodes add --ttl=5m --roles=node
+$ tctl tokens add --ttl=5m --type=node
 # The invite token: (=presets.tokens.first=)
 
 # You can also list all generated non-expired tokens:
@@ -365,7 +365,7 @@ ip-192-0-2-0      ⟵ Tunnel arch=x86_64,hostname=ip-172-30-156-233
 
 <Details title="Problems re-joining the Node?">
 
-Try creating another invite token using the `tctl nodes add` command from earlier
+Try creating another invite token using the `tctl tokens add` command from earlier
 and starting your Node again.
 
 If this doesn't work, delete the directory your Node uses to maintain its state,

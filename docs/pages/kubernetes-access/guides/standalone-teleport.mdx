@@ -111,18 +111,8 @@ Establish trust between your Teleport cluster and your new Kubernetes Service
 instance by creating a join token:
 
 ```code
-$ tctl nodes add --roles=kube
-The invite token: (=presets.tokens.first=)
-This token will expire in 30 minutes.
-Run this on the new node to join the cluster:
-> teleport start \
-   --roles=kube \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
-Please note:
-  - This invitation token will expire in 30 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+$ tctl tokens add --type=kube --format=text
+(=presets.tokens.first=)
 ```
 
 On the host where you are running the Teleport Kubernetes Service, create a
