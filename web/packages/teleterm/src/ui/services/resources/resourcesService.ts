@@ -129,12 +129,9 @@ export class AmbiguousHostnameError extends Error {
 }
 
 export class ResourceSearchError extends Error {
-  clusterUri: uri.ClusterUri;
-  resourceKind: SearchResult['kind'];
-
   constructor(
-    clusterUri: uri.ClusterUri,
-    resourceKind: SearchResult['kind'],
+    public clusterUri: uri.ClusterUri,
+    public resourceKind: SearchResult['kind'],
     cause: Error
   ) {
     super(
