@@ -1848,11 +1848,11 @@ func (s *ServicesTestSuite) runUnknownEventsTest(t *testing.T, watch types.Watch
 
 	select {
 	case <-w.Events():
-		t.Fatalf("unexpected event from watcher that is supposed to fail")
+		t.Fatal("unexpected event from watcher that is supposed to fail")
 	case <-w.Done():
 		require.Error(t, w.Error())
 	case <-time.After(2 * time.Second):
-		t.Fatalf("Timeout waiting for error from watcher")
+		t.Fatal("Timeout waiting for error from watcher")
 	}
 }
 

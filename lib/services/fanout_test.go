@@ -102,8 +102,8 @@ func TestUnsupportedKindInitialized(t *testing.T) {
 		watchStatus, ok := e.Resource.(types.WatchStatus)
 		require.True(t, ok)
 		require.Equal(t, []types.WatchKind{{Kind: "spam"}}, watchStatus.GetKinds())
-	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("Timeout waiting for event.")
+	case <-time.After(time.Second):
+		t.Fatal("Timeout waiting for event.")
 	}
 }
 
@@ -131,11 +131,11 @@ func TestUnsupportedKindDelayed(t *testing.T) {
 	// regular watcher fails upon Fanout initialization
 	select {
 	case <-regularWatcher.Events():
-		t.Fatalf("unexpected event from watcher that's supposed to fail")
+		t.Fatal("unexpected event from watcher that's supposed to fail")
 	case <-regularWatcher.Done():
 		require.Error(t, regularWatcher.Error())
 	case <-time.After(time.Second):
-		t.Fatalf("Timeout waiting for close event.")
+		t.Fatal("Timeout waiting for close event.")
 	}
 
 	// watcher in partial success mode receives OpInit with partial confirmation
@@ -145,8 +145,8 @@ func TestUnsupportedKindDelayed(t *testing.T) {
 		watchStatus, ok := e.Resource.(types.WatchStatus)
 		require.True(t, ok)
 		require.Equal(t, []types.WatchKind{{Kind: "spam"}}, watchStatus.GetKinds())
-	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("Timeout waiting for event.")
+	case <-time.After(time.Second):
+		t.Fatal("Timeout waiting for event.")
 	}
 }
 

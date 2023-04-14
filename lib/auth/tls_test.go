@@ -3402,8 +3402,7 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 				},
 				AllowPartialSuccess: true,
 			},
-			identity:               TestBuiltin(types.RoleDiscovery),
-			expectedConfirmedKinds: nil,
+			identity: TestBuiltin(types.RoleDiscovery),
 		},
 		{
 			name: "has permission only for some of the requested kinds",
@@ -3429,8 +3428,7 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 					{Kind: types.KindNode},
 				},
 			},
-			identity:               TestBuiltin(types.RoleDiscovery),
-			expectedConfirmedKinds: nil,
+			identity: TestBuiltin(types.RoleDiscovery),
 		},
 	}
 
@@ -3458,17 +3456,15 @@ func TestEventsPermissionsPartialSuccess(t *testing.T) {
 					require.True(t, ok)
 					require.Equal(t, tc.expectedConfirmedKinds, watchStatus.GetKinds())
 				} else {
-					t.Fatalf("unexpected event from watcher that is supposed to fail")
+					t.Fatal("unexpected event from watcher that is supposed to fail")
 				}
 			case <-w.Done():
 				if len(tc.expectedConfirmedKinds) > 0 {
 					t.Fatalf("Watcher exited with error %v", w.Error())
-				} else {
-					require.Error(t, w.Error())
 				}
 				require.Error(t, w.Error())
 			case <-time.After(2 * time.Second):
-				t.Fatalf("Timeout waiting for watcher")
+				t.Fatal("Timeout waiting for watcher")
 			}
 		})
 	}

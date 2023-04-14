@@ -28,10 +28,10 @@ import (
 // argument.
 func TestWatchKindContains(t *testing.T) {
 	testCases := []struct {
-		name           string
-		kind           WatchKind
-		other          WatchKind
-		expectedResult bool
+		name      string
+		kind      WatchKind
+		other     WatchKind
+		assertion require.BoolAssertionFunc
 	}{
 		{
 			name: "yes: kind and subkind match",
@@ -43,7 +43,7 @@ func TestWatchKindContains(t *testing.T) {
 				Kind:    "a",
 				SubKind: "b",
 			},
-			expectedResult: true,
+			assertion: require.True,
 		},
 		{
 			name: "no: kind and subkind don't match",
@@ -55,7 +55,7 @@ func TestWatchKindContains(t *testing.T) {
 				Kind:    "a",
 				SubKind: "c",
 			},
-			expectedResult: false,
+			assertion: require.False,
 		},
 		{
 			name: "yes: superset doesn't specify version",
@@ -68,7 +68,7 @@ func TestWatchKindContains(t *testing.T) {
 				SubKind: "b",
 				Version: V1,
 			},
-			expectedResult: true,
+			assertion: require.True,
 		},
 		{
 			name: "yes: subset doesn't specify version",
@@ -81,7 +81,7 @@ func TestWatchKindContains(t *testing.T) {
 				Kind:    "a",
 				SubKind: "b",
 			},
-			expectedResult: true,
+			assertion: require.True,
 		},
 		{
 			name: "no: different versions",
@@ -95,7 +95,7 @@ func TestWatchKindContains(t *testing.T) {
 				SubKind: "b",
 				Version: V2,
 			},
-			expectedResult: false,
+			assertion: require.False,
 		},
 		{
 			name: "yes: only subset specifies name",
@@ -108,7 +108,7 @@ func TestWatchKindContains(t *testing.T) {
 				SubKind: "b",
 				Name:    "c",
 			},
-			expectedResult: true,
+			assertion: require.True,
 		},
 		{
 			name: "no: subset is missing name when superset has one",
@@ -121,7 +121,7 @@ func TestWatchKindContains(t *testing.T) {
 				Kind:    "a",
 				SubKind: "b",
 			},
-			expectedResult: false,
+			assertion: require.False,
 		},
 		{
 			name: "no: different names",
@@ -135,7 +135,7 @@ func TestWatchKindContains(t *testing.T) {
 				SubKind: "b",
 				Name:    "d",
 			},
-			expectedResult: false,
+			assertion: require.False,
 		},
 		{
 			name: "yes: subset has narrower filter",
@@ -154,7 +154,7 @@ func TestWatchKindContains(t *testing.T) {
 					"e": "f",
 				},
 			},
-			expectedResult: true,
+			assertion: require.True,
 		},
 		{
 			name: "no: subset has no filter",
@@ -169,7 +169,7 @@ func TestWatchKindContains(t *testing.T) {
 				Kind:    "a",
 				SubKind: "b",
 			},
-			expectedResult: false,
+			assertion: require.False,
 		},
 		{
 			name: "no: subset has wider filter",
@@ -188,13 +188,13 @@ func TestWatchKindContains(t *testing.T) {
 					"e": "f",
 				},
 			},
-			expectedResult: false,
+			assertion: require.False,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.expectedResult, tc.kind.Contains(tc.other))
+			tc.assertion(t, tc.kind.Contains(tc.other))
 		})
 	}
 }

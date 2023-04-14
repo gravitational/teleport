@@ -2570,7 +2570,7 @@ func TestPartialHealth(t *testing.T) {
 		require.Equal(t, EventProcessed, event.Type)
 		require.Equal(t, types.KindUser, event.Event.Resource.GetKind())
 	case <-time.After(time.Second):
-		t.Fatalf("timeout waiting for event")
+		t.Fatal("timeout waiting for event")
 	}
 
 	// make sure that the user resource works as normal and gets replicated to cache
@@ -2621,8 +2621,8 @@ func TestPartialHealth(t *testing.T) {
 		watchStatus, ok := e.Resource.(types.WatchStatus)
 		require.True(t, ok)
 		require.Equal(t, []types.WatchKind{{Kind: types.KindUser}}, watchStatus.GetKinds())
-	case <-time.After(100 * time.Millisecond):
-		t.Fatalf("Timeout waiting for event.")
+	case <-time.After(time.Second):
+		t.Fatal("Timeout waiting for event.")
 	}
 }
 
