@@ -57,9 +57,7 @@ High-availability Teleport clusters require two load balancers:
   from users and services in a variety of application-layer protocols.
 - **Auth Service load balancer:** A load balancer to forward traffic from a
   Proxy Service instance to an available Auth Service instance. This handles TLS
-  traffic to the Auth Service's gRPC endpoint. It can also handle traffic to
-  Teleport Kubernetes Service instances running in the Auth Service pool in
-  order to enable secure access to your Teleport cluster's infrastructure.
+  traffic to the Auth Service's gRPC endpoint.
 
 Neither load balancer must terminate TLS. Both load balancers must transparently
 forward the TCP traffic they receive. In other words, these must be Layer 4 load
@@ -136,12 +134,6 @@ The Auth Service load balancer must forward traffic to the Auth Service's gRPC
 port. In this guide, we are assuming that you have configured the Auth Service
 load balancer to forward traffic from port `3025` to port `3025` on an available
 Auth Service instance. 
-
-If you are running your Teleport cluster on Kubernetes, you can configure your
-load balancer to forward traffic from port `3026` on the Auth Service load
-balancer to port `3026` on an Auth Service instance, then configure each Auth
-Service instance to run the Teleport Kubernetes Service as well to let operators
-securely access your Kubernetes cluster via Teleport.
 
 ## Cluster state backend
 
@@ -451,8 +443,6 @@ Ensure that, on each Auth Service instance, the following ports are open:
 | Port | Description |
 | - | - |
 | <nobr>`3025`</nobr> | gRPC port to open to Proxy Service instances.|
-| `3026` | Optional port to open for traffic to the Teleport Kubernetes Service (if deploying on Kubernetes).|
-| `3022` | Optional port to open for traffic to the Teleport SSH Service (if deploying on a VM).|
 
 #### License file
 
@@ -516,19 +506,10 @@ Since we are running Proxy Service instances in a dedicated pool, we have
 disabled the Proxy Service on our Auth Service instances by setting
 `proxy_service.enabled` to `false`.
 
-#### `ssh_service` or `kubernetes_service`
+#### `ssh_service`
 
-The SSH Service is enabled by default.  If you are deploying Teleport on a
-cluster of virtual machines, run the SSH Service and enable secure access to the
-host.
-
-If you are running Teleport on Kubernetes, you can run the Kubernetes Service on
-your Auth Service instances to enable secure access to your Kubernetes cluster.
-The Kubernetes Service detects that it is running on Kubernetes automatically.
-
-In this configuration, the Kubernetes Service listens on port `3026` of each
-Auth Service host. Its public address is the fully qualified domain name of your
-Teleport cluster with port `3026`:
+As with the Proxy Service pool, you can disable the SSH Service on each Teleport
+instance by adding the following to each instance's configuration file: 
 
 ```yaml
 version: v3
@@ -541,10 +522,6 @@ proxy_service:
 # ...
 ssh_service:
   enabled: false
-kubernetes_service:
-  enabled: true
-  listen_addr: 0.0.0.0:3026
-  public_addr: "mycluster.example.com:3026"
 ```
 
 ## Next steps
