@@ -425,6 +425,17 @@ func TestGetAdditionalPrincipals(t *testing.T) {
 			},
 		},
 		{
+			role: types.RoleOkta,
+			wantPrincipals: []string{
+				"global-hostname",
+				"global-uuid",
+			},
+			wantDNS: []string{
+				"*.teleport.cluster.local",
+				"teleport.cluster.local",
+			},
+		},
+		{
 			role: types.SystemRole("unknown"),
 			wantPrincipals: []string{
 				"global-hostname",
@@ -496,6 +507,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
 				"teleport-proxy-ssh",
 				"teleport-reversetunnel",
@@ -513,6 +525,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-opensearch",
 				"teleport-dynamodb",
 			},
 		},
@@ -530,6 +543,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake-ping",
 				"teleport-cassandra-ping",
 				"teleport-elasticsearch-ping",
+				"teleport-opensearch-ping",
 				"teleport-dynamodb-ping",
 				// Ensure http/1.1 has precedence over http2.
 				"http/1.1",
@@ -550,6 +564,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"teleport-snowflake",
 				"teleport-cassandra",
 				"teleport-elasticsearch",
+				"teleport-opensearch",
 				"teleport-dynamodb",
 			},
 		},

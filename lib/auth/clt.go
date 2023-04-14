@@ -714,6 +714,7 @@ type ClientI interface {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.SAMLIdPSession
+	services.Integrations
 	types.Events
 
 	types.WebSessionsGetter
@@ -848,4 +849,7 @@ type ClientI interface {
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
+
+	// GetResources returns a paginated list of resources.
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
 }

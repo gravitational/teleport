@@ -32,8 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -57,7 +55,9 @@ type Config struct {
 	// LargeEventsS3 is location on S3 where temporary large events (>256KB)
 	// are stored before converting it to Parquet and moving to long term
 	// storage (required).
-	LargeEventsS3 string
+	LargeEventsS3     string
+	largeEventsBucket string
+	largeEventsPrefix string
 
 	// Query settings.
 
@@ -96,13 +96,18 @@ type Config struct {
 	Clock clockwork.Clock
 	// UIDGenerator is unique ID generator.
 	UIDGenerator utils.UID
+	// LogEntry is a log entry.
+	LogEntry *log.Entry
+	// AWSConfig is AWS config which can be used to construct varius AWS Clients
+	// using aws-sdk-go-v2.
+	AWSConfig *aws.Config
 
 	// TODO(tobiaszheller): add FIPS config in later phase.
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to setup Athena based audit log.
-func (cfg *Config) CheckAndSetDefaults() error {
+func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 	// AWS restrictions (https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html)
 	const glueNameMaxLen = 255
 	if cfg.Database == "" {
@@ -141,9 +146,16 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	if cfg.LargeEventsS3 == "" {
 		return trace.BadParameter("LargeEventsS3 is not specified")
 	}
-	if scheme, ok := isValidUrlWithScheme(cfg.LargeEventsS3); !ok || scheme != "s3" {
-		return trace.BadParameter("LargeEventsS3 must be valid url and start with s3")
+
+	largeEventsS3URL, err := url.Parse(cfg.LargeEventsS3)
+	if err != nil {
+		return trace.BadParameter("LargeEventsS3 must be valid url")
 	}
+	if largeEventsS3URL.Scheme != "s3" {
+		return trace.BadParameter("LargeEventsS3 must starts with s3://")
+	}
+	cfg.largeEventsBucket = largeEventsS3URL.Host
+	cfg.largeEventsPrefix = strings.TrimSuffix(strings.TrimPrefix(largeEventsS3URL.Path, "/"), "/")
 
 	if cfg.QueueURL == "" {
 		return trace.BadParameter("QueueURL is not specified")
@@ -194,6 +206,25 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.UIDGenerator == nil {
 		cfg.UIDGenerator = utils.NewRealUID()
+	}
+
+	if cfg.LogEntry == nil {
+		cfg.LogEntry = log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentAthena,
+		})
+	}
+
+	if cfg.AWSConfig == nil {
+		awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// override the default environment (region + credentials) with the values
+		// from the config.
+		if cfg.Region != "" {
+			awsCfg.Region = cfg.Region
+		}
+		cfg.AWSConfig = &awsCfg
 	}
 
 	return nil
@@ -285,39 +316,19 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 // Parquet and send it to S3 for long term storage.
 // Athena is used for quering Parquet files on S3.
 type Log struct {
-	// Entry is a log entry
-	*log.Entry
-	// Config is a backend configuration
-	Config
-
-	awsConfig aws.Config
+	publisher *publisher
 }
 
 // New creates an instance of an Athena based audit log.
 func New(ctx context.Context, cfg Config) (*Log, error) {
-	err := cfg.CheckAndSetDefaults()
+	err := cfg.CheckAndSetDefaults(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	logEntry := log.WithFields(log.Fields{
-		trace.Component: teleport.ComponentAthena,
-	})
 	l := &Log{
-		Entry:  logEntry,
-		Config: cfg,
+		publisher: newPublisher(cfg),
 	}
 
-	l.awsConfig, err = awsconfig.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// override the default environment (region + credentials) with the values
-	// from the config.
-	if cfg.Region != "" {
-		l.awsConfig.Region = cfg.Region
-	}
-
-	// TODO(tobiaszheller): initialize publisher
 	// TODO(tobiaszheller): initialize batcher
 	// TODO(tobiaszheller): initialize querier
 
@@ -325,15 +336,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 }
 
 func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error {
-	return trace.NotImplemented("not implemented")
-}
-
-func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]events.EventFields, error) {
-	return nil, trace.NotImplemented("not implemented")
+	return trace.Wrap(l.publisher.EmitAuditEvent(ctx, in))
 }
 
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
@@ -346,12 +349,6 @@ func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order typ
 
 func (l *Log) Close() error {
 	return nil
-}
-
-func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented("not implemented")
-	return c, e
 }
 
 var isAlphanumericOrUnderscoreRe = regexp.MustCompile("^[a-zA-Z0-9_]+$")

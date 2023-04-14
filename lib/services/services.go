@@ -43,6 +43,7 @@ type Services interface {
 	WindowsDesktops
 	SAMLIdPServiceProviders
 	UserGroups
+	Integrations
 
 	OktaClient() Okta
 }

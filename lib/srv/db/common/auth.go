@@ -61,9 +61,9 @@ const azureVirtualMachineCacheTTL = 5 * time.Minute
 // Auth defines interface for creating auth tokens and TLS configurations.
 type Auth interface {
 	// GetRDSAuthToken generates RDS/Aurora auth token.
-	GetRDSAuthToken(sessionCtx *Session) (string, error)
+	GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (string, error)
 	// GetRedshiftAuthToken generates Redshift auth token.
-	GetRedshiftAuthToken(sessionCtx *Session) (string, string, error)
+	GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
 	// GetRedshiftServerlessAuthToken generates Redshift Serverless auth token.
 	GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error)
 	// GetCloudSQLAuthToken generates Cloud SQL auth token.
@@ -114,7 +114,11 @@ func (c *AuthConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing AuthClient")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -157,9 +161,9 @@ func NewAuth(config AuthConfig) (Auth, error) {
 
 // GetRDSAuthToken returns authorization token that will be used as a password
 // when connecting to RDS and Aurora databases.
-func (a *dbAuth) GetRDSAuthToken(sessionCtx *Session) (string, error) {
+func (a *dbAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *Session) (string, error) {
 	meta := sessionCtx.Database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(meta.Region)
+	awsSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -189,14 +193,14 @@ permissions (note that IAM changes may take a few minutes to propagate):
 
 // GetRedshiftAuthToken returns authorization token that will be used as a
 // password when connecting to Redshift databases.
-func (a *dbAuth) GetRedshiftAuthToken(sessionCtx *Session) (string, string, error) {
+func (a *dbAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *Session) (string, string, error) {
 	meta := sessionCtx.Database.GetAWS()
-	awsSession, err := a.cfg.Clients.GetAWSSession(meta.Region)
+	redshiftClient, err := a.cfg.Clients.GetAWSRedshiftClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
 	a.cfg.Log.Debugf("Generating Redshift auth token for %s.", sessionCtx)
-	resp, err := redshift.New(awsSession).GetClusterCredentials(&redshift.GetClusterCredentialsInput{
+	resp, err := redshiftClient.GetClusterCredentialsWithContext(ctx, &redshift.GetClusterCredentialsInput{
 		ClusterIdentifier: aws.String(meta.Redshift.ClusterID),
 		DbUser:            aws.String(sessionCtx.DatabaseUser),
 		DbName:            aws.String(sessionCtx.DatabaseName),
@@ -237,7 +241,18 @@ func (a *dbAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx 
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
-	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClientForRole(ctx, meta.Region, roleARN)
+	baseSession, err := a.cfg.Clients.GetAWSSession(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return "", "", trace.Wrap(err)
+	}
+	var externalID string
+	if meta.AssumeRoleARN == "" {
+		externalID = meta.ExternalID
+	}
+	// Assume the configured AWS role before assuming the role we need to get the
+	// auth token. This allows cross-account AWS access.
+	client, err := a.cfg.Clients.GetAWSRedshiftServerlessClient(ctx, meta.Region,
+		cloud.WithChainedAssumeRole(baseSession, roleARN, externalID))
 	if err != nil {
 		return "", "", trace.AccessDenied(`Could not generate Redshift Serverless auth token:
 
@@ -598,6 +613,10 @@ func shouldUseSystemCertPool(sessionCtx *Session) bool {
 		// AWS RDS Proxy uses Amazon Root CAs.
 		//
 		// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/rds-proxy.howitworks.html#rds-proxy-security.tls
+		return true
+
+	case types.DatabaseTypeOpenSearch:
+		// OpenSearch is commonly hosted on AWS and uses Amazon Root CAs.
 		return true
 	}
 	return false

@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -1080,20 +1081,11 @@ func (c *Client) DeleteSemaphore(ctx context.Context, filter types.SemaphoreFilt
 // GetKubernetesServers returns the list of kubernetes servers registered in the
 // cluster.
 func (c *Client) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
-	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+	servers, err := GetAllResources[types.KubeServer](ctx, c, &proto.ListResourcesRequest{
 		Namespace:    defaults.Namespace,
 		ResourceType: types.KindKubeServer,
 	})
-	if err != nil {
-		return nil, trail.FromGRPC(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsKubeServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	return servers, trace.Wrap(err)
 }
 
 // DeleteKubernetesServer deletes a named kubernetes server.
@@ -1127,20 +1119,11 @@ func (c *Client) UpsertKubernetesServer(ctx context.Context, s types.KubeServer)
 
 // GetApplicationServers returns all registered application servers.
 func (c *Client) GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error) {
-	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+	servers, err := GetAllResources[types.AppServer](ctx, c, &proto.ListResourcesRequest{
 		Namespace:    namespace,
 		ResourceType: types.KindAppServer,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsAppServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	return servers, trail.FromGRPC(err)
 }
 
 // UpsertApplicationServer registers an application server.
@@ -1434,20 +1417,11 @@ func (c *Client) GenerateSnowflakeJWT(ctx context.Context, req types.GenerateSno
 
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string) ([]types.DatabaseServer, error) {
-	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+	servers, err := GetAllResources[types.DatabaseServer](ctx, c, &proto.ListResourcesRequest{
 		Namespace:    namespace,
 		ResourceType: types.KindDatabaseServer,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	servers, err := types.ResourcesWithLabels(resources).AsDatabaseServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	return servers, trail.FromGRPC(err)
 }
 
 // UpsertDatabaseServer registers a new database proxy server.
@@ -1954,20 +1928,12 @@ func (c *Client) GetNode(ctx context.Context, namespace, name string) (types.Ser
 
 // GetNodes returns a complete list of nodes that the user has access to in the given namespace.
 func (c *Client) GetNodes(ctx context.Context, namespace string) ([]types.Server, error) {
-	resources, err := GetResourcesWithFilters(ctx, c, proto.ListResourcesRequest{
+	servers, err := GetAllResources[types.Server](ctx, c, &proto.ListResourcesRequest{
 		ResourceType: types.KindNode,
 		Namespace:    namespace,
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	servers, err := types.ResourcesWithLabels(resources).AsServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return servers, nil
+	return servers, trace.Wrap(err)
 }
 
 // UpsertNode is used by SSH servers to report their presence
@@ -2775,7 +2741,7 @@ func (c *Client) GenerateCertAuthorityCRL(ctx context.Context, req *proto.CertAu
 // ListResources returns a paginated list of nodes that the user has access to.
 // `nextKey` is used as `startKey` in another call to ListResources to retrieve
 // the next page. If you want to list all resources pages, check the
-// `GetResources` function.
+// `GetResourcesWithFilters` function.
 // It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
 // message size.
 func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -2819,6 +2785,129 @@ func (c *Client) ListResources(ctx context.Context, req proto.ListResourcesReque
 	}, nil
 }
 
+// GetResources returns a paginated list of resources that the user has access to.
+// `nextKey` is used as `startKey` in another call to GetResources to retrieve
+// the next page.
+// It will return a `trace.LimitExceeded` error if the page exceeds gRPC max
+// message size.
+func (c *Client) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := c.grpc.ListResources(ctx, req)
+	return resp, trail.FromGRPC(err)
+}
+
+// GetResourcesClient is an interface used by GetResources to abstract over implementations of
+// the ListResources method.
+type GetResourcesClient interface {
+	GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error)
+}
+
+// ResourcePage holds a page of results from [GetResourcePage].
+type ResourcePage[T types.ResourceWithLabels] struct {
+	// Resources retrieved for a single [proto.ListResourcesRequest]. The length of
+	// the slice will be at most [proto.ListResourcesRequest.Limit].
+	Resources []T
+	// Total number of all resources matching the request. It will be greater than
+	// the length of [Resources] if the number of matches exceeds the request limit.
+	Total int
+	// NextKey is the start of the next page
+	NextKey string
+}
+
+// GetResourcePage is a helper for getting a single page of resources that match the provide request.
+func GetResourcePage[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) (ResourcePage[T], error) {
+	var out ResourcePage[T]
+
+	// Set the limit to the default size if one was not provided within
+	// an acceptable range.
+	if req.Limit == 0 || req.Limit > int32(defaults.DefaultChunkSize) {
+		req.Limit = int32(defaults.DefaultChunkSize)
+	}
+
+	for {
+		resp, err := clt.GetResources(ctx, req)
+		if err != nil {
+			if trace.IsLimitExceeded(err) {
+				// Cut chunkSize in half if gRPC max message size is exceeded.
+				req.Limit /= 2
+				// This is an extremely unlikely scenario, but better to cover it anyways.
+				if req.Limit == 0 {
+					return out, trace.Wrap(trail.FromGRPC(err), "resource is too large to retrieve")
+				}
+
+				continue
+			}
+
+			return out, trail.FromGRPC(err)
+		}
+
+		for _, respResource := range resp.Resources {
+			var resource types.ResourceWithLabels
+			switch req.ResourceType {
+			case types.KindDatabaseServer:
+				resource = respResource.GetDatabaseServer()
+			case types.KindDatabaseService:
+				resource = respResource.GetDatabaseService()
+			case types.KindAppServer:
+				resource = respResource.GetAppServer()
+			case types.KindNode:
+				resource = respResource.GetNode()
+			case types.KindWindowsDesktop:
+				resource = respResource.GetWindowsDesktop()
+			case types.KindWindowsDesktopService:
+				resource = respResource.GetWindowsDesktopService()
+			case types.KindKubernetesCluster:
+				resource = respResource.GetKubeCluster()
+			case types.KindKubeServer:
+				resource = respResource.GetKubernetesServer()
+			default:
+				out.Resources = nil
+				return out, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
+			}
+
+			t, ok := resource.(T)
+			if !ok {
+				out.Resources = nil
+				return out, trace.BadParameter("received unexpected resource type %T", resource)
+			}
+			out.Resources = append(out.Resources, t)
+		}
+
+		out.NextKey = resp.NextKey
+		out.Total = int(resp.TotalCount)
+
+		return out, nil
+	}
+}
+
+// GetAllResources is a helper for getting all existing resources that match the provided request. In addition to
+// iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+func GetAllResources[T types.ResourceWithLabels](ctx context.Context, clt GetResourcesClient, req *proto.ListResourcesRequest) ([]T, error) {
+	var out []T
+
+	// Set the limit to the default size.
+	req.Limit = int32(defaults.DefaultChunkSize)
+	for {
+		page, err := GetResourcePage[T](ctx, clt, req)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		out = append(out, page.Resources...)
+
+		if page.NextKey == "" || len(page.Resources) == 0 {
+			break
+		}
+
+		req.StartKey = page.NextKey
+	}
+
+	return out, nil
+}
+
 // ListResourcesClient is an interface used by GetResourcesWithFilters to abstract over implementations of
 // the ListResources method.
 type ListResourcesClient interface {
@@ -2827,6 +2916,9 @@ type ListResourcesClient interface {
 
 // GetResourcesWithFilters is a helper for getting a list of resources with optional filtering. In addition to
 // iterating pages, it also correctly handles downsizing pages when LimitExceeded errors are encountered.
+//
+// GetAllResources or GetResourcePage should be preferred for client side operations to avoid converting
+// from []types.ResourceWithLabels to concrete types.
 func GetResourcesWithFilters(ctx context.Context, clt ListResourcesClient, req proto.ListResourcesRequest) ([]types.ResourceWithLabels, error) {
 	// Retrieve the complete list of resources in chunks.
 	var (
@@ -3290,6 +3382,117 @@ func (c *Client) DeleteAllUserGroups(ctx context.Context) error {
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+// ExportUpgradeWindows is used to load derived upgrade window values for agents that
+// need to export schedules to external upgraders.
+func (c *Client) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
+	rsp, err := c.grpc.ExportUpgradeWindows(ctx, &req)
+	if err != nil {
+		return proto.ExportUpgradeWindowsResponse{}, trail.FromGRPC(err)
+	}
+	return *rsp, nil
+}
+
+// GetClusterMaintenanceConfig gets the current maintenance window config singleton.
+func (c *Client) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	rsp, err := c.grpc.GetClusterMaintenanceConfig(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return rsp, nil
+}
+
+// UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
+func (c *Client) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.ClusterMaintenanceConfig) error {
+	req, ok := cmc.(*types.ClusterMaintenanceConfigV1)
+	if !ok {
+		return trace.BadParameter("unexpected maintenance config type: %T", cmc)
+	}
+
+	_, err := c.grpc.UpdateClusterMaintenanceConfig(ctx, req)
+	return trail.FromGRPC(err)
+}
+
+// integrationsClient returns an unadorned Integration client, using the underlying
+// Auth gRPC connection.
+func (c *Client) integrationsClient() integrationpb.IntegrationServiceClient {
+	return integrationpb.NewIntegrationServiceClient(c.conn)
+}
+
+// ListIntegrations returns a paginated list of Integrations.
+// The response includes a nextKey which must be used to fetch the next page.
+func (c *Client) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	resp, err := c.integrationsClient().ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+		Limit:   int32(pageSize),
+		NextKey: nextKey,
+	})
+	if err != nil {
+		return nil, "", trail.FromGRPC(err)
+	}
+
+	integrations := make([]types.Integration, 0, len(resp.GetIntegrations()))
+	for _, ig := range resp.GetIntegrations() {
+		integrations = append(integrations, ig)
+	}
+
+	return integrations, resp.GetNextKey(), nil
+}
+
+// GetIntegration returns an Integration by its name.
+func (c *Client) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	ig, err := c.integrationsClient().GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+		Name: name,
+	})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return ig, nil
+}
+
+// CreateIntegration creates a new Integration.
+func (c *Client) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igV1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported integration type %T", ig)
+	}
+
+	ig, err := c.integrationsClient().CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igV1})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return ig, nil
+}
+
+// UpdateIntegration updates an existing Integration.
+func (c *Client) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igV1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unsupported integration type %T", ig)
+	}
+
+	ig, err := c.integrationsClient().UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igV1})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+
+	return ig, nil
+}
+
+// DeleteIntegration removes an Integration by its name.
+func (c *Client) DeleteIntegration(ctx context.Context, name string) error {
+	_, err := c.integrationsClient().DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+		Name: name,
+	})
+	return trail.FromGRPC(err)
+}
+
+// DeleteAllIntegrations removes all Integrations.
+func (c *Client) DeleteAllIntegrations(ctx context.Context) error {
+	_, err := c.integrationsClient().DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
+	return trail.FromGRPC(err)
 }
 
 // PluginsClient returns an unadorned Plugins client, using the underlying

@@ -245,7 +245,7 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	case <-h.context.Done():
 		h.Debugf("Context is closing, cleaning up.")
 	}
-	h.Infof("Port forwarding pair completed.")
+	h.Debugf("Port forwarding pair completed.")
 	return nil
 }
 

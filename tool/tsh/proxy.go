@@ -590,6 +590,10 @@ func onProxyCommandApp(cf *CLIConf) error {
 
 // onProxyCommandAWS creates local proxes for AWS apps.
 func onProxyCommandAWS(cf *CLIConf) error {
+	if err := checkProxyAWSFormatCompatibility(cf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	awsApp, err := pickActiveAWSApp(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -606,64 +610,77 @@ func onProxyCommandAWS(cf *CLIConf) error {
 		}
 	}()
 
-	envVars, err := awsApp.GetEnvVars()
-	if err != nil {
+	if err := printProxyAWSTemplate(cf, awsApp); err != nil {
 		return trace.Wrap(err)
 	}
+	<-cf.Context.Done()
+	return nil
+}
 
-	proxyHost, proxyPort, err := net.SplitHostPort(awsApp.GetForwardProxyAddr())
+type awsAppInfo interface {
+	GetAppName() string
+	GetEnvVars() (map[string]string, error)
+	GetEndpointURL() string
+	GetForwardProxyAddr() string
+}
+
+func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
+	envVars, err := awsApp.GetEnvVars()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	templateData := map[string]interface{}{
 		"envVars":     envVars,
-		"address":     awsApp.GetForwardProxyAddr(),
 		"endpointURL": awsApp.GetEndpointURL(),
 		"format":      cf.Format,
 		"randomPort":  cf.LocalProxyPort == "",
-		"appName":     awsApp.appName,
-		"proxyScheme": "http",
-		"proxyHost":   proxyHost,
-		"proxyPort":   proxyPort,
+		"appName":     awsApp.GetAppName(),
 		"region":      getEnvOrDefault(awsRegionEnvVar, "<region>"),
 		"keystore":    getEnvOrDefault(awsKeystoreEnvVar, "<keystore>"),
 		"workgroup":   getEnvOrDefault(awsWorkgroupEnvVar, "<workgroup>"),
 	}
 
+	if proxyAddr := awsApp.GetForwardProxyAddr(); proxyAddr != "" {
+		proxyHost, proxyPort, err := net.SplitHostPort(proxyAddr)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		templateData["proxyScheme"] = "http"
+		templateData["proxyHost"] = proxyHost
+		templateData["proxyPort"] = proxyPort
+	}
+
 	templates := []string{awsProxyHeaderTemplate}
 	switch {
 	case cf.Format == awsProxyFormatAthenaODBC:
-		if cf.AWSEndpointURLMode {
-			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
-		}
 		templates = append(templates, awsProxyAthenaODBCTemplate)
-
 	case cf.Format == awsProxyFormatAthenaJDBC:
-		if cf.AWSEndpointURLMode {
-			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
-		}
 		templates = append(templates, awsProxyJDBCHeaderFooterTemplate, awsProxyAthenaJDBCTemplate)
-
 	case cf.AWSEndpointURLMode:
 		templates = append(templates, awsEndpointURLProxyTemplate)
 	default:
 		templates = append(templates, awsHTTPSProxyTemplate)
 	}
 
-	template := template.New("").Funcs(cloudTemplateFuncs)
+	combined := template.New("").Funcs(cloudTemplateFuncs)
 	for _, text := range templates {
-		template, err = template.Parse(text)
+		combined, err = combined.Parse(text)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if err = template.Execute(cf.Stdout(), templateData); err != nil {
-		return trace.Wrap(err)
-	}
+	return trace.Wrap(combined.Execute(cf.Stdout(), templateData))
+}
 
-	<-cf.Context.Done()
+func checkProxyAWSFormatCompatibility(cf *CLIConf) error {
+	switch cf.Format {
+	case awsProxyFormatAthenaODBC, awsProxyFormatAthenaJDBC:
+		if cf.AWSEndpointURLMode {
+			return trace.BadParameter("format %q is not supported in --endpoint-url mode", cf.Format)
+		}
+	}
 	return nil
 }
 
