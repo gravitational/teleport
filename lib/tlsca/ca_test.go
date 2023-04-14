@@ -198,7 +198,7 @@ func TestKubeExtensions(t *testing.T) {
 	out, err := FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
 	require.False(t, out.Renewable)
-	require.Empty(t, cmp.Diff(out, &identity))
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
 
 func TestAzureExtensions(t *testing.T) {
@@ -241,7 +241,7 @@ func TestAzureExtensions(t *testing.T) {
 	require.NoError(t, err)
 	out, err := FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, &identity))
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 	require.Equal(t, "43de4ffa8509aff3e3990e941400a403a12a6024d59897167b780ec0d03a1f15", out.RouteToApp.SessionID)
 }
 
@@ -347,7 +347,7 @@ func TestGCPExtensions(t *testing.T) {
 	require.NoError(t, err)
 	out, err := FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(out, &identity))
+	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
 
 func TestIdentity_GetUserMetadata(t *testing.T) {

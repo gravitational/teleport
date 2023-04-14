@@ -29,12 +29,14 @@ import {
   getStatusCodeTitle,
   Integration,
   IntegrationStatusCode,
+  IntegrationKind,
   Plugin,
 } from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
-  onDelete(i: IntegrationLike): void;
+  onDeletePlugin?(p: Plugin): void;
+  onDeleteIntegration?(i: Integration): void;
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -68,11 +70,29 @@ export function IntegrationList(props: Props<IntegrationLike>) {
         },
         {
           altKey: 'options-btn',
-          render: item => (
-            <ActionCell
-              onDelete={props.onDelete ? () => props.onDelete(item) : null}
-            />
-          ),
+          render: item => {
+            if (item.resourceType === 'plugin') {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem onClick={() => props.onDeletePlugin(item)}>
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            return (
+              <Cell align="right">
+                <MenuButton>
+                  <MenuItem onClick={() => props.onDeleteIntegration(item)}>
+                    Delete...
+                  </MenuItem>
+                </MenuButton>
+              </Cell>
+            );
+          },
         },
       ]}
       emptyText="No Results Found"
@@ -95,20 +115,6 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
           </Box>
         )}
       </Flex>
-    </Cell>
-  );
-};
-
-const ActionCell = ({ onDelete }: { onDelete: () => void }) => {
-  if (!onDelete) {
-    return null;
-  }
-
-  return (
-    <Cell align="right">
-      <MenuButton>
-        <MenuItem onClick={onDelete}>Delete...</MenuItem>
-      </MenuButton>
     </Cell>
   );
 };
@@ -168,8 +174,8 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
   } else {
     // Default is integration.
     switch (item.kind) {
-      case 'aws-oidc':
-        formattedText = 'Amazon Web Services (OIDC)';
+      case IntegrationKind.AwsOidc:
+        formattedText = item.name;
         icon = <IconContainer src={awsIcon} />;
         break;
     }

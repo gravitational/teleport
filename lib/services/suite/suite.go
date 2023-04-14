@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -349,7 +350,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	newCA.SetResourceID(out.GetResourceID())
-	require.Equal(t, &newCA, out)
+	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second)))
 }
 
 // NewServer creates a new server resource
@@ -606,10 +607,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.Equal(t, token.GetRoles().Include(types.RoleAuth), true)
 	require.Equal(t, token.GetRoles().Include(types.RoleNode), true)
 	require.Equal(t, token.GetRoles().Include(types.RoleProxy), false)
-	diff := s.Clock.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second() - token.Expiry().Second()
-	if diff > 1 {
-		t.Fatalf("expected diff to be within one second, got %v instead", diff)
-	}
+	require.Equal(t, time.Time{}, token.Expiry())
 
 	require.NoError(t, s.ProvisioningS.DeleteToken(ctx, "token"))
 

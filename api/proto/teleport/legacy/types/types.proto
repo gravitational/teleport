@@ -5284,6 +5284,12 @@ message OktaAssignmentSpecV1 {
   string User = 1 [(gogoproto.jsontag) = "user"];
   // Actions is a list of Okta actions to take on a user.
   repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
+  // CleanupTime is an optional field that notes when the assignment should be cleaned up.
+  // If absent, the assignment will never be cleaned up.
+  google.protobuf.Timestamp CleanupTime = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true
+  ];
 }
 
 // OktaAssignmentActionV1 is a Okta assignment action.
@@ -5314,6 +5320,12 @@ message OktaAssignmentActionV1 {
   OktaAssignmentActionStatus status = 1 [(gogoproto.jsontag) = "status"];
   // Target is the target of the assignment action.
   OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
+  // LastTransition is an optional field that notes when the last state transition
+  // occurred for this action. If absent, this object has never transitioned.
+  google.protobuf.Timestamp LastTransition = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 // OktaAssignmentActionTargetV1 is the target of an Okta assignment action.

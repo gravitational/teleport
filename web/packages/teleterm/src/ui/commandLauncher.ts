@@ -15,8 +15,7 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, KubeUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
+import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { Platform } from 'teleterm/mainProcess/types';
 import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
@@ -92,35 +91,6 @@ const commands = {
           });
         }
       );
-    },
-  },
-
-  'kube-connect': {
-    displayName: '',
-    description: '',
-    async run(
-      ctx: IAppContext,
-      args: { kubeUri: KubeUri; origin: DocumentOrigin }
-    ) {
-      const rootClusterUri = routing.ensureRootClusterUri(args.kubeUri);
-      const documentsService =
-        ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
-      const kubeDoc = documentsService.createTshKubeDocument({
-        kubeUri: args.kubeUri,
-        origin: args.origin,
-      });
-      const connection = ctx.connectionTracker.findConnectionByDocument(
-        kubeDoc
-      ) as TrackedKubeConnection;
-
-      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
-
-      documentsService.add({
-        ...kubeDoc,
-        kubeConfigRelativePath:
-          connection?.kubeConfigRelativePath || kubeDoc.kubeConfigRelativePath,
-      });
-      documentsService.open(kubeDoc.uri);
     },
   },
 

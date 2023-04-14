@@ -601,6 +601,47 @@ message SessionConnect {
   ];
 }
 
+// FileTransferRequestEvent happens when a FileTransferRequest is created, updated, approved, or denied.
+message FileTransferRequestEvent {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // RequestID is the ID for the FileTransferRequest
+  string RequestID = 3 [(gogoproto.jsontag) = "requestID"];
+
+  // Approvers is a slice containing the Teleport users who have approved the request
+  repeated string Approvers = 4 [(gogoproto.jsontag) = "approvers"];
+
+  // Requester is the Teleport user who requested the file transfer
+  string Requester = 5 [(gogoproto.jsontag) = "requester"];
+
+  // Location is the location of the file to be downloaded, or the directory of the upload
+  string Location = 6 [(gogoproto.jsontag) = "location"];
+
+  // Direction is "upload" or "download" for the requested file transfer
+  FileTransferDirection Direction = 7 [(gogoproto.jsontag) = "direction"];
+
+  // Filename is the name of the file to be uploaded to the Location. Only present in uploads.
+  string Filename = 8 [(gogoproto.jsontag) = "filename"];
+}
+
+// FileTransferDirection is the direction for a requested file transfer
+enum FileTransferDirection {
+  DOWNLOAD = 0;
+  UPLOAD = 1;
+}
+
 // Resize means that some user resized PTY on the client
 message Resize {
   // Metadata is a common event metadata
