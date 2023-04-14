@@ -1255,6 +1255,8 @@ type ClientConfig struct {
 	Stderr io.Writer
 	// Stdout overrides standard output for the session
 	Stdout io.Writer
+	// ALBAddr is the address to a local server that simulates a layer 7 load balancer.
+	ALBAddr string
 }
 
 // NewClientWithCreds creates client with credentials
@@ -1280,12 +1282,16 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	var webProxyAddr string
 	var sshProxyAddr string
 
-	if cfg.Proxy == nil {
-		webProxyAddr = i.Web
-		sshProxyAddr = i.SSHProxy
-	} else {
+	switch {
+	case cfg.Proxy != nil:
 		webProxyAddr = cfg.Proxy.WebAddr
 		sshProxyAddr = cfg.Proxy.SSHAddr
+	case cfg.ALBAddr != "":
+		webProxyAddr = cfg.ALBAddr
+		sshProxyAddr = cfg.ALBAddr
+	default:
+		webProxyAddr = i.Web
+		sshProxyAddr = i.SSHProxy
 	}
 
 	fwdAgentMode := client.ForwardAgentNo
@@ -1294,25 +1300,26 @@ func (i *TeleInstance) NewUnauthenticatedClient(cfg ClientConfig) (tc *client.Te
 	}
 
 	cconf := &client.Config{
-		Username:              cfg.Login,
-		Host:                  cfg.Host,
-		HostPort:              cfg.Port,
-		HostLogin:             cfg.Login,
-		InsecureSkipVerify:    true,
-		KeysDir:               keyDir,
-		SiteName:              cfg.Cluster,
-		ForwardAgent:          fwdAgentMode,
-		Labels:                cfg.Labels,
-		WebProxyAddr:          webProxyAddr,
-		SSHProxyAddr:          sshProxyAddr,
-		InteractiveCommand:    cfg.Interactive,
-		TLSRoutingEnabled:     i.IsSinglePortSetup,
-		Tracer:                tracing.NoopProvider().Tracer("test"),
-		EnableEscapeSequences: cfg.EnableEscapeSequences,
-		Stderr:                cfg.Stderr,
-		Stdin:                 cfg.Stdin,
-		Stdout:                cfg.Stdout,
-		NonInteractive:        true,
+		Username:                      cfg.Login,
+		Host:                          cfg.Host,
+		HostPort:                      cfg.Port,
+		HostLogin:                     cfg.Login,
+		InsecureSkipVerify:            true,
+		KeysDir:                       keyDir,
+		SiteName:                      cfg.Cluster,
+		ForwardAgent:                  fwdAgentMode,
+		Labels:                        cfg.Labels,
+		WebProxyAddr:                  webProxyAddr,
+		SSHProxyAddr:                  sshProxyAddr,
+		InteractiveCommand:            cfg.Interactive,
+		TLSRoutingEnabled:             i.IsSinglePortSetup,
+		TLSRoutingConnUpgradeRequired: cfg.ALBAddr != "",
+		Tracer:                        tracing.NoopProvider().Tracer("test"),
+		EnableEscapeSequences:         cfg.EnableEscapeSequences,
+		Stderr:                        cfg.Stderr,
+		Stdin:                         cfg.Stdin,
+		Stdout:                        cfg.Stdout,
+		NonInteractive:                true,
 	}
 
 	// JumpHost turns on jump host mode

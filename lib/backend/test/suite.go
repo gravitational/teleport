@@ -775,7 +775,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	defer requireNoAsyncErrors()
 
 	// Given a lock named `tok1` on the backend...
-	lock, err := backend.AcquireLock(ctx, uut, tok1, ttl)
+	lock, err := backend.AcquireLock(ctx, backend.LockConfiguration{Backend: uut, LockName: tok1, TTL: ttl})
 	require.NoError(t, err)
 
 	//  When I asynchronously release the lock...
@@ -790,7 +790,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	}()
 
 	// ...and simultaneously attempt to create a new lock with the same name
-	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
+	lock, err = backend.AcquireLock(ctx, backend.LockConfiguration{Backend: uut, LockName: tok1, TTL: ttl})
 
 	// expect that the asynchronous Release() has executed - we're using the
 	// change in the value of the marker value as a proxy for the Release().
@@ -802,7 +802,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	require.NoError(t, lock.Release(ctx, uut))
 
 	// Given a lock with the same name as previously-existing, manually-released lock
-	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
+	lock, err = backend.AcquireLock(ctx, backend.LockConfiguration{Backend: uut, LockName: tok1, TTL: ttl})
 	require.NoError(t, err)
 	atomic.StoreInt32(&marker, 7)
 
@@ -817,7 +817,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	}()
 
 	// ...and simultaneously try to acquire another lock with the same name
-	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
+	lock, err = backend.AcquireLock(ctx, backend.LockConfiguration{Backend: uut, LockName: tok1, TTL: ttl})
 
 	// expect that the asynchronous Release() has executed - we're using the
 	// change in the value of the marker value as a proxy for the call to
@@ -831,9 +831,9 @@ func testLocking(t *testing.T, newBackend Constructor) {
 
 	// Given a pair of locks named `tok1` and `tok2`
 	y := int32(0)
-	lock1, err := backend.AcquireLock(ctx, uut, tok1, ttl)
+	lock1, err := backend.AcquireLock(ctx, backend.LockConfiguration{Backend: uut, LockName: tok1, TTL: ttl})
 	require.NoError(t, err)
-	lock2, err := backend.AcquireLock(ctx, uut, tok2, ttl)
+	lock2, err := backend.AcquireLock(ctx, backend.LockConfiguration{Backend: uut, LockName: tok2, TTL: ttl})
 	require.NoError(t, err)
 
 	//  When I asynchronously release the locks...
@@ -850,7 +850,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 		}
 	}()
 
-	lock, err = backend.AcquireLock(ctx, uut, tok1, ttl)
+	lock, err = backend.AcquireLock(ctx, backend.LockConfiguration{Backend: uut, LockName: tok1, TTL: ttl})
 	require.NoError(t, err)
 	require.Equal(t, int32(15), atomic.LoadInt32(&y))
 	require.NoError(t, lock.Release(ctx, uut))

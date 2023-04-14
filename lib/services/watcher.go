@@ -1751,7 +1751,7 @@ type OktaAssignmentWatcherConfig struct {
 	// RWCfg is the resource watcher configuration.
 	RWCfg ResourceWatcherConfig
 	// OktaAssignments is responsible for fetching Okta assignments.
-	OktaAssignments OktaAssignments
+	OktaAssignments OktaAssignmentsGetter
 	// PageSize is the number of Okta assignments to list at a time.
 	PageSize int
 	// OktaAssignmentsC receives up-to-date list of all Okta assignment resources.
@@ -1764,7 +1764,7 @@ func (cfg *OktaAssignmentWatcherConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if cfg.OktaAssignments == nil {
-		assignments, ok := cfg.RWCfg.Client.(OktaAssignments)
+		assignments, ok := cfg.RWCfg.Client.(OktaAssignmentsGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter OktaAssignments and Client not usable as OktaAssignments")
 		}

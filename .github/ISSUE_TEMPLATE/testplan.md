@@ -845,6 +845,7 @@ tsh bench web sessions --max=5000 --web user ls
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
+    - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
@@ -857,6 +858,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
@@ -867,8 +869,11 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Dynamodb.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Azure SQL Server.
+  - [ ] Oracle.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -895,6 +900,7 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
   - [ ] Azure SQL Server.
+  - [ ] Oracle.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -915,6 +921,7 @@ tsh bench web sessions --max=5000 --web user ls
 - [ ] Verify discovery.
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
+        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
@@ -988,6 +995,7 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] Snowflake
     - [ ] Elasticsearch.
     - [ ] Cassandra/ScyllaDB.
+    - [ ] Oracle.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
   - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access

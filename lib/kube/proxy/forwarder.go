@@ -259,7 +259,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize)
+	clientCredentials, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -268,7 +268,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	// deleting expired entried clusters and kube_servers entries.
 	// In the meantime, we need to make sure that the cache is cleaned
 	// from time to time.
-	transportClients, err := ttlmap.New(defaults.ClientCacheSize)
+	transportClients, err := ttlmap.New(defaults.ClientCacheSize, ttlmap.Clock(cfg.Clock))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
