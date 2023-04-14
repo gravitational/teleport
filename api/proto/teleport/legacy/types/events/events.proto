@@ -601,6 +601,47 @@ message SessionConnect {
   ];
 }
 
+// FileTransferRequestEvent happens when a FileTransferRequest is created, updated, approved, or denied.
+message FileTransferRequestEvent {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // RequestID is the ID for the FileTransferRequest
+  string RequestID = 3 [(gogoproto.jsontag) = "requestID"];
+
+  // Approvers is a slice containing the Teleport users who have approved the request
+  repeated string Approvers = 4 [(gogoproto.jsontag) = "approvers"];
+
+  // Requester is the Teleport user who requested the file transfer
+  string Requester = 5 [(gogoproto.jsontag) = "requester"];
+
+  // Location is the location of the file to be downloaded, or the directory of the upload
+  string Location = 6 [(gogoproto.jsontag) = "location"];
+
+  // Direction is "upload" or "download" for the requested file transfer
+  FileTransferDirection Direction = 7 [(gogoproto.jsontag) = "direction"];
+
+  // Filename is the name of the file to be uploaded to the Location. Only present in uploads.
+  string Filename = 8 [(gogoproto.jsontag) = "filename"];
+}
+
+// FileTransferDirection is the direction for a requested file transfer
+enum FileTransferDirection {
+  DOWNLOAD = 0;
+  UPLOAD = 1;
+}
+
 // Resize means that some user resized PTY on the client
 message Resize {
   // Metadata is a common event metadata
@@ -3245,6 +3286,7 @@ message OneOf {
     events.SAMLIdPServiceProviderUpdate SAMLIdPServiceProviderUpdate = 117;
     events.SAMLIdPServiceProviderDelete SAMLIdPServiceProviderDelete = 118;
     events.SAMLIdPServiceProviderDeleteAll SAMLIdPServiceProviderDeleteAll = 119;
+    events.OpenSearchRequest OpenSearchRequest = 120;
   }
 }
 
@@ -3989,6 +4031,50 @@ message ElasticsearchRequest {
 
   // Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
   string Query = 12 [(gogoproto.jsontag) = "query"];
+}
+
+// OpenSearchRequest is emitted when a user executes a OpenSearch request via database-access.
+message OpenSearchRequest {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Database contains database related metadata.
+  DatabaseMetadata Database = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  uint32 StatusCode = 5 [(gogoproto.jsontag) = "status_code"];
+  // Path is relative path in the URL.
+  string Path = 6 [(gogoproto.jsontag) = "path"];
+  // RawQuery are the encoded query values.
+  string RawQuery = 7 [(gogoproto.jsontag) = "raw_query"];
+  // Method is the request HTTP method, like GET/POST/DELETE/etc.
+  string Method = 8 [(gogoproto.jsontag) = "method"];
+  // Target is the API target in the X-Amz-Target header.
+  string Target = 9 [(gogoproto.jsontag) = "target"];
+  // Body is the HTTP request json body.
+  // The Struct type is a wrapper around protobuf/types.Struct and is used to marshal the JSON body correctly.
+  google.protobuf.Struct Body = 10 [
+    (gogoproto.jsontag) = "body,omitempty",
+    (gogoproto.casttype) = "Struct"
+  ];
 }
 
 // DynamoDBRequest is emitted when a user executes a DynamoDB request via database-access.

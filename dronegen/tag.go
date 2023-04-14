@@ -220,7 +220,7 @@ func tagPipelines() []pipeline {
 		buildType:    buildType{os: "linux", fips: false},
 		trigger:      triggerTag,
 		pipelineName: "build-teleport-kube-agent-updater-oci-images",
-		ghaWorkflow:  "release-teleport-kube-agent-udpater-oci.yml",
+		ghaWorkflow:  "release-teleport-kube-agent-updater-oci.yml",
 		srcRefVar:    "DRONE_TAG",
 		workflowRef:  "${DRONE_TAG}",
 		timeout:      60 * time.Minute,
@@ -603,5 +603,5 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 }
 
 func tagCleanupPipeline() pipeline {
-	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "relcli auto_destroy -f -v 6")
+	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "auto_destroy -f -v 6")
 }

@@ -29,7 +29,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -80,7 +79,6 @@ import (
 	"github.com/gravitational/teleport/lib/shell"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1728,7 +1726,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		if len(tc.Config.LocalForwardPorts) == 0 {
 			fmt.Println("Executing command locally without connecting to any servers. This makes no sense.")
 		}
-		return runLocalCommand(command)
+		return runLocalCommand(tc.Config.HostLogin, command)
 	}
 
 	if len(command) > 0 {
@@ -2003,53 +2001,6 @@ func PlayFile(ctx context.Context, tarFile io.Reader, sid string) error {
 	return playSession(sessionEvents, stream)
 }
 
-// ExecuteSCP executes SCP command. It executes scp.Command using
-// lower-level API integrations that mimic SCP CLI command behavior
-func (tc *TeleportClient) ExecuteSCP(ctx context.Context, serverAddr string, cmd scp.Command) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/ExecuteSCP",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	// connect to proxy first:
-	if !tc.Config.ProxySpecified() {
-		return trace.BadParameter("proxy server is not specified")
-	}
-
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	nodeClient, err := tc.ConnectToNode(
-		ctx,
-		clt,
-		// We append the ":0" to tell the server to figure out the port for us.
-		NodeDetails{Addr: serverAddr + ":0", Namespace: tc.Namespace, Cluster: clt.ClusterName()},
-		tc.Config.HostLogin,
-	)
-	if err != nil {
-		tc.ExitStatus = 1
-		return trace.Wrap(err)
-	}
-
-	err = nodeClient.ExecuteSCP(ctx, cmd)
-	if err != nil {
-		// converts SSH error code to tc.ExitStatus
-		exitError, _ := trace.Unwrap(err).(*ssh.ExitError)
-		if exitError != nil {
-			tc.ExitStatus = exitError.ExitStatus()
-		}
-		return err
-
-	}
-
-	return nil
-}
-
 // SFTP securely copies files between Nodes or SSH servers using SFTP
 func (tc *TeleportClient) SFTP(ctx context.Context, args []string, port int, opts sftp.Options, quiet bool) (err error) {
 	ctx, span := tc.Tracer.Start(
@@ -2107,7 +2058,7 @@ func (tc *TeleportClient) uploadConfig(args []string, port int, opts sftp.Option
 	// copy everything except the last arg (the destination)
 	dstPath := args[len(args)-1]
 
-	dst, addr, err := getSCPDestination(dstPath, port)
+	dst, addr, err := getSFTPDestination(dstPath, port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2129,7 +2080,7 @@ func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Opti
 	}
 
 	// args are guaranteed to have len(args) > 1
-	src, addr, err := getSCPDestination(args[0], port)
+	src, addr, err := getSFTPDestination(args[0], port)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2145,8 +2096,8 @@ func (tc *TeleportClient) downloadConfig(args []string, port int, opts sftp.Opti
 	}, nil
 }
 
-func getSCPDestination(target string, port int) (dest *scp.Destination, addr string, err error) {
-	dest, err = scp.ParseSCPDestination(target)
+func getSFTPDestination(target string, port int) (dest *sftp.Destination, addr string, err error) {
+	dest, err = sftp.ParseDestination(target)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2183,7 +2134,11 @@ func (tc *TeleportClient) TransferFiles(ctx context.Context, hostLogin, nodeAddr
 	client, err := tc.ConnectToNode(
 		ctx,
 		clt,
-		NodeDetails{Addr: nodeAddr, Namespace: tc.Namespace, Cluster: clt.ClusterName()},
+		NodeDetails{
+			Addr:      nodeAddr,
+			Namespace: tc.Namespace,
+			Cluster:   clt.ClusterName(),
+		},
 		hostLogin,
 	)
 	if err != nil {
@@ -3380,7 +3335,11 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginFunc, error) {
 	switch pr.Auth.Type {
 	case constants.Local:
-		switch pr.Auth.Local.Name {
+		authType := constants.LocalConnector
+		if pr.Auth.Local != nil {
+			authType = pr.Auth.Local.Name
+		}
+		switch authType {
 		case constants.PasswordlessConnector:
 			// Sanity check settings.
 			if !pr.Auth.AllowPasswordless {
@@ -4192,7 +4151,7 @@ func connectToSSHAgent() agent.ExtendedAgent {
 
 // Username returns the current user's username
 func Username() (string, error) {
-	u, err := user.Current()
+	u, err := apiutils.CurrentUser()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -4365,18 +4324,22 @@ func ParseSearchKeywords(spec string, customDelimiter rune) []string {
 
 // Executes the given command on the client machine (localhost). If no command is given,
 // executes shell
-func runLocalCommand(command []string) error {
+func runLocalCommand(hostLogin string, command []string) error {
 	if len(command) == 0 {
-		user, err := user.Current()
-		if err != nil {
-			return trace.Wrap(err)
+		if hostLogin == "" {
+			user, err := apiutils.CurrentUser()
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			hostLogin = user.Username
 		}
-		shell, err := shell.GetLoginShell(user.Username)
+		shell, err := shell.GetLoginShell(hostLogin)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		command = []string{shell}
 	}
+
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin

@@ -1,6 +1,6 @@
 ---
 authors: Anton Miniailo (anton@goteleport.com)
-state: implementation in progress
+state: implmeneted (v12.2)
 ---
 
 # RFD 0110 - TLS IP pinning and IP propagation.
@@ -200,8 +200,8 @@ func (p *ProxyLine) VerifyPROXYSignature(HostCACert []byte) (bool, error) {
 		return false, nil
 	}
 
-	// Verify JWT using proxy cert's public key and make sure 
-	// that signed claims in JWT correspond to PROXY header addresses 
+	// Verify JWT using proxy cert's public key and make sure
+	// that signed claims in JWT correspond to PROXY header addresses
 	clock := clockwork.NewRealClock()
 	jwtVerifier, err := jwt.New(&jwt.Config{
 		Clock:       clock,

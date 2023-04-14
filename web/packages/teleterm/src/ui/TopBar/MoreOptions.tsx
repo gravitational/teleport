@@ -65,6 +65,13 @@ function useMenuItems(): MenuItem[] {
 
   const menuItems: MenuItem[] = [
     {
+      title: 'Open new terminal',
+      isVisible: isSearchBarEnabled,
+      Icon: icons.Terminal,
+      keyboardShortcutAction: 'newTerminalTab',
+      onNavigate: openTerminalTab,
+    },
+    {
       title: 'Open config file',
       isVisible: true,
       Icon: icons.Config,
@@ -72,13 +79,6 @@ function useMenuItems(): MenuItem[] {
         const path = await mainProcessClient.openConfigFile();
         notificationsService.notifyInfo(`Opened the config file at ${path}.`);
       },
-    },
-    {
-      title: 'Open new terminal',
-      isVisible: isSearchBarEnabled,
-      Icon: icons.Terminal,
-      keyboardShortcutAction: 'newTerminalTab',
-      onNavigate: openTerminalTab,
     },
     {
       title: 'Install tsh in PATH',
@@ -222,7 +222,7 @@ function MenuItem({
               padding: ${props => props.theme.space[1]}px
                 ${props => props.theme.space[1]}px;
             `}
-            bg="primary.main"
+            bg="levels.surfaceSecondary"
           >
             {getAccelerator(item.keyboardShortcutAction)}
           </Text>

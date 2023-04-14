@@ -83,7 +83,7 @@ export function useResourceSearch() {
           resourceTypeSearchFilter
         )
       );
-      const results = (await Promise.all(searchPromises)).flat().slice(0, 10);
+      const results = (await Promise.all(searchPromises)).flat();
 
       return { results, search };
     },
@@ -104,16 +104,16 @@ export function useFilterSearch() {
     (search: string, restrictions: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
+        // Cluster filter should not be visible if there is only one cluster
+        if (clusters.length === 1) {
+          return [];
+        }
         if (search) {
           clusters = clusters.filter(cluster =>
             cluster.name
               .toLocaleLowerCase()
               .includes(search.toLocaleLowerCase())
           );
-        }
-        // Cluster filter should not be visible if there is only one cluster
-        if (clusters.length === 1) {
-          return [];
         }
         return clusters.map(cluster => {
           let score = getLengthScore(search, cluster.name);
@@ -175,7 +175,8 @@ export function useFilterSearch() {
   );
 }
 
-export function sortResults(
+/** Sorts and then returns top 10 results. */
+export function rankResults(
   searchResults: resourcesServiceTypes.SearchResult[],
   search: string
 ): ResourceSearchResult[] {
@@ -208,7 +209,8 @@ export function sortResults(
         // Highest score first.
         b.score - a.score ||
         collator.compare(mainResourceName(a), mainResourceName(b))
-    );
+    )
+    .slice(0, 10);
 }
 
 function populateMatches(

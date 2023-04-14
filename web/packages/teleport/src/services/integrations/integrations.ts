@@ -17,17 +17,31 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { Integration } from './types';
+import {
+  Integration,
+  IntegrationCreateRequest,
+  IntegrationStatusCode,
+} from './types';
 
 export const integrationService = {
-  fetchIntegration(clusterId: string, name: string): Promise<Integration> {
-    return api
-      .get(cfg.getIntegrationsUrl(clusterId, name))
-      .then(makeIntegration);
+  fetchIntegration(name: string): Promise<Integration> {
+    return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
   },
 
-  fetchIntegrations(clusterId: string): Promise<Integration[]> {
-    return api.get(cfg.getIntegrationsUrl(clusterId)).then(makeIntegrations);
+  fetchIntegrations(): Promise<Integration[]> {
+    return api.get(cfg.getIntegrationsUrl()).then(makeIntegrations);
+  },
+
+  createIntegration(req: IntegrationCreateRequest): Promise<void> {
+    return api.post(cfg.getIntegrationsUrl(), req);
+  },
+
+  updateIntegration(name: string): Promise<void> {
+    return api.put(cfg.getIntegrationsUrl(name));
+  },
+
+  deleteIntegration(name: string): Promise<void> {
+    return api.delete(cfg.getIntegrationsUrl(name));
   },
 };
 
@@ -51,6 +65,6 @@ function makeIntegration(json: any): Integration {
     // integration resources together. As discussed, the only
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
-    statusCode: 'Running',
+    statusCode: IntegrationStatusCode.Running,
   };
 }
