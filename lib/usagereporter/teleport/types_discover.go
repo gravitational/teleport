@@ -152,19 +152,19 @@ func (u *UIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) prehogv
 	}
 }
 
-// UIDiscoverAWSAccountConnectEvent is emitted when a user is finished with the step
+// UIDiscoverIntegrationAWSOIDCConnectEvent is emitted when a user is finished with the step
 // that asks user to setup aws integration or select from a list of existing
 // aws integrations.
-type UIDiscoverAWSAccountConnectEvent prehogv1a.UIDiscoverAWSAccountConnectEvent
+type UIDiscoverIntegrationAWSOIDCConnectEvent prehogv1a.UIDiscoverIntegrationAWSOIDCConnectEvent
 
-func (u *UIDiscoverAWSAccountConnectEvent) CheckAndSetDefaults() error {
+func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) CheckAndSetDefaults() error {
 	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
 }
 
-func (u *UIDiscoverAWSAccountConnectEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	return prehogv1a.SubmitEventRequest{
-		Event: &prehogv1a.SubmitEventRequest_UiDiscoverAwsAccountConnectEvent{
-			UiDiscoverAwsAccountConnectEvent: &prehogv1a.UIDiscoverAWSAccountConnectEvent{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverIntegrationAwsOidcConnectEvent{
+			UiDiscoverIntegrationAwsOidcConnectEvent: &prehogv1a.UIDiscoverIntegrationAWSOIDCConnectEvent{
 				Metadata: &prehogv1a.DiscoverMetadata{
 					Id:       u.Metadata.Id,
 					UserName: a.AnonymizeString(u.Metadata.UserName),

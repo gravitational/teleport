@@ -44,7 +44,7 @@ const (
 
 	uiDiscoverStartedEvent                            = "tp.ui.discover.started"
 	uiDiscoverResourceSelectionEvent                  = "tp.ui.discover.resourceSelection"
-	uiDiscoverAwsAccountConnectEvent                  = "tp.ui.discover.connect.account.aws"
+	uiDiscoverIntegrationAWSOIDCConnectEvent          = "tp.ui.discover.integration.awsoidc.connect"
 	uiDiscoverDatabaseRDSEnrollEvent                  = "tp.ui.discover.database.enroll.rds"
 	uiDiscoverDeployServiceEvent                      = "tp.ui.discover.deployService"
 	uiDiscoverDatabaseRegisterEvent                   = "tp.ui.discover.database.register"
@@ -211,7 +211,7 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 
 	case uiDiscoverStartedEvent,
 		uiDiscoverResourceSelectionEvent,
-		uiDiscoverAwsAccountConnectEvent,
+		uiDiscoverIntegrationAWSOIDCConnectEvent,
 		uiDiscoverDatabaseRDSEnrollEvent,
 		uiDiscoverDeployServiceEvent,
 		uiDiscoverDatabaseRegisterEvent,

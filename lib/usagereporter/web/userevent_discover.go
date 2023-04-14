@@ -96,9 +96,9 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 			},
 		}}, nil
 
-	case uiDiscoverAwsAccountConnectEvent:
-		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverAwsAccountConnectEvent{
-			UiDiscoverAwsAccountConnectEvent: &usageeventsv1.UIDiscoverAWSAccountConnectEvent{
+	case uiDiscoverIntegrationAWSOIDCConnectEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent{
+			UiDiscoverIntegrationAwsOidcConnectEvent: &usageeventsv1.UIDiscoverIntegrationAWSOIDCConnectEvent{
 				Metadata: metadata,
 				Resource: resource,
 				Status:   status,

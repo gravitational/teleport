@@ -42,7 +42,7 @@ export enum CaptureEvent {
 export enum DiscoverEvent {
   Started = 'tp.ui.discover.started',
   ResourceSelection = 'tp.ui.discover.resourceSelection',
-  AwsAccountConnectEvent = 'tp.ui.discover.connect.account.aws',
+  IntegrationAWSOIDCConnectEvent = 'tp.ui.discover.integration.awsoidc.connect',
   DatabaseRDSEnrollEvent = 'tp.ui.discover.database.enroll.rds',
   DeployService = 'tp.ui.discover.deployService',
   DatabaseRegister = 'tp.ui.discover.database.register',
