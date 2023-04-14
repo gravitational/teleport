@@ -1,6 +1,6 @@
 ---
 author: Naji Obeid (naji@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 27 - mTLS Prometheus metrics

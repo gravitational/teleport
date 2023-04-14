@@ -635,6 +635,8 @@ func TestALPNSNIProxyDatabaseAccess(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, mysql.TestQueryResponse, result)
 
+			require.Equal(t, mysql.DefaultServerVersion, client.GetServerVersion())
+
 			// Disconnect.
 			err = client.Close()
 			require.NoError(t, err)

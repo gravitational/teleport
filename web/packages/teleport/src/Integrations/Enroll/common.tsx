@@ -18,8 +18,6 @@ import React from 'react';
 import { Flex, Text, Box } from 'design';
 import styled from 'styled-components';
 
-export type IntegrationTypes = 'aws-oidc';
-
 export const IntegrationTile = styled(Flex).attrs({
   'data-testid': 'tile',
 })`
