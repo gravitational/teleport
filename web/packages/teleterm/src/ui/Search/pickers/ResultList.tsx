@@ -135,7 +135,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
 export const NonInteractiveItem = styled.div`
   & mark {
     color: inherit;
-    background-color: ${props => props.theme.colors.brand.accent};
+    background-color: ${props => props.theme.colors.levels.popout};
   }
 
   :not(:last-of-type) {

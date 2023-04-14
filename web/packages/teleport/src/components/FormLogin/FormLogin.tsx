@@ -75,7 +75,7 @@ export default function LoginForm(props: Props) {
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
       <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
-        <Text typography="h3" pt={4} textAlign="center" color="light">
+        <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
         {attempt.isFailed && (
@@ -91,7 +91,7 @@ export default function LoginForm(props: Props) {
   if (!isLocalAuthEnabled) {
     return (
       <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
-        <Text typography="h3" pt={4} textAlign="center" color="light">
+        <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
         <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
@@ -106,7 +106,7 @@ export default function LoginForm(props: Props) {
   // Everything below requires local auth to be enabled.
   return (
     <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
-      <Text typography="h3" pt={4} textAlign="center" color="light">
+      <Text typography="h3" pt={4} textAlign="center">
         {title}
       </Text>
       {attempt.isFailed && (
@@ -259,6 +259,7 @@ const LocalForm = ({
             value={user}
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
+            disabled={attempt.isProcessing}
             mb={3}
           />
           <Box mb={isRecoveryEnabled ? 1 : 3}>
@@ -269,6 +270,7 @@ const LocalForm = ({
               onChange={e => setPass(e.target.value)}
               type="password"
               placeholder="Password"
+              disabled={attempt.isProcessing}
               mb={0}
               width="100%"
             />
@@ -487,7 +489,7 @@ const StyledPaswordlessBtn = styled(ButtonText)`
   &:hover,
   &:active,
   &:focus {
-    border-color: ${({ theme }) => theme.colors.action.active};
+    border-color: ${({ theme }) => theme.colors.text.secondary};
     text-decoration: none;
   }
 

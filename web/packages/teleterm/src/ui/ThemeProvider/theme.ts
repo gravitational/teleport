@@ -16,16 +16,9 @@ limitations under the License.
 
 import { fonts } from 'design/theme/fonts';
 import { getContrastRatio } from 'design/theme/utils/colorManipulator';
-import {
-  lightBlue,
-  red,
-  teal,
-  orange,
-  pink,
-  blueGrey,
-  yellow,
-} from 'design/theme/palette';
+import { lightBlue, teal, pink, blueGrey, yellow } from 'design/theme/palette';
 import typography, { fontSizes, fontWeights } from 'design/theme/typography';
+import { sharedStyles } from 'design/theme/sharedStyles';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
@@ -39,13 +32,19 @@ const colors = {
     surfaceSecondary: '#182047',
 
     elevated: '#2D3761',
+
+    popout: '#4A5688',
   },
 
-  brand: {
-    main: '#512FC9',
-    accent: '#651FFF',
-    secondaryAccent: '#354AA4',
-  },
+  brand: '#512FC9',
+
+  // Spot backgrounds are used as highlights, for example
+  // to indicate a hover or active state for an item in a menu.
+  spotBackground: [
+    'rgba(255,255,255,0.07)',
+    'rgba(255,255,255,0.13)',
+    'rgba(255,255,255,0.18)',
+  ],
 
   // missing
   inverse: '#B0BEC5',
@@ -68,7 +67,7 @@ const colors = {
     contrast: '#FFFFFF',
     // For text on  a background that is on a color opposite to the theme. For dark theme,
     // this would mean text that is on a light background.
-    primaryInverse: '#324148',
+    primaryInverse: '#000000',
   },
 
   buttons: {
@@ -77,45 +76,41 @@ const colors = {
     bgDisabled: 'rgba(255, 255, 255, 0.12)',
 
     primary: {
+      text: '#FFFFFF',
       default: '#512FC9',
       hover: '#651FFF',
       active: '#354AA4',
     },
 
     secondary: {
-      default: '#222C59',
-      hover: '#2D3761',
+      default: 'rgba(255,255,255,0.07)',
+      hover: 'rgba(255,255,255,0.13)',
+      active: 'rgba(255,255,255,0.18)',
     },
 
     border: {
-      default: '#2D3761',
-      hover: '#2D3761',
-      border: '#182047',
-      borderHover: 'rgba(255, 255, 255, 0.1)',
+      default: 'rgba(255,255,255,0)',
+      hover: 'rgba(255, 255, 255, 0.07)',
+      active: 'rgba(255, 255, 255, 0.13)',
+      border: 'rgba(255, 255, 255, 0.36)',
     },
 
     warning: {
-      default: '#d50000',
-      hover: '#ff1744',
-    },
-
-    outlinedPrimary: {
-      text: '#651FFF',
-      border: '#512FC9',
-      borderHover: '#651FFF',
-      borderActive: '#354AA4',
-    },
-
-    outlinedDefault: {
-      text: 'rgba(255,255,255,0.87)',
-      textHover: '#FFFFFF',
-      border: 'rgba(255,255,255,0.87)',
-      borderHover: '#FFFFFF',
+      text: '#000000',
+      default: '#FF6257',
+      hover: '#FF8179',
+      active: '#FFA19A',
     },
 
     trashButton: {
-      default: '#2e3860',
-      hover: '#414b70',
+      default: 'rgba(255, 255, 255, 0.07)',
+      hover: 'rgba(255, 255, 255, 0.13)',
+    },
+
+    link: {
+      default: '#009EFF',
+      hover: '#33B1FF',
+      active: '#66C5FF',
     },
   },
 
@@ -124,9 +119,15 @@ const colors = {
   },
 
   error: {
-    light: red['A200'],
-    dark: red['A700'],
-    main: red['A400'],
+    main: '#FF6257',
+    hover: '#FF8179',
+    active: '#FFA19A',
+  },
+
+  warning: {
+    main: '#FFAB00',
+    hover: '#FFBC33',
+    active: '#FFCD66',
   },
 
   action: {
@@ -145,7 +146,6 @@ const colors = {
   highlight: yellow[50],
   disabled: blueGrey[500],
   info: lightBlue[600],
-  warning: orange.A400,
   success: teal.A700,
 };
 
@@ -162,6 +162,7 @@ const borders = [
 const sansSerif = 'system-ui';
 
 const theme = {
+  name: 'dark',
   colors,
   typography,
   font: sansSerif,
@@ -176,6 +177,7 @@ const theme = {
   radii: [0, 2, 4, 8, 16, 9999, '100%'],
   regular: fontWeights.regular,
   bold: fontWeights.bold,
+  ...sharedStyles,
   // disabled media queries for styled-system
   breakpoints: [],
 };

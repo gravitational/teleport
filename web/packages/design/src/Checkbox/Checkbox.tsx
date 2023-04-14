@@ -23,7 +23,7 @@ export const CheckboxWrapper = styled(Flex)`
   margin-bottom: 4px;
   width: 300px;
   align-items: center;
-  border: 1px solid ${props => props.theme.colors.levels.surface};
+  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
   border-radius: 8px;
 
   &.disabled {
@@ -34,7 +34,7 @@ export const CheckboxWrapper = styled(Flex)`
 
 export const CheckboxInput = styled.input`
   margin-right: 10px;
-  accent-color: ${props => props.theme.colors.brand.main};
+  accent-color: ${props => props.theme.colors.brand};
 
   &:hover {
     cursor: pointer;
