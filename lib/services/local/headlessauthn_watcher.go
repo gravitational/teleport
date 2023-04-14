@@ -18,7 +18,7 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -44,7 +44,7 @@ import (
 // made configurable in the server configuration file.
 const maxSubscribers = 1024
 
-var HeadlessAuthenticationWatcherClosedErr = trace.Errorf("headless authentication watcher closed")
+var ErrHeadlessAuthenticationWatcherClosed = errors.New("headless authentication watcher closed")
 
 // HeadlessAuthenticationWatcherConfig contains configuration options for a HeadlessAuthenticationWatcher.
 type HeadlessAuthenticationWatcherConfig struct {
@@ -185,7 +185,7 @@ func (h *HeadlessAuthenticationWatcher) watch(ctx context.Context) error {
 				}
 			}
 		case <-watcher.Done():
-			return fmt.Errorf("watcher closed")
+			return errors.New("watcher closed")
 		case <-ctx.Done():
 			return ctx.Err()
 		case h.running <- struct{}{}:
@@ -205,7 +205,7 @@ func (h *HeadlessAuthenticationWatcher) newWatcher(ctx context.Context) (backend
 
 	select {
 	case <-watcher.Done():
-		return nil, fmt.Errorf("watcher closed")
+		return nil, errors.New("watcher closed")
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case event := <-watcher.Events():
@@ -244,6 +244,8 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.Headless
 type HeadlessAuthenticationSubscriber interface {
 	Name() string
 	// Updates is a channel used by the watcher to send headless authentication updates.
+	// After receiving an update, the caller should check the stale channel to ensure it
+	// is not a stale update.
 	Updates() <-chan *types.HeadlessAuthentication
 	// Stale is a channel used by the watcher to notify the subscriber that one or more
 	// updates have been missed, due to slow receives on the Updates channel.
@@ -282,17 +284,19 @@ func (h *HeadlessAuthenticationWatcher) assignSubscriber(name string) (int, erro
 
 	select {
 	case <-h.closed:
-		return 0, HeadlessAuthenticationWatcherClosedErr
+		return 0, ErrHeadlessAuthenticationWatcherClosed
 	default:
 	}
 
 	for i := range h.subscribers {
 		if h.subscribers[i] == nil {
 			h.subscribers[i] = &headlessAuthenticationSubscriber{
-				name:    name,
-				updates: make(chan *types.HeadlessAuthentication),
-				stale:   make(chan struct{}, 1), // buffer required to mark stale
-				closed:  make(chan struct{}),
+				name: name,
+				// small buffer for updates to avoid unnecessary stale checks.
+				updates: make(chan *types.HeadlessAuthentication, 1),
+				// buffer required to mark as stale.
+				stale:  make(chan struct{}, 1),
+				closed: make(chan struct{}),
 			}
 			return i, nil
 		}
@@ -355,15 +359,14 @@ func (h *HeadlessAuthenticationWatcher) WaitForUpdate(ctx context.Context, subsc
 	for {
 		select {
 		case ha := <-subscriber.Updates():
-			if ok, err := cond(ha); err != nil {
-				return nil, trace.Wrap(err)
-			} else if ok {
-				return ha, nil
-			}
-		case <-subscriber.Stale():
-			ha, err := h.identityService.GetHeadlessAuthentication(ctx, subscriber.Name())
-			if err != nil {
-				return nil, trace.Wrap(err)
+			select {
+			case <-subscriber.Stale():
+				// If stale, then this update is not the most recent. Check the backend.
+				ha, err = h.identityService.GetHeadlessAuthentication(ctx, subscriber.Name())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			default:
 			}
 			if ok, err := cond(ha); err != nil {
 				return nil, trace.Wrap(err)
@@ -373,7 +376,7 @@ func (h *HeadlessAuthenticationWatcher) WaitForUpdate(ctx context.Context, subsc
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
 		case <-h.Done():
-			return nil, HeadlessAuthenticationWatcherClosedErr
+			return nil, ErrHeadlessAuthenticationWatcherClosed
 		}
 	}
 }
