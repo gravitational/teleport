@@ -793,6 +793,8 @@ const (
 	// RelativeExpiry notifies that relative expiry operations have
 	// been run.
 	RelativeExpiry = "relative_expiry"
+	// noSubKind is supposed to clarify the meaning of an empty string being passed as an argument to Cache.read.
+	noSubKind = ""
 )
 
 // New creates a new instance of Cache
@@ -1525,7 +1527,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
 	defer span.End()
 
-	rg, err := c.read(types.KindCertAuthority, "")
+	rg, err := c.read(types.KindCertAuthority, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1567,7 +1569,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
-	rg, err := c.read(types.KindCertAuthority, "")
+	rg, err := c.read(types.KindCertAuthority, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1594,7 +1596,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
 	defer span.End()
 
-	rg, err := c.read(types.KindStaticTokens, "")
+	rg, err := c.read(types.KindStaticTokens, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1607,7 +1609,7 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
 
-	rg, err := c.read(types.KindToken, "")
+	rg, err := c.read(types.KindToken, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1620,7 +1622,7 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
 	defer span.End()
 
-	rg, err := c.read(types.KindToken, "")
+	rg, err := c.read(types.KindToken, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1650,7 +1652,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
 	defer span.End()
 
-	rg, err := c.read(types.KindClusterAuditConfig, "")
+	rg, err := c.read(types.KindClusterAuditConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1673,7 +1675,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
 	defer span.End()
 
-	rg, err := c.read(types.KindClusterNetworkingConfig, "")
+	rg, err := c.read(types.KindClusterNetworkingConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1696,7 +1698,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetClusterName")
 	defer span.End()
 
-	rg, err := c.read(types.KindClusterName, "")
+	rg, err := c.read(types.KindClusterName, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1718,7 +1720,7 @@ func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
 	defer span.End()
 
-	rg, err := c.read(types.KindUIConfig, "")
+	rg, err := c.read(types.KindUIConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1733,7 +1735,7 @@ func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
 	defer span.End()
 
-	rg, err := c.read(types.KindInstaller, "")
+	rg, err := c.read(types.KindInstaller, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1748,7 +1750,7 @@ func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
 	defer span.End()
 
-	rg, err := c.read(types.KindInstaller, "")
+	rg, err := c.read(types.KindInstaller, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1763,7 +1765,7 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
 	defer span.End()
 
-	rg, err := c.read(types.KindRole, "")
+	rg, err := c.read(types.KindRole, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1776,7 +1778,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
 	defer span.End()
 
-	rg, err := c.read(types.KindRole, "")
+	rg, err := c.read(types.KindRole, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1799,7 +1801,7 @@ func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")
 	defer span.End()
 
-	rg, err := c.read(types.KindNamespace, "")
+	rg, err := c.read(types.KindNamespace, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1812,7 +1814,7 @@ func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespaces")
 	defer span.End()
 
-	rg, err := c.read(types.KindNamespace, "")
+	rg, err := c.read(types.KindNamespace, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1825,7 +1827,7 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
 	defer span.End()
 
-	rg, err := c.read(types.KindNode, "")
+	rg, err := c.read(types.KindNode, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1844,7 +1846,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
 	defer span.End()
 
-	rg, err := c.read(types.KindNode, "")
+	rg, err := c.read(types.KindNode, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1881,7 +1883,7 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
 	defer span.End()
 
-	rg, err := c.read(types.KindAuthServer, "")
+	rg, err := c.read(types.KindAuthServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1894,7 +1896,7 @@ func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalO
 	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
 	defer span.End()
 
-	rg, err := c.read(types.KindReverseTunnel, "")
+	rg, err := c.read(types.KindReverseTunnel, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1907,7 +1909,7 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")
 	defer span.End()
 
-	rg, err := c.read(types.KindProxy, "")
+	rg, err := c.read(types.KindProxy, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1926,7 +1928,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteClusters")
 	defer span.End()
 
-	rg, err := c.read(types.KindRemoteCluster, "")
+	rg, err := c.read(types.KindRemoteCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1954,7 +1956,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteCluster")
 	defer span.End()
 
-	rg, err := c.read(types.KindRemoteCluster, "")
+	rg, err := c.read(types.KindRemoteCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1991,7 +1993,7 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 	if withSecrets { // cache never tracks user secrets
 		return c.Config.Users.GetUser(name, withSecrets)
 	}
-	rg, err := c.read(types.KindUser, "")
+	rg, err := c.read(types.KindUser, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2018,7 +2020,7 @@ func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
 		return c.Users.GetUsers(withSecrets)
 	}
-	rg, err := c.read(types.KindUser, "")
+	rg, err := c.read(types.KindUser, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2031,7 +2033,7 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
 	defer span.End()
 
-	rg, err := c.read(types.KindTunnelConnection, "")
+	rg, err := c.read(types.KindTunnelConnection, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2044,7 +2046,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAllTunnelConnections")
 	defer span.End()
 
-	rg, err := c.read(types.KindTunnelConnection, "")
+	rg, err := c.read(types.KindTunnelConnection, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2057,7 +2059,7 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesServers")
 	defer span.End()
 
-	rg, err := c.read(types.KindKubeServer, "")
+	rg, err := c.read(types.KindKubeServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2070,7 +2072,7 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApplicationServers")
 	defer span.End()
 
-	rg, err := c.read(types.KindAppServer, "")
+	rg, err := c.read(types.KindAppServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2083,7 +2085,7 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
 	defer span.End()
 
-	rg, err := c.read(types.KindKubernetesCluster, "")
+	rg, err := c.read(types.KindKubernetesCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2096,7 +2098,7 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
 	defer span.End()
 
-	rg, err := c.read(types.KindKubernetesCluster, "")
+	rg, err := c.read(types.KindKubernetesCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2109,7 +2111,7 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApps")
 	defer span.End()
 
-	rg, err := c.read(types.KindApp, "")
+	rg, err := c.read(types.KindApp, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2122,7 +2124,7 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
 	defer span.End()
 
-	rg, err := c.read(types.KindApp, "")
+	rg, err := c.read(types.KindApp, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2174,7 +2176,7 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
 	defer span.End()
 
-	rg, err := c.read(types.KindDatabaseServer, "")
+	rg, err := c.read(types.KindDatabaseServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2187,7 +2189,7 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()
 
-	rg, err := c.read(types.KindDatabase, "")
+	rg, err := c.read(types.KindDatabase, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2200,7 +2202,7 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
 	defer span.End()
 
-	rg, err := c.read(types.KindDatabase, "")
+	rg, err := c.read(types.KindDatabase, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2226,7 +2228,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWebToken")
 	defer span.End()
 
-	rg, err := c.read(types.KindWebToken, "")
+	rg, err := c.read(types.KindWebToken, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2239,7 +2241,7 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
 	defer span.End()
 
-	rg, err := c.read(types.KindClusterAuthPreference, "")
+	rg, err := c.read(types.KindClusterAuthPreference, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2252,7 +2254,7 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
 	defer span.End()
 
-	rg, err := c.read(types.KindSessionRecordingConfig, "")
+	rg, err := c.read(types.KindSessionRecordingConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2265,7 +2267,7 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
 	defer span.End()
 
-	rg, err := c.read(types.KindNetworkRestrictions, "")
+	rg, err := c.read(types.KindNetworkRestrictions, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2279,7 +2281,7 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetLock")
 	defer span.End()
 
-	rg, err := c.read(types.KindLock, "")
+	rg, err := c.read(types.KindLock, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2304,7 +2306,7 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 	ctx, span := c.Tracer.Start(ctx, "cache/GetLocks")
 	defer span.End()
 
-	rg, err := c.read(types.KindLock, "")
+	rg, err := c.read(types.KindLock, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2317,7 +2319,7 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := c.read(types.KindWindowsDesktopService, "")
+	rg, err := c.read(types.KindWindowsDesktopService, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2330,7 +2332,7 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopService")
 	defer span.End()
 
-	rg, err := c.read(types.KindWindowsDesktopService, "")
+	rg, err := c.read(types.KindWindowsDesktopService, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2343,7 +2345,7 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktops")
 	defer span.End()
 
-	rg, err := c.read(types.KindWindowsDesktop, "")
+	rg, err := c.read(types.KindWindowsDesktop, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2356,7 +2358,7 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktops")
 	defer span.End()
 
-	rg, err := c.read(types.KindWindowsDesktop, "")
+	rg, err := c.read(types.KindWindowsDesktop, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2369,7 +2371,7 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := c.read(types.KindWindowsDesktopService, "")
+	rg, err := c.read(types.KindWindowsDesktopService, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2382,7 +2384,7 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, n
 	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
 	defer span.End()
 
-	rg, err := c.read(types.KindSAMLIdPServiceProvider, "")
+	rg, err := c.read(types.KindSAMLIdPServiceProvider, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2395,7 +2397,7 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
 	defer span.End()
 
-	rg, err := c.read(types.KindSAMLIdPServiceProvider, "")
+	rg, err := c.read(types.KindSAMLIdPServiceProvider, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2408,7 +2410,7 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
 	defer span.End()
 
-	rg, err := c.read(types.KindUserGroup, "")
+	rg, err := c.read(types.KindUserGroup, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2421,7 +2423,7 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
 	defer span.End()
 
-	rg, err := c.read(types.KindUserGroup, "")
+	rg, err := c.read(types.KindUserGroup, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2434,7 +2436,7 @@ func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey s
 	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaImportRules")
 	defer span.End()
 
-	rg, err := c.read(types.KindOktaImportRule, "")
+	rg, err := c.read(types.KindOktaImportRule, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2447,7 +2449,7 @@ func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaI
 	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaImportRule")
 	defer span.End()
 
-	rg, err := c.read(types.KindOktaImportRule, "")
+	rg, err := c.read(types.KindOktaImportRule, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2460,7 +2462,7 @@ func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey s
 	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaAssignments")
 	defer span.End()
 
-	rg, err := c.read(types.KindOktaAssignment, "")
+	rg, err := c.read(types.KindOktaAssignment, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2473,7 +2475,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaAssignment")
 	defer span.End()
 
-	rg, err := c.read(types.KindOktaAssignment, "")
+	rg, err := c.read(types.KindOktaAssignment, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2486,7 +2488,7 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
-	rg, err := c.read(types.KindIntegration, "")
+	rg, err := c.read(types.KindIntegration, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2499,7 +2501,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
-	rg, err := c.read(types.KindIntegration, "")
+	rg, err := c.read(types.KindIntegration, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
