@@ -816,6 +816,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Namespaces: []string{types.Wildcard},
 					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
