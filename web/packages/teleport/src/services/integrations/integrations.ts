@@ -21,6 +21,7 @@ import {
   Integration,
   IntegrationCreateRequest,
   IntegrationStatusCode,
+  IntegrationListResponse,
 } from './types';
 
 export const integrationService = {
@@ -28,8 +29,14 @@ export const integrationService = {
     return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
   },
 
-  fetchIntegrations(): Promise<Integration[]> {
-    return api.get(cfg.getIntegrationsUrl()).then(makeIntegrations);
+  fetchIntegrations(): Promise<IntegrationListResponse> {
+    return api.get(cfg.getIntegrationsUrl()).then(resp => {
+      const integrations = resp.items ?? [];
+      return {
+        items: integrations.map(makeIntegration),
+        nextKey: resp?.nextKey,
+      };
+    });
   },
 
   createIntegration(req: IntegrationCreateRequest): Promise<void> {
