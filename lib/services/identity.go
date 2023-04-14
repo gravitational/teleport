@@ -40,9 +40,16 @@ type UserGetter interface {
 	GetUser(user string, withSecrets bool) (types.User, error)
 }
 
+// UserLister is responsible for listing users
+type UserLister interface {
+	// GetUsers returns a list of users registered with the local auth server
+	GetUsers(withSecrets bool) ([]types.User, error)
+}
+
 // UsersService is responsible for basic user management
 type UsersService interface {
 	UserGetter
+	UserLister
 	// UpdateUser updates an existing user.
 	UpdateUser(ctx context.Context, user types.User) error
 	// UpsertUser updates parameters about user
@@ -52,8 +59,6 @@ type UsersService interface {
 	CompareAndSwapUser(ctx context.Context, new, existing types.User) error
 	// DeleteUser deletes a user with all the keys from the backend
 	DeleteUser(ctx context.Context, user string) error
-	// GetUsers returns a list of users registered with the local auth server
-	GetUsers(withSecrets bool) ([]types.User, error)
 	// DeleteAllUsers deletes all users
 	DeleteAllUsers() error
 }

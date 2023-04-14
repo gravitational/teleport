@@ -1270,3 +1270,148 @@ func newOktaAssignment(t *testing.T, name string) types.OktaAssignment {
 	require.NoError(t, err)
 	return assignment
 }
+
+// TestUserWatcher tests that user resource watcher properly receives
+// and dispatches updates to user resources.
+func TestUserWatcher(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	type client struct {
+		services.UserLister
+		types.Events
+	}
+
+	userService := local.NewIdentityService(bk)
+	w, err := services.NewUserWatcher(ctx, services.UserWatcherConfig{
+		RWCfg: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				UserLister: userService,
+				Events:     local.NewEventsService(bk),
+			},
+		},
+		UsersC: make(chan types.Users, 10),
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Initially there are no users so watcher should send an empty list.
+	select {
+	case changeset := <-w.CollectorChan():
+		require.Len(t, changeset, 0, "initial users list should be empty")
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the initial empty event.")
+	}
+
+	// Add a user.
+	u1 := newUser(t, uuid.NewString())
+	err = userService.CreateUser(u1)
+	require.NoError(t, err)
+
+	// The first event is always the current list of users.
+	select {
+	case changeset := <-w.CollectorChan():
+		expected := types.Users{u1}
+		sortedChangeset := changeset
+		sort.Sort(expected)
+		sort.Sort(sortedChangeset)
+
+		require.Empty(t,
+			cmp.Diff(expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no differences in the changeset after adding the first user")
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the first event.")
+	}
+
+	// Add a second user.
+	u2 := newUser(t, uuid.NewString())
+	err = userService.CreateUser(u2)
+	require.NoError(t, err)
+
+	// Watcher should detect the user list change.
+	select {
+	case changeset := <-w.CollectorChan():
+		expected := types.Users{u1, u2}
+		sort.Sort(expected)
+		sort.Sort(changeset)
+
+		require.Empty(t,
+			cmp.Diff(
+				expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no difference in the changeset after adding the second user")
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the second event.")
+	}
+
+	// Change the second user.
+	u2.SetExpiry(time.Now().Add(30 * time.Minute))
+	err = userService.UpdateUser(ctx, u2)
+	require.NoError(t, err)
+
+	// Watcher should detect the user list change.
+	select {
+	case changeset := <-w.CollectorChan():
+		expected := types.Users{u1, u2}
+		sort.Sort(expected)
+		sort.Sort(changeset)
+
+		require.Empty(t,
+			cmp.Diff(
+				expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no difference in the changeset after update")
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the updated event.")
+	}
+
+	// Delete the first user.
+	require.NoError(t, userService.DeleteUser(ctx, u1.GetName()))
+
+	// Watcher should detect the user list change.
+	select {
+	case changeset := <-w.CollectorChan():
+		expected := types.Users{u2}
+		sort.Sort(expected)
+		sort.Sort(changeset)
+
+		require.Empty(t,
+			cmp.Diff(
+				expected,
+				changeset,
+				cmpopts.IgnoreFields(types.Metadata{}, "ID")),
+			"should be no difference in the changeset after deleting the first user")
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for the delete event.")
+	}
+}
+
+func newUser(t *testing.T, name string) types.User {
+	user, err := types.NewUser(name)
+	require.NoError(t, err)
+	return user
+}

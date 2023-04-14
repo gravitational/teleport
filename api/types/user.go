@@ -40,7 +40,7 @@ const (
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
-	ResourceWithOrigin
+	ResourceWithLabels
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
@@ -450,6 +450,34 @@ func (u *UserV2) ResetLocks() {
 	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
 }
 
+// GetLabel retrieves the label with the provided key.
+func (u *UserV2) GetLabel(key string) (value string, ok bool) {
+	val, ok := u.GetMetadata().Labels[key]
+	return val, ok
+}
+
+// GetAllLabels returns all resource's labels.
+func (u *UserV2) GetAllLabels() map[string]string {
+	return u.GetMetadata().Labels
+}
+
+// GetStaticLabels returns the resource's static labels.
+func (u *UserV2) GetStaticLabels() map[string]string {
+	return u.GetMetadata().Labels
+}
+
+// SetStaticLabels sets the resource's static labels.
+func (u *UserV2) SetStaticLabels(labels map[string]string) {
+	u.Metadata.Labels = labels
+}
+
+// MatchSearch goes through select field values of a resource
+// and tries to match against the list of search values.
+func (u *UserV2) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(u.GetAllLabels()), u.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
 // IsEmpty returns true if there's no info about who created this user
 func (c CreatedBy) IsEmpty() bool {
 	return c.User.Name == ""
@@ -482,3 +510,33 @@ func (i *ExternalIdentity) Check() error {
 	}
 	return nil
 }
+
+// Users is a list of User resources.
+type Users []User
+
+// ToMap returns these users as a map keyed by user name.
+func (u Users) ToMap() map[string]User {
+	m := make(map[string]User, len(u))
+	for _, user := range u {
+		m[user.GetName()] = user
+	}
+	return m
+}
+
+// AsResources returns these users as resources with labels.
+func (u Users) AsResources() ResourcesWithLabels {
+	resources := make(ResourcesWithLabels, 0, len(u))
+	for _, user := range u {
+		resources = append(resources, user)
+	}
+	return resources
+}
+
+// Len returns the slice length.
+func (u Users) Len() int { return len(u) }
+
+// Less compares users by name.
+func (u Users) Less(i, j int) bool { return u[i].GetName() < u[j].GetName() }
+
+// Swap swaps two users.
+func (u Users) Swap(i, j int) { u[i], u[j] = u[j], u[i] }

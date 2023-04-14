@@ -1924,3 +1924,169 @@ func (c *oktaAssignmentCollector) processEventAndUpdateCurrent(ctx context.Conte
 }
 
 func (*oktaAssignmentCollector) notifyStale() {}
+
+// UserWatcherConfig is a UserWatcher configuration.
+type UserWatcherConfig struct {
+	// RWCfg is the resource watcher configuration.
+	RWCfg ResourceWatcherConfig
+	// Users is responsible for fetching users.
+	Users UserLister
+	// UsersC receives up-to-date list of all user resources.
+	UsersC chan types.Users
+}
+
+// CheckAndSetDefaults checks parameters and sets default values.
+func (cfg *UserWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.RWCfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.Users == nil {
+		users, ok := cfg.RWCfg.Client.(UserLister)
+		if !ok {
+			return trace.BadParameter("missing parameter Users and Client not usable as UserLister")
+		}
+		cfg.Users = users
+	}
+	if cfg.UsersC == nil {
+		cfg.UsersC = make(chan types.Users)
+	}
+	return nil
+}
+
+// NewUserWatcher returns a new instance of UserWatcher. The context here will be used to
+// exit early from the resource watcher if needed.
+func NewUserWatcher(ctx context.Context, cfg UserWatcherConfig) (*UserWatcher, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	collector := &userCollector{
+		log:             cfg.RWCfg.Log,
+		cfg:             cfg,
+		initializationC: make(chan struct{}),
+	}
+	watcher, err := newResourceWatcher(ctx, collector, cfg.RWCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &UserWatcher{
+		resourceWatcher: watcher,
+		collector:       collector,
+	}, nil
+}
+
+// UserWatcher is built on top of resourceWatcher to monitor user resources.
+type UserWatcher struct {
+	resourceWatcher *resourceWatcher
+	collector       *userCollector
+}
+
+// CollectorChan is the channel that collects the Users.
+func (u *UserWatcher) CollectorChan() chan types.Users {
+	return u.collector.cfg.UsersC
+}
+
+// Close closes the underlying resource watcher
+func (u *UserWatcher) Close() {
+	u.resourceWatcher.Close()
+}
+
+// Done returns the channel that signals watcher closer.
+func (u *UserWatcher) Done() <-chan struct{} {
+	return u.resourceWatcher.Done()
+}
+
+// userCollector accompanies resourceWatcher when monitoring user resources.
+type userCollector struct {
+	log logrus.FieldLogger
+	// UserWatcherConfig is the watcher configuration.
+	cfg UserWatcherConfig
+	// mu guards "current"
+	mu sync.RWMutex
+	// current holds a map of the currently known user resources.
+	current map[string]types.User
+	// initializationC is used to check that the watcher has been initialized properly.
+	initializationC chan struct{}
+	once            sync.Once
+}
+
+// resourceKind specifies the resource kind to watch.
+func (*userCollector) resourceKind() string {
+	return types.KindUser
+}
+
+// initializationChan is used to check if the initial state sync has been completed.
+func (c *userCollector) initializationChan() <-chan struct{} {
+	return c.initializationC
+}
+
+// getResourcesAndUpdateCurrent refreshes the list of current resources.
+func (c *userCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
+	users, err := c.cfg.Users.GetUsers(false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	newCurrent := make(map[string]types.User, len(users))
+	for _, user := range users {
+		newCurrent[user.GetName()] = user
+	}
+	c.mu.Lock()
+	c.current = newCurrent
+	c.defineCollectorAsInitialized()
+	c.mu.Unlock()
+
+	select {
+	case <-ctx.Done():
+		return trace.Wrap(ctx.Err())
+	case c.cfg.UsersC <- users:
+	}
+
+	return nil
+}
+
+func (c *userCollector) defineCollectorAsInitialized() {
+	c.once.Do(func() {
+		close(c.initializationC)
+	})
+}
+
+// processEventAndUpdateCurrent is called when a watcher event is received.
+func (c *userCollector) processEventAndUpdateCurrent(ctx context.Context, event types.Event) {
+	if event.Resource == nil || event.Resource.GetKind() != types.KindUser {
+		c.log.Warnf("Unexpected event: %v.", event)
+		return
+	}
+	switch event.Type {
+	case types.OpDelete:
+		c.mu.Lock()
+		delete(c.current, event.Resource.GetName())
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.UsersC <- resources:
+		}
+	case types.OpPut:
+		user, ok := event.Resource.(types.User)
+		if !ok {
+			c.log.Warnf("Unexpected resource type %T.", event.Resource)
+			return
+		}
+		c.mu.Lock()
+		c.current[user.GetName()] = user
+		resources := resourcesToSlice(c.current)
+		c.mu.Unlock()
+
+		select {
+		case <-ctx.Done():
+		case c.cfg.UsersC <- resources:
+		}
+
+	default:
+		c.log.Warnf("Unsupported event type %s.", event.Type)
+		return
+	}
+}
+
+func (*userCollector) notifyStale() {}
