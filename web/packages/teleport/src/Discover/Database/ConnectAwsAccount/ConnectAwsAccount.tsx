@@ -69,7 +69,7 @@ export function ConnectAwsAccount() {
   function fetchAwsIntegrations() {
     run(() =>
       integrationService.fetchIntegrations().then(res => {
-        const options = res.map(i => {
+        const options = res.items.map(i => {
           if (i.kind === 'aws-oidc') {
             return {
               value: i.name,
