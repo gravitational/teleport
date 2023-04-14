@@ -20,45 +20,26 @@ import { renderHook, act } from '@testing-library/react-hooks';
 import { SearchContextProvider, useSearchContext } from './SearchContext';
 
 describe('lockOpen', () => {
-  it('prevents the search bar from being closed for the duration of the action', async () => {
-    const { result } = renderHook(() => useSearchContext(), {
-      wrapper: ({ children }) => (
-        <SearchContextProvider>{children}</SearchContextProvider>
-      ),
-    });
-    act(() => {
-      result.current.open();
-    });
-
-    let resolveAction: (value?: unknown) => void;
-    const action = new Promise(resolve => {
-      resolveAction = resolve;
-    });
-
-    let lockOpenPromise: Promise<void>;
-    act(() => {
-      lockOpenPromise = result.current.lockOpen(action);
-    });
-
-    // Closing while the search bar is locked open should be a noop.
-    act(() => {
-      result.current.close();
-    });
-    expect(result.current.isOpen).toBe(true);
-
-    await act(async () => {
-      resolveAction();
-      await lockOpenPromise;
-    });
-
-    // The search bar should be no longer locked open, so close should behave as expected.
-    act(() => {
-      result.current.close();
-    });
-    expect(result.current.isOpen).toBe(false);
+  let resolveSuccessAction, rejectFailureAction;
+  const successAction = new Promise(resolve => {
+    resolveSuccessAction = resolve;
+  });
+  const failureAction = new Promise((resolve, reject) => {
+    rejectFailureAction = reject;
   });
 
-  it('prevents the search bar from being closed even when the action rejects', async () => {
+  test.each([
+    {
+      name: 'prevents the search bar from being closed for the duration of the action',
+      action: successAction,
+      finishAction: resolveSuccessAction,
+    },
+    {
+      name: 'properly cleans up the ref even after the action fails',
+      action: failureAction,
+      finishAction: rejectFailureAction,
+    },
+  ])('$name', async ({ action, finishAction }) => {
     const { result } = renderHook(() => useSearchContext(), {
       wrapper: ({ children }) => (
         <SearchContextProvider>{children}</SearchContextProvider>
@@ -66,11 +47,6 @@ describe('lockOpen', () => {
     });
     act(() => {
       result.current.open();
-    });
-
-    let rejectAction: () => void;
-    const action = new Promise((resolve, reject) => {
-      rejectAction = reject;
     });
 
     let lockOpenPromise: Promise<void>;
@@ -85,11 +61,11 @@ describe('lockOpen', () => {
     expect(result.current.isOpen).toBe(true);
 
     await act(async () => {
-      rejectAction();
+      finishAction();
       try {
         await lockOpenPromise;
       } catch {
-        // Ignore the error.
+        // Ignore the error happening when `finishAction` rejects `action`.
       }
     });
 
