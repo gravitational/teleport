@@ -618,7 +618,7 @@ const cfg = {
   getIntegrationsUrl(integrationName?: string) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generateResourcePath(cfg.api.integrationsPath, {
+    return generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
     });
