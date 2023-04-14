@@ -48,8 +48,8 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 	if d.Spec.EnrollStatus == "" {
 		d.Spec.EnrollStatus = ResourceEnrollStatusToString(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED)
 	}
-	if d.Spec.Credential != nil && d.Spec.Credential.AttestationType == "" {
-		d.Spec.Credential.AttestationType = ResourceDeviceAttestationTypeToString(devicepb.AttestationType_ATTESTATION_TYPE_UNSPECIFIED)
+	if d.Spec.Credential != nil && d.Spec.Credential.DeviceAttestationType == "" {
+		d.Spec.Credential.DeviceAttestationType = ResourceDeviceAttestationTypeToString(devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED)
 	}
 
 	// Validate Header/Metadata.
@@ -73,7 +73,7 @@ func (d *DeviceV1) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 	if d.Spec.Credential != nil {
-		if _, err := ResourceDeviceAttestationTypeFromString(d.Spec.Credential.AttestationType); err != nil {
+		if _, err := ResourceDeviceAttestationTypeFromString(d.Spec.Credential.DeviceAttestationType); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -116,17 +116,17 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 	var cred *devicepb.DeviceCredential
 	if res.Spec.Credential != nil {
 		attestationType, err := ResourceDeviceAttestationTypeFromString(
-			res.Spec.Credential.AttestationType,
+			res.Spec.Credential.DeviceAttestationType,
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		cred = &devicepb.DeviceCredential{
-			Id:                   res.Spec.Credential.Id,
-			PublicKeyDer:         res.Spec.Credential.PublicKeyDer,
-			AttestationType:      attestationType,
-			TpmSerial:            res.Spec.Credential.TpmSerial,
-			TpmAttestationKeyDer: res.Spec.Credential.TpmAttestationKeyDer,
+			Id:                    res.Spec.Credential.Id,
+			PublicKeyDer:          res.Spec.Credential.PublicKeyDer,
+			DeviceAttestationType: attestationType,
+			TpmSerial:             res.Spec.Credential.TpmSerial,
+			TpmAttestationKeyDer:  res.Spec.Credential.TpmAttestationKeyDer,
 		}
 	}
 
