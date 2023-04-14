@@ -431,8 +431,7 @@ func (c *LicenseV3) String() string {
 	return strings.Join(features, ",")
 }
 
-// GetFeatureSource returns the source Teleport should use toapi/types/license_test.go
-// read the features
+// GetFeatureSource returns the source Teleport should use to read the features
 func (c *LicenseV3) GetFeatureSource() FeatureSource {
 	// defaults to License for backward compatibility
 	if c.Spec.FeatureSource == "" {
