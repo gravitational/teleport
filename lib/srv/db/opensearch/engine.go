@@ -266,7 +266,10 @@ func (e *Engine) emitAuditEvent(req *http.Request, body []byte, statusCode uint3
 		eventCode = events.OpenSearchRequestFailureCode
 	}
 
+	// Normally the query is passed as request body, and body content type as a header.
+	// Yet it can also be passed as `source` and `source_content_type` URL params, and we handle that here.
 	contentType := req.Header.Get("Content-Type")
+
 	source := req.URL.Query().Get("source")
 	if len(source) > 0 {
 		e.Log.Infof("'source' parameter found, overriding request body.")
