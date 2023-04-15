@@ -50,11 +50,12 @@ func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, 
 	clonePath := "/go/src/github.com/gravitational/teleport"
 
 	pipeline := ghaBuildPipeline(ghaBuildType{
-		trigger:      triggerPromote,
-		pipelineName: fmt.Sprintf("publish-%s-%s-new-repos", pipelineNameSuffix, repoType),
-		ghaWorkflow:  "deploy-packages.yaml",
-		timeout:      12 * time.Hour, // DR takes a long time
-		workflowRef:  "refs/heads/master",
+		trigger:           triggerPromote,
+		pipelineName:      fmt.Sprintf("publish-%s-%s-new-repos", pipelineNameSuffix, repoType),
+		ghaWorkflow:       "deploy-packages.yaml",
+		timeout:           12 * time.Hour, // DR takes a long time
+		workflowRef:       "refs/heads/master",
+		shouldTagWorkflow: false,
 		inputs: map[string]string{
 			"repo-type":           repoType,
 			"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),

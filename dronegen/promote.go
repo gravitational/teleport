@@ -21,12 +21,13 @@ func promoteBuildPipelines() []pipeline {
 	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
 
 	ociPipeline := ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", fips: false},
-		trigger:      triggerPromote,
-		pipelineName: "promote-teleport-oci-distroless-images",
-		ghaWorkflow:  "promote-teleport-oci-distroless.yml",
-		timeout:      60 * time.Minute,
-		workflowRef:  "${DRONE_TAG}",
+		buildType:         buildType{os: "linux", fips: false},
+		trigger:           triggerPromote,
+		pipelineName:      "promote-teleport-oci-distroless-images",
+		ghaWorkflow:       "promote-teleport-oci-distroless.yml",
+		timeout:           60 * time.Minute,
+		workflowRef:       "${DRONE_TAG}",
+		shouldTagWorkflow: true,
 		inputs: map[string]string{
 			"release-source-tag": "${DRONE_TAG}",
 		},
