@@ -2379,15 +2379,15 @@ func TestSetupConfigFns(t *testing.T) {
 		"ForOkta":           ForOkta,
 	}
 
-	authKindMap := make(map[kindSubKind]types.WatchKind)
+	authKindMap := make(map[resourceKind]types.WatchKind)
 	for _, wk := range ForAuth(Config{}).Watches {
-		authKindMap[kindSubKind{kind: wk.Kind, subKind: wk.SubKind}] = wk
+		authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}] = wk
 	}
 
 	for name, f := range setupFuncs {
 		t.Run(name, func(t *testing.T) {
 			for _, wk := range f(Config{}).Watches {
-				authWK, ok := authKindMap[kindSubKind{kind: wk.Kind, subKind: wk.SubKind}]
+				authWK, ok := authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
 				if !ok || !authWK.Contains(wk) {
 					t.Errorf("%s includes WatchKind %s that is missing from ForAuth", name, wk.String())
 				}
@@ -2400,7 +2400,7 @@ type proxyEvents struct {
 	sync.Mutex
 	watchers    []types.Watcher
 	events      types.Events
-	ignoreKinds map[kindSubKind]struct{}
+	ignoreKinds map[resourceKind]struct{}
 }
 
 func (p *proxyEvents) getWatchers() []types.Watcher {
@@ -2423,7 +2423,7 @@ func (p *proxyEvents) closeWatchers() {
 func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	var effectiveKinds []types.WatchKind
 	for _, requested := range watch.Kinds {
-		if _, ok := p.ignoreKinds[kindSubKind{kind: requested.Kind, subKind: requested.SubKind}]; ok {
+		if _, ok := p.ignoreKinds[resourceKind{kind: requested.Kind, subkind: requested.SubKind}]; ok {
 			continue
 		}
 		effectiveKinds = append(effectiveKinds, requested)
@@ -2445,9 +2445,9 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 }
 
 func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEvents {
-	ignoreSet := make(map[kindSubKind]struct{}, len(ignoreKinds))
+	ignoreSet := make(map[resourceKind]struct{}, len(ignoreKinds))
 	for _, kind := range ignoreKinds {
-		ignoreSet[kindSubKind{kind: kind.Kind, subKind: kind.SubKind}] = struct{}{}
+		ignoreSet[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = struct{}{}
 	}
 	return &proxyEvents{
 		events:      events,

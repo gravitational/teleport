@@ -33,7 +33,7 @@ type fanoutEntry struct {
 	watcher *fanoutWatcher
 }
 
-type kindSubKind struct {
+type resourceKind struct {
 	kind    string
 	subKind string
 }
@@ -43,7 +43,7 @@ type kindSubKind struct {
 type Fanout struct {
 	mu             sync.Mutex
 	init, closed   bool
-	confirmedKinds map[kindSubKind]types.WatchKind
+	confirmedKinds map[resourceKind]types.WatchKind
 	watchers       map[string][]fanoutEntry
 	// eventsCh is used in tests
 	eventsCh chan FanoutEvent
@@ -110,9 +110,9 @@ func (f *Fanout) SetInit(confirmedKinds []types.WatchKind) {
 		return
 	}
 
-	f.confirmedKinds = make(map[kindSubKind]types.WatchKind, len(confirmedKinds))
+	f.confirmedKinds = make(map[resourceKind]types.WatchKind, len(confirmedKinds))
 	for _, kind := range confirmedKinds {
-		f.confirmedKinds[kindSubKind{kind: kind.Kind, subKind: kind.SubKind}] = kind
+		f.confirmedKinds[resourceKind{kind: kind.Kind, subKind: kind.SubKind}] = kind
 	}
 
 	for _, entries := range f.watchers {
@@ -344,13 +344,13 @@ type fanoutWatcher struct {
 // init transmits the OpInit event.  safe to double-call.
 // Validates requested resource kinds against the list confirmed by the upstream event source.
 // See Fanout.SetInit() for more details.
-func (w *fanoutWatcher) init(confirmedKinds map[kindSubKind]types.WatchKind) (err error) {
+func (w *fanoutWatcher) init(confirmedKinds map[resourceKind]types.WatchKind) (err error) {
 	w.initOnce.Do(func() {
 		w.initOk = false
 
 		validKinds := make([]types.WatchKind, 0, len(w.watch.Kinds))
 		for _, requested := range w.watch.Kinds {
-			k := kindSubKind{kind: requested.Kind, subKind: requested.SubKind}
+			k := resourceKind{kind: requested.Kind, subKind: requested.SubKind}
 			if configured, ok := confirmedKinds[k]; !ok || !configured.Contains(requested) {
 				if w.watch.AllowPartialSuccess {
 					continue

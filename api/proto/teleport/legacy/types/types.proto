@@ -5437,6 +5437,7 @@ message WatchKind {
   // SubKind is a resource subkind to watch
   string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
   // Version optionally specifies the resource version to watch.
+  // Currently this field is ignored.
   string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
 }
 

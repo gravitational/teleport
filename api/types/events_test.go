@@ -58,46 +58,6 @@ func TestWatchKindContains(t *testing.T) {
 			assertion: require.False,
 		},
 		{
-			name: "yes: superset doesn't specify version",
-			kind: WatchKind{
-				Kind:    "a",
-				SubKind: "b",
-			},
-			other: WatchKind{
-				Kind:    "a",
-				SubKind: "b",
-				Version: V1,
-			},
-			assertion: require.True,
-		},
-		{
-			name: "yes: subset doesn't specify version",
-			kind: WatchKind{
-				Kind:    "a",
-				SubKind: "b",
-				Version: V1,
-			},
-			other: WatchKind{
-				Kind:    "a",
-				SubKind: "b",
-			},
-			assertion: require.True,
-		},
-		{
-			name: "no: different versions",
-			kind: WatchKind{
-				Kind:    "a",
-				SubKind: "b",
-				Version: V1,
-			},
-			other: WatchKind{
-				Kind:    "a",
-				SubKind: "b",
-				Version: V2,
-			},
-			assertion: require.False,
-		},
-		{
 			name: "yes: only subset specifies name",
 			kind: WatchKind{
 				Kind:    "a",

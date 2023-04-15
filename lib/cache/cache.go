@@ -92,7 +92,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
@@ -142,7 +141,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindApp},
 		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
@@ -196,7 +194,6 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
@@ -229,7 +226,6 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
@@ -443,7 +439,7 @@ type Cache struct {
 
 	// confirmedKinds is a map of kinds confirmed by the server to be included in the current generation
 	// by resource Kind/SubKind
-	confirmedKinds map[kindSubKind]types.WatchKind
+	confirmedKinds map[resourceKind]types.WatchKind
 
 	// fnCache is used to perform short ttl-based caching of the results of
 	// regularly called methods.
@@ -487,7 +483,7 @@ func (c *Cache) setInitError(err error) {
 // setReadStatus updates Cache.ok, which determines whether the
 // cache is overall accessible for reads, and confirmedKinds
 // which stores resource kinds accessible in current generation.
-func (c *Cache) setReadStatus(ok bool, confirmedKinds map[kindSubKind]types.WatchKind) {
+func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.WatchKind) {
 	if c.neverOK {
 		// we are running inside of a test where the cache
 		// needs to pretend that it never becomes healthy.
@@ -512,7 +508,7 @@ func (c *Cache) read(kind string, subkind string) (readGuard, error) {
 	}
 	c.rw.RLock()
 
-	_, kindOK := c.confirmedKinds[kindSubKind{kind: kind, subKind: subkind}]
+	_, kindOK := c.confirmedKinds[resourceKind{kind: kind, subkind: subkind}]
 	if c.ok && kindOK {
 		return readGuard{
 			trust:                   c.trustCache,
@@ -566,19 +562,6 @@ func (c *Cache) read(kind string, subkind string) (readGuard, error) {
 		integrations:            c.Config.Integrations,
 		release:                 nil,
 	}, nil
-}
-
-// kindSubKind is used as a key in maps allowing lookups by a combination of kind and subKind
-type kindSubKind struct {
-	kind    string
-	subKind string
-}
-
-func (k kindSubKind) String() string {
-	if k.subKind == "" {
-		return k.kind
-	}
-	return fmt.Sprintf("%s/%s", k.kind, k.subKind)
 }
 
 // readGuard holds references to a "backend".  if the referenced
@@ -959,7 +942,7 @@ Outer:
 		if cacheOK {
 			// if cache has been initialized, we already know which kinds are confirmed by the event source
 			// and can validate the kinds requested for fanout against that.
-			key := kindSubKind{kind: requested.Kind, subKind: requested.SubKind}
+			key := resourceKind{kind: requested.Kind, subkind: requested.SubKind}
 			if confirmed, ok := confirmedKinds[key]; !ok || !confirmed.Contains(requested) {
 				if watch.AllowPartialSuccess {
 					continue
@@ -1135,14 +1118,14 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
 
-	confirmedKindsMap := make(map[kindSubKind]types.WatchKind, len(confirmedKinds))
+	confirmedKindsMap := make(map[resourceKind]types.WatchKind, len(confirmedKinds))
 	for _, kind := range confirmedKinds {
-		confirmedKindsMap[kindSubKind{kind: kind.Kind, subKind: kind.SubKind}] = kind
+		confirmedKindsMap[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = kind
 	}
 	if len(confirmedKinds) < len(requestKinds) {
 		rejectedKinds := make([]string, 0, len(requestKinds)-len(confirmedKinds))
 		for _, kind := range requestKinds {
-			key := kindSubKind{kind: kind.Kind, subKind: kind.SubKind}
+			key := resourceKind{kind: kind.Kind, subkind: kind.SubKind}
 			if _, ok := confirmedKindsMap[key]; !ok {
 				rejectedKinds = append(rejectedKinds, key.String())
 			}
@@ -1402,9 +1385,6 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 		ctx, span := tracer.Start(
 			oteltrace.ContextWithSpan(ctx, parent),
 			fmt.Sprintf("cache/apply/%s", kind.String()),
-			oteltrace.WithAttributes(
-				attribute.String("version", kind.version),
-			),
 		)
 
 		defer func() {
@@ -1443,7 +1423,7 @@ func isControlPlane(target string) bool {
 	return false
 }
 
-func (c *Cache) fetch(ctx context.Context, confirmedKinds map[kindSubKind]types.WatchKind) (fn applyFn, err error) {
+func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types.WatchKind) (fn applyFn, err error) {
 	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
 	defer func() {
 		if err != nil {
@@ -1478,7 +1458,7 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[kindSubKind]types.
 				span.End()
 			}()
 
-			_, cacheOK := confirmedKinds[kindSubKind{kind: kind.kind, subKind: kind.subkind}]
+			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
 			applyfn, err := collection.fetch(ctx, cacheOK)
 			if err != nil {
 				return trace.Wrap(err, "failed to fetch resource: %q", kind)

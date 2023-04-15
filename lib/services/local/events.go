@@ -107,12 +107,7 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			}
 			parser = p
 		case types.KindAppServer:
-			switch kind.Version {
-			case types.V2: // DELETE IN 9.0.
-				parser = newAppServerV2Parser()
-			default:
-				parser = newAppServerV3Parser()
-			}
+			parser = newAppServerV3Parser()
 		case types.KindWebSession:
 			switch kind.SubKind {
 			case types.KindSAMLIdPSession:
@@ -924,21 +919,6 @@ func (p *appServerV3Parser) parse(event backend.Event) (types.Resource, error) {
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
-}
-
-func newAppServerV2Parser() *appServerV2Parser {
-	return &appServerV2Parser{
-		baseParser: newBaseParser(backend.Key(appsPrefix, serversPrefix, apidefaults.Namespace)),
-	}
-}
-
-// DELETE IN 9.0. Deprecated, replaced by applicationServerParser.
-type appServerV2Parser struct {
-	baseParser
-}
-
-func (p *appServerV2Parser) parse(event backend.Event) (types.Resource, error) {
-	return parseServer(event, types.KindAppServer)
 }
 
 func newSAMLIdPSessionParser() *webSessionParser {

@@ -14422,6 +14422,7 @@ type WatchKind struct {
 	// SubKind is a resource subkind to watch
 	SubKind string `protobuf:"bytes,5,opt,name=SubKind,proto3" json:"sub_kind,omitempty"`
 	// Version optionally specifies the resource version to watch.
+	// Currently this field is ignored.
 	Version              string   `protobuf:"bytes,6,opt,name=Version,proto3" json:"version,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

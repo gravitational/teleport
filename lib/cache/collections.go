@@ -383,12 +383,10 @@ func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 		return resourceKind{
 			kind:    wk.Kind,
 			subkind: wk.SubKind,
-			version: wk.Version,
 		}
 	}
 	return resourceKind{
-		kind:    wk.Kind,
-		version: wk.Version,
+		kind: wk.Kind,
 	}
 }
 
@@ -401,15 +399,6 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 			kind:    res.GetKind(),
 			subkind: res.GetSubKind(),
 		}
-	case types.KindAppServer:
-		// DELETE IN 9.0.
-		switch res.GetVersion() {
-		case types.V2:
-			return resourceKind{
-				kind:    res.GetKind(),
-				version: res.GetVersion(),
-			}
-		}
 	}
 	return resourceKind{
 		kind: res.GetKind(),
@@ -419,7 +408,6 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 type resourceKind struct {
 	kind    string
 	subkind string
-	version string
 }
 
 func (r resourceKind) String() string {
