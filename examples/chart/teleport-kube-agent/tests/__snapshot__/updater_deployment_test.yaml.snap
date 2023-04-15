@@ -27,7 +27,7 @@ sets the affinity:
       - --base-image=public.ecr.aws/gravitational/teleport
       - --version-server=https://my-custom-version-server/v1
       - --release-channel=custom/preview
-      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:13.0.0-migration.fred.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -71,7 +71,7 @@ sets the tolerations:
       - --base-image=public.ecr.aws/gravitational/teleport
       - --version-server=https://my-custom-version-server/v1
       - --release-channel=custom/preview
-      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:13.0.0-dev
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:13.0.0-migration.fred.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
