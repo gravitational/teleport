@@ -38,6 +38,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -202,7 +203,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
 			},
-			Clock: clockwork.NewRealClock(),
+			Clock:           clockwork.NewRealClock(),
+			ClusterFeatures: func() proto.Features { return proto.Features{Kubernetes: true} },
 		},
 		DynamicLabels: nil,
 		TLS:           tlsConfig,

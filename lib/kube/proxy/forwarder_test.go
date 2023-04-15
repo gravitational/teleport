@@ -46,6 +46,7 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -124,6 +125,12 @@ func TestRequestCertificate(t *testing.T) {
 	require.Empty(t, cmp.Diff(*idFromCSR, ctx.UnmappedIdentity.GetIdentity()))
 }
 
+func fakeClusterFeatures() proto.Features {
+	return proto.Features{
+		Kubernetes: true,
+	}
+}
+
 func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +170,7 @@ func TestAuthenticate(t *testing.T) {
 			CachingAuthClient: ap,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
+			ClusterFeatures:   fakeClusterFeatures,
 		},
 		getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
 			servers, err := ap.GetKubernetesServers(ctx)
@@ -178,7 +186,6 @@ func TestAuthenticate(t *testing.T) {
 			return filtered, nil
 		},
 	}
-	f.isClusterKubernetesLicensed.Store(true)
 
 	const remoteAddr = "user.example.com"
 	activeAccessRequests := []string{uuid.NewString(), uuid.NewString()}
@@ -1267,6 +1274,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 			Context:           ctx,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
+			ClusterFeatures:   fakeClusterFeatures,
 		},
 		clientCredentials: clientCreds,
 		activeRequests:    make(map[string]context.Context),
