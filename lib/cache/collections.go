@@ -32,10 +32,12 @@ import (
 // collection is responsible for managing collection
 // of resources updates
 type collection interface {
-	// fetch fetches resources and returns a function which
-	// will apply said resources to the cache.  fetch *must*
-	// not mutate cache state outside of the apply function.
-	fetch(ctx context.Context) (apply func(ctx context.Context) error, err error)
+	// fetch fetches resources and returns a function which will apply said resources to the cache.
+	// fetch *must* not mutate cache state outside of the apply function.
+	// The provided cacheOK flag indicates whether this collection will be included in the cache generation that is
+	// being prepared. If cacheOK is false, fetch doesn't need to fetch any resources, but the apply function that it
+	// returns must still delete resources from the backend.
+	fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error)
 	// processEvent processes event
 	processEvent(ctx context.Context, e types.Event) error
 	// watchKind returns a watch
@@ -71,20 +73,26 @@ type genericCollection[R types.Resource, E executor[R]] struct {
 }
 
 // fetch implements collection
-func (g *genericCollection[_, _]) fetch(ctx context.Context) (apply func(ctx context.Context) error, err error) {
+func (g *genericCollection[R, _]) fetch(ctx context.Context, cacheOK bool) (apply func(ctx context.Context) error, err error) {
 	// Singleton objects will only get deleted or updated, not both
 	deleteSingleton := false
-	resources, err := g.exec.getAll(ctx, g.cache, g.watch.LoadSecrets)
-	if err != nil {
-		if !trace.IsNotFound(err) {
-			return nil, trace.Wrap(err)
+
+	var resources []R
+	if cacheOK {
+		resources, err = g.exec.getAll(ctx, g.cache, g.watch.LoadSecrets)
+		if err != nil {
+			if !trace.IsNotFound(err) {
+				return nil, trace.Wrap(err)
+			}
+			deleteSingleton = true
 		}
-		deleteSingleton = true
 	}
+
 	return func(ctx context.Context) error {
 		// Always perform the delete if this is not a singleton, otherwise
-		// only perform the delete if the singleton wasn't found.
-		if !g.exec.isSingleton() || deleteSingleton {
+		// only perform the delete if the singleton wasn't found
+		// or the resource kind isn't cached in the current generation.
+		if !g.exec.isSingleton() || deleteSingleton || !cacheOK {
 			if err := g.exec.deleteAll(ctx, g.cache); err != nil {
 				if !trace.IsNotFound(err) {
 					return trace.Wrap(err)
@@ -93,7 +101,8 @@ func (g *genericCollection[_, _]) fetch(ctx context.Context) (apply func(ctx con
 		}
 		// If this is a singleton and we performed a deletion, return here
 		// because we only want to update or delete a singleton, not both.
-		if g.exec.isSingleton() && deleteSingleton {
+		// Also don't continue if the resource kind isn't cached in the current generation.
+		if g.exec.isSingleton() && deleteSingleton || !cacheOK {
 			return nil
 		}
 		for _, resource := range resources {
@@ -374,12 +383,10 @@ func resourceKindFromWatchKind(wk types.WatchKind) resourceKind {
 		return resourceKind{
 			kind:    wk.Kind,
 			subkind: wk.SubKind,
-			version: wk.Version,
 		}
 	}
 	return resourceKind{
-		kind:    wk.Kind,
-		version: wk.Version,
+		kind: wk.Kind,
 	}
 }
 
@@ -392,15 +399,6 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 			kind:    res.GetKind(),
 			subkind: res.GetSubKind(),
 		}
-	case types.KindAppServer:
-		// DELETE IN 9.0.
-		switch res.GetVersion() {
-		case types.V2:
-			return resourceKind{
-				kind:    res.GetKind(),
-				version: res.GetVersion(),
-			}
-		}
 	}
 	return resourceKind{
 		kind: res.GetKind(),
@@ -410,7 +408,6 @@ func resourceKindFromResource(res types.Resource) resourceKind {
 type resourceKind struct {
 	kind    string
 	subkind string
-	version string
 }
 
 func (r resourceKind) String() string {

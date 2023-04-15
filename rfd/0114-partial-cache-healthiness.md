@@ -1,6 +1,6 @@
 ---
 authors: Andrey Bulgakov (andrey.bulgakov@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0114 - Partial cache healthiness

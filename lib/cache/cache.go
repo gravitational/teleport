@@ -92,7 +92,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession},
@@ -116,6 +115,9 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindIntegration},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
+	// We don't want to enable partial health for auth cache because auth uses an event stream
+	// from the local backend which must support all resource kinds. We want to catch it early if it doesn't.
+	cfg.DisablePartialHealth = true
 	return cfg
 }
 
@@ -139,7 +141,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindApp},
 		{Kind: types.KindWebSession, SubKind: types.KindSAMLIdPSession},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession},
@@ -193,7 +194,6 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
@@ -226,7 +226,6 @@ func ForOldRemoteProxy(cfg Config) Config {
 		{Kind: types.KindReverseTunnel},
 		{Kind: types.KindTunnelConnection},
 		{Kind: types.KindAppServer},
-		{Kind: types.KindAppServer, Version: types.V2},
 		{Kind: types.KindRemoteCluster},
 		{Kind: types.KindDatabaseServer},
 		{Kind: types.KindDatabaseService},
@@ -402,12 +401,12 @@ type Cache struct {
 	Logger *log.Entry
 
 	// rw is used to prevent reads of invalid cache states.  From a
-	// memory-safety perspective, this RWMutex is just used to protect
-	// the `ok` field.  *However*, cache reads must hold the read lock
-	// for the duration of the read, not just when checking the `ok`
-	// field.  Since the write lock must be held in order to modify
-	// the `ok` field, this serves to ensure that all in-progress reads
-	// complete *before* a reset can begin.
+	// memory-safety perspective, this RWMutex is used to protect
+	// the `ok` and `confirmedKinds` fields. *However*, cache reads
+	// must hold the read lock for the duration of the read, not just
+	// when checking the `ok` or `confirmedKinds` fields. Since the write
+	// lock must be held in order to modify the `ok` field, this serves
+	// to ensure that all in-progress reads complete *before* a reset can begin.
 	rw sync.RWMutex
 	// ok indicates whether the cache is in a valid state for reads.
 	// If `ok` is `false`, reads are forwarded directly to the backend.
@@ -437,6 +436,10 @@ type Cache struct {
 
 	// collections is a map of registered collections by resource Kind/SubKind
 	collections map[resourceKind]collection
+
+	// confirmedKinds is a map of kinds confirmed by the server to be included in the current generation
+	// by resource Kind/SubKind
+	confirmedKinds map[resourceKind]types.WatchKind
 
 	// fnCache is used to perform short ttl-based caching of the results of
 	// regularly called methods.
@@ -477,37 +480,36 @@ func (c *Cache) setInitError(err error) {
 	})
 }
 
-// setReadOK updates Cache.ok, which determines whether the
-// cache is accessible for reads.
-func (c *Cache) setReadOK(ok bool) {
+// setReadStatus updates Cache.ok, which determines whether the
+// cache is overall accessible for reads, and confirmedKinds
+// which stores resource kinds accessible in current generation.
+func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.WatchKind) {
 	if c.neverOK {
 		// we are running inside of a test where the cache
 		// needs to pretend that it never becomes healthy.
 		return
 	}
-	if ok == c.getReadOK() {
-		return
-	}
 	c.rw.Lock()
 	defer c.rw.Unlock()
 	c.ok = ok
-}
-
-func (c *Cache) getReadOK() (ok bool) {
-	c.rw.RLock()
-	defer c.rw.RUnlock()
-	return c.ok
+	c.confirmedKinds = confirmedKinds
 }
 
 // read acquires the cache read lock and selects the appropriate
 // target for read operations.  The returned guard *must* be
 // released to prevent deadlocks.
-func (c *Cache) read() (readGuard, error) {
+// Currently, the caller is trusted to only use the returned guard
+// to access methods related to the specified kind and subKind.
+// Failure to do that might cause incorrect behavior.
+// TODO(andrey): follow up with the type safe approach from the RFD 114 in a separate PR.
+func (c *Cache) read(kind string, subkind string) (readGuard, error) {
 	if c.closed.Load() {
 		return readGuard{}, trace.Errorf("cache is closed")
 	}
 	c.rw.RLock()
-	if c.ok {
+
+	_, kindOK := c.confirmedKinds[resourceKind{kind: kind, subkind: subkind}]
+	if c.ok && kindOK {
 		return readGuard{
 			trust:                   c.trustCache,
 			clusterConfig:           c.clusterConfigCache,
@@ -702,6 +704,10 @@ type Config struct {
 	// Unstarted indicates that the cache should not be started during New. The
 	// cache is usable before it's started, but it will always hit the backend.
 	Unstarted bool
+	// DisablePartialHealth disables the default mode in which cache can become
+	// healthy even if some of the requested resource kinds aren't
+	// supported by the event source.
+	DisablePartialHealth bool
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -777,6 +783,8 @@ const (
 	// RelativeExpiry notifies that relative expiry operations have
 	// been run.
 	RelativeExpiry = "relative_expiry"
+	// noSubKind is supposed to clarify the meaning of an empty string being passed as an argument to Cache.read.
+	noSubKind = ""
 )
 
 // New creates a new instance of Cache
@@ -922,15 +930,47 @@ func (c *Cache) Start() error {
 func (c *Cache) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/NewWatcher")
 	defer span.End()
+
+	c.rw.RLock()
+	cacheOK := c.ok
+	confirmedKinds := c.confirmedKinds
+	c.rw.RUnlock()
+
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 Outer:
 	for _, requested := range watch.Kinds {
-		for _, configured := range c.Config.Watches {
-			if requested.Kind == configured.Kind {
-				continue Outer
+		if cacheOK {
+			// if cache has been initialized, we already know which kinds are confirmed by the event source
+			// and can validate the kinds requested for fanout against that.
+			key := resourceKind{kind: requested.Kind, subkind: requested.SubKind}
+			if confirmed, ok := confirmedKinds[key]; !ok || !confirmed.Contains(requested) {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
 			}
+			validKinds = append(validKinds, requested)
+		} else {
+			// otherwise, we can only perform preliminary validation against the kinds that cache has been configured for,
+			// and the returned fanout watcher might fail later when cache receives and propagates its OpInit event.
+			for _, configured := range c.Config.Watches {
+				if requested.Kind == configured.Kind && requested.SubKind == configured.SubKind && configured.Contains(requested) {
+					validKinds = append(validKinds, requested)
+					continue Outer
+				}
+			}
+			if watch.AllowPartialSuccess {
+				continue
+			}
+			return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
 		}
-		return nil, trace.BadParameter("cache %q does not support watching resource %q", c.Config.target, requested.Kind)
 	}
+
+	if len(validKinds) == 0 {
+		return nil, trace.BadParameter("cache %q does not support any of the requested resources", c.Config.target)
+	}
+
+	watch.Kinds = validKinds
 	return c.eventsFanout.NewWatcher(ctx, watch)
 }
 
@@ -1019,11 +1059,13 @@ func (c *Cache) notify(ctx context.Context, event Event) {
 //	we assume that this cache will eventually end up in a correct state
 //	potentially lagging behind the state of the database.
 func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer *time.Timer) error {
+	requestKinds := c.watchKinds()
 	watcher, err := c.Events.NewWatcher(c.ctx, types.Watch{
-		QueueSize:       c.QueueSize,
-		Name:            c.Component,
-		Kinds:           c.watchKinds(),
-		MetricComponent: c.MetricComponent,
+		Name:                c.Component,
+		Kinds:               requestKinds,
+		QueueSize:           c.QueueSize,
+		MetricComponent:     c.MetricComponent,
+		AllowPartialSuccess: !c.DisablePartialHealth,
 	})
 	if err != nil {
 		c.notify(c.ctx, Event{Type: WatcherFailed})
@@ -1039,6 +1081,8 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	}
 	// set timer to watcher init timeout
 	timer.Reset(c.Config.WatcherInitTimeout)
+
+	var confirmedKinds []types.WatchKind
 
 	// before fetch, make sure watcher is synced by receiving init event,
 	// to avoid the scenario:
@@ -1063,17 +1107,40 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 		if event.Type != types.OpInit {
 			return trace.BadParameter("expected init event, got %v instead", event.Type)
 		}
+		if watchStatus, ok := event.Resource.(types.WatchStatus); ok {
+			confirmedKinds = watchStatus.GetKinds()
+		} else {
+			// this event was generated by an old Auth service that doesn't support partial success mode,
+			// which means that we can assume all requested kinds to be confirmed.
+			confirmedKinds = requestKinds
+		}
 	case <-timer.C:
 		return trace.ConnectionProblem(nil, "timeout waiting for watcher init")
 	}
-	apply, err := c.fetch(ctx)
+
+	confirmedKindsMap := make(map[resourceKind]types.WatchKind, len(confirmedKinds))
+	for _, kind := range confirmedKinds {
+		confirmedKindsMap[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = kind
+	}
+	if len(confirmedKinds) < len(requestKinds) {
+		rejectedKinds := make([]string, 0, len(requestKinds)-len(confirmedKinds))
+		for _, kind := range requestKinds {
+			key := resourceKind{kind: kind.Kind, subkind: kind.SubKind}
+			if _, ok := confirmedKindsMap[key]; !ok {
+				rejectedKinds = append(rejectedKinds, key.String())
+			}
+		}
+		c.Logger.WithField("rejected", rejectedKinds).Warn("Some resource kinds unsupported by the server cannot be cached")
+	}
+
+	apply, err := c.fetch(ctx, confirmedKindsMap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// apply will mutate cache, and possibly leave it in an invalid state
 	// if an error occurs, so ensure that cache is not read.
-	c.setReadOK(false)
+	c.setReadStatus(false, nil)
 	err = apply(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1081,7 +1148,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 
 	// apply was successful; cache is now readable.
 	c.generation.Add(1)
-	c.setReadOK(true)
+	c.setReadStatus(true, confirmedKindsMap)
 	c.setInitError(nil)
 
 	// watchers have been queuing up since the last time
@@ -1090,7 +1157,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 	// after we've placed the cache into a readable state.  This ensures
 	// that any derivative caches do not perform their fetch operations
 	// until this cache has finished its apply operations.
-	c.eventsFanout.SetInit()
+	c.eventsFanout.SetInit(confirmedKinds)
 	defer c.eventsFanout.Reset()
 
 	retry.Reset()
@@ -1318,9 +1385,6 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 		ctx, span := tracer.Start(
 			oteltrace.ContextWithSpan(ctx, parent),
 			fmt.Sprintf("cache/apply/%s", kind.String()),
-			oteltrace.WithAttributes(
-				attribute.String("version", kind.version),
-			),
 		)
 
 		defer func() {
@@ -1359,7 +1423,7 @@ func isControlPlane(target string) bool {
 	return false
 }
 
-func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
+func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types.WatchKind) (fn applyFn, err error) {
 	ctx, fetchSpan := c.Tracer.Start(ctx, "cache/fetch", oteltrace.WithAttributes(attribute.String("target", c.target)))
 	defer func() {
 		if err != nil {
@@ -1394,7 +1458,8 @@ func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
 				span.End()
 			}()
 
-			applyfn, err := collection.fetch(ctx)
+			_, cacheOK := confirmedKinds[resourceKind{kind: kind.kind, subkind: kind.subkind}]
+			applyfn, err := collection.fetch(ctx, cacheOK)
 			if err != nil {
 				return trace.Wrap(err, "failed to fetch resource: %q", kind)
 			}
@@ -1449,7 +1514,7 @@ func (c *Cache) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadS
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthority")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindCertAuthority, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1491,7 +1556,7 @@ func (c *Cache) GetCertAuthorities(ctx context.Context, caType types.CertAuthTyp
 	ctx, span := c.Tracer.Start(ctx, "cache/GetCertAuthorities")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindCertAuthority, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1518,7 +1583,7 @@ func (c *Cache) GetStaticTokens() (types.StaticTokens, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetStaticTokens")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindStaticTokens, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1531,7 +1596,7 @@ func (c *Cache) GetTokens(ctx context.Context) ([]types.ProvisionToken, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetTokens")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindToken, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1544,7 +1609,7 @@ func (c *Cache) GetToken(ctx context.Context, name string) (types.ProvisionToken
 	ctx, span := c.Tracer.Start(ctx, "cache/GetToken")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindToken, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1574,7 +1639,7 @@ func (c *Cache) GetClusterAuditConfig(ctx context.Context, opts ...services.Mars
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterAuditConfig")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindClusterAuditConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1597,7 +1662,7 @@ func (c *Cache) GetClusterNetworkingConfig(ctx context.Context, opts ...services
 	ctx, span := c.Tracer.Start(ctx, "cache/GetClusterNetworkingConfig")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindClusterNetworkingConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1620,7 +1685,7 @@ func (c *Cache) GetClusterName(opts ...services.MarshalOption) (types.ClusterNam
 	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetClusterName")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindClusterName, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1642,7 +1707,7 @@ func (c *Cache) GetUIConfig(ctx context.Context) (types.UIConfig, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUIConfig")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindUIConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1657,7 +1722,7 @@ func (c *Cache) GetInstaller(ctx context.Context, name string) (types.Installer,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstaller")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindInstaller, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1672,7 +1737,7 @@ func (c *Cache) GetInstallers(ctx context.Context) ([]types.Installer, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetInstallers")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindInstaller, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1687,7 +1752,7 @@ func (c *Cache) GetRoles(ctx context.Context) ([]types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRoles")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindRole, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1700,7 +1765,7 @@ func (c *Cache) GetRole(ctx context.Context, name string) (types.Role, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetRole")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindRole, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1723,7 +1788,7 @@ func (c *Cache) GetNamespace(name string) (*types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespace")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindNamespace, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1736,7 +1801,7 @@ func (c *Cache) GetNamespaces() ([]types.Namespace, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetNamespaces")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindNamespace, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1749,7 +1814,7 @@ func (c *Cache) GetNode(ctx context.Context, namespace, name string) (types.Serv
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNode")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindNode, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1768,7 +1833,7 @@ func (c *Cache) GetNodes(ctx context.Context, namespace string) ([]types.Server,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNodes")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindNode, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1805,7 +1870,7 @@ func (c *Cache) GetAuthServers() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAuthServers")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindAuthServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1818,7 +1883,7 @@ func (c *Cache) GetReverseTunnels(ctx context.Context, opts ...services.MarshalO
 	ctx, span := c.Tracer.Start(ctx, "cache/GetReverseTunnels")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindReverseTunnel, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1831,7 +1896,7 @@ func (c *Cache) GetProxies() ([]types.Server, error) {
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetProxies")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindProxy, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1850,7 +1915,7 @@ func (c *Cache) GetRemoteClusters(opts ...services.MarshalOption) ([]types.Remot
 	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteClusters")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindRemoteCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1878,7 +1943,7 @@ func (c *Cache) GetRemoteCluster(clusterName string) (types.RemoteCluster, error
 	ctx, span := c.Tracer.Start(context.TODO(), "cache/GetRemoteCluster")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindRemoteCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1915,7 +1980,7 @@ func (c *Cache) GetUser(name string, withSecrets bool) (user types.User, err err
 	if withSecrets { // cache never tracks user secrets
 		return c.Config.Users.GetUser(name, withSecrets)
 	}
-	rg, err := c.read()
+	rg, err := c.read(types.KindUser, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1942,7 +2007,7 @@ func (c *Cache) GetUsers(withSecrets bool) (users []types.User, err error) {
 	if withSecrets { // cache never tracks user secrets
 		return c.Users.GetUsers(withSecrets)
 	}
-	rg, err := c.read()
+	rg, err := c.read(types.KindUser, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1955,7 +2020,7 @@ func (c *Cache) GetTunnelConnections(clusterName string, opts ...services.Marsha
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetTunnelConnections")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindTunnelConnection, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1968,7 +2033,7 @@ func (c *Cache) GetAllTunnelConnections(opts ...services.MarshalOption) (conns [
 	_, span := c.Tracer.Start(context.TODO(), "cache/GetAllTunnelConnections")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindTunnelConnection, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1981,7 +2046,7 @@ func (c *Cache) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesServers")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindKubeServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1994,7 +2059,7 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApplicationServers")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindAppServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2007,7 +2072,7 @@ func (c *Cache) GetKubernetesClusters(ctx context.Context) ([]types.KubeCluster,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesClusters")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindKubernetesCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2020,7 +2085,7 @@ func (c *Cache) GetKubernetesCluster(ctx context.Context, name string) (types.Ku
 	ctx, span := c.Tracer.Start(ctx, "cache/GetKubernetesCluster")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindKubernetesCluster, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2033,7 +2098,7 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApps")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindApp, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2046,7 +2111,7 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 	ctx, span := c.Tracer.Start(ctx, "cache/GetApp")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindApp, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2059,7 +2124,7 @@ func (c *Cache) GetAppSession(ctx context.Context, req types.GetAppSessionReques
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAppSession")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWebSession, types.KindAppSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2072,7 +2137,7 @@ func (c *Cache) GetSnowflakeSession(ctx context.Context, req types.GetSnowflakeS
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSnowflakeSession")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWebSession, types.KindSnowflakeSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2085,7 +2150,7 @@ func (c *Cache) GetSAMLIdPSession(ctx context.Context, req types.GetSAMLIdPSessi
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPSession")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWebSession, types.KindSAMLIdPSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2098,7 +2163,7 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabaseServers")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindDatabaseServer, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2111,7 +2176,7 @@ func (c *Cache) GetDatabases(ctx context.Context) ([]types.Database, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabases")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindDatabase, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2124,7 +2189,7 @@ func (c *Cache) GetDatabase(ctx context.Context, name string) (types.Database, e
 	ctx, span := c.Tracer.Start(ctx, "cache/GetDatabase")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindDatabase, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2137,7 +2202,7 @@ func (c *Cache) GetWebSession(ctx context.Context, req types.GetWebSessionReques
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWebSession")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWebSession, types.KindWebSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2150,7 +2215,7 @@ func (c *Cache) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) (
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWebToken")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWebToken, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2163,7 +2228,7 @@ func (c *Cache) GetAuthPreference(ctx context.Context) (types.AuthPreference, er
 	ctx, span := c.Tracer.Start(ctx, "cache/GetAuthPreference")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindClusterAuthPreference, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2176,7 +2241,7 @@ func (c *Cache) GetSessionRecordingConfig(ctx context.Context, opts ...services.
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSessionRecordingConfig")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindSessionRecordingConfig, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2189,7 +2254,7 @@ func (c *Cache) GetNetworkRestrictions(ctx context.Context) (types.NetworkRestri
 	ctx, span := c.Tracer.Start(ctx, "cache/GetNetworkRestrictions")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindNetworkRestrictions, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2203,7 +2268,7 @@ func (c *Cache) GetLock(ctx context.Context, name string) (types.Lock, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetLock")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindLock, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2228,7 +2293,7 @@ func (c *Cache) GetLocks(ctx context.Context, inForceOnly bool, targets ...types
 	ctx, span := c.Tracer.Start(ctx, "cache/GetLocks")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindLock, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2241,7 +2306,7 @@ func (c *Cache) GetWindowsDesktopServices(ctx context.Context) ([]types.WindowsD
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWindowsDesktopService, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2254,7 +2319,7 @@ func (c *Cache) GetWindowsDesktopService(ctx context.Context, name string) (type
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktopService")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWindowsDesktopService, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2267,7 +2332,7 @@ func (c *Cache) GetWindowsDesktops(ctx context.Context, filter types.WindowsDesk
 	ctx, span := c.Tracer.Start(ctx, "cache/GetWindowsDesktops")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWindowsDesktop, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2280,7 +2345,7 @@ func (c *Cache) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDe
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktops")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWindowsDesktop, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2293,7 +2358,7 @@ func (c *Cache) ListWindowsDesktopServices(ctx context.Context, req types.ListWi
 	ctx, span := c.Tracer.Start(ctx, "cache/ListWindowsDesktopServices")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindWindowsDesktopService, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2306,7 +2371,7 @@ func (c *Cache) ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, n
 	ctx, span := c.Tracer.Start(ctx, "cache/ListSAMLIdPServiceProviders")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindSAMLIdPServiceProvider, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2319,7 +2384,7 @@ func (c *Cache) GetSAMLIdPServiceProvider(ctx context.Context, name string) (typ
 	ctx, span := c.Tracer.Start(ctx, "cache/GetSAMLIdPServiceProvider")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindSAMLIdPServiceProvider, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2332,7 +2397,7 @@ func (c *Cache) ListUserGroups(ctx context.Context, pageSize int, nextKey string
 	ctx, span := c.Tracer.Start(ctx, "cache/ListUserGroups")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindUserGroup, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2345,7 +2410,7 @@ func (c *Cache) GetUserGroup(ctx context.Context, name string) (types.UserGroup,
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserGroup")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindUserGroup, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2358,7 +2423,7 @@ func (c *Cache) ListOktaImportRules(ctx context.Context, pageSize int, nextKey s
 	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaImportRules")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindOktaImportRule, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2371,7 +2436,7 @@ func (c *Cache) GetOktaImportRule(ctx context.Context, name string) (types.OktaI
 	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaImportRule")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindOktaImportRule, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2384,7 +2449,7 @@ func (c *Cache) ListOktaAssignments(ctx context.Context, pageSize int, nextKey s
 	ctx, span := c.Tracer.Start(ctx, "cache/ListOktaAssignments")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindOktaAssignment, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2397,7 +2462,7 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 	ctx, span := c.Tracer.Start(ctx, "cache/GetOktaAssignment")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindOktaAssignment, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2410,7 +2475,7 @@ func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey stri
 	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindIntegration, noSubKind)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -2423,7 +2488,7 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(types.KindIntegration, noSubKind)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2436,7 +2501,7 @@ func (c *Cache) ListResources(ctx context.Context, req proto.ListResourcesReques
 	ctx, span := c.Tracer.Start(ctx, "cache/ListResources")
 	defer span.End()
 
-	rg, err := c.read()
+	rg, err := c.read(req.ResourceType, "")
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
