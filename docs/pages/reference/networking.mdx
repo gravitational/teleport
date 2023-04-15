@@ -98,6 +98,31 @@ The value of `HTTPS_PROXY` or `HTTP_PROXY` should be in the format
   The proxy service also respects `HTTPS_PROXY` and `HTTP_PROXY` when connecting to a local kubernetes cluster, which may not work. To fix this, add `kube.teleport.cluster.local` to `NO_PROXY`.
 </Admonition>
 
+# Use of Reverse Tunnels
+
+<Tabs>
+<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+  
+In cloud mode, Teleport uses reverse tunnels to protect customer's infrastructure. Reverse tunnels allow Teleport to securely connect to customer's infrastructure without exposing it to the public internet.
+
+Reverse tunnels work by establishing a connection from the Teleport proxy running in the cloud to a Teleport node running on-premises. This connection is initiated by the Teleport node and is secured using mutual TLS authentication. Once the connection is established, the Teleport proxy can use the reverse tunnel to securely access customer's infrastructure.
+
+Reverse tunnels provide several benefits for securing customer's infrastructure. First, they eliminate the need to expose customer's infrastructure to the public internet, reducing the attack surface and minimizing the risk of unauthorized access. Second, reverse tunnels are encrypted and authenticated, ensuring that all traffic between the Teleport proxy and customer's infrastructure is secure. Finally, reverse tunnels are dynamic, meaning they are only active when needed, reducing the risk of unauthorized access and improving overall security.
+
+To configure reverse tunnels in Teleport, customers can follow the following steps:
+- Install and configure a Teleport node on-premises.
+- Configure the Teleport node to initiate a reverse tunnel connection to the Teleport proxy in the cloud.
+- Configure the Teleport proxy to accept incoming reverse tunnel connections from the Teleport node.
+- Configure access controls in Teleport to restrict access to customer's infrastructure to authorized users and groups.
+
+  <Admonition
+  type="Tip"
+  title="Note"
+>
+  Reverse tunnels are a critical component of Teleport's security architecture in cloud mode. They provide a secure, encrypted, and dynamic connection between the Teleport proxy and customer's infrastructure, minimizing the risk of unauthorized access and improving overall security. By following the steps outlined above, you can easily configure reverse tunnels in Teleport and take advantage of this powerful security feature.
+</Admonition>
+  
+
 ## Ports
 
 <Tabs>
