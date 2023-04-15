@@ -35,7 +35,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -65,6 +64,7 @@ import (
 	kubeexec "k8s.io/client-go/util/exec"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -172,7 +172,13 @@ type ForwarderConfig struct {
 	// the upstream Teleport proxy or Kubernetes service when forwarding requests
 	// using the forward identity (i.e. proxy impersonating a user) method.
 	ConnTLSConfig *tls.Config
+	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+	// It is used to determine if the cluster is licensed for Kubernetes usage.
+	ClusterFeatures ClusterFeaturesGetter
 }
+
+// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+type ClusterFeaturesGetter func() proto.Features
 
 // CheckAndSetDefaults checks and sets default values
 func (f *ForwarderConfig) CheckAndSetDefaults() error {
@@ -199,6 +205,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
+	}
+	if f.ClusterFeatures == nil {
+		return trace.BadParameter("missing parameter ClusterFeatures")
 	}
 	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
 		return trace.BadParameter("missing parameter PROXYSigner")
@@ -275,8 +284,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 
 	closeCtx, close := context.WithCancel(cfg.Context)
-	var isKubeLicensed atomic.Bool
-	isKubeLicensed.Store(true)
 	fwd := &Forwarder{
 		log:               cfg.log,
 		cfg:               cfg,
@@ -289,9 +296,8 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		clusterDetails:              make(map[string]*kubeDetails),
-		cachedTransport:             transportClients,
-		isClusterKubernetesLicensed: isKubeLicensed,
+		clusterDetails:  make(map[string]*kubeDetails),
+		cachedTransport: transportClients,
 	}
 
 	router := httprouter.New()
@@ -344,56 +350,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		}
 	}
 
-	// Start the proxy license watcher only if it not a kube service.
-	// Kube service validation is performed by the auth server when it tries
-	// to heartbeat the cluster.
-	if fwd.cfg.KubeServiceType != KubeService {
-		go fwd.proxylicenseWatcher()
-	}
-
 	return fwd, nil
-}
-
-// proxylicenseWatcher periodically checks if the auth server is licensed for
-// kubernetes. This check is required after the introduction of the credentials
-// forwarding feature. When a root kube proxy is forwarding requests to a leaf
-// kube proxy, the root kube proxy must ensure that it is licensed for
-// kubernetes otherwise an enterprise root cluster will be able to forward
-// requests to an OSS leaf cluster and bypass the license check.
-// This check is only performed on Kubernetes proxies.
-func (f *Forwarder) proxylicenseWatcher() {
-	t := time.NewTicker(30 * time.Minute)
-	defer t.Stop()
-	for {
-		licensed, err := f.checkIfAuthIsLicensed()
-		if err != nil {
-			f.log.WithError(err).Warn("Failed to check if auth server is licensed for Kubernetes usage.")
-		} else {
-			f.isClusterKubernetesLicensed.Store(licensed)
-		}
-		select {
-		case <-t.C:
-		case <-f.ctx.Done():
-			return
-		}
-	}
-}
-
-// checkIfAuthIsLicensed checks if the auth server is licensed for kubernetes.
-// This check is required after the introduction of the credentials forwarding
-// feature. When a root kube proxy is forwarding requests to a leaf kube proxy,
-// the root kube proxy must ensure that it is licensed for kubernetes otherwise
-// an enterprise root cluster will be able to forward requests to an OSS leaf
-// cluster and bypass the license check.
-func (f *Forwarder) checkIfAuthIsLicensed() (bool, error) {
-	ctx, cancel := context.WithTimeout(f.ctx, defaults.HTTPRequestTimeout)
-	defer cancel()
-	// If this is a kube_service, we can just return the local kube servers.
-	ping, err := f.cfg.AuthClient.Ping(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	return ping.ServerFeatures.Kubernetes, nil
 }
 
 // Forwarder intercepts kubernetes requests, acting as Kubernetes API proxy.
@@ -438,9 +395,6 @@ type Forwarder struct {
 	cachedTransport *ttlmap.TTLMap
 	// cachedTransportMu is a mutex used to protect the cachedTransport.
 	cachedTransportMu sync.Mutex
-	// isClusterKubernetesLicensed is a pointer to a boolean that indicates
-	// whether the cluster is licensed for Kubernetes.
-	isClusterKubernetesLicensed atomic.Bool
 }
 
 // getKubeServersByNameFunc is a function that returns a list of
@@ -556,7 +510,7 @@ const accessDeniedMsg = "[00] access denied"
 // authenticate function authenticates request
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	// If the cluster is not licensed for Kubernetes, return an error to the client.
-	if !f.isClusterKubernetesLicensed.Load() {
+	if !f.cfg.ClusterFeatures().Kubernetes {
 		// If the cluster is not licensed for Kubernetes, return an error to the client
 		// but in a way that the code is translated to 500 error code.
 		return nil, trace.Errorf("Teleport cluster is not licensed for Kubernetes")
