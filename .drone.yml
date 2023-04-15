@@ -6594,7 +6594,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - mkdir -pv "$(dirname "/go/vars/release-environment.txt")"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -6661,7 +6661,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - mkdir -pv "$(dirname "/go/vars/release-environment.txt")"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -6728,7 +6728,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - mkdir -pv "$(dirname "/go/vars/release-environment.txt")"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -6795,7 +6795,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - mkdir -pv "$(dirname "/go/vars/release-environment.txt")"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -20230,6 +20230,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 9e3e382cf1c954e55fbb663d8cf656600e28c81758e8c6700ae58180d30c1cb3
+hmac: e5062da93026ddd6ccfa44929ed29e15faf53f07790f1ffad49dab0e062b4757
 
 ...
