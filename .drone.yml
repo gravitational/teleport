@@ -6603,7 +6603,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
     -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
     -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
     -input "release-channel=stable" -input "repo-type=apt" -input "version-channel=${DRONE_TAG}" '
@@ -6670,7 +6670,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
     -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
     -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
     -input "release-channel=stable" -input "repo-type=yum" -input "version-channel=${DRONE_TAG}" '
@@ -6737,7 +6737,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
     -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
     -input "package-name-filter=teleport-ent-updater*" -input "release-channel=stable"
     -input "repo-type=apt" -input "version-channel=cloud" '
@@ -6804,7 +6804,7 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
     -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
     -input "package-name-filter=teleport-ent-updater*" -input "release-channel=stable"
     -input "repo-type=yum" -input "version-channel=cloud" '
@@ -20230,6 +20230,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: e5062da93026ddd6ccfa44929ed29e15faf53f07790f1ffad49dab0e062b4757
+hmac: 94573da39023b1a7033fdc927e5d306102f5b348a823cd3b7f0b6ea67ac9bccb
 
 ...
