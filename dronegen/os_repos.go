@@ -72,6 +72,7 @@ func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, 
 			Image: fmt.Sprintf("golang:%s-alpine", GoVersion),
 			Commands: []string{
 				fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
+				fmt.Sprintf("mkdir -pv %q", path.Dir(releaseEnvironmentFilePath)),
 				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo "promote") > %q`, releaseEnvironmentFilePath),
 			},
 		},

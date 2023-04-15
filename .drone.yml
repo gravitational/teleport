@@ -7239,6 +7239,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -7306,6 +7307,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -7315,9 +7317,9 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
     -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "repo-type=yum"
-    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "version-channel=${DRONE_TAG}" '
+    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "version-channel=${DRONE_TAG}"
+    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -7372,6 +7374,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -7381,9 +7384,9 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "repo-type=apt" -input "environment=$(cat "/go/vars/release-environment.txt")"
-    -input "version-channel=cloud" -input "package-name-filter=teleport-ent-updater*"
-    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" '
+    -input "package-name-filter=teleport-ent-updater*" -input "artifact-tag=${DRONE_TAG}"
+    -input "release-channel=stable" -input "repo-type=apt" -input "environment=$(cat
+    "/go/vars/release-environment.txt")" -input "version-channel=cloud" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -7438,6 +7441,7 @@ steps:
   image: golang:1.18-alpine
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
     "promote") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
@@ -7447,9 +7451,9 @@ steps:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
     -tag-workflow -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "artifact-tag=${DRONE_TAG}" -input "release-channel=stable" -input "repo-type=yum"
-    -input "environment=$(cat "/go/vars/release-environment.txt")" -input "version-channel=cloud"
-    -input "package-name-filter=teleport-ent-updater*" '
+    -input "release-channel=stable" -input "repo-type=yum" -input "environment=$(cat
+    "/go/vars/release-environment.txt")" -input "version-channel=cloud" -input "package-name-filter=teleport-ent-updater*"
+    -input "artifact-tag=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -20989,6 +20993,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: b805ef681c29b3ef625b70a52e2c094a8810258b880e5763129e944390438b59
+hmac: 9a581f4057bcf87f5d1481a3b7b8b7f701955a6600c8f10beb0cf2e0c5c78e5d
 
 ...
