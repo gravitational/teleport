@@ -347,42 +347,16 @@ func (s *Session) CombinedOutput(ctx context.Context, cmd string) ([]byte, error
 // The response will contain an Approve bool which will approve or deny a requested file transfer
 func (s *Session) FileTransferRequestResponse(ctx context.Context, req FileTransferResponseReq) error {
 	const request = "file-transfer-request-response"
-	config := tracing.NewConfig(s.wrapper.opts)
-	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
-		ctx,
-		fmt.Sprintf("ssh.FileTransferRequestResponse/%t/%s", req.Approved, req.RequestID),
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String("ssh.Session"),
-			semconv.RPCMethodKey.String("SendRequest"),
-			semconv.RPCSystemKey.String("ssh"),
-		),
-	)
-	defer span.End()
 
-	s.wrapper.addContext(ctx, request)
-	_, err := s.Session.SendRequest(request, true, ssh.Marshal(req))
-	return err
+	_, err := s.SendRequest(ctx, request, true, ssh.Marshal(req))
+	return trace.Wrap(err)
 }
 
 // RequestFileTransfer sends a "file-transfer-request" ssh request that will create a new file transfer request
 // and notify the parties in an ssh session
-func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferReq) error {
+func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferRequestReq) error {
 	const request = "file-transfer-request"
-	config := tracing.NewConfig(s.wrapper.opts)
-	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
-		ctx,
-		fmt.Sprintf("ssh.FileTransferRequest/%s", req.Direction),
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String("ssh.Session"),
-			semconv.RPCMethodKey.String("SendRequest"),
-			semconv.RPCSystemKey.String("ssh"),
-		),
-	)
-	defer span.End()
 
-	s.wrapper.addContext(ctx, request)
-	_, err := s.Session.SendRequest(request, true, ssh.Marshal(req))
-	return err
+	_, err := s.SendRequest(ctx, request, true, ssh.Marshal(req))
+	return trace.Wrap(err)
 }
