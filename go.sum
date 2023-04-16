@@ -82,8 +82,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlfl
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0/go.mod h1:nKcJObAisSPDrO9lMuuCBoYY7Ki7ADt8p6XmBhpKNTk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2 v2.2.0 h1:vbseS1qYczYV5z3gpJostn7GYw1uNCch9sMddpWaPEc=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2 v2.2.0/go.mod h1:FMVQhV2nfxsI9cDUBqn/rWfN5y1KxwZ/+q1Bl1oqko0=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise v1.0.0 h1:ZyZb7h9t0hw6pNdCJ1bEwoRsVJ+gHngUlexPfSfj3ZA=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise v1.0.0/go.mod h1:KOdfFo3kIa8BlSMMNTslBV7MTVyVnrKgxhn0rjlMNxM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise v1.1.1 h1:YJ85UcbuFt2quyUS6NntBPuXMk8ob2zHOeFlXZysSwA=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise v1.1.1/go.mod h1:Xv4zciAMUA5eyLkWrsvDai7VLndnthFMRkPDmDNNF0I=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v1.0.0 h1:ECsQtyERDVz3NP3kvDOTLvbQhqWp/x9EsGKtb4ogUr8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.1.0 h1:G2MvNS98bjXD7Vks+psbTU/uBiBH7gicij12Xc8q6lM=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql v1.1.0/go.mod h1:f/IvRlQ/eFP31UXVUwh3BzTOOC2cEo6/u+7g9+KTzPk=
