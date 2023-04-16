@@ -74,7 +74,7 @@ func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, 
 			Commands: []string{
 				fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
 				fmt.Sprintf("mkdir -pv %q", path.Dir(releaseEnvironmentFilePath)),
-				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo "promote") > %q`, releaseEnvironmentFilePath),
+				fmt.Sprintf(`(go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo "build") > %q`, releaseEnvironmentFilePath),
 			},
 		},
 		pipeline.Steps[1],

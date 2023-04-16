@@ -7240,8 +7240,8 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
-    "promote") > "/go/vars/release-environment.txt"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -7307,8 +7307,8 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
-    "promote") > "/go/vars/release-environment.txt"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -7374,8 +7374,8 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
-    "promote") > "/go/vars/release-environment.txt"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -7441,8 +7441,8 @@ steps:
   commands:
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
   - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "build" || echo
-    "promote") > "/go/vars/release-environment.txt"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
 - name: Delegate build to GitHub
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -20992,6 +20992,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 94573da39023b1a7033fdc927e5d306102f5b348a823cd3b7f0b6ea67ac9bccb
+hmac: f050e1682c1fbe155664724f7308ec69f7520672dd0abeb7df1deb59e7e99ac1
 
 ...
