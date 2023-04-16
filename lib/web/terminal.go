@@ -394,8 +394,9 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
 	resizeC := make(chan *session.TerminalParams, 1)
-	fileTransferC := make(chan *session.FileTransferParams, 1)
-	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandler((fileTransferC)))
+	fileTransferRequestC := make(chan *session.FileTransferRequestParams, 1)
+	fileTransferResponseC := make(chan *session.FileTransferResponseParams, 1)
+	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandlers(fileTransferRequestC, fileTransferResponseC))
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -435,8 +436,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// process window resizing
 	go t.handleWindowResize(resizeC)
 
-	// process file transfer requests
-	go t.handleFileTransfer(fileTransferC)
+	// process file transfer requests/responses
+	go t.handleFileTransfer(fileTransferRequestC, fileTransferResponseC)
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
@@ -859,28 +860,25 @@ func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
 
 // handleFileTransfer receives file transfer requests and responses and forwards them
 // to the SSh session
-func (t *TerminalHandler) handleFileTransfer(fileTransferC <-chan *session.FileTransferParams) {
+func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *session.FileTransferRequestParams, fileTransferResponseC <-chan *session.FileTransferResponseParams) {
 	for {
 		select {
 		case <-t.terminalContext.Done():
 			return
-		case transferRequest := <-fileTransferC:
+		case transferRequest := <-fileTransferRequestC:
 			// if not response, this is a new file transfer request
-			if !transferRequest.Response {
-				t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferReq{
-					Direction: transferRequest.Direction,
-					Location:  transferRequest.Location,
-					Filename:  transferRequest.Filename,
-					Size:      transferRequest.Size,
-				})
-			} else {
-				// if response exists, this contains an Approved bool and we handle accordingly
-				t.sshSession.FileTransferRequestResponse(t.terminalContext, tracessh.FileTransferResponseReq{
-					RequestID: transferRequest.RequestID,
-					Approved:  transferRequest.Approved,
-				})
-			}
+			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferRequestReq{
+				Download: transferRequest.Download,
+				Location: transferRequest.Location,
+				Filename: transferRequest.Filename,
+			})
+		case transferResponse := <-fileTransferResponseC:
+			t.sshSession.FileTransferRequestResponse(t.terminalContext, tracessh.FileTransferResponseReq{
+				RequestID: transferResponse.RequestID,
+				Approved:  transferResponse.Approved,
+			})
 		}
+
 	}
 }
 
@@ -984,9 +982,10 @@ func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) fun
 	}
 }
 
-func WithTerminalStreamFileTransferHandler(fileTransferC chan<- *session.FileTransferParams) func(stream *TerminalStream) {
+func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session.FileTransferRequestParams, fileTransferResponseC chan<- *session.FileTransferResponseParams) func(stream *TerminalStream) {
 	return func(stream *TerminalStream) {
-		stream.fileTransferC = fileTransferC
+		stream.fileTransferRequestC = fileTransferRequestC
+		stream.fileTransferResponseC = fileTransferResponseC
 	}
 }
 
@@ -1028,9 +1027,11 @@ type TerminalStream struct {
 	// resizeC a channel to forward resize events so that
 	// they happen out of band and don't block reads
 	resizeC chan<- *session.TerminalParams
-	// fileTransferC is a channel to facilitate requesting a file transfer
-	// as well as approving/denying file transfer requests
-	fileTransferC chan<- *session.FileTransferParams
+	// fileTransferRequestC is a channel to facilitate requesting a file transfer
+	fileTransferRequestC chan<- *session.FileTransferRequestParams
+	// fileTransferResponseC is a channel to facilitate responding to a file transfer
+	// with an approval or denial
+	fileTransferResponseC chan<- *session.FileTransferResponseParams
 
 	// mu protects writes to ws
 	mu sync.Mutex
@@ -1210,6 +1211,9 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 
 		return 0, nil
 	case defaults.WebsocketFileTransferRequestResponse:
+		if t.fileTransferResponseC == nil {
+			return n, nil
+		}
 		var e events.EventFields
 		err := json.Unmarshal(data, &e)
 		if err != nil {
@@ -1219,27 +1223,34 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		if !ok {
 			return 0, trace.BadParameter("Unable to find approved status on response")
 		}
-		params, err := session.UnmarshalFileTransferResponseParams(e.GetString("requestId"), approved)
+		params, err := session.NewFileTransferResponseParams(e.GetString("requestId"), approved)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
 		select {
-		case t.fileTransferC <- params:
+		case t.fileTransferResponseC <- params:
 		default:
 		}
 		return 0, nil
 	case defaults.WebsocketFileTransferRequest:
+		if t.fileTransferRequestC == nil {
+			return n, nil
+		}
 		var e events.EventFields
 		err := json.Unmarshal(data, &e)
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
-		params, err := session.UnmarshalFileTransferParams(e.GetString("location"), e.GetString("direction"), e.GetString("filename"), e.GetString("size"))
+		download, ok := e["download"].(bool)
+		if !ok {
+			return 0, trace.BadParameter("Unable to find approved status on response")
+		}
+		params, err := session.NewFileTransferParams(e.GetString("location"), download, e.GetString("filename"))
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
 		select {
-		case t.fileTransferC <- params:
+		case t.fileTransferRequestC <- params:
 		default:
 		}
 		return 0, nil
@@ -1257,9 +1268,15 @@ func (t *TerminalStream) Close() error {
 		})
 	}
 
-	if t.fileTransferC != nil {
+	if t.fileTransferRequestC != nil {
 		t.once.Do(func() {
-			close(t.fileTransferC)
+			close(t.fileTransferRequestC)
+		})
+	}
+
+	if *<-t.fileTransferResponseC != nil {
+		t.once.Do(func() {
+			close(t.fileTransferResponseC)
 		})
 	}
 
