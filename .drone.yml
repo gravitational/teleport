@@ -6606,7 +6606,8 @@ steps:
     -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
     -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
     -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
-    -input "release-channel=stable" -input "repo-type=apt" -input "version-channel=${DRONE_TAG}" '
+    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=apt"
+    -input "version-channel=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -6673,7 +6674,8 @@ steps:
     -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
     -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
     -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
-    -input "release-channel=stable" -input "repo-type=yum" -input "version-channel=${DRONE_TAG}" '
+    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=yum"
+    -input "version-channel=${DRONE_TAG}" '
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
@@ -20230,6 +20232,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: f050e1682c1fbe155664724f7308ec69f7520672dd0abeb7df1deb59e7e99ac1
+hmac: 2d735b23ccff9dfe334b4defcfcd95a03e2a6ccec8d40b4aa0b1a9b3d2a94b25
 
 ...
