@@ -1274,7 +1274,7 @@ func (t *TerminalStream) Close() error {
 		})
 	}
 
-	if *<-t.fileTransferResponseC != nil {
+	if t.fileTransferResponseC != nil {
 		t.once.Do(func() {
 			close(t.fileTransferResponseC)
 		})
