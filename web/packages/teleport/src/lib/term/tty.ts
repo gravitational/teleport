@@ -81,18 +81,14 @@ class Tty extends EventEmitterWebAuthnSender {
     this.send(JSON.stringify(data));
   }
 
-  sendFileTransferRequest(
-    location: string,
-    direction: 'upload' | 'download',
-    file?: File
-  ) {
+  sendFileTransferRequest(location: string, download: boolean, file?: File) {
     if (file) {
       const locationAndName = location + file.name;
       this._pendingUploads[locationAndName] = file;
     }
     const message = JSON.stringify({
       event: EventType.FILE_TRANSFER_REQUEST,
-      direction,
+      download,
       location,
       filename: file?.name,
       size: file?.size.toString(),

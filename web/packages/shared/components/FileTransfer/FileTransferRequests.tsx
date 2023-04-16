@@ -12,11 +12,9 @@ const OwnForm = ({ request, onCancel }: OwnFormProps) => {
             wordBreak: 'break-word',
           }}
           mb={2}
-        >{`Pending ${
-          request.direction === FileTransferDirection.DOWNLOAD
-            ? 'download'
-            : 'upload'
-        }: ${request.location}${request.filename}`}</Text>
+        >{`Pending ${request.download ? 'download' : 'upload'}: ${
+          request.location
+        }${request.filename}`}</Text>
 
         <ButtonBorder onClick={() => onCancel(request.requestID, false)}>
           <Icons.Cross fontSize="16px" />
@@ -35,9 +33,7 @@ const ResponseForm = ({ request, onApprove, onDeny }: RequestFormProps) => {
         }}
         mb={2}
       >{`${request.requester} is requesting ${
-        request.direction === FileTransferDirection.DOWNLOAD
-          ? 'download'
-          : 'upload'
+        request.download ? 'download' : 'upload'
       } of file ${request.location}${request.filename}`}</Text>
       <Flex gap={2}>
         <ButtonBorder block onClick={() => onApprove(request.requestID, true)}>
@@ -102,14 +98,9 @@ export type FileTransferRequest = {
   location: string;
   filename?: string;
   size?: string;
-  direction: FileTransferDirection;
+  download: boolean;
   isOwnRequest?: boolean;
 };
-
-export enum FileTransferDirection {
-  DOWNLOAD = 0,
-  UPLOAD = 1,
-}
 
 type FileTransferRequestsProps = {
   requests: FileTransferRequest[];

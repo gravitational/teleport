@@ -67,7 +67,7 @@ export default function useSshSession(doc: DocumentSsh) {
 
   function handleDownload(location: string, abortController: AbortController) {
     if (session.moderated) {
-      tty.sendFileTransferRequest(location, 'download');
+      tty.sendFileTransferRequest(location, true);
       return;
     }
     return download(location, abortController);
@@ -79,7 +79,7 @@ export default function useSshSession(doc: DocumentSsh) {
     abortController: AbortController
   ) {
     if (session.moderated) {
-      tty.sendFileTransferRequest(location, 'upload', file);
+      tty.sendFileTransferRequest(location, false, file);
       return;
     }
     return upload(location, file, abortController);

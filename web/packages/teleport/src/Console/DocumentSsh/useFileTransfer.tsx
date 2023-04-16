@@ -1,8 +1,5 @@
 import { useState } from 'react';
-import {
-  FileTransferDirection,
-  FileTransferRequest,
-} from 'shared/components/FileTransfer/FileTransferRequests';
+import { FileTransferRequest } from 'shared/components/FileTransfer/FileTransferRequests';
 import { useFilesStore } from 'shared/components/FileTransfer/useFilesStore';
 
 import { UserContext } from 'teleport/services/user';
@@ -58,7 +55,7 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
       return;
     }
 
-    if (request.direction === FileTransferDirection.DOWNLOAD) {
+    if (request.download) {
       return filesStore.start({
         name: request.location,
         runFileTransfer: abortController =>
@@ -68,19 +65,19 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
           }),
       });
     }
-    if (request.direction === FileTransferDirection.UPLOAD) {
-      if (!file) {
-        throw new Error('Approved file not found for upload.');
-      }
-      return filesStore.start({
-        name: request.location,
-        runFileTransfer: abortController =>
-          upload(request.location, file, abortController, {
-            fileRequestId: request.requestID,
-            moderatedSessionId: request.sid,
-          }),
-      });
+
+    // if it gets here, it's an upload
+    if (!file) {
+      throw new Error('Approved file not found for upload.');
     }
+    return filesStore.start({
+      name: request.location,
+      runFileTransfer: abortController =>
+        upload(request.location, file, abortController, {
+          fileRequestId: request.requestID,
+          moderatedSessionId: request.sid,
+        }),
+    });
   }
 
   function removeFileTransferRequest(requestId: string) {
