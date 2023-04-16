@@ -41,10 +41,9 @@ type WinChangeReqParams struct {
 
 // FileTransferReqParams specifics parameters for requesting a file transfer
 type FileTransferReqParams struct {
-	Direction string
-	Location  string
-	Filename  string
-	Size      string
+	Download bool
+	Location string
+	Filename string
 }
 
 // FileTransferResponseParams specifics params for responding to a file transfer request

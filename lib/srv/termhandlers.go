@@ -151,11 +151,10 @@ func (t *TermHandlers) HandleFileTransferRequestResponse(ctx context.Context, ch
 		}
 		t.SessionRegistry.NotifyFileTransferRequest(req, FileTransferApproved, scx)
 	} else {
-		req, err := session.denyFileTransferRequest(params, scx)
+		_, err := session.denyFileTransferRequest(params, scx)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		t.SessionRegistry.NotifyFileTransferRequest(req, FileTransferDenied, scx)
 	}
 	return nil
 }
@@ -176,9 +175,7 @@ func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Cha
 		return nil
 	}
 
-	ftReq := session.addFileTransferRequest(params, scx)
-	t.SessionRegistry.NotifyFileTransferRequest(ftReq, FileTransferUpdate, scx)
-
+	session.addFileTransferRequest(params, scx)
 	return nil
 }
 
@@ -266,28 +263,27 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 	return params, trace.Wrap(err)
 }
 
-func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferParams, error) {
+func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferRequestParams, error) {
 	var r sshutils.FileTransferReqParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	params := &rsession.FileTransferParams{
-		Location:  r.Location,
-		Filename:  r.Filename,
-		Size:      r.Size,
-		Direction: r.Direction,
+	params := &rsession.FileTransferRequestParams{
+		Location: r.Location,
+		Filename: r.Filename,
+		Download: r.Download,
 	}
 	return params, nil
 }
 
-func parseFileTransferResponseRequest(req *ssh.Request) (*rsession.FileTransferParams, error) {
+func parseFileTransferResponseRequest(req *ssh.Request) (*rsession.FileTransferResponseParams, error) {
 	var r sshutils.FileTransferResponseParams
 	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	params := &rsession.FileTransferParams{
+	params := &rsession.FileTransferResponseParams{
 		RequestID: r.RequestID,
 		Approved:  r.Approved,
 	}
