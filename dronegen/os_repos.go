@@ -63,6 +63,7 @@ func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, 
 			"release-channel":     "stable",
 			"version-channel":     versionChannel,
 			"package-name-filter": packageNameFilter,
+			"package-to-test":     "teleport-ent",
 		},
 	})
 
