@@ -629,17 +629,11 @@ message FileTransferRequestEvent {
   // Location is the location of the file to be downloaded, or the directory of the upload
   string Location = 6 [(gogoproto.jsontag) = "location"];
 
-  // Direction is "upload" or "download" for the requested file transfer
-  FileTransferDirection Direction = 7 [(gogoproto.jsontag) = "direction"];
+  // Download is true if the requested file transfer is a download, false if an upload
+  bool Download = 7 [(gogoproto.jsontag) = "download"];
 
   // Filename is the name of the file to be uploaded to the Location. Only present in uploads.
   string Filename = 8 [(gogoproto.jsontag) = "filename"];
-}
-
-// FileTransferDirection is the direction for a requested file transfer
-enum FileTransferDirection {
-  DOWNLOAD = 0;
-  UPLOAD = 1;
 }
 
 // Resize means that some user resized PTY on the client
