@@ -76,8 +76,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.1.0/go.m
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers v1.1.0 h1:b3HXcgghJxdrth4y8wZ7p8v4J/1HBkL0CpAv5t9K3QY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers v1.1.0/go.mod h1:X+dUuMBFMvqsmSkQ2LcCNxq14KFkZ6V/3INYs3suNYY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.0.0 h1:nBy98uKOIfun5z6wx6jwWLrULcM0+cjBalBFZlEZ7CA=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql v1.1.0 h1:H1b0KV9BVHK/GCffGzEYoH9vCjuHNe0Z0IEnSxQt0N0=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql v1.1.0/go.mod h1:XuVagOJ3SVFrcbWgteWmWc9688zWn16w4sVkxdIu7sw=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql v1.1.1 h1:bbLzpw/L7oJXgFydh1z1SD1B8GTa8heWEM/DSVowRyM=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresql v1.1.1/go.mod h1:XuVagOJ3SVFrcbWgteWmWc9688zWn16w4sVkxdIu7sw=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0 h1:HzqcSJWx32XQdr8KtxAu/SZJj0PqDo9tKf2YGPdynV0=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/postgresql/armpostgresqlflexibleservers v1.1.0/go.mod h1:nKcJObAisSPDrO9lMuuCBoYY7Ki7ADt8p6XmBhpKNTk=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2 v2.2.0 h1:vbseS1qYczYV5z3gpJostn7GYw1uNCch9sMddpWaPEc=
