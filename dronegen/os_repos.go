@@ -30,24 +30,37 @@ func promoteBuildOsRepoPipelines() []pipeline {
 	pipelines := []pipeline{}
 
 	// Normal release pipelines
-	pipelines = append(pipelines, buildPromoteOsPackagePipelines("${DRONE_TAG}", `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`, "normal")...)
+	pipelines = append(pipelines, buildPromoteOsPackagePipelines("${DRONE_TAG}", `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`, "normal", "teleport-ent")...)
 
 	// teleport-ent-updater to stable/cloud only pipelines
-	pipelines = append(pipelines, buildPromoteOsPackagePipelines("cloud", "teleport-ent-updater*", "teleport-ent-updater")...)
+	pipelines = append(pipelines, buildPromoteOsPackagePipelines("cloud", "teleport-ent-updater*", "teleport-ent-updater", "")...)
 
 	return pipelines
 }
 
-func buildPromoteOsPackagePipelines(versionChannel, packageNameFilter, pipelineNameSuffix string) []pipeline {
+func buildPromoteOsPackagePipelines(versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest string) []pipeline {
 	return []pipeline{
-		buildPromoteOsPackagePipeline("apt", versionChannel, packageNameFilter, pipelineNameSuffix),
-		buildPromoteOsPackagePipeline("yum", versionChannel, packageNameFilter, pipelineNameSuffix),
+		buildPromoteOsPackagePipeline("apt", versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest),
+		buildPromoteOsPackagePipeline("yum", versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest),
 	}
 }
 
-func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, pipelineNameSuffix string) pipeline {
+func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, pipelineNameSuffix, packageToTest string) pipeline {
 	releaseEnvironmentFilePath := "/go/vars/release-environment.txt"
 	clonePath := "/go/src/github.com/gravitational/teleport"
+
+	inputs := map[string]string{
+		"repo-type":           repoType,
+		"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
+		"artifact-tag":        "${DRONE_TAG}",
+		"release-channel":     "stable",
+		"version-channel":     versionChannel,
+		"package-name-filter": packageNameFilter,
+	}
+
+	if packageToTest != "" {
+		inputs["package-to-test"] = packageToTest
+	}
 
 	pipeline := ghaBuildPipeline(ghaBuildType{
 		trigger:           triggerPromote,
@@ -56,15 +69,7 @@ func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, 
 		timeout:           12 * time.Hour, // DR takes a long time
 		workflowRef:       "refs/heads/master",
 		shouldTagWorkflow: false,
-		inputs: map[string]string{
-			"repo-type":           repoType,
-			"environment":         fmt.Sprintf("$(cat %q)", releaseEnvironmentFilePath),
-			"artifact-tag":        "${DRONE_TAG}",
-			"release-channel":     "stable",
-			"version-channel":     versionChannel,
-			"package-name-filter": packageNameFilter,
-			"package-to-test":     "teleport-ent",
-		},
+		inputs:            inputs,
 	})
 
 	pipeline.Steps = []step{
