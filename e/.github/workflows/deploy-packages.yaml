@@ -52,7 +52,7 @@ jobs:
     name: Deploy packages to ${{ inputs.repo-type }} repo
     # Note that the value of this string is arbitrary as long as it contains the `${{ inputs.repo-type }}`
     # and `${{ inputs.environment }}` expressions
-    concurrency: Only allow a single deployment for one ${{ inputs.repo-type }} repo at a time
+    concurrency: Only allow a single deployment at a time
     permissions:
       contents: read
       id-token: write   # Required for aws-actions/configure-aws-credentials
