@@ -130,24 +130,25 @@ progress when the app was closed. It will only restore the working directory for
 
 ## Using tsh outside of Teleport Connect
 
-Teleport Connect ships with its own bundled version of tsh. Teleport Connect will always use this
-version of tsh for any actions performed within the app.
+Teleport Connect ships with its own bundled version of `tsh`, the Teleport command line tool.
+Teleport Connect will always use this version of `tsh` for any actions performed within the app.
+See [Using the tsh Command Line Tool](./tsh.mdx) for more information on how to use `tsh`.
 
-Teleport Connect makes tsh available to use in your terminal of choice as well. Please note that at
-the moment tsh and Teleport Connect operate on different sets of profiles, as Teleport Connect sets
+Teleport Connect makes `tsh` available to use in your terminal of choice as well. Please note that at
+the moment `tsh` and Teleport Connect operate on different sets of profiles, as Teleport Connect sets
 a custom home location through [the `TELEPORT_HOME` environment
 variable](../reference/cli.mdx#tsh-environment-variables). For example, logging in to a new cluster
-through tsh will not make that cluster show up in Teleport Connect.
+through `tsh` will not make that cluster show up in Teleport Connect.
 
 <Tabs>
 <TabItem label="macOS">
-To add tsh to `PATH`, execute `tsh install` from the command bar in Teleport Connect. This will
-symlink tsh to `/usr/local/bin`. You can remove the symlink with `tsh uninstall`.
+To add `tsh` to your user `PATH`, execute `tsh install` from the command bar in Teleport Connect. This will
+symlink `tsh` to `/usr/local/bin`. You can remove the symlink with `tsh uninstall`.
 
-If you used the tsh macOS .pkg installer before, this will overwrite the symlink made by that installer.
+If you installed the `tsh` macOS .pkg installer already, this will overwrite the symlink made by that installer.
 </TabItem>
 <TabItem label="Linux">
-During installation, Teleport Connect automatically adds a symlink to tsh under
+During installation, Teleport Connect automatically adds a symlink to `tsh` under
 `/usr/local/bin/tsh`, unless you have already installed the `teleport` package, which also creates
 that symlink.
 </TabItem>
