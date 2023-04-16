@@ -394,7 +394,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// Create a terminal stream that wraps/unwraps the envelope used to
 	// communicate over the websocket.
 	resizeC := make(chan *session.TerminalParams, 1)
-	fileTransferC := make(chan *session.FileTransferParams)
+	fileTransferC := make(chan *session.FileTransferParams, 1)
 	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandler((fileTransferC)))
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
