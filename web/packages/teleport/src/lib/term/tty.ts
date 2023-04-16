@@ -201,12 +201,18 @@ class Tty extends EventEmitterWebAuthnSender {
       this.emit(EventType.FILE_TRANSFER_REQUEST, event);
     }
     if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVE) {
-      const locationAndName = event.location + event.filename;
-      const pendingFile = this._getPendingFile(locationAndName);
-      if (pendingFile) {
-        this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
-        delete this._pendingUploads[locationAndName];
+      const isDownload = event.download === true;
+      let pendingFile: File = null;
+      // if the approval is for an upload, fetch the file pending upload
+      if (!isDownload) {
+        const locationAndName = event.location + event.filename;
+        pendingFile = this._getPendingFile(locationAndName);
+        // cleanup if file exists. It's ok if it doesn't exist, we check thaat in the handler
+        if (pendingFile) {
+          delete this._pendingUploads[locationAndName];
+        }
       }
+      this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
     }
     if (event.event === EventType.FILE_TRANSFER_REQUEST_DENY) {
       this.emit(EventType.FILE_TRANSFER_REQUEST_DENY, event);

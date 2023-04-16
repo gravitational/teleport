@@ -67,6 +67,7 @@ export const useFileTransfer = ({ doc, user, addMfaToScpUrls }: Props) => {
     }
 
     // if it gets here, it's an upload
+
     if (!file) {
       throw new Error('Approved file not found for upload.');
     }
