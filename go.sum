@@ -71,8 +71,8 @@ github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3 v3.0
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.4.0 h1:1u/K2BFv0MwkG6he8RYuUcbbeK22rkoZbg4lKa/msZU=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/containerservice/armcontainerservice/v2 v2.4.0/go.mod h1:U5gpsREQZE6SLk1t/cFfc1eMhYAlYpEzvaYXuDfefy8=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/internal v1.1.2 h1:mLY+pNLjCUeKhgnAJWAKhEUQM+RJQo2H1fuGSw1Ky1E=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.1.0 h1:4w2eD8N0/T9Ju7NcV+ssLrA1QCq2MHFHrBduV3DkUKU=
-github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.1.0/go.mod h1:R74AaoH5TpsNGNfyMzZEmf326Wdn5UUez3+hhx28T7U=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.1.1 h1:tVC/yzOmNwNEA+BBBdZqIq0OlSAnIPTEr78GXSamfzg=
+github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysql v1.1.1/go.mod h1:R74AaoH5TpsNGNfyMzZEmf326Wdn5UUez3+hhx28T7U=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers v1.1.0 h1:b3HXcgghJxdrth4y8wZ7p8v4J/1HBkL0CpAv5t9K3QY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mysql/armmysqlflexibleservers v1.1.0/go.mod h1:X+dUuMBFMvqsmSkQ2LcCNxq14KFkZ6V/3INYs3suNYY=
 github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork v1.0.0 h1:nBy98uKOIfun5z6wx6jwWLrULcM0+cjBalBFZlEZ7CA=
