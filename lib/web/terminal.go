@@ -872,10 +872,11 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 				Filename: transferRequest.Filename,
 			})
 		case transferResponse := <-fileTransferResponseC:
-			t.sshSession.FileTransferRequestResponse(t.terminalContext, tracessh.FileTransferResponseReq{
-				RequestID: transferResponse.RequestID,
-				Approved:  transferResponse.Approved,
-			})
+			if transferResponse.Approved {
+				t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+			} else {
+				t.sshSession.DenyFileTransferRequest(t.terminalContext, transferResponse.RequestID)
+			}
 		}
 
 	}
@@ -1241,7 +1242,7 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		}
 		download, ok := e["download"].(bool)
 		if !ok {
-			return 0, trace.BadParameter("Unable to find approved status on response")
+			return 0, trace.BadParameter("Unable to find download param in response")
 		}
 		select {
 		case t.fileTransferRequestC <- &session.FileTransferRequestParams{
