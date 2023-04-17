@@ -277,7 +277,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
 
 			// advance time, and heartbeat will move to announce
-			clock.Advance(hb.AnnouncePeriod * time.Second)
+			clock.Advance(hb.AnnouncePeriod + time.Second)
 			err = hb.fetch()
 			require.NoError(t, err)
 			require.Equal(t, hb.state, HeartbeatStateAnnounce)

@@ -4571,23 +4571,17 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Node.Login == "" {
 			return nil, trace.BadParameter("empty Login field")
 		}
+
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
+		matches, err := client.GetResourcesWithFilters(ctx, a, proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      apidefaults.Namespace,
+			SearchKeywords: []string{t.Node.Node},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var matches []types.Server
-		for _, n := range nodes {
-			// Get the server address without port number.
-			addr, _, err := net.SplitHostPort(n.GetAddr())
-			if err != nil {
-				addr = n.GetAddr()
-			}
-			// Match NodeName to UUID, hostname or self-reported server address.
-			if n.GetName() == t.Node.Node || n.GetHostname() == t.Node.Node || addr == t.Node.Node {
-				matches = append(matches, n)
-			}
-		}
+
 		if len(matches) == 0 {
 			// If t.Node.Node is not a known registered node, it may be an
 			// unregistered host running OpenSSH with a certificate created via
@@ -4600,10 +4594,25 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			// connection.
 			return &proto.IsMFARequiredResponse{Required: false}, nil
 		}
+
 		// Check RBAC against all matching nodes and return the first error.
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
-			err := checker.CheckAccess(
+			srv, ok := n.(types.Server)
+			if !ok {
+				continue
+			}
+			// Get the server address without port number.
+			addr, _, err := net.SplitHostPort(srv.GetAddr())
+			if err != nil {
+				addr = srv.GetAddr()
+			}
+			// Filter out any matches on labels before checking access
+			if n.GetName() != t.Node.Node && srv.GetHostname() != t.Node.Node && addr != t.Node.Node {
+				continue
+			}
+
+			err = checker.CheckAccess(
 				n,
 				services.AccessState{},
 				services.NewLoginMatcher(t.Node.Login),

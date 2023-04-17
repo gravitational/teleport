@@ -576,6 +576,11 @@
               "slug": "/management/guides/joining-nodes-azure/"
             },
             {
+              "title": "Joining Services via Kubernetes ServiceAccount",
+              "slug": "/management/guides/joining-services-kubernetes-serviceaccount/",
+              "forScopes": ["oss", "enterprise"]
+            },
+            {
               "title": "Using Teleport's CA with GitHub",
               "slug": "/management/guides/ssh-key-extensions/"
             }

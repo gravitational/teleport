@@ -4,7 +4,7 @@ automatically rebuilt every night.
 Nightly images point to the latest version of Teleport Enterprise from the three most recent release branches.
 They are stable, and we recommend their use to easily keep your Teleport Enterprise installation up to date.
 
-These images are hosted on our [Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent-distroless). All tags under `public.ecr.aws/gravitational/teleport-ent-distroless` are Teleport Enterprise images. Each tag points to a multi-arch image, conmtaining Teleport for `arm`, `arm64` and `amd64`.
+These images are hosted on our [Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent-distroless). All tags under `public.ecr.aws/gravitational/teleport-ent-distroless` are Teleport Enterprise images. Each tag points to a multi-arch image, containing Teleport for `arm`, `arm64` and `amd64`.
 
 FIPS images are still posted to our [Legacy Amazon ECR Public repository](https://gallery.ecr.aws/gravitational/teleport-ent).
 You can specify the architecture of a Teleport FIPS Docker image by adding a postfix to the image tag, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)-arm64`. Versions without an architecture postfix use the `amd64` architecture, e.g., `public.ecr.aws/gravitational/teleport:(=teleport.major_version=)`. 

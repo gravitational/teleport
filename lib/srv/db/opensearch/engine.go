@@ -28,11 +28,13 @@ import (
 	"github.com/gravitational/trace"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
+	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/utils"
 	libaws "github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -170,12 +172,16 @@ func (e *Engine) HandleConnection(ctx context.Context, _ *common.Session) error 
 // process reads request from connected OpenSearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws.SigningService, req *http.Request) error {
-	reqCopy, err := e.rewriteRequest(ctx, req)
+	reqCopy, payload, err := e.rewriteRequest(ctx, req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	e.emitAuditEvent(reqCopy)
+	// emit an audit event regardless of failure
+	var responseStatusCode uint32
+	defer func() {
+		e.emitAuditEvent(reqCopy, payload, responseStatusCode, err == nil)
+	}()
 
 	signedReq, err := e.getSignedRequest(signer, reqCopy)
 	if err != nil {
@@ -187,6 +193,7 @@ func (e *Engine) process(ctx context.Context, tr *http.Transport, signer *libaws
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	responseStatusCode = uint32(resp.StatusCode)
 
 	return trace.Wrap(e.sendResponse(resp))
 }
@@ -229,10 +236,10 @@ func (e *Engine) getSignedRequest(signer *libaws.SigningService, reqCopy *http.R
 	return signedReq, nil
 }
 
-func (e *Engine) rewriteRequest(ctx context.Context, req *http.Request) (*http.Request, error) {
+func (e *Engine) rewriteRequest(ctx context.Context, req *http.Request) (*http.Request, []byte, error) {
 	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	reqCopy := req.Clone(ctx)
@@ -247,30 +254,57 @@ func (e *Engine) rewriteRequest(ctx context.Context, req *http.Request) (*http.R
 	reqCopy.URL.Host = e.sessionCtx.Database.GetURI()
 	reqCopy.Host = e.sessionCtx.Database.GetURI()
 
-	return reqCopy, nil
+	return reqCopy, payload, nil
 }
 
 // emitAuditEvent writes the request and response to audit stream.
-func (e *Engine) emitAuditEvent(req *http.Request) {
-	// Try to read the body and JSON unmarshal it.
-	// If this fails, we still want to emit the rest of the event info; the request event Body is nullable,
-	// so it's ok if body is nil here.
-	body, err := libaws.UnmarshalRequestBody(req)
-	if err != nil {
-		e.Log.WithError(err).Warn("Failed to read request body as JSON, omitting the body from the audit event.")
+func (e *Engine) emitAuditEvent(req *http.Request, body []byte, statusCode uint32, noErr bool) {
+	var eventCode string
+	if noErr && statusCode != 0 {
+		eventCode = events.OpenSearchRequestCode
+	} else {
+		eventCode = events.OpenSearchRequestFailureCode
+	}
+
+	// Normally the query is passed as request body, and body content type as a header.
+	// Yet it can also be passed as `source` and `source_content_type` URL params, and we handle that here.
+	contentType := req.Header.Get("Content-Type")
+
+	source := req.URL.Query().Get("source")
+	if len(source) > 0 {
+		e.Log.Infof("'source' parameter found, overriding request body.")
+		body = []byte(source)
+		contentType = req.URL.Query().Get("source_content_type")
+	}
+
+	target, category := parsePath(req.URL.Path)
+
+	// Heuristic to calculate the query field.
+	// The priority is given to 'q' URL param. If not found, we look at the request body.
+	// This is not guaranteed to give us actual query, for example:
+	// - we may not support given API
+	// - we may not support given content encoding
+	query := req.URL.Query().Get("q")
+	if query == "" {
+		query = elasticsearch.GetQueryFromRequestBody(e.EngineConfig, contentType, body)
 	}
 
 	ev := &apievents.OpenSearchRequest{
 		Metadata: common.MakeEventMetadata(e.sessionCtx,
 			events.DatabaseSessionOpenSearchRequestEvent,
-			events.OpenSearchRequestCode),
+			eventCode),
 		UserMetadata:     common.MakeUserMetadata(e.sessionCtx),
 		SessionMetadata:  common.MakeSessionMetadata(e.sessionCtx),
 		DatabaseMetadata: common.MakeDatabaseMetadata(e.sessionCtx),
+		StatusCode:       statusCode,
 		Method:           req.Method,
 		Path:             req.URL.Path,
 		RawQuery:         req.URL.RawQuery,
 		Body:             body,
+		Headers:          wrappers.Traits(req.Header),
+		Category:         category,
+		Target:           target,
+		Query:            query,
 	}
 
 	e.Audit.EmitEvent(e.Context, ev)

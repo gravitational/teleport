@@ -40,23 +40,65 @@ export type Integration<
   details?: string;
   statusCode: IntegrationStatusCode;
 };
-export type IntegrationKind = 'aws-oidc';
+// IntegrationKind string values should be in sync
+// with the backend value for defining the integration
+// resource's subKind field.
+export enum IntegrationKind {
+  AwsOidc = 'aws-oidc',
+}
 export type IntegrationSpecAwsOidc = {
   roleArn: string;
 };
 
-// IntegrationStatusCode must be in sync with the text values defined
-// in the backend as these are used to determine the status color:
-// https://github.com/gravitational/teleport.e/blob/1ebe50ce2fe608dc6dd24fef205fb9caaa216a46/lib/web/ui/plugins.go#L51
-export type IntegrationStatusCode =
-  | 'Unknown'
-  | 'Running'
-  | 'Unknown error'
-  | 'Unauthorized'
-  | 'Bot not invited to channel';
+export enum IntegrationStatusCode {
+  Unknown = 0,
+  Running = 1,
+  OtherError = 2,
+  Unauthorized = 3,
+  SlackNotInChannel = 10,
+}
+
+export function getStatusCodeTitle(code: IntegrationStatusCode): string {
+  switch (code) {
+    case IntegrationStatusCode.Unknown:
+      return 'Unknown';
+    case IntegrationStatusCode.Running:
+      return 'Running';
+    case IntegrationStatusCode.Unauthorized:
+      return 'Unauthorized';
+    case IntegrationStatusCode.SlackNotInChannel:
+      return 'Bot not invited to channel';
+    default:
+      return 'Unknown error';
+  }
+}
+
+export function getStatusCodeDescription(
+  code: IntegrationStatusCode
+): string | null {
+  switch (code) {
+    case IntegrationStatusCode.Unauthorized:
+      return 'The integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.';
+
+    case IntegrationStatusCode.SlackNotInChannel:
+      return 'The Slack integration must be invited to the default channel in order to receive access request notifications.';
+
+    default:
+      return null;
+  }
+}
 
 export type Plugin = Integration<'plugin', PluginKind, PluginSpec>;
-export type PluginSpec = {
-  statusDescription?: string;
-};
+export type PluginSpec = Record<string, never>; // currently no 'spec' fields exposed to the frontend
 export type PluginKind = 'slack';
+
+export type IntegrationCreateRequest = {
+  name: string;
+  subKind: IntegrationKind;
+  awsoidc?: IntegrationSpecAwsOidc;
+};
+
+export type IntegrationListResponse = {
+  items: Integration[];
+  nextKey?: string;
+};

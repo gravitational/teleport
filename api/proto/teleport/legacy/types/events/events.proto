@@ -601,6 +601,47 @@ message SessionConnect {
   ];
 }
 
+// FileTransferRequestEvent happens when a FileTransferRequest is created, updated, approved, or denied.
+message FileTransferRequestEvent {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // SessionMetadata is a common event session metadata
+  SessionMetadata Session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // RequestID is the ID for the FileTransferRequest
+  string RequestID = 3 [(gogoproto.jsontag) = "requestID"];
+
+  // Approvers is a slice containing the Teleport users who have approved the request
+  repeated string Approvers = 4 [(gogoproto.jsontag) = "approvers"];
+
+  // Requester is the Teleport user who requested the file transfer
+  string Requester = 5 [(gogoproto.jsontag) = "requester"];
+
+  // Location is the location of the file to be downloaded, or the directory of the upload
+  string Location = 6 [(gogoproto.jsontag) = "location"];
+
+  // Direction is "upload" or "download" for the requested file transfer
+  FileTransferDirection Direction = 7 [(gogoproto.jsontag) = "direction"];
+
+  // Filename is the name of the file to be uploaded to the Location. Only present in uploads.
+  string Filename = 8 [(gogoproto.jsontag) = "filename"];
+}
+
+// FileTransferDirection is the direction for a requested file transfer
+enum FileTransferDirection {
+  DOWNLOAD = 0;
+  UPLOAD = 1;
+}
+
 // Resize means that some user resized PTY on the client
 message Resize {
   // Metadata is a common event metadata
@@ -3929,14 +3970,14 @@ message DatabaseSessionMalformedPacket {
 
 // ElasticsearchCategory specifies Elasticsearch request category.
 enum ElasticsearchCategory {
-  // GENERAL is for otherwise uncategorized calls.
-  GENERAL = 0;
-  // SECURITY is for _security and _ssl APIs.
-  SECURITY = 1;
-  // SEARCH is for search-related APIs.
-  SEARCH = 2;
-  // SQL covers _sql API.
-  SQL = 3;
+  // ELASTICSEARCH_CATEGORY_GENERAL is for otherwise uncategorized calls.
+  ELASTICSEARCH_CATEGORY_GENERAL = 0;
+  // ELASTICSEARCH_CATEGORY_SECURITY is for _security and _ssl APIs.
+  ELASTICSEARCH_CATEGORY_SECURITY = 1;
+  // ELASTICSEARCH_CATEGORY_SEARCH is for search-related APIs.
+  ELASTICSEARCH_CATEGORY_SEARCH = 2;
+  // ELASTICSEARCH_CATEGORY_SQL covers _sql API.
+  ELASTICSEARCH_CATEGORY_SQL = 3;
 }
 
 // ElasticsearchRequest is emitted when user executes an Elasticsearch request, which isn't
@@ -3990,6 +4031,21 @@ message ElasticsearchRequest {
 
   // Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
   string Query = 12 [(gogoproto.jsontag) = "query"];
+
+  // StatusCode is optional status code returned from the call to database.
+  uint32 StatusCode = 13 [(gogoproto.jsontag) = "status_code"];
+}
+
+// OpenSearchCategory specifies OpenSearch request category.
+enum OpenSearchCategory {
+  // OPEN_SEARCH_CATEGORY_GENERAL is for otherwise uncategorized calls.
+  OPEN_SEARCH_CATEGORY_GENERAL = 0;
+  // OPEN_SEARCH_CATEGORY_SECURITY covers /_plugins/_security API.
+  OPEN_SEARCH_CATEGORY_SECURITY = 1;
+  // OPEN_SEARCH_CATEGORY_SEARCH is for search-related APIs.
+  OPEN_SEARCH_CATEGORY_SEARCH = 2;
+  // OPEN_SEARCH_CATEGORY_SQL covers /_plugins/_sql and /_plugins/_ppl API.
+  OPEN_SEARCH_CATEGORY_SQL = 3;
 }
 
 // OpenSearchRequest is emitted when a user executes a OpenSearch request via database-access.
@@ -4019,21 +4075,32 @@ message OpenSearchRequest {
     (gogoproto.jsontag) = ""
   ];
 
-  uint32 StatusCode = 5 [(gogoproto.jsontag) = "status_code"];
   // Path is relative path in the URL.
-  string Path = 6 [(gogoproto.jsontag) = "path"];
+  string Path = 5 [(gogoproto.jsontag) = "path"];
   // RawQuery are the encoded query values.
-  string RawQuery = 7 [(gogoproto.jsontag) = "raw_query"];
+  string RawQuery = 6 [(gogoproto.jsontag) = "raw_query"];
   // Method is the request HTTP method, like GET/POST/DELETE/etc.
-  string Method = 8 [(gogoproto.jsontag) = "method"];
-  // Target is the API target in the X-Amz-Target header.
-  string Target = 9 [(gogoproto.jsontag) = "target"];
-  // Body is the HTTP request json body.
-  // The Struct type is a wrapper around protobuf/types.Struct and is used to marshal the JSON body correctly.
-  google.protobuf.Struct Body = 10 [
-    (gogoproto.jsontag) = "body,omitempty",
-    (gogoproto.casttype) = "Struct"
+  string Method = 7 [(gogoproto.jsontag) = "method"];
+  // Body is the request HTTP body.
+  bytes Body = 8 [(gogoproto.jsontag) = "body"];
+  // Headers are the HTTP request headers.
+  wrappers.LabelValues Headers = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "headers,omitempty",
+    (gogoproto.customtype) = "github.com/gravitational/teleport/api/types/wrappers.Traits"
   ];
+
+  // Category represents the category if API being accessed in a given request.
+  OpenSearchCategory Category = 10 [(gogoproto.jsontag) = "category"];
+
+  // Target is an optional field indicating the target index or set of indices used as a subject of request.
+  string Target = 11 [(gogoproto.jsontag) = "target"];
+
+  // Query is an optional text of query (e.g. an SQL select statement for _sql API), if a request includes it.
+  string Query = 12 [(gogoproto.jsontag) = "query"];
+
+  // StatusCode is optional status code returned from the call to database.
+  uint32 StatusCode = 13 [(gogoproto.jsontag) = "status_code"];
 }
 
 // DynamoDBRequest is emitted when a user executes a DynamoDB request via database-access.

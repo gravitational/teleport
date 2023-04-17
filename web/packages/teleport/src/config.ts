@@ -615,10 +615,12 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(clusterId: string, name?: string) {
-    return generateResourcePath(cfg.api.integrationsPath, {
+  getIntegrationsUrl(integrationName?: string) {
+    // Currently you can only create integrations at the root cluster.
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationsPath, {
       clusterId,
-      name,
+      name: integrationName,
     });
   },
 

@@ -22,12 +22,21 @@ import awsIcon from 'design/assets/images/icons/aws.svg';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
+import { ToolTipInfo } from 'shared/components/ToolTip';
 
-import type { Integration, Plugin } from 'teleport/services/integrations';
+import {
+  getStatusCodeDescription,
+  getStatusCodeTitle,
+  Integration,
+  IntegrationStatusCode,
+  IntegrationKind,
+  Plugin,
+} from 'teleport/services/integrations';
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
-  onDelete(i: IntegrationLike): void;
+  onDeletePlugin?(p: Plugin): void;
+  onDeleteIntegration?(i: Integration): void;
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -61,11 +70,29 @@ export function IntegrationList(props: Props<IntegrationLike>) {
         },
         {
           altKey: 'options-btn',
-          render: item => (
-            <ActionCell
-              onDelete={props.onDelete ? () => props.onDelete(item) : null}
-            />
-          ),
+          render: item => {
+            if (item.resourceType === 'plugin') {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem onClick={() => props.onDeletePlugin(item)}>
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            return (
+              <Cell align="right">
+                <MenuButton>
+                  <MenuItem onClick={() => props.onDeleteIntegration(item)}>
+                    Delete...
+                  </MenuItem>
+                </MenuButton>
+              </Cell>
+            );
+          },
         },
       ]}
       emptyText="No Results Found"
@@ -75,27 +102,19 @@ export function IntegrationList(props: Props<IntegrationLike>) {
 
 const StatusCell = ({ item }: { item: IntegrationLike }) => {
   const status = getStatus(item);
+  const statusDescription = getStatusCodeDescription(item.statusCode);
 
   return (
     <Cell>
       <Flex alignItems="center">
         <StatusLight status={status} />
-        {item.statusCode}
+        {getStatusCodeTitle(item.statusCode)}
+        {statusDescription && (
+          <Box mx="1">
+            <ToolTipInfo>{statusDescription}</ToolTipInfo>
+          </Box>
+        )}
       </Flex>
-    </Cell>
-  );
-};
-
-const ActionCell = ({ onDelete }: { onDelete: () => void }) => {
-  if (!onDelete) {
-    return null;
-  }
-
-  return (
-    <Cell align="right">
-      <MenuButton>
-        <MenuItem onClick={onDelete}>Delete...</MenuItem>
-      </MenuButton>
     </Cell>
   );
 };
@@ -106,17 +125,20 @@ enum Status {
   Error,
 }
 
-function getStatus(item: IntegrationLike) {
+function getStatus(item: IntegrationLike): Status | null {
+  if (item.resourceType !== 'plugin') {
+    return Status.Success;
+  }
+
   switch (item.statusCode) {
-    case 'Running':
+    case IntegrationStatusCode.Unknown:
+      return null;
+    case IntegrationStatusCode.Running:
       return Status.Success;
-
-    case 'Unauthorized':
-    case 'Unknown error':
-      return Status.Error;
-
-    case 'Bot not invited to channel':
+    case IntegrationStatusCode.SlackNotInChannel:
       return Status.Warning;
+    default:
+      return Status.Error;
   }
 }
 
@@ -130,10 +152,10 @@ const StatusLight = styled(Box)`
       return theme.colors.success;
     }
     if (status === Status.Error) {
-      return theme.colors.error.light;
+      return theme.colors.error.main;
     }
     if (status === Status.Warning) {
-      return theme.colors.warning;
+      return theme.colors.warning.main;
     }
     return theme.colors.grey[300]; // Unknown
   }};
@@ -152,8 +174,8 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
   } else {
     // Default is integration.
     switch (item.kind) {
-      case 'aws-oidc':
-        formattedText = 'Amazon Web Services (OIDC)';
+      case IntegrationKind.AwsOidc:
+        formattedText = item.name;
         icon = <IconContainer src={awsIcon} />;
         break;
     }

@@ -73,7 +73,7 @@ export function FileTransferStateless(props: FileTransferStatelessProps) {
         <ButtonClose onClick={props.onClose} />
       </Flex>
       {items.Form}
-      <Text color="error.light" typography="body2" mt={1}>
+      <Text color="error.hover" typography="body2" mt={1}>
         {props.errorText}
       </Text>
       <FileList files={props.files} onCancel={props.onCancel} />
