@@ -866,7 +866,6 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferRequestC:
-			// if not response, this is a new file transfer request
 			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferRequestReq{
 				Download: transferRequest.Download,
 				Location: transferRequest.Location,
