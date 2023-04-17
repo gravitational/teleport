@@ -1223,7 +1223,10 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 			return 0, trace.BadParameter("Unable to find approved status on response")
 		}
 		select {
-		case t.fileTransferResponseC <- session.NewFileTransferResponseParams(e.GetString("requestId"), approved):
+		case t.fileTransferResponseC <- &session.FileTransferResponseParams{
+			RequestID: e.GetString("requestId"),
+			Approved:  approved,
+		}:
 		default:
 		}
 		return 0, nil
@@ -1241,7 +1244,11 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 			return 0, trace.BadParameter("Unable to find approved status on response")
 		}
 		select {
-		case t.fileTransferRequestC <- session.NewFileTransferParams(e.GetString("location"), download, e.GetString("filename")):
+		case t.fileTransferRequestC <- &session.FileTransferRequestParams{
+			Location: e.GetString("location"),
+			Download: download,
+			Filename: e.GetString("filename"),
+		}:
 		default:
 		}
 		return 0, nil
