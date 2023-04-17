@@ -165,24 +165,9 @@ type LockedJoinItemProps = {
 };
 function LockedJoinItem({ name, info }: LockedJoinItemProps) {
   return (
-    <StyledJoinItem
-      mb="3"
-      style={{
-        '&:hover': {
-          background: 'red',
-        },
-      }}
-    >
+    <Box mb="3">
       <Text fontSize="16px">{name}</Text>
       <Text fontSize="14px">{info}</Text>
-    </StyledJoinItem>
+    </Box>
   );
 }
-
-const StyledJoinItem = styled(Box)(
-  () => `
-  &:hover {
-    color: white;
-  }
-  `
-);
