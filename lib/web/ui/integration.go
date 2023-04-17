@@ -127,11 +127,13 @@ func MakeAWSOIDCListDatabasesResponse(in *awsoidc.ListDatabasesResponse) *AWSOID
 	ret.Databases = make([]AWSDatabase, 0, len(in.Databases))
 	for _, d := range in.Databases {
 		ret.Databases = append(ret.Databases, AWSDatabase{
-			Name:     d.Name,
-			Engine:   d.Engine,
-			Status:   d.Status,
-			Endpoint: d.Endpoint,
-			Labels:   makeLabels(d.Labels),
+			Name:       d.Name,
+			Engine:     d.Engine,
+			Status:     d.Status,
+			Endpoint:   d.Endpoint,
+			Labels:     makeLabels(d.Labels),
+			ResourceID: d.ResourceID,
+			AccountID:  d.AccountID,
 		})
 	}
 
@@ -160,4 +162,8 @@ type AWSDatabase struct {
 	Endpoint string `json:"endpoint,omitempty"`
 	// Labels contains the Instance tags.
 	Labels []Label `json:"labels,omitempty"`
+	// ResourceID the AWS Region-unique, immutable identifier for the DB.
+	ResourceID string `json:"resourceId,omitempty"`
+	// AccountID is the AWS account id.
+	AccountID string `json:"accountId,omitempty"`
 }

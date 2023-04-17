@@ -107,6 +107,10 @@ type AWSDatabase struct {
 	Endpoint string
 	// Labels contains the Instance tags.
 	Labels map[string]string
+	// ResourceID is the AWS Region-unique, immutable identifier for the DB.
+	ResourceID string
+	// AccountID is the AWS account id.
+	AccountID string
 }
 
 // ListDatabasesResponse contains a page of AWS Databases.
@@ -218,6 +222,11 @@ func convertDBInstanceToDatabase(in types.DBInstance) (*AWSDatabase, error) {
 		ret.Endpoint = fmt.Sprintf("%s:%d", *in.Endpoint.Address, in.Endpoint.Port)
 	}
 
+	if in.DbiResourceId == nil {
+		return nil, trace.BadParameter("database resourceid not present")
+	}
+	ret.ResourceID = *in.DbiResourceId
+
 	return ret, nil
 }
 
@@ -282,6 +291,11 @@ func convertDBClusterToDatabase(in types.DBCluster) (*AWSDatabase, error) {
 	if in.Endpoint != nil && *in.Endpoint != "" {
 		ret.Endpoint = *in.Endpoint
 	}
+
+	if in.DbClusterResourceId == nil {
+		return nil, trace.BadParameter("database resourceid not present")
+	}
+	ret.ResourceID = *in.DbClusterResourceId
 
 	return ret, nil
 }
