@@ -104,19 +104,7 @@ function InternalJoinMenu({
   children,
 }: InternalJoinMenuProps) {
   return (
-    <Menu
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'center',
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'center',
-      }}
-      anchorEl={anchorEl}
-      open={Boolean(anchorEl)}
-      onClose={handleClose}
-    >
+    <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
       <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
         Join as...
       </Text>
@@ -129,42 +117,31 @@ type LockedFeatureInternalJoinMenu = InternalJoinMenuProps;
 function LockedFeatureInternalJoinMenu({ anchorEl, handleClose }) {
   return (
     <Menu
-      anchorOrigin={{
-        vertical: 'bottom',
-        horizontal: 'center',
-      }}
-      transformOrigin={{
-        vertical: 'top',
-        horizontal: 'center',
-      }}
       anchorEl={anchorEl}
       open={Boolean(anchorEl)}
       onClose={handleClose}
-      style={{ backgroundColor: theme.colors.levels.surface }}
+      menuListCss={() => `
+        background-color: ${theme.colors.levels.surface};
+  `}
     >
+      <div></div> {/* this div makes the menu properly positioned */}
       <LockedJoinMenuContainer>
         <ButtonLockedFeature>
           Join Active Sessions with Teleport Enterprise
         </ButtonLockedFeature>
         <Box style={{ color: theme.colors.text.secondary }} ml="3">
-          <Box mb="3">
-            <Text fontSize="16px">As an Observer</Text>
-            <Text fontSize="14px">
-              Watch: cannot control any part of the session
-            </Text>
-          </Box>
-          <Box mb="3">
-            <Text fontSize="16px">As a Moderator</Text>
-            <Text fontSize="14px">
-              Review: can view output & terminate the session
-            </Text>
-          </Box>
-          <Box>
-            <Text fontSize="16px">As a Peer</Text>
-            <Text fontSize="14px">
-              Collaborate: can view output and send input
-            </Text>
-          </Box>
+          <LockedJoinItem
+            name={'As an Observer'}
+            info={'Watch: cannot control any part of the session'}
+          />
+          <LockedJoinItem
+            name={'As a Moderator'}
+            info={'Review: can view output & terminate the session'}
+          />
+          <LockedJoinItem
+            name={'As a Peer'}
+            info={'Collaborate: can view output and send input'}
+          />
         </Box>
       </LockedJoinMenuContainer>
     </Menu>
@@ -179,5 +156,33 @@ const LockedJoinMenuContainer = styled(Flex)(
     align-items: flex-start;
     padding: 16px 12px;
     gap: 12px;
+  `
+);
+
+type LockedJoinItemProps = {
+  name: string;
+  info: string;
+};
+function LockedJoinItem({ name, info }: LockedJoinItemProps) {
+  return (
+    <StyledJoinItem
+      mb="3"
+      style={{
+        '&:hover': {
+          background: 'red',
+        },
+      }}
+    >
+      <Text fontSize="16px">{name}</Text>
+      <Text fontSize="14px">{info}</Text>
+    </StyledJoinItem>
+  );
+}
+
+const StyledJoinItem = styled(Box)(
+  () => `
+  &:hover {
+    color: white;
+  }
   `
 );
