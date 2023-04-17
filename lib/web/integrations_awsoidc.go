@@ -15,11 +15,15 @@ package web
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/gravitational/trace"
+	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -35,7 +39,32 @@ type IntegrationAWSOIDCTokenGenerator interface {
 }
 
 // awsOIDCListDatabases returns a list of databases using the ListDatabases action of the AWS OIDC Integration.
-func (h *Handler) awsOIDCListDatabases(ctx context.Context, ig types.Integration, req ui.AWSOIDCListDatabasesRequest, clt IntegrationAWSOIDCTokenGenerator) (*ui.AWSOIDCListDatabasesResponse, error) {
+func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integration, err := clt.GetIntegration(ctx, integrationName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if integration.GetSubKind() != types.IntegrationSubKindAWSOIDC {
+		return nil, trace.BadParameter("integration subkind (%s) mismatch", integration.GetSubKind())
+	}
+
+	var req ui.AWSOIDCListDatabasesRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	issuer, err := h.issuerFromPublicAddr()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -48,9 +77,14 @@ func (h *Handler) awsOIDCListDatabases(ctx context.Context, ig types.Integration
 		return nil, trace.Wrap(err)
 	}
 
+	awsoidcSpec := integration.GetAWSOIDCIntegrationSpec()
+	if awsoidcSpec == nil {
+		return nil, trace.BadParameter("missing spec fields for %q (%q) integration", integration.GetName(), integration.GetSubKind())
+	}
+
 	rdsClient, err := awsoidc.NewRDSClient(ctx, awsoidc.RDSClientRequest{
 		Token:   token,
-		RoleARN: ig.GetAWSOIDCIntegrationSpec().RoleARN,
+		RoleARN: awsoidcSpec.RoleARN,
 		Region:  req.Region,
 	})
 	if err != nil {
