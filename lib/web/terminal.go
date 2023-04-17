@@ -866,7 +866,6 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 		case <-t.terminalContext.Done():
 			return
 		case transferRequest := <-fileTransferRequestC:
-			// if not response, this is a new file transfer request
 			t.sshSession.RequestFileTransfer(t.terminalContext, tracessh.FileTransferRequestReq{
 				Download: transferRequest.Download,
 				Location: transferRequest.Location,
@@ -1223,12 +1222,11 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		if !ok {
 			return 0, trace.BadParameter("Unable to find approved status on response")
 		}
-		params, err := session.NewFileTransferResponseParams(e.GetString("requestId"), approved)
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
 		select {
-		case t.fileTransferResponseC <- params:
+		case t.fileTransferResponseC <- &session.FileTransferResponseParams{
+			RequestID: e.GetString("requestId"),
+			Approved:  approved,
+		}:
 		default:
 		}
 		return 0, nil
@@ -1245,12 +1243,12 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		if !ok {
 			return 0, trace.BadParameter("Unable to find approved status on response")
 		}
-		params, err := session.NewFileTransferParams(e.GetString("location"), download, e.GetString("filename"))
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
 		select {
-		case t.fileTransferRequestC <- params:
+		case t.fileTransferRequestC <- &session.FileTransferRequestParams{
+			Location: e.GetString("location"),
+			Download: download,
+			Filename: e.GetString("filename"),
+		}:
 		default:
 		}
 		return 0, nil

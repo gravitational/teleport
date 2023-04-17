@@ -163,12 +163,6 @@ const (
 	// WindowChangeRequest is a request to change window.
 	WindowChangeRequest = "window-change"
 
-	// FileTransferRequest is a request to approve a file transfer
-	FileTransferRequest = "file-transfer-request"
-
-	// FileTransferRequestResponse is a response to a file transfer request
-	FileTransferRequestResponse = "file-transfer-request-response"
-
 	// PTYRequest is a request for PTY.
 	PTYRequest = "pty-req"
 
