@@ -83,6 +83,7 @@ type TestConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	OnReconcile      func(types.KubeClusters)
 	OnEvent          func(apievents.AuditEvent)
+	ClusterFeatures  func() proto.Features
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -174,6 +175,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
 	client := newAuthClientWithStreamer(testCtx)
+
+	features := func() proto.Features { return proto.Features{Kubernetes: true} }
+	if cfg.ClusterFeatures != nil {
+		features = cfg.ClusterFeatures
+	}
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -204,7 +210,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 				return nil
 			},
 			Clock:           clockwork.NewRealClock(),
-			ClusterFeatures: func() proto.Features { return proto.Features{Kubernetes: true} },
+			ClusterFeatures: features,
 		},
 		DynamicLabels: nil,
 		TLS:           tlsConfig,
