@@ -423,6 +423,7 @@ func (s *SessionRegistry) NotifyFileTransferRequest(req *fileTransferRequest, re
 	eventPayload, err := json.Marshal(fileTransferEvent)
 	if err != nil {
 		s.log.Warnf("Unable to marshal %s event: %v.", res, err)
+		return trace.Wrap(err)
 	}
 
 	for _, p := range session.parties {
