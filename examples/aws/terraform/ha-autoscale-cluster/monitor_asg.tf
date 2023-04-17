@@ -93,7 +93,7 @@ resource "aws_launch_template" "monitor" {
   name_prefix   = "${var.cluster_name}-monitor-"
   image_id      = data.aws_ami.base.id
   instance_type = var.monitor_instance_type
-  user_data     = base64encode(templatefile(
+  user_data = base64encode(templatefile(
     "${path.module}/monitor-user-data.tpl",
     {
       region           = var.region

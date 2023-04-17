@@ -51,7 +51,7 @@ resource "aws_launch_template" "auth" {
   name_prefix   = "${var.cluster_name}-auth-"
   image_id      = data.aws_ami.base.id
   instance_type = var.auth_instance_type
-  user_data     = base64encode(templatefile(
+  user_data = base64encode(templatefile(
     "${path.module}/auth-user-data.tpl",
     {
       region                   = var.region

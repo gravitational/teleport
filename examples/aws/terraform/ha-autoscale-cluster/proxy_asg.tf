@@ -113,7 +113,7 @@ resource "aws_launch_template" "proxy" {
   name_prefix   = "${var.cluster_name}-proxy-"
   image_id      = data.aws_ami.base.id
   instance_type = var.proxy_instance_type
-  user_data     = base64encode(templatefile(
+  user_data = base64encode(templatefile(
     "${path.module}/proxy-user-data.tpl",
     {
       region                   = data.aws_region.current.name
@@ -134,8 +134,8 @@ resource "aws_launch_template" "proxy" {
   ))
 
   metadata_options {
-    http_tokens            = "required"
-    http_endpoint          = "enabled"
+    http_tokens   = "required"
+    http_endpoint = "enabled"
   }
 
   block_device_mappings {
