@@ -131,8 +131,7 @@ type FileTransferResponseParams struct {
 	Approved bool `json:"approved"`
 }
 
-// NewFileTransferResponseParams takes a serialized string that contains the
-// file transfer request response parameters and returns a *FileTransferParams.
+// NewFileTransferResponseParams returns a *FileTransferResponseParams.
 func NewFileTransferResponseParams(requestId string, approved bool) *FileTransferResponseParams {
 	return &FileTransferResponseParams{
 		RequestID: requestId,
@@ -140,8 +139,7 @@ func NewFileTransferResponseParams(requestId string, approved bool) *FileTransfe
 	}
 }
 
-// NewFileTransferParams takes a serialized string that contains the
-// file transfer parameters and returns a *FileTransferParams.
+// NewFileTransferParams returns a *FileTransferRequestParams.
 func NewFileTransferParams(location string, download bool, filename string) *FileTransferRequestParams {
 	return &FileTransferRequestParams{
 		Location: location,
