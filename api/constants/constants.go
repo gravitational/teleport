@@ -414,3 +414,8 @@ const (
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"
 )
+
+const (
+	FileTransferRequest  string = "file-transfer-request@goteleport.com"
+	FileTransferResponse string = "file-transfer-request-response@goteleport.com"
+)
