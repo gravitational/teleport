@@ -5,6 +5,7 @@ managed:
     default: github.com/gravitational/teleport/gen/proto/go
 plugins:
   - name: go
+    strategy: all
     path:
       - go
       - run
@@ -12,6 +13,7 @@ plugins:
     out: .
     opt: module=github.com/gravitational/teleport
   - name: connect-go
+    strategy: all
     path:
       - go
       - run
