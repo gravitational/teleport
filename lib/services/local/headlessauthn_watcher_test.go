@@ -79,9 +79,6 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 			stubC <- stub
 		}()
 
-		ticker := time.NewTicker(time.Second)
-		t.Cleanup(ticker.Stop)
-
 		for {
 			select {
 			case update := <-sub.Updates():
@@ -90,7 +87,7 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 				return
 			case <-sub.Stale():
 				t.Fatal("Expected subscriber to not be marked as stale")
-			case <-ticker.C:
+			case <-time.After(time.Second):
 				t.Fatal("Expected subscriber to receive an update")
 			case readyForUpdate <- struct{}{}:
 			}
@@ -116,12 +113,9 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 		_, err = s.identity.CompareAndSwapHeadlessAuthentication(ctx, stub, &replace)
 		require.NoError(t, err)
 
-		ticker := time.NewTicker(time.Second)
-		t.Cleanup(ticker.Stop)
-
 		select {
 		case <-sub.Stale():
-		case <-ticker.C:
+		case <-time.After(time.Second):
 			t.Fatal("Expected subscriber to be marked as stale")
 		}
 	})
@@ -142,9 +136,6 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		assert.NoError(t, err)
 
-		ticker := time.NewTicker(time.Second)
-		t.Cleanup(ticker.Stop)
-
 		// Reset the watcher. Make sure we are servicing the updates channel first.
 		readyForUpdate := make(chan struct{})
 		go func() {
@@ -152,18 +143,16 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 			clock.Advance(s.watcher.MaxRetryPeriod)
 		}()
 
-		for {
-			readyForUpdate <- struct{}{}
-			select {
-			case update := <-sub.Updates():
-				// We should receive an update of the current backend state on watcher reset.
-				require.Equal(t, stub, update)
-				return
-			case <-sub.Stale():
-				t.Fatal("Expected subscriber to not be marked as stale")
-			case <-ticker.C:
-				t.Fatal("Expected subscriber to receive an update")
-			}
+		readyForUpdate <- struct{}{}
+		select {
+		case update := <-sub.Updates():
+			// We should receive an update of the current backend state on watcher reset.
+			require.Equal(t, stub, update)
+			return
+		case <-sub.Stale():
+			t.Fatal("Expected subscriber to not be marked as stale")
+		case <-time.After(time.Second):
+			t.Fatal("Expected subscriber to receive an update")
 		}
 	})
 }

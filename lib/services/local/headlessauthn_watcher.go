@@ -79,7 +79,6 @@ func (cfg *HeadlessAuthenticationWatcherConfig) CheckAndSetDefaults() error {
 
 // HeadlessAuthenticationWatcher is a light weight backend watcher for the headless authentication resource.
 type HeadlessAuthenticationWatcher struct {
-	// HeadlessAuthenticationWatcherConfig is the configuration of a HeadlessAuthenticationWatcher.
 	HeadlessAuthenticationWatcherConfig
 	identityService *IdentityService
 	retry           retryutils.Retry
