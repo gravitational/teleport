@@ -3342,6 +3342,9 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
 		}
 		cf.AuthConnector = constants.HeadlessConnector
+		if !cf.ExplicitUsername {
+			return nil, trace.BadParameter("user must be set explicity for headless login with the --user flag or $TELEPORT_USER env variable")
+		}
 	}
 
 	if err := tryLockMemory(cf); err != nil {
