@@ -335,6 +335,11 @@ should set securityContext for initContainers when set in values:
     serviceAccountName: RELEASE-NAME-proxy
     terminationGracePeriodSeconds: 60
     volumes:
+    - name: proxy-serviceaccount-token
+      projected:
+        sources:
+        - serviceAccountToken:
+            path: token
     - configMap:
         name: RELEASE-NAME-proxy
       name: config
@@ -344,6 +349,7 @@ should set securityContext when set in values:
   1: |
     affinity:
       podAntiAffinity: null
+    automountServiceAccountToken: false
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
@@ -406,6 +412,9 @@ should set securityContext when set in values:
         readOnly: true
       - mountPath: /var/lib/teleport
         name: data
+      - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+        name: proxy-serviceaccount-token
+        readOnly: true
     initContainers:
     - command:
       - teleport
