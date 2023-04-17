@@ -27,6 +27,10 @@ import useTeleport from 'teleport/useTeleport';
 
 import useStickerClusterId from 'teleport/useStickyClusterId';
 
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+
+import cfg from 'teleport/config';
+
 import SessionList from './SessionList';
 import useSessions from './useSessions';
 
@@ -41,8 +45,15 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
   const { attempt, sessions } = props;
   return (
     <FeatureBox>
-      <FeatureHeader alignItems="center">
+      <FeatureHeader alignItems="center" justifyContent="space-between">
         <FeatureHeaderTitle>Active Sessions</FeatureHeaderTitle>
+        {cfg.isTeams ? (
+          <Box width="350px">
+            <ButtonLockedFeature>
+              Unlock Session Join With Teleport Enterprise
+            </ButtonLockedFeature>
+          </Box>
+        ) : null}
       </FeatureHeader>
       {attempt.isFailed && <Danger>{attempt.message} </Danger>}
       {attempt.isProcessing && (
