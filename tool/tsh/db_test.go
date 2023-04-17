@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -62,6 +63,10 @@ func TestDatabaseLogin(t *testing.T) {
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
 		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+		}),
+		withConfig(func(cfg *servicecfg.Config) {
+			// separate MySQL port with TLS routing.
+			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
 		}))
 	makeTestDatabaseServer(t, authProcess, proxyProcess,
 		servicecfg.Database{
@@ -140,8 +145,8 @@ func TestDatabaseLogin(t *testing.T) {
 		{
 			databaseName:          "mysql",
 			expectCertsLen:        1,
-			expectErrForConfigCmd: true, // "tsh db config" not supported for MySQL with TLS routing.
-			expectErrForEnvCmd:    true, // "tsh db env" not supported for MySQL with TLS routing.
+			expectErrForConfigCmd: false, // "tsh db config" is supported for MySQL with TLS routing & separate MySQL port.
+			expectErrForEnvCmd:    false, // "tsh db env" not supported for MySQL with TLS routing & separate MySQL port.
 		},
 		{
 			databaseName:          "cassandra",
