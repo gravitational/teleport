@@ -126,11 +126,12 @@ proxy_templates:
   proxy: "$2:443"
 # Example template where we want to connect through the root proxy.
 - template: '^(\w+)\.(leaf3).us.acme.com:(.*)$'
-  proxy: "root.us.acme.com:443"
   cluster: "$2"
 ```
 
+
 Templates are evaluated in order and the first one matching will take effect.
+At least one of `cluster` and `proxy` must be set for a template to be valid.
 
 Note that the proxy address must point to the web proxy address (not SSH proxy):
 `tsh proxy ssh` will issue a ping request to the proxy to retrieve additional
@@ -176,3 +177,4 @@ jump scenario).
 Proxy Templates can also be used with `tsh ssh` and have feature parity with `ssh`.
 This means that users can go from using a proxy template to `ssh node-1.leaf1.us.acme.com`
 to `tsh ssh node-1.leaf1.us.acme.com` without making any additional change to the template.
+`tsh ssh` will support the same features as `tsh proxy ssh`, including [auto login](#auto-login).
