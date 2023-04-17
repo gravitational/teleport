@@ -184,8 +184,8 @@ thought of as adding more complex layers of automation. In a very loose order of
 
  - `dronegen`: managing Drone's `yaml` configuration directly has proven unwieldy, 
    so we created a Go to make it more manageable.Essentially a custom DSL for Drone in Go. Source is in `./dronegen`
- - `tooling` package: A suite of small Go programs to automate build tasks to
-   complex to be reliable captured and maintained by a bash script.
+ - `tooling` package: A suite of small Go programs to automate build tasks
+   too complex to be reliably captured and maintained in a bash script.
    See `./build.assets/tooling`.
 
 #### **Assets**
