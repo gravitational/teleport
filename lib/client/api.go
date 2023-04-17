@@ -1653,6 +1653,14 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	)
 	defer span.End()
 
+	// There is no need to attempt a mfa ceremony if the user is attempting
+	// to connect to a resource via `tsh ssh --headless`. The entire point
+	// of headless authentication is to allow connections to originate from a
+	// machine without access to a WebAuthn device.
+	if tc.AuthConnector == constants.HeadlessConnector {
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+	}
+
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
 		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
