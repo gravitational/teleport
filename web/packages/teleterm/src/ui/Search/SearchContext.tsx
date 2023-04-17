@@ -31,14 +31,15 @@ import { actionPicker, SearchPicker } from './pickers/pickers';
 export interface SearchContext {
   inputRef: MutableRefObject<HTMLInputElement>;
   inputValue: string;
-  opened: boolean;
   filters: SearchFilter[];
   activePicker: SearchPicker;
   onInputValueChange(value: string): void;
   changeActivePicker(picker: SearchPicker): void;
+  isOpen: boolean;
+  open(fromElement?: Element): void;
+  lockOpen(action: Promise<any>): Promise<void>;
   close(): void;
   closeAndResetInput(): void;
-  open(fromElement?: Element): void;
   resetInput(): void;
   setFilter(filter: SearchFilter): void;
   removeFilter(filter: SearchFilter): void;
@@ -49,7 +50,8 @@ const SearchContext = createContext<SearchContext>(null);
 export const SearchContextProvider: FC = props => {
   const previouslyActive = useRef<Element>();
   const inputRef = useRef<HTMLInputElement>();
-  const [opened, setOpened] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLockedOpen, setIsLockedOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [activePicker, setActivePicker] = useState(actionPicker);
   // TODO(ravicious): Consider using another data structure for search filters as we know that we
@@ -67,28 +69,67 @@ export const SearchContextProvider: FC = props => {
   }
 
   const close = useCallback(() => {
-    setOpened(false);
+    if (isLockedOpen) {
+      return;
+    }
+
+    setIsOpen(false);
     setActivePicker(actionPicker);
     if (previouslyActive.current instanceof HTMLElement) {
       previouslyActive.current.focus();
     }
-  }, []);
+  }, [isLockedOpen]);
 
   const closeAndResetInput = useCallback(() => {
+    if (isLockedOpen) {
+      return;
+    }
+
     close();
     setInputValue('');
-  }, [close]);
+  }, [isLockedOpen, close]);
 
   const resetInput = useCallback(() => {
     setInputValue('');
   }, []);
 
   function open(fromElement?: Element): void {
-    if (opened) {
+    if (isOpen) {
+      // Even if the search bar is already open, we want to focus on the input anyway. The search
+      // input might lose focus due to user interaction while the search bar stays open. Focusing
+      // here again makes it possible to use the shortcut to grant the focus to the input again.
+      inputRef.current?.focus();
       return;
     }
+
+    // In case `open` was called without `fromElement` (e.g. when using the keyboard shortcut), we
+    // must read `document.activeElement` before we focus the input.
     previouslyActive.current = fromElement || document.activeElement;
-    setOpened(true);
+    inputRef.current?.focus();
+    setIsOpen(true);
+  }
+
+  /**
+   * lockOpen forces the search bar to stay open for the duration of the action. It also restores
+   * focus on the search input after the action is done.
+   *
+   * This is useful in situations where want the search bar to not close when the user interacts
+   * with modals shown from the search bar.
+   */
+  async function lockOpen(action: Promise<any>): Promise<void> {
+    setIsLockedOpen(true);
+
+    try {
+      await action;
+    } finally {
+      // By the time the action passes, the user might have caused the focus to be lost on the
+      // search input, so let's bring it back.
+      //
+      // focus needs to be executed before the state update, otherwise the search bar will close for
+      // some reason.
+      inputRef.current?.focus();
+      setIsLockedOpen(false);
+    }
   }
 
   function setFilter(filter: SearchFilter) {
@@ -121,11 +162,12 @@ export const SearchContextProvider: FC = props => {
         filters,
         setFilter,
         removeFilter,
+        resetInput,
+        isOpen,
+        open,
+        lockOpen,
         close,
         closeAndResetInput,
-        resetInput,
-        opened,
-        open,
       }}
       children={props.children}
     />

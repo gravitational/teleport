@@ -144,6 +144,34 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 			return trace.Wrap(err)
 		}
 
+		// Make a copy so that we don't modify the previous assignment.
+		previousCopy := previousAssignment.Copy()
+		previousActions := previousCopy.GetActions()
+
+		if len(previousActions) != len(assignment.GetActions()) {
+			return trace.BadParameter("Update to Okta assignment %s failed because the previous version has a different number of actions", assignment.GetName())
+		}
+
+		// Make sure that the status transitions of the updated assignment are valid.
+		for i, action := range assignment.GetActions() {
+			previousAction := previousActions[i]
+
+			// Ensure that the previous actions are equal
+			if !actionsMatch(previousAction, action) {
+				return trace.BadParameter("action mismatch when updating Okta assignment %s", assignment.GetName())
+			}
+
+			// Don't check the status transition if the statuses are equal and the last transitions are equal.
+			if previousAction.GetStatus() == action.GetStatus() &&
+				previousAction.GetLastTransition().Equal(action.GetLastTransition()) {
+				continue
+			}
+
+			if err := previousAction.SetStatus(action.GetStatus()); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		return o.assignmentSvc.UpdateResource(ctx, assignment)
 	})
 	if err != nil {
@@ -189,4 +217,10 @@ func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
 	return trace.Wrap(o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
 		return o.assignmentSvc.DeleteAllResources(ctx)
 	}))
+}
+
+// actionsMatch returns true if two actions match minus the status and last transition.
+func actionsMatch(a1, a2 types.OktaAssignmentAction) bool {
+	return a1.GetTargetType() == a2.GetTargetType() &&
+		a1.GetID() == a2.GetID()
 }
