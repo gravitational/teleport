@@ -176,9 +176,9 @@ thought of as adding more complex layers of automation. In a very loose order of
   
   - **Compilers** - (`gcc`, Go `compile`, `rustc`) - Lowest level of automation 
   - **Language tooling** (e.g. `go`, `cargo`) - intra-language dependency management required to build individial parts of the Teleport bundle.
-  - **GNU make** - extra-language dependency management & build ordering required to build teleport binaries.
-  - **Build orchestrator** - e.g. Drone / GitHub Actions. Tools tha decide *when* to run the build, what, to run, where and so on. Our current primary tool is `Drone`, 
-  but we are crurrently in the process of migrating towards `GitHub Actions`.
+  - **Cross Language Tooling** - GNU Make provides extra-language dependency management & build ordering required to build teleport binaries.
+  - **Build orchestrator** - e.g. Drone / GitHub Actions. Tools that decide *when* to run the build, what, to run, where and so on. Our current primary tool is `Drone`, 
+  but we are currently in the process of migrating towards `GitHub Actions`.
 
 #### **Custom Tooling**
 
