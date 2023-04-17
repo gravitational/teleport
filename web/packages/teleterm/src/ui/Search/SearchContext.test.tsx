@@ -15,6 +15,8 @@
  */
 
 import React from 'react';
+import '@testing-library/jest-dom';
+import { render, screen } from '@testing-library/react';
 import { renderHook, act } from '@testing-library/react-hooks';
 
 import { SearchContextProvider, useSearchContext } from './SearchContext';
@@ -40,11 +42,16 @@ describe('lockOpen', () => {
       finishAction: rejectFailureAction,
     },
   ])('$name', async ({ action, finishAction }) => {
+    const inputFocus = jest.fn();
     const { result } = renderHook(() => useSearchContext(), {
       wrapper: ({ children }) => (
         <SearchContextProvider>{children}</SearchContextProvider>
       ),
     });
+    result.current.inputRef.current = {
+      focus: inputFocus,
+    } as unknown as HTMLInputElement;
+
     act(() => {
       result.current.open();
     });
@@ -74,5 +81,44 @@ describe('lockOpen', () => {
       result.current.close();
     });
     expect(result.current.isOpen).toBe(false);
+
+    // Called the first time during `open`, then again after `lockOpen` finishes.
+    expect(inputFocus).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('open', () => {
+  it('manages the focus properly when called with no arguments', () => {
+    const SearchInput = () => {
+      const { inputRef, open, close } = useSearchContext();
+
+      return (
+        <>
+          <input data-testid="search-input" ref={inputRef} />
+          <button data-testid="open" onClick={() => open()} />
+          <button data-testid="close" onClick={() => close()} />
+        </>
+      );
+    };
+
+    render(
+      <>
+        <input data-testid="other-input" />
+
+        <SearchContextProvider>
+          <SearchInput />
+        </SearchContextProvider>
+      </>
+    );
+
+    const otherInput = screen.getByTestId('other-input');
+    const searchInput = screen.getByTestId('search-input');
+    otherInput.focus();
+
+    screen.getByTestId('open').click();
+    expect(searchInput).toHaveFocus();
+
+    screen.getByTestId('close').click();
+    expect(otherInput).toHaveFocus();
   });
 });

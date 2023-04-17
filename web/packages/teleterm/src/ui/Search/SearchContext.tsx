@@ -95,14 +95,24 @@ export const SearchContextProvider: FC = props => {
 
   function open(fromElement?: Element): void {
     if (isOpen) {
+      // Even if the search bar is already open, we want to focus on the input anyway. The search
+      // input might lose focus due to user interaction while the search bar stays open. Focusing
+      // here again makes it possible to use the shortcut to grant the focus to the input again.
+      inputRef.current?.focus();
       return;
     }
+
+    // In case `open` was called without `fromElement` (e.g. when using the keyboard shortcut), we
+    // must read `document.activeElement` before we focus the input.
     previouslyActive.current = fromElement || document.activeElement;
+    inputRef.current?.focus();
     setIsOpen(true);
   }
 
   /**
-   * lockOpen forces the search bar to stay open for the duration of the action.
+   * lockOpen forces the search bar to stay open for the duration of the action. It also restores
+   * focus on the search input after the action is done.
+   *
    * This is useful in situations where want the search bar to not close when the user interacts
    * with modals shown from the search bar.
    */
@@ -112,6 +122,12 @@ export const SearchContextProvider: FC = props => {
     try {
       await action;
     } finally {
+      // By the time the action passes, the user might have caused the focus to be lost on the
+      // search input, so let's bring it back.
+      //
+      // focus needs to be executed before the state update, otherwise the search bar will close for
+      // some reason.
+      inputRef.current?.focus();
       setIsLockedOpen(false);
     }
   }

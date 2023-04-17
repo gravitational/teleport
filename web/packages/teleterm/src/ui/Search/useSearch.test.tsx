@@ -33,6 +33,10 @@ import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe('rankResults', () => {
   it('uses the displayed resource name as the tie breaker if the scores are equal', () => {
     const server = makeResourceResult({
