@@ -1,4 +1,8 @@
 version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: github.com/gravitational/teleport/gen/proto/go
 plugins:
   - name: go
     path:
