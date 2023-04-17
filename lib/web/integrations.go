@@ -17,7 +17,6 @@ limitations under the License.
 package web
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -181,45 +180,4 @@ func (h *Handler) integrationsList(w http.ResponseWriter, r *http.Request, p htt
 		Items:   ui.MakeIntegrations(igs),
 		NextKey: nextKey,
 	}, nil
-}
-
-func (h *Handler) integrationsExecute(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
-	integrationName := p.ByName("name")
-	if integrationName == "" {
-		return nil, trace.BadParameter("an integration name is required")
-	}
-
-	actionName := p.ByName("action")
-	if actionName == "" {
-		return nil, trace.BadParameter("an action name is required")
-	}
-
-	clt, err := sctx.GetUserClient(r.Context(), site)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	integration, err := clt.GetIntegration(r.Context(), integrationName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	integrationActionName := fmt.Sprintf("%s/%s", integration.GetSubKind(), actionName)
-
-	switch integrationActionName {
-	case awsoidcListDatabases:
-		var req ui.AWSOIDCListDatabasesRequest
-		if err := httplib.ReadJSON(r, &req); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		result, err := h.awsOIDCListDatabases(r.Context(), integration, req, clt)
-		if err != nil {
-			return trace.Wrap(err), nil
-		}
-
-		return result, nil
-	default:
-		return nil, trace.BadParameter("unknown action %q, for integration type %q", integration.GetSubKind(), actionName)
-	}
 }
