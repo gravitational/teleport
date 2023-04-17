@@ -31,6 +31,7 @@ type ghaBuildType struct {
 	slackOnError      bool
 	dependsOn         []string
 	shouldTagWorkflow bool
+	seriesRun         bool
 	inputs            map[string]string
 }
 
@@ -47,6 +48,10 @@ func ghaBuildPipeline(b ghaBuildType) pipeline {
 
 	if b.shouldTagWorkflow {
 		cmd.WriteString(`-tag-workflow `)
+	}
+
+	if b.seriesRun {
+		cmd.WriteString(`-series-run `)
 	}
 
 	fmt.Fprintf(&cmd, `-timeout %s `, b.timeout.String())

@@ -68,7 +68,8 @@ func buildPromoteOsPackagePipeline(repoType, versionChannel, packageNameFilter, 
 		ghaWorkflow:       "deploy-packages.yaml",
 		timeout:           12 * time.Hour, // DR takes a long time
 		workflowRef:       "refs/heads/master",
-		shouldTagWorkflow: false,
+		shouldTagWorkflow: true,
+		seriesRun:         true,
 		inputs:            inputs,
 	})
 
