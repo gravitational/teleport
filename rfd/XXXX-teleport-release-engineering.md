@@ -212,7 +212,10 @@ build will draw assets from.
 
 #### **Current Release Process**
 
-If a build were to be done today, the process would look like this:
+If a build were to be done today, the process would look like this :
+
+> I realise I've abused the sequence diagram format a bit here, but it seemed 
+> the least-bad way of showing the component interactions over time.
 
 ```mermaid
 sequenceDiagram
