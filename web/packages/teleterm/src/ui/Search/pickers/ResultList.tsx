@@ -139,7 +139,8 @@ export const NonInteractiveItem = styled.div`
   }
 
   :not(:last-of-type) {
-    border-bottom: 1px solid ${props => props.theme.colors.levels.surfaceSecondary};
+    border-bottom: 1px solid
+      ${props => props.theme.colors.levels.surfaceSecondary};
   }
 
   padding: ${props => props.theme.space[2]}px;
