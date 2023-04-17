@@ -51,6 +51,10 @@ import { getParameterPicker } from './pickers';
 import { ResultList, NonInteractiveItem } from './ResultList';
 import { PickerContainer } from './PickerContainer';
 
+const MUTED_WHITE_COLOR = 'rgba(255, 255, 255, 0.72)';
+// TODO(gzdunek): replace with theme color after theme update
+const BRAND_PRIMARY_COLOR = '#9f85ff';
+
 export function ActionPicker(props: { input: ReactElement }) {
   const ctx = useAppContext();
   const { clustersService, modalsService } = ctx;
@@ -277,7 +281,7 @@ function Item(
 
 function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   return (
-    <Item Icon={icons.Lan} iconColor="#ff6257">
+    <Item Icon={icons.Lan} iconColor={MUTED_WHITE_COLOR}>
       <Text typography="body1">
         Search only in{' '}
         <strong>
@@ -291,11 +295,27 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   );
 }
 
+const resourceIcons: Record<
+  SearchResultResourceType['resource'],
+  React.ComponentType<{
+    color: string;
+    fontSize: string;
+    lineHeight: string;
+  }>
+> = {
+  kubes: icons.Kubernetes,
+  servers: icons.Server,
+  databases: icons.Database,
+};
+
 function ResourceTypeFilterItem(
   props: SearchResultItem<SearchResultResourceType>
 ) {
   return (
-    <Item Icon={icons.LanAlt} iconColor="#f3af3d">
+    <Item
+      Icon={resourceIcons[props.searchResult.resource]}
+      iconColor={MUTED_WHITE_COLOR}
+    >
       <Text typography="body1">
         Search only for{' '}
         <strong>
@@ -317,7 +337,7 @@ export function ServerItem(props: SearchResultItem<SearchResultServer>) {
   );
 
   return (
-    <Item Icon={icons.Server} iconColor="#9685ff">
+    <Item Icon={icons.Server} iconColor={BRAND_PRIMARY_COLOR}>
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -391,7 +411,7 @@ export function DatabaseItem(props: SearchResultItem<SearchResultDatabase>) {
   );
 
   return (
-    <Item Icon={icons.Database} iconColor="#00bfa5">
+    <Item Icon={icons.Database} iconColor={BRAND_PRIMARY_COLOR}>
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -430,7 +450,7 @@ export function KubeItem(props: SearchResultItem<SearchResultKube>) {
   const { searchResult } = props;
 
   return (
-    <Item Icon={icons.Kubernetes} iconColor="#009eff">
+    <Item Icon={icons.Kubernetes} iconColor={BRAND_PRIMARY_COLOR}>
       <Flex
         justifyContent="space-between"
         alignItems="center"
@@ -459,7 +479,7 @@ export function NoResultsItem(props: { clusters: tsh.Cluster[] }) {
   const excludedClustersCopy = getExcludedClustersCopy(props.clusters);
   return (
     <NonInteractiveItem>
-      <Item Icon={icons.Info} iconColor="text.primary">
+      <Item Icon={icons.Info} iconColor={MUTED_WHITE_COLOR}>
         <Text typography="body1">No matching results found.</Text>
         {excludedClustersCopy && (
           <Text typography="body2">{excludedClustersCopy}</Text>
