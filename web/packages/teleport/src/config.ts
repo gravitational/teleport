@@ -212,6 +212,8 @@ const cfg = {
     webapiPingPath: '/v1/webapi/ping',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationExecutePath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -618,6 +620,15 @@ const cfg = {
     });
   },
 
+  getIntegrationExecuteUrl(params: UrlIntegrationExecuteRequestParams) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.integrationExecutePath, {
+      clusterId,
+      ...params,
+    });
+  },
+
   getUIConfig() {
     return cfg.ui;
   },
@@ -704,6 +715,14 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+}
+
+export interface UrlIntegrationExecuteRequestParams {
+  // name is the name of integration to execute (use).
+  name: string;
+  // action is the expected backend string value
+  // used to describe what to use the integration for.
+  action: 'list_databases';
 }
 
 export default cfg;
