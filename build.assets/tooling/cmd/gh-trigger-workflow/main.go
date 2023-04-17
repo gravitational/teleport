@@ -212,11 +212,11 @@ func waitForActiveWorkflowRuns(ctx context.Context, gh *ghapi.Client, args args)
 			return nil
 		}
 
-		workflowId := incompleteWorkflowRun.GetID()
+		workflowID := incompleteWorkflowRun.GetID()
 		log.Printf("Waiting on pre-existing incomplete run: %s", incompleteWorkflowRun.GetHTMLURL())
-		_, err = github.WaitForRun(ctx, gh.Actions, args.owner, args.repo, args.workflow, workflowId)
+		_, err = github.WaitForRun(ctx, gh.Actions, args.owner, args.repo, args.workflow, workflowID)
 		if err != nil {
-			return trace.Wrap(err, "failed to wait for workflow run %d to complete", workflowId)
+			return trace.Wrap(err, "failed to wait for workflow run %d to complete", workflowID)
 		}
 	}
 }
