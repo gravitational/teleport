@@ -15,18 +15,23 @@
  */
 
 import React from 'react';
-import { render, screen } from 'design/utils/testing';
+import { render, screen, waitFor } from 'design/utils/testing';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 import { ResourceSearchError } from 'teleterm/ui/services/resources';
+import ModalsHost from 'teleterm/ui/ModalsHost';
 
 import * as pickers from './pickers/pickers';
 import * as useActionAttempts from './pickers/useActionAttempts';
 import * as SearchContext from './SearchContext';
 
 import { SearchBarConnected } from './SearchBar';
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
 
 it('does not display empty results copy after selecting two filters', () => {
   const appContext = new MockAppContext();
@@ -200,6 +205,63 @@ it('notifies about resource search errors and allows to display details', () => 
     })
   );
   expect(mockedSearchContext.lockOpen).toHaveBeenCalled();
+});
+
+it('maintains focus on the search input after closing a resource search error modal', async () => {
+  const appContext = new MockAppContext();
+  appContext.workspacesService.setState(draft => {
+    draft.rootClusterUri = '/clusters/foo';
+  });
+
+  const resourceSearchError = new ResourceSearchError(
+    '/clusters/foo',
+    'server',
+    new Error('whoops')
+  );
+
+  const mockActionAttempts = {
+    filterActionsAttempt: makeSuccessAttempt([]),
+    resourceActionsAttempt: makeSuccessAttempt([]),
+    resourceSearchAttempt: makeSuccessAttempt({
+      results: [],
+      errors: [resourceSearchError],
+      search: '',
+    }),
+  };
+  jest
+    .spyOn(useActionAttempts, 'useActionAttempts')
+    .mockImplementation(() => mockActionAttempts);
+
+  render(
+    <MockAppContextProvider appContext={appContext}>
+      <SearchBarConnected />
+      <ModalsHost />
+    </MockAppContextProvider>
+  );
+
+  screen.getByRole('searchbox').focus();
+  expect(screen.getByRole('menu')).toHaveTextContent(
+    'Some of the search results are incomplete.'
+  );
+  screen.getByText('Show details').click();
+
+  const modal = screen.getByTestId('Modal');
+  expect(modal).toHaveTextContent('Resource search errors');
+  expect(modal).toHaveTextContent('whoops');
+
+  // Lose focus on the search input.
+  screen.getByText('Close').focus();
+  screen.getByText('Close').click();
+
+  // Need to await this since some state updates in SearchContext are done after the modal closes.
+  // Otherwise we'd get a warning about missing `act`.
+  await waitFor(() => {
+    expect(modal).not.toBeInTheDocument();
+  });
+
+  expect(screen.getByRole('searchbox')).toHaveFocus();
+  // Verify that the search bar wasn't closed.
+  expect(screen.getByRole('menu')).toBeInTheDocument();
 });
 
 const getMockedSearchContext = () => ({
