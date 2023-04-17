@@ -50,7 +50,7 @@ export function Sessions(props: ReturnType<typeof useSessions>) {
         {cfg.isTeams ? (
           <Box width="350px">
             <ButtonLockedFeature>
-              Unlock Session Join With Teleport Enterprise
+              Join Active Sessions With Teleport Enterprise
             </ButtonLockedFeature>
           </Box>
         ) : null}
