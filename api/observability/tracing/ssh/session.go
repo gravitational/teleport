@@ -344,9 +344,24 @@ func (s *Session) CombinedOutput(ctx context.Context, cmd string) ([]byte, error
 	return output, trace.Wrap(err)
 }
 
-// FileTransferRequestApprove sends a "file-transfer-request-response" ssh request
-// The response will contain an Approve bool which will approve or deny a requested file transfer
-func (s *Session) FileTransferRequestResponse(ctx context.Context, req FileTransferResponseReq) error {
+// ApproveFileTransfer sends a "file-transfer-request-response" ssh request
+// The ssh request will have the request ID and Approved: true
+func (s *Session) ApproveFileTransferRequest(ctx context.Context, requestID string) error {
+	req := &FileTransferResponseReq{
+		RequestID: requestID,
+		Approved:  true,
+	}
+	_, err := s.SendRequest(ctx, constants.FileTransferResponse, true, ssh.Marshal(req))
+	return trace.Wrap(err)
+}
+
+// DenyFileTransfer sends a "file-transfer-request-response" ssh request
+// The ssh request will have the request ID and Approved: false
+func (s *Session) DenyFileTransferRequest(ctx context.Context, requestID string) error {
+	req := &FileTransferResponseReq{
+		RequestID: requestID,
+		Approved:  false,
+	}
 	_, err := s.SendRequest(ctx, constants.FileTransferResponse, true, ssh.Marshal(req))
 	return trace.Wrap(err)
 }
