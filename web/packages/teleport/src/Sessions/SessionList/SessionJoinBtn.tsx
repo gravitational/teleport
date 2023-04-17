@@ -15,12 +15,16 @@ limitations under the License.
 */
 
 import React, { useState } from 'react';
+import styled from 'styled-components';
 
-import { ButtonBorder, Text, Box, Menu, MenuItem } from 'design';
+import { ButtonBorder, Text, Box, Menu, MenuItem, Flex } from 'design';
 import { CarrotDown } from 'design/Icon';
+
+import theme from 'design/theme';
 
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 export const SessionJoinBtn = ({
   sid,
@@ -75,24 +79,105 @@ function JoinMenu({ children }: { children: React.ReactNode }) {
         Join
         <CarrotDown ml={1} fontSize={2} color="text.secondary" />
       </ButtonBorder>
-      <Menu
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        anchorEl={anchorEl}
-        open={Boolean(anchorEl)}
-        onClose={handleClose}
-      >
-        <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
-          Join as...
-        </Text>
-        {children}
-      </Menu>
+      {cfg.isTeams ? (
+        <LockedFeatureInternalJoinMenu
+          anchorEl={anchorEl}
+          handleClose={handleClose}
+        />
+      ) : (
+        <InternalJoinMenu anchorEl={anchorEl} handleClose={handleClose}>
+          {children}
+        </InternalJoinMenu>
+      )}
     </Box>
   );
 }
+
+type InternalJoinMenuProps = {
+  anchorEl: HTMLElement;
+  handleClose: () => void;
+  children: React.ReactNode;
+};
+function InternalJoinMenu({
+  anchorEl,
+  handleClose,
+  children,
+}: InternalJoinMenuProps) {
+  return (
+    <Menu
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'center',
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'center',
+      }}
+      anchorEl={anchorEl}
+      open={Boolean(anchorEl)}
+      onClose={handleClose}
+    >
+      <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
+        Join as...
+      </Text>
+      {children}
+    </Menu>
+  );
+}
+
+type LockedFeatureInternalJoinMenu = InternalJoinMenuProps;
+function LockedFeatureInternalJoinMenu({ anchorEl, handleClose }) {
+  return (
+    <Menu
+      anchorOrigin={{
+        vertical: 'bottom',
+        horizontal: 'center',
+      }}
+      transformOrigin={{
+        vertical: 'top',
+        horizontal: 'center',
+      }}
+      anchorEl={anchorEl}
+      open={Boolean(anchorEl)}
+      onClose={handleClose}
+      style={{ backgroundColor: theme.colors.levels.surface }}
+    >
+      <LockedJoinMenuContainer>
+        <ButtonLockedFeature>
+          Join Active Sessions with Teleport Enterprise
+        </ButtonLockedFeature>
+        <Box style={{ color: theme.colors.text.secondary }} ml="3">
+          <Box mb="3">
+            <Text fontSize="16px">As an Observer</Text>
+            <Text fontSize="14px">
+              Watch: cannot control any part of the session
+            </Text>
+          </Box>
+          <Box mb="3">
+            <Text fontSize="16px">As a Moderator</Text>
+            <Text fontSize="14px">
+              Review: can view output & terminate the session
+            </Text>
+          </Box>
+          <Box>
+            <Text fontSize="16px">As a Peer</Text>
+            <Text fontSize="14px">
+              Collaborate: can view output and send input
+            </Text>
+          </Box>
+        </Box>
+      </LockedJoinMenuContainer>
+    </Menu>
+  );
+}
+
+const LockedJoinMenuContainer = styled(Flex)(
+  () => `
+    background-color: ${theme.colors.levels.surface};
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 12px;
+    gap: 12px;
+  `
+);
