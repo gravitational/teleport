@@ -320,8 +320,8 @@ At a a high level, we want a release process that is:
 
 We also want some functional requirements:
 
- 1. An engineer *must* be able to at least construct a Teleport binary at their 
-    desk with a minimum of fuss.
+ 1. An engineer *must* be able to at least construct the `teleport`, `tsh`, and `tctl` binaries
+    for their current operating system with a minimum of fuss.
  2. An engineer *must* be able to run close to 100% of all tests at their desk
     with a minimum of fuss 
  3. The release envirionment should be as close as practical to the CI 
