@@ -26,6 +26,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -346,17 +347,13 @@ func (s *Session) CombinedOutput(ctx context.Context, cmd string) ([]byte, error
 // FileTransferRequestApprove sends a "file-transfer-request-response" ssh request
 // The response will contain an Approve bool which will approve or deny a requested file transfer
 func (s *Session) FileTransferRequestResponse(ctx context.Context, req FileTransferResponseReq) error {
-	const request = "file-transfer-request-response"
-
-	_, err := s.SendRequest(ctx, request, true, ssh.Marshal(req))
+	_, err := s.SendRequest(ctx, constants.FileTransferResponse, true, ssh.Marshal(req))
 	return trace.Wrap(err)
 }
 
 // RequestFileTransfer sends a "file-transfer-request" ssh request that will create a new file transfer request
 // and notify the parties in an ssh session
 func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferRequestReq) error {
-	const request = "file-transfer-request"
-
-	_, err := s.SendRequest(ctx, request, true, ssh.Marshal(req))
+	_, err := s.SendRequest(ctx, constants.FileTransferRequest, true, ssh.Marshal(req))
 	return trace.Wrap(err)
 }
