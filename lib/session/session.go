@@ -131,25 +131,6 @@ type FileTransferResponseParams struct {
 	Approved bool `json:"approved"`
 }
 
-// NewFileTransferResponseParams takes a serialized string that contains the
-// file transfer request response parameters and returns a *FileTransferParams.
-func NewFileTransferResponseParams(requestId string, approved bool) *FileTransferResponseParams {
-	return &FileTransferResponseParams{
-		RequestID: requestId,
-		Approved:  approved,
-	}
-}
-
-// NewFileTransferParams takes a serialized string that contains the
-// file transfer parameters and returns a *FileTransferParams.
-func NewFileTransferParams(location string, download bool, filename string) *FileTransferRequestParams {
-	return &FileTransferRequestParams{
-		Location: location,
-		Download: download,
-		Filename: filename,
-	}
-}
-
 // Participants returns the usernames of the current session participants.
 func (s *Session) Participants() []string {
 	participants := make([]string, 0, len(s.Parties))
