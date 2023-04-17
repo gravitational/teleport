@@ -980,7 +980,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		}
 	}
 
-	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) {
+	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) && !sp.SecurityPatchAltOf(current) {
 		// explicit security patch alerts have a more limited audience, so we generate
 		// them as their own separate alert.
 		log.Warnf("A newer security patch has been detected. current=%s, patch=%s", current.Version(), sp.Version())
@@ -5109,13 +5109,19 @@ func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*t
 		return nil, trace.Wrap(err)
 	}
 
-	// wait for the headless authentication to be updated with valid login details
-	// by the login process. If the headless authentication is already updated,
-	// Wait will return it immediately.
+	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer sub.Close()
+
 	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
 	defer cancel()
 
-	headlessAuthn, err := a.headlessAuthenticationWatcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
+	// wait for the headless authentication to be updated with valid login details
+	// by the login process. If the headless authentication is already updated,
+	// Wait will return it immediately.
+	headlessAuthn, err := a.headlessAuthenticationWatcher.WaitForUpdate(waitCtx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})
 	return headlessAuthn, trace.Wrap(err)
