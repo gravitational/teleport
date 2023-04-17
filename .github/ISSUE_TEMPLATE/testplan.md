@@ -853,9 +853,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
@@ -883,9 +884,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
