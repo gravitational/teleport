@@ -45,6 +45,10 @@ export const SessionJoinBtn = ({
     (a, b) => modes[a] - modes[b]
   );
 
+  if (cfg.isTeams) {
+    return <LockedFeatureJoinMenu modes={sortedParticipantModes} />;
+  }
+
   return (
     <JoinMenu>
       {sortedParticipantModes.map(participantMode => (
@@ -79,16 +83,38 @@ function JoinMenu({ children }: { children: React.ReactNode }) {
         Join
         <CarrotDown ml={1} fontSize={2} color="text.secondary" />
       </ButtonBorder>
-      {cfg.isTeams ? (
-        <LockedFeatureInternalJoinMenu
-          anchorEl={anchorEl}
-          handleClose={handleClose}
-        />
-      ) : (
-        <InternalJoinMenu anchorEl={anchorEl} handleClose={handleClose}>
-          {children}
-        </InternalJoinMenu>
-      )}
+      <InternalJoinMenu anchorEl={anchorEl} handleClose={handleClose}>
+        {children}
+      </InternalJoinMenu>
+    </Box>
+  );
+}
+
+type LockedFeatureJoinMenu = {
+  modes: ParticipantMode[];
+};
+function LockedFeatureJoinMenu({ modes }: LockedFeatureJoinMenu) {
+  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
+
+  const handleClickListItem = event => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  return (
+    <Box textAlign="center" width="80px">
+      <ButtonBorder size="small" onClick={handleClickListItem}>
+        Join
+        <CarrotDown ml={1} fontSize={2} color="text.secondary" />
+      </ButtonBorder>
+      <LockedFeatureInternalJoinMenu
+        anchorEl={anchorEl}
+        handleClose={handleClose}
+        modes={modes}
+      />
     </Box>
   );
 }
@@ -113,8 +139,16 @@ function InternalJoinMenu({
   );
 }
 
-type LockedFeatureInternalJoinMenu = InternalJoinMenuProps;
-function LockedFeatureInternalJoinMenu({ anchorEl, handleClose }) {
+type LockedFeatureInternalJoinMenuProps = {
+  anchorEl: HTMLElement;
+  handleClose: () => void;
+  modes: ParticipantMode[];
+};
+function LockedFeatureInternalJoinMenu({
+  anchorEl,
+  handleClose,
+  modes,
+}: LockedFeatureInternalJoinMenuProps) {
   return (
     <Menu
       anchorEl={anchorEl}
@@ -130,18 +164,26 @@ function LockedFeatureInternalJoinMenu({ anchorEl, handleClose }) {
           Join Active Sessions with Teleport Enterprise
         </ButtonLockedFeature>
         <Box style={{ color: theme.colors.text.secondary }} ml="3">
-          <LockedJoinItem
-            name={'As an Observer'}
-            info={'Watch: cannot control any part of the session'}
-          />
-          <LockedJoinItem
-            name={'As a Moderator'}
-            info={'Review: can view output & terminate the session'}
-          />
-          <LockedJoinItem
-            name={'As a Peer'}
-            info={'Collaborate: can view output and send input'}
-          />
+          {modes.includes('observer') ? (
+            <LockedJoinItem
+              name={'As an Observer'}
+              info={'Watch: cannot control any part of the session'}
+            />
+          ) : null}
+
+          {modes.includes('moderator') ? (
+            <LockedJoinItem
+              name={'As a Moderator'}
+              info={'Review: can view output & terminate the session'}
+            />
+          ) : null}
+
+          {modes.includes('peer') ? (
+            <LockedJoinItem
+              name={'As a Peer'}
+              info={'Collaborate: can view output and send input'}
+            />
+          ) : null}
         </Box>
       </LockedJoinMenuContainer>
     </Menu>
