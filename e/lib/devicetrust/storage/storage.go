@@ -942,14 +942,22 @@ func (s *S) validateCollectedDataDrift(ctx context.Context, dev *devicepb.Device
 		return nil
 	}
 
-	storedCD, err := s.getDeviceCollectedData(ctx, dev.Id)
+	stored, err := s.getDeviceCollectedData(ctx, dev.Id)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	l := len(storedCD)
+	return validateCollectedDataDriftQueried(s.logger, dev, stored, cd)
+
+}
+
+// validateCollectedDataDriftQueried runs data drift validation on `cd` using an
+// already queried slice of collected data.
+// It can do some nice logging using `dev` too.
+func validateCollectedDataDriftQueried(logger *log.Entry, dev *devicepb.Device, stored []*devicepb.DeviceCollectedData, cd *devicepb.DeviceCollectedData) error {
+	l := len(stored)
 	if l == 0 {
-		s.logger.
+		logger.
 			WithFields(log.Fields{
 				"DeviceID": dev.Id,
 				"AssetTag": dev.AssetTag,
@@ -961,7 +969,7 @@ func (s *S) validateCollectedDataDrift(ctx context.Context, dev *devicepb.Device
 	// Comparing `cd` against the last entry should be enough to guarantee no
 	// drift, as data can only drift forward.
 	// Note that storedCD is already sorted by RecordTime DESC.
-	source := storedCD[l-1]
+	source := stored[l-1]
 	if err := validateCollectedDataDrift(cd, source); err != nil {
 		return trace.Wrap(err)
 	}
@@ -1059,6 +1067,67 @@ func (s *S) clearCollectedDataIfNeeded(ctx context.Context, deviceID string) err
 	return nil
 }
 
+// CreateDeviceEnrollTokenUsingData creates a [DeviceEnrollToken] using `cd` as an
+// input.
+// The collected data must pass a strict set of validations for token creation
+// to be allowed.
+// It returns the corresponding device, as long as queried successfully, and
+// either an error or the assigned [DeviceEnrollToken] in the device.
+func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.DeviceCollectedData) (*devicepb.Device, error) {
+	if err := ValidateCollectedData(cd); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	devs, err := s.GetDevicesByAssetTag(ctx, cd.SerialNumber)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if len(devs) == 0 {
+		return nil, trace.NotFound("device not found")
+	}
+
+	// Find the one specific device we are looking for, or otherwise error.
+	var targetDev *devicepb.Device
+	for _, dev := range devs {
+		if dev.OsType == cd.OsType {
+			// Sanity check: we should get exactly 0 or 1 match, but let's
+			// double-check to be safe.
+			if targetDev != nil {
+				return nil, trace.BadParameter("collected data matches more than one device, aborting")
+			}
+			targetDev = dev
+			break
+		}
+	}
+	if targetDev == nil {
+		return nil, trace.NotFound("device not found")
+	}
+	// From this point onwards return `targetDev`, it allows for richer logging
+	// in the outer layers.
+
+	if targetDev.EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
+		return targetDev, trace.BadParameter("device is already enrolled")
+	}
+
+	// Run strict validation.
+	// An unenrolled device is expected to have zero (or obsolete) collected data,
+	// so we validate solely against the device and profile.
+	if err := validateCollectedDataAgainstDeviceStrict(cd, targetDev); err != nil {
+		return targetDev, trace.Wrap(err)
+	}
+
+	// Note: We don't record collected data here - the device is presently
+	// unenrolled and the client did not pass a device challenge to get here.
+
+	token, err := s.createDeviceEnrollToken(ctx, targetDev.Id)
+	if err != nil {
+		return targetDev, trace.Wrap(err)
+	}
+
+	targetDev.EnrollToken = token
+	return targetDev, trace.Wrap(err)
+}
+
 // CreateDeviceEnrollToken creates or replaces the existing enrollment token for
 // a device. Only one enrollment token is allowed at a time.
 //
@@ -1078,6 +1147,10 @@ func (s *S) CreateDeviceEnrollToken(ctx context.Context, deviceID string) (*devi
 		return nil, trace.Wrap(err)
 	}
 
+	return s.createDeviceEnrollToken(ctx, deviceID)
+}
+
+func (s *S) createDeviceEnrollToken(ctx context.Context, deviceID string) (*devicepb.DeviceEnrollToken, error) {
 	// Draw a few random bytes, base64 encode into a valid string and use the
 	// resulting string as the password.
 	// tokenPlain is sent to the client.

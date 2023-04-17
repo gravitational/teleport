@@ -2593,6 +2593,282 @@ func collectedDataForDevice(dev *devicepb.Device) *devicepb.DeviceCollectedData 
 	return cd
 }
 
+func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	clock := env.Clock
+	s := env.S
+	ctx := context.Background()
+
+	// Prepare a handful of devices with varying profiles to test.
+	devFullProfile := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama1",
+		Profile: &devicepb.DeviceProfile{
+			ModelIdentifier:   "MacBookPro9,2",
+			OsVersion:         "13.3.1",
+			OsBuild:           "22E261",
+			OsUsernames:       []string{"llama", "admin"},
+			JamfBinaryVersion: "10.45.0-t1678116779",
+		},
+	}
+	devSmallProfile := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama2",
+		Profile: &devicepb.DeviceProfile{
+			ModelIdentifier: "MacBookPro9,2",
+			OsVersion:       "13.3.1",
+		},
+	}
+	devNoProfile := &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "alpaca",
+	}
+	for _, dev := range []**devicepb.Device{
+		&devFullProfile,
+		&devSmallProfile,
+		&devNoProfile,
+	} {
+		created, err := s.CreateDevice(ctx, *dev, false /* createAsResource */)
+		if err != nil {
+			t.Fatalf("CreateDevice(%q) failed: %v", (*dev).AssetTag, err)
+		}
+		*dev = created
+		clock.Advance(1 * time.Second)
+	}
+
+	tests := []struct {
+		name    string
+		cd      *devicepb.DeviceCollectedData
+		wantDev *devicepb.Device
+	}{
+		{
+			name: "auto-enroll (full profile)",
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime: timestamppb.New(clock.Now()),
+				// Required fields.
+				OsType:       devFullProfile.OsType,
+				SerialNumber: devFullProfile.AssetTag,
+				// Profile-informed fields.
+				ModelIdentifier:   devFullProfile.Profile.ModelIdentifier,
+				OsVersion:         devFullProfile.Profile.OsVersion,
+				OsBuild:           devFullProfile.Profile.OsBuild,
+				OsUsername:        devFullProfile.Profile.OsUsernames[0],
+				JamfBinaryVersion: devFullProfile.Profile.JamfBinaryVersion,
+			},
+			wantDev: devFullProfile,
+		},
+		{
+			name: "auto-enroll (small profile)",
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:     timestamppb.New(clock.Now()),
+				OsType:          devSmallProfile.OsType,
+				SerialNumber:    devSmallProfile.AssetTag,
+				ModelIdentifier: devSmallProfile.Profile.ModelIdentifier,
+				OsVersion:       devSmallProfile.Profile.OsVersion,
+				// Nothing else required by the profile.
+			},
+			wantDev: devSmallProfile,
+		},
+		{
+			name: "auto-enroll (no profile)",
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:  timestamppb.New(clock.Now()),
+				OsType:       devNoProfile.OsType,
+				SerialNumber: devNoProfile.AssetTag,
+				// Nothing else required by the profile.
+			},
+			wantDev: devNoProfile,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := s.CreateDeviceEnrollTokenUsingData(ctx, test.cd)
+			if err != nil {
+				t.Fatalf("CreateDeviceEnrollTokenUsingData failed: %v", err)
+			}
+			clock.Advance(1 * time.Second)
+
+			// Verify that we got the correct device.
+			if want := test.wantDev; got.Id != want.Id {
+				t.Errorf(
+					"CreateDeviceEnrollTokenUsingData: got device %v/%v, want %v/%v",
+					got.Id, got.AssetTag,
+					want.Id, want.AssetTag,
+				)
+			}
+
+			// Verify that we got a non-empty token.
+			if got.EnrollToken.GetToken() == "" {
+				t.Fatalf("CreateDeviceEnrollTokenUsingData: got token=%v, want non-empty token", got.EnrollToken)
+			}
+
+			// Verify that no collected data was stored (device is not enrolled yet!)
+			stored, err := s.GetDeviceByID(ctx, got.Id)
+			if err != nil {
+				t.Fatalf("GetDeviceByID failed: %v", err)
+			}
+			if len(stored.CollectedData) > 0 {
+				t.Errorf("GetDeviceByID: got %v instances of collected data, wanted zero: %v", len(stored.CollectedData), stored.CollectedData)
+			}
+
+			// Spend the token to verify that it works.
+			if err := s.SpendDeviceEnrollToken(ctx, got.Id, got.EnrollToken.Token); err != nil {
+				t.Errorf("SpendDeviceEnrollToken failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	ctx := context.Background()
+
+	dev, err := s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "llama1",
+		Profile: &devicepb.DeviceProfile{
+			ModelIdentifier:   "MacBookPro9,2",
+			OsVersion:         "13.3.1",
+			OsBuild:           "22E261",
+			OsUsernames:       []string{"llama", "admin"},
+			JamfBinaryVersion: "10.45.0-t1678116779",
+		},
+	}, false /* createAsResource */)
+	if err != nil {
+		t.Fatalf("CreateDevice) failed: %v", err)
+	}
+
+	// Register an unrelated Windows device.
+	// The purpose of this device is to not match collected data from its namesake
+	// MacOS device.
+	if _, err = s.CreateDevice(ctx, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+		AssetTag: "llama1",
+		Profile: &devicepb.DeviceProfile{
+			ModelIdentifier:   "ThinkPad 9000",
+			OsVersion:         "22H2",
+			OsBuild:           "19045",
+			OsUsernames:       []string{"not-a-llama", "admin"},
+			JamfBinaryVersion: "10.44",
+		},
+	}, false /* createAsResource */); err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+
+	isDriftError := func(err error) bool {
+		return errors.Is(err, &storage.CollectedDataDriftError{})
+	}
+
+	tests := []struct {
+		name      string
+		createCD  func() *devicepb.DeviceCollectedData
+		assertErr func(err error) bool
+		wantErr   string
+	}{
+		{
+			name: "unknown device (OSType)",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.OsType = devicepb.OSType_OS_TYPE_LINUX // unknown
+				return cd
+			},
+			assertErr: trace.IsNotFound,
+			wantErr:   "not found",
+		},
+		{
+			name: "unknown device (SerialNumber)",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.SerialNumber = "llama2" // unknown
+				return cd
+			},
+			assertErr: trace.IsNotFound,
+			wantErr:   "not found",
+		},
+		{
+			name: "ModelIdentifier empty",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.ModelIdentifier = ""
+				return cd
+			},
+			assertErr: isDriftError,
+			wantErr:   "device model",
+		},
+		{
+			name: "ModelIdentifier invalid",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.ModelIdentifier = "MacBookPro10,1"
+				return cd
+			},
+			assertErr: isDriftError,
+			wantErr:   "device model",
+		},
+		{
+			name: "OsVersion invalid",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.OsVersion = "13.4" // even a drift upwards is disallowed here
+				return cd
+			},
+			assertErr: isDriftError,
+			wantErr:   "OS version",
+		},
+		{
+			name: "OsBuild invalid",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.OsBuild = "22E262" // changed from 22E261
+				return cd
+			},
+			assertErr: isDriftError,
+			wantErr:   "OS build",
+		},
+		{
+			name: "OsUsername invalid",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.OsUsername = "llamaO" // wanted "llama" or "admin"
+				return cd
+			},
+			assertErr: isDriftError,
+			wantErr:   "OS username",
+		},
+		{
+			name: "JamfBinaryVersion invalid",
+			createCD: func() *devicepb.DeviceCollectedData {
+				cd := collectedDataForDevice(dev)
+				cd.JamfBinaryVersion = "10.46" // changed from 10.45.0-t1678116779
+				return cd
+			},
+			assertErr: isDriftError,
+			wantErr:   "jamf binary",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := s.CreateDeviceEnrollTokenUsingData(ctx, test.createCD())
+			if err == nil {
+				t.Fatal("CreateDeviceEnrollTokenUsingData returned err=nil, want non-nil", err)
+			}
+			if !test.assertErr(err) {
+				t.Errorf("CreateDeviceEnrollTokenUsingData: assertErr failed, err=%v (%T)", err, err)
+			}
+			assert.ErrorContains(t, err, test.wantErr, "CreateDeviceEnrollTokenUsingData error mismatch")
+		})
+	}
+}
+
 func TestS_CreateDeviceEnrollToken_createAndSpend(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()

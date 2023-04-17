@@ -412,3 +412,26 @@ func isBackwardsVersionDrift(v1, v2 string) bool {
 
 	return semver.Compare(v1Prefixed, v2Prefixed) > 0
 }
+
+// validateCollectedDataAgainstDeviceStrict is used to gate automatic token
+// issuance. It requires that `cd` match the [DeviceProfile] _exactly_, in
+// addition to the checks performed by [ValidateCollectedDataAgainstDevice].
+func validateCollectedDataAgainstDeviceStrict(cd *devicepb.DeviceCollectedData, dev *devicepb.Device) error {
+	if err := ValidateCollectedDataAgainstDevice(cd, dev); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Strict profile checks.
+	switch p := dev.Profile; {
+	case p == nil:
+		return nil // Nothing to check!
+	case p.OsVersion != "" && p.OsVersion != cd.OsVersion:
+		return NewCollectedDataDriftError("device OS version drift")
+	case p.OsBuild != "" && p.OsBuild != cd.OsBuild:
+		return NewCollectedDataDriftError("device OS build drift")
+	case p.JamfBinaryVersion != "" && p.JamfBinaryVersion != cd.JamfBinaryVersion:
+		return NewCollectedDataDriftError("jamf binary version drift")
+	}
+
+	return nil
+}
