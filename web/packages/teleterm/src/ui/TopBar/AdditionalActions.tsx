@@ -137,7 +137,7 @@ function getActiveRootCluster(ctx: IAppContext): Cluster | undefined {
   return ctx.clustersService.findCluster(clusterUri);
 }
 
-export function MoreOptions() {
+export function AdditionalActions() {
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const selectorRef = useRef<HTMLButtonElement>();
 
@@ -155,7 +155,7 @@ export function MoreOptions() {
       <TopBarButton
         ref={selectorRef}
         isOpened={isPopoverOpened}
-        title="More Options"
+        title="Additional Actions"
         onClick={() => setIsPopoverOpened(true)}
       >
         <icons.MoreVert fontSize={6} />
