@@ -126,6 +126,7 @@ jobs:
       dest-image-tags: ${{ needs.configure.outputs.teleport_version }}
       build-role-arn: ${{ inputs.build-role-arn }}
       signing-key-url: ${{ inputs.signing-key-url }}
+      allow-overwrites: false
       image-build-args: |
         BUILDBOX=${{ needs.configure.outputs.buildbox }}
       image-build-context: ./teleport/integrations/kube-agent-updater/.
