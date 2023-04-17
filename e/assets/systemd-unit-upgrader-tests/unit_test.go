@@ -1,0 +1,390 @@
+package unit
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+)
+
+const (
+	// upgraderPath is the path to the upgrader executable relative to this test file.
+	upgraderPath = "../systemd-unit-upgrader/rootfs/usr/sbin/teleport-upgrade"
+
+	// nopInstallPrefix is the prefix used to signify that a nop install attempt happened (i.e. that
+	// the upgrader would have attempted a real install if a different installer were configured).
+	nopInstallPrefix = "nop-install:"
+
+	// configVar is the variable used to override the default config dir location.
+	configVar = "TELEPORT_UPGRADE_CONFIG"
+)
+
+// output
+type output struct {
+	stdout  string
+	stderr  string
+	success bool
+}
+
+// GetNopInstall seeks and parses the nop upgrade line output, extracting target name and version.
+func (o *output) GetNopInstall() (params upgradeParams, ok bool) {
+	for _, ln := range strings.Split(o.stdout, "\n") {
+		ln = strings.TrimSpace(ln)
+		ps := strings.TrimPrefix(ln, nopInstallPrefix)
+		if ps == ln {
+			continue
+		}
+
+		parts := strings.Split(ps, "=")
+		if len(parts) != 2 {
+			continue
+		}
+
+		return upgradeParams{
+			target:  strings.TrimSpace(parts[0]),
+			version: strings.TrimSpace(parts[1]),
+		}, true
+	}
+
+	return upgradeParams{}, false
+}
+
+// upgradeParams represents the output of a 'nop' upgrade attempt.
+type upgradeParams struct {
+	target  string
+	version string
+}
+
+func runUpgrader(subcommand string, configDir string) (output, error) {
+
+	cmd := exec.Command(upgraderPath, subcommand)
+	cmd.Env = []string{fmt.Sprintf("%s=%s", configVar, configDir)}
+	cmd.Stdout = new(strings.Builder)
+	cmd.Stderr = new(strings.Builder)
+
+	if err := cmd.Run(); err != nil {
+		// ExitError just means non-zero exit code... handled elsewhere.
+		if _, ok := err.(*exec.ExitError); !ok {
+			return output{}, trace.Wrap(err)
+		}
+	}
+
+	return output{
+		stdout:  cmd.Stdout.(*strings.Builder).String(),
+		stderr:  cmd.Stderr.(*strings.Builder).String(),
+		success: cmd.ProcessState.Success(),
+	}, nil
+}
+
+// testCase is a helper for setting up a test-case. running multiple cases against the same
+// config dir preserves previous state unless explicitly overwritten by a cfg parameter.
+type testCase struct {
+	cmd, dir string
+	cfg      map[string]string
+}
+
+func (t *testCase) Run() (output, error) {
+	if err := t.setTestDefaults(); err != nil {
+		return output{}, trace.Wrap(err)
+	}
+
+	for param, value := range t.cfg {
+		if err := t.set(param, value); err != nil {
+			return output{}, trace.Wrap(err)
+		}
+	}
+
+	cmd := t.cmd
+	if cmd == "" {
+		cmd = "run"
+	}
+
+	return runUpgrader(cmd, t.dir)
+}
+
+// setTestDefaults sets the config parameters that are consistent for any test case.
+func (t *testCase) setTestDefaults() error {
+	if err := t.set("insecure", "yes"); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := t.set("debug", "yes"); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := t.set("installer", "nop"); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (t *testCase) set(name string, value string) error {
+	err := os.WriteFile(filepath.Join(t.dir, name), []byte(value), 0o644)
+	return trace.Wrap(err)
+}
+
+func (t *testCase) Get(name string) (string, error) {
+	b, err := os.ReadFile(filepath.Join(t.dir, name))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", trace.Wrap(err)
+	}
+
+	return string(b), nil
+}
+
+// stripCfgValue strips extra whitespace and comment-like lines from a string.
+func stripCfgValue(original string) string {
+	var stripped []string
+	for _, ln := range strings.Split(original, "\n") {
+		ln = strings.TrimSpace(ln)
+		if ln == "" || strings.HasPrefix(ln, "# ") {
+			continue
+		}
+		stripped = append(stripped, ln)
+	}
+
+	return strings.Join(stripped, "\n")
+}
+
+// currentSchedule builds a reasonable schedule value that places us within a current window,
+// as well as having one past and one future window.
+func currentSchedule() string {
+	now := time.Now().Unix()
+	return fmt.Sprintf("# some-comment\n%d %d\n%d %d\n%d %d\n",
+		now-120, now-60, // past window
+		now-1, now+99, // current window
+		now+120, now+180, // future window
+	)
+}
+
+// TestUpgraderBasics verifies the standard paths to upgrade.
+func TestUpgraderBasics(t *testing.T) {
+	endpoint := NewUpgradeEndpoint()
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up basic test-case that should cause us to fire off an install attempt
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"endpoint":               fmt.Sprintf("localhost:%s/v1/stable/cloud", port),
+			"schedule":               currentSchedule(),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+
+	// simulate a successful upgrade by overriding the upgrader's "current version" view to
+	// now equal the version served by the endpoint.
+	tc.cfg["state-version-override"] = "2.3.4"
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// expect that no install happened this time
+	_, ok = out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// bump the endpoint version so that upgrade attempts start happening again
+	endpoint.SetVersion("3.4.5")
+
+	// blank the schedule so that upgrader believes agent may be unhealthy
+	tc.cfg["schedule"] = ""
+
+	// the first run w/ unhealthy schedule should result in us setting the unhealthy marker
+	// but not in an actual upgrade attempt.
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	_, ok = out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// check for expected unhealthy state marker
+	us, err := tc.Get("state-unhealthy")
+	require.NoError(t, err)
+	require.Equal(t, "yes", stripCfgValue(us), "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+
+	// run again, this time we expect the unhealthy marker state to cause an upgrade
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	nop, ok = out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "3.4.5", nop.version)
+
+	// unhealthy marker state should be cleared/removed
+	us, err = tc.Get("state-unhealthy")
+	require.NoError(t, err)
+	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+}
+
+// TestUpgraderCritical verifies the expected behavior of the 'critical' endpoint mode.
+func TestUpgraderCritical(t *testing.T) {
+	endpoint := NewUpgradeEndpoint()
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up a healthy configuration that is not within an upgrade window
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"endpoint":               fmt.Sprintf("localhost:%s/v1/stable/cloud", port),
+			"schedule":               fmt.Sprintf("%d %d", time.Now().Unix()+99, time.Now().Unix()+110),
+			"state-version-override": "1.2.3", // overrides the upgrader's view of the currently installed teleport version
+		},
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// not within upgrade window, nothing should happen
+	_, ok := out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// unhealthy marker should not be set
+	us, err := tc.Get("state-unhealthy")
+	require.NoError(t, err)
+	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+
+	// go into 'critical' mode
+	endpoint.SetCritical("yes")
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// install should have happened this time
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+
+	// revert to non-critical and re-check that we are in a "not upgrading but healthy" state.
+	endpoint.SetCritical("no")
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// not within upgrade window, nothing should happen
+	_, ok = out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// unhealthy marker still not set
+	us, err = tc.Get("state-unhealthy")
+	require.NoError(t, err)
+	require.Equal(t, "", us, "stdout=%q, stderr=%q, original=%q", out.stdout, out.stderr, us)
+}
+
+func TestUnknownVersionScenarios(t *testing.T) {
+	endpoint := NewUpgradeEndpoint()
+	endpoint.SetVersion("2.3.4")
+	endpoint.SetCritical("no")
+
+	listener, err := net.Listen("tcp4", "localhost:0")
+	require.NoError(t, err)
+
+	go endpoint.Serve(listener)
+	defer endpoint.Shutdown(context.Background())
+
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	require.NoError(t, err)
+
+	// set up a configuration that can't discover currently installed teleport
+	// version, but is otherwise healthy.
+	tc := testCase{
+		dir: t.TempDir(),
+		cfg: map[string]string{
+			"endpoint":               fmt.Sprintf("localhost:%s/v1/stable/cloud", port),
+			"schedule":               fmt.Sprintf("%d %d", time.Now().Unix()+99, time.Now().Unix()+110),
+			"state-version-override": "fail", // set script to be unable to determine current teleport version
+		},
+	}
+
+	out, err := tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// not within upgrade window, nothing should happen
+	_, ok := out.GetNopInstall()
+	require.False(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+	// modify schedule so that we are now within an upgrade window
+	tc.cfg["schedule"] = fmt.Sprintf("%d %d", time.Now().Unix()-1, time.Now().Unix()+99)
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	require.True(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+	require.Contains(t, out.stderr, "failed to detect current version")
+
+	// expect that we now succeed despite not knowing the current version
+	nop, ok := out.GetNopInstall()
+	require.True(t, ok, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+	require.Equal(t, "teleport", nop.target)
+	require.Equal(t, "2.3.4", nop.version)
+
+	// shutdown the version endpoint
+	endpoint.Shutdown(context.Background())
+	listener.Close()
+
+	out, err = tc.Run()
+	require.NoError(t, err)
+
+	// if there is no version endpoint, upgrader cannot function
+	require.False(t, out.success, "stdout=%q, stderr=%q", out.stdout, out.stderr)
+
+}
