@@ -180,7 +180,7 @@ func lookupInstallationID(ctx context.Context, args args) (int64, error) {
 }
 
 // Returns the first incomplete matching workflow run found. If none are found, returns nil.
-func getIncompleteWorkflowRunId(ctx context.Context, gh *ghapi.Client, args args) (*ghapi.WorkflowRun, error) {
+func getIncompleteWorkflowRunID(ctx context.Context, gh *ghapi.Client, args args) (*ghapi.WorkflowRun, error) {
 	// If there are runs lasting longer than one hour then there is a probably a much larger problem at play
 	recentRuns, err := github.ListWorkflowRuns(ctx, gh.Actions, args.owner, args.repo, args.workflow, "", time.Now().Add(-time.Hour))
 	if err != nil {
@@ -203,7 +203,7 @@ func getIncompleteWorkflowRunId(ctx context.Context, gh *ghapi.Client, args args
 
 func waitForActiveWorkflowRuns(ctx context.Context, gh *ghapi.Client, args args) error {
 	for {
-		incompleteWorkflowRun, err := getIncompleteWorkflowRunId(ctx, gh, args)
+		incompleteWorkflowRun, err := getIncompleteWorkflowRunID(ctx, gh, args)
 		if err != nil {
 			return trace.Wrap(err, "failed to check if workflow has pending runs")
 		}
