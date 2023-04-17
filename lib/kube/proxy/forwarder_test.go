@@ -1862,8 +1862,8 @@ func TestKubernetesLicenseEnforcement(t *testing.T) {
 				require.Error(tt, err)
 				var kubeErr *kubeerrors.StatusError
 				require.ErrorAs(tt, err, &kubeErr)
-				require.Equal(tt, kubeErr.ErrStatus.Code, int32(500))
-				require.Equal(tt, kubeErr.ErrStatus.Reason, metav1.StatusReasonInternalError)
+				require.Equal(tt, kubeErr.ErrStatus.Code, int32(http.StatusForbidden))
+				require.Equal(tt, kubeErr.ErrStatus.Reason, metav1.StatusReasonForbidden)
 				require.Equal(tt, kubeErr.ErrStatus.Message, "Teleport cluster is not licensed for Kubernetes")
 			},
 		},

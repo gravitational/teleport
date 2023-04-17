@@ -511,9 +511,8 @@ const accessDeniedMsg = "[00] access denied"
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 	// If the cluster is not licensed for Kubernetes, return an error to the client.
 	if !f.cfg.ClusterFeatures().Kubernetes {
-		// If the cluster is not licensed for Kubernetes, return an error to the client
-		// but in a way that the code is translated to 500 error code.
-		return nil, trace.Errorf("Teleport cluster is not licensed for Kubernetes")
+		// If the cluster is not licensed for Kubernetes, return an error to the client.
+		return nil, trace.AccessDenied("Teleport cluster is not licensed for Kubernetes")
 	}
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
