@@ -210,6 +210,85 @@ build will draw assets from.
     - `charts` providing sources for publiushed helm charts
     - Scripts and resources for testing Kubernetes cluster
 
+#### **Current Release Process**
+
+If a build were to be done today, the process would look like this:
+
+```mermaid
+sequenceDiagram
+    actor release_engineer as Roman
+    participant github as GitHub
+    participant drone as Drone
+    participant gha as GitHub Actions
+    participant dronestorage as Intermediate Artifact<br/>Storage Bucket
+    participant intermediate_repos as Other Intermediate<br/>Repositories
+    participant releasesvr as Release API Server
+    participant release_repos as  Other Release<br/>Repositories
+    participant release_storage as Release Artifact<br/>Bucket
+    participant website as Teleport Website
+    actor customer as User
+
+    Note over dronestorage: For intermediate artifacts<br/>required by later builds
+    Note over intermediate_repos: For resources that can't<br/>easily be stored in a bucket,<br/>e.g. Docker images, AMIs
+
+    rect rgb(250, 250, 250)
+        Note over release_engineer: Build Phase
+        release_engineer->>github: Tag vX.Y.Z
+        github->>+drone: Tag vX.Y.Z (via webhook)
+
+        Note over drone: Starts tag build for vX.Y.Z
+
+        drone->>releasesvr: Create Draft Release
+
+        par For each Pipeline in Drone
+            alt On Drone
+                dronestorage->>+drone: Read intermediate file artifacts
+                Note over drone: Build activities happen
+                drone->>dronestorage: Write intermediate file artifacts
+                drone->>intermediate_repos: Write intermediate non-file artifacts
+                drone->>-releasesvr: Register Releaseable file artifacts
+
+            else On GitHub Actions
+                drone->>+gha: Trigger $WORKFLOW for vX.Y.Z
+                dronestorage->>+gha: Read intermediate file artifacts
+                Note over gha: Build activities happen
+                gha->>dronestorage: Write intermediate file artifacts
+                gha->>intermediate_repos: Write intermediate non-file artifacts
+                gha->>-releasesvr: Register Releaseable file Artifacts
+                gha->>drone: Workflow complete
+            end 
+        end
+        drone->>-release_engineer: Build vX.Y.Z complete
+    end
+
+    rect rgb(250, 250, 250)
+        Note over release_engineer: Promotion Phase
+
+        release_engineer->>+drone: Promote build vX.Y.Z
+        
+        dronestorage->>drone: Gather file artifacts for vX.Y.Z
+        drone->>release_storage: Move file artifacts for vX.Y.Z into release bucket
+        
+        intermediate_repos->>drone: Gather non-file artifacts for vX.Y.Z
+        drone->>release_repos: Move non-file artifacts into release repositories (Container Images, AMIs, Deb Packages)
+    end
+
+    rect rgb(250, 250, 250)
+        Note over release_engineer: Create Release
+        release_engineer->>github: Create Github Release
+        github->>releasesvr: New Release vX.Y.Z (Actually polling from Release Server)
+        Note over releasesvr: Copy registered artifacts<br/>from staging area to<br/>Production CDN
+    end
+
+    rect rgb(250, 250, 250)
+        Note over customer: Later on...
+        customer->>website: I want to download Teleport
+        website->>releasesvr: What are the artifacts for vX.Y.Z
+        releasesvr->>website: List of artifacts for vX.Y.Z
+    end
+
+```
+
 #### **Infrastructure**
 
 Drone is entirely self hosted, we (Teleport) need to manage it ourselves. 
