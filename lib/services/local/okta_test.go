@@ -308,6 +308,14 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	_, err = service.UpdateOktaAssignment(ctx, assignment1)
 	require.ErrorContains(t, err, "invalid transition")
 
+	// Fail to update the assignment because last transition is different even though status remains the same.
+	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusPending, clock.Now().Add(5*time.Minute)),
+		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567", constants.OktaAssignmentActionStatusSuccessful, clock.Now()),
+	)
+	_, err = service.UpdateOktaAssignment(ctx, assignment1)
+	require.ErrorContains(t, err, "invalid transition")
+
 	// Update succeeds with a valid transition.
 	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user",
 		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusProcessing, clock.Now()),
@@ -431,7 +439,7 @@ func oktaAction(t *testing.T, targetType types.OktaAssignmentActionTargetV1_Okta
 		},
 		LastTransition: lastTransition,
 	}
-	action.SetStatus(status)
+	require.NoError(t, action.SetStatus(status))
 
 	return action
 }
