@@ -161,8 +161,9 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 				return trace.BadParameter("action mismatch when updating Okta assignment %s", assignment.GetName())
 			}
 
-			// Don't check the status transition if the statuses are equal.
-			if previousAction.GetStatus() == action.GetStatus() {
+			// Don't check the status transition if the statuses are equal and the last transitions are equal.
+			if previousAction.GetStatus() == action.GetStatus() &&
+				previousAction.GetLastTransition().Equal(action.GetLastTransition()) {
 				continue
 			}
 

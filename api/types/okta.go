@@ -348,6 +348,10 @@ func (o *OktaAssignmentActionV1) SetStatus(status string) error {
 		invalidTransition = true
 	case OktaAssignmentActionV1_CLEANUP_FAILED:
 		invalidTransition = true
+	case OktaAssignmentActionV1_UNKNOWN:
+		// All transitions are allowed from UNKNOWN.
+	default:
+		invalidTransition = true
 	}
 
 	if invalidTransition {
