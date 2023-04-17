@@ -1586,7 +1586,7 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	// Only return the error from connecting with mfa if the error
 	// originates from the mfa ceremony. If mfa is not required then
 	// the error from the direct connection to the node must be returned.
-	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) {
+	if mfaErr != nil && !errors.Is(mfaErr, MFARequiredUnknownErr{}) && !errors.Is(mfaErr, services.ErrSessionMFANotRequired) {
 		return nil, trace.Wrap(mfaErr)
 	}
 
@@ -1649,7 +1649,7 @@ func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *Cluster
 	defer span.End()
 
 	if nodeDetails.MFACheck != nil && !nodeDetails.MFACheck.Required {
-		return nil, trace.Wrap(MFARequiredUnknown(trace.AccessDenied("no access to %s", nodeDetails.Addr)))
+		return nil, trace.Wrap(services.ErrSessionMFANotRequired)
 	}
 
 	// per-session mfa is required, perform the mfa ceremony
@@ -2773,7 +2773,9 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (*ClusterClient,
 			clt, err := makeProxySSHClient(ctx, tc, config)
 			return clt, trace.Wrap(err)
 		}),
-		SSHConfig: cfg.ClientConfig,
+		SSHConfig:               cfg.ClientConfig,
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		InsecureSkipVerify:      tc.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -3030,7 +3032,11 @@ func makeProxySSHClientWithTLSWrapper(ctx context.Context, tc *TeleportClient, s
 	}
 
 	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxySSH)}
-	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(tlsConfig))
+	dialer := proxy.DialerFromEnvironment(tc.Config.WebProxyAddr, proxy.WithALPNDialer(client.ALPNDialerConfig{
+		TLSConfig:               tlsConfig,
+		ALPNConnUpgradeRequired: tc.TLSRoutingConnUpgradeRequired,
+		DialTimeout:             sshConfig.Timeout,
+	}))
 	return dialer.Dial(ctx, "tcp", proxyAddr, sshConfig)
 }
 
@@ -4615,6 +4621,18 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 		return nil, trace.Wrap(err)
 	}
 	return kubeproto.NewKubeServiceClient(clt.GetConnection()), nil
+}
+
+// IsALPNConnUpgradeRequiredForWebProxy returns true if connection upgrade is
+// required for provided addr. The provided address must be a web proxy
+// address.
+func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(proxyAddr string) bool {
+	// Use cached value.
+	if proxyAddr == tc.WebProxyAddr {
+		return tc.TLSRoutingConnUpgradeRequired
+	}
+	// Do a test for other proxy addresses.
+	return client.IsALPNConnUpgradeRequired(proxyAddr, tc.InsecureSkipVerify)
 }
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.

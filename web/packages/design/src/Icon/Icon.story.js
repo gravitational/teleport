@@ -137,6 +137,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Magnifier} text="Magnifier" />
     <IconBox IconCmpt={Icon.MasterCard} text="MasterCard" />
     <IconBox IconCmpt={Icon.Memory} text="Memory" />
+    <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
     <IconBox IconCmpt={Icon.Mute} text="Mute" />
@@ -175,6 +176,7 @@ export const ListOfIcons = () => (
     <IconBox IconCmpt={Icon.Spinner} text="Spinner" />
     <IconBox IconCmpt={Icon.Stars} text="Stars" />
     <IconBox IconCmpt={Icon.Stripe} text="Stripe" />
+    <IconBox IconCmpt={Icon.Sun} text="Sun" />
     <IconBox IconCmpt={Icon.SyncAlt} text="SyncAlt" />
     <IconBox IconCmpt={Icon.Tablet} text="Tablet" />
     <IconBox IconCmpt={Icon.Tags} text="Tags" />

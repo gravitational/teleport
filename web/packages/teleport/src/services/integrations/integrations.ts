@@ -21,6 +21,10 @@ import {
   Integration,
   IntegrationCreateRequest,
   IntegrationStatusCode,
+  IntegrationListResponse,
+  IntegrationExecuteRequest,
+  AwsDatabase,
+  ListAwsDatabaseResponse,
 } from './types';
 
 export const integrationService = {
@@ -28,8 +32,14 @@ export const integrationService = {
     return api.get(cfg.getIntegrationsUrl(name)).then(makeIntegration);
   },
 
-  fetchIntegrations(): Promise<Integration[]> {
-    return api.get(cfg.getIntegrationsUrl()).then(makeIntegrations);
+  fetchIntegrations(): Promise<IntegrationListResponse> {
+    return api.get(cfg.getIntegrationsUrl()).then(resp => {
+      const integrations = resp?.items ?? [];
+      return {
+        items: integrations.map(makeIntegration),
+        nextKey: resp?.nextKey,
+      };
+    });
   },
 
   createIntegration(req: IntegrationCreateRequest): Promise<void> {
@@ -42,6 +52,27 @@ export const integrationService = {
 
   deleteIntegration(name: string): Promise<void> {
     return api.delete(cfg.getIntegrationsUrl(name));
+  },
+
+  fetchAwsDatabases(
+    integrationName,
+    req: IntegrationExecuteRequest
+  ): Promise<ListAwsDatabaseResponse> {
+    return api
+      .post(
+        cfg.getIntegrationExecuteUrl({
+          name: integrationName,
+          action: 'list_databases',
+        }),
+        req
+      )
+      .then(json => {
+        const dbs = json?.databases;
+        return {
+          databases: dbs.map(makeAwsDatabase),
+          nextToken: json?.nextToken,
+        };
+      });
   },
 };
 
@@ -66,5 +97,15 @@ function makeIntegration(json: any): Integration {
     // supported status for integration is `Running` for now:
     // https://github.com/gravitational/teleport/pull/22556#discussion_r1158674300
     statusCode: IntegrationStatusCode.Running,
+  };
+}
+
+export function makeAwsDatabase(json: any): AwsDatabase {
+  json = json ?? {};
+  const { engine, name, endpoint } = json;
+  return {
+    engine,
+    name,
+    endpoint,
   };
 }

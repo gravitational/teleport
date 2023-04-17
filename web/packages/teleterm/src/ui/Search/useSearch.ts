@@ -46,7 +46,14 @@ export function useResourceSearch() {
   clustersService.useState();
 
   return useCallback(
-    async (search: string, restrictions: SearchFilter[]) => {
+    async (
+      search: string,
+      restrictions: SearchFilter[]
+    ): Promise<{
+      results: resourcesServiceTypes.SearchResult[];
+      errors: resourcesServiceTypes.ResourceSearchError[];
+      search: string;
+    }> => {
       // useResourceSearch has to return _something_ when the input is empty. Imagine this scenario:
       //
       // 1. The user types in 'data' into the search bar.
@@ -57,7 +64,7 @@ export function useResourceSearch() {
       // issuing another one for empty input and making `useResourceSearch` return an empty array
       // in that scenario.
       if (!search) {
-        return { results: [], search };
+        return { results: [], errors: [], search };
       }
 
       const clusterSearchFilter = restrictions.find(
@@ -76,16 +83,37 @@ export function useResourceSearch() {
           )
         : connectedClusters;
 
-      const searchPromises = clustersToSearch.map(cluster =>
-        resourcesService.searchResources(
-          cluster.uri,
-          search,
-          resourceTypeSearchFilter
+      // ResourcesService.searchResources uses Promise.allSettled so the returned promise will never
+      // get rejected.
+      const promiseResults = (
+        await Promise.all(
+          clustersToSearch.map(cluster =>
+            resourcesService.searchResources(
+              cluster.uri,
+              search,
+              resourceTypeSearchFilter
+            )
+          )
         )
-      );
-      const results = (await Promise.all(searchPromises)).flat();
+      ).flat();
 
-      return { results, search };
+      const results: resourcesServiceTypes.SearchResult[] = [];
+      const errors: resourcesServiceTypes.ResourceSearchError[] = [];
+
+      for (const promiseResult of promiseResults) {
+        switch (promiseResult.status) {
+          case 'fulfilled': {
+            results.push(...promiseResult.value);
+            break;
+          }
+          case 'rejected': {
+            errors.push(promiseResult.reason);
+            break;
+          }
+        }
+      }
+
+      return { results, errors, search };
     },
     [clustersService, resourcesService]
   );

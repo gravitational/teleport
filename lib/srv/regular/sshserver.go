@@ -2040,6 +2040,7 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySubsys(r.Name, s, ctx)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
+	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
 	case r.Name == teleport.GetHomeDirSubsystem:
 		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:

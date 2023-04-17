@@ -216,6 +216,8 @@ const cfg = {
     headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
 
     integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    integrationExecutePath:
+      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -618,9 +620,18 @@ const cfg = {
   getIntegrationsUrl(integrationName?: string) {
     // Currently you can only create integrations at the root cluster.
     const clusterId = cfg.proxyCluster;
-    return generateResourcePath(cfg.api.integrationsPath, {
+    return generatePath(cfg.api.integrationsPath, {
       clusterId,
       name: integrationName,
+    });
+  },
+
+  getIntegrationExecuteUrl(params: UrlIntegrationExecuteRequestParams) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.integrationExecutePath, {
+      clusterId,
+      ...params,
     });
   },
 
@@ -710,6 +721,14 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
+}
+
+export interface UrlIntegrationExecuteRequestParams {
+  // name is the name of integration to execute (use).
+  name: string;
+  // action is the expected backend string value
+  // used to describe what to use the integration for.
+  action: 'list_databases';
 }
 
 export default cfg;

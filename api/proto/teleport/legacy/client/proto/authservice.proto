@@ -324,6 +324,11 @@ message UserCertsRequest {
   // An optional field, that when provided, the response will be validated
   // and the ID of the validated MFA device will be stored in the certificate.
   MFAAuthenticateResponse MFAResponse = 18 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+
+  // SSHLogin is the OS Login for the SSH session that the certificate will be used for.
+  // This login is used when performing RBAC checks to determine if MFA is required
+  // to access the resource.
+  string SSHLogin = 19;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -1067,6 +1072,20 @@ enum DeviceUsage {
   DEVICE_USAGE_PASSWORDLESS = 2;
 }
 
+// MFARequired indicates if MFA is required to access a
+// resource.
+enum MFARequired {
+  // Indicates the client/server are either old and don't support
+  // checking if MFA is required during the ceremony or that there
+  // was a catastrophic error checking RBAC to determine if completing
+  // an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_UNSPECIFIED = 0;
+  // Completing an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_YES = 1;
+  // Completing an MFA ceremony will not grant access to a resource.
+  MFA_REQUIRED_NO = 2;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
@@ -1081,6 +1100,11 @@ message MFAAuthenticateChallenge {
   // credentials for the ceremony (one for each U2F or Webauthn device
   // registered by the user).
   webauthn.CredentialAssertion WebauthnChallenge = 3;
+  // MFRequired indicates whether proceeding with the MFA ceremony will
+  // grant access to the resource. If `MFA_REQUIRED_NO` is returned by the
+  // server then the stream will be terminated to prevent a fruitless MFA ceremony from
+  // proceeding.
+  MFARequired MFARequired = 4;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one

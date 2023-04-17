@@ -112,8 +112,7 @@ export function PlayerNext(props) {
 }
 
 const ToolBar = styled(Flex)`
-  border-bottom: 1px solid
-    ${({ theme }) => theme.colors.levels.surfaceSecondary};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.levels.surface};
 `;
 
 const StatusBox = props => (

@@ -25,7 +25,6 @@ import {
   Alert,
   Flex,
 } from 'design';
-import theme from 'design/theme';
 import FieldSelect from 'shared/components/FieldSelect';
 import useAttempt from 'shared/hooks/useAttemptNext';
 import { Option } from 'shared/components/Select';
@@ -69,7 +68,7 @@ export function ConnectAwsAccount() {
   function fetchAwsIntegrations() {
     run(() =>
       integrationService.fetchIntegrations().then(res => {
-        const options = res.map(i => {
+        const options = res.items.map(i => {
           if (i.kind === 'aws-oidc') {
             return {
               value: i.name,
@@ -171,12 +170,7 @@ export function ConnectAwsAccount() {
                       options={awsIntegrations}
                     />
                   </Box>
-                  <ButtonLink
-                    as={Link}
-                    to={locationState}
-                    pl={0}
-                    css={{ color: theme.colors.link }}
-                  >
+                  <ButtonLink as={Link} to={locationState} pl={0}>
                     Or click here to set up a different AWS account
                   </ButtonLink>
                 </>

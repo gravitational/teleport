@@ -33,12 +33,18 @@ type fanoutEntry struct {
 	watcher *fanoutWatcher
 }
 
+type resourceKind struct {
+	kind    string
+	subKind string
+}
+
 // Fanout is a helper which allows a stream of events to be fanned-out to many
 // watchers.  Used by the cache layer to forward events.
 type Fanout struct {
-	mu           sync.Mutex
-	init, closed bool
-	watchers     map[string][]fanoutEntry
+	mu             sync.Mutex
+	init, closed   bool
+	confirmedKinds map[resourceKind]types.WatchKind
+	watchers       map[string][]fanoutEntry
 	// eventsCh is used in tests
 	eventsCh chan FanoutEvent
 }
@@ -81,9 +87,9 @@ func (f *Fanout) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	}
 	if f.init {
 		// fanout is already initialized; emit init event immediately.
-		if !w.init() {
+		if err := w.init(f.confirmedKinds); err != nil {
 			w.cancel()
-			return nil, trace.BadParameter("failed to send init event")
+			return nil, trace.Wrap(err)
 		}
 	}
 	f.addWatcher(w)
@@ -92,16 +98,27 @@ func (f *Fanout) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 
 // SetInit sets Fanout into an initialized state, sending OpInit events
 // to any watchers which were added prior to initialization.
-func (f *Fanout) SetInit() {
+// Caller must pass a list of resource kinds confirmed by the upstream event source.
+// As a result of this call, each member watcher will also receive a confirmation
+// based on the provided kinds. Some of the watchers might be closed with an error if resource kinds
+// requested by them weren't confirmed by the upstream event source and they didn't enable
+// partial success mode.
+func (f *Fanout) SetInit(confirmedKinds []types.WatchKind) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.init {
 		return
 	}
+
+	f.confirmedKinds = make(map[resourceKind]types.WatchKind, len(confirmedKinds))
+	for _, kind := range confirmedKinds {
+		f.confirmedKinds[resourceKind{kind: kind.Kind, subKind: kind.SubKind}] = kind
+	}
+
 	for _, entries := range f.watchers {
 		var remove []*fanoutWatcher
 		for _, entry := range entries {
-			if !entry.watcher.init() {
+			if err := entry.watcher.init(f.confirmedKinds); err != nil {
 				remove = append(remove, entry.watcher)
 			}
 		}
@@ -325,16 +342,38 @@ type fanoutWatcher struct {
 }
 
 // init transmits the OpInit event.  safe to double-call.
-func (w *fanoutWatcher) init() (ok bool) {
+// Validates requested resource kinds against the list confirmed by the upstream event source.
+// See Fanout.SetInit() for more details.
+func (w *fanoutWatcher) init(confirmedKinds map[resourceKind]types.WatchKind) (err error) {
 	w.initOnce.Do(func() {
+		w.initOk = false
+
+		validKinds := make([]types.WatchKind, 0, len(w.watch.Kinds))
+		for _, requested := range w.watch.Kinds {
+			k := resourceKind{kind: requested.Kind, subKind: requested.SubKind}
+			if configured, ok := confirmedKinds[k]; !ok || !configured.Contains(requested) {
+				if w.watch.AllowPartialSuccess {
+					continue
+				}
+				err = trace.BadParameter("resource type %s is not supported by this fanoutWatcher", requested.Kind)
+				return
+			}
+			validKinds = append(validKinds, requested)
+		}
+
+		if len(validKinds) == 0 {
+			err = trace.BadParameter("none of the requested resources are supported by this fanoutWatcher")
+			return
+		}
+
 		select {
-		case w.eventC <- types.Event{Type: types.OpInit}:
+		case w.eventC <- types.Event{Type: types.OpInit, Resource: types.NewWatchStatus(validKinds)}:
 			w.initOk = true
 		default:
-			w.initOk = false
+			err = trace.BadParameter("failed to send init event")
 		}
 	})
-	return w.initOk
+	return err
 }
 
 func (w *fanoutWatcher) emit(event types.Event) error {
@@ -428,11 +467,13 @@ func (s *FanoutSet) NewWatcher(ctx context.Context, watch types.Watch) (types.Wa
 
 // SetInit sets the Fanout instances into an initialized state, sending OpInit
 // events to any watchers which were added prior to initialization.
-func (s *FanoutSet) SetInit() {
+// Takes a list of resource kinds confirmed by an upstream event source.
+// See Fanout.SetInit() for more details.
+func (s *FanoutSet) SetInit(confirmedKinds []types.WatchKind) {
 	s.rw.RLock() // see field-level docks for locking model
 	defer s.rw.RUnlock()
 	for _, f := range s.members {
-		f.SetInit()
+		f.SetInit(confirmedKinds)
 	}
 }
 

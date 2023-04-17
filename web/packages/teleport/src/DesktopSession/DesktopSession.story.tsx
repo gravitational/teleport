@@ -242,7 +242,7 @@ export const Warnings = () => {
     setWarnings(prevItems => [
       ...prevItems,
       {
-        id: crypto.randomUUID(),
+        id: getId(),
         severity: 'warn',
         content:
           "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
@@ -280,3 +280,10 @@ export const Warnings = () => {
     </>
   );
 };
+
+// Alternative to crypto.randomUUID, which doesn't work in storybook.
+let id = 0;
+function getId() {
+  id++;
+  return id.toString();
+}
