@@ -192,7 +192,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // HandleConnection handles connections from plain TCP applications.
 func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) error {
-	tlsConn, ok := clientConn.(*tls.Conn)
+	tlsConn, ok := clientConn.(utils.TLSConn)
 	if !ok {
 		return trace.BadParameter("expected *tls.Conn, got: %T", clientConn)
 	}
@@ -257,6 +257,30 @@ func (h *Handler) HandleConnection(ctx context.Context, clientConn net.Conn) err
 	return nil
 }
 
+// HealthCheckAppServer establishes a connection to a AppServer that can handle
+// application requests. Can be used to ensure the proxy can handle application
+// requests before they arrive.
+func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, clusterName string) error {
+	clusterClient, err := h.c.ProxyClient.GetSite(clusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	accessPoint, err := clusterClient.CachingAccessPoint()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// At least one AppServer needs to be present to serve the requests. Using
+	// MatchOne can reduce the amount of work required by the app matcher by not
+	// dialing every AppServer.
+	_, err = MatchOne(ctx, accessPoint, appServerMatcher(h.c.ProxyClient, publicAddr, clusterName))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 // handleForward forwards the request to the application service.
 func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session *session) error {
 	session.fwd.ServeHTTP(w, r)
@@ -275,8 +299,15 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 		return
 	}
 
+	// If renewing the session fails, we should do the same for when the
+	// request authentication fails (defined in the "withAuth" middle). This is
+	// done to have a consistent UX to when launching an application.
 	session, err := h.renewSession(req)
 	if err != nil {
+		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
@@ -333,7 +364,7 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 // `http.Request`.
 func (h *Handler) getAppSession(r *http.Request) (ws types.WebSession, err error) {
 	// We have a client certificate with encoded session id in application
-	// access CLI flow i.e. when users log in using "tsh app login" and
+	// access CLI flow i.e. when users log in using "tsh apps login" and
 	// then connect to the apps with the issued certs.
 	if HasClientCert(r) {
 		ws, err = h.getAppSessionFromCert(r)

@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"math"
 	"net"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	om "github.com/grpc-ecosystem/go-grpc-middleware/providers/openmetrics/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
@@ -40,6 +42,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -47,6 +50,14 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+)
+
+const (
+	// TeleportImpersonateUserHeader is a header that specifies teleport user identity
+	// that the proxy is impersonating.
+	TeleportImpersonateUserHeader = "Teleport-Impersonate-User"
+	// TeleportImpersonateIPHeader is a header that specifies the real user IP address.
+	TeleportImpersonateIPHeader = "Teleport-Impersonate-IP"
 )
 
 // TLSServerConfig is a configuration for TLS server
@@ -143,11 +154,17 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	localClusterName, err := cfg.AccessPoint.GetClusterName()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
 	authMiddleware := &Middleware{
-		AccessPoint:   cfg.AccessPoint,
+		ClusterName:   localClusterName.GetClusterName(),
 		AcceptedUsage: cfg.AcceptedUsage,
 		Limiter:       limiter,
 		GRPCMetrics:   grpcMetrics,
@@ -172,7 +189,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		cfg: cfg,
 		httpServer: &http.Server{
 			Handler:           tracingHandler,
-			ReadHeaderTimeout: apidefaults.DefaultDialTimeout,
+			ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
+			IdleTimeout:       apidefaults.DefaultIdleTimeout,
 		},
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
@@ -182,6 +200,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 
 	server.grpcServer, err = NewGRPCServer(GRPCServerConfig{
 		TLS:               server.cfg.TLS,
+		Middleware:        authMiddleware,
 		APIConfig:         cfg.APIConfig,
 		UnaryInterceptor:  authMiddleware.UnaryInterceptor(),
 		StreamInterceptor: authMiddleware.StreamInterceptor(),
@@ -320,8 +339,7 @@ func (t *TLSServer) GetConfigForClient(info *tls.ClientHelloInfo) (*tls.Config, 
 
 // Middleware is authentication middleware checking every request
 type Middleware struct {
-	// AccessPoint is a caching access point for auth server
-	AccessPoint AccessCache
+	ClusterName string
 	// Handler is HTTP handler called after the middleware checks requests
 	Handler http.Handler
 	// AcceptedUsage restricts authentication
@@ -335,6 +353,11 @@ type Middleware struct {
 	Limiter *limiter.Limiter
 	// GRPCMetrics is the configured grpc metrics for the interceptors
 	GRPCMetrics *om.ServerMetrics
+	// EnableCredentialsForwarding allows the middleware to receive impersonation
+	// identity from the client if it presents a valid proxy certificate.
+	// This is used by the proxy to forward the identity of the user who
+	// connected to the proxy to the next hop.
+	EnableCredentialsForwarding bool
 }
 
 // Wrap sets next handler in chain
@@ -380,18 +403,36 @@ func (a *Middleware) withAuthenticatedUser(ctx context.Context) (context.Context
 	if !ok {
 		return nil, trace.AccessDenied("missing authentication")
 	}
-	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
-	if !ok {
+
+	var (
+		connState      *tls.ConnectionState
+		identityGetter authz.IdentityGetter
+	)
+
+	switch info := peerInfo.AuthInfo.(type) {
+	// IdentityInfo is provided if the grpc server is configured with the
+	// TransportCredentials provided in this package.
+	case IdentityInfo:
+		connState = &info.TLSInfo.State
+		identityGetter = info.IdentityGetter
+	// credentials.TLSInfo is provided if the grpc server is configured with
+	// credentials.NewTLS.
+	case credentials.TLSInfo:
+		user, err := a.GetUser(info.State)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		connState = &info.State
+		identityGetter = user
+	default:
 		return nil, trace.AccessDenied("missing authentication")
 	}
-	user, err := a.GetUser(tlsInfo.State)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsInfo.State))
-	ctx = context.WithValue(ctx, ContextClientAddr, peerInfo.Addr)
-	ctx = context.WithValue(ctx, ContextUser, user)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
+	ctx = authz.ContextWithClientAddr(ctx, peerInfo.Addr)
+	ctx = authz.ContextWithUser(ctx, identityGetter)
+
 	return ctx, nil
 }
 
@@ -430,15 +471,19 @@ func (a *Middleware) withAuthenticatedUserStreamInterceptor(srv interface{}, ser
 func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainUnaryServerInterceptors(
+			otelgrpc.UnaryServerInterceptor(),
 			om.UnaryServerInterceptor(a.GRPCMetrics),
 			utils.GRPCServerUnaryErrorInterceptor,
 			a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-			a.withAuthenticatedUserUnaryInterceptor)
+			a.withAuthenticatedUserUnaryInterceptor,
+		)
 	}
 	return utils.ChainUnaryServerInterceptors(
+		otelgrpc.UnaryServerInterceptor(),
 		utils.GRPCServerUnaryErrorInterceptor,
 		a.Limiter.UnaryServerInterceptorWithCustomRate(getCustomRate),
-		a.withAuthenticatedUserUnaryInterceptor)
+		a.withAuthenticatedUserUnaryInterceptor,
+	)
 }
 
 // StreamInterceptor returns a gPRC stream interceptor which performs rate
@@ -447,15 +492,19 @@ func (a *Middleware) UnaryInterceptor() grpc.UnaryServerInterceptor {
 func (a *Middleware) StreamInterceptor() grpc.StreamServerInterceptor {
 	if a.GRPCMetrics != nil {
 		return utils.ChainStreamServerInterceptors(
+			otelgrpc.StreamServerInterceptor(),
 			om.StreamServerInterceptor(a.GRPCMetrics),
 			utils.GRPCServerStreamErrorInterceptor,
 			a.Limiter.StreamServerInterceptor,
-			a.withAuthenticatedUserStreamInterceptor)
+			a.withAuthenticatedUserStreamInterceptor,
+		)
 	}
 	return utils.ChainStreamServerInterceptors(
+		otelgrpc.StreamServerInterceptor(),
 		utils.GRPCServerStreamErrorInterceptor,
 		a.Limiter.StreamServerInterceptor,
-		a.withAuthenticatedUserStreamInterceptor)
+		a.withAuthenticatedUserStreamInterceptor,
+	)
 }
 
 // authenticatedStream wraps around the embedded grpc.ServerStream
@@ -470,28 +519,25 @@ func (a *authenticatedStream) Context() context.Context {
 	return a.ctx
 }
 
-// GetUser returns authenticated user based on request metadata set by HTTP server
-func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, error) {
+// GetUser returns authenticated user based on request TLS metadata
+func (a *Middleware) GetUser(connState tls.ConnectionState) (authz.IdentityGetter, error) {
 	peers := connState.PeerCertificates
 	if len(peers) > 1 {
 		// when turning intermediaries on, don't forget to verify
 		// https://github.com/kubernetes/kubernetes/pull/34524/files#diff-2b283dde198c92424df5355f39544aa4R59
 		return nil, trace.AccessDenied("access denied: intermediaries are not supported")
 	}
-	localClusterName, err := a.AccessPoint.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+
 	// with no client authentication in place, middleware
 	// assumes not-privileged Nop role.
 	// it theoretically possible to use bearer token auth even
 	// for connections without auth, but this is not active use-case
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
-		return BuiltinRole{
+		return authz.BuiltinRole{
 			Role:        types.RoleNop,
 			Username:    string(types.RoleNop),
-			ClusterName: localClusterName.GetClusterName(),
+			ClusterName: a.ClusterName,
 			Identity:    tlsca.Identity{},
 		}, nil
 	}
@@ -531,31 +577,21 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// by creating a cert pool constructed of trusted certificate authorities
 	// 2. Remote CAs are not allowed to have the same cluster name
 	// as the local certificate authority
-	if certClusterName != localClusterName.GetClusterName() {
+	if certClusterName != a.ClusterName {
 		// make sure that this user does not have system role
 		// the local auth server can not truste remote servers
 		// to issue certificates with system roles (e.g. Admin),
 		// to get unrestricted access to the local cluster
 		systemRole := findPrimarySystemRole(identity.Groups)
 		if systemRole != nil {
-			return RemoteBuiltinRole{
+			return authz.RemoteBuiltinRole{
 				Role:        *systemRole,
 				Username:    identity.Username,
 				ClusterName: certClusterName,
 				Identity:    *identity,
 			}, nil
 		}
-		return RemoteUser{
-			ClusterName:      certClusterName,
-			Username:         identity.Username,
-			Principals:       identity.Principals,
-			KubernetesGroups: identity.KubernetesGroups,
-			KubernetesUsers:  identity.KubernetesUsers,
-			DatabaseNames:    identity.DatabaseNames,
-			DatabaseUsers:    identity.DatabaseUsers,
-			RemoteRoles:      identity.Groups,
-			Identity:         *identity,
-		}, nil
+		return newRemoteUserFromIdentity(*identity, certClusterName), nil
 	}
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
@@ -564,20 +600,17 @@ func (a *Middleware) GetUser(connState tls.ConnectionState) (IdentityGetter, err
 	// in case if the system role is present, assume this is a service
 	// agent, e.g. Proxy, connecting to the cluster
 	if systemRole != nil {
-		return BuiltinRole{
+		return authz.BuiltinRole{
 			Role:                  *systemRole,
 			AdditionalSystemRoles: extractAdditionalSystemRoles(identity.SystemRoles),
 			Username:              identity.Username,
-			ClusterName:           localClusterName.GetClusterName(),
+			ClusterName:           a.ClusterName,
 			Identity:              *identity,
 		}, nil
 	}
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
-	return LocalUser{
-		Username: identity.Username,
-		Identity: *identity,
-	}, nil
+	return newLocalUserFromIdentity(*identity), nil
 }
 
 func findPrimarySystemRole(roles []string) *types.SystemRole {
@@ -619,10 +652,47 @@ func (a *Middleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	remoteAddr := r.RemoteAddr
+	// If the request is coming from a trusted proxy and the proxy is sending a
+	// TeleportImpersonateHeader, we will impersonate the user in the header
+	// instead of the user in the TLS certificate.
+	// This is used by the proxy to impersonate the end user when making requests
+	// without re-signing the client certificate.
+	impersonateUser := r.Header.Get(TeleportImpersonateUserHeader)
+	if impersonateUser != "" {
+		if !isProxyRole(user) {
+			trace.WriteError(w, trace.AccessDenied("Credentials forwarding is only permitted for Proxy"))
+			return
+		}
+		// If the service is not configured to allow credentials forwarding, reject the request.
+		if !a.EnableCredentialsForwarding {
+			trace.WriteError(w, trace.AccessDenied("Credentials forwarding is not permitted by this service"))
+			return
+		}
+
+		if user, err = a.extractIdentityFromImpersonationHeader(impersonateUser); err != nil {
+			trace.WriteError(w, err)
+			return
+		}
+		remoteAddr = r.Header.Get(TeleportImpersonateIPHeader)
+	}
+
+	// If the request is coming from a trusted proxy, we already know the user
+	// and we will impersonate him. At this point, we need to remove the
+	// TeleportImpersonateHeader from the request, otherwise the proxy will
+	// attempt sending the request to upstream servers with the impersonation
+	// header from a fake user.
+	r.Header.Del(TeleportImpersonateUserHeader)
+	r.Header.Del(TeleportImpersonateIPHeader)
+
 	// determine authenticated user based on the request parameters
 	ctx := r.Context()
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(r.TLS))
-	ctx = context.WithValue(ctx, ContextUser, user)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(r.TLS))
+	clientSrcAddr, err := utils.ParseAddr(remoteAddr)
+	if err == nil {
+		ctx = authz.ContextWithClientAddr(ctx, clientSrcAddr)
+	}
+	ctx = authz.ContextWithUser(ctx, user)
 	a.Handler.ServeHTTP(w, r.WithContext(ctx))
 }
 
@@ -636,15 +706,53 @@ func (a *Middleware) WrapContextWithUser(ctx context.Context, conn utils.TLSConn
 			return nil, trace.ConvertSystemError(err)
 		}
 	}
-	tlsState := conn.ConnectionState()
+
+	return a.WrapContextWithUserFromTLSConnState(ctx, conn.ConnectionState(), conn.RemoteAddr())
+}
+
+// WrapContextWithUserFromTLSConnState enriches the provided context with the identity information
+// extracted from the provided TLS connection state.
+func (a *Middleware) WrapContextWithUserFromTLSConnState(ctx context.Context, tlsState tls.ConnectionState, remoteAddr net.Addr) (context.Context, error) {
 	user, err := a.GetUser(tlsState)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(&tlsState))
-	ctx = context.WithValue(ctx, ContextUser, user)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(&tlsState))
+	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
+	ctx = authz.ContextWithUser(ctx, user)
 	return ctx, nil
+}
+
+// CheckIPPinning verifies IP pinning for the identity, using the client ip taken from context.
+// Check is considered successful if no error is returned.
+func CheckIPPinning(ctx context.Context, identity tlsca.Identity, pinSourceIP bool) error {
+	if identity.PinnedIP == "" {
+		if pinSourceIP {
+			return trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
+		}
+		return nil
+	}
+
+	clientSrcAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientIP, _, err := net.SplitHostPort(clientSrcAddr.String())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if clientIP != identity.PinnedIP {
+		log.WithFields(logrus.Fields{
+			"client_ip": clientIP,
+			"pinned_ip": identity.PinnedIP,
+		}).Debug("Pinned IP and client IP mismatch")
+		return trace.AccessDenied("pinned IP doesn't match observed client IP")
+	}
+
+	return nil
 }
 
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caTypes.
@@ -702,4 +810,114 @@ func ClientCertPool(client AccessCache, clusterName string, caTypes ...types.Cer
 // DefaultClientCertPool returns default trusted x509 certificate authority pool.
 func DefaultClientCertPool(client AccessCache, clusterName string) (*x509.CertPool, int64, error) {
 	return ClientCertPool(client, clusterName, types.HostCA, types.UserCA)
+}
+
+// isProxyRole returns true if the certificate role is a proxy role.
+func isProxyRole(identity authz.IdentityGetter) bool {
+	switch id := identity.(type) {
+	case authz.RemoteBuiltinRole:
+		return id.Role == types.RoleProxy
+	case authz.BuiltinRole:
+		return id.Role == types.RoleProxy
+	default:
+		return false
+	}
+}
+
+// extractIdentityFromImpersonationHeader extracts the identity from the impersonation
+// header and returns it. If the impersonation header holds an identity of a
+// system role, an error is returned.
+func (a *Middleware) extractIdentityFromImpersonationHeader(impersonate string) (authz.IdentityGetter, error) {
+	// Unmarshal the impersonated user from the header.
+	var impersonatedIdentity tlsca.Identity
+	if err := json.Unmarshal([]byte(impersonate), &impersonatedIdentity); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch {
+	case findPrimarySystemRole(impersonatedIdentity.Groups) != nil:
+		// make sure that this user does not have system role
+		// since system roles are not allowed to be impersonated.
+		return nil, trace.AccessDenied("can not impersonate a system role")
+	case impersonatedIdentity.TeleportCluster != a.ClusterName:
+		// if the impersonated user is from a different cluster, we need to
+		// use him as remote user.
+		return newRemoteUserFromIdentity(impersonatedIdentity, impersonatedIdentity.TeleportCluster), nil
+	default:
+		// otherwise assume that is a local role, no need to pass the roles
+		// as it will be fetched from the local database
+		return newLocalUserFromIdentity(impersonatedIdentity), nil
+	}
+}
+
+// newRemoteUserFromIdentity creates a new remote user from the identity.
+func newRemoteUserFromIdentity(identity tlsca.Identity, clusterName string) authz.RemoteUser {
+	return authz.RemoteUser{
+		ClusterName:      clusterName,
+		Username:         identity.Username,
+		Principals:       identity.Principals,
+		KubernetesGroups: identity.KubernetesGroups,
+		KubernetesUsers:  identity.KubernetesUsers,
+		DatabaseNames:    identity.DatabaseNames,
+		DatabaseUsers:    identity.DatabaseUsers,
+		RemoteRoles:      identity.Groups,
+		Identity:         identity,
+	}
+}
+
+// newLocalUserFromIdentity creates a new local user from the identity.
+func newLocalUserFromIdentity(identity tlsca.Identity) authz.LocalUser {
+	return authz.LocalUser{
+		Username: identity.Username,
+		Identity: identity,
+	}
+}
+
+// ImpersonatorRoundTripper is a round tripper that impersonates a user with
+// the identity provided.
+type ImpersonatorRoundTripper struct {
+	http.RoundTripper
+}
+
+// NewImpersonatorRoundTripper returns a new impersonator round tripper.
+func NewImpersonatorRoundTripper(rt http.RoundTripper) *ImpersonatorRoundTripper {
+	return &ImpersonatorRoundTripper{
+		RoundTripper: rt,
+	}
+}
+
+// RoundTrip implements http.RoundTripper interface to include the identity
+// in the request header.
+func (r *ImpersonatorRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	identity, err := authz.UserFromContext(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	b, err := json.Marshal(identity.GetIdentity())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	req.Header.Set(TeleportImpersonateUserHeader, string(b))
+	defer req.Header.Del(TeleportImpersonateUserHeader)
+
+	clientSrcAddr, err := authz.ClientAddrFromContext(req.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	req.Header.Set(TeleportImpersonateIPHeader, clientSrcAddr.String())
+	defer req.Header.Del(TeleportImpersonateIPHeader)
+
+	return r.RoundTripper.RoundTrip(req)
+}
+
+// CloseIdleConnections ensures that the returned [net.RoundTripper]
+// has a CloseIdleConnections method.
+func (r *ImpersonatorRoundTripper) CloseIdleConnections() {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+	if c, ok := r.RoundTripper.(closeIdler); ok {
+		c.CloseIdleConnections()
+	}
 }

@@ -16,15 +16,13 @@
 
 import React from 'react';
 
-import { Database as DatabaseIcon } from 'design/Icon';
-
 import { ResourceKind, Finished } from 'teleport/Discover/Shared';
-import { Resource } from 'teleport/Discover/flow';
+import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
 import {
-  Database,
+  ResourceSpec,
   DatabaseLocation,
-} from 'teleport/Discover/Database/resources';
+} from 'teleport/Discover/SelectResource';
 
 import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
 import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
@@ -32,34 +30,33 @@ import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
 import { MutualTls } from 'teleport/Discover/Database/MutualTls';
 import { TestConnection } from 'teleport/Discover/Database/TestConnection';
 import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
-export const DatabaseResource: Resource<Database> = {
+export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Database,
-  icon: <DatabaseIcon />,
   wrapper(component: React.ReactNode) {
     return <DatabaseWrapper>{component}</DatabaseWrapper>;
   },
-  shouldPrompt(currentStep) {
-    // do not prompt on exit if they're selecting a resource
-    return currentStep !== 0;
-  },
-  views(database) {
+  views(resource) {
     let configureResourceViews;
-    if (database) {
-      switch (database.location) {
-        case DatabaseLocation.AWS:
+    if (resource && resource.dbMeta) {
+      switch (resource.dbMeta.location) {
+        case DatabaseLocation.Aws:
           configureResourceViews = [
             {
               title: 'Register a Database',
               component: CreateDatabase,
+              eventName: DiscoverEvent.DatabaseRegister,
             },
             {
               title: 'Deploy Database Service',
               component: DownloadScript,
+              eventName: DiscoverEvent.DeployService,
             },
             {
               title: 'Configure IAM Policy',
               component: IamPolicy,
+              eventName: DiscoverEvent.DatabaseConfigureIAMPolicy,
             },
           ];
 
@@ -70,14 +67,17 @@ export const DatabaseResource: Resource<Database> = {
             {
               title: 'Register a Database',
               component: CreateDatabase,
+              eventName: DiscoverEvent.DatabaseRegister,
             },
             {
               title: 'Deploy Database Service',
               component: DownloadScript,
+              eventName: DiscoverEvent.DeployService,
             },
             {
               title: 'Configure mTLS',
               component: MutualTls,
+              eventName: DiscoverEvent.DatabaseConfigureMTLS,
             },
           ];
 
@@ -87,23 +87,24 @@ export const DatabaseResource: Resource<Database> = {
 
     return [
       {
-        title: 'Select Resource Type',
-      },
-      {
         title: 'Configure Resource',
         views: configureResourceViews,
       },
       {
         title: 'Set Up Access',
         component: SetupAccess,
+        eventName: DiscoverEvent.PrincipalsConfigure,
       },
       {
         title: 'Test Connection',
         component: TestConnection,
+        eventName: DiscoverEvent.TestConnection,
+        manuallyEmitSuccessEvent: true,
       },
       {
         title: 'Finished',
         component: Finished,
+        eventName: DiscoverEvent.Completed,
         hide: true,
       },
     ];

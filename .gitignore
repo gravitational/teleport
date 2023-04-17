@@ -81,9 +81,16 @@ ssh.config
 go.work
 go.work.sum
 
-# Buf side-effects
-/github.com
+# gogoproto side-effects
+/gogogen
 node_modules
 
 .air.toml
 webassets/
+
+# jest --coverage
+coverage
+
+# vite
+.swc
+web/certs/

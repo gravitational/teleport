@@ -242,7 +242,10 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
-	var wsLock sync.Mutex
+	stream, err := NewTerminalStream(ws)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -255,7 +258,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(ws, &wsLock, tdpMFACodec{}))
+	}, promptMFAChallenge(stream, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

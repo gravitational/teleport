@@ -30,7 +30,7 @@ as well as an upgrade of the previous version of Teleport.
 
 - [ ] RBAC
 
-  Make sure that invalid and valid attempts are reflected in audit log.
+  Make sure that invalid and valid attempts are reflected in audit log. Do this with both Teleport and [Agentless nodes](https://goteleport.com/docs/server-access/guides/openssh/).
 
   - [ ] Successfully connect to node with correct role
   - [ ] Unsuccessfully connect to a node in a role restricting access by label
@@ -166,18 +166,32 @@ as well as an upgrade of the previous version of Teleport.
 
   - [ ] tsh ssh \<regular-node\>
   - [ ] tsh ssh \<node-remote-cluster\>
+  - [ ] tsh ssh \<agentless-node\>
+  - [ ] tsh ssh \<agentless-node-remote-cluster\>
   - [ ] tsh ssh -A \<regular-node\>
   - [ ] tsh ssh -A \<node-remote-cluster\>
+  - [ ] tsh ssh -A \<agentless-node\>
+  - [ ] tsh ssh -A \<agentless-node-remote-cluster\>
   - [ ] tsh ssh \<regular-node\> ls
   - [ ] tsh ssh \<node-remote-cluster\> ls
+  - [ ] tsh ssh \<agentless-node\> ls
+  - [ ] tsh ssh \<agentless-node-remote-cluster\> ls
   - [ ] tsh join \<regular-node\>
   - [ ] tsh join \<node-remote-cluster\>
+  - [ ] tsh join \<agentless-node\>
+  - [ ] tsh join \<agentless-node-remote-cluster\>
   - [ ] tsh play \<regular-node\>
   - [ ] tsh play \<node-remote-cluster\>
+  - [ ] tsh play \<agentless-node\>
+  - [ ] tsh play \<agentless-node-remote-cluster\>
   - [ ] tsh scp \<regular-node\>
   - [ ] tsh scp \<node-remote-cluster\>
+  - [ ] tsh scp \<agentless-node\>
+  - [ ] tsh scp \<agentless-node-remote-cluster\>
   - [ ] tsh ssh -L \<regular-node\>
   - [ ] tsh ssh -L \<node-remote-cluster\>
+  - [ ] tsh ssh -L \<agentless-node\>
+  - [ ] tsh ssh -L \<agentless-node-remote-cluster\>
   - [ ] tsh ls
   - [ ] tsh clusters
 
@@ -185,14 +199,24 @@ as well as an upgrade of the previous version of Teleport.
    Make sure to test both recording and regular proxy modes.
   - [ ] ssh \<regular-node\>
   - [ ] ssh \<node-remote-cluster\>
+  - [ ] ssh \<agentless-node\>
+  - [ ] ssh \<agentless-node-remote-cluster\>
   - [ ] ssh -A \<regular-node\>
   - [ ] ssh -A \<node-remote-cluster\>
+  - [ ] ssh -A \<agentless-node\>
+  - [ ] ssh -A \<agentless-node-remote-cluster\>
   - [ ] ssh \<regular-node\> ls
   - [ ] ssh \<node-remote-cluster\> ls
+  - [ ] ssh \<agentless-node\> ls
+  - [ ] ssh \<agentless-node-remote-cluster\> ls
   - [ ] scp \<regular-node\>
   - [ ] scp \<node-remote-cluster\>
+  - [ ] scp \<agentless-node\>
+  - [ ] scp \<agentless-node-remote-cluster\>
   - [ ] ssh -L \<regular-node\>
   - [ ] ssh -L \<node-remote-cluster\>
+  - [ ] ssh -L \<agentless-node\>
+  - [ ] ssh -L \<agentless-node-remote-cluster\>
 
 - [ ] Verify proxy jump functionality
   Log into leaf cluster via root, shut down the root proxy and verify proxy jump works.
@@ -206,6 +230,7 @@ as well as an upgrade of the previous version of Teleport.
 - [ ] Interact with a cluster using the Web UI
   - [ ] Connect to a Teleport node
   - [ ] Connect to a OpenSSH node
+  - [ ] Connect to a Agentless node
   - [ ] Check agent forwarding is correct based on role and proxy mode.
 
 - [ ] `tsh` CA loading
@@ -241,12 +266,18 @@ interactive sessions the 12 combinations are below.
 - [ ] Connect to a OpenSSH node in a local cluster using OpenSSH.
 - [ ] Connect to a OpenSSH node in a local cluster using Teleport.
 - [ ] Connect to a OpenSSH node in a local cluster using the Web UI.
+- [ ] Connect to an Agentless node in a local cluster using OpenSSH.
+- [ ] Connect to an Agentless node in a local cluster using Teleport.
+- [ ] Connect to an Agentless node in a local cluster using the Web UI.
 - [ ] Connect to a Teleport node in a local cluster using OpenSSH.
 - [ ] Connect to a Teleport node in a local cluster using Teleport.
 - [ ] Connect to a Teleport node in a local cluster using the Web UI.
 - [ ] Connect to a OpenSSH node in a remote cluster using OpenSSH.
 - [ ] Connect to a OpenSSH node in a remote cluster using Teleport.
 - [ ] Connect to a OpenSSH node in a remote cluster using the Web UI.
+- [ ] Connect to an Agentless node in a remote cluster using OpenSSH.
+- [ ] Connect to an Agentless node in a remote cluster using Teleport.
+- [ ] Connect to an Agentless node in a remote cluster using the Web UI.
 - [ ] Connect to a Teleport node in a remote cluster using OpenSSH.
 - [ ] Connect to a Teleport node in a remote cluster using Teleport.
 - [ ] Connect to a Teleport node in a remote cluster using the Web UI.
@@ -297,6 +328,7 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
     * [ ] Azure AD
     * [ ] Azure RBAC
   * [ ] Verify that AWS EKS clusters are discovered and enrolled
+  * [ ] Verify that GCP GKE clusters are discovered and enrolled
 * [ ] Verify dynamic registration.
   * [ ] Can register a new Kubernetes cluster using `tctl create`.
   * [ ] Can update registered Kubernetes cluster using `tctl create -f`.
@@ -310,6 +342,22 @@ Minikube is the only caveat - it's not reachable publicly so don't run a proxy t
       * [ ] Restart the agent after token TTL expires to see if it reuses the same identity.
     * [ ] Force cluster CA rotation
 
+### Kubernetes Pod RBAC
+
+* [ ] Verify the following scenarios for `kubernetes_resources`:
+    * [ ] `{"kind":"pod","name":"*","namespace":"*"}` - must allow access to every pod.
+    * [ ] `{"kind":"pod","name":"<somename>","namespace":"*"}` - must allow access to pod `<somename>` in every namespace.
+    * [ ] `{"kind":"pod","name":"*","namespace":"<somenamespace>"}` - must allow access to any pod in `<somenamespace>` namespace.
+    * [ ] Verify support for  `*` wildcards - `<some-name>-*` and regex for `name` and `namespace` fields.
+    * [ ] Verify support for delete pods collection - must use `go-client`.
+* [ ] Verify scenarios with multiple roles defining `kubernetes_resources`:
+    * [ ] Validate that the returned list of pods is the union of every role.
+    * [ ] Validate that access to other pods is denied by RBAC.
+    * [ ] Validate that the Kubernetes Groups/Users are correctly selected depending on the role that applies to the pod.
+        * [ ] Test with a `kubernetes_groups` that denies exec into a pod
+* [ ] Verify the following scenarios for Resource Access Requests to Pods:
+    * [ ] Create a valid resource access request and validate if access to other pods is denied.
+    * [ ] Validate if creating a resource access request with Kubernetes resources denied by `search_as_roles` is not allowed.
 
 ### Teleport with FIPS mode
 
@@ -381,6 +429,7 @@ tsh --proxy=proxy.example.com --user=<username> --insecure ssh --cluster=foo.com
 - [ ] OIDC install instructions work
     - [ ] OIDC Screenshots are up-to-date
 - [ ] All providers with guides in docs are covered in this test plan
+- [ ] Login Rules work to transform traits from SSO provider
 
 ### GitHub External SSO
 
@@ -428,6 +477,10 @@ connectors are accepted, invalid are rejected with sensible error messages.
 
 ### Kubernetes Node Joining
 - [ ] Join a Teleport node running in the same Kubernetes cluster via a Kubernetes ProvisionToken
+
+### Azure Node Joining
+[Docs](https://goteleport.com/docs/management/guides/joining-nodes-azure/)
+- [ ] Join a Teleport node running in an Azure VM
 
 ### Cloud Labels
 - [ ] Create an EC2 instance with [tags in instance metadata enabled](https://goteleport.com/docs/management/guides/ec2-tags/)
@@ -571,6 +624,9 @@ tsh ssh node-that-requires-device-trust
     (mode="off"), then changing the cluster configuration to mode="required" and
     attempting to access a process directly, without a login attempt.
 
+  - [ ] Role-based authz enforces enrolled devices
+        (device_trust.mode="off" or "optional",
+        role.spec.options.device_trust_mode="required")
   - [ ] Device authorization works correctly for both require_session_mfa=false
         and require_session_mfa=true
 
@@ -580,12 +636,21 @@ tsh ssh node-that-requires-device-trust
   - [ ] Device authorization applies to Database access (all items above)
   - [ ] Device authorization applies to Kubernetes access (all items above)
 
+  - [ ] Device authorization __does not__ apply to App access
+        (both cluster-wide and role)
+  - [ ] Device authorization __does not__ apply to Windows Desktop access
+        (both cluster-wide and role)
+
 - [ ] Device audit (see [lib/events/codes.go][device_event_codes])
   - [ ] Inventory management actions issue events (success only)
   - [ ] Device enrollment issues device event (any outcomes)
   - [ ] Device authorization issues device event (any outcomes)
   - [ ] Events with [UserMetadata][event_trusted_device] contain TrustedDevice
         data (for certificates with device extensions)
+
+- [ ] Binary support
+  - [ ] Non-signed and/or non-notarized `tsh` for macOS gives a sane error
+        message for `tsh device enroll` attempts.
 
 [device_event_codes]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/lib/events/codes.go#L389-L400
 [event_trusted_device]: https://github.com/gravitational/teleport/blob/473969a700c3c4f981e956fae8a0d14c65c88abe/api/proto/teleport/legacy/types/events/events.proto#L88-L90
@@ -631,56 +696,67 @@ These tests should be carried out sequentially. `tsh` tests should be carried ou
 
 Set `auth_service.authentication.require_session_mfa: hardware_key_touch` in your cluster auth settings.
 
-- [ ] Database Acces: `tsh proxy db`
-- [ ] Application Access: `tsh login app && tsh proxy app`
+- [ ] Database Access: `tsh proxy db --tunnel`
+
+### HSM Support
+
+[Docs](https://goteleport.com/docs/choose-an-edition/teleport-enterprise/hsm/)
+
+- [ ] YubiHSM2 Support (@nklaassen has hardware)
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with YubiHSM2 CA works
+  - [ ] Migrating a software cluster to YubiHSM2 works
+  - [ ] CA rotation works
+- [ ] AWS CloudHSM Support
+  - [ ] Make sure docs/links are up to date (they currently aren't https://github.com/gravitational/teleport/issues/24503)
+  - [ ] New cluster with CloudHSM CA works
+  - [ ] Migrating a software cluster to CloudHSM works
+  - [ ] CA rotation works
+- [ ] GCP KMS Support
+  - [ ] Make sure docs/links are up to date
+  - [ ] New cluster with GCP KMS CA works
+  - [ ] Migrating a software cluster to GCP KMS works
+  - [ ] CA rotation works
 
 ## Moderated session
 
-Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator). 
- - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator. 
+Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
+ - [ ] `Ctrl+C` in the #1 terminal should disconnect the moderator.
  - [ ] `Ctrl+C` in the #2 terminal should disconnect the moderator and terminate the session as session has no moderator.
 
 Using `tsh` join an SSH session as two moderators (two separate terminals, role requires one moderator).
-- [ ] `t` in any terminal should terminate the session for all participants. 
+- [ ] `t` in any terminal should terminate the session for all participants.
 
 ## Performance
 
-Perform all tests on the following configurations:
+### Scaling Test
+Scale up the number of nodes/clusters a few times for each configuration below.
 
-- [ ] With default networking configuration
-- [ ] With Proxy Peering Enabled
-- [ ] With TLS Routing Enabled
+ 1) Verify that there are no memory/goroutine/file descriptor leaks
+ 2) Compare the baseline metrics with the previous release to determine if resource usage has increased
+ 3) Restart all Auth instances and verify that all nodes/clusters reconnect
 
-* Cluster with 10K direct dial nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
+ Perform reverse tunnel node scaling tests for all backend configurations:
+  - [ ] etcd - 10k
+  - [ ] DynamoDB - 10k
+  - [ ] Firestore - 10k
 
-* Cluster with 10K reverse tunnel nodes:
- - [ ] etcd
- - [ ] DynamoDB
- - [ ] Firestore
-
-* Cluster with 500 trusted clusters:
-- [ ] etcd
-- [ ] DynamoDB
-- [ ] Firestore
+  Perform the following additional scaling tests on DynamoDB:
+ - [ ] 10k direct dial nodes.
+ - [ ] 500 trusted clusters.
 
 ### Soak Test
 
-Run 30 minute soak test with a mix of interactive/non-interactive sessions for both direct and reverse tunnel nodes:
+Run 30 minute soak test directly against direct and tunnel nodes
+and via label based matching. Tests should be run against a Cloud
+tenant.
 
 ```shell
-tsh bench --duration=30m user@direct-dial-node ls
-tsh bench -i --duration=30m user@direct-dial-node ps uax
-
-tsh bench --duration=30m user@reverse-tunnel-node ls
-tsh bench -i --duration=30m user@reverse-tunnel-node ps uax
+tsh bench ssh --duration=30m user@direct-dial-node ls
+tsh bench ssh --duration=30m user@reverse-tunnel-node ls
+tsh bench ssh --duration=30m user@foo=bar ls
+tsh bench ssh --duration=30m --random user@foo ls
 ```
-
-Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make sure there are no leaks
-
-- [ ] Verify that prometheus metrics are accurate.
 
 ### Concurrent Session Test
 
@@ -689,8 +765,8 @@ Observe prometheus metrics for goroutines, open files, RAM, CPU, Timers and make
 Run a concurrent session test that will spawn 5 interactive sessions per node in the cluster:
 
 ```shell
-tsh bench sessions --max=5000 user ls
-tsh bench sessions --max=5000 --web user ls
+tsh bench web sessions --max=5000 user ls
+tsh bench web sessions --max=5000 --web user ls
 ```
 
 - [ ] Verify that all 5000 sessions are able to be established.
@@ -706,6 +782,8 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify that a lack of connectivity to Auth prevents access to resources
   which require a moderated session and in async recording mode from an already
   issued certificate.
+- [ ] Verify that an open session is not terminated when all Auth instances
+  are restarted.
 
 ## Teleport with Cloud Providers
 
@@ -741,14 +819,16 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] `tsh play <chunk-id>` can fetch and print a session chunk archive.
 - [ ] Verify JWT using [verify-jwt.go](https://github.com/gravitational/teleport/blob/master/examples/jwt/verify-jwt.go).
 - [ ] Verify RBAC.
-- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh app login`.
+- [ ] Verify [CLI access](https://goteleport.com/docs/application-access/guides/api-access/) with `tsh apps login`.
 - [ ] Verify [AWS console access](https://goteleport.com/docs/application-access/cloud-apis/aws-console/).
   - [ ] Can log into AWS web console through the web UI.
-  - [ ] Can interact with AWS using `tsh aws` commands.
-- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh app login`.
+  - [ ] Can interact with AWS using `tsh` commands.
+    - [ ] `tsh aws`
+    - [ ] `tsh aws --endpoint-url` (this is a hidden flag)
+- [ ] Verify [Azure CLI access](https://goteleport.com/docs/application-access/cloud-apis/azure/) with `tsh apps login`.
   - [ ] Can interact with Azure using `tsh az` commands.
   - [ ] Can interact with Azure using a combination of `tsh proxy az` and `az` commands.
-- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh app login`.
+- [ ] Verify [GCP CLI access](https://goteleport.com/docs/application-access/cloud-apis/google-cloud/) with `tsh apps login`.
   - [ ] Can interact with GCP using `tsh gcloud` commands.
   - [ ] Can interact with Google Cloud Storage using `tsh gsutil` commands.
   - [ ] Can interact with GCP/GCS using a combination of `tsh proxy gcloud` and `gcloud`/`gsutil` commands.
@@ -765,6 +845,7 @@ tsh bench sessions --max=5000 --web user ls
 
 - [ ] Connect to a database within a local cluster.
   - [ ] Self-hosted Postgres.
+    - [ ] verify that cancelling a Postgres request works. (`select pg_sleep(10)` followed by ctrl-c is a good query to test.)
   - [ ] Self-hosted MySQL.
   - [ ] Self-hosted MariaDB.
   - [ ] Self-hosted MongoDB.
@@ -772,11 +853,13 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] AWS ElastiCache.
   - [ ] AWS MemoryDB.
   - [ ] GCP Cloud SQL Postgres.
@@ -787,8 +870,11 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Azure flexible-server MySQL and Postgres
   - [ ] Elasticsearch.
   - [ ] Cassandra/ScyllaDB.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Dynamodb.
+    - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
   - [ ] Azure SQL Server.
+  - [ ] Oracle.
 - [ ] Connect to a database within a remote cluster via a trusted cluster.
   - [ ] Self-hosted Postgres.
   - [ ] Self-hosted MySQL.
@@ -798,9 +884,10 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
@@ -815,6 +902,7 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Cassandra/ScyllaDB.
   - [ ] Dynamodb.
   - [ ] Azure SQL Server.
+  - [ ] Oracle.
 - [ ] Verify audit events.
   - [ ] `db.session.start` is emitted when you connect.
   - [ ] `db.session.end` is emitted when you disconnect.
@@ -835,6 +923,7 @@ tsh bench sessions --max=5000 --web user ls
 - [ ] Verify discovery.
     - [ ] AWS
       - [ ] Can detect and register RDS instances.
+        - [ ] Can detect and register RDS instances in an external AWS account when `assume_role_arn` and `external_id` is set.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
       - [ ] Can detect and register Aurora clusters, and their reader and custom endpoints.
       - [ ] Can detect and register RDS proxies, and their custom endpoints.
@@ -860,14 +949,30 @@ tsh bench sessions --max=5000 --web user ls
 
 ## TLS Routing
 
-- [ ] Verify that teleport proxy `v2` configuration starts only a single listener.
+- [ ] Verify that teleport proxy `v2` configuration starts only a single listener for proxy service, in contrast with `v1` configuration.
+  Given configuration:
   ```
   version: v2
-  teleport:
-    proxy_service:
-      enabled: "yes"
-      public_addr: ['root.example.com']
-      web_listen_addr: 0.0.0.0:3080
+  proxy_service:
+    enabled: "yes"
+    public_addr: ['root.example.com']
+    web_listen_addr: 0.0.0.0:3080
+  ```
+  There should be total of three listeners, with only `*:3080` for proxy service. Given the configuration above, 3022 and 3025 will be opened for other services.
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3022 (LISTEN)
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
+  ```
+  In contrast for the same configuration with version `v1`, there should be additional ports 3023 and 3024.
+  ```
+  lsof -i -P | grep teleport | grep LISTEN
+    teleport  ...  TCP *:3022 (LISTEN)
+    teleport  ...  TCP *:3025 (LISTEN)
+    teleport  ...  TCP *:3023 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3024 (LISTEN) # <-- extra proxy service port
+    teleport  ...  TCP *:3080 (LISTEN) # <-- proxy service
   ```
 - [ ] Run Teleport Proxy in `multiplex` mode `auth_service.proxy_listener_mode: "multiplex"`
   - [ ] Trusted cluster
@@ -892,8 +997,8 @@ tsh bench sessions --max=5000 --web user ls
     - [ ] Snowflake
     - [ ] Elasticsearch.
     - [ ] Cassandra/ScyllaDB.
+    - [ ] Oracle.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
-  - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
@@ -902,6 +1007,13 @@ tsh bench sessions --max=5000 --web user ls
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
   - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+- [ ] Teleport Proxy single port `multiplex` mode behind L7 load balancer
+  - [ ] Agent can join through Proxy and maintain reverse tunnel
+  - [ ] `tsh login` and `tctl`
+  - [ ] SSH Access: `tsh ssh` and `tsh config`
+  - [ ] Database Access: `tsh proxy db` and `tsh db connect`
+  - [ ] Application Access: `tsh proxy app` and `tsh aws`
+  - [ ] Kubernetes Access: `tsh proxy kube`
 
 ## Desktop Access
 
@@ -1107,7 +1219,7 @@ TODO(lxea): replace links with actual docs once merged
   - [ ] New SSH session in a child cluster on the previous major version
   - [ ] New SSH session from a parent cluster
   - [ ] Application access through a browser
-  - [ ] Application access through curl with `tsh app login`
+  - [ ] Application access through curl with `tsh apps login`
   - [ ] `kubectl get po` after `tsh kube login`
   - [ ] Database access (no configuration change should be necessary if the database CA isn't rotated, other Teleport functionality should not be affected if only the database CA is rotated)
 

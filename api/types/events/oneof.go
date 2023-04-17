@@ -403,6 +403,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ElasticsearchRequest{
 			ElasticsearchRequest: e,
 		}
+	case *OpenSearchRequest:
+		out.Event = &OneOf_OpenSearchRequest{
+			OpenSearchRequest: e,
+		}
 	case *DynamoDBRequest:
 		out.Event = &OneOf_DynamoDBRequest{
 			DynamoDBRequest: e,
@@ -490,6 +494,26 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *LoginRuleDelete:
 		out.Event = &OneOf_LoginRuleDelete{
 			LoginRuleDelete: e,
+		}
+	case *SAMLIdPAuthAttempt:
+		out.Event = &OneOf_SAMLIdPAuthAttempt{
+			SAMLIdPAuthAttempt: e,
+		}
+	case *SAMLIdPServiceProviderCreate:
+		out.Event = &OneOf_SAMLIdPServiceProviderCreate{
+			SAMLIdPServiceProviderCreate: e,
+		}
+	case *SAMLIdPServiceProviderUpdate:
+		out.Event = &OneOf_SAMLIdPServiceProviderUpdate{
+			SAMLIdPServiceProviderUpdate: e,
+		}
+	case *SAMLIdPServiceProviderDelete:
+		out.Event = &OneOf_SAMLIdPServiceProviderDelete{
+			SAMLIdPServiceProviderDelete: e,
+		}
+	case *SAMLIdPServiceProviderDeleteAll:
+		out.Event = &OneOf_SAMLIdPServiceProviderDeleteAll{
+			SAMLIdPServiceProviderDeleteAll: e,
 		}
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", in.GetType())

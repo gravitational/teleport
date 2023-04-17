@@ -16,7 +16,50 @@ limitations under the License.
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { Event, RawEvent, Formatters, eventCodes } from './types';
+import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
+
+const formatElasticsearchEvent: (
+  json:
+    | RawEvents[typeof eventCodes.ELASTICSEARCH_REQUEST]
+    | RawEvents[typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE]
+    | RawEvents[typeof eventCodes.OPENSEARCH_REQUEST]
+    | RawEvents[typeof eventCodes.OPENSEARCH_REQUEST_FAILURE]
+) => string = ({ category, code, db_service, path, query, target, user }) => {
+  // local redefinition of enum from events.proto.
+  // currently this matches both OpenSearchCategory and ElasticsearchCategory.
+  enum Category {
+    GENERAL = 0,
+    SECURITY = 1,
+    SEARCH = 2,
+    SQL = 3,
+  }
+
+  const categoryString = Category[category] ?? 'UNKNOWN';
+
+  let message = '';
+
+  switch (code) {
+    case eventCodes.ELASTICSEARCH_REQUEST:
+    case eventCodes.OPENSEARCH_REQUEST:
+      message += `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+      break;
+
+    case eventCodes.ELASTICSEARCH_REQUEST_FAILURE:
+    case eventCodes.OPENSEARCH_REQUEST_FAILURE:
+      message += `User [${user}] has attempted to run a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+      break;
+  }
+
+  if (query) {
+    message += `, query string: [${truncateStr(query, 80)}]`;
+  }
+
+  if (target) {
+    message += `, target: [${target}]`;
+  }
+
+  return message;
+};
 
 export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
@@ -141,13 +184,13 @@ export const formatters: Formatters = {
     type: 'github.created',
     desc: 'GITHUB Auth Connector Created',
     format: ({ user, name }) =>
-      `User [${user}] created Github connector [${name}] has been created`,
+      `User [${user}] created GitHub connector [${name}] has been created`,
   },
   [eventCodes.GITHUB_CONNECTOR_DELETED]: {
     type: 'github.deleted',
     desc: 'GITHUB Auth Connector Deleted',
     format: ({ user, name }) =>
-      `User [${user}] deleted Github connector [${name}]`,
+      `User [${user}] deleted GitHub connector [${name}]`,
   },
   [eventCodes.OIDC_CONNECTOR_CREATED]: {
     type: 'oidc.created',
@@ -949,43 +992,22 @@ export const formatters: Formatters = {
   [eventCodes.ELASTICSEARCH_REQUEST]: {
     type: 'db.session.elasticsearch.request',
     desc: 'Elasticsearch Request',
-    format: ({ user, db_service, category, target, query, path }) => {
-      // local redefinition of enum ElasticsearchCategory from events.proto
-      enum ElasticsearchCategory {
-        GENERAL = 0,
-        SECURITY = 1,
-        SEARCH = 2,
-        SQL = 3,
-      }
-
-      let categoryString = 'UNKNOWN';
-      switch (category) {
-        case ElasticsearchCategory.GENERAL:
-          categoryString = 'GENERAL';
-          break;
-        case ElasticsearchCategory.SEARCH:
-          categoryString = 'SEARCH';
-          break;
-        case ElasticsearchCategory.SECURITY:
-          categoryString = 'SECURITY';
-          break;
-        case ElasticsearchCategory.SQL:
-          categoryString = 'SQL';
-          break;
-      }
-
-      let message = `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
-
-      if (query) {
-        message += `, query string: [${truncateStr(query, 80)}]`;
-      }
-
-      if (target) {
-        message += `, target: [${target}]`;
-      }
-
-      return message;
-    },
+    format: formatElasticsearchEvent,
+  },
+  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: {
+    type: 'db.session.elasticsearch.request',
+    desc: 'Elasticsearch Request Failed',
+    format: formatElasticsearchEvent,
+  },
+  [eventCodes.OPENSEARCH_REQUEST]: {
+    type: 'db.session.opensearch.request',
+    desc: 'OpenSearch Request',
+    format: formatElasticsearchEvent,
+  },
+  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: {
+    type: 'db.session.opensearch.request',
+    desc: 'OpenSearch Request Failed',
+    format: formatElasticsearchEvent,
   },
   [eventCodes.DYNAMODB_REQUEST]: {
     type: 'db.session.dynamodb.request',
@@ -1192,6 +1214,14 @@ export const formatters: Formatters = {
         ? `User [${user.user}] has spent a device enroll token`
         : `User [${user.user}] has failed to spend a device enroll token`,
   },
+  [eventCodes.DEVICE_UPDATE]: {
+    type: 'device',
+    desc: 'Device Update',
+    format: ({ user, status }) =>
+      status.success
+        ? `User [${user.user}] has updated a device`
+        : `User [${user.user}] has failed to update a device`,
+  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -1260,6 +1290,83 @@ export const formatters: Formatters = {
     format: ({ node_name, role, method }) => {
       return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
     },
+  },
+  [eventCodes.LOGIN_RULE_CREATE]: {
+    type: 'login_rule.create',
+    desc: 'Login Rule Created',
+    format: ({ user, name }) => `User [${user}] created a login rule [${name}]`,
+  },
+  [eventCodes.LOGIN_RULE_DELETE]: {
+    type: 'login_rule.delete',
+    desc: 'Login Rule Deleted',
+    format: ({ user, name }) => `User [${user}] deleted a login rule [${name}]`,
+  },
+  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: {
+    type: 'saml.idp.auth',
+    desc: 'SAML IdP authentication',
+    format: ({
+      user,
+      success,
+      service_provider_entity_id,
+      service_provider_shortcut,
+    }) => {
+      const desc =
+        success === false
+          ? 'failed to authenticate'
+          : 'successfully authenticated';
+      const id = service_provider_entity_id
+        ? `[${service_provider_entity_id}]`
+        : `[${service_provider_shortcut}]`;
+      return `User [${user}] ${desc} to SAML service provider ${id}`;
+    },
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: {
+    type: 'saml.idp.service.provider.create',
+    desc: 'SAML IdP service provider created',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] added service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: {
+    type: 'saml.idp.service.provider.create',
+    desc: 'SAML IdP service provider create failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to add service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: {
+    type: 'saml.idp.service.provider.update',
+    desc: 'SAML IdP service provider updated',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] updated service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: {
+    type: 'saml.idp.service.provider.update',
+    desc: 'SAML IdP service provider update failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to update service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider deleted',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] deleted service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider delete failed',
+    format: ({ updated_by, name, service_provider_entity_id }) =>
+      `User [${updated_by}] failed to delete service provider [${name}] with entity ID [${service_provider_entity_id}]`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: {
+    type: 'saml.idp.service.provider.delete_all',
+    desc: 'All SAML IdP service provider deleted',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] deleted all service providers`,
+  },
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: {
+    type: 'saml.idp.service.provider.delete',
+    desc: 'SAML IdP service provider delete failed',
+    format: ({ updated_by }) =>
+      `User [${updated_by}] failed to delete all service providers`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

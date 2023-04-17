@@ -18,6 +18,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509/pkix"
+	"encoding/json"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,20 +31,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAuthSignKubeconfig(t *testing.T) {
-	t.Parallel()
+	// create a HTTPS_PROXY endpoint that intercepts the proxy Ping request
+	// and returns a mock response
+	// We need to do this because the Ping request is made using a custom
+	// http.Transport and we can't use a custom dialer to intercept the request.
+	t.Setenv("HTTPS_PROXY", newHTTPSProxy(t))
 
 	tmpDir := t.TempDir()
 
@@ -164,7 +173,7 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 					Enabled:     true,
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3026"}},
 				}}},
@@ -179,8 +188,8 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
 					},
 					PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}},
@@ -196,13 +205,14 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
-			wantAddr:  "https://proxy-from-api.example.com:3026",
+			wantAddr:  "https://proxy-from-api.example.com:3060",
 			assertErr: require.NoError,
 		},
 		{
@@ -213,11 +223,12 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				leafCluster:   remoteCluster.GetMetadata().Name,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
 			wantCluster: remoteCluster.GetMetadata().Name,
 			assertErr:   require.NoError,
@@ -230,11 +241,12 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
 				leafCluster:   "doesnotexist.example.com",
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
 			assertErr: func(t require.TestingT, err error, _ ...interface{}) {
 				require.Error(t, err)
@@ -248,15 +260,15 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{
-					Auth: service.AuthConfig{
+				config: &servicecfg.Config{
+					Auth: servicecfg.AuthConfig{
 						NetworkingConfig: &types.ClusterNetworkingConfigV2{
 							Spec: types.ClusterNetworkingConfigSpecV2{
 								ProxyListenerMode: types.ProxyListenerMode_Multiplex,
 							},
 						},
 					},
-					Proxy: service.ProxyConfig{Kube: service.KubeProxyConfig{
+					Proxy: servicecfg.ProxyConfig{Kube: servicecfg.KubeProxyConfig{
 						Enabled: true,
 					}, PublicAddrs: []utils.NetAddr{{Addr: "proxy-from-config.example.com:3080"}}},
 				},
@@ -271,11 +283,12 @@ func TestAuthSignKubeconfig(t *testing.T) {
 				output:        filepath.Join(tmpDir, "kubeconfig"),
 				outputFormat:  identityfile.FormatKubernetes,
 				signOverwrite: true,
-				config: &service.Config{Proxy: service.ProxyConfig{
-					Kube: service.KubeProxyConfig{
+				config: &servicecfg.Config{Proxy: servicecfg.ProxyConfig{
+					Kube: servicecfg.KubeProxyConfig{
 						Enabled: false,
 					},
 				}},
+				testInsecureSkipVerify: true,
 			},
 			wantAddr:  "https://proxy-from-api.example.com:3080",
 			assertErr: require.NoError,
@@ -316,6 +329,63 @@ func TestAuthSignKubeconfig(t *testing.T) {
 	}
 }
 
+// proxyHandler is a simple HTTP handler that proxies all requests to the
+// upstreamAddr.
+type proxyHandler struct {
+	upstreamAddr string
+}
+
+func (p *proxyHandler) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
+	dest_conn, err := net.DialTimeout("tcp", p.upstreamAddr, 10*time.Second)
+	if err != nil {
+		http.Error(wr, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	wr.WriteHeader(http.StatusOK)
+	hijacker, ok := wr.(http.Hijacker)
+	if !ok {
+		http.Error(wr, "Hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+	client_conn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(wr, err.Error(), http.StatusServiceUnavailable)
+	}
+
+	utils.ProxyConn(req.Context(), client_conn, dest_conn)
+}
+
+// pingSrv is a simple HTTP handler that returns a PingResponse with a
+// kube proxy enabled.
+type pingSrv struct{}
+
+func (p *pingSrv) ServeHTTP(wr http.ResponseWriter, req *http.Request) {
+	wr.WriteHeader(http.StatusOK)
+	json.NewEncoder(wr).Encode(
+		webclient.PingResponse{
+			Proxy: webclient.ProxySettings{
+				Kube: webclient.KubeProxySettings{
+					Enabled:    true,
+					PublicAddr: "proxy-from-api.example.com:3060",
+				},
+			},
+		},
+	)
+}
+
+func newHTTPSProxy(t *testing.T) string {
+	pingTestServer := httptest.NewTLSServer(&pingSrv{})
+	t.Cleanup(func() { pingTestServer.Close() })
+
+	proxyTestServer := httptest.NewServer(&proxyHandler{
+		upstreamAddr: pingTestServer.Listener.Addr().String(),
+	})
+	t.Cleanup(func() { proxyTestServer.Close() })
+
+	return proxyTestServer.URL
+}
+
 type mockClient struct {
 	auth.ClientI
 
@@ -327,11 +397,12 @@ type mockClient struct {
 	cas            []types.CertAuthority
 	proxies        []types.Server
 	remoteClusters []types.RemoteCluster
-	kubeServices   []types.KubeServer
+	kubeServers    []types.KubeServer
 	appServices    []types.AppServer
 	dbServices     []types.DatabaseServer
 	appSession     types.WebSession
 	networkConfig  types.ClusterNetworkingConfig
+	crl            []byte
 }
 
 func (c *mockClient) GetClusterName(...services.MarshalOption) (types.ClusterName, error) {
@@ -350,7 +421,7 @@ func (c *mockClient) GenerateUserCerts(ctx context.Context, userCertsReq proto.U
 	return c.userCerts, nil
 }
 
-func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadSigningKeys bool) (types.CertAuthority, error) {
 	for _, v := range c.cas {
 		if v.GetType() == id.Type && v.GetClusterName() == id.DomainName {
 			return v, nil
@@ -359,7 +430,7 @@ func (c *mockClient) GetCertAuthority(ctx context.Context, id types.CertAuthID, 
 	return nil, trace.NotFound("not found")
 }
 
-func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool, ...services.MarshalOption) ([]types.CertAuthority, error) {
+func (c *mockClient) GetCertAuthorities(context.Context, types.CertAuthType, bool) ([]types.CertAuthority, error) {
 	return c.cas, nil
 }
 
@@ -372,7 +443,7 @@ func (c *mockClient) GetRemoteClusters(opts ...services.MarshalOption) ([]types.
 }
 
 func (c *mockClient) GetKubernetesServers(context.Context) ([]types.KubeServer, error) {
-	return c.kubeServices, nil
+	return c.kubeServers, nil
 }
 
 func (c *mockClient) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -390,6 +461,10 @@ func (c *mockClient) CreateAppSession(ctx context.Context, req types.CreateAppSe
 
 func (c *mockClient) GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return c.dbServices, nil
+}
+
+func (c *mockClient) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
+	return c.crl, nil
 }
 
 func TestCheckKubeCluster(t *testing.T) {
@@ -471,9 +546,9 @@ func TestCheckKubeCluster(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			client.kubeServices = []types.KubeServer{}
+			client.kubeServers = []types.KubeServer{}
 			for _, kube := range tt.registeredClusters {
-				client.kubeServices = append(client.kubeServices, &types.KubernetesServerV3{
+				client.kubeServers = append(client.kubeServers, &types.KubernetesServerV3{
 					Metadata: types.Metadata{
 						Name: kube.GetName(),
 					},
@@ -971,4 +1046,22 @@ func TestGenerateAndSignKeys(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestGenerateCRLForCA(t *testing.T) {
+	ctx := context.Background()
+
+	for _, caType := range allowedCRLCertificateTypes {
+		t.Run(caType, func(t *testing.T) {
+			ac := AuthCommand{caType: caType}
+			authClient := &mockClient{crl: []byte{}}
+			require.NoError(t, ac.GenerateCRLForCA(ctx, authClient))
+		})
+	}
+
+	t.Run("InvalidCAType", func(t *testing.T) {
+		ac := AuthCommand{caType: "wrong-ca"}
+		authClient := &mockClient{crl: []byte{}}
+		require.Error(t, ac.GenerateCRLForCA(ctx, authClient))
+	})
 }

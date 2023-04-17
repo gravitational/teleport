@@ -1,4 +1,4 @@
-{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $replicated := gt (int $auth.highAvailability.replicaCount) 1 -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 apiVersion: apps/v1
@@ -88,6 +88,10 @@ spec:
 {{- if $auth.tolerations }}
       tolerations: {{- toYaml $auth.tolerations | nindent 6 }}
 {{- end }}
+{{- if $auth.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $auth.imagePullSecrets | nindent 6 }}
+{{- end }}
 {{- if $auth.initContainers }}
       initContainers:
   {{- range $initContainer := $auth.initContainers }}
@@ -150,6 +154,12 @@ spec:
         ports:
         - name: diag
           containerPort: 3000
+          protocol: TCP
+        - name: auth
+          containerPort: 3025
+          protocol: TCP
+        - name: kube
+          containerPort: 3026
           protocol: TCP
         livenessProbe:
           httpGet:

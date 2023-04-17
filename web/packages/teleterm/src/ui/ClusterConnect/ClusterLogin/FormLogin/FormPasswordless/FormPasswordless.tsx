@@ -61,7 +61,7 @@ const StyledPaswordlessBtn = styled(ButtonText)`
   &:hover,
   &:active,
   &:focus {
-    border-color: ${({ theme }) => theme.colors.action.active};
+    border-color: 1px solid ${({ theme }) => theme.colors.text.secondary};
     text-decoration: none;
   }
 

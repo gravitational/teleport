@@ -92,6 +92,11 @@ func TestTrustedCertsStore(t *testing.T) {
 		require.NoError(t, err)
 		require.ElementsMatch(t, trustedCerts, retrievedTrustedCerts)
 
+		// GetTrustedCerts with a different proxy should not return the trusted certs.
+		retrievedTrustedCerts, err = trustedCertsStore.GetTrustedCerts("other.example.com")
+		require.NoError(t, err)
+		require.Empty(t, retrievedTrustedCerts)
+
 		// GetTrustedCertsPEM should returns the trusted TLS certificates.
 		retrievedCerts, err := trustedCertsStore.GetTrustedCertsPEM(proxy)
 		require.NoError(t, err)

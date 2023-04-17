@@ -20,12 +20,9 @@ import { MemoryRouter } from 'react-router';
 import { Context as TeleportContext, ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
-import {
-  clearCachedJoinTokenResult,
-  JoinTokenProvider,
-} from 'teleport/Discover/Shared/JoinTokenContext';
+import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { userContext } from 'teleport/mocks/contexts';
+import { getUserContext } from 'teleport/mocks/contexts';
 
 import DownloadScript from './DownloadScript';
 
@@ -37,7 +34,7 @@ export default {
     Story => {
       // Reset request handlers added in individual stories.
       worker.resetHandlers();
-      clearCachedJoinTokenResult();
+      clearCachedJoinTokenResult(ResourceKind.Database);
       return <Story />;
     },
   ],
@@ -75,7 +72,7 @@ export const Polling = () => {
   );
   return (
     <Provider>
-      <DownloadScript runJoinTokenPromise={true} {...props} />
+      <DownloadScript {...props} />
     </Provider>
   );
 };
@@ -90,7 +87,7 @@ export const PollingSuccess = () => {
   );
   return (
     <Provider interval={5}>
-      <DownloadScript runJoinTokenPromise={true} {...props} />
+      <DownloadScript {...props} />
     </Provider>
   );
 };
@@ -105,7 +102,7 @@ export const PollingError = () => {
   );
   return (
     <Provider timeout={50}>
-      <DownloadScript runJoinTokenPromise={true} {...props} />
+      <DownloadScript {...props} />
     </Provider>
   );
 };
@@ -117,7 +114,7 @@ export const Processing = () => {
   );
   return (
     <Provider interval={5}>
-      <DownloadScript runJoinTokenPromise={true} {...props} />
+      <DownloadScript {...props} />
     </Provider>
   );
 };
@@ -130,7 +127,7 @@ export const Failed = () => {
   );
   return (
     <Provider>
-      <DownloadScript runJoinTokenPromise={true} {...props} />
+      <DownloadScript {...props} />
     </Provider>
   );
 };
@@ -139,17 +136,18 @@ const Provider = props => {
   const ctx = createTeleportContext();
 
   return (
-    <MemoryRouter>
+    <MemoryRouter
+      initialEntries={[
+        { pathname: cfg.routes.discover, state: { entity: 'database' } },
+      ]}
+    >
       <ContextProvider ctx={ctx}>
-        <JoinTokenProvider timeout={props.timeout || 100000}>
-          <PingTeleportProvider
-            timeout={props.timeout || 100000}
-            interval={props.interval || 100000}
-            resourceKind={ResourceKind.Database}
-          >
-            {props.children}
-          </PingTeleportProvider>
-        </JoinTokenProvider>
+        <PingTeleportProvider
+          interval={props.interval || 100000}
+          resourceKind={ResourceKind.Database}
+        >
+          {props.children}
+        </PingTeleportProvider>
       </ContextProvider>
     </MemoryRouter>
   );
@@ -159,7 +157,7 @@ function createTeleportContext() {
   const ctx = new TeleportContext();
 
   ctx.isEnterprise = false;
-  ctx.storeUser.setState(userContext);
+  ctx.storeUser.setState(getUserContext());
 
   return ctx;
 }

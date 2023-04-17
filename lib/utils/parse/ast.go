@@ -23,7 +23,6 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -242,9 +241,6 @@ func buildVarExpr(fields []string) (any, error) {
 	case 2:
 		// If the initial input was "literal.literal",
 		// then return the complete variable.
-		if err := validateNamespace(fields[0]); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		return &VarExpr{namespace: fields[0], name: fields[1]}, nil
 	case 1:
 		// If the initial input was just "literal",
@@ -252,9 +248,6 @@ func buildVarExpr(fields []string) (any, error) {
 		// Since we cannot detect that the expression contains an
 		// incomplete variable while parsing, validateExpr is called
 		// after parsing to ensure that no variable is incomplete.
-		if err := validateNamespace(fields[0]); err != nil {
-			return nil, trace.Wrap(err)
-		}
 		return &VarExpr{namespace: fields[0], name: ""}, nil
 	default:
 		return nil, trace.BadParameter(
@@ -297,22 +290,6 @@ func buildVarExprFromProperty(mapVal any, mapKey any) (any, error) {
 	// Set variable name.
 	varExpr.name = name
 	return varExpr, nil
-}
-
-// validateNamespace validates that only certain variable namespaces are allowed.
-func validateNamespace(namespace string) error {
-	switch namespace {
-	case LiteralNamespace, teleport.TraitInternalPrefix, teleport.TraitExternalPrefix:
-		return nil
-	default:
-		return trace.BadParameter(
-			"found namespace %q, expected one of: %q, %q, %q",
-			namespace,
-			LiteralNamespace,
-			teleport.TraitInternalPrefix,
-			teleport.TraitExternalPrefix,
-		)
-	}
 }
 
 // buildEmailLocalExpr builds a EmailLocalExpr.

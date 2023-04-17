@@ -27,10 +27,12 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
+	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -64,7 +66,8 @@ func (r *roleCollection) writeText(w io.Writer) error {
 			r.GetMetadata().Name,
 			strings.Join(r.GetLogins(types.Allow), ","),
 			printNodeLabels(r.GetNodeLabels(types.Allow)),
-			printActions(r.GetRules(types.Allow))})
+			printActions(r.GetRules(types.Allow)),
+		})
 	}
 
 	headers := []string{"Role", "Allowed to login as", "Node Labels", "Access to resources"}
@@ -152,8 +155,8 @@ func (s *serverCollection) writeText(w io.Writer) error {
 		t = asciitable.MakeTable(headers, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
-
 	}
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -359,7 +362,8 @@ func (c *trustedClusterCollection) resources() (r []types.Resource) {
 
 func (c *trustedClusterCollection) writeText(w io.Writer) error {
 	t := asciitable.MakeTable([]string{
-		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map"})
+		"Name", "Enabled", "Token", "Proxy Address", "Reverse Tunnel Address", "Role Map",
+	})
 	for _, tc := range c.trustedClusters {
 		t.AddRow([]string{
 			tc.GetName(),
@@ -482,7 +486,8 @@ func (a *appServerCollection) writeText(w io.Writer) error {
 		app := server.GetApp()
 		labels := stripInternalTeleportLabels(a.verbose, app.GetAllLabels())
 		rows = append(rows, []string{
-			server.GetHostname(), app.GetName(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion()})
+			server.GetHostname(), app.GetName(), app.GetProtocol(), app.GetPublicAddr(), app.GetURI(), labels, server.GetTeleportVersion(),
+		})
 	}
 	var t asciitable.Table
 	headers := []string{"Host", "Name", "Type", "Public Address", "URI", "Labels", "Version"}
@@ -521,7 +526,8 @@ func (c *appCollection) writeText(w io.Writer) error {
 	for _, app := range c.apps {
 		labels := stripInternalTeleportLabels(c.verbose, app.GetAllLabels())
 		rows = append(rows, []string{
-			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion()})
+			app.GetName(), app.GetDescription(), app.GetURI(), app.GetPublicAddr(), labels, app.GetVersion(),
+		})
 	}
 	headers := []string{"Name", "Description", "URI", "Public Address", "Labels", "Version"}
 	var t asciitable.Table
@@ -549,6 +555,21 @@ func (c *authPrefCollection) writeText(w io.Writer) error {
 	return trace.Wrap(err)
 }
 
+type uiConfigCollection struct {
+	uiconfig types.UIConfig
+}
+
+func (c *uiConfigCollection) resources() (r []types.Resource) {
+	return []types.Resource{c.uiconfig}
+}
+
+func (c *uiConfigCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Scrollback Lines"})
+	t.AddRow([]string{string(c.uiconfig.GetScrollbackLines())})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type netConfigCollection struct {
 	netConfig types.ClusterNetworkingConfig
 }
@@ -565,6 +586,37 @@ func (c *netConfigCollection) writeText(w io.Writer) error {
 		strconv.FormatInt(c.netConfig.GetKeepAliveCountMax(), 10),
 		c.netConfig.GetSessionControlTimeout().String(),
 	})
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type maintenanceWindowCollection struct {
+	cmc types.ClusterMaintenanceConfig
+}
+
+func (c *maintenanceWindowCollection) resources() (r []types.Resource) {
+	if c.cmc == nil {
+		return nil
+	}
+	return []types.Resource{c.cmc}
+}
+
+func (c *maintenanceWindowCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Type", "Params"})
+
+	agentUpgradeParams := "none"
+
+	if c.cmc != nil {
+		if win, ok := c.cmc.GetAgentUpgradeWindow(); ok {
+			agentUpgradeParams = fmt.Sprintf("utc_start_hour=%d", win.UTCStartHour)
+			if len(win.Weekdays) != 0 {
+				agentUpgradeParams = fmt.Sprintf("%s, weekdays=%s", agentUpgradeParams, strings.Join(win.Weekdays, ","))
+			}
+		}
+	}
+
+	t.AddRow([]string{"Agent Upgrades", agentUpgradeParams})
+
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
@@ -930,6 +982,36 @@ func (c *installerCollection) writeText(w io.Writer) error {
 	return nil
 }
 
+type integrationCollection struct {
+	integrations []types.Integration
+}
+
+func (c *integrationCollection) resources() (r []types.Resource) {
+	for _, ig := range c.integrations {
+		r = append(r, ig)
+	}
+	return r
+}
+func (c *integrationCollection) writeText(w io.Writer) error {
+	sort.Sort(types.Integrations(c.integrations))
+	var rows [][]string
+	for _, ig := range c.integrations {
+		specProps := []string{}
+		switch ig.GetSubKind() {
+		case types.IntegrationSubKindAWSOIDC:
+			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
+		}
+
+		rows = append(rows, []string{
+			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
+		})
+	}
+	headers := []string{"Name", "Type", "Spec"}
+	t := asciitable.MakeTable(headers, rows...)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type databaseServiceCollection struct {
 	databaseServices []types.DatabaseService
 }
@@ -1002,4 +1084,120 @@ func (l *loginRuleCollection) resources() []types.Resource {
 		resources[i] = loginrule.ProtoToResource(rule)
 	}
 	return resources
+}
+
+//nolint:revive // Because we want this to be IdP.
+type samlIdPServiceProviderCollection struct {
+	serviceProviders []types.SAMLIdPServiceProvider
+}
+
+func (c *samlIdPServiceProviderCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.serviceProviders))
+	for i, resource := range c.serviceProviders {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *samlIdPServiceProviderCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, serviceProvider := range c.serviceProviders {
+		t.AddRow([]string{serviceProvider.GetName()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type deviceCollection struct {
+	devices []*devicepb.Device
+}
+
+func (c *deviceCollection) resources() []types.Resource {
+	resources := make([]types.Resource, len(c.devices))
+	for i, dev := range c.devices {
+		resources[i] = types.DeviceToResource(dev)
+	}
+	return resources
+}
+
+func (c *deviceCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"ID", "OS Type", "Asset Tag", "Enrollment Status", "Creation Time", "Last Updated"})
+	for _, device := range c.devices {
+		t.AddRow([]string{
+			device.Id,
+			devicetrust.FriendlyOSType(device.OsType),
+			device.AssetTag,
+			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
+			device.CreateTime.AsTime().Format(time.RFC3339),
+			device.UpdateTime.AsTime().Format(time.RFC3339),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type oktaImportRuleCollection struct {
+	importRules []types.OktaImportRule
+}
+
+func (c *oktaImportRuleCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.importRules))
+	for i, resource := range c.importRules {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *oktaImportRuleCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, importRule := range c.importRules {
+		t.AddRow([]string{importRule.GetName()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type oktaAssignmentCollection struct {
+	assignments []types.OktaAssignment
+}
+
+func (c *oktaAssignmentCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.assignments))
+	for i, resource := range c.assignments {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *oktaAssignmentCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name"})
+	for _, assignment := range c.assignments {
+		t.AddRow([]string{assignment.GetName()})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
+type userGroupCollection struct {
+	userGroups []types.UserGroup
+}
+
+func (c *userGroupCollection) resources() []types.Resource {
+	r := make([]types.Resource, len(c.userGroups))
+	for i, resource := range c.userGroups {
+		r[i] = resource
+	}
+	return r
+}
+
+func (c *userGroupCollection) writeText(w io.Writer) error {
+	t := asciitable.MakeTable([]string{"Name", "Origin"})
+	for _, userGroup := range c.userGroups {
+		t.AddRow([]string{
+			userGroup.GetName(),
+			userGroup.Origin(),
+		})
+	}
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
 }

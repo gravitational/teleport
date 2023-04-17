@@ -20,11 +20,9 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -42,7 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	cloudaws "github.com/gravitational/teleport/lib/cloud/aws"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -90,15 +90,7 @@ func validateSTSHost(stsHost string, cfg *iamRegisterConfig) error {
 	}
 
 	if cfg.fips && !slices.Contains(fipsSTSEndpoints, stsHost) {
-		if cfg.authVersion.LessThan(semver.Version{Major: 12}) {
-			log.Warnf("Non-FIPS STS endpoint (%s) was used by a node joining "+
-				"the cluster with the IAM join method. "+
-				"Ensure that all nodes joining the cluster are up to date and also run in FIPS mode. "+
-				"This will be an error in Teleport 12.0.0.",
-				stsHost)
-		} else {
-			return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
-		}
+		return trace.AccessDenied("node selected non-FIPS STS endpoint (%s) for the IAM join method", stsHost)
 	}
 
 	return nil
@@ -154,7 +146,7 @@ func validateSTSIdentityRequest(req *http.Request, challenge string, cfg *iamReg
 			challengeHeaderKey+" as a signed header", authHeader)
 	}
 
-	body, err := aws.GetAndReplaceReqBody(req)
+	body, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -333,15 +325,9 @@ func (a *Server) checkIAMRequest(ctx context.Context, challenge string, req *pro
 	return nil
 }
 
-func generateChallenge() (string, error) {
-	// read 32 crypto-random bytes to generate the challenge
-	challengeRawBytes := make([]byte, 32)
-	if _, err := rand.Read(challengeRawBytes); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// encode the challenge to base64 so it can be sent in an HTTP header
-	return base64.RawStdEncoding.EncodeToString(challengeRawBytes), nil
+func generateIAMChallenge() (string, error) {
+	challenge, err := generateChallenge(base64.RawStdEncoding, 32)
+	return challenge, trace.Wrap(err)
 }
 
 type iamRegisterConfig struct {
@@ -376,18 +362,18 @@ func withFips(fips bool) iamRegisterOption {
 // The caller must provide a ChallengeResponseFunc which returns a
 // *types.RegisterUsingTokenRequest with a signed sts:GetCallerIdentity request
 // including the challenge as a signed header.
-func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterChallengeResponseFunc, opts ...iamRegisterOption) (*proto.Certs, error) {
+func (a *Server) RegisterUsingIAMMethod(ctx context.Context, challengeResponse client.RegisterIAMChallengeResponseFunc, opts ...iamRegisterOption) (*proto.Certs, error) {
 	cfg := defaultIAMRegisterConfig(a.fips)
 	for _, opt := range opts {
 		opt(cfg)
 	}
 
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
-		return nil, trace.BadParameter("logic error: client address was not set")
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	challenge, err := generateChallenge()
+	challenge, err := generateIAMChallenge()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

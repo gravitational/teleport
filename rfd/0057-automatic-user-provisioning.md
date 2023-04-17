@@ -1,6 +1,6 @@
 ---
 authors: Alex McGrath (alex.mcgrath@goteleport.com)
-state: draft
+state: implemented (v10.0.0)
 ---
 
 # RFD 57 - Automatic user and sudoers provisioning
@@ -134,7 +134,7 @@ Groups will not be cleaned up and will be created once and be reused
 this is to avoid files created with specified groups will remain
 accessible between sessions to users in those groups.
 
-### Multiple matching roles 
+### Multiple matching roles
 
 Automatic user provisioning will require that all roles matching a
 node via `labels` have `create_host_user=true`
@@ -171,7 +171,7 @@ spec:
     # List of each group the user will be added to
     host_groups: [ubuntu, docker, ...]
     # username from external okta attribute
-    logins: [ "{{external.username}}" ]	
+    logins: [ "{{external.username}}" ]
 ```
 
 ### Teleport admin wants to make each auto-created user a sudoer
@@ -223,7 +223,7 @@ have users be automatically created.
 
 ### Teleport user has multiple roles but not all of them enable `create_host_user`
 
-In the situtation where a user has roles as below, the user would not
+In the situation where a user has roles as below, the user would not
 be able to make use of automatically provisioning users as both roles
 do not enable `create_host_user`.
 
@@ -237,7 +237,7 @@ spec:
     # allow auto provisioning of users.
     create_host_user: true
     node_labels:
-      - 'env': 'example'	
+      - 'env': 'example'
 ```
 
 ```yaml

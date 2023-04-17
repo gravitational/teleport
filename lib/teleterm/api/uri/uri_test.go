@@ -130,6 +130,52 @@ func TestGetDbName(t *testing.T) {
 	}
 }
 
+func TestGetServerUUID(t *testing.T) {
+	tests := []struct {
+		name string
+		in   uri.ResourceURI
+		out  string
+	}{
+		{
+			name: "returns root cluster server UUID",
+			in:   uri.NewClusterURI("foo").AppendServer("uuid"),
+			out:  "uuid",
+		},
+		{
+			name: "returns leaf cluster server UUID",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendServer("uuid"),
+			out:  "uuid",
+		},
+		{
+			name: "returns empty string when given root cluster URI",
+			in:   uri.NewClusterURI("foo"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given root cluster non-server resource URI",
+			in:   uri.NewClusterURI("foo").AppendKube("k8s"),
+			out:  "",
+		},
+		{
+			name: "returns empty string when given leaf cluster non-server resource URI",
+			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
+			out:  "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := tt.in.GetServerUUID()
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
+
 func TestGetRootClusterURI(t *testing.T) {
 	tests := []struct {
 		name string

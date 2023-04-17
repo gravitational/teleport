@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type Suite struct {
@@ -208,12 +209,17 @@ func mustGenCertSignedWithCA(t *testing.T, ca *tlsca.CertAuthority, opts ...sign
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyRaw})
 	cert, err := tls.X509KeyPair(tlsCert, keyPEM)
 	require.NoError(t, err)
+	leaf, err := utils.TLSCertLeaf(cert)
+	require.NoError(t, err)
+	cert.Leaf = leaf
 	return cert
 }
 
 func mustReadFromConnection(t *testing.T, conn net.Conn, want string) {
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(time.Second*5)))
 	buff, err := io.ReadAll(conn)
 	require.NoError(t, err)
+	require.NoError(t, conn.SetReadDeadline(time.Time{}))
 	require.Equal(t, string(buff), want)
 }
 

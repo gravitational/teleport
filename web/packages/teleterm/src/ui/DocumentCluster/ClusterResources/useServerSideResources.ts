@@ -1,13 +1,34 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { useState, useEffect, useMemo } from 'react';
 import { SortType } from 'design/DataTable/types';
 import { useAsync } from 'shared/hooks/useAsync';
-import { AgentFilter, AgentLabel } from 'teleport/services/agents';
+import {
+  AgentFilter as WeakAgentFilter,
+  AgentLabel,
+} from 'teleport/services/agents';
 
-import { ServerSideParams } from 'teleterm/services/tshd/types';
+import { GetResourcesParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 import { useClusterContext } from '../clusterContext';
+
+type AgentFilter = WeakAgentFilter & { sort: SortType };
 
 function addAgentLabelToQuery(filter: AgentFilter, label: AgentLabel) {
   const queryParts = [];
@@ -33,7 +54,7 @@ const limit = 15;
 
 export function useServerSideResources<Agent>(
   defaultSort: SortType,
-  fetchFunction: (params: ServerSideParams) => Promise<FetchResponse<Agent>>
+  fetchFunction: (params: GetResourcesParams) => Promise<FetchResponse<Agent>>
 ) {
   const ctx = useAppContext();
   const { clusterUri } = useClusterContext();

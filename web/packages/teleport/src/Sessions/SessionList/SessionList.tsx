@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { ButtonBorder } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import Icon, * as Icons from 'design/Icon/Icon';
 import React from 'react';
 import styled from 'styled-components';
 
-import cfg from 'teleport/config';
 import { Participant, Session, SessionKind } from 'teleport/services/session';
+
+import { SessionJoinBtn } from './SessionJoinBtn';
 
 export default function SessionList(props: Props) {
   const { sessions, pageSize = 100 } = props;
@@ -102,25 +102,24 @@ const renderIconCell = (kind: SessionKind) => {
   );
 };
 
-const renderJoinCell = ({ sid, clusterId, kind }: Session) => {
+const renderJoinCell = ({
+  sid,
+  clusterId,
+  kind,
+  participantModes,
+}: Session) => {
   const { joinable } = kinds[kind];
-  if (!joinable) {
+  if (!joinable || participantModes.length === 0) {
     return <Cell align="right" height="26px" />;
   }
 
-  const url = cfg.getSshSessionRoute({ sid, clusterId });
   return (
     <Cell align="right" height="26px">
-      <ButtonBorder
-        kind="primary"
-        as="a"
-        href={url}
-        width="80px"
-        target="_blank"
-        size="small"
-      >
-        Join
-      </ButtonBorder>
+      <SessionJoinBtn
+        sid={sid}
+        clusterId={clusterId}
+        participantModes={participantModes}
+      />
     </Cell>
   );
 };

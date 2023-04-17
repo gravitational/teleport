@@ -1,4 +1,21 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React from 'react';
+import { useTheme } from 'styled-components';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
@@ -25,6 +42,8 @@ export function ShareFeedbackFormFields({
   ) {
     setFormValues({ ...formValues, [field]: value });
   }
+
+  const theme = useTheme();
 
   return (
     <>
@@ -57,7 +76,19 @@ export function ShareFeedbackFormFields({
       <FieldTextArea
         label="Suggestions"
         textAreaCss={`
-          font-size: 14px;
+        font-size: 14px;
+        outline: none;
+        color: ${theme.colors.text.primary};
+        background: ${theme.colors.levels.surface};
+        border: 1px solid ${theme.colors.text.placeholder};
+        ::placeholder {
+          color: ${theme.colors.text.placeholder};
+        }
+        &:hover,
+        &:focus,
+        &:active {
+          border: 1px solid ${theme.colors.text.secondary};
+        }
         `}
         rule={requiredField('Suggestions are required')}
         readOnly={disabled}

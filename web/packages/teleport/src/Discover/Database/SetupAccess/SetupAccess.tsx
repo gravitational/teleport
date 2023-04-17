@@ -30,11 +30,10 @@ import {
 import { Mark } from 'teleport/Discover/Shared';
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
 
-import { DatabaseEngine, DatabaseLocation } from '../resources';
+import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
 
 import type { AgentStepProps } from '../../types';
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
-import type { Database } from '../resources';
 
 export default function Container(props: AgentStepProps) {
   const state = useUserTraits(props);
@@ -47,7 +46,7 @@ export function SetupAccess(props: State) {
     initSelectedOptions,
     getFixedOptions,
     getSelectableOptions,
-    resourceState,
+    resourceSpec,
     ...restOfProps
   } = props;
   const [nameInputValue, setNameInputValue] = useState('');
@@ -95,14 +94,16 @@ export function SetupAccess(props: State) {
     onProceed({ databaseNames: selectedNames, databaseUsers: selectedUsers });
   }
 
-  // Both db names and users are required.
-  const hasTraits = selectedNames.length > 0 && selectedUsers.length > 0;
+  const { engine, location } = resourceSpec.dbMeta;
+  let hasTraits = selectedUsers.length > 0;
+  // Postgres connection testing requires both db user and a db name.
+  if (engine === DatabaseEngine.Postgres) {
+    hasTraits = hasTraits && selectedNames.length > 0;
+  }
 
   const canAddTraits = !props.isSsoUser && props.canEditUser;
   const headerSubtitle =
     'Allow access from your Database names and users to interact with your Database.';
-
-  const { engine, location } = resourceState as Database;
 
   return (
     <SetupAccessWrapper
@@ -198,14 +199,14 @@ function DbEngineInstructions({
   dbLocation: DatabaseLocation;
 }) {
   switch (dbLocation) {
-    case DatabaseLocation.AWS:
-      if (dbEngine === DatabaseEngine.PostgreSQL) {
+    case DatabaseLocation.Aws:
+      if (dbEngine === DatabaseEngine.Postgres) {
         return (
           <Box mb={3}>
             <Text mb={2}>
               Database users must allow{' '}
               <Link
-                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html"
+                href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.PostgreSQL"
                 target="_blank"
               >
                 IAM authentication
@@ -226,11 +227,52 @@ function DbEngineInstructions({
           </Box>
         );
       }
+      if (dbEngine === DatabaseEngine.MySql) {
+        return (
+          <Box mb={3}>
+            <Box mb={2}>
+              <Text mb={2}>
+                Database users must allow{' '}
+                <Link
+                  href="https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.MySQL"
+                  target="_blank"
+                >
+                  IAM authentication
+                </Link>{' '}
+                in order to be used with Database Access for RDS. Users must
+                have the RDS authentication plugin enabled:
+              </Text>
+              <TextSelectCopyMulti
+                bash={false}
+                lines={[
+                  {
+                    text: "CREATE USER alice IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';",
+                  },
+                ]}
+              />
+            </Box>
+            <Box>
+              <Text>
+                Created user may not have access to anything by default so let's
+                grant it some permissions:
+              </Text>
+              <TextSelectCopyMulti
+                bash={false}
+                lines={[
+                  {
+                    text: "GRANT ALL ON `%`.* TO 'alice'@'%';",
+                  },
+                ]}
+              />
+            </Box>
+          </Box>
+        );
+      }
       break;
 
     // self-hosted databases
     default:
-      if (dbEngine === DatabaseEngine.PostgreSQL) {
+      if (dbEngine === DatabaseEngine.Postgres) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -263,7 +305,7 @@ function DbEngineInstructions({
         );
       }
 
-      if (dbEngine === DatabaseEngine.Mongo) {
+      if (dbEngine === DatabaseEngine.MongoDb) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -291,7 +333,7 @@ function DbEngineInstructions({
         );
       }
 
-      if (dbEngine === DatabaseEngine.MySQL) {
+      if (dbEngine === DatabaseEngine.MySql) {
         return (
           <Box mb={3}>
             <Text mb={2}>
@@ -338,6 +380,8 @@ function DbEngineInstructions({
         );
       }
   }
+
+  return null;
 }
 
 const StyledBox = styled(Box)`

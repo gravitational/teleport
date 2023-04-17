@@ -19,7 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 )
 
 func (h *Handler) UpdateTshdEventsServerAddress(ctx context.Context, req *api.UpdateTshdEventsServerAddressRequest) (*api.UpdateTshdEventsServerAddressResponse, error) {

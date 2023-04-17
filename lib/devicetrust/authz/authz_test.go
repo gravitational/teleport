@@ -29,6 +29,83 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+func TestIsTLSDeviceVerified(t *testing.T) {
+	testIsDeviceVerified(t, "IsTLSDeviceVerified", authz.IsTLSDeviceVerified)
+}
+
+func TestIsSSHDeviceVerified(t *testing.T) {
+	testIsDeviceVerified(t, "IsSSHDeviceVerified", func(ext *tlsca.DeviceExtensions) bool {
+		var cert *ssh.Certificate
+		if ext != nil {
+			cert = &ssh.Certificate{
+				Permissions: ssh.Permissions{
+					Extensions: map[string]string{
+						teleport.CertExtensionDeviceID:           ext.DeviceID,
+						teleport.CertExtensionDeviceAssetTag:     ext.AssetTag,
+						teleport.CertExtensionDeviceCredentialID: ext.CredentialID,
+					},
+				},
+			}
+		}
+		return authz.IsSSHDeviceVerified(cert)
+	})
+}
+
+func testIsDeviceVerified(t *testing.T, name string, fn func(ext *tlsca.DeviceExtensions) bool) {
+	tests := []struct {
+		name string
+		ext  *tlsca.DeviceExtensions
+		want bool
+	}{
+		{
+			name: "all extensions",
+			ext: &tlsca.DeviceExtensions{
+				DeviceID:     "deviceid1",
+				AssetTag:     "assettag1",
+				CredentialID: "credentialid1",
+			},
+			want: true,
+		},
+		{
+			name: "nok: nil extensions",
+		},
+		{
+			name: "nok: empty extensions",
+			ext:  &tlsca.DeviceExtensions{},
+		},
+		{
+			name: "nok: missing DeviceID",
+			ext: &tlsca.DeviceExtensions{
+				AssetTag:     "assettag1",
+				CredentialID: "credentialid1",
+			},
+		},
+		{
+			name: "nok: missing AssetTag",
+			ext: &tlsca.DeviceExtensions{
+				DeviceID:     "deviceid1",
+				CredentialID: "credentialid1",
+			},
+		},
+		{
+			name: "nok: missing CredentialID",
+			ext: &tlsca.DeviceExtensions{
+				DeviceID: "deviceid1",
+				AssetTag: "assettag1",
+			},
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			got := fn(test.ext)
+			if got != test.want {
+				t.Errorf("%v(%#v) = %v, want = %v", name, test.ext, got, test.want)
+			}
+		})
+	}
+}
+
 func TestVerifyTLSUser(t *testing.T) {
 	runVerifyUserTest(t, "VerifyTLSUser", func(dt *types.DeviceTrust, ext *tlsca.DeviceExtensions) error {
 		return authz.VerifyTLSUser(dt, tlsca.Identity{

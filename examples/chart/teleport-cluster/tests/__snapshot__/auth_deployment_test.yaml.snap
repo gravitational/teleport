@@ -57,6 +57,12 @@ should add an operator side-car when operator is enabled:
       - containerPort: 3000
         name: diag
         protocol: TCP
+      - containerPort: 3025
+        name: auth
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
       readinessProbe:
         failureThreshold: 12
         httpGet:
@@ -139,6 +145,9 @@ should set affinity when set in values:
             operator: In
             values:
             - teleport
+should set imagePullSecrets when set in values:
+  1: |
+    - name: myRegistryKeySecretName
 should set nodeSelector when set in values:
   1: |
     affinity:
@@ -170,6 +179,12 @@ should set nodeSelector when set in values:
       ports:
       - containerPort: 3000
         name: diag
+        protocol: TCP
+      - containerPort: 3025
+        name: auth
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
         protocol: TCP
       readinessProbe:
         failureThreshold: 12
@@ -252,6 +267,12 @@ should set resources when set in values:
       - containerPort: 3000
         name: diag
         protocol: TCP
+      - containerPort: 3025
+        name: auth
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
+        protocol: TCP
       readinessProbe:
         failureThreshold: 12
         httpGet:
@@ -321,6 +342,12 @@ should set securityContext when set in values:
       ports:
       - containerPort: 3000
         name: diag
+        protocol: TCP
+      - containerPort: 3025
+        name: auth
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
         protocol: TCP
       readinessProbe:
         failureThreshold: 12
@@ -401,6 +428,12 @@ should use OSS image and not mount license when enterprise is not set in values:
       ports:
       - containerPort: 3000
         name: diag
+        protocol: TCP
+      - containerPort: 3025
+        name: auth
+        protocol: TCP
+      - containerPort: 3026
+        name: kube
         protocol: TCP
       readinessProbe:
         failureThreshold: 12

@@ -42,7 +42,7 @@
 
 import { spawn } from 'child_process';
 
-import { memoize } from 'lodash';
+import { memoize } from 'shared/utils/highbar';
 
 import Logger from 'teleterm/logger';
 import { unique } from 'teleterm/ui/utils/uid';

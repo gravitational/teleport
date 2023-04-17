@@ -1,13 +1,11 @@
 ---
 title: Desktop Access
-description: Teleport Desktop Access introduction and resources.
+description: Teleport desktop access introduction and resources.
 videoBanner: n2h0GisWdss
 ---
 
-# Desktop Access
-
-Teleport manages graphical desktop access to remote hosts. With Teleport
-Desktop Access, you get:
+Teleport manages graphical desktop access to remote hosts. With Teleport, you
+get:
 
 - A password-less login experience backed by strong cryptographic
   authentication.
@@ -21,13 +19,17 @@ Desktop Access, you get:
 >
   Only Windows hosts accessible over RDP are supported. Specifically:
 
-  - Windows Server 2012 R2 / Windows 10 or newer
-  - Hosts connected to an Active Directory domain
+| Teleport Version              | Windows Desktop                                           | Active Directory |
+|-------------------------------|-----------------------------------------------------------|------------------|
+| Open source Teleport          | Windows Server 2012 R2 / Windows 10 or newer              | Required         |
+| Cloud and Enterprise Teleport | Windows Server 2012 R2 / Windows 10 or newer              | Optional         |
+
 </Admonition>
 
 ## Getting started
 
-- [Getting started](./getting-started.mdx): Connect an Active Directory domain.
+- [Local users](./getting-started.mdx): Use Teleport Cloud or Enterprise to connect to Windows systems with local users.
+- [Active Directory](./active-directory.mdx): Use Teleport to connect to Windows systems with Active Directory users.
 
 ## Resources
 

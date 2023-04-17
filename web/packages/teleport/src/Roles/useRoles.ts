@@ -32,14 +32,14 @@ export default function useRoles(ctx: TeleportContext) {
 
   // TODO: we cannot refetch the data right after saving because this backend
   // operation is not atomic.
-  function save(yaml: string, isNew: boolean) {
+  function save(name: string, yaml: string, isNew: boolean) {
     if (isNew) {
       return ctx.resourceService.createRole(yaml).then(result => {
         setItems([result, ...items]);
       });
     }
 
-    return ctx.resourceService.updateRole(yaml).then(result => {
+    return ctx.resourceService.updateRole(name, yaml).then(result => {
       setItems([result, ...items.filter(r => r.name !== result.name)]);
     });
   }

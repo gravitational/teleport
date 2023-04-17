@@ -198,9 +198,8 @@ func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) er
 
 	state := sessionCtx.GetAccessState(authPref)
 	err = sessionCtx.Checker.CheckAccess(sessionCtx.Database, state,
-		&services.DatabaseUserMatcher{
-			User: sessionCtx.DatabaseUser,
-		})
+		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
 		return trace.Wrap(err)

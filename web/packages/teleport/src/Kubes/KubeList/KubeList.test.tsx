@@ -32,7 +32,6 @@ test('search generates correct url params', () => {
       authType="local"
       kubes={kubes}
       clusterId={'some-cluster-name'}
-      totalCount={10}
       pathname="test.com/cluster/one/kubes"
       replaceHistory={replaceHistory}
     />

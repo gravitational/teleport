@@ -1,62 +1,69 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import {
-  Application,
   AuthSettings,
+  AccessRequest,
   Cluster,
   CreateAccessRequestParams,
   CreateGatewayParams,
-  Database,
   Gateway,
   GetDatabasesResponse,
   GetKubesResponse,
   GetRequestableRolesParams,
   GetServersResponse,
-  Kube,
   LoginLocalParams,
   LoginPasswordlessParams,
   LoginSsoParams,
   ReviewAccessRequestParams,
-  Server,
-  ServerSideParams,
+  GetResourcesParams,
   TshAbortController,
   TshAbortSignal,
   TshClient,
   GetRequestableRolesResponse,
 } from '../types';
-import { AccessRequest } from '../v1/access_request_pb';
 
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  listApps: (clusterUri: string) => Promise<Application[]>;
-  getAllKubes: (clusterUri: string) => Promise<Kube[]>;
-  getKubes: (params: ServerSideParams) => Promise<GetKubesResponse>;
-  getAllDatabases: (clusterUri: string) => Promise<Database[]>;
-  getDatabases: (params: ServerSideParams) => Promise<GetDatabasesResponse>;
+  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
+  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
-  getAllServers: (clusterUri: string) => Promise<Server[]>;
   getRequestableRoles: (
     params: GetRequestableRolesParams
   ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: ServerSideParams) => Promise<GetServersResponse>;
+  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
   assumeRole: (
     clusterUri: string,
     requestIds: string[],
     dropIds: string[]
   ) => Promise<void>;
   deleteAccessRequest: (clusterUri: string, requestId: string) => Promise<void>;
-  getAccessRequests: (clusterUri: string) => Promise<AccessRequest.AsObject[]>;
+  getAccessRequests: (clusterUri: string) => Promise<AccessRequest[]>;
   getAccessRequest: (
     clusterUri: string,
     requestId: string
-  ) => Promise<AccessRequest.AsObject>;
+  ) => Promise<AccessRequest>;
   reviewAccessRequest: (
     clusterUri: string,
     params: ReviewAccessRequestParams
-  ) => Promise<AccessRequest.AsObject>;
+  ) => Promise<AccessRequest>;
   createAccessRequest: (
     params: CreateAccessRequestParams
-  ) => Promise<AccessRequest.AsObject>;
-  listServers: (clusterUri: string) => Promise<Server[]>;
+  ) => Promise<AccessRequest>;
   createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
 

@@ -34,16 +34,17 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func EnableKubernetesService(t *testing.T, config *service.Config) {
+func EnableKubernetesService(t *testing.T, config *servicecfg.Config) {
 	config.Kube.KubeconfigPath = filepath.Join(t.TempDir(), "kube_config")
 	require.NoError(t, EnableKube(t, config, "teleport-cluster"))
 }
 
-func EnableKube(t *testing.T, config *service.Config, clusterName string) error {
+func EnableKube(t *testing.T, config *servicecfg.Config, clusterName string) error {
 	kubeConfigPath := config.Kube.KubeconfigPath
 	if kubeConfigPath == "" {
 		return trace.BadParameter("missing kubeconfig path")

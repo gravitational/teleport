@@ -1,6 +1,6 @@
 ---
 title: Database Access with Azure Cache for Redis
-description: How to configure Teleport Database Access with Azure Cache for Redis
+description: How to configure Teleport database access with Azure Cache for Redis
 ---
 
 This guide will help you to:
@@ -19,6 +19,8 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - Deployed Azure Redis server or Azure Redis Enterprise cluster.
 - Azure administrative privileges to manage service principals and access
   controls.
@@ -26,18 +28,13 @@ This guide will help you to:
   Service.
 - `redis-cli` version `6.2` or newer installed and added to your system's
   `PATH` environment variable.
+- (!docs/pages/includes/tctl.mdx!)
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
-
-## Step 1/6. Install Teleport
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-## Step 2/6. Create a Teleport user
+## Step 1/5. Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 3/6. Create a Database Service configuration
+## Step 2/5. Create a Database Service configuration
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -78,7 +75,7 @@ addition to the region, you can optionally specify
 further customize the scopes of the auto-discovery.
 </Admonition>
 
-## Step 4/6. Configure IAM permissions for Teleport
+## Step 3/5. Configure IAM permissions for Teleport
 
 The Teleport Database Service needs Azure IAM permissions to:
 
@@ -134,7 +131,7 @@ Now go to the [Subscriptions](https://portal.azure.com/#view/Microsoft_Azure_Bil
 
 Click on *Access control (IAM)* in the subscription and select *Add > Add custom role*:
 <Figure align="left">
-![IAM custom role](../../../img/database-access/guides/azure/add-custom-role@2x.png)
+![IAM custom role](../../../img/azure/add-custom-role@2x.png)
 </Figure>
 
 In the custom role creation page, click the *JSON* tab and click *Edit*, then paste the JSON example
@@ -147,16 +144,11 @@ and replace the subscription in `assignableScopes` with your own subscription id
 
 (!docs/pages/includes/database-access/azure-assign-service-principal.mdx!)
 
-## Step 5/6. Start the Database Service
+## Step 4/5. Start the Database Service
 
-Once the service principal is configured with the required IAM permissions,
-start the Teleport Database Service:
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
-
-## Step 6/6. Connect
+## Step 5/5. Connect
 
 Log in to your Teleport cluster. Your Azure Cache for Redis databases should
 appear in the list of available databases:

@@ -56,23 +56,19 @@ import (
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
-// resolveEndpoint extracts the aws-service on and aws-region from the request
+// resolveEndpoint extracts the aws-service and aws-region from the request
 // authorization header and resolves the aws-service and aws-region to AWS
 // endpoint.
 func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
+	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
+	if awsapiutils.IsAWSEndpoint(r.Header.Get("X-Forwarded-Host")) {
+		re, err := resolveEndpointByXForwardedHost(r, awsutils.AuthorizationHeader)
+		return re, trace.Wrap(err)
+	}
+
 	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(awsutils.AuthorizationHeader))
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// Use X-Forwarded-Host header if it is a valid AWS endpoint.
-	forwardedHost := r.Header.Get("X-Forwarded-Host")
-	if awsapiutils.IsAWSEndpoint(forwardedHost) {
-		return &endpoints.ResolvedEndpoint{
-			URL:           "https://" + forwardedHost,
-			SigningRegion: awsAuthHeader.Region,
-			SigningName:   awsAuthHeader.Service,
-		}, nil
 	}
 
 	// aws-sdk-go maintains a mapping of service endpoints which can be looked
@@ -106,6 +102,30 @@ func resolveEndpoint(r *http.Request) (*endpoints.ResolvedEndpoint, error) {
 	// correct signing name. Set it back to what is received from the header.
 	resolvedEndpoint.SigningName = awsAuthHeader.Service
 	return &resolvedEndpoint, nil
+}
+
+// resolveEndpointByXForwardedHost resolves the endpoint by creating the URL
+// from valid "X-Forwarded-Host" header and extracting aws-service and
+// aws-region from the authorization header.
+func resolveEndpointByXForwardedHost(r *http.Request, headerKey string) (*endpoints.ResolvedEndpoint, error) {
+	forwardedHost := r.Header.Get("X-Forwarded-Host")
+	if forwardedHost == "" {
+		return nil, trace.BadParameter("missing X-Forwarded-Host")
+	}
+	if !awsapiutils.IsAWSEndpoint(forwardedHost) {
+		return nil, trace.BadParameter("invalid AWS endpoint %v", forwardedHost)
+	}
+
+	awsAuthHeader, err := awsutils.ParseSigV4(r.Header.Get(headerKey))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &endpoints.ResolvedEndpoint{
+		URL:           "https://" + forwardedHost,
+		SigningRegion: awsAuthHeader.Region,
+		SigningName:   awsAuthHeader.Service,
+	}, nil
 }
 
 // endpointsIDFromSigningName returns the endpoints ID used for endpoint

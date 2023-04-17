@@ -1,6 +1,6 @@
 ---
 title: Database Access with Self-Hosted PostgreSQL
-description: How to configure Teleport Database Access with self-hosted PostgreSQL.
+description: How to configure Teleport database access with self-hosted PostgreSQL.
 ---
 
 This guide will help you to:
@@ -18,19 +18,15 @@ This guide will help you to:
 
 ## Prerequisites
 
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - A self-hosted PostgreSQL instance.
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database
   Service.
+- (!docs/pages/includes/tctl.mdx!)
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
-
-## Step 1/5. Set up the Teleport Auth and Proxy services
-
-Teleport Database Access for PostgreSQL is available starting from the `6.0`
-release.
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
+## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -179,11 +175,7 @@ $ teleport db configure create \
   
 </Admonition>
 
-Start the database service:
-
-```code
-$ teleport start --config=/path/to/teleport-db.yaml --token=/tmp/token
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 </Tabs>

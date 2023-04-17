@@ -19,19 +19,23 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import TeleportContext from 'teleport/teleportContext';
-import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
-import { ResourceKind } from 'teleport/Discover/Shared';
-import { resourceKindToJoinRole } from 'teleport/Discover/Shared/ResourceKind';
+import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import {
+  resourceKindToJoinRole,
+  ResourceKind,
+} from 'teleport/Discover/Shared/ResourceKind';
 
-import { DbMeta } from '../../useDiscover';
+import { DbMeta, useDiscover } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
-import type { Database } from '../resources';
 
 export function useMutualTls({ ctx, props }: Props) {
   const { attempt, run } = useAttempt('');
 
-  const prevFetchedJoinToken = useJoinTokenValue();
+  const { emitErrorEvent } = useDiscover();
+  const { joinToken: prevFetchedJoinToken } = useJoinTokenSuspender(
+    ResourceKind.Database
+  );
   const [joinToken, setJoinToken] = useState(prevFetchedJoinToken);
   const meta = props.agentMeta as DbMeta;
   const clusterId = ctx.storeUser.getClusterId();
@@ -52,6 +56,10 @@ export function useMutualTls({ ctx, props }: Props) {
             method: 'token',
           })
           .then(setJoinToken)
+          .catch((error: Error) => {
+            emitErrorEvent(`error with fetching join token: ${error.message}`);
+            throw error;
+          })
       );
     }
     // Ensure runs only once.
@@ -71,6 +79,12 @@ export function useMutualTls({ ctx, props }: Props) {
           caCert,
         })
         .then(() => props.nextStep())
+        .catch((error: Error) => {
+          emitErrorEvent(
+            `error with update database with caCert: ${error.message}`
+          );
+          throw error;
+        })
     );
   }
 
@@ -84,7 +98,7 @@ export function useMutualTls({ ctx, props }: Props) {
       meta.db.hostname,
       joinToken?.id
     ),
-    dbEngine: (props.resourceState as Database).engine,
+    dbEngine: props.resourceSpec.dbMeta.engine,
   };
 }
 

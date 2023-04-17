@@ -112,6 +112,9 @@ const (
 	// KindSnowflakeSession represents a Snowflake specific web session.
 	KindSnowflakeSession = "snowflake_session"
 
+	// KindSAMLIdPSession represents a SAML IdP session.
+	KindSAMLIdPSession = "saml_idp_session"
+
 	// KindEvent is structured audit logging event
 	KindEvent = "event"
 
@@ -121,8 +124,15 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource
+	// KindNode is node resource. It can be either a Teleport node or
+	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
+
+	// SubKindTeleportNode is a Teleport node.
+	SubKindTeleportNode = "teleport"
+
+	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
+	SubKindOpenSSHNode = "openssh"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -195,6 +205,10 @@ const (
 	// cluster audit configuration.
 	MetaNameClusterAuditConfig = "cluster-audit-config"
 
+	// MetaNameUIConfig is the exact name of the singleton resource holding
+	// proxy service UI configuration.
+	MetaNameUIConfig = "ui-config"
+
 	// KindClusterNetworkingConfig is the resource that holds cluster networking configuration.
 	KindClusterNetworkingConfig = "cluster_networking_config"
 
@@ -210,6 +224,9 @@ const (
 
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
+
+	// MetaNameWatchStatus is the name of a watch status resource.
+	MetaNameWatchStatus = "watch-status"
 
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
@@ -244,10 +261,6 @@ const (
 
 	// KindState is local on disk process state
 	KindState = "state"
-
-	// KindKubeService is a kubernetes service resource
-	// DELETE in 13.0.0
-	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
@@ -287,6 +300,10 @@ const (
 	// used to install teleport on discovered nodes
 	KindInstaller = "installer"
 
+	// KindUIConfig is a resource that holds configuration for the UI
+	// served by the proxy service
+	KindUIConfig = "ui_config"
+
 	// KindClusterAlert is a resource that conveys a cluster-level alert message.
 	KindClusterAlert = "cluster_alert"
 
@@ -305,6 +322,37 @@ const (
 
 	// KindLoginRule is a login rule resource.
 	KindLoginRule = "login_rule"
+
+	// KindPlugin represents a plugin instance
+	KindPlugin = "plugin"
+
+	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
+	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
+
+	// KindUserGroup is an externally sourced user group.
+	KindUserGroup = "user_group"
+
+	// KindOktaImportRule is a rule for importing Okta objects.
+	KindOktaImportRule = "okta_import_rule"
+
+	// KindOktaAssignment is a set of actions to apply to Okta.
+	KindOktaAssignment = "okta_assignment"
+
+	// KindHeadlessAuthentication is a headless authentication resource.
+	KindHeadlessAuthentication = "headless_authentication"
+
+	// KindIntegration is a connection to a 3rd party system API.
+	KindIntegration = "integration"
+
+	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
+	KindClusterMaintenanceConfig = "cluster_maintenance_config"
+
+	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
+	// window singleton resource.
+	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
+
+	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
+	KindWatchStatus = "watch_status"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"
@@ -327,7 +375,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -359,6 +407,10 @@ const (
 	// VerbEnroll allows enrollment of trusted devices.
 	// Device Trust is a Teleport Enterprise feature.
 	VerbEnroll = "enroll"
+
+	// VerbUse allows the usage of an Integration.
+	// Roles with this verb can issue API calls using the integration.
+	VerbUse = "use"
 )
 
 const (
@@ -393,6 +445,10 @@ const (
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
 
+	// OriginOkta is an origin value indicating that the resource was
+	// created from the Okta service.
+	OriginOkta = "okta"
+
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -401,6 +457,14 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// SubscriptionIDLabel is used to identify virtual machines by Azure
+	// subscription ID found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel is used to identify virtual machines by ID found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	VMIDLabel = TeleportNamespace + "/vm-id"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
@@ -429,7 +493,14 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
+var OriginValues = []string{
+	OriginDefaults,
+	OriginConfigFile,
+	OriginDynamic,
+	OriginCloud,
+	OriginKubernetes,
+	OriginOkta,
+}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -475,6 +546,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
+	OktaTunnel TunnelType = "okta"
 )
 
 type TunnelStrategyType string

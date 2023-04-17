@@ -182,6 +182,17 @@ func (a *AppV3) SetDynamicLabels(dl map[string]CommandLabel) {
 	a.Spec.DynamicLabels = LabelsToV2(dl)
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (a *AppV3) GetLabel(key string) (value string, ok bool) {
+	if cmd, ok := a.Spec.DynamicLabels[key]; ok {
+		return cmd.Result, ok
+	}
+
+	v, ok := a.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns the app combined static and dynamic labels.
 func (a *AppV3) GetAllLabels() map[string]string {
 	return CombineLabels(a.Metadata.Labels, a.Spec.DynamicLabels)
@@ -251,7 +262,11 @@ func (a *AppV3) IsGCP() bool {
 
 // IsTCP returns true if this app represents a TCP endpoint.
 func (a *AppV3) IsTCP() bool {
-	return strings.HasPrefix(a.Spec.URI, "tcp://")
+	return IsAppTCP(a.Spec.URI)
+}
+
+func IsAppTCP(uri string) bool {
+	return strings.HasPrefix(uri, "tcp://")
 }
 
 // GetProtocol returns the application protocol.
@@ -335,7 +350,7 @@ func (a *AppV3) CheckAndSetDefaults() error {
 		host = url.Host
 	}
 
-	// DEPRECATED DELETE IN 11.0 use KubeTeleportProxyALPNPrefix check only.
+	// DEPRECATED DELETE IN 14.0 use KubeTeleportProxyALPNPrefix check only.
 	if strings.HasPrefix(host, constants.KubeSNIPrefix) {
 		return trace.BadParameter("app %q DNS prefix found in %q public_url is reserved for internal usage",
 			constants.KubeSNIPrefix, a.Spec.PublicAddr)

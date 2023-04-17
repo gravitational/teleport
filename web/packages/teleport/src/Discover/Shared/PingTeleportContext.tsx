@@ -1,17 +1,32 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import React, { useCallback, useContext, useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
-import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
-import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
+import {
+  INTERNAL_RESOURCE_ID_LABEL_KEY,
+  JoinToken,
+} from 'teleport/services/joinToken';
 import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 
 interface PingTeleportContextState<T> {
   active: boolean;
-  start: () => void;
-  setAlternateSearchTerm: (resourceName: string) => void;
-  timeout: number;
-  timedOut: boolean;
+  start: (tokenOrTerm: JoinToken | string) => void;
   result: T | null;
 }
 
@@ -19,25 +34,28 @@ const pingTeleportContext =
   React.createContext<PingTeleportContextState<any>>(null);
 
 export function PingTeleportProvider<T>(props: {
-  timeout: number;
   interval?: number;
   children?: React.ReactNode;
   resourceKind: ResourceKind;
 }) {
   const ctx = useTeleport();
 
+  // Start in an inactive state so that polling doesn't begin
+  // until a call to usePingTeleport passes in the joinToken or
+  // searchTerm.
   const [active, setActive] = useState(false);
-  const [timeout, setPollTimeout] = useState<number>(null);
 
-  // alternateSearchTerm when set will be used as the search term
-  // instead of the default search term which is the internal resource ID.
-  // Only applies to certain resource's eg: looking up database server
-  // that proxies a database that goes by this alternateSearchTerm (eg. resourceName).
-  const [alternateSearchTerm, setAlternateSearchTerm] = useState('');
+  // searchTerm can be passed in by the caller of usePingTeleport
+  // to be used as the search term.
+  // Applies to certain resource's eg: looking up database server
+  // that proxies a database that goes by this searchTerm (eg. resourceName).
+  const [searchTerm, setSearchTerm] = useState('');
 
-  const joinToken = useJoinTokenValue();
+  // joinToken can be passed in by the caller of usePingTeleport to have its
+  // internalResourceId used as the search term.
+  const [joinToken, setJoinToken] = useState<JoinToken | null>(null);
 
-  const { timedOut, result } = usePoll<T>(
+  const result = usePoll<T>(
     signal =>
       servicesFetchFn(signal).then(res => {
         if (res.agents.length) {
@@ -46,21 +64,20 @@ export function PingTeleportProvider<T>(props: {
 
         return null;
       }),
-    timeout,
     active,
     props.interval
   );
 
   function servicesFetchFn(signal: AbortSignal) {
     const clusterId = ctx.storeUser.getClusterId();
-    let search = `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
-    if (alternateSearchTerm) {
-      search = alternateSearchTerm;
-    }
+    const search =
+      searchTerm ||
+      `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
     const request = {
       search,
       limit: 1,
     };
+
     switch (props.resourceKind) {
       case ResourceKind.Server:
         return ctx.nodeService.fetchNodes(clusterId, request, signal);
@@ -74,26 +91,26 @@ export function PingTeleportProvider<T>(props: {
         return ctx.kubeService.fetchKubernetes(clusterId, request, signal);
       case ResourceKind.Database:
         return ctx.databaseService.fetchDatabases(clusterId, request, signal);
-      // TODO (when we start implementing them)
-      // the fetch XXX needs a param defined for abort signal
-      // case 'app':
     }
   }
 
-  useEffect(() => {
-    if (active && Date.now() > timeout) {
-      setActive(false);
+  // start is called by usePingTeleport. It begins polling if polling is not
+  // yet active AND we haven't yet found a result.
+  // start updates state to start polling.
+  const start = useCallback((tokenOrTerm: JoinToken | string) => {
+    if (typeof tokenOrTerm === 'string') {
+      setSearchTerm(tokenOrTerm);
+    } else {
+      setJoinToken(tokenOrTerm);
     }
-  }, [active, timeout, timedOut]);
-
-  const start = useCallback(() => {
-    setPollTimeout(Date.now() + props.timeout);
     setActive(true);
-  }, [props.timeout]);
+  }, []);
 
   useEffect(() => {
     if (result) {
-      setPollTimeout(null);
+      // Once we get a result, stop the polling.
+      // This result will be passed down to all consumers of
+      // this context.
       setActive(false);
     }
   }, [result]);
@@ -104,9 +121,6 @@ export function PingTeleportProvider<T>(props: {
         active,
         start,
         result,
-        timedOut,
-        timeout,
-        setAlternateSearchTerm,
       }}
     >
       {props.children}
@@ -114,13 +128,18 @@ export function PingTeleportProvider<T>(props: {
   );
 }
 
-export function usePingTeleport<T>(alternateSearchTerm?: string) {
+/**
+ * usePingTeleport, when first called within a component hierarchy wrapped by
+ * PingTeleportProvider, will poll the server for the resource described by
+ * the internal resource id on the joinToken or the search term.
+ */
+export function usePingTeleport<T>(tokenOrTerm: JoinToken | string) {
   const ctx = useContext<PingTeleportContextState<T>>(pingTeleportContext);
 
   useEffect(() => {
-    if (!ctx.active) {
-      ctx.start();
-      ctx.setAlternateSearchTerm(alternateSearchTerm);
+    // start polling only on the first call to usePingTeleport
+    if (!ctx.active && !ctx.result) {
+      ctx.start(tokenOrTerm);
     }
   }, []);
 

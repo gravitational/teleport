@@ -44,17 +44,15 @@ export const apps = [
     fqdn: 'mattermost.one',
   },
   {
-    name: 'Grafana',
-    uri: 'https://grafana.teleport-proxy.com',
-    publicAddr: 'grafana.teleport-proxy.com',
-    description: 'This is a Grafana app',
-    awsConsole: false,
+    name: 'TCP',
+    uri: 'tcp://some-address',
+    publicAddr: '',
+    description: 'This is a TCP app',
     labels: [
       { name: 'env', value: 'dev' },
       { name: 'cluster', value: 'one' },
     ],
     clusterId: 'one',
-    fqdn: 'grafana.one',
   },
   {
     name: 'aws-console-1',
@@ -79,5 +77,16 @@ export const apps = [
     ],
     clusterId: 'one',
     fqdn: 'awsconsole-1.com',
+  },
+  {
+    name: 'Cloud',
+    uri: 'cloud://some-address',
+    publicAddr: '',
+    description: 'This is a Cloud specific app',
+    labels: [
+      { name: 'env', value: 'dev' },
+      { name: 'cluster', value: 'one' },
+    ],
+    clusterId: 'one',
   },
 ].map(makeApp);

@@ -82,9 +82,9 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 	return nil
 }
 
-// startResourceWatcher starts watching changes to Kube Clusters resources and
+// startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
-func (s *TLSServer) startResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
+func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.KubeClusterWatcher, error) {
 	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
 		s.log.Debug("Not initializing Kube Cluster resource watcher.")
 		return nil, nil
@@ -208,13 +208,24 @@ func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeClu
 	return nil
 }
 
+// unregisterKubeCluster unregisters the proxied Kube Cluster from the agent.
+// This function is called when the dynamic cluster is deleted/no longer match
+// the agent's resource matcher or when the agent is shutting down.
 func (s *TLSServer) unregisterKubeCluster(ctx context.Context, name string) error {
 	var errs []error
 
 	errs = append(errs, s.stopHeartbeat(name))
 	s.fwd.removeKubeDetails(name)
-	errs = append(errs, s.deleteKubernetesServer(ctx, name))
 
+	// A child process can be forked to upgrade the Teleport binary. The child
+	// will take over the heartbeats so do NOT delete them in that case.
+	// When unregistering a dynamic cluster, the context is empty and the
+	// decision will be to delete the kubernetes server.
+	if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+		errs = append(errs, s.deleteKubernetesServer(ctx, name))
+	}
+
+	// close active sessions before returning.
 	s.fwd.mu.Lock()
 	sessions := maps.Values(s.fwd.sessions)
 	s.fwd.mu.Unlock()

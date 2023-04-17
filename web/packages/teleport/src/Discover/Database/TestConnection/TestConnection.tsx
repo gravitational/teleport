@@ -22,6 +22,7 @@ import Select, { Option } from 'shared/components/Select';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import {
   ActionButtons,
@@ -29,6 +30,7 @@ import {
   HeaderWithBackBtn,
   ConnectionDiagnosticResult,
 } from '../../Shared';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -51,6 +53,9 @@ export function TestConnectionView({
   authType,
   username,
   clusterId,
+  dbEngine,
+  showMfaDialog,
+  cancelMfaDialog,
 }: State) {
   const userOpts = db.users.map(l => ({ value: l, label: l }));
   const nameOpts = db.names.map(l => ({ value: l, label: l }));
@@ -60,8 +65,26 @@ export function TestConnectionView({
   const [selectedUser, setSelectedUser] = useState(userOpts[0]);
   const [selectedName, setSelectedName] = useState(nameOpts[0]);
 
+  let tshDbCmd = `tsh db connect ${db.name} --db-user=${selectedUser.value}`;
+  if (selectedName) {
+    tshDbCmd += ` --db-name=${selectedName.value}`;
+  }
+
+  function makeTestConnRequest() {
+    return {
+      name: selectedName?.value,
+      user: selectedUser?.value,
+    };
+  }
+
   return (
     <Box>
+      {showMfaDialog && (
+        <ReAuthenticate
+          onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
+          onClose={cancelMfaDialog}
+        />
+      )}
       <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the Database you
@@ -105,6 +128,8 @@ export function TestConnectionView({
             isDisabled={
               attempt.status === 'processing' || nameOpts.length === 0
             }
+            // Database name is required for Postgres.
+            isClearable={dbEngine !== DatabaseEngine.Postgres}
           />
         </Box>
       </StyledBox>
@@ -112,12 +137,7 @@ export function TestConnectionView({
         attempt={attempt}
         diagnosis={diagnosis}
         canTestConnection={canTestConnection}
-        testConnection={() =>
-          testConnection({
-            name: selectedName.value,
-            user: selectedUser.value,
-          })
-        }
+        testConnection={() => testConnection(makeTestConnRequest())}
         stepNumber={2}
         stepDescription="Verify that your database is accessible"
       />
@@ -138,10 +158,7 @@ export function TestConnectionView({
         </Box>
         <Box mb={2}>
           Connect to your database
-          <TextSelectCopy
-            mt="1"
-            text={`tsh db connect ${db.name} --db-user=${selectedUser.value} --db-name=${selectedName.value}`}
-          />
+          <TextSelectCopy mt="1" text={tshDbCmd} />
         </Box>
       </StyledBox>
       <ActionButtons onProceed={nextStep} lastStep={true} />

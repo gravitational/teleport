@@ -16,52 +16,49 @@
 
 import React from 'react';
 
-import { Desktop } from 'design/Icon';
-
 import { Finished, ResourceKind } from 'teleport/Discover/Shared';
 
 import { ConnectTeleport } from 'teleport/Discover/Desktop/ConnectTeleport';
 import { DiscoverDesktops } from 'teleport/Discover/Desktop/DiscoverDesktops';
 import { InstallActiveDirectory } from 'teleport/Discover/Desktop/InstallActiveDirectory';
 
-import { Resource } from 'teleport/Discover/flow';
+import { ResourceViewConfig } from 'teleport/Discover/flow';
 
 import { DesktopWrapper } from 'teleport/Discover/Desktop/DesktopWrapper';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
-export const DesktopResource: Resource = {
+export const DesktopResource: ResourceViewConfig = {
   kind: ResourceKind.Desktop,
-  icon: <Desktop />,
   wrapper: (component: React.ReactNode) => (
     <DesktopWrapper>{component}</DesktopWrapper>
   ),
   shouldPrompt(currentStep) {
-    // do not prompt on exit if they're selecting a resource
-    if (currentStep === 0) {
-      return false;
-    }
-
     // prompt them up if they try exiting before having finished the ConnectTeleport step
     return currentStep < 3;
   },
   views: [
     {
-      title: 'Select Resource Type',
-    },
-    {
       title: 'Install Active Directory',
       component: InstallActiveDirectory,
+      eventName: DiscoverEvent.DesktopActiveDirectoryToolsInstall,
     },
     {
       title: 'Connect Teleport',
       component: ConnectTeleport,
+      // Sub-step events are handled inside its component.
+      // This eventName defines the event to emit for the `last` sub-step.
+      eventName: DiscoverEvent.DeployService,
     },
     {
       title: 'Discover Desktops',
       component: DiscoverDesktops,
+      eventName: DiscoverEvent.AutoDiscoveredResources,
+      manuallyEmitSuccessEvent: true,
     },
     {
       title: 'Finished',
       component: Finished,
+      eventName: DiscoverEvent.Completed,
       hide: true,
     },
   ],

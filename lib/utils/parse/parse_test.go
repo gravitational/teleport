@@ -115,6 +115,13 @@ func TestVariable(t *testing.T) {
 			},
 		},
 		{
+			title: "invalid namespaces are allowed",
+			in:    "{{foo.bar}}",
+			out: Expression{
+				expr: variable("foo", "bar"),
+			},
+		},
+		{
 			title: "internal with no brackets",
 			in:    "{{internal.bar}}",
 			out: Expression{

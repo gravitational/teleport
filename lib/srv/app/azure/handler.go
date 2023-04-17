@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
-	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // HandlerConfig is the configuration for an Azure app-access handler.
@@ -173,7 +172,7 @@ func (s *handler) prepareForwardRequest(r *http.Request, sessionCtx *common.Sess
 		return nil, trace.AccessDenied("%q is not an Azure endpoint", forwardedHost)
 	}
 
-	payload, err := awsutils.GetAndReplaceReqBody(r)
+	payload, err := utils.GetAndReplaceRequestBody(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

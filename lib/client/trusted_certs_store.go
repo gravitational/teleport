@@ -141,7 +141,6 @@ func (ms *MemTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) ([]ssh.P
 		for _, entry := range proxyEntries {
 			// Mirror the hosts we would find in a known_hosts entry.
 			hosts := []string{proxyHost, entry.ClusterName, "*." + entry.ClusterName}
-
 			if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts) {
 				clusterHostKeys, err := apisshutils.ParseAuthorizedKeys(entry.AuthorizedKeys)
 				if err != nil {
@@ -204,14 +203,23 @@ func (fs *FSTrustedCertsStore) tlsCAsPath(proxy string) string {
 func (fs *FSTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]auth.TrustedCerts, error) {
 	tlsCA, err := fs.GetTrustedCertsPEM(proxyHost)
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		return nil, trace.Wrap(err)
 	}
-	knownHosts, err := fs.getKnownHostsFile()
+	knownHostsFile, err := fs.getKnownHostsFile()
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
+		return nil, trace.Wrap(err)
 	}
-
-	return TrustedCertsFromCACerts(proxyHost, tlsCA, [][]byte{knownHosts})
+	knownHosts, err := sshutils.UnmarshalKnownHosts([][]byte{knownHostsFile})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var knownHostsForProxy []sshutils.KnownHost
+	for _, kh := range knownHosts {
+		if kh.ProxyHost == proxyHost {
+			knownHostsForProxy = append(knownHostsForProxy, kh)
+		}
+	}
+	return TrustedCertsFromCACerts(tlsCA, knownHostsForProxy)
 }
 
 // GetTrustedHostKeys returns all trusted public host keys. If hostnames are provided, only
@@ -219,7 +227,7 @@ func (fs *FSTrustedCertsStore) GetTrustedCerts(proxyHost string) ([]auth.Trusted
 func (fs *FSTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) (keys []ssh.PublicKey, retErr error) {
 	knownHosts, err := fs.getKnownHostsFile()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
 
 	// Return all known host keys with one of the given cluster names or proxyHost as a hostname.
@@ -229,7 +237,7 @@ func (fs *FSTrustedCertsStore) GetTrustedHostKeys(hostnames ...string) (keys []s
 func (fs *FSTrustedCertsStore) getKnownHostsFile() (knownHosts []byte, retErr error) {
 	unlock, err := utils.FSTryReadLockTimeout(context.Background(), fs.knownHostsPath(), 5*time.Second)
 	if os.IsNotExist(err) {
-		return nil, trace.NotFound("please relogin, tsh user profile doesn't contain known_hosts: %s", fs.Dir)
+		return nil, nil
 	} else if err != nil {
 		return nil, trace.WrapWithMessage(err, "could not acquire lock for the `known_hosts` file")
 	}
@@ -433,7 +441,7 @@ func (fs *FSTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, e
 
 	if _, err := os.Stat(dir); err != nil {
 		if os.IsNotExist(err) {
-			return nil, trace.NotFound("please relogin, tsh user profile doesn't contain CAS directory: %s", dir)
+			return nil, nil
 		}
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -476,11 +484,12 @@ func (fs *FSTrustedCertsStore) GetTrustedCertsPEM(proxyHost string) ([][]byte, e
 	return blocks, nil
 }
 
-func TrustedCertsFromCACerts(proxyHost string, tlsCACerts, knownHosts [][]byte) ([]auth.TrustedCerts, error) {
+// TrustedCertsFromCACerts converts the given TLS CA certificates and KnownHosts files into
+// a list of Trusted Certs. If a proxyHost is specified, only known hosts with that proxy host
+// as one of its hostnames are returned.
+func TrustedCertsFromCACerts(tlsCACerts [][]byte, knownHosts []sshutils.KnownHost) ([]auth.TrustedCerts, error) {
 	clusterCAs := make(map[string]*auth.TrustedCerts)
 
-	// Loop through TLS CA certificates to create trusted certs entries
-	// for known cluster names.
 	for _, certPEM := range tlsCACerts {
 		cert, err := tlsca.ParseCertificatePEM(certPEM)
 		if err != nil {
@@ -498,20 +507,17 @@ func TrustedCertsFromCACerts(proxyHost string, tlsCACerts, knownHosts [][]byte) 
 		}
 	}
 
-	// Parse authorized hosts. If the authorized host is for the given proxy host,
-	// add the authorized host to the trusted certs entries.
-	parsedKnownHosts, err := sshutils.UnmarshalKnownHosts(knownHosts)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, kh := range parsedKnownHosts {
-		if kh.ProxyHost == proxyHost {
-			if _, ok := clusterCAs[kh.Hostname]; !ok {
-				clusterCAs[kh.Hostname] = &auth.TrustedCerts{
-					ClusterName: kh.Hostname,
-				}
+	for _, kh := range knownHosts {
+		if kh.Hostname == "" {
+			continue
+		}
+		if entry, ok := clusterCAs[kh.Hostname]; !ok {
+			clusterCAs[kh.Hostname] = &auth.TrustedCerts{
+				ClusterName:    kh.Hostname,
+				AuthorizedKeys: [][]byte{kh.AuthorizedKey},
 			}
-			clusterCAs[kh.Hostname].AuthorizedKeys = append(clusterCAs[kh.Hostname].AuthorizedKeys, kh.AuthorizedKey)
+		} else {
+			entry.AuthorizedKeys = append(entry.AuthorizedKeys, kh.AuthorizedKey)
 		}
 	}
 

@@ -23,7 +23,10 @@ import (
 // ****** These need to be updated on each major release. ******
 // ****** After updating, "make dronegen" must be reran.  ******
 // *************************************************************
+// These should match up when a feature branch is cut, but should be off by
+// one on master
 const branchMajorVersion int = 13
+const latestReleaseVersion int = 12
 
 func buildPipelineVersions() (string, []string) {
 	branchMajorSemver := fmt.Sprintf("v%d", branchMajorVersion)
@@ -31,7 +34,7 @@ func buildPipelineVersions() (string, []string) {
 	updateVersionCount := 3
 	imageUpdateSemvers := make([]string, updateVersionCount)
 	for i := 0; i < updateVersionCount; i++ {
-		imageUpdateSemvers[i] = fmt.Sprintf("v%d", branchMajorVersion-i)
+		imageUpdateSemvers[i] = fmt.Sprintf("v%d", latestReleaseVersion-i)
 	}
 
 	return branchMajorSemver, imageUpdateSemvers

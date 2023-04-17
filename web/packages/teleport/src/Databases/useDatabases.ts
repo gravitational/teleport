@@ -14,155 +14,47 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router';
-import { FetchStatus, SortType } from 'design/DataTable/types';
-import useAttempt from 'shared/hooks/useAttemptNext';
+import { useEffect } from 'react';
 
 import Ctx from 'teleport/teleportContext';
-import getResourceUrlQueryParams, {
-  ResourceUrlQueryParams,
-} from 'teleport/getUrlQueryParams';
 import useStickyClusterId from 'teleport/useStickyClusterId';
-import history from 'teleport/services/history';
-import { DatabasesResponse } from 'teleport/services/databases';
-import labelClick from 'teleport/labelClick';
-import { AgentLabel } from 'teleport/services/agents';
+import {
+  useUrlFiltering,
+  useServerSidePagination,
+} from 'teleport/components/hooks';
 
-export default function useDatabases(ctx: Ctx) {
-  const { search, pathname } = useLocation();
-  const [startKeys, setStartKeys] = useState<string[]>([]);
-  const { attempt, setAttempt } = useAttempt('processing');
+export function useDatabases(ctx: Ctx) {
   const { clusterId, isLeafCluster } = useStickyClusterId();
   const username = ctx.storeUser.state.username;
   const canCreate = ctx.storeUser.getTokenAccess().create;
   const authType = ctx.storeUser.state.authType;
   const accessRequestId = ctx.storeUser.getAccessRequestId();
-  const [fetchStatus, setFetchStatus] = useState<FetchStatus>('');
-  const [params, setParams] = useState<ResourceUrlQueryParams>({
-    sort: { fieldName: 'name', dir: 'ASC' },
-    ...getResourceUrlQueryParams(search),
+
+  const { params, search, ...filteringProps } = useUrlFiltering({
+    fieldName: 'name',
+    dir: 'ASC',
   });
 
-  const isSearchEmpty = !params?.query && !params?.search;
-
-  const [results, setResults] = useState<DatabasesResponse>({
-    databases: [],
-    startKey: '',
-    totalCount: 0,
+  const { fetch, ...paginationProps } = useServerSidePagination({
+    fetchFunc: ctx.databaseService.fetchDatabases,
+    clusterId,
+    params,
   });
-
-  const pageSize = 15;
-
-  const from =
-    results.totalCount > 0 ? (startKeys.length - 2) * pageSize + 1 : 0;
-  const to = results.totalCount > 0 ? from + results.databases.length - 1 : 0;
 
   useEffect(() => {
-    fetchDatabases();
+    fetch();
   }, [clusterId, search]);
 
-  function setSort(sort: SortType) {
-    setParams({ ...params, sort });
-  }
-
-  function replaceHistory(path: string) {
-    history.replace(path);
-  }
-
-  function fetchDatabases() {
-    setAttempt({ status: 'processing' });
-    ctx.databaseService
-      .fetchDatabases(clusterId, { ...params, limit: pageSize })
-      .then(res => {
-        setResults({
-          databases: res.agents,
-          startKey: res.startKey,
-          totalCount: res.totalCount,
-        });
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys(['', res.startKey]);
-        setAttempt({ status: 'success' });
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-        setResults({ ...results, databases: [], totalCount: 0 });
-        setStartKeys(['']);
-      });
-  }
-
-  const fetchNext = () => {
-    setFetchStatus('loading');
-    ctx.databaseService
-      .fetchDatabases(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: results.startKey,
-      })
-      .then(res => {
-        setResults({
-          ...results,
-          databases: res.agents,
-          startKey: res.startKey,
-        });
-        setFetchStatus(res.startKey ? '' : 'disabled');
-        setStartKeys([...startKeys, res.startKey]);
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
-
-  const fetchPrev = () => {
-    setFetchStatus('loading');
-    ctx.databaseService
-      .fetchDatabases(clusterId, {
-        ...params,
-        limit: pageSize,
-        startKey: startKeys[startKeys.length - 3],
-      })
-      .then(res => {
-        const tempStartKeys = startKeys;
-        tempStartKeys.pop();
-        setStartKeys(tempStartKeys);
-        setResults({
-          ...results,
-          databases: res.agents,
-          startKey: res.startKey,
-        });
-        setFetchStatus('');
-      })
-      .catch((err: Error) => {
-        setAttempt({ status: 'failed', statusText: err.message });
-      });
-  };
-
-  const onLabelClick = (label: AgentLabel) =>
-    labelClick(label, params, setParams, pathname, replaceHistory);
-
   return {
-    attempt,
     canCreate,
     isLeafCluster,
     username,
     clusterId,
     authType,
-    results,
-    fetchNext,
-    fetchPrev,
-    pageSize,
-    from,
-    to,
     params,
-    setParams,
-    startKeys,
-    setSort,
-    pathname,
-    replaceHistory,
-    fetchStatus,
-    isSearchEmpty,
-    onLabelClick,
     accessRequestId,
+    ...filteringProps,
+    ...paginationProps,
   };
 }
 

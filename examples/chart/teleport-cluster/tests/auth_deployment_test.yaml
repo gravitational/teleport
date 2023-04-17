@@ -325,6 +325,17 @@ tests:
             name: SOME_ENVIRONMENT_VARIABLE
             value: "some-value"
 
+  - it: should set imagePullSecrets when set in values
+    template: auth/deployment.yaml
+    values:
+      - ../.lint/imagepullsecrets.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: myRegistryKeySecretName
+      - matchSnapshot:
+          path: spec.template.spec.imagePullSecrets
+
   - it: should provision initContainer correctly when set in values
     template: auth/deployment.yaml
     values:
@@ -397,6 +408,30 @@ tests:
           content:
             name: diag
             containerPort: 3000
+            protocol: TCP
+
+  - it: should expose auth port
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: auth
+            containerPort: 3025
+            protocol: TCP
+
+  - it: should expose kube port
+    template: auth/deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: kube
+            containerPort: 3026
             protocol: TCP
 
   - it: should set postStart command if set in values

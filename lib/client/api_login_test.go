@@ -49,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
@@ -141,11 +142,16 @@ func TestTeleportClient_Login_local(t *testing.T) {
 		}
 
 		// Realistically, this would happen too.
-		if err := prompt.PromptTouch(); err != nil {
+		ackTouch, err := prompt.PromptTouch()
+		if err != nil {
 			return nil, err
 		}
 
-		return solveWebauthn(ctx, origin, assertion, prompt)
+		resp, err := solveWebauthn(ctx, origin, assertion, prompt)
+		if err != nil {
+			return nil, err
+		}
+		return resp, ackTouch()
 	}
 
 	ctx := context.Background()
@@ -556,7 +562,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	user.AddRole(role.GetName())
 
 	// AuthServer setup.
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
 	cfg.Clock = clock
@@ -638,7 +644,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	require.NoError(t, authServer.UpsertMFADevice(ctx, username, otpDevice))
 
 	// Proxy setup.
-	cfg = service.MakeDefaultConfig()
+	cfg = servicecfg.MakeDefaultConfig()
 	cfg.DataDir = t.TempDir()
 	cfg.Hostname = "localhost"
 	cfg.SetToken(staticToken)
@@ -673,7 +679,7 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	}
 }
 
-func startAndWait(t *testing.T, cfg *service.Config, eventName string) *service.TeleportProcess {
+func startAndWait(t *testing.T, cfg *servicecfg.Config, eventName string) *service.TeleportProcess {
 	instance, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
 	require.NoError(t, instance.Start())

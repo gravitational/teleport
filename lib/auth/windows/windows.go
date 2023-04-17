@@ -107,7 +107,7 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 	// CRLs in it. Each service can also handle RDP connections for a different
 	// domain, with the assumption that some other windows_desktop_service
 	// published a CRL there.
-	crlDN := crlDN(req.ClusterName, req.LDAPConfig)
+	crlDN := crlDN(req.ClusterName, req.LDAPConfig, req.CAType)
 	return &certRequest{csrPEM: csrPEM, crlEndpoint: fmt.Sprintf("ldap:///%s?certificateRevocationList?base?objectClass=cRLDistributionPoint", crlDN), keyDER: keyDER}, nil
 }
 
@@ -118,7 +118,7 @@ type AuthInterface interface {
 	// GenerateWindowsDesktopCert generates a windows remote desktop certificate
 	GenerateWindowsDesktopCert(context.Context, *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error)
 	// GetCertAuthority returns a types.CertAuthority interface
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 	// GetClusterName returns a types.ClusterName interface
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
 }
@@ -142,6 +142,9 @@ type GenerateCredentialsRequest struct {
 	LDAPConfig LDAPConfig
 	// AuthClient is the windows AuthInterface
 	AuthClient AuthInterface
+	// CAType is the certificate authority type used to generate the certificate.
+	// This is used to proper generate the CRL LDAP path.
+	CAType types.CertAuthType
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
@@ -181,10 +184,10 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, req *GenerateCredent
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
+func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRequest) (certDER, keyDER []byte, caCerts [][]byte, err error) {
 	certReq, err := getCertRequest(req)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	genResp, err := req.AuthClient.GenerateDatabaseCert(ctx, &proto.DatabaseCertRequest{
 		CSR: certReq.csrPEM,
@@ -201,19 +204,19 @@ func generateDatabaseCredentials(ctx context.Context, req *GenerateCredentialsRe
 		CertificateExtensions: proto.DatabaseCertRequest_WINDOWS_SMARTCARD,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
 	certDER = certBlock.Bytes
 	keyDER = certReq.keyDER
-	return certDER, keyDER, nil
+	return certDER, keyDER, genResp.CACerts, nil
 }
 
 // CertKeyPEM returns certificate and private key bytes encoded in PEM format for use with `kinit`
-func CertKeyPEM(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, err error) {
-	certDER, keyDER, err := generateDatabaseCredentials(ctx, req)
+func CertKeyPEM(ctx context.Context, req *GenerateCredentialsRequest) (certPEM, keyPEM []byte, caCerts [][]byte, err error) {
+	certDER, keyDER, caCerts, err := generateDatabaseCredentials(ctx, req)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, nil, nil, trace.Wrap(err)
 	}
 
 	certPEM = pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})

@@ -25,12 +25,16 @@ import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentSsh } from 'teleport/Console/stores';
 
-import type { Session, SessionMetadata } from 'teleport/services/session';
+import type {
+  ParticipantMode,
+  Session,
+  SessionMetadata,
+} from 'teleport/services/session';
 
 const tracer = trace.getTracer('TTY');
 
 export default function useSshSession(doc: DocumentSsh) {
-  const { clusterId, sid, serverId, login } = doc;
+  const { clusterId, sid, serverId, login, mode } = doc;
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
@@ -43,13 +47,13 @@ export default function useSshSession(doc: DocumentSsh) {
 
   React.useEffect(() => {
     // initializes tty instances
-    function initTty(session) {
+    function initTty(session, mode?: ParticipantMode) {
       tracer.startActiveSpan(
         'initTTY',
         undefined, // SpanOptions
         context.active(),
         span => {
-          const tty = ctx.createTty(session);
+          const tty = ctx.createTty(session, mode);
 
           // subscribe to tty events to handle connect/disconnects events
           tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
@@ -79,12 +83,15 @@ export default function useSshSession(doc: DocumentSsh) {
       ttyRef.current && ttyRef.current.removeAllListeners();
     }
 
-    initTty({
-      login,
-      serverId,
-      clusterId,
-      sid,
-    });
+    initTty(
+      {
+        login,
+        serverId,
+        clusterId,
+        sid,
+      },
+      mode
+    );
 
     return cleanup;
 

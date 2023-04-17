@@ -13,18 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+import { useEffect, useState } from 'react';
 
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import useTeleport from 'teleport/useTeleport';
-// import { usePoll } from 'teleport/Discover/Shared/usePoll';
+import { useDiscover } from 'teleport/Discover/useDiscover';
+import { usePoll } from 'teleport/Discover/Shared/usePoll';
+import { compareByString } from 'teleport/lib/util';
 
-import { Database } from '../resources';
+import { matchLabels, makeLabelMaps } from '../util';
 
 import type { AgentStepProps } from '../../types';
 import type {
   CreateDatabaseRequest,
-  // Database as DatabaseResource,
+  Database as DatabaseResource,
   DatabaseService,
 } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
@@ -36,9 +39,15 @@ export function useCreateDatabase(props: AgentStepProps) {
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const { attempt, setAttempt } = useAttempt('');
+  const { emitErrorEvent } = useDiscover();
 
-  // const [pollTimeout, setPollTimeout] = useState(0);
-  // const [pollActive, setPollActive] = useState(false);
+  // isDbCreateErr is a flag that indicates
+  // attempt failed from trying to create a database.
+  const [isDbCreateErr, setIsDbCreateErr] = useState(false);
+
+  const [pollTimeout, setPollTimeout] = useState(0);
+  const [pollActive, setPollActive] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
 
   // Required persisted states to determine if we can skip a request
   // because there can be multiple failed points:
@@ -48,158 +57,188 @@ export function useCreateDatabase(props: AgentStepProps) {
   //    - timed out due to combined previous requests taking longer than WAITING_TIMEOUT
   //    - timed out due to failure to query (this would most likely be some kind of
   //      backend error or network failure)
-  // const [newDb, setNewDb] = useState<CreateDatabaseRequest>();
+  const [createdDb, setCreatedDb] = useState<CreateDatabaseRequest>();
 
-  // const { timedOut, result } = usePoll<DatabaseResource>(
-  //   signal => fetchDatabaseServer(signal),
-  //   pollTimeout,
-  //   pollActive,
-  //   3000 // interval: poll every 3 seconds
-  // );
+  const result = usePoll<DatabaseResource>(
+    signal => fetchDatabaseServer(signal),
+    pollActive,
+    3000 // interval: poll every 3 seconds
+  );
 
-  // // Handles polling timeout.
-  // useEffect(() => {
-  //   if (pollActive && Date.now() > pollTimeout) {
-  //     setPollActive(false);
-  //     setAttempt({
-  //       status: 'failed',
-  //       statusText:
-  //         'Teleport could not detect your new database in time. Please try again.',
-  //     });
-  //   }
-  // }, [pollActive, pollTimeout, timedOut]);
+  // Handles polling timeout.
+  useEffect(() => {
+    if (pollActive && pollTimeout > Date.now()) {
+      const id = window.setTimeout(() => {
+        setTimedOut(true);
+      }, pollTimeout - Date.now());
 
-  // // Handles when polling successfully gets
-  // // a response.
-  // useEffect(() => {
-  //   if (!result) return;
+      return () => clearTimeout(id);
+    }
+  }, [pollActive, pollTimeout]);
 
-  //   setPollTimeout(null);
-  //   setPollActive(false);
+  useEffect(() => {
+    if (timedOut) {
+      // reset timer fields and set errors.
+      setPollTimeout(null);
+      setPollActive(false);
+      setTimedOut(false);
+      setAttempt({
+        status: 'failed',
+        statusText:
+          'Teleport could not detect your new database in time. Please try again.',
+      });
+      emitErrorEvent(
+        `timeout polling for new database with an existing service`
+      );
+    }
+  }, [timedOut]);
 
-  //   const numStepsToSkip = 2;
-  //   props.updateAgentMeta({
-  //     ...(props.agentMeta as DbMeta),
-  //     resourceName: newDb.name,
-  //     agentMatcherLabels: newDb.labels,
-  //     db: result,
-  //   });
+  // Handles when polling successfully gets
+  // a response.
+  useEffect(() => {
+    if (!result) return;
 
-  //   props.nextStep(numStepsToSkip);
-  // }, [result]);
+    setPollTimeout(null);
+    setPollActive(false);
 
-  // function fetchDatabaseServer(signal: AbortSignal) {
-  //   const request = {
-  //     search: newDb.name,
-  //     limit: 1,
-  //   };
-  //   return ctx.databaseService
-  //     .fetchDatabases(clusterId, request, signal)
-  //     .then(res => {
-  //       if (res.agents.length) {
-  //         return res.agents[0];
-  //       }
-  //       return null;
-  //     });
-  // }
+    const numStepsToSkip = 2;
+    props.updateAgentMeta({
+      ...(props.agentMeta as DbMeta),
+      resourceName: createdDb.name,
+      agentMatcherLabels: createdDb.labels,
+      db: result,
+    });
+
+    props.nextStep(numStepsToSkip);
+  }, [result]);
+
+  function fetchDatabaseServer(signal: AbortSignal) {
+    const request = {
+      search: createdDb.name,
+      limit: 1,
+    };
+    return ctx.databaseService
+      .fetchDatabases(clusterId, request, signal)
+      .then(res => {
+        if (res.agents.length) {
+          return res.agents[0];
+        }
+        return null;
+      });
+  }
 
   async function registerDatabase(db: CreateDatabaseRequest) {
-    // // Set the timeout now, because this entire registering process
-    // // should take less than WAITING_TIMEOUT.
-    // setPollTimeout(Date.now() + WAITING_TIMEOUT);
-    // setAttempt({ status: 'processing' });
+    // Set the timeout now, because this entire registering process
+    // should take less than WAITING_TIMEOUT.
+    setPollTimeout(Date.now() + WAITING_TIMEOUT);
+    setAttempt({ status: 'processing' });
+    setIsDbCreateErr(false);
 
     // Attempt creating a new Database resource.
     // Handles a case where if there was a later failure point
     // and user decides to change the database fields, a new database
     // is created (ONLY if the database name has changed since this
     // request operation is only a CREATE operation).
-    // if (!newDb || db.name != newDb.name) {
+    if (!createdDb) {
+      try {
+        await ctx.databaseService.createDatabase(clusterId, db);
+        setCreatedDb(db);
+      } catch (err) {
+        handleRequestError(err, 'failed to create database: ');
+        setIsDbCreateErr(true);
+        return;
+      }
+    }
+
+    function requiresDbUpdate() {
+      if (!createdDb) {
+        return false;
+      }
+
+      if (createdDb.labels.length === db.labels.length) {
+        // Sort by label keys.
+        const a = createdDb.labels.sort((a, b) =>
+          compareByString(a.name, b.name)
+        );
+        const b = db.labels.sort((a, b) => compareByString(a.name, b.name));
+
+        for (let i = 0; i < a.length; i++) {
+          if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) {
+            return true;
+          }
+        }
+      }
+
+      return (
+        createdDb.uri !== db.uri ||
+        createdDb.awsRds?.accountId !== db.awsRds?.accountId ||
+        createdDb.awsRds?.resourceId !== db.awsRds?.resourceId
+      );
+    }
+
+    // Check and see if database resource need to be updated.
+    if (requiresDbUpdate()) {
+      try {
+        await ctx.databaseService.updateDatabase(clusterId, {
+          ...db,
+        });
+        setCreatedDb(db);
+      } catch (err) {
+        handleRequestError(err, 'failed to update database: ');
+        return;
+      }
+    }
+
+    // See if this new database can be picked up by an existing
+    // database service. If there is no active database service,
+    // user is led to the next step.
     try {
-      const createdDb = await ctx.databaseService.createDatabase(clusterId, db);
-      // setNewDb(db);
-      props.updateAgentMeta({
-        ...(props.agentMeta as DbMeta),
-        resourceName: db.name,
-        agentMatcherLabels: db.labels,
-        db: createdDb,
-      });
-      props.nextStep();
-      return;
+      const { services } = await ctx.databaseService.fetchDatabaseServices(
+        clusterId
+      );
+
+      if (!findActiveDatabaseSvc(db.labels, services)) {
+        props.updateAgentMeta({
+          ...(props.agentMeta as DbMeta),
+          resourceName: db.name,
+          agentMatcherLabels: db.labels,
+        });
+        props.nextStep();
+        return;
+      }
     } catch (err) {
-      handleRequestError(err);
+      handleRequestError(err, 'failed to fetch database services: ');
       return;
     }
-    // }
 
-    // TODO(lisa): temporary see if we can query this database.
-    // try {
-    //   const { services } = await ctx.databaseService.fetchDatabaseServices(
-    //     clusterId
-    //   );
-
-    //   if (!findActiveDatabaseSvc(db.labels, services)) {
-    //     props.updateAgentMeta({
-    //       ...(props.agentMeta as DbMeta),
-    //       resourceName: db.name,
-    //       agentMatcherLabels: db.labels,
-    //     });
-    //     props.nextStep();
-    //     return;
-    //   }
-    // } catch (err) {
-    //   handleRequestError(err);
-    //   return;
-    // }
-
-    // // See if this new database can be picked up by an existing
-    // // database service. If there is no active database service,
-    // // user is led to the next step.
-    // try {
-    //   const { services } = await ctx.databaseService.fetchDatabaseServices(
-    //     clusterId
-    //   );
-
-    //   if (!findActiveDatabaseSvc(db.labels, services)) {
-    //     props.updateAgentMeta({
-    //       ...(props.agentMeta as DbMeta),
-    //       resourceName: db.name,
-    //       agentMatcherLabels: db.labels,
-    //     });
-    //     props.nextStep();
-    //     return;
-    //   }
-    // } catch (err) {
-    //   handleRequestError(err);
-    //   return;
-    // }
-
-    // // Start polling until new database is picked up by an
-    // // existing database service.
-    // setPollActive(true);
+    // Start polling until new database is picked up by an
+    // existing database service.
+    setPollActive(true);
   }
 
   function clearAttempt() {
     setAttempt({ status: '' });
   }
 
-  function handleRequestError(err) {
-    let message;
+  function handleRequestError(err: Error, preErrMsg = '') {
+    let message = 'something went wrong';
     if (err instanceof Error) message = err.message;
-    else message = String(err);
     setAttempt({ status: 'failed', statusText: message });
+    emitErrorEvent(`${preErrMsg}${message}`);
   }
 
   const access = ctx.storeUser.getDatabaseAccess();
-  const dbState = props.resourceState as Database;
+  const resource = props.resourceSpec;
   return {
     attempt,
     clearAttempt,
     registerDatabase,
     canCreateDatabase: access.create,
-    // pollTimeout,
-    dbEngine: dbState.engine,
-    dbLocation: dbState.location,
+    pollTimeout,
+    dbEngine: resource.dbMeta.engine,
+    dbLocation: resource.dbMeta.location,
+    isDbCreateErr,
+    prevStep: props.prevStep,
   };
 }
 
@@ -210,58 +249,29 @@ export function findActiveDatabaseSvc(
   dbServices: DatabaseService[]
 ) {
   if (!dbServices.length) {
-    return false;
+    return null;
   }
 
-  // Create a map for db labels for easy lookup.
-  let dbKeyMap = {};
-  let dbValMap = {};
+  // Create maps for easy lookup and matching.
+  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
+    makeLabelMaps(newDbLabels);
 
-  newDbLabels.forEach(label => {
-    dbKeyMap[label.name] = label.value;
-    dbValMap[label.value] = label.name;
-  });
-
-  // Check if any service contains an asterik for labels.
-  // This means the service with asterik
-  // can pick up any database despite labels.
+  const hasLabelsToMatch = newDbLabels.length > 0;
   for (let i = 0; i < dbServices.length; i++) {
-    for (const [key, vals] of Object.entries(dbServices[i].matcherLabels)) {
-      const foundAsterikAsValue = vals.includes('*');
-      // Check if this service contains any labels with asteriks,
-      // which means this service can pick up any database regardless
-      // of labels.
-      if (key === '*' && foundAsterikAsValue) {
-        return true;
-      }
+    // Loop through the current service label keys and its value set.
+    const currService = dbServices[i];
+    const match = matchLabels({
+      hasLabelsToMatch,
+      labelKeysToMatchMap,
+      labelValsToMatchMap,
+      labelToMatchSeenMap,
+      matcherLabels: currService.matcherLabels,
+    });
 
-      // If no newDbLabels labels were defined, no need to look for other matches
-      // continue to next key.
-      if (!newDbLabels.length) {
-        continue;
-      }
-
-      // Start matching every combination.
-
-      // This means any key is fine, as long as a
-      // value matches.
-      if (key === '*' && vals.find(val => dbValMap[val])) {
-        return true;
-      }
-
-      // This means any value is fine, as long as a
-      // key matches.
-      if (foundAsterikAsValue && dbKeyMap[key]) {
-        return true;
-      }
-
-      // Match against key and value.
-      const dbVal = dbKeyMap[key];
-      if (dbVal && vals.find(val => val === dbVal)) {
-        return true;
-      }
+    if (match) {
+      return currService;
     }
   }
 
-  return false;
+  return null;
 }

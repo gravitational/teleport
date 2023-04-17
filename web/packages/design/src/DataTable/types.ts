@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { MatchCallback } from 'design/utils/match';
 
 export type TableProps<T> = {
@@ -43,6 +59,22 @@ export type PaginationConfig = {
   pagerPosition?: 'top' | 'bottom';
 };
 
+/**
+ * Page keeps track of our current agent list
+ * start keys and the current position.
+ */
+export type Page = {
+  /** Keys are the list of start keys collected from each page fetch. */
+  keys: string[];
+  /**
+   * Index refers to the current index the page
+   * is at in the list of keys. Eg. an index of 1
+   * would mean that we are on the second key
+   * and thus on the second page.
+   */
+  index: number;
+};
+
 export type FetchingConfig = {
   onFetchNext?: () => void;
   onFetchPrev?: () => void;
@@ -52,7 +84,6 @@ export type FetchingConfig = {
 
 export type ServersideProps = {
   serversideSearchPanel: JSX.Element;
-  startKeys: string[];
   sort: SortType;
   setSort: (sort: SortType) => void;
 };

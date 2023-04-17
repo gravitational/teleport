@@ -1,3 +1,19 @@
+/**
+ * Copyright 2023 Gravitational, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { spawn } from 'child_process';
 
 import path from 'path';
@@ -10,7 +26,10 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
-import { createConfigService } from 'teleterm/services/config';
+import {
+  createConfigService,
+  runConfigFileMigration,
+} from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
@@ -23,25 +42,27 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-function initializeApp(): void {
+async function initializeApp(): Promise<void> {
+  let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
-  const appStateFileStorage = createFileStorage({
-    filePath: path.join(settings.userDataDir, 'app_state.json'),
-    debounceWrites: true,
+  logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
+  const {
+    appStateFileStorage,
+    configFileStorage,
+    configJsonSchemaFileStorage,
+  } = await createFileStorages(settings.userDataDir);
+
+  runConfigFileMigration(configFileStorage);
+  const configService = createConfigService({
+    configFile: configFileStorage,
+    jsonSchemaFile: configJsonSchemaFileStorage,
+    platform: settings.platform,
   });
-  const appConfigFileStorage = createFileStorage({
-    filePath: path.join(settings.userDataDir, 'app_config.json'),
-    debounceWrites: false,
-  });
-  const configService = createConfigService(
-    appConfigFileStorage,
-    settings.platform
-  );
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
-  process.on('uncaughtException', error => {
-    logger.error('', error);
+  process.on('uncaughtException', (error, origin) => {
+    logger.error(origin, error);
     app.quit();
   });
 
@@ -50,7 +71,8 @@ function initializeApp(): void {
     settings,
     logger,
     configService,
-    fileStorage: appStateFileStorage,
+    appStateFileStorage,
+    configFileStorage,
     windowsManager,
   });
 
@@ -72,10 +94,31 @@ function initializeApp(): void {
     }
   );
 
-  app.on('will-quit', () => {
-    appStateFileStorage.putAllSync();
+  app.on('will-quit', async event => {
+    event.preventDefault();
+    const disposeMainProcess = async () => {
+      try {
+        await mainProcess.dispose();
+      } catch (e) {
+        logger.error('Failed to gracefully dispose of main process', e);
+      }
+    };
+
     globalShortcut.unregisterAll();
-    mainProcess.dispose();
+    await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
+    app.exit();
+  });
+
+  app.on('quit', () => {
+    if (devRelaunchScheduled) {
+      const [bin, ...args] = process.argv;
+      const child = spawn(bin, args, {
+        env: process.env,
+        detached: true,
+        stdio: 'inherit',
+      });
+      child.unref();
+    }
   });
 
   app.on('second-instance', () => {
@@ -86,14 +129,7 @@ function initializeApp(): void {
     if (mainProcess.settings.dev) {
       // allow restarts on F6
       globalShortcut.register('F6', () => {
-        mainProcess.dispose();
-        const [bin, ...args] = process.argv;
-        const child = spawn(bin, args, {
-          env: process.env,
-          detached: true,
-          stdio: 'inherit',
-        });
-        child.unref();
+        devRelaunchScheduled = true;
         app.quit();
       });
     }
@@ -167,4 +203,26 @@ function initMainLogger(settings: types.RuntimeSettings) {
   Logger.init(service);
 
   return new Logger('Main');
+}
+
+function createFileStorages(userDataDir: string) {
+  return Promise.all([
+    createFileStorage({
+      filePath: path.join(userDataDir, 'app_state.json'),
+      debounceWrites: true,
+    }),
+    createFileStorage({
+      filePath: path.join(userDataDir, 'app_config.json'),
+      debounceWrites: false,
+      discardUpdatesOnLoadError: true,
+    }),
+    createFileStorage({
+      filePath: path.join(userDataDir, 'schema_app_config.json'),
+      debounceWrites: false,
+    }),
+  ]).then(storages => ({
+    appStateFileStorage: storages[0],
+    configFileStorage: storages[1],
+    configJsonSchemaFileStorage: storages[2],
+  }));
 }

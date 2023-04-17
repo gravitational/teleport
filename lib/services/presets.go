@@ -18,6 +18,7 @@ package services
 
 import (
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -66,6 +67,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterName, RW()),
 					types.NewRule(types.KindClusterNetworkingConfig, RW()),
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
+					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
 					types.NewRule(types.KindRemoteCluster, RW()),
 					types.NewRule(types.KindToken, RW()),
@@ -77,6 +79,13 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindLoginRule, RW()),
+					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
+					types.NewRule(types.KindUserGroup, RW()),
+					types.NewRule(types.KindPlugin, RW()),
+					types.NewRule(types.KindOktaImportRule, RW()),
+					types.NewRule(types.KindOktaAssignment, RW()),
+					types.NewRule(types.KindLock, RW()),
+					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -106,14 +115,15 @@ func NewPresetAccessRole() types.Role {
 				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
 			},
 			Allow: types.RoleConditions{
-				Namespaces:           []string{apidefaults.Namespace},
-				NodeLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AppLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
-				KubernetesLabels:     types.Labels{types.Wildcard: []string{types.Wildcard}},
-				WindowsDesktopLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				DatabaseNames:        []string{teleport.TraitInternalDBNamesVariable},
-				DatabaseUsers:        []string{teleport.TraitInternalDBUsersVariable},
+				Namespaces:            []string{apidefaults.Namespace},
+				NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
+				AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
+				WindowsDesktopLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
+				DatabaseUsers:         []string{teleport.TraitInternalDBUsersVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -179,8 +189,11 @@ func NewPresetAuditorRole() types.Role {
 	return role
 }
 
-// defaultAllowRules has the Allow rules that should be set as default when they were not explicitly defined.
-// This is used to update the current cluster roles when deploying a new resource.
+// defaultAllowRules has the Allow rules that should be set as default when
+// they were not explicitly defined. This is used to update the current cluster
+// roles when deploying a new resource. It will also update all existing roles
+// on auth server restart. Rules defined in preset template should be
+// exactly the same rule when added here.
 func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetAuditorRoleName: {
@@ -191,32 +204,66 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindDatabase, RW()),
 			types.NewRule(types.KindDatabaseService, RO()),
 			types.NewRule(types.KindLoginRule, RW()),
+			types.NewRule(types.KindPlugin, RW()),
+			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
+			types.NewRule(types.KindOktaImportRule, RW()),
+			types.NewRule(types.KindOktaAssignment, RW()),
+			types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+			types.NewRule(types.KindLock, RW()),
+			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 		},
 	}
 }
 
-// AddDefaultAllowRules adds default rules to a preset role.
-// Only rules whose resources are not already defined (either allowing or denying) are added.
-func AddDefaultAllowRules(role types.Role) types.Role {
+// defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
+// This is used to update exiting builtin preset roles with new permissions during cluster upgrades.
+// The following Labels are supported:
+// - DatabaseServiceLabels (db_service_labels)
+func defaultAllowLabels() map[string]types.RoleConditions {
+	return map[string]types.RoleConditions{
+		teleport.PresetAccessRoleName: {
+			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	}
+}
+
+// AddDefaultAllowConditions adds default allow Role Conditions to a preset role.
+// Only rules/labels whose resources are not already defined (either allowing or denying) are added.
+func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
+	changed := false
+
+	// Resource Rules
 	defaultRules, ok := defaultAllowRules()[role.GetName()]
-	if !ok || len(defaultRules) == 0 {
-		return role
-	}
+	if ok {
+		existingRules := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
 
-	combined := append(role.GetRules(types.Allow), role.GetRules(types.Deny)...)
+		for _, defaultRule := range defaultRules {
+			if resourceBelongsToRules(existingRules, defaultRule.Resources) {
+				continue
+			}
 
-	for _, defaultRule := range defaultRules {
-		if resourceBelongsToRules(combined, defaultRule.Resources) {
-			continue
+			log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
+			rules := role.GetRules(types.Allow)
+			rules = append(rules, defaultRule)
+			role.SetRules(types.Allow, rules)
+			changed = true
 		}
-
-		log.Debugf("Adding default allow rule %v for role %q", defaultRule, role.GetName())
-		rules := role.GetRules(types.Allow)
-		rules = append(rules, defaultRule)
-		role.SetRules(types.Allow, rules)
 	}
 
-	return role
+	// Labels
+	defaultLabels, ok := defaultAllowLabels()[role.GetName()]
+	if ok {
+		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
+			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+			changed = true
+		}
+	}
+
+	if !changed {
+		return nil, trace.AlreadyExists("no change")
+	}
+
+	return role, nil
 }
 
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {

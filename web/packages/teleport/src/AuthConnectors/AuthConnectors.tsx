@@ -45,8 +45,9 @@ export function AuthConnectors(props: State) {
       : 'Editing github connector';
 
   function handleOnSave(content: string) {
+    const name = resources.item.name;
     const isNew = resources.status === 'creating';
-    return save(content, isNew);
+    return save(name, content, isNew);
   }
 
   return (
@@ -58,7 +59,7 @@ export function AuthConnectors(props: State) {
           width="240px"
           onClick={() => resources.create('github')}
         >
-          New Github Connector
+          New GitHub Connector
         </ButtonPrimary>
       </FeatureHeader>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}
@@ -99,7 +100,7 @@ export function AuthConnectors(props: State) {
                 <Text typography="subtitle1" mb={2}>
                   Please{' '}
                   <Link
-                    color="light"
+                    color="text.primary"
                     // We have two version of this component.
                     // This OSS version and an enterprise version.
                     href="https://goteleport.com/docs/setup/admin/github-sso/"

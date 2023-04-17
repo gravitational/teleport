@@ -14,84 +14,206 @@
  * limitations under the License.
  */
 
-import React, { useContext, useMemo, useState } from 'react';
+import React, { useContext, useState, useEffect, useCallback } from 'react';
+import { useHistory } from 'react-router';
 
-import { useLocation } from 'react-router';
+import {
+  DiscoverEventStatus,
+  DiscoverEventStepStatus,
+  DiscoverEvent,
+  DiscoverEventResource,
+  userEventService,
+} from 'teleport/services/userEvent';
+import cfg from 'teleport/config';
 
-import { ResourceKind } from 'teleport/Discover/Shared';
-
-import { addIndexToViews, findViewAtIndex, Resource, View } from './flow';
-
-import { resources } from './resources';
+import {
+  addIndexToViews,
+  findViewAtIndex,
+  ResourceViewConfig,
+  View,
+} from './flow';
+import { viewConfigs } from './resourceViewConfigs';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
-
-export function getKindFromString(value: string) {
-  switch (value) {
-    case 'application':
-      return ResourceKind.Application;
-    case 'database':
-      return ResourceKind.Database;
-    case 'desktop':
-      return ResourceKind.Desktop;
-    case 'kubernetes':
-      return ResourceKind.Kubernetes;
-    default:
-    case 'server':
-      return ResourceKind.Server;
-  }
-}
+import type { ResourceSpec } from './SelectResource';
 
 interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
   currentStep: number;
   nextStep: (count?: number) => void;
   prevStep: () => void;
-  onSelectResource: (kind: ResourceKind) => void;
-  resourceState: T;
-  selectedResource: Resource<T>;
-  selectedResourceKind: ResourceKind;
-  setResourceState: (value: T) => void;
+  onSelectResource: (resource: ResourceSpec) => void;
+  resourceSpec: ResourceSpec;
+  viewConfig: ResourceViewConfig<T>;
+  indexedViews: View[];
+  setResourceSpec: (value: T) => void;
   updateAgentMeta: (meta: AgentMeta) => void;
-  views: View[];
+  emitErrorEvent(errorStr: string): void;
+  emitEvent(status: DiscoverEventStepStatus, custom?: CustomEventInput): void;
+  eventState: EventState;
 }
+
+type EventState = {
+  id: string;
+  currEventName: DiscoverEvent;
+  manuallyEmitSuccessEvent: boolean;
+};
+
+type CustomEventInput = {
+  eventName?: DiscoverEvent;
+  eventResourceName?: DiscoverEventResource;
+  autoDiscoverResourcesCount?: number;
+};
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
 
-export function DiscoverProvider<T = any>(
-  props: React.PropsWithChildren<unknown>
-) {
-  const location = useLocation<{ entity: string }>();
+export function DiscoverProvider(props: React.PropsWithChildren<unknown>) {
+  const history = useHistory();
 
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedResourceKind, setSelectedResourceKind] =
-    useState<ResourceKind>(getKindFromString(location?.state?.entity));
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-  const [resourceState, setResourceState] = useState<T>();
+  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
+  const [viewConfig, setViewConfig] = useState<ResourceViewConfig>();
+  const [eventState, setEventState] = useState<EventState>();
 
-  const selectedResource = resources.find(r => r.kind === selectedResourceKind);
+  // indexedViews contains views of the selected resource where
+  // each view has been assigned an index value.
+  const [indexedViews, setIndexedViews] = useState<View[]>([]);
 
-  const views = useMemo<View[]>(() => {
-    if (typeof selectedResource.views === 'function') {
-      return addIndexToViews(selectedResource.views(resourceState));
-    }
+  const emitEvent = useCallback(
+    (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
+      const { id, currEventName } = eventState;
 
-    return addIndexToViews(selectedResource.views);
-  }, [selectedResource.views, resourceState]);
+      userEventService.captureDiscoverEvent({
+        event: custom?.eventName || currEventName,
+        eventData: {
+          id,
+          resource: custom?.eventResourceName || resourceSpec?.event,
+          autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
+          ...status,
+        },
+      });
+    },
+    [eventState, resourceSpec]
+  );
 
-  function onSelectResource(kind: ResourceKind) {
-    setSelectedResourceKind(kind);
+  useEffect(() => {
+    const emitAbortOrSuccessEvent = () => {
+      if (eventState.currEventName === DiscoverEvent.Completed) {
+        emitEvent({ stepStatus: DiscoverEventStatus.Success });
+      } else {
+        emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
+      }
+    };
+
+    // Emit abort event upon refreshing, going to different route
+    // (eg: copy and paste url) from same page, or closing tab/browser.
+    // Does not capture unmounting edge cases which is handled
+    // with the unmount logic below.
+    window.addEventListener('beforeunload', emitAbortOrSuccessEvent);
+
+    return () => {
+      // Emit abort event upon unmounting from going back or
+      // forward to a non-discover route or upon exiting from
+      // the exit prompt.
+      if (history.location.pathname !== cfg.routes.discover) {
+        emitAbortOrSuccessEvent();
+      }
+
+      window.removeEventListener('beforeunload', emitAbortOrSuccessEvent);
+    };
+  }, [eventState, history.location.pathname, emitEvent]);
+
+  useEffect(() => {
+    initEventState();
+  }, []);
+
+  function initEventState() {
+    // Generates a v4 UUID using a cryptographically secure
+    // random number.
+    const id = crypto.randomUUID();
+
+    setEventState({
+      id,
+      currEventName: DiscoverEvent.Started,
+      manuallyEmitSuccessEvent: null,
+    });
+    userEventService.captureDiscoverEvent({
+      event: DiscoverEvent.Started,
+      eventData: {
+        id,
+        stepStatus: DiscoverEventStatus.Success,
+        // Started event will be the ONLY event
+        // that won't expect a resource field.
+        resource: '' as any,
+      },
+    });
   }
 
-  // nextStep takes the user to the next screen.
-  // The prop `numToIncrement` is used (>1) when we want to
-  // skip some number of steps.
-  // eg: particularly for Database flow, if there exists a
-  // database service, then we don't want to show the user
-  // the screen that lets them add a database server.
+  // onSelectResources initializes all the required
+  // variables needed to start a guided flow.
+  function onSelectResource(resource: ResourceSpec) {
+    // We still want to emit an event if user clicked on
+    // unguided links to gather data on which unguided resource
+    // is most popular.
+    if (resource.unguidedLink) {
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Success },
+        {
+          eventName: DiscoverEvent.ResourceSelection,
+          eventResourceName: resource.event,
+        }
+      );
+      return;
+    }
+
+    // Process each view and assign each with an index number.
+    const currCfg = viewConfigs.find(r => r.kind === resource.kind);
+    let indexedViews = [];
+    if (typeof currCfg.views === 'function') {
+      indexedViews = addIndexToViews(currCfg.views(resource));
+    } else {
+      indexedViews = addIndexToViews(currCfg.views);
+    }
+
+    // Find the first view to update the event state.
+    const { eventName, manuallyEmitSuccessEvent } = findViewAtIndex(
+      indexedViews,
+      currentStep
+    );
+    // At this point it's considered the user has
+    // successfully selected a resource, so we send an event.
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success },
+      {
+        eventName: DiscoverEvent.ResourceSelection,
+        eventResourceName: resource.event,
+      }
+    );
+
+    // Init all required states to start the flow.
+    setEventState({
+      ...eventState,
+      currEventName: eventName,
+      manuallyEmitSuccessEvent,
+    });
+    setViewConfig(currCfg);
+    setIndexedViews(indexedViews);
+    setResourceSpec(resource);
+  }
+
+  // nextStep takes the user to next screen and sends reporting events.
+  // The prop `numToIncrement` is used in the following ways:
+  //  - numToIncrement === 0, will be interpreted as user intentionally
+  //    skipping the current view, to go to the next view.
+  //  - numToIncrement === 1 (default), will be interpreted as user finishing
+  //    the current view and is ready to go next view.
+  //  - numToIncrement > 1, will be interprested as skipping some steps FOR the user
+  //    eg: for Database flow, if there exists a database service, then we don't want
+  //    to show the user the screen that lets them add a database service.
   function nextStep(numToIncrement = 1) {
     // This function can be used in a way that HTML event
     // get passed in which isn't a valid number.
@@ -99,18 +221,58 @@ export function DiscoverProvider<T = any>(
       numToIncrement = 1;
     }
 
-    const nextView = findViewAtIndex(views, currentStep + numToIncrement);
-
+    const numNextSteps = numToIncrement || 1;
+    const nextView = findViewAtIndex(indexedViews, currentStep + numNextSteps);
     if (nextView) {
-      setCurrentStep(currentStep + numToIncrement);
+      setCurrentStep(currentStep + numNextSteps);
+      setEventState({
+        ...eventState,
+        currEventName: nextView.eventName,
+        manuallyEmitSuccessEvent: nextView.manuallyEmitSuccessEvent,
+      });
+    }
+
+    // Send reporting events:
+
+    // Emit event for the current view.
+    // If user intentionally skipped the current step, then
+    // skipped event will be emitted, else success.
+    if (!numToIncrement) {
+      emitEvent({ stepStatus: DiscoverEventStatus.Skipped });
+    } else if (!eventState.manuallyEmitSuccessEvent) {
+      emitEvent({ stepStatus: DiscoverEventStatus.Success });
+    }
+
+    // Whenever a numToIncrement is > 1, it means some steps (after the current view)
+    // are being skipped, which we should send events for.
+    if (numToIncrement > 1) {
+      for (let i = 1; i < numToIncrement; i++) {
+        const currView = findViewAtIndex(indexedViews, currentStep + i);
+        if (currView) {
+          emitEvent(
+            { stepStatus: DiscoverEventStatus.Skipped },
+            { eventName: currView.eventName }
+          );
+        }
+      }
     }
   }
 
   function prevStep() {
-    const nextView = findViewAtIndex(views, currentStep - 1);
+    if (currentStep === 0) {
+      // Emit abort since we are starting over with resource selection.
+      emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
+      initEventState();
+      setViewConfig(null);
+      setResourceSpec(null);
+      setIndexedViews([]);
+      return;
+    }
 
+    const updatedCurrentStep = currentStep - 1;
+    const nextView = findViewAtIndex(indexedViews, updatedCurrentStep);
     if (nextView) {
-      setCurrentStep(currentStep - 1);
+      setCurrentStep(updatedCurrentStep);
     }
   }
 
@@ -118,18 +280,27 @@ export function DiscoverProvider<T = any>(
     setAgentMeta(meta);
   }
 
-  const value: DiscoverContextState<T> = {
+  function emitErrorEvent(errorStr = '') {
+    emitEvent({
+      stepStatus: DiscoverEventStatus.Error,
+      stepStatusError: errorStr,
+    });
+  }
+
+  const value: DiscoverContextState = {
     agentMeta,
     currentStep,
     nextStep,
     prevStep,
     onSelectResource,
-    resourceState,
-    selectedResource,
-    selectedResourceKind,
-    setResourceState,
+    resourceSpec,
+    viewConfig,
+    setResourceSpec,
     updateAgentMeta,
-    views,
+    indexedViews,
+    emitErrorEvent,
+    emitEvent,
+    eventState,
   };
 
   return (
@@ -165,6 +336,7 @@ export type NodeMeta = BaseMeta & {
 // that needs to be preserved throughout the flow.
 export type DbMeta = BaseMeta & {
   db: Database;
+  awsIntegrationName?: string;
 };
 
 // KubeMeta describes the fields for a kube resource

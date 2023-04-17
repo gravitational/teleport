@@ -4,10 +4,16 @@ This chart sets up a single node Teleport cluster.
 It uses a persistent volume claim for storage.
 Great for getting started with Teleport.
 
+## Important Notices
+
+- The chart version follows the Teleport version. e.g. chart v10.x can run Teleport v10.x and v11.x, but is not compatible with Teleport 9.x
+- Teleport does mutual TLS to authenticate clients. It currently does not support running behind a L7 LoadBalancer, like a Kubernetes `Ingress`. It requires being exposed through a L4 LoadBalancer (Kubernetes `Service`).
+
 ## Getting Started
 
-Install Teleport in a separate namespace and provision a web certificate using
-Let's Encrypt:
+### Single-node example
+
+To install Teleport in a separate namespace and provision a web certificate using Let's Encrypt, run:
 
 ```bash
 $ helm install teleport/teleport-cluster \
@@ -19,34 +25,39 @@ $ helm install teleport/teleport-cluster \
     ./teleport-cluster/
 ```
 
+Finally, configure the DNS for `teleport.example.com` to point to the newly created LoadBalancer.
+
+Note: this guide uses the built-in ACME client to get certificates.
+In this setup, Teleport nodes cannot be replicated. If you want to run multiple
+Teleport replicas, you must provide a certificate through `tls.existingSecretName`
+or by installing [cert-manager](https://cert-manager.io/docs/) and setting the `highAvailability.certManager.*` values.
+
+### Replicated setup guides
+
+- [Running an HA Teleport cluster in Kubernetes using an AWS EKS Cluster](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/)
+- [Running an HA Teleport cluster in Kubernetes using a Google Cloud GKE cluster](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/gcp/)
+- [Running a Teleport cluster in Kubernetes with a custom Teleport config](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/custom/)
+
+### Creating first user
+
+The first user can be created by executing a command in one of the auth pods.
+
+```shell
+kubectl exec it -n teleport-cluster statefulset/teleport-cluster-auth -- tctl users add my-username --roles=editor,auditor,access
+```
+
+The command should output a registration link to finalize the user creation.
+
 ## Uninstalling
 
 ```bash
-helm uninstall teleport-cluster
+helm uninstall --namespace teleport-cluster teleport-cluster
 ```
 
-## Arguments Reference
-
-To use the enterprise version, set `--set=enterprise=true` value and create a
-secret `license` in the chart namespace.
-
-| Name                       | Description                                                                 | Default                                          | Required |
-|----------------------------|-----------------------------------------------------------------------------|--------------------------------------------------|----------|
-| `clusterName`              | Teleport cluster name (must be an FQDN)                                     |                                                  | yes      |
-| `authentication.type`      | Type of authentication to use (`local`, `github`, ...)                      | `local`                                          | no       |
-| `teleportVersionOverride`  | Teleport version                                                            | Current stable version                           | no       |
-| `image`                    | OSS Docker image                                                            | `public.ecr.aws/gravitational/teleport`                 | no       |
-| `enterpriseImage`          | Enterprise Docker image                                                     | `public.ecr.aws/gravitational/teleport-ent`             | no       |
-| `acme`                     | Enable ACME support in Teleport (Letsencrypt.org)                           | `false`                                          | no       |
-| `acmeEmail`                | Email to use for ACME certificates                                          |                                                  | no       |
-| `acmeURI`                  | ACME server to use for certificates                                         | `https://acme-v02.api.letsencrypt.org/directory` | no       |
-| `labels.[name]`            | Key-value pairs, for example `--labels.env=local --labels.region=us-west-1` |                                                  | no       |
-| `enterprise`               | Use Teleport Enterprise                                                     | `false`                                          | no       |
-
-## Guides
+## Documentation
 
 See https://goteleport.com/docs/kubernetes-access/helm/guides/ for guides on setting up HA Teleport clusters
-in EKS or GKE, plus a more comprehensive chart reference.
+in EKS or GKE, plus a comprehensive chart reference.
 
 ## Contributing to the chart
 

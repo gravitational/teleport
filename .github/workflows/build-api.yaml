@@ -1,0 +1,45 @@
+name: Build API Module
+run-name: Build API Module
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/build-api.yaml
+      - 'api/**/*.go'
+      - 'api/go.mod'
+      - 'api/go.sum'
+      - 'go.mod'
+      - 'go.sum'
+  merge_group:
+    paths:
+      - .github/workflows/build-api.yaml
+      - 'api/**/*.go'
+      - 'api/go.mod'
+      - 'api/go.sum'
+      - 'go.mod'
+      - 'go.sum'
+
+jobs:
+  build:
+    name: Build API
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Teleport
+        uses: actions/checkout@v3
+
+      - name: Setup Go
+        uses: actions/setup-go@v3
+        with:
+          # use the version declared in API's go.mod
+          go-version-file: api/go.mod
+
+      - name: Init workspace
+        run: go work init . ./api/
+        
+      - name: Build
+        run: go build ./api/...

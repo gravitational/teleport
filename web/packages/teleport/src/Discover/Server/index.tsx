@@ -16,46 +16,42 @@
 
 import React from 'react';
 
-import { Server } from 'design/Icon';
-
-import { Resource } from 'teleport/Discover/flow';
+import { ResourceViewConfig } from 'teleport/Discover/flow';
 import { DownloadScript } from 'teleport/Discover/Server/DownloadScript';
 import { SetupAccess } from 'teleport/Discover/Server/SetupAccess';
 import { TestConnection } from 'teleport/Discover/Server/TestConnection';
 import { ResourceKind, Finished } from 'teleport/Discover/Shared';
+import { DiscoverEvent } from 'teleport/services/userEvent';
 
 import { ServerWrapper } from './ServerWrapper';
 
-export const ServerResource: Resource = {
+export const ServerResource: ResourceViewConfig = {
   kind: ResourceKind.Server,
-  icon: <Server />,
   wrapper: (component: React.ReactNode) => (
     <ServerWrapper>{component}</ServerWrapper>
   ),
-  shouldPrompt(currentStep) {
-    // do not prompt on exit if they're selecting a resource
-    return currentStep !== 0;
-  },
   views: [
-    {
-      title: 'Select Resource Type',
-    },
     {
       title: 'Configure Resource',
       component: DownloadScript,
+      eventName: DiscoverEvent.DeployService,
     },
     {
       title: 'Set Up Access',
       component: SetupAccess,
+      eventName: DiscoverEvent.PrincipalsConfigure,
     },
     {
       title: 'Test Connection',
       component: TestConnection,
+      eventName: DiscoverEvent.TestConnection,
+      manuallyEmitSuccessEvent: true,
     },
     {
       title: 'Finished',
       component: Finished,
       hide: true,
+      eventName: DiscoverEvent.Completed,
     },
   ],
 };

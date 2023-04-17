@@ -16,14 +16,15 @@ limitations under the License.
 
 import React from 'react';
 import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { SortType } from 'design/DataTable/types';
+import { FetchStatus, SortType } from 'design/DataTable/types';
 
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
 import { Desktop } from 'teleport/services/desktops';
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, AgentFilter } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
+
+import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
 function DesktopList(props: Props) {
   const {
@@ -31,19 +32,16 @@ function DesktopList(props: Props) {
     pageSize,
     onLoginMenuOpen,
     onLoginSelect,
-    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
-    from,
-    to,
     params,
     setParams,
-    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
+    pageIndicators,
   } = props;
 
   function onDesktopSelect(
@@ -92,16 +90,14 @@ function DesktopList(props: Props) {
       serversideProps={{
         sort: params.sort,
         setSort,
-        startKeys,
         serversideSearchPanel: (
           <ServersideSearchPanel
-            from={from}
-            to={to}
-            count={totalCount}
+            pageIndicators={pageIndicators}
             params={params}
             setParams={setParams}
             pathname={pathname}
             replaceHistory={replaceHistory}
+            disabled={fetchStatus === 'loading'}
           />
         ),
       }}
@@ -112,8 +108,8 @@ function DesktopList(props: Props) {
 }
 
 function renderLoginCell(
-  { name }: Desktop,
-  onOpen: (serverUuid: string) => LoginItem[],
+  desktop: Desktop,
+  onOpen: (desktop: Desktop) => LoginItem[],
   onSelect: (
     e: React.SyntheticEvent,
     username: string,
@@ -121,7 +117,7 @@ function renderLoginCell(
   ) => void
 ) {
   function handleOnOpen() {
-    return onOpen(name);
+    return onOpen(desktop);
   }
 
   function handleOnSelect(e: React.SyntheticEvent, login: string) {
@@ -129,7 +125,7 @@ function renderLoginCell(
       return [];
     }
 
-    return onSelect(e, login, name);
+    return onSelect(e, login, desktop.name);
   }
 
   return (
@@ -155,21 +151,18 @@ type Props = {
   pageSize: number;
   username: string;
   clusterId: string;
-  onLoginMenuOpen(desktopName: string): { login: string; url: string }[];
+  onLoginMenuOpen(desktop: Desktop): LoginItem[];
   onLoginSelect(username: string, desktopName: string): void;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: any;
-  from: number;
-  to: number;
-  totalCount: number;
-  params: ResourceUrlQueryParams;
-  setParams: (params: ResourceUrlQueryParams) => void;
-  startKeys: string[];
+  fetchStatus: FetchStatus;
+  params: AgentFilter;
+  setParams: (params: AgentFilter) => void;
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
+  pageIndicators: PageIndicators;
 };
 
 export default DesktopList;

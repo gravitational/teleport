@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { State } from './useDesktops';
 import { Desktops } from './Desktops';
@@ -26,25 +27,35 @@ export default {
 };
 
 export const Loading = () => (
-  <Desktops {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <Desktops {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
-export const Loaded = () => <Desktops {...props} />;
+export const Loaded = () => (
+  <MemoryRouter>
+    <Desktops {...props} />
+  </MemoryRouter>
+);
 
 export const Empty = () => (
-  <Desktops {...props} results={{ desktops: [] }} isSearchEmpty={true} />
+  <MemoryRouter>
+    <Desktops {...props} fetchedData={{ agents: [] }} isSearchEmpty={true} />
+  </MemoryRouter>
 );
 
 export const Failed = () => (
-  <Desktops
-    {...props}
-    attempt={{ status: 'failed', statusText: 'Server Error' }}
-  />
+  <MemoryRouter>
+    <Desktops
+      {...props}
+      attempt={{ status: 'failed', statusText: 'Server Error' }}
+    />
+  </MemoryRouter>
 );
 
 export const props: State = {
-  results: {
-    desktops,
+  fetchedData: {
+    agents: desktops,
     totalCount: desktops.length,
   },
   fetchStatus: '',
@@ -58,8 +69,15 @@ export const props: State = {
   fetchNext: () => null,
   fetchPrev: () => null,
   pageSize: desktops.length,
-  from: 1,
-  to: desktops.length,
+  pageIndicators: {
+    from: 1,
+    to: desktops.length,
+    totalCount: desktops.length,
+  },
+  page: {
+    index: 0,
+    keys: [],
+  },
   params: {
     search: '',
     query: '',
@@ -67,7 +85,6 @@ export const props: State = {
   },
   setParams: () => null,
   setSort: () => null,
-  startKeys: [''],
   pathname: '',
   replaceHistory: () => null,
   isSearchEmpty: false,

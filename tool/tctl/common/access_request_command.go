@@ -33,7 +33,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -41,7 +42,7 @@ import (
 // AccessRequestCommand implements `tctl users` set of commands
 // It implements CLICommand interface
 type AccessRequestCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 	reqIDs string
 
 	user        string
@@ -68,7 +69,7 @@ type AccessRequestCommand struct {
 }
 
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
-func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *AccessRequestCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 	requests := app.Command("requests", "Manage access requests").Alias("request")
 
@@ -217,7 +218,7 @@ func (c *AccessRequestCommand) splitRoles() []string {
 
 func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {
@@ -239,7 +240,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client auth.ClientI)
 
 func (c *AccessRequestCommand) Deny(ctx context.Context, client auth.ClientI) error {
 	if c.delegator != "" {
-		ctx = auth.WithDelegator(ctx, c.delegator)
+		ctx = authz.WithDelegator(ctx, c.delegator)
 	}
 	annotations, err := c.splitAnnotations()
 	if err != nil {

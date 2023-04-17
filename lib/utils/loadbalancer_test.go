@@ -32,13 +32,14 @@ var randomLocalAddr = *MustParseAddr("127.0.0.1:0")
 
 func TestSingleBackendLB(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
 	}))
 	defer backend1.Close()
 
-	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, urlToNetAddr(backend1.URL))
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr, urlToNetAddr(backend1.URL))
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
@@ -52,6 +53,7 @@ func TestSingleBackendLB(t *testing.T) {
 
 func TestTwoBackendsLB(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
@@ -65,7 +67,7 @@ func TestTwoBackendsLB(t *testing.T) {
 
 	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
 
-	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr)
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr)
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
@@ -89,6 +91,7 @@ func TestTwoBackendsLB(t *testing.T) {
 
 func TestOneFailingBackend(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
@@ -102,7 +105,7 @@ func TestOneFailingBackend(t *testing.T) {
 
 	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
 
-	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr)
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr)
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
@@ -126,13 +129,14 @@ func TestOneFailingBackend(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
 	}))
 	defer backend1.Close()
 
-	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, urlToNetAddr(backend1.URL))
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr, urlToNetAddr(backend1.URL))
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)
@@ -156,6 +160,7 @@ func TestClose(t *testing.T) {
 
 func TestDropConnections(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
@@ -163,7 +168,7 @@ func TestDropConnections(t *testing.T) {
 	defer backend1.Close()
 
 	backendAddr := urlToNetAddr(backend1.URL)
-	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, backendAddr)
+	lb, err := NewLoadBalancer(ctx, randomLocalAddr, backendAddr)
 	require.NoError(t, err)
 	err = lb.Listen()
 	require.NoError(t, err)

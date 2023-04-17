@@ -15,6 +15,7 @@
 package proxy
 
 import (
+	"bytes"
 	"io"
 	"mime"
 	"net/http"
@@ -36,6 +37,11 @@ import (
 // the allowedPod's list.
 // - allowedPods: excluded if (namespace,name) not match a single entry.
 func newPodFilterer(allowedPods, deniedPods []types.KubernetesResource, log logrus.FieldLogger) responsewriters.FilterWrapper {
+	// If the list of allowed pods contains a wildcard and no deniedPods, then we
+	// don't need to filter anything.
+	if containsWildcard(allowedPods) && len(deniedPods) == 0 {
+		return nil
+	}
 	return func(contentType string, responseCode int) (responsewriters.Filter, error) {
 		negotiator := newClientNegotiator()
 		encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, negotiator)
@@ -53,6 +59,25 @@ func newPodFilterer(allowedPods, deniedPods []types.KubernetesResource, log logr
 			log:              log,
 		}, nil
 	}
+}
+
+// wildcardFilter is a filter that matches all pods.
+var wildcardFilter = types.KubernetesResource{
+	Kind:      types.KindKubePod,
+	Namespace: types.Wildcard,
+	Name:      types.Wildcard,
+}
+
+// containsWildcard returns true if the list of resources contains a wildcard filter.
+func containsWildcard(resources []types.KubernetesResource) bool {
+	for _, r := range resources {
+		if r.Kind == wildcardFilter.Kind &&
+			r.Name == wildcardFilter.Name &&
+			r.Namespace == wildcardFilter.Namespace {
+			return true
+		}
+	}
+	return false
 }
 
 // podFilterer is a pod filterer instance.
@@ -307,10 +332,24 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 		return trace.Wrap(err)
 	}
 	// copy body into another slice so we can manipulate it.
-	bodyCopy := make([]byte, src.Buffer().Len())
-	copy(bodyCopy, src.Buffer().Bytes())
+	b := bytes.NewBuffer(make([]byte, 0, src.Buffer().Len()))
+
+	// get the compressor and decompressor for the response based on the content type.
+	compressor, decompressor, err := getResponseCompressorDecompressor(src.Header())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// decompress the response body into b.
+	if err := decompressor(b, src.Buffer()); err != nil {
+		return trace.Wrap(err)
+	}
 	// filter.FilterBuffer encodes the filtered payload into src.Buffer, so we need to
 	// reset it to discard the old payload.
 	src.Buffer().Reset()
-	return trace.Wrap(filter.FilterBuffer(bodyCopy, src))
+	// creates a compressor that writes the filtered payload into src.Buffer.
+	comp := compressor(src.Buffer())
+	// Close is a no-op operation into src but it's required to put the gzip writer
+	// into the sync.Pool.
+	defer comp.Close()
+	return trace.Wrap(filter.FilterBuffer(b.Bytes(), comp))
 }

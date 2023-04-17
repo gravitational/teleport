@@ -40,6 +40,8 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/web/app"
 )
 
@@ -292,18 +294,18 @@ func testClientCert(p *Pack, t *testing.T) {
 		{
 			desc:          "root cluster, invalid session ID",
 			inTLSConfig:   p.makeTLSConfigNoSession(t, p.rootAppPublicAddr, p.rootAppClusterName),
-			outStatusCode: http.StatusFound,
+			outStatusCode: http.StatusForbidden,
 		},
 		{
 			desc:          "root cluster, invalid session owner",
 			inTLSConfig:   p.makeTLSConfig(t, rootWs.GetName(), evilUser.GetName(), p.rootAppPublicAddr, p.rootAppClusterName),
-			outStatusCode: http.StatusFound,
+			outStatusCode: http.StatusForbidden,
 			outMessage:    "",
 		},
 		{
 			desc:          "leaf cluster, invalid session owner",
 			inTLSConfig:   p.makeTLSConfig(t, leafWs.GetName(), evilUser.GetName(), p.leafAppPublicAddr, p.leafAppClusterName),
-			outStatusCode: http.StatusFound,
+			outStatusCode: http.StatusForbidden,
 			outMessage:    "",
 		},
 	}
@@ -362,7 +364,7 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	appCookies := p.CreateAppSession(t, "dumper-root.example.com", "example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := p.MakeRequest(appCookies, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookies, http.MethodGet, "/", servicecfg.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)
@@ -375,12 +377,16 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "root")
 	require.Equal(t, req.Header.Get("X-External-Env"), "production")
 	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+
+	// verify these headers were not rewritten.
 	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
 	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
+	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
 	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
 
 	// Verify JWT tokens.
 	for _, header := range []string{teleport.AppJWTHeader, teleport.AppCFHeader, "X-JWT"} {
@@ -395,24 +401,30 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 	appCookie := p.CreateAppSession(t, "dumper-leaf.example.com", "leaf.example.com")
 
 	// Get headers response and make sure headers were passed.
-	status, resp, err := p.MakeRequest(appCookie, http.MethodGet, "/", service.Header{
+	status, resp, err := p.MakeRequest(appCookie, http.MethodGet, "/", servicecfg.Header{
 		Name: "X-Existing", Value: "existing",
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, resp, "X-Teleport-Cluster: leaf")
-	require.Contains(t, resp, "X-Teleport-Login: root")
-	require.Contains(t, resp, "X-Teleport-Login: ubuntu")
-	require.Contains(t, resp, "X-External-Env: production")
-	require.Contains(t, resp, "Host: example.com")
-	require.Contains(t, resp, "X-Existing: rewritten-existing-header")
-	require.NotContains(t, resp, "X-Existing: existing")
-	require.NotContains(t, resp, "rewritten-app-jwt-header")
-	require.NotContains(t, resp, "rewritten-app-cf-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-for-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-host-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-proto-header")
-	require.NotContains(t, resp, "rewritten-x-forwarded-server-header")
+
+	// Dumper app just dumps HTTP request so we should be able to read it back.
+	req, err := http.ReadRequest(bufio.NewReader(strings.NewReader(resp)))
+	require.NoError(t, err)
+	require.Equal(t, req.Host, "example.com")
+	require.Equal(t, req.Header.Get("X-Teleport-Cluster"), "leaf")
+	require.ElementsMatch(t, []string{"root", "ubuntu", "-teleport-internal-join"}, req.Header.Values("X-Teleport-Login"))
+	require.Equal(t, req.Header.Get("X-External-Env"), "production")
+	require.Equal(t, req.Header.Get("X-Existing"), "rewritten-existing-header")
+
+	// verify these headers were not rewritten.
+	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
+	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
+	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
+	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
 }
 
 // testLogout verifies the session is removed from the backend when the user logs out.
@@ -593,7 +605,7 @@ func TestInvalidateAppSessionsOnLogout(t *testing.T) {
 		// redirect because the application sessions are gone.
 		status, _, err = p.makeRequestWithClientCert(reqTLS, http.MethodGet, "/")
 		require.NoError(t, err)
-		return status == http.StatusFound
+		return status == http.StatusForbidden
 	}, time.Second, 250*time.Millisecond)
 }
 
@@ -879,7 +891,7 @@ func testServersHA(p *Pack, t *testing.T) {
 	responseWithError := func(t *testing.T, status int, err error) {
 		if status > 0 {
 			require.NoError(t, err)
-			require.Equal(t, http.StatusInternalServerError, status)
+			require.Equal(t, http.StatusFound, status)
 			return
 		}
 

@@ -17,21 +17,26 @@ limitations under the License.
 package aws
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/gravitational/oxy/forward"
 	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/utils"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
@@ -53,6 +58,8 @@ type SignerHandlerConfig struct {
 	RoundTripper http.RoundTripper
 	// SigningService is used to sign requests before forwarding them.
 	*awsutils.SigningService
+	// Clock is used to override time in tests.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates the AwsSignerHandlerConfig.
@@ -69,6 +76,9 @@ func (cfg *SignerHandlerConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.WithField(trace.Component, "aws:signer")
+	}
+	if cfg.Clock == nil {
+		cfg.Clock = clockwork.NewRealClock()
 	}
 	return nil
 }
@@ -122,6 +132,20 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 		return trace.Wrap(err)
 	}
 
+	// Handle requests signed with real credentials of assumed roles by the AWS
+	// client. Headers will be restored and the request will be forwarded to
+	// AWS without re-signing.
+	if req.Header.Get(common.TeleportAWSAssumedRole) != "" {
+		return trace.Wrap(s.serveRequestByAssumedRole(sessCtx, w, req))
+	}
+
+	// Handle requests signed with the default local proxy credentials. The
+	// request will be re-signed with real credentials by assuming the
+	// requested role of this AWS app.
+	return trace.Wrap(s.serveCommonRequest(sessCtx, w, req))
+}
+
+func (s *signerHandler) serveCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
 	// It's important that we resolve the endpoint before modifying the request headers,
 	// as they may be needed to resolve the endpoint correctly.
 	re, err := resolveEndpoint(req)
@@ -129,8 +153,7 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 		return trace.Wrap(err)
 	}
 
-	// rewrite headers before signing the request to avoid signature validation problems.
-	unsignedReq, err := rewriteRequest(s.closeContext, req, re)
+	unsignedReq, err := s.rewriteCommonRequest(sessCtx, w, req, re)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -149,22 +172,48 @@ func (s *signerHandler) serveHTTP(w http.ResponseWriter, req *http.Request) erro
 	}
 	recorder := httplib.NewResponseStatusRecorder(w)
 	s.fwd.ServeHTTP(recorder, signedReq)
-	status := uint32(recorder.Status())
+	s.emitAudit(sessCtx, unsignedReq, uint32(recorder.Status()), re)
+	return nil
+}
 
+// serveRequestByAssumedRole forwards the requests signed with real credentials
+// of an assumed role to AWS.
+func (s *signerHandler) serveRequestByAssumedRole(sessCtx *common.SessionContext, w http.ResponseWriter, req *http.Request) error {
+	re, err := resolveEndpointByXForwardedHost(req, common.TeleportAWSAssumedRoleAuthorization)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	req, err = s.rewriteRequestByAssumedRole(req, re)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	reqCloneForAudit, err := cloneRequest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	recorder := httplib.NewResponseStatusRecorder(w)
+	s.fwd.ServeHTTP(recorder, req)
+	s.emitAudit(sessCtx, reqCloneForAudit, uint32(recorder.Status()), re)
+	return nil
+}
+
+func (s *signerHandler) emitAudit(sessCtx *common.SessionContext, req *http.Request, status uint32, re *endpoints.ResolvedEndpoint) {
 	var auditErr error
 	if isDynamoDBEndpoint(re) {
-		auditErr = sessCtx.Audit.OnDynamoDBRequest(s.closeContext, sessCtx, unsignedReq, status, re)
+		auditErr = sessCtx.Audit.OnDynamoDBRequest(s.closeContext, sessCtx, req, status, re)
 	} else {
-		auditErr = sessCtx.Audit.OnRequest(s.closeContext, sessCtx, unsignedReq, status, re)
+		auditErr = sessCtx.Audit.OnRequest(s.closeContext, sessCtx, req, status, re)
 	}
 	if auditErr != nil {
 		// log but don't return the error, because we already handed off request/response handling to the oxy forwarder.
 		s.Log.WithError(auditErr).Warn("Failed to emit audit event.")
 	}
-	return nil
 }
 
-// rewriteRequest clones a request to remove Teleport reserved headers and rewrite the url.
+// rewriteRequest clones a request to rewrite the url.
 func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
 	u, err := urlForResolvedEndpoint(r, re)
 	if err != nil {
@@ -180,7 +229,47 @@ func rewriteRequest(ctx context.Context, r *http.Request, re *endpoints.Resolved
 		outReq.URL.Host = u.Host
 	}
 	outReq.Body = io.NopCloser(io.LimitReader(r.Body, teleport.MaxHTTPRequestSize))
+	// need to rewrite the host header as well. The oxy forwarder will do this for us,
+	// since we use the PassHostHeader(false) option, but if host is a signed header
+	// then we must make the host match the URL host before signing the request or AWS
+	// will reject the request for failing sigv4 verification.
+	outReq.Host = u.Host
 	return outReq, nil
+}
+
+// rewriteCommonRequest updates request signed with the default local proxy credentials.
+func (s *signerHandler) rewriteCommonRequest(sessCtx *common.SessionContext, w http.ResponseWriter, r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+	req, err := rewriteRequest(s.closeContext, r, re)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if strings.EqualFold(re.SigningName, sts.EndpointsID) {
+		if err := updateAssumeRoleDuration(sessCtx.Identity, w, req, s.Clock); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	return req, nil
+}
+
+// rewriteRequestByAssumedRole updates headers and url for requests by assumed roles.
+func (s *signerHandler) rewriteRequestByAssumedRole(r *http.Request, re *endpoints.ResolvedEndpoint) (*http.Request, error) {
+	req, err := rewriteRequest(s.closeContext, r, re)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if r.Host != req.Host {
+		return nil, trace.BadParameter("resolved host %q does not match requested host %q", req.Host, r.Host)
+	}
+
+	// Remove the special header before sending the request to AWS.
+	assumedRole := req.Header.Get(common.TeleportAWSAssumedRole)
+	req.Header.Del(common.TeleportAWSAssumedRole)
+
+	// Put back the original authorization header.
+	utils.RenameHeader(req.Header, common.TeleportAWSAssumedRoleAuthorization, awsutils.AuthorizationHeader)
+	return common.WithAWSAssumedRole(req, assumedRole), nil
 }
 
 // urlForResolvedEndpoint creates a URL based on input request and resolved endpoint.
@@ -199,4 +288,16 @@ func urlForResolvedEndpoint(r *http.Request, re *endpoints.ResolvedEndpoint) (*u
 		clone.Scheme = resolvedURL.Scheme
 	}
 	return &clone, nil
+}
+
+// cloneRequest makes a clone of the request with a deep-cloned body.
+func cloneRequest(req *http.Request) (*http.Request, error) {
+	body, err := utils.GetAndReplaceRequestBody(req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clone := req.Clone(req.Context())
+	clone.Body = io.NopCloser(bytes.NewReader(body))
+	return clone, nil
 }

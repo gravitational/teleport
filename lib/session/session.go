@@ -104,6 +104,10 @@ type Session struct {
 	DatabaseName string `json:"database_name"`
 	// AppName is the name of the app being accessed.
 	AppName string `json:"app_name"`
+	// Owner is the name of the session owner, ie the one who created the session.
+	Owner string `json:"owner"`
+	// Moderated is true if the session requires moderation.
+	Moderated bool `json:"moderated"`
 }
 
 // Participants returns the usernames of the current session participants.

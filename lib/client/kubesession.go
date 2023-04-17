@@ -58,6 +58,8 @@ func NewKubeSession(ctx context.Context, tc *TeleportClient, meta types.SessionT
 		TLSClientConfig: tlsConfig,
 	}
 
+	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
+
 	ws, resp, err := dialer.Dial(joinEndpoint, nil)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()

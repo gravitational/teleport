@@ -26,11 +26,17 @@ export default {
 
 export const Notifications = () => {
   return (
-    <Flex gap={8}>
+    <div
+      css={`
+        display: grid;
+        grid-gap: ${props => props.theme.space[8]}px;
+        grid-template-columns: auto auto auto;
+      `}
+    >
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'info',
             content: {
               title: 'Info with title and description',
@@ -45,7 +51,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'warn',
             content: {
               title: 'Warning with title and description',
@@ -60,7 +66,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'error',
             content: {
               title: 'Error with title and description',
@@ -68,7 +74,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -77,7 +83,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'info',
             content: 'Multiline info without title. ' + loremIpsum,
           }}
@@ -89,7 +95,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'warn',
             content: 'Multiline warning without title. ' + loremIpsum,
           }}
@@ -101,12 +107,12 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'error',
             content: 'Multiline error without title. ' + loremIpsum,
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -115,7 +121,7 @@ export const Notifications = () => {
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'info',
             content: 'Info without title',
           }}
@@ -127,7 +133,7 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'warn',
             content: 'Warning without title',
           }}
@@ -139,17 +145,134 @@ export const Notifications = () => {
 
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'error',
             content: 'Error without title',
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
       </Flex>
-    </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: getId(),
+            severity: 'info',
+            content: {
+              title: 'Info with link',
+              description: loremIpsum,
+              link: {
+                href: 'https://goteleport.com',
+                text: 'goteleport.com',
+              },
+            },
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: getId(),
+            severity: 'warn',
+            content: {
+              title: 'Warning with link',
+              description: loremIpsum,
+              link: {
+                href: 'https://goteleport.com',
+                text: 'goteleport.com',
+              },
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.warning}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: getId(),
+            severity: 'error',
+            content: {
+              title: 'Error with link',
+              description: loremIpsum,
+              link: {
+                href: 'https://goteleport.com',
+                text: 'goteleport.com',
+              },
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.error.main}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: getId(),
+            severity: 'info',
+            content: {
+              title: 'Info with list',
+              list: [loremIpsum, loremIpsum],
+            },
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: getId(),
+            severity: 'warn',
+            content: {
+              title: 'Warning with list',
+              list: [loremIpsum, loremIpsum],
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.warning.main}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: getId(),
+            severity: 'error',
+            content: {
+              title: 'Error with list',
+              list: [loremIpsum, loremIpsum],
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.error.main}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: getId(),
+            severity: 'info',
+            content:
+              'Unbreakable text. /Users/test/Library/ApplicationSupport/Electron/configuration.json',
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+    </div>
   );
 };
 
@@ -157,12 +280,13 @@ export const AutoRemovable = () => {
   const [showInfo, setShowInfo] = useState(true);
   const [showWarning, setShowWarning] = useState(true);
   const [showError, setShowError] = useState(true);
+
   return (
     <Flex flexDirection="column" gap={4}>
       {showInfo ? (
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'info',
             content:
               "This will be automatically removed after 5 seconds. Click to expand it. Mouseover it to restart the timer. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
@@ -179,7 +303,7 @@ export const AutoRemovable = () => {
       {showWarning ? (
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'warn',
             content:
               "This will be automatically removed after 5 seconds. Click to expand it. Mouseover it to restart the timer. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
@@ -196,14 +320,14 @@ export const AutoRemovable = () => {
       {showError ? (
         <Notification
           item={{
-            id: crypto.randomUUID(),
+            id: getId(),
             severity: 'error',
             content:
               "This can only be removed by clicking on the X. Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
           }}
           onRemove={() => setShowError(false)}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           isAutoRemovable={false}
         />
       ) : (
@@ -212,6 +336,13 @@ export const AutoRemovable = () => {
     </Flex>
   );
 };
+
+// Alternative to crypto.randomUUID, which doesn't work in storybook.
+let id = 0;
+function getId() {
+  id++;
+  return id.toString();
+}
 
 const loremIpsum =
   'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Ut non ipsum dignissim, dignissim est vitae, facilisis nunc.';

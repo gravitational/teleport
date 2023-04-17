@@ -40,7 +40,7 @@ func TestGetVirtualMachine(t *testing.T) {
 			resourceID: validResourceID,
 			client: &ARMComputeMock{
 				GetResult: armcompute.VirtualMachine{
-					ID:   to.Ptr("id"),
+					ID:   to.Ptr(validResourceID),
 					Name: to.Ptr("name"),
 					Identity: &armcompute.VirtualMachineIdentity{
 						PrincipalID: to.Ptr("system assigned"),
@@ -57,7 +57,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
-				require.Equal(t, vm.ID, "id")
+				require.Equal(t, vm.ID, validResourceID)
 				require.Equal(t, vm.Name, "name")
 				require.ElementsMatch(t, []Identity{
 					{ResourceID: "system assigned"},
@@ -71,7 +71,7 @@ func TestGetVirtualMachine(t *testing.T) {
 			resourceID: validResourceID,
 			client: &ARMComputeMock{
 				GetResult: armcompute.VirtualMachine{
-					ID:   to.Ptr("id"),
+					ID:   to.Ptr(validResourceID),
 					Name: to.Ptr("name"),
 				},
 			},
@@ -80,7 +80,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
-				require.Equal(t, vm.ID, "id")
+				require.Equal(t, vm.ID, validResourceID)
 				require.Equal(t, vm.Name, "name")
 				require.Empty(t, vm.Identities)
 			},
@@ -90,7 +90,7 @@ func TestGetVirtualMachine(t *testing.T) {
 			resourceID: validResourceID,
 			client: &ARMComputeMock{
 				GetResult: armcompute.VirtualMachine{
-					ID:   to.Ptr("id"),
+					ID:   to.Ptr(validResourceID),
 					Name: to.Ptr("name"),
 					Identity: &armcompute.VirtualMachineIdentity{
 						UserAssignedIdentities: map[string]*armcompute.UserAssignedIdentitiesValue{
@@ -105,7 +105,7 @@ func TestGetVirtualMachine(t *testing.T) {
 				require.NotNil(t, val)
 				vm, ok := val.(*VirtualMachine)
 				require.Truef(t, ok, "expected *VirtualMachine, got %T", val)
-				require.Equal(t, vm.ID, "id")
+				require.Equal(t, vm.ID, validResourceID)
 				require.Equal(t, vm.Name, "name")
 				require.ElementsMatch(t, []Identity{
 					{ResourceID: "identity1"},

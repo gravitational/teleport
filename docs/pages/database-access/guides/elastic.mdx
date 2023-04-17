@@ -1,6 +1,6 @@
 ---
 title: Database Access with Elasticsearch
-description: How to configure Teleport Database Access with Elasticsearch.
+description: How to configure Teleport database access with Elasticsearch.
 ---
 
 <Details
@@ -13,11 +13,13 @@ description: How to configure Teleport Database Access with Elasticsearch.
   Database access for Elasticsearch is available starting from Teleport `10.3`.
 </Details>
 
-This guide will help you to configure secured access to an Elasticsearch database using Teleport Database Access.
+This guide will help you to configure secured access to an Elasticsearch database using the Teleport Database Service.
 
 ## Prerequisites
 
-- A self-hosted Elasticsearch database. Elastic Cloud [does not support client certificates](https://www.elastic.co/guide/en/cloud/current/ec-restrictions.html#ec-restrictions-security), which are required for setting up Database Access.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A self-hosted Elasticsearch database. Elastic Cloud [does not support client certificates](https://www.elastic.co/guide/en/cloud/current/ec-restrictions.html#ec-restrictions-security), which are required for setting up the Database Service.
 
 - A host where you will run the Teleport Database Service. If you are already running the Teleport
   Database Service, you must ensure that it uses Teleport version 10.3 or newer in order to connect
@@ -26,15 +28,9 @@ This guide will help you to configure secured access to an Elasticsearch databas
 
   See [Installation](../../installation.mdx) for details.
 
-(!docs/pages/includes/user-client-prereqs.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Install and configure Teleport
-
-### Set up the Teleport Auth and Proxy Services
-
-(!docs/pages/includes/database-access/start-auth-proxy.mdx!)
-
-### Set up the Teleport Database Service
+## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
@@ -55,7 +51,7 @@ $ teleport db start \
   --token=/tmp/token \
   --auth-server=teleport.example.com:3080 \
   --name=myelastic \
-  --protocol=elastic \
+  --protocol=elasticsearch \
   --uri=elasticsearch.example.com:9200 \
   --labels=env=dev
 ```
@@ -68,7 +64,7 @@ $ teleport db start \
   --token=/tmp/token \
   --auth-server=mytennant.teleport.sh:443 \
   --name=myelastic \
-  --protocol=elastic \
+  --protocol=elasticsearch \
   --uri=elasticsearch.example.com:9200 \
   --labels=env=dev
 ```
@@ -93,7 +89,7 @@ Configure `teleport.yaml` using the example below:
 version: v3
 teleport:
   auth_token: <insert token here>
-  proxy_server: mytenant.teleport.sh
+  proxy_server: mytenant.teleport.sh:443
 
 # disable services that are on by default
 ssh_service: { enabled: no }

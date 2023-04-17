@@ -249,11 +249,11 @@ func TestHeartbeat(t *testing.T) {
 	t.Cleanup(func() { kubeMock.Close() })
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := setupTestContext(
+	testCtx := SetupTestContext(
 		context.Background(),
 		t,
-		testConfig{
-			clusters: []kubeClusterConfig{{name: kubeCluster1, apiEndpoint: kubeMock.URL}, {name: kubeCluster2, apiEndpoint: kubeMock.URL}},
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster1, APIEndpoint: kubeMock.URL}, {Name: kubeCluster2, APIEndpoint: kubeMock.URL}},
 		},
 	)
 
@@ -268,34 +268,10 @@ func TestHeartbeat(t *testing.T) {
 		wantEmpty bool
 	}{
 		{
-			// DELETE IN 13.0.0
-			name: "List KubeServices (legacy)",
-			args: args{
-				kubeClusterGetter: func(authClient auth.ClientI) []string {
-					rsp, err := authClient.ListResources(testCtx.ctx, proto.ListResourcesRequest{
-						ResourceType: types.KindKubeService,
-						Limit:        10,
-					})
-					require.NoError(t, err)
-					clusters := []string{}
-					for _, resource := range rsp.Resources {
-						srv, ok := resource.(types.Server)
-						require.Truef(t, ok, "type is %T; expected types.Server", srv)
-						for _, kubeCluster := range srv.GetKubernetesClusters() {
-							clusters = append(clusters, kubeCluster.Name)
-						}
-					}
-					sort.Strings(clusters)
-					return clusters
-				},
-			},
-			wantEmpty: true,
-		},
-		{
 			name: "List KubeServers",
 			args: args{
 				kubeClusterGetter: func(authClient auth.ClientI) []string {
-					rsp, err := authClient.ListResources(testCtx.ctx, proto.ListResourcesRequest{
+					rsp, err := authClient.ListResources(testCtx.Context, proto.ListResourcesRequest{
 						ResourceType: types.KindKubeServer,
 						Limit:        10,
 					})
@@ -314,12 +290,63 @@ func TestHeartbeat(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kubeClusters := tt.args.kubeClusterGetter(testCtx.authClient)
+			kubeClusters := tt.args.kubeClusterGetter(testCtx.AuthClient)
 			if tt.wantEmpty {
 				require.Empty(t, kubeClusters)
 			} else {
 				require.Equal(t, []string{kubeCluster1, kubeCluster2}, kubeClusters)
 			}
+		})
+	}
+}
+
+func TestTLSServerConfig_validateLabelsKey(t *testing.T) {
+	type fields struct {
+		staticLabels map[string]string
+	}
+	tests := []struct {
+		name           string
+		fields         fields
+		errorAssertion require.ErrorAssertionFunc
+	}{
+		{
+			name: "valid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key1": "value1",
+					"key2": "value2",
+				},
+			},
+			errorAssertion: require.NoError,
+		},
+		{
+			name: "invalid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key 1": "value1",
+					"key2":  "value2",
+				},
+			},
+			errorAssertion: require.Error,
+		},
+		{
+			name: "invalid labels",
+			fields: fields{
+				staticLabels: map[string]string{
+					"key\\1": "value1",
+					"key2":   "value2",
+				},
+			},
+			errorAssertion: require.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &TLSServerConfig{
+				StaticLabels: tt.fields.staticLabels,
+			}
+			err := c.validateLabelKeys()
+			tt.errorAssertion(t, err)
 		})
 	}
 }

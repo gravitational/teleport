@@ -44,6 +44,7 @@ export function ReAuthenticate({
   onClose,
   auth2faType,
   preferredMfaType,
+  actionText,
 }: State) {
   const [otpToken, setOtpToken] = useState('');
   const mfaOptions = createMfaOptions({
@@ -69,68 +70,73 @@ export function ReAuthenticate({
       {({ validator }) => (
         <Dialog
           dialogCss={() => ({
-            width: '400px',
+            width: '416px',
           })}
           disableEscapeKeyDown={false}
           onClose={onClose}
           open={true}
         >
-          <DialogHeader style={{ flexDirection: 'column' }}>
-            <DialogTitle>Verify your identity</DialogTitle>
-            <Text textAlign="center" color="text.secondary">
-              You must verify your identity before peforming this action.
-            </Text>
-          </DialogHeader>
-          {attempt.status === 'failed' && (
-            <Danger mt={2} width="100%">
-              {attempt.statusText}
-            </Danger>
-          )}
-          <DialogContent>
-            <Flex mt={2} alignItems="flex-end">
-              <FieldSelect
-                width="50%"
-                label="Two-factor type"
-                value={mfaOption}
-                options={mfaOptions}
-                onChange={(o: MfaOption) => {
-                  setMfaOption(o);
-                  clearAttempt();
-                }}
-                data-testid="mfa-select"
+          <form>
+            <DialogHeader style={{ flexDirection: 'column' }}>
+              <DialogTitle>Verify your identity</DialogTitle>
+              <Text textAlign="center" color="text.secondary">
+                You must verify your identity with one of your existing
+                two-factor devices before {actionText}.
+              </Text>
+            </DialogHeader>
+            {attempt.status === 'failed' && (
+              <Danger mt={2} width="100%">
+                {attempt.statusText}
+              </Danger>
+            )}
+            <DialogContent>
+              <Flex mt={2} alignItems="flex-end">
+                <FieldSelect
+                  width="50%"
+                  label="Two-factor type"
+                  value={mfaOption}
+                  options={mfaOptions}
+                  onChange={(o: MfaOption) => {
+                    setMfaOption(o);
+                    clearAttempt();
+                  }}
+                  data-testid="mfa-select"
+                  mr={3}
+                  mb={0}
+                  isDisabled={attempt.status === 'processing'}
+                  elevated={true}
+                />
+                <Box width="50%">
+                  {mfaOption.value === 'otp' && (
+                    <FieldInput
+                      label="Authenticator code"
+                      rule={requiredToken}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={otpToken}
+                      onChange={e => setOtpToken(e.target.value)}
+                      placeholder="123 456"
+                      readonly={attempt.status === 'processing'}
+                      mb={0}
+                    />
+                  )}
+                </Box>
+              </Flex>
+            </DialogContent>
+            <DialogFooter>
+              <ButtonPrimary
+                onClick={e => validator.validate() && onSubmit(e)}
+                disabled={attempt.status === 'processing'}
                 mr={3}
-                mb={0}
-                isDisabled={attempt.status === 'processing'}
-              />
-              <Box width="50%">
-                {mfaOption.value === 'otp' && (
-                  <FieldInput
-                    label="Authenticator code"
-                    rule={requiredToken}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    value={otpToken}
-                    onChange={e => setOtpToken(e.target.value)}
-                    placeholder="123 456"
-                    readonly={attempt.status === 'processing'}
-                    mb={0}
-                  />
-                )}
-              </Box>
-            </Flex>
-          </DialogContent>
-          <DialogFooter>
-            <ButtonPrimary
-              onClick={e => validator.validate() && onSubmit(e)}
-              disabled={attempt.status === 'processing'}
-              mr={3}
-              mt={3}
-              autoFocus
-            >
-              Continue
-            </ButtonPrimary>
-            <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
-          </DialogFooter>
+                mt={3}
+                type="submit"
+                autoFocus
+              >
+                Continue
+              </ButtonPrimary>
+              <ButtonSecondary onClick={onClose}>Cancel</ButtonSecondary>
+            </DialogFooter>
+          </form>
         </Dialog>
       )}
     </Validation>

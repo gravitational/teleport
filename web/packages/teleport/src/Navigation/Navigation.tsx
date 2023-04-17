@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
-import { matchPath, useHistory } from 'react-router';
+import { matchPath, useHistory, useLocation } from 'react-router';
 
 import { NavigationSwitcher } from 'teleport/Navigation/NavigationSwitcher';
 import cfg from 'teleport/config';
@@ -31,16 +31,19 @@ import { useFeatures } from 'teleport/FeaturesContext';
 
 import { NavigationCategoryContainer } from 'teleport/Navigation/NavigationCategoryContainer';
 
-import logo from './logo.png';
+import logoLight from './logoLight.svg';
+import logoDark from './logoDark.svg';
 
-import type { Location } from 'history';
+import type * as history from 'history';
 
 import type { TeleportFeature } from 'teleport/types';
 
 const NavigationLogo = styled.div`
-  background: url(${logo}) no-repeat;
+  background: url(${props =>
+      props.themeOption === 'light' ? logoLight : logoDark})
+    no-repeat;
   background-size: contain;
-  width: 181px;
+  width: 180px;
   height: 32px;
   margin-top: 20px;
   margin-left: 32px;
@@ -48,12 +51,14 @@ const NavigationLogo = styled.div`
 `;
 
 const NavigationContainer = styled.div`
-  background: ${p => p.theme.colors.primary.light};
+  background: ${p => p.theme.colors.levels.surface};
   width: var(--sidebar-width);
   overflow: hidden;
   position: relative;
   display: flex;
   flex-direction: column;
+  box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2),
+    0px 1px 1px rgba(0, 0, 0, 0.14), 0px 1px 3px rgba(0, 0, 0, 0.12);
 `;
 
 const CategoriesContainer = styled.div`
@@ -77,7 +82,7 @@ export function getFirstRouteForCategory(
 
 function getCategoryForRoute(
   features: TeleportFeature[],
-  route: Location<unknown>
+  route: history.Location<unknown> | Location
 ) {
   const feature = features
     .filter(feature => Boolean(feature.route))
@@ -89,7 +94,7 @@ function getCategoryForRoute(
     );
 
   if (!feature) {
-    return NavigationCategory.Resources;
+    return;
   }
 
   return feature.category;
@@ -98,21 +103,55 @@ function getCategoryForRoute(
 export function Navigation() {
   const features = useFeatures();
   const history = useHistory();
+  const location = useLocation();
+  const theme = useTheme();
 
   const [view, setView] = useState(
     getCategoryForRoute(features, history.location) ||
       NavigationCategory.Resources
   );
 
-  const [previousRoute, setPreviousRoute] = useState('');
+  const [previousRoute, setPreviousRoute] = useState<{
+    [category: string]: string;
+  }>({});
+
+  const handleLocationChange = useCallback(
+    (next: history.Location<unknown> | Location) => {
+      const previousPathName = location.pathname;
+
+      const category = getCategoryForRoute(features, next);
+      const previousCategory = getCategoryForRoute(features, location);
+
+      if (category && category !== view) {
+        setView(category);
+
+        if (previousCategory) {
+          setPreviousRoute(previous => ({
+            ...previous,
+            [previousCategory]: previousPathName,
+          }));
+        }
+      }
+    },
+    [location, view]
+  );
 
   useEffect(() => {
-    const category = getCategoryForRoute(features, history.location);
+    return history.listen(handleLocationChange);
+  }, [history, location.pathname, features, view]);
 
-    if (category && category !== view) {
-      setView(category);
-    }
-  }, [history.location, features, view]);
+  const handlePopState = useCallback(
+    (event: PopStateEvent) => {
+      handleLocationChange((event.currentTarget as Window).location);
+    },
+    [view]
+  );
+
+  useEffect(() => {
+    window.addEventListener('popstate', handlePopState);
+
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [handlePopState]);
 
   const handleCategoryChange = useCallback(
     (category: NavigationCategory) => {
@@ -120,16 +159,11 @@ export function Navigation() {
         return;
       }
 
-      const previousPathName = history.location.pathname;
-
       history.push(
-        previousRoute || getFirstRouteForCategory(features, category)
+        previousRoute[category] || getFirstRouteForCategory(features, category)
       );
-
-      setPreviousRoute(previousPathName);
-      setView(category);
     },
-    [view, history.location.pathname, previousRoute]
+    [view, previousRoute]
   );
 
   const categories = NAVIGATION_CATEGORIES.map((category, index) => (
@@ -142,7 +176,7 @@ export function Navigation() {
 
   return (
     <NavigationContainer>
-      <NavigationLogo />
+      <NavigationLogo themeOption={theme.name} />
 
       <NavigationSwitcher
         onChange={handleCategoryChange}

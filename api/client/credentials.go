@@ -314,12 +314,18 @@ func (c *profileCreds) Dialer(cfg Config) (ContextDialer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	tlsConfig, err := c.profile.TLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return NewProxyDialer(
 		*sshConfig,
 		cfg.KeepAlivePeriod,
 		cfg.DialTimeout,
 		c.profile.WebProxyAddr,
 		cfg.InsecureAddressDiscovery,
+		WithTLSConfig(tlsConfig),
 	), nil
 }
 

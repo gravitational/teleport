@@ -38,7 +38,7 @@ function makeTraces(traces: any): ConnectionDiagnosticTrace[] {
   }
 
   return traces.map(t => ({
-    traceType: t.trace_type,
+    traceType: t.traceType,
     status: t.status?.toLowerCase(),
     details: t.details,
     error: t.error,

@@ -2,10 +2,17 @@
 # Values that must always be provided by the user.
 ##################################################
 
-# clusterName is a unique cluster name.
-# This value cannot be changed after your cluster starts without rebuilding it from scratch.
-# We recommend using the fully qualified domain name that you use to access your cluster,
-# for example: teleport.example.com.
+# `clusterName` controls the name used to refer to the Teleport cluster, along with
+# the externally-facing public address to use to access it. In most setups this must
+# be a fully-qualified domain name (e.g. `teleport.example.com`) as this value is
+# used as the cluster's public address by default.
+#
+# Note: When using a fully qualified domain name as your `clusterName`, you will also
+# need to configure the DNS provider for this domain to point to the external
+# load balancer address of your Teleport cluster.
+#
+# Warning: The clusterName cannot be changed during a Teleport cluster's lifespan.
+# If you need to change it, you must redeploy a completely new cluster.
 clusterName: ""
 
 # Name for this kubernetes cluster to be used by teleport users.
@@ -18,26 +25,52 @@ kubeClusterName: ""
 # Version of teleport image, if different from chart version in Chart.yaml.
 teleportVersionOverride: ""
 
-# auth contains values specific for the auth pods
-# You can override chart-scoped values, for example
+# The `teleport-cluster` charts deploys two sets of pods: auth and proxy.
+# `auth` contains values specific for the auth pods. You can use it to
+#  set specific values for auth pods, taking precedence over chart-scoped values.
+# For example, to override the [`postStart`](#postStart) value only for auth pods:
+#
 # auth:
-#   postStart: ["curl", "http://hook"]
-#   imagePullPolicy: Always
+#  postStart: ["curl", "http://hook"]
+#  imagePullPolicy: Always
 auth:
   # auth.teleportConfig contains YAML teleport configuration for auth pods
   # The configuration will be merged with the chart-generated configuration
-  # and will take precedence in case of conflict
+  # and will take precedence in case of conflict.
+  #
+  # See the Teleport Configuration Reference for the list of supported fields:
+  # https://goteleport.com/docs/reference/config/
+  #
+  # teleportConfig:
+  #   teleport:
+  #     cache:
+  #       enabled: false
+  #   auth_service:
+  #     client_idle_timeout: 2h
+  #     client_idle_timeout_message: "Connection closed after 2hours without activity"
   teleportConfig: {}
 
 # proxy contains values specific for the proxy pods
 # You can override chart-scoped values, for example
-# auth:
+# proxy:
 #   postStart: ["curl", "http://hook"]
 #   imagePullPolicy: Always
 proxy:
   # proxy.teleportConfig contains YAML teleport configuration for proxy pods
   # The configuration will be merged with the chart-generated configuration
   # and will take precedence in case of conflict
+  #
+  # See the Teleport Configuration Reference for the list of supported fields:
+  # https://goteleport.com/docs/reference/config/
+  #
+  # teleportConfig:
+  #   teleport:
+  #     cache:
+  #       enabled: false
+  #   proxy_service:
+  #     https_keypairs:
+  #       - key_file: /my-custom-mount/key.pem
+  #         cert_file: /my-custom-mount/cert.pem
   teleportConfig: {}
 
 authentication:
@@ -70,14 +103,14 @@ authentication:
   #   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
   #   If you don't, RP ID will default to `clusterName` and users will fail
   #   to register second factors.
-  # 
+  #
   #   You can do this by setting the value
   #   `auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
-  #   
+  #
   #   RP ID must be both a valid domain, and part of the full domain users are connecting to.
   #   For example, if users are accessing the cluster with the domain
   #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
-  # 
+  #
   #   Changing the RP ID will invalidate all already registered webauthn second factors.
   secondFactor: "on"
 
@@ -105,7 +138,7 @@ authentication:
 
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
-# 
+#
 # WARNING: setting this value to 'multiplex' requires Teleport to terminate TLS itself.
 # TLS multiplexing is not supported when using ACM+NLB for TLS termination.
 #
@@ -124,40 +157,42 @@ separatePostgresListener: false
 separateMongoListener: false
 
 # Do not set any of these values unless you explicitly need to. Teleport always uses the cluster name by default.
-# Public cluster addresses, including port. Defaults to `clusterName` on 443 port.
 #
 # WARNING:
 #   If you set `publicAddr` for users to access the cluster under a domain different
-  #   to clusterName you must manually set the webauthn Relying
-  #   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
-  #   If you don't, RP ID will default to `clusterName` and users will fail
-  #   to register second factors.
-# 
+#   to clusterName, you must manually set the webauthn Relying
+#   Party Identifier (RP ID) - https://www.w3.org/TR/webauthn-2/#relying-party-identifier
+#   If you don't, RP ID will default to `clusterName` and users will fail
+#   to register second factors.
+#
 #   You can do this by setting the value
 #   `auth.teleportConfig.auth_service.authentication.webauthn.rp_id`.
-#   
+#
 #   RP ID must be both a valid domain, and part of the full domain users are connecting to.
 #   For example, if users are accessing the cluster with the domain
 #   "teleport.example.com", RP ID can be "teleport.example.com" or "example.com".
-# 
+#
 #   Changing the RP ID will invalidate all already registered webauthn second factors.
+#
+# Public cluster addresses, including port (e.g. teleport.example.com:443)
+# Defaults to `clusterName` on port 443.
 publicAddr: []
-# Public cluster kube addresses, including port. Defaults to `publicAddr` on 3026 port.
+# Public cluster kube addresses, including port. Defaults to `publicAddr` on port 3026.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 kubePublicAddr: []
-# Public cluster mongo listener addresses, including port. Defaults to `publicAddr` on 27017 port.
+# Public cluster mongo listener addresses, including port. Defaults to `publicAddr` on port 27017.
 # Only used when `proxyListenerMode` is not 'multiplex' and `separateMongoListener` is true.
 mongoPublicAddr: []
-# Public cluster MySQL addresses, including port. Defaults to `publicAddr` on 3036 port.
+# Public cluster MySQL addresses, including port. Defaults to `publicAddr` on port 3036.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 mysqlPublicAddr: []
-# Public cluster postgres listener addresses, including port. Defaults to `publicAddr` on 5432 port.
+# Public cluster postgres listener addresses, including port. Defaults to `publicAddr` on port 5432.
 # Only used when `proxyListenerMode` is not 'multiplex' and `separatePostgresListener` is true.
 postgresPublicAddr: []
-# Public cluster SSH addresses, including port. Defaults to `publicAddr` on 3023 port.
+# Public cluster SSH addresses, including port. Defaults to `publicAddr` on port 3023.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 sshPublicAddr: []
-# Public cluster tunnel SSH addresses, including port. Defaults to `publicAddr` on 3024 port.
+# Public cluster tunnel SSH addresses, including port. Defaults to `publicAddr` on port 3024.
 # Only used when `proxyListenerMode` is not 'multiplex'.
 tunnelPublicAddr: []
 
@@ -199,7 +234,8 @@ operator:
 
 # If true, create & use Pod Security Policy resources
 # https://kubernetes.io/docs/concepts/policy/pod-security-policy/
-# Note: the PSP won't be deployed if Kubernetes does not support the resource (Kubernetes >= 1.25)
+# WARNING: the PSP won't be deployed for Kubernetes 1.23 and higher.
+# Please read https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kubernetes-1-25-psp/
 podSecurityPolicy:
   enabled: true
 
@@ -243,7 +279,7 @@ podMonitor:
   interval: 30s
 
 ######################################################################
-# Persistence settings (only used in "standalone" and "custom" modes)
+# Persistence settings (only used in "standalone" and "scratch" modes)
 # NOTE: Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
 # without additional configuration. See https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html for more details.
 # This driver addon must be configured to use persistent volumes in EKS clusters after Kubernetes 1.23.
@@ -320,12 +356,31 @@ gcp:
   # You can override this to a blank value if the worker node running Teleport already has a service account which grants access.
   credentialSecretName: teleport-gcp-credentials
 
-# Settings for high availability. These are not used in "standalone" mode.
-# When using "custom" mode, you must use highly-available storage (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
-# Manually configuring NFS-based storage or ReadWriteMany volume claims is NOT supported and will result in errors.
+
+# `highAvailability` contains settings controlling how Teleport pods are
+# replicated and scheduled. This allows Teleport to run in a highly-available
+# fashion: Teleport should sustain the crash/loss of a machine without interrupting
+# the service.
+#
+# For auth pods:
+#   When using "standalone" or "scratch" mode, you must use highly-available storage
+#   (etcd, DynamoDB or Firestore) for multiple replicas to be supported.
+#   Manually configuring NFS-based storage or ReadWriteMany volume claims
+#   is NOT supported and will result in errors. Using Teleport's built-in
+#   ACME client (as opposed to using cert-manager or passing certs through a secret)
+#   is not supported with multiple replicas.
+# For proxy pods:
+#   Proxy pods need to be provided a certificate to be replicated (either via
+#  `tls.existingSecretName` or via `highAvailability.certManager`).
+#   If proxy pods are replicable, they will default to 2 replicas,
+#   even if `highAvailability.replicaCount` is 1. To force a single proxy replica,
+#   set `proxy.highAvailability.replicaCount: 1`.
 highAvailability:
-  # Set to >1 for a high availability mode where multiple Teleport pods will be deployed and connections will be load balanced between them.
-  # Note: this will disable the use of ACME certs.
+  # Controls the amount of pod replicas. The `highAvailability` comment describes
+  # the replication requirements.
+  #
+  # WARNING: You **must** meet the replication criteria,
+  # else the deployment will result in errors and inconsistent data.
   replicaCount: 1
   # Setting 'requireAntiAffinity' to true will use 'requiredDuringSchedulingIgnoredDuringExecution' to require that multiple Teleport pods must not be scheduled on the
   # same physical host. This will result in Teleport pods failing to be scheduled in very small clusters or during node downtime, so should be used with caution.
@@ -379,6 +434,8 @@ tls:
 image: public.ecr.aws/gravitational/teleport
 # Enterprise version of the image
 enterpriseImage: public.ecr.aws/gravitational/teleport-ent
+# Optional array of imagePullSecrets, to use when pulling from a private registry
+imagePullSecrets: []
 # Teleport logging configuration
 log:
   # Log level for the Teleport process.
@@ -413,7 +470,7 @@ affinity: {}
 # Kubernetes annotations to apply
 # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
 annotations:
-  # Annotations for the ConfigMap (note: these will not be applied in 'custom' mode)
+  # Annotations for the ConfigMap
   config: {}
   # Annotations for the Deployment
   deployment: {}

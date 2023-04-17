@@ -50,6 +50,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	ghinst "github.com/bradleyfalzon/ghinstallation/v2"
@@ -69,8 +70,14 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), args.timeout)
-	defer cancel()
+	ctx := context.Background()
+	if args.timeout != 0 {
+		log.Printf("Setting %v timeout", args.timeout)
+
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, args.timeout)
+		defer cancel()
+	}
 
 	installationID, err := lookupInstallationID(ctx, args)
 	if err != nil {
@@ -92,7 +99,7 @@ func main() {
 	// our dispatch event. Note that we pick a time slightly in the past to handle
 	// any clock skew.
 	baselineTime := time.Now().Add(-2 * time.Minute)
-	oldRuns, err := github.ListWorkflowRuns(dispatchCtx, gh.Actions, args.owner, args.repo, args.workflow, args.workflowRef, baselineTime)
+	oldRuns, err := github.ListWorkflowRuns(dispatchCtx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
 	if err != nil {
 		log.Fatalf("Failed to fetch initial task list: %s", err)
 	}
@@ -135,6 +142,16 @@ func main() {
 	log.Printf("Workflow succeeded")
 }
 
+// Returns either the branch name for the provided reference (if it refers to a branch), or an empty string.
+func getBranchForRef(ref string) string {
+	branchRefPrefix := "refs/heads/"
+	if strings.HasPrefix(ref, branchRefPrefix) {
+		return strings.TrimPrefix(ref, branchRefPrefix)
+	}
+
+	return ""
+}
+
 // lookupInstallationID attempts to find an installation of the interface app
 // we're using to authenticate.
 func lookupInstallationID(ctx context.Context, args args) (int64, error) {
@@ -166,7 +183,7 @@ func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag
 			log.Fatal("Timed out waiting for workflow run to start")
 
 		case <-ticker.C:
-			newRuns, err := github.ListWorkflowRuns(ctx, gh.Actions, args.owner, args.repo, args.workflow, args.workflowRef, baselineTime)
+			newRuns, err := github.ListWorkflowRuns(ctx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
 			if err != nil {
 				return nil, trace.Wrap(err, "Failed polling for new workflow runs")
 			}

@@ -1,4 +1,4 @@
-{{- $auth := mustMergeOverwrite .Values .Values.auth -}}
+{{- $auth := mustMergeOverwrite (mustDeepCopy .Values) .Values.auth -}}
 {{- $configTemplate := printf "teleport-cluster.auth.config.%s" $auth.chartMode -}}
 apiVersion: v1
 kind: ConfigMap
@@ -16,7 +16,7 @@ data:
     version: v2
     metadata:
       name: {{ .Release.Name }}-proxy
-      expires: "3000-01-01T00:00:00Z"
+      expires: "2050-01-01T00:00:00Z"
     spec:
       roles: [Proxy]
       join_method: kubernetes

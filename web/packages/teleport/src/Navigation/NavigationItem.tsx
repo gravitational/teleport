@@ -21,7 +21,6 @@ import { NavLink } from 'react-router-dom';
 
 import { ExternalLinkIcon } from 'design/SVGIcon';
 
-import { useTeleport } from 'teleport';
 import { getIcon } from 'teleport/Navigation/utils';
 import { NavigationDropdown } from 'teleport/Navigation/NavigationDropdown';
 import {
@@ -29,6 +28,8 @@ import {
   LinkContent,
   NavigationItemSize,
 } from 'teleport/Navigation/common';
+
+import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import type { TeleportFeature } from 'teleport/types';
 
@@ -40,21 +41,24 @@ interface NavigationItemProps {
 }
 
 const ExternalLink = styled.a`
-  padding: 16px 30px;
-
   ${commonNavigationItemStyles};
+
+  &:focus {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
 `;
 
 const Link = styled(NavLink)`
   ${commonNavigationItemStyles};
+  color: ${props => props.theme.colors.text.primary};
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 
   &.active {
-    background: rgba(255, 255, 255, 0.05);
-    border-left-color: #512fc9;
+    background: ${props => props.theme.colors.spotBackground[0]};
+    border-left-color: ${props => props.theme.colors.brand};
 
     ${LinkContent} {
       font-weight: 700;
@@ -72,8 +76,7 @@ const ExternalLinkIndicator = styled.div`
 `;
 
 export function NavigationItem(props: NavigationItemProps) {
-  const ctx = useTeleport();
-  const clusterId = ctx.storeUser.getClusterId();
+  const { clusterId } = useStickyClusterId();
 
   const { navigationItem, route } = props.feature;
 
@@ -144,7 +147,7 @@ export function NavigationItem(props: NavigationItemProps) {
     []
   );
 
-  if (navigationItem && route) {
+  if (navigationItem) {
     const linkProps = {
       style: {
         transitionDelay: `${props.transitionDelay}ms,0s`,
@@ -164,30 +167,34 @@ export function NavigationItem(props: NavigationItemProps) {
           target="_blank"
           rel="noopener noreferrer"
         >
-          {getIcon(props.feature, props.size)}
-          {navigationItem.title}
+          <LinkContent size={props.size}>
+            {getIcon(props.feature, props.size)}
+            {navigationItem.title}
 
-          <ExternalLinkIndicator>
-            <ExternalLinkIcon size={14} />
-          </ExternalLinkIndicator>
+            <ExternalLinkIndicator>
+              <ExternalLinkIcon size={14} />
+            </ExternalLinkIndicator>
+          </LinkContent>
         </ExternalLink>
       );
     }
 
-    return (
-      <Link
-        {...linkProps}
-        onKeyDown={handleKeyDown}
-        tabIndex={props.visible ? 0 : -1}
-        to={navigationItem.getLink(clusterId)}
-        exact={navigationItem.exact}
-      >
-        <LinkContent size={props.size}>
-          {getIcon(props.feature, props.size)}
-          {navigationItem.title}
-        </LinkContent>
-      </Link>
-    );
+    if (route) {
+      return (
+        <Link
+          {...linkProps}
+          onKeyDown={handleKeyDown}
+          tabIndex={props.visible ? 0 : -1}
+          to={navigationItem.getLink(clusterId)}
+          exact={navigationItem.exact}
+        >
+          <LinkContent size={props.size}>
+            {getIcon(props.feature, props.size)}
+            {navigationItem.title}
+          </LinkContent>
+        </Link>
+      );
+    }
   }
 
   return (

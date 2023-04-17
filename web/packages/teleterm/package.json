@@ -18,8 +18,7 @@
     "build-renderer": "webpack build --config webpack.renderer.prod.config.js --progress",
     "build-native-deps": "electron-builder install-app-deps",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "package-ci": "yarn package --dir",
-    "generate-grpc-shared": "npx -y --target_arch=x64 --package=grpc_tools_node_protoc_ts@5.3.2 --package=grpc-tools@1.11.2 -- grpc_tools_node_protoc -I=src/sharedProcess/api/proto --ts_out=service=grpc-node,mode=grpc-js:src/sharedProcess/api/protogen --grpc_out=grpc_js:src/sharedProcess/api/protogen --js_out=import_style=commonjs,binary:src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
+    "generate-grpc-shared": "npx -y --target_arch=x64 --package=grpc_tools_node_protoc_ts@5.3.2 --package=grpc-tools@1.12.4 -- grpc_tools_node_protoc -I=src/sharedProcess/api/proto --ts_out=service=grpc-node,mode=grpc-js:src/sharedProcess/api/protogen --grpc_out=grpc_js:src/sharedProcess/api/protogen --js_out=import_style=commonjs,binary:src/sharedProcess/api/protogen src/sharedProcess/api/proto/*.proto"
   },
   "repository": {
     "type": "git",
@@ -30,7 +29,7 @@
   "homepage": "https://goteleport.com",
   "dependencies": {
     "emittery": "^1.0.1",
-    "node-pty": "0.10.0"
+    "node-pty": "0.11.0-beta29"
   },
   "devDependencies": {
     "@gravitational/build": "^1.0.0",
@@ -41,22 +40,24 @@
     "@types/node-forge": "^1.0.4",
     "clean-webpack-plugin": "4.0.0",
     "cross-env": "5.0.5",
-    "electron": "22.0.0",
+    "electron": "22.3.6",
     "electron-debug": "^3.2.0",
     "electron-notarize": "^1.2.1",
     "eslint-import-resolver-webpack": "0.13.2",
     "eslint-loader": "3.0.3",
     "google-protobuf": "^3.20.1",
     "immer": "^9.0.7",
+    "jest-canvas-mock": "^2.3.1",
     "node-forge": "^1.3.1",
     "react-dnd": "^14.0.4",
     "react-dnd-html5-backend": "^14.0.2",
     "split2": "4.1.0",
-    "ts-loader": "^9.3.1",
+    "ts-loader": "^9.4.2",
     "winston": "^3.3.3",
-    "xterm": "^4.15.0",
-    "xterm-addon-fit": "^0.5.0",
-    "zod": "^3.20.0"
+    "xterm": "^5.0.0",
+    "xterm-addon-fit": "^0.7.0",
+    "zod": "^3.21.2",
+    "zod-to-json-schema": "^3.20.4"
   },
   "productName": "Teleport Connect"
 }

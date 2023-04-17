@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Box, Flex, ButtonIcon, ButtonText } from 'design';
+import { Box, Flex, ButtonIcon, ButtonText, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import { useValidation, Validator } from 'shared/components/Validation';
@@ -28,11 +28,13 @@ export function LabelsCreater({
   setLabels,
   disableBtns = false,
   isLabelOptional = false,
+  noDuplicateKey = false,
 }: {
   labels: DiscoverLabel[];
   setLabels(l: DiscoverLabel[]): void;
   disableBtns?: boolean;
   isLabelOptional?: boolean;
+  noDuplicateKey?: boolean;
 }) {
   const validator = useValidation() as Validator;
 
@@ -73,8 +75,27 @@ export function LabelsCreater({
   ) => {
     const { value } = event.target;
     const newList = [...labels];
-    newList[index] = { ...newList[index], [labelField]: value };
+
+    // Check for any dup key:
+    if (noDuplicateKey && labelField === 'name') {
+      const isDupKey = labels.some(l => l.name === value);
+      newList[index] = { ...newList[index], [labelField]: value, isDupKey };
+    } else {
+      newList[index] = { ...newList[index], [labelField]: value };
+    }
     setLabels(newList);
+  };
+
+  const requiredUniqueKey = value => () => {
+    // Check for empty length and duplicate key.
+    let notValid = !value || value.length === 0;
+    if (noDuplicateKey) {
+      notValid = notValid || labels.some(l => l.isDupKey);
+    }
+    return {
+      valid: !notValid,
+      message: '', // err msg doesn't matter as it isn't diaplsyed.
+    };
   };
 
   return (
@@ -102,7 +123,7 @@ export function LabelsCreater({
               <Flex alignItems="center">
                 <FieldInput
                   Input
-                  rule={requiredField('required')}
+                  rule={requiredUniqueKey}
                   autoFocus
                   value={label.name}
                   placeholder="label key"
@@ -111,6 +132,7 @@ export function LabelsCreater({
                   mb={0}
                   onChange={e => handleChange(e, index, 'name')}
                   readonly={disableBtns || label.isFixed}
+                  markAsError={label.isDupKey}
                 />
                 <FieldInput
                   rule={requiredField('required')}
@@ -139,6 +161,11 @@ export function LabelsCreater({
                   </ButtonIcon>
                 )}
               </Flex>
+              {label.isDupKey && (
+                <Text color="red" fontSize="12px">
+                  Duplicate key not allowed
+                </Text>
+              )}
             </Box>
           );
         })}
@@ -178,4 +205,7 @@ export type DiscoverLabel = AgentLabel & {
   // isFixed is a flag to mean label is
   // unmodifiable and undeletable.
   isFixed?: boolean;
+  // isDupKey is a flag to mean this label
+  // has duplicate key.
+  isDupKey?: boolean;
 };

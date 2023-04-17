@@ -20,24 +20,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	api "github.com/gravitational/teleport/lib/teleterm/api/protogen/golang/v1"
+	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
-
-// GetAllKubes lists kubernetes clusters
-func (s *Handler) GetAllKubes(ctx context.Context, req *api.GetAllKubesRequest) (*api.GetAllKubesResponse, error) {
-	kubes, err := s.DaemonService.GetAllKubes(ctx, req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response := &api.GetAllKubesResponse{}
-	for _, k := range kubes {
-		response.Kubes = append(response.Kubes, newAPIKube(k))
-	}
-
-	return response, nil
-}
 
 // GetKubes accepts parameterized input to enable searching, sorting, and pagination
 func (s *Handler) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*api.GetKubesResponse, error) {

@@ -1,4 +1,4 @@
-{{- $proxy := mustMergeOverwrite .Values .Values.proxy -}}
+{{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 # Deployment is {{ if not $replicable }}not {{end}}replicable
@@ -95,6 +95,10 @@ spec:
 {{- if $proxy.tolerations }}
       tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
 {{- end }}
+{{- if $proxy.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $proxy.imagePullSecrets | nindent 6 }}
+{{- end }}
       initContainers:
         # wait-auth-update is responsible for holding off the proxy rollout until all auths are running the
         # next major version in case of major upgrade.
@@ -105,6 +109,9 @@ spec:
             - wait
             - no-resolve
             - '{{ include "teleport-cluster.auth.previousVersionServiceName" . }}.{{ .Release.Namespace }}.svc.cluster.local'
+{{- if $proxy.securityContext }}
+          securityContext: {{- toYaml $proxy.securityContext | nindent 12 }}
+{{- end }}
 {{- if $proxy.initContainers }}
   {{- range $initContainer := $proxy.initContainers }}
     {{- if and (not $initContainer.resources) $proxy.resources }}
@@ -155,6 +162,38 @@ spec:
           {{- toYaml $proxy.extraArgs | nindent 8 }}
         {{- end }}
         ports:
+        - name: tls
+          containerPort: 3080
+          protocol: TCP
+        {{- if $proxy.enterprise }}
+        - name: proxypeering
+          containerPort: 3021
+          protocol: TCP
+        {{- end }}
+        {{- if ne $proxy.proxyListenerMode "multiplex" }}
+        - name: sshproxy
+          containerPort: 3023
+          protocol: TCP
+        - name: sshtun
+          containerPort: 3024
+          protocol: TCP
+        - name: kube
+          containerPort: 3026
+          protocol: TCP
+        - name: mysql
+          containerPort: 3036
+          protocol: TCP
+        {{- if $proxy.separatePostgresListener }}
+        - name: postgres
+          containerPort: 5432
+          protocol: TCP
+        {{- end }}
+        {{- if $proxy.separateMongoListener }}
+        - name: mongo
+          containerPort: 27017
+          protocol: TCP
+        {{- end }}
+        {{- end }}
         - name: diag
           containerPort: 3000
           protocol: TCP

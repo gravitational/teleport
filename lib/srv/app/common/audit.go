@@ -99,7 +99,7 @@ func (a *audit) OnSessionStart(ctx context.Context, serverID string, identity *t
 		},
 		UserMetadata: identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.ClientIP,
+			RemoteAddr: identity.LoginIP,
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
@@ -128,7 +128,7 @@ func (a *audit) OnSessionEnd(ctx context.Context, serverID string, identity *tls
 		},
 		UserMetadata: identity.GetUserMetadata(),
 		ConnectionMetadata: apievents.ConnectionMetadata{
-			RemoteAddr: identity.ClientIP,
+			RemoteAddr: identity.LoginIP,
 		},
 		AppMetadata: apievents.AppMetadata{
 			AppURI:        app.GetURI(),
@@ -233,9 +233,11 @@ func MakeAWSRequestMetadata(req *http.Request, awsEndpoint *endpoints.ResolvedEn
 	if awsEndpoint == nil {
 		return &apievents.AWSRequestMetadata{}
 	}
+
 	return &apievents.AWSRequestMetadata{
-		AWSRegion:  awsEndpoint.SigningRegion,
-		AWSService: awsEndpoint.SigningName,
-		AWSHost:    req.URL.Host,
+		AWSRegion:      awsEndpoint.SigningRegion,
+		AWSService:     awsEndpoint.SigningName,
+		AWSHost:        req.URL.Host,
+		AWSAssumedRole: GetAWSAssumedRole(req),
 	}
 }

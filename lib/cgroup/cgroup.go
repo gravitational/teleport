@@ -143,7 +143,7 @@ func (s *Service) Remove(sessionID string) error {
 	return nil
 }
 
-// Place  place a process in the cgroup for that session.
+// Place places a process in the cgroup for that session.
 func (s *Service) Place(sessionID string, pid int) error {
 	// Open cgroup.procs file for the cgroup.
 	filepath := filepath.Join(s.teleportRoot, sessionID, cgroupProcs)
@@ -159,7 +159,7 @@ func (s *Service) Place(sessionID string, pid int) error {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(f.Sync())
 }
 
 // readPids returns a slice of PIDs from a file. Used to get list of all PIDs
@@ -200,7 +200,7 @@ func writePids(path string, pids []string) error {
 		}
 	}
 
-	return nil
+	return trace.Wrap(f.Sync())
 }
 
 // cleanupHierarchy removes any cgroups for any exisiting sessions.

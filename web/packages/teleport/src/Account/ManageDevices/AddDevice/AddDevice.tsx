@@ -41,12 +41,12 @@ import FieldSelect from 'shared/components/FieldSelect';
 
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
+import secKeyGraphic from 'design/assets/images/sec-key-graphic.svg';
+
 import { DeviceUsage } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 
 import useAddDevice, { State, Props } from './useAddDevice';
-
-const secKeyGraphic = require('design/assets/images/sec-key-graphic.svg');
 
 const deviceUsageOpts: DeviceusageOpt[] = [
   {
@@ -118,138 +118,147 @@ export function AddDevice({
           onClose={onClose}
           open={true}
         >
-          <DialogHeader style={{ flexDirection: 'column' }}>
-            <DialogTitle>Add New Two-Factor Device</DialogTitle>
-          </DialogHeader>
-          {addDeviceAttempt.status === 'failed' && (
-            <Danger mt={2} width="100%">
-              {addDeviceAttempt.statusText}
-            </Danger>
-          )}
-          {fetchQrCodeAttempt.status === 'failed' && (
-            <Danger mt={2} width="100%">
-              {fetchQrCodeAttempt.statusText}
-            </Danger>
-          )}
-          <DialogContent>
-            <Flex
-              flexDirection="column"
-              justifyContent="center"
-              alignItems="center"
-              bg="primary.light"
-              borderRadius={8}
-              height="256px"
-              p={3}
-              mb={4}
-            >
-              {mfaOption.value === 'otp' && (
-                <>
-                  <Flex
-                    height="168px"
-                    justifyContent="center"
-                    alignItems="center"
-                  >
-                    {fetchQrCodeAttempt.status === 'processing' && (
-                      <Indicator />
-                    )}
-                    {fetchQrCodeAttempt.status === 'success' && (
-                      <Image
-                        src={`data:image/png;base64,${qrCode}`}
-                        height="100%"
-                        style={{
-                          boxSizing: 'border-box',
-                          border: '8px solid white',
-                        }}
-                      />
-                    )}
-                  </Flex>
-                  <Text fontSize={1} textAlign="center" mt={2}>
-                    Scan the QR Code with any authenticator app and enter the
-                    generated code.{' '}
-                    <Text color="text.secondary">
-                      We recommend{' '}
-                      <Link href="https://authy.com/download/" target="_blank">
-                        Authy
-                      </Link>
-                      .
+          <form>
+            <DialogHeader style={{ flexDirection: 'column' }}>
+              <DialogTitle>Add New Two-Factor Device</DialogTitle>
+            </DialogHeader>
+            {addDeviceAttempt.status === 'failed' && (
+              <Danger mt={2} width="100%">
+                {addDeviceAttempt.statusText}
+              </Danger>
+            )}
+            {fetchQrCodeAttempt.status === 'failed' && (
+              <Danger mt={2} width="100%">
+                {fetchQrCodeAttempt.statusText}
+              </Danger>
+            )}
+            <DialogContent>
+              <Flex
+                flexDirection="column"
+                justifyContent="center"
+                alignItems="center"
+                borderRadius={8}
+                height="256px"
+                p={3}
+                mb={4}
+                css={`
+                  background: ${props => props.theme.colors.spotBackground[0]};
+                `}
+              >
+                {mfaOption.value === 'otp' && (
+                  <>
+                    <Flex
+                      height="168px"
+                      justifyContent="center"
+                      alignItems="center"
+                    >
+                      {fetchQrCodeAttempt.status === 'processing' && (
+                        <Indicator />
+                      )}
+                      {fetchQrCodeAttempt.status === 'success' && (
+                        <Image
+                          src={`data:image/png;base64,${qrCode}`}
+                          height="100%"
+                          style={{
+                            boxSizing: 'border-box',
+                            border: '8px solid white',
+                          }}
+                        />
+                      )}
+                    </Flex>
+                    <Text fontSize={1} textAlign="center" mt={2}>
+                      Scan the QR Code with any authenticator app and enter the
+                      generated code.{' '}
+                      <Text color="text.secondary">
+                        We recommend{' '}
+                        <Link
+                          href="https://authy.com/download/"
+                          target="_blank"
+                        >
+                          Authy
+                        </Link>
+                        .
+                      </Text>
                     </Text>
-                  </Text>
-                </>
-              )}
-              {mfaOption.value === 'webauthn' && (
-                <>
-                  <Image src={secKeyGraphic} height="168px" />
-                  <Text mt={3}>{hardwareInstructions}</Text>
-                </>
-              )}
-            </Flex>
-            <Flex alignItems="center">
-              <FieldSelect
-                maxWidth="50%"
-                width="100%"
-                label="Two-factor type"
-                data-testid="mfa-select"
-                value={mfaOption}
-                options={mfaOptions}
-                onChange={(o: MfaOption) => {
-                  validator.reset();
-                  onSetMfaOption(o);
-                }}
-                mr={3}
-                isDisabled={addDeviceAttempt.status === 'processing'}
-              />
-              {mfaOption.value === 'otp' && (
-                <FieldInput
-                  width="50%"
-                  label="Authenticator code"
-                  rule={requiredToken}
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  value={otpToken}
-                  onChange={e => setOtpToken(e.target.value)}
-                  placeholder="123 456"
-                  readonly={addDeviceAttempt.status === 'processing'}
-                />
-              )}
-              {mfaOption.value === 'webauthn' && isPasswordlessEnabled && (
+                  </>
+                )}
+                {mfaOption.value === 'webauthn' && (
+                  <>
+                    <Image src={secKeyGraphic} height="168px" />
+                    <Text mt={3}>{hardwareInstructions}</Text>
+                  </>
+                )}
+              </Flex>
+              <Flex alignItems="center">
                 <FieldSelect
-                  width="50%"
-                  label="Allow Passwordless Login?"
-                  value={usageOption}
-                  options={deviceUsageOpts}
-                  onChange={(o: DeviceusageOpt) => setUsageOption(o)}
+                  maxWidth="50%"
+                  width="100%"
+                  label="Two-factor type"
+                  data-testid="mfa-select"
+                  value={mfaOption}
+                  options={mfaOptions}
+                  onChange={(o: MfaOption) => {
+                    validator.reset();
+                    onSetMfaOption(o);
+                  }}
+                  mr={3}
                   isDisabled={addDeviceAttempt.status === 'processing'}
+                  elevated={true}
                 />
-              )}
-            </Flex>
-            <FieldInput
-              rule={requiredField('Device name is required')}
-              label="Device name"
-              placeholder="Name"
-              width="100%"
-              autoFocus
-              value={deviceName}
-              type="text"
-              onChange={e => setDeviceName(e.target.value)}
-              readonly={addDeviceAttempt.status === 'processing'}
-              mb={1}
-            />
-          </DialogContent>
-          <DialogFooter>
-            <ButtonPrimary
-              size="large"
-              width="45%"
-              type="submit"
-              onClick={e => validator.validate() && onSubmit(e)}
-              disabled={addDeviceAttempt.status === 'processing'}
-              mr={3}
-            >
-              Add device
-            </ButtonPrimary>
-            <ButtonSecondary size="large" width="30%" onClick={onClose}>
-              Cancel
-            </ButtonSecondary>
-          </DialogFooter>
+                {mfaOption.value === 'otp' && (
+                  <FieldInput
+                    width="50%"
+                    label="Authenticator code"
+                    rule={requiredToken}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    value={otpToken}
+                    onChange={e => setOtpToken(e.target.value)}
+                    placeholder="123 456"
+                    readonly={addDeviceAttempt.status === 'processing'}
+                  />
+                )}
+                {mfaOption.value === 'webauthn' && isPasswordlessEnabled && (
+                  <FieldSelect
+                    width="50%"
+                    label="Allow Passwordless Login?"
+                    value={usageOption}
+                    options={deviceUsageOpts}
+                    onChange={(o: DeviceusageOpt) => setUsageOption(o)}
+                    isDisabled={addDeviceAttempt.status === 'processing'}
+                    elevated={true}
+                  />
+                )}
+              </Flex>
+              <FieldInput
+                rule={requiredField('Device name is required')}
+                label="Device name"
+                placeholder="Name"
+                width="100%"
+                autoFocus
+                value={deviceName}
+                type="text"
+                onChange={e => setDeviceName(e.target.value)}
+                readonly={addDeviceAttempt.status === 'processing'}
+                mb={1}
+              />
+            </DialogContent>
+            <DialogFooter>
+              <ButtonPrimary
+                size="large"
+                width="45%"
+                type="submit"
+                onClick={e => validator.validate() && onSubmit(e)}
+                disabled={addDeviceAttempt.status === 'processing'}
+                mr={3}
+              >
+                Add device
+              </ButtonPrimary>
+              <ButtonSecondary size="large" width="30%" onClick={onClose}>
+                Cancel
+              </ButtonSecondary>
+            </DialogFooter>
+          </form>
         </Dialog>
       )}
     </Validation>

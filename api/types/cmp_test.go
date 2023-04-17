@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProtoEqual(t *testing.T) {
+func TestProtoKnownFieldsEqual(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -102,7 +102,7 @@ func TestProtoEqual(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			test.assert(t, protoEqual(test.inputA, test.inputB))
+			test.assert(t, protoKnownFieldsEqual(test.inputA, test.inputB))
 		})
 	}
 }

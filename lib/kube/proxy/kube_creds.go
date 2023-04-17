@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 type kubeCreds interface {
@@ -38,6 +39,7 @@ type kubeCreds interface {
 	getTargetAddr() string
 	getKubeRestConfig() *rest.Config
 	getKubeClient() *kubernetes.Clientset
+	getTransport(upgradeH2 bool) http.RoundTripper
 	wrapTransport(http.RoundTripper) (http.RoundTripper, error)
 	close() error
 }
@@ -62,10 +64,28 @@ type staticKubeCreds struct {
 	kubeClient *kubernetes.Clientset
 	// clientRestCfg is the Kubernetes Rest config for the cluster.
 	clientRestCfg *rest.Config
+	transport     httpTransport
+}
+
+type httpTransport struct {
+	// h1Transport is the HTTP/1 transport used for requests that cannot be
+	// sent via HTTP/2. Examples include requests that use the websockets or
+	// SPDY protocols.
+	h1Transport http.RoundTripper
+	// h2Transport is the HTTP/2 transport used for requests that can be sent
+	// via HTTP/2.
+	h2Transport http.RoundTripper
 }
 
 func (s *staticKubeCreds) getTLSConfig() *tls.Config {
 	return s.tlsConfig
+}
+
+func (s *staticKubeCreds) getTransport(upgradeH2 bool) http.RoundTripper {
+	if upgradeH2 {
+		return s.transport.h2Transport
+	}
+	return s.transport.h1Transport
 }
 
 func (s *staticKubeCreds) getTransportConfig() *transport.Config {
@@ -88,7 +108,41 @@ func (s *staticKubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper
 	if s == nil {
 		return rt, nil
 	}
-	return transport.HTTPWrappersForConfig(s.transportConfig, rt)
+
+	wrapped, err := transport.HTTPWrappersForConfig(s.transportConfig, rt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return enforceCloseIdleConnections(wrapped, rt), nil
+}
+
+// enforceCloseIdleConnections ensures that the returned [http.RoundTripper]
+// has a CloseIdleConnections method. [transport.HTTPWrappersForConfig] returns
+// a [http.RoundTripper] that does not implement it so any calls to [http.Client.CloseIdleConnections]
+// will result in a noop instead of forwarding the request onto its wrapped [http.RoundTripper].
+func enforceCloseIdleConnections(wrapper, wrapped http.RoundTripper) http.RoundTripper {
+	type closeIdler interface {
+		CloseIdleConnections()
+	}
+
+	type unwrapper struct {
+		http.RoundTripper
+		closeIdler
+	}
+
+	if _, ok := wrapper.(closeIdler); ok {
+		return wrapper
+	}
+
+	if c, ok := wrapped.(closeIdler); ok {
+		return &unwrapper{
+			RoundTripper: wrapper,
+			closeIdler:   c,
+		}
+	}
+
+	return wrapper
 }
 
 func (s *staticKubeCreds) close() error {
@@ -109,13 +163,13 @@ type dynamicKubeCreds struct {
 	log         logrus.FieldLogger
 	closeC      chan struct{}
 	client      dynamicCredsClient
-	checker     ImpersonationPermissionsChecker
+	checker     servicecfg.ImpersonationPermissionsChecker
 	sync.RWMutex
 }
 
 // newDynamicKubeCreds creates a new dynamicKubeCreds refresher and starts the
 // credentials refresher mechanism to renew them once they are about to expire.
-func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
+func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log logrus.FieldLogger, client dynamicCredsClient, checker servicecfg.ImpersonationPermissionsChecker) (*dynamicKubeCreds, error) {
 	dyn := &dynamicKubeCreds{
 		ctx:         ctx,
 		log:         log,
@@ -130,12 +184,14 @@ func newDynamicKubeCreds(ctx context.Context, kubeCluster types.KubeCluster, log
 	}
 
 	go func() {
-		select {
-		case <-dyn.closeC:
-			return
-		case <-dyn.renewTicker.C:
-			if err := dyn.renewClientset(kubeCluster); err != nil {
-				log.WithError(err).Warnf("Unable to renew cluster %q credentials.", kubeCluster.GetName())
+		for {
+			select {
+			case <-dyn.closeC:
+				return
+			case <-dyn.renewTicker.C:
+				if err := dyn.renewClientset(kubeCluster); err != nil {
+					log.WithError(err).Warnf("Unable to renew cluster %q credentials.", kubeCluster.GetName())
+				}
 			}
 		}
 	}()
@@ -182,6 +238,12 @@ func (d *dynamicKubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTrippe
 func (d *dynamicKubeCreds) close() error {
 	close(d.closeC)
 	return nil
+}
+
+func (d *dynamicKubeCreds) getTransport(upgradeH2 bool) http.RoundTripper {
+	d.RLock()
+	defer d.RUnlock()
+	return d.staticCreds.getTransport(upgradeH2)
 }
 
 // renewClientset generates the credentials required for accessing the cluster using the client function.

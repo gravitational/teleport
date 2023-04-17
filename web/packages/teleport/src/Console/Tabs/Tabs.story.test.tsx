@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-
+import 'jest-canvas-mock';
 import { render } from 'design/utils/testing';
 
 import { ConsoleTabs } from './Tabs.story';

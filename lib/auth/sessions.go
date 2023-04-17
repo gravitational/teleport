@@ -261,7 +261,7 @@ func (s *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSe
 	return session, nil
 }
 
-func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
@@ -285,6 +285,7 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 		routeToCluster:       routeToCluster,
 		kubernetesCluster:    kubernetesCluster,
 		attestationStatement: attestationReq,
+		loginIP:              loginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -328,6 +329,28 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated Snowflake web session for %v with TTL %v.", req.Username, ttl)
+
+	return session, nil
+}
+
+func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
+	identity tlsca.Identity, checker services.AccessChecker,
+) (types.WebSession, error) {
+	// TODO(mdwn): implement a module.Features() check.
+
+	// Create services.WebSession for this session.
+	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
+		User:        req.Username,
+		Expires:     req.SAMLSession.ExpireTime,
+		SAMLSession: req.SAMLSession,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = s.UpsertSAMLIdPSession(ctx, session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
 
 	return session, nil
 }

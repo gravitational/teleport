@@ -22,14 +22,22 @@ import Validation, { useRule, Validator } from 'shared/components/Validation';
 import { CatchError } from 'teleport/components/CatchError';
 import {
   clearCachedJoinTokenResult,
-  useJoinToken,
-} from 'teleport/Discover/Shared/JoinTokenContext';
+  useJoinTokenSuspender,
+} from 'teleport/Discover/Shared/useJoinTokenSuspender';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
-
-import { CommandWithTimer } from 'teleport/Discover/Shared/CommandWithTimer';
 import { AgentLabel } from 'teleport/services/agents';
 import cfg from 'teleport/config';
 import { Database } from 'teleport/services/databases';
+
+import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
+
+import {
+  HintBox,
+  SuccessBox,
+  WaitingInfo,
+} from 'teleport/Discover/Shared/HintBox';
+
+import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
@@ -40,17 +48,13 @@ import {
   Mark,
   ResourceKind,
   TextIcon,
+  useShowHint,
 } from '../../Shared';
-
-import type { Poll } from 'teleport/Discover/Shared/CommandWithTimer';
+import { makeLabelMaps, matchLabels } from '../util';
 
 import type { AgentStepProps } from '../../types';
 
-export default function Container(
-  props: AgentStepProps & { runJoinTokenPromise?: boolean }
-) {
-  const [showScript, setShowScript] = useState(props.runJoinTokenPromise);
-
+export default function Container(props: AgentStepProps) {
   const hasDbLabels = props.agentMeta?.agentMatcherLabels?.length;
   const dbLabels = hasDbLabels ? props.agentMeta.agentMatcherLabels : [];
   const [labels, setLabels] = useState<DiscoverLabel[]>(
@@ -62,12 +66,7 @@ export default function Container(
         [{ name: '*', value: '*', isFixed: true }]
   );
 
-  function handleGenerateCommand(validator: Validator) {
-    if (!validator.validate()) {
-      return;
-    }
-    setShowScript(true);
-  }
+  const [showScript, setShowScript] = useState(false);
 
   const labelProps = { labels, setLabels, dbLabels };
 
@@ -75,34 +74,18 @@ export default function Container(
     <Validation>
       {({ validator }) => (
         <CatchError
-          onRetry={clearCachedJoinTokenResult}
+          onRetry={() => clearCachedJoinTokenResult(ResourceKind.Database)}
           fallbackFn={fbProps => (
             <Box>
               <Heading />
-              <Labels
-                {...labelProps}
-                generateBtn={
-                  <ButtonGenerateCmd
-                    onClick={() => {
-                      if (!validator.validate()) {
-                        return;
-                      }
-                      fbProps.retry();
-                    }}
-                  />
-                }
-              />
+              <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
-                  <Icons.Warning ml={1} color="danger" />
+                  <Icons.Warning ml={1} color="error.main" />
                   Encountered Error: {fbProps.error.message}
                 </TextIcon>
               </Box>
-              <ActionButtons
-                onProceed={() => null}
-                disableProceed={true}
-                onSkip={props.nextStep}
-              />
+              <ActionButtons onProceed={() => null} disableProceed={true} />
             </Box>
           )}
         >
@@ -110,35 +93,22 @@ export default function Container(
             fallback={
               <Box>
                 <Heading />
-                <Labels
-                  {...labelProps}
-                  disableBtns={true}
-                  generateBtn={<ButtonGenerateCmd disabled={true} />}
-                />
-                <ActionButtons
-                  onProceed={() => null}
-                  disableProceed={true}
-                  onSkip={props.nextStep}
-                />
+                <Labels {...labelProps} disableBtns={true} />
+                <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
             }
           >
             {!showScript && (
               <Box>
                 <Heading />
-                <Labels
-                  {...labelProps}
-                  generateBtn={
-                    <ButtonGenerateCmd
-                      onClick={() => handleGenerateCommand(validator)}
-                    />
-                  }
-                />
-                <ActionButtons
-                  onProceed={() => null}
-                  disableProceed={true}
-                  onSkip={props.nextStep}
-                />
+                <Labels {...labelProps} />
+                <ButtonSecondary
+                  width="200px"
+                  onClick={() => setShowScript(true)}
+                >
+                  Generate Command
+                </ButtonSecondary>
+                <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
             )}
             {showScript && (
@@ -164,26 +134,17 @@ export function DownloadScript(
   }
 ) {
   // Fetches join token.
-  const { joinToken, reloadJoinToken, timeout } = useJoinToken(
+  const { joinToken } = useJoinTokenSuspender(
     ResourceKind.Database,
     props.labels
   );
 
   // Starts resource querying interval.
-  const {
-    timedOut: pollingTimedOut,
-    start,
-    result,
-  } = usePingTeleport<Database>(props.agentMeta.resourceName);
+  const { active, result } = usePingTeleport<Database>(
+    props.agentMeta.resourceName
+  );
 
-  function regenerateScriptAndRepoll() {
-    if (!props.validator.validate()) {
-      return;
-    }
-
-    reloadJoinToken();
-    start();
-  }
+  const showHint = useShowHint(active);
 
   function handleNextStep() {
     props.updateAgentMeta({
@@ -194,26 +155,51 @@ export function DownloadScript(
     props.nextStep();
   }
 
-  let poll: Poll = { state: 'polling' };
-  if (pollingTimedOut) {
-    poll = {
-      state: 'error',
-      error: {
-        reasonContents: [
-          <>
-            The command was not run on the server you were trying to add,
-            regenerate command and try again.
-          </>,
-          <>
-            The Teleport Database Service could not join this Teleport cluster.
-            Check the logs for errors by running <br />
-            <Mark>journalctl status teleport</Mark>
-          </>,
-        ],
-      },
-    };
+  let hint;
+  if (showHint && !result) {
+    hint = (
+      <HintBox header="We're still looking for your database service">
+        <Text mb={3}>
+          There are a couple of possible reasons for why we haven't been able to
+          detect your database service.
+        </Text>
+
+        <Text mb={1}>
+          - The command was not run on the server you were trying to add.
+        </Text>
+
+        <Text mb={3}>
+          - The Teleport Database Service could not join this Teleport cluster.
+          Check the logs for errors by running{' '}
+          <Mark>journalctl -fu teleport</Mark>.
+        </Text>
+
+        <Text>
+          We'll continue to look for the database service whilst you diagnose
+          the issue.
+        </Text>
+      </HintBox>
+    );
   } else if (result) {
-    poll = { state: 'success' };
+    hint = (
+      <SuccessBox>
+        Successfully detected your new Teleport database service.
+      </SuccessBox>
+    );
+  } else {
+    hint = (
+      <WaitingInfo>
+        <TextIcon
+          css={`
+            white-space: pre;
+          `}
+        >
+          <Icons.Restore fontSize={4} />
+        </TextIcon>
+        After running the command above, we'll automatically detect your new
+        Teleport database service.
+      </WaitingInfo>
+    );
   }
 
   return (
@@ -222,27 +208,20 @@ export function DownloadScript(
       <Labels
         labels={props.labels}
         setLabels={props.setLabels}
-        disableBtns={poll.state === 'polling'}
+        disableBtns={true}
         dbLabels={props.dbLabels}
-        generateBtn={
-          <ButtonGenerateCmd
-            disabled={poll.state === 'polling'}
-            onClick={regenerateScriptAndRepoll}
-            title="Regenerate Command"
-          />
-        }
       />
       <Box mt={6}>
-        <CommandWithTimer
-          command={createBashCommand(joinToken.id)}
-          poll={poll}
-          pollingTimeout={timeout}
-        />
+        <CommandBox>
+          <TextSelectCopyMulti
+            lines={[{ text: createBashCommand(joinToken.id) }]}
+          />
+        </CommandBox>
+        {hint}
       </Box>
       <ActionButtons
         onProceed={handleNextStep}
-        disableProceed={poll.state !== 'success' || props.labels.length === 0}
-        onSkip={props.nextStep}
+        disableProceed={!result || props.labels.length === 0}
       />
     </Box>
   );
@@ -269,13 +248,11 @@ export const Labels = ({
   setLabels,
   disableBtns = false,
   dbLabels,
-  generateBtn,
 }: {
   labels: AgentLabel[];
   setLabels(l: AgentLabel[]): void;
   disableBtns?: boolean;
   dbLabels: AgentLabel[];
-  generateBtn: React.ReactNode;
 }) => {
   const { valid, message } = useRule(requireMatchingLabels(dbLabels, labels));
   const hasError = !valid;
@@ -293,10 +270,9 @@ export const Labels = ({
         disableBtns={disableBtns}
       />
       <Box mt={3}>
-        {generateBtn}
         {hasError && (
           <TextIcon mt={3}>
-            <Icons.Warning ml={1} color="danger" />
+            <Icons.Warning ml={1} color="error.main" />
             {message}
           </TextIcon>
         )}
@@ -311,72 +287,50 @@ function createBashCommand(tokenId: string) {
 
 const requireMatchingLabels =
   (dbLabels: AgentLabel[], agentLabels: AgentLabel[]) => () => {
-    if (!matchLabels(dbLabels, agentLabels)) {
+    if (!hasMatchingLabels(dbLabels, agentLabels)) {
       return {
         valid: false,
-        message:
-          'At least one matching label needs to be defined. \
-          Asteriks can also be used to match any databases.',
+        message: `Labels must match with the labels defined for the database resource. \
+          To match any key, and/or any value, asteriks can be used.`,
       };
     }
     return { valid: true };
   };
 
-// matchLabels will go through 'agentLabels' and find a match from
-// 'dbLabels' (if an agent label matches with a db label, then the
-// db will be discoverable by the agent).
-export function matchLabels(dbLabels: AgentLabel[], agentLabels: AgentLabel[]) {
-  let dbKeyMap = {};
-  let dbValMap = {};
-
-  dbLabels.forEach(label => {
-    dbKeyMap[label.name] = label.value;
-    dbValMap[label.value] = label.name;
+// hasMatchingLabels will go through each 'agentLabels' and find matches from
+// 'dbLabels'. The 'agentLabels' must have same amount of matching labels
+// with 'dbLabels' either with asteriks (match all) or by exact match.
+//
+// `agentLabels` have OR comparison eg:
+//  - If agent labels was defined like this [`fruit: apple`, `fruit: banana`]
+//    it's translated as `fruit: [apple OR banana]`.
+//
+// Asteriks can be used for keys, values, or both key and value eg:
+//  - `fruit: *` match by key `fruit` with any value
+//  - `*: apple` match by value `apple` with any key
+//  - `*: *` match by any key and any value
+export function hasMatchingLabels(
+  dbLabels: AgentLabel[],
+  agentLabels: AgentLabel[]
+) {
+  // Convert agentLabels into a map of key of value arrays.
+  const matcherLabels: Record<string, string[]> = {};
+  agentLabels.forEach(l => {
+    if (!matcherLabels[l.name]) {
+      matcherLabels[l.name] = [];
+    }
+    matcherLabels[l.name] = [...matcherLabels[l.name], l.value];
   });
 
-  for (let i = 0; i < agentLabels.length; i++) {
-    const agentLabel = agentLabels[i];
-    const agentLabelKey = agentLabel.name;
-    const agentLabelVal = agentLabel.value;
+  // Create maps for easy lookup and matching.
+  const { labelKeysToMatchMap, labelValsToMatchMap, labelToMatchSeenMap } =
+    makeLabelMaps(dbLabels);
 
-    // All asterik means an agent can discover any database
-    // by any labels (or no labels).
-    if (agentLabelKey === '*' && agentLabelVal === '*') {
-      return true;
-    }
-
-    // Key only asterik means an agent can discover any database
-    // with any matching value.
-    if (agentLabelKey === '*' && dbValMap[agentLabelVal]) {
-      return true;
-    }
-
-    // Value only asterik means an agent can discover any database
-    // with any matching key.
-    if (agentLabelVal === '*' && dbKeyMap[agentLabelKey]) {
-      return true;
-    }
-
-    // Match against words.
-    const dbVal = dbKeyMap[agentLabel.name];
-    if (dbVal && dbVal === agentLabelVal) {
-      return true;
-    }
-  }
-
-  return false;
+  return matchLabels({
+    hasLabelsToMatch: dbLabels.length > 0,
+    labelKeysToMatchMap,
+    labelValsToMatchMap,
+    labelToMatchSeenMap,
+    matcherLabels,
+  });
 }
-
-const ButtonGenerateCmd = ({
-  onClick,
-  title = 'Generate Command',
-  disabled = false,
-}: {
-  onClick?(): void;
-  title?: string;
-  disabled?: boolean;
-}) => (
-  <ButtonSecondary width="200px" onClick={onClick} disabled={disabled}>
-    {title}
-  </ButtonSecondary>
-);

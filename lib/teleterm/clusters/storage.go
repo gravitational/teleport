@@ -220,7 +220,7 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 			return nil, trace.Wrap(err)
 		}
 
-		if err := clusterClient.LoadKeyForCluster(status.Cluster); err != nil {
+		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

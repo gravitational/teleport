@@ -233,6 +233,8 @@ and create the `ClusterRole` and `ClusterRoleBinding` resources during cluster p
 
 ## Step 3/3. Configure Teleport to discover EKS clusters
 
+### Get a join token
+
 Teleport EKS Auto-Discovery requires a valid Teleport auth token for the Discovery and 
 Kubernetes services to join the cluster. Generate one by running the following 
 command against your Teleport Auth Service and save it in `/tmp/token` on the 
@@ -241,6 +243,8 @@ machine that will run Kubernetes Auto-Discovery:
 ```code
 $ tctl tokens add --type=discovery,kube
 ```
+
+### Configure the Teleport Kubernetes and Discovery Services
 
 Enabling EKS Auto-Discovery requires that the `discovery_service.aws` section 
 include at least one entry and that `discovery_service.aws.types` include `eks`. 
@@ -277,9 +281,15 @@ kubernetes_service:
       "env": "prod" # Match Kubernetes Cluster labels specified earlier
 ```
 
-Once you have added this configuration, start Teleport. EKS clusters matching the tags and regions
-specified in the AWS section will be added to the Teleport cluster automatically.
+### Start the Kubernetes and Discovery Services
 
+(!docs/pages/includes/aws-credentials.mdx service="the Kubernetes and Discovery Services"!)
+
+(!docs/pages/includes/start-teleport.mdx service="the Kubernetes and Discovery Services"!)
+
+Once the Kubernetes and Discovery Services start, EKS clusters matching the tags
+and regions specified in the AWS section will be added to the Teleport cluster
+automatically.
 
 ## Troubleshooting
 
