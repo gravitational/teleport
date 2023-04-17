@@ -61,7 +61,7 @@ $ tctl create -f github.yaml
 
 <Admonition type="warning">
 Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
-`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+`spec.signing_key_pair.private_key` to `github.yaml`. This is a sensitive value,
 so take precautions when creating this file and remove it after updating the resource.
 </Admonition>
 
@@ -132,12 +132,12 @@ Here is an example:
 Apply your changes:
 
 ```code
-$ tctl create -f saml.yaml
+$ tctl create -f oidc.yaml
 ```
 
 <Admonition type="warning">
 Note the `--with-secrets` flag in the `tctl get` command. This adds the value of
-`spec.signing_key_pair.private_key` to `saml.yaml`. This is a sensitive value,
+`spec.signing_key_pair.private_key` to `oidc.yaml`. This is a sensitive value,
 so take precautions when creating this file and remove it after updating the resource.
 </Admonition>
 
