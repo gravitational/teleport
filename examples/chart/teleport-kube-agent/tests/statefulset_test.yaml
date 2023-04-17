@@ -678,3 +678,14 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].securityContext
           value: null
+
+  - it: should set the installation method environment variable
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+            value: "true"
