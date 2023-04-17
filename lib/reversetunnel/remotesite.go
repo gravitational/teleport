@@ -401,15 +401,6 @@ func (s *remoteSite) getLatestConnInfo() (types.TunnelConnection, error) {
 	return latestConn, nil
 }
 
-func (s *remoteSite) getConnInfo() (types.TunnelConnection, error) {
-	s.RLock()
-	defer s.RUnlock()
-	if s.connInfo == nil {
-		return nil, trace.NotFound("no last connection found")
-	}
-	return s.connInfo.Clone(), nil
-}
-
 func (s *remoteSite) updateConnInfo(t time.Time) (types.TunnelConnection, error) {
 	s.Lock()
 	defer s.Unlock()

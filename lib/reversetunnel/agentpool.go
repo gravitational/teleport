@@ -53,8 +53,6 @@ const (
 	defaultAgentConnectionCount = 1
 	// maxBackoff sets the maximum backoff for creating new agents.
 	maxBackoff = time.Second * 8
-	// remotePingCacheTTL sets the time between calls to webclient.Find.
-	remotePingCacheTTL = time.Second * 5
 )
 
 // ServerHandler implements an interface which can handle a connection
@@ -177,7 +175,7 @@ type Agent interface {
 	GetState() AgentState
 	// GetProxyID returns the proxy id of the proxy the agent is connected to.
 	GetProxyID() (string, bool)
-	// GetClusterNetworkConfig attempts to retreive the cluster networing config
+	// GetClusterNetworkConfig attempts to retrieve the cluster networing config
 	// over the agents reversetunnel.
 	GetClusterNetworkConfig(context.Context) (types.ClusterNetworkingConfig, error)
 }

@@ -597,7 +597,10 @@ func (a *agent) handleDrainChannels() error {
 
 // GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
 func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
-	ctx, _ = context.WithTimeout(ctx, defaults.DefaultIOTimeout)
+	var cancel func()
+	ctx, cancel = context.WithTimeout(ctx, defaults.DefaultIOTimeout)
+	defer cancel()
+
 	channel, requests, err := a.client.OpenChannel(ctx, chanNetworkConfig, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
