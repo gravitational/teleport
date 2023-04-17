@@ -251,21 +251,22 @@ function ClusterFilterItem(props: SearchResultItem<SearchResultCluster>) {
   );
 }
 
+const resourceIcons: Record<
+  SearchResultResourceType['resource'],
+  React.ComponentType<{
+    color: string;
+    fontSize: string;
+    lineHeight: string;
+  }>
+> = {
+  kubes: icons.Kubernetes,
+  servers: icons.Server,
+  databases: icons.Database,
+};
+
 function ResourceTypeFilterItem(
   props: SearchResultItem<SearchResultResourceType>
 ) {
-  const resourceIcons: Record<
-    SearchResultResourceType['resource'],
-    React.ComponentType<{
-      color: string;
-      fontSize: string;
-      lineHeight: string;
-    }>
-  > = {
-    kubes: icons.Kubernetes,
-    servers: icons.Server,
-    databases: icons.Database,
-  };
   return (
     <Item
       Icon={resourceIcons[props.searchResult.resource]}
