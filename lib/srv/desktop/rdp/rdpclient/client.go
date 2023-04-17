@@ -620,14 +620,15 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 }
 
 //export handle_remote_fx_frame
-func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
+func handle_remote_fx_frame(handle C.uintptr_t, rpc_id C.uint32_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
 	// TODO(isaiah): check if C.GoBytes is a copy or not.
 	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
-	return cgo.Handle(handle).Value().(*Client).handleRemoteFxFrame(goData)
+	rpcId := uint32(rpc_id)
+	return cgo.Handle(handle).Value().(*Client).handleRemoteFxFrame(goData, rpcId)
 }
 
-func (c *Client) handleRemoteFxFrame(data []byte) C.CGOErrCode {
-	if err := c.cfg.Conn.WriteMessage(tdp.RemoteFxFrame(data)); err != nil {
+func (c *Client) handleRemoteFxFrame(data []byte, rpcId uint32) C.CGOErrCode {
+	if err := c.cfg.Conn.WriteMessage(tdp.RemoteFxFrame{RpcId: rpcId, Data: data}); err != nil {
 		c.cfg.Log.Errorf("failed handling RemoteFX frame: %v", err)
 		return C.ErrCodeFailure
 	}

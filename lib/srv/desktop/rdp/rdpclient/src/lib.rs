@@ -52,16 +52,18 @@ extern crate num_derive;
 use bytes::{Bytes, BytesMut};
 use errors::try_error;
 use futures_util::io::{AsyncWrite, AsyncWriteExt};
-use ironrdp::graphics::image_processing::PixelFormat;
+use futures_util::FutureExt;
 use ironrdp::input::fast_path::{FastPathInput, FastPathInputEvent};
 use ironrdp::input::mouse::PointerFlags;
 use ironrdp::input::MousePdu;
 use ironrdp::pdu::geometry::Rectangle;
-use ironrdp::pdu::PduParsing as _;
+use ironrdp::pdu::{DataHeader, PduParsing};
+use ironrdp::session::active_session::x224;
 use ironrdp::session::connection_sequence::{process_connection_sequence, UpgradedStream};
 use ironrdp::session::image::DecodedImage;
+use ironrdp::session::utils::swap_hashmap_kv;
 use ironrdp::session::{
-    ActiveStageOutput, ActiveStageProcessor, ErasedWriter, FramedReader, InputConfig,
+    process_header, ActiveStageOutput, ErasedWriter, FramedReader, InputConfig,
     RdpError as IronRdpError,
 };
 use rdp::core::event::*;
@@ -72,6 +74,7 @@ use rdpdr::path::UnixPath;
 use rdpdr::ServerCreateDriveRequest;
 use sspi::network_client::reqwest_network_client::RequestClientFactory;
 use sspi::{AuthIdentity, Secret};
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::ffi::{CStr, CString, NulError};
@@ -81,7 +84,7 @@ use std::io::{Cursor, Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
 use std::os::raw::c_char;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::{mem, ptr, slice, time};
 use tokio::io::AsyncWriteExt as _;
 use tokio::net::TcpStream as TokioTcpStream;
@@ -125,8 +128,20 @@ impl Write for SharedStream {
 pub struct IronRDPClient {
     reader: FramedReader,
     writer: ErasedWriter,
-    processor: ActiveStageProcessor,
+    x224_processor: x224::Processor,
 }
+
+impl IronRDPClient {
+    fn new(reader: FramedReader, writer: ErasedWriter, x224_processor: x224::Processor) -> Self {
+        Self {
+            reader,
+            writer,
+            x224_processor,
+        }
+    }
+}
+
+type RpcId = u32;
 
 /// Client has an unusual lifecycle:
 /// - connect_rdp creates it on the heap, grabs a raw pointer and returns in to Go
@@ -141,9 +156,30 @@ pub struct Client {
     iron_rdp_client: IronRDPClient,
     tokio_rt: Option<tokio::runtime::Runtime>,
     go_ref: usize,
+
+    next_id: RpcId,
+    pending_fp_resp_handlers: HashMap<RpcId, FastPathResponseHandler>,
 }
 
+type FastPathResponseHandler = Box<
+    dyn FnOnce(
+        &mut Client,
+        Result<Vec<ActiveStageOutput>, IronRdpError>,
+    ) -> Option<ReadRdpOutputReturns>,
+>;
+
 impl Client {
+    fn new(iron_rdp_client: IronRDPClient, go_ref: usize) -> Self {
+        Self {
+            iron_rdp_client,
+            tokio_rt: None,
+            go_ref,
+
+            next_id: 0,
+            pending_fp_resp_handlers: HashMap::new(),
+        }
+    }
+
     fn into_raw(self: Box<Self>) -> *mut Self {
         Box::into_raw(self)
     }
@@ -157,6 +193,7 @@ impl Client {
             Some(_) => Ok(Box::leak(Box::from_raw(ptr))),
         }
     }
+
     unsafe fn from_raw(ptr: *mut Self) -> Box<Self> {
         Box::from_raw(ptr)
     }
@@ -168,19 +205,96 @@ impl Client {
         self.iron_rdp_client.reader.read_frame()
     }
 
-    fn process_frame(
+    fn process_x224_frame(
         &mut self,
-        image: &mut DecodedImage,
+        _header: DataHeader,
         frame: Bytes,
     ) -> Result<Vec<ActiveStageOutput>, IronRdpError> {
-        self.iron_rdp_client.processor.process(image, frame)
+        match self.iron_rdp_client.x224_processor.process(frame) {
+            Ok(output) => Ok(vec![ActiveStageOutput::ResponseFrame(output)]),
+            Err(IronRdpError::UnexpectedDisconnection(message)) => {
+                warn!("User-Initiated disconnection on Server: {}", message);
+                Ok(vec![ActiveStageOutput::Terminate])
+            }
+            Err(IronRdpError::UnexpectedChannel(channel_id)) => {
+                warn!("Got message on a channel with {} ID", channel_id);
+                Ok(vec![ActiveStageOutput::Terminate])
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    fn process_active_stage_result(
+        &mut self,
+        result: Result<Vec<ActiveStageOutput>, IronRdpError>,
+    ) -> Option<ReadRdpOutputReturns> {
+        match result {
+            Ok(outputs) => {
+                for output in outputs {
+                    match output {
+                        ActiveStageOutput::ResponseFrame(response) => {
+                            self.write_frame(&response);
+                        }
+                        ActiveStageOutput::Terminate => {
+                            return Some(ReadRdpOutputReturns {
+                                user_message: "RDP session terminated".to_string(),
+                                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                                err_code: CGOErrCode::ErrCodeSuccess,
+                            });
+                        }
+                        ActiveStageOutput::GraphicsUpdate(_) => {
+                            error!("unexpected GraphicsUpdate, this should be handled on the client side");
+                            return Some(ReadRdpOutputReturns {
+                                user_message: "Server error".to_string(),
+                                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                                err_code: CGOErrCode::ErrCodeFailure,
+                            });
+                        }
+                    }
+                }
+            }
+            Err(err) => {
+                error!("failed to process frame: {}", err);
+                return Some(ReadRdpOutputReturns {
+                    user_message: "Failed to process frame".to_string(),
+                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                    err_code: CGOErrCode::ErrCodeFailure,
+                });
+            }
+        }
+
+        // All outputs were response frames, return None to indicate that the client should continue
+        None
     }
 
     fn write_frame<'a>(
         &'a mut self,
         frame: &'a [u8],
-    ) -> futures_util::io::WriteAll<'a, Pin<Box<(dyn AsyncWrite + Send + 'static)>>> {
+    ) -> futures_util::io::WriteAll<Pin<Box<(dyn AsyncWrite + Send + 'static)>>> {
         self.iron_rdp_client.writer.write_all(frame)
+    }
+
+    fn next_id(&mut self) -> u32 {
+        let id = self.next_id;
+        self.next_id = self.next_id.wrapping_add(1);
+        id
+    }
+
+    fn handle_tdp_fastpath_response(
+        &mut self,
+        res: FastpathResponse,
+    ) -> Option<ReadRdpOutputReturns> {
+        if let Some(handler) = self.pending_fp_resp_handlers.remove(&res.rpc_id) {
+            // TODO(isaiah): this handler is effectively just self.process_active_stage_result,
+            // probably can refactor in a way that makes this more clear.
+            return handler(self, Ok(res.active_stage_outputs));
+        }
+
+        Some(ReadRdpOutputReturns {
+            user_message: format!("received invalid rpc id: {}", res.rpc_id),
+            disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+            err_code: CGOErrCode::ErrCodeFailure,
+        })
     }
 }
 
@@ -190,7 +304,7 @@ pub struct ClientOrError {
     err: CGOErrCode,
 }
 
-impl From<Result<Client, ConnectError>> for ClientOrError {
+impl ClientOrError {
     fn from(r: Result<Client, ConnectError>) -> ClientOrError {
         match r {
             Ok(client) => ClientOrError {
@@ -611,17 +725,15 @@ async fn connect_rdp_inner(go_ref: usize, params: ConnectParams) -> Result<Clien
         Err(err) => return Err(ConnectError::IronRdpError(err)),
     };
 
-    let processor = ActiveStageProcessor::new(input, None, connection_sequence_result);
+    let x224_processor = x224::Processor::new(
+        swap_hashmap_kv(connection_sequence_result.joined_static_channels),
+        connection_sequence_result.initiator_id,
+        connection_sequence_result.global_channel_id,
+        input.graphics_config,
+        None,
+    );
 
-    let client = Client {
-        iron_rdp_client: IronRDPClient {
-            reader,
-            writer,
-            processor,
-        },
-        tokio_rt: None,
-        go_ref,
-    };
+    let client = Client::new(IronRDPClient::new(reader, writer, x224_processor), go_ref);
 
     Ok(client)
 }
@@ -1237,16 +1349,57 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
                 };
             }
         };
-        let err = unsafe {
-            handle_remote_fx_frame(client.go_ref, frame.as_mut_ptr(), frame.len() as u32)
-        };
-        if err != CGOErrCode::ErrCodeSuccess {
-            return ReadRdpOutputReturns {
-                user_message: "Failed to handle png".to_string(),
-                disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
-                err_code: err,
-            };
-        };
+
+        // TODO(isaiah): get rid of this clone
+        let frozen = frame.clone().freeze();
+        match process_header(&frozen) {
+            Ok(header) => {
+                match header {
+                    ironrdp::pdu::PduHeader::X224(_header) => {
+                        let result = client.process_x224_frame(_header, frame.into());
+                        if let Some(return_value) = client.process_active_stage_result(result) {
+                            return return_value;
+                        }
+                    }
+                    ironrdp::pdu::PduHeader::FastPath(_) => {
+                        let go_ref = client.go_ref;
+                        let id = client.next_id();
+                        match unsafe {
+                            handle_remote_fx_frame(
+                                go_ref,
+                                id,
+                                frame.as_mut_ptr(),
+                                frame.len() as u32,
+                            )
+                        } {
+                            CGOErrCode::ErrCodeSuccess => {
+                                client
+                                    .pending_fp_resp_handlers
+                                    .insert(id, Box::new(|cli: &mut Client, resp: Result<Vec<ActiveStageOutput>, IronRdpError>| {
+                                        cli.process_active_stage_result(resp)
+                                    }));
+                            }
+                            err => {
+                                error!("failed to process fastpath frame: {:?}", err);
+                                return ReadRdpOutputReturns {
+                                    user_message: "Failed to process fastpath frame".to_string(),
+                                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                                    err_code: err,
+                                };
+                            }
+                        }
+                    }
+                };
+            }
+            Err(err) => {
+                error!("failed to process header: {}", err);
+                return ReadRdpOutputReturns {
+                    user_message: "Failed to process header".to_string(),
+                    disconnect_code: CGODisconnectCode::DisconnectCodeUnknown,
+                    err_code: CGOErrCode::ErrCodeFailure,
+                };
+            }
+        }
     }
 }
 
@@ -1336,6 +1489,112 @@ impl From<CGOMousePointerEvent> for PointerEvent {
                 CGOPointerWheel::PointerWheelHorizontal => PointerWheel::Horizontal,
             },
             wheel_delta: p.wheel_delta,
+        }
+    }
+}
+
+#[repr(C)]
+pub struct CGOFastpathResponse {
+    rpc_id: RpcId,
+    err_code: TdpErrCode,
+    active_stage_output_len: u32,
+    active_stage_outputs: *mut CGOActiveStageOutput,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct CGOActiveStageOutput {
+    ouput_type: CGOActiveStageOutputType,
+    response_frame_len: u32,
+    /// Only valid if output_type == ResponseFrame
+    response_frame: *mut u8,
+}
+
+impl From<CGOActiveStageOutput> for ActiveStageOutput {
+    fn from(cgo: CGOActiveStageOutput) -> ActiveStageOutput {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+        unsafe {
+            match cgo.ouput_type {
+                CGOActiveStageOutputType::ResponseFrame => {
+                    let frame = from_go_array(cgo.response_frame, cgo.response_frame_len);
+                    ActiveStageOutput::ResponseFrame(BytesMut::from(frame.as_slice()))
+                }
+                CGOActiveStageOutputType::Terminate => ActiveStageOutput::Terminate,
+            }
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+/// Mirrors IronRDP's ActiveStageOutput enum sans the GraphicsUpdate,
+/// which is handled on the client.
+pub enum CGOActiveStageOutputType {
+    ResponseFrame = 0,
+    Terminate = 1,
+}
+
+/// FastpathResponse is sent by the TDP client to the server.
+pub struct FastpathResponse {
+    rpc_id: RpcId,
+    err_code: TdpErrCode,
+    active_stage_outputs: Vec<ActiveStageOutput>,
+}
+
+impl From<CGOFastpathResponse> for FastpathResponse {
+    fn from(cgo: CGOFastpathResponse) -> FastpathResponse {
+        // # Safety
+        //
+        // This function MUST NOT hang on to any of the pointers passed in to it after it returns.
+        // In other words, all pointer data that needs to persist after this function returns MUST
+        // be copied into Rust-owned memory.
+        unsafe {
+            let cgo_active_stage_outputs =
+                from_go_array(cgo.active_stage_outputs, cgo.active_stage_output_len);
+            let mut active_stage_outputs = vec![];
+            for cgo_active_stage_output in cgo_active_stage_outputs.into_iter() {
+                active_stage_outputs.push(ActiveStageOutput::from(cgo_active_stage_output));
+            }
+
+            FastpathResponse {
+                rpc_id: cgo.rpc_id,
+                err_code: cgo.err_code,
+                active_stage_outputs,
+            }
+        }
+    }
+}
+
+/// handle_tdp_fastpath_response handles a TDP Shared Directory Create Response
+/// message
+///
+/// # Safety
+///
+/// client_ptr MUST be a valid pointer.
+/// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
+#[no_mangle]
+pub unsafe extern "C" fn handle_tdp_fastpath_response(
+    client_ptr: *mut Client,
+    res: CGOFastpathResponse,
+) -> CGOErrCode {
+    let res = FastpathResponse::from(res);
+
+    let client = match Client::from_ptr(client_ptr) {
+        Ok(client) => client,
+        Err(cgo_error) => {
+            return cgo_error;
+        }
+    };
+
+    match client.handle_tdp_fastpath_response(res) {
+        None => CGOErrCode::ErrCodeSuccess,
+        Some(r) => {
+            error!("failed to handle Fastpath Response: {:?}", r.user_message);
+            r.err_code
         }
     }
 }
@@ -2002,7 +2261,12 @@ pub struct CGOSharedDirectoryListRequest {
 extern "C" {
     fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_remote_fx_frame(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
+    fn handle_remote_fx_frame(
+        client_ref: usize,
+        rpc_id: u32,
+        data: *mut u8,
+        len: u32,
+    ) -> CGOErrCode;
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
         -> CGOErrCode;
     fn tdp_sd_info_request(

@@ -270,11 +270,19 @@ func (f PNG2Frame) Bottom() uint32 { return binary.BigEndian.Uint32(f[17:21]) }
 func (f PNG2Frame) Data() []byte   { return f[21:] }
 
 // RemoteFxFrame is a RemoteFX frame message
-// | message type (29) | data_length uint32 | data []byte |
-type RemoteFxFrame []byte
+// | message type (29) | rpc_id uint32 | data_length uint32 | data []byte |
+type RemoteFxFrame struct {
+	RpcId uint32
+	Data  []byte
+}
 
 func decodeRemoteFxFrame(in byteReader) (RemoteFxFrame, error) {
-	// Read PNG length so we can allocate buffer that will fit PNG2Frame message
+	var rpcId uint32
+	if err := binary.Read(in, binary.BigEndian, &rpcId); err != nil {
+		return RemoteFxFrame{}, trace.Wrap(err)
+	}
+
+	// Read PNG length so we can allocate buffer that will fit RemoteFxFrame message
 	var dataLength uint32
 	if err := binary.Read(in, binary.BigEndian, &dataLength); err != nil {
 		return RemoteFxFrame{}, trace.Wrap(err)
@@ -282,25 +290,29 @@ func decodeRemoteFxFrame(in byteReader) (RemoteFxFrame, error) {
 
 	// Allocate buffer that will fit RemoteFxFrame message
 	// message type (1) + data_length (4) + data => 5 + data
-	remoteFxFrame := make([]byte, 5+dataLength)
+	data := make([]byte, 5+dataLength)
 
 	// Write message type and png length into the buffer
-	remoteFxFrame[0] = byte(TypeRemoteFxFrame)
-	binary.BigEndian.PutUint32(remoteFxFrame[1:5], dataLength)
+	data[0] = byte(TypeRemoteFxFrame)
+	binary.BigEndian.PutUint32(data[1:5], dataLength)
 
 	// Write the data into the buffer
-	if _, err := io.ReadFull(in, remoteFxFrame[5:]); err != nil {
+	if _, err := io.ReadFull(in, data[5:]); err != nil {
 		return RemoteFxFrame{}, trace.Wrap(err)
 	}
 
-	return remoteFxFrame, nil
+	return RemoteFxFrame{
+		RpcId: rpcId,
+		Data:  data,
+	}, nil
 }
 
 func (f RemoteFxFrame) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeRemoteFxFrame))
-	writeUint32(buf, uint32(len(f)))
-	buf.Write(f)
+	buf.WriteByte(byte(f.RpcId))
+	writeUint32(buf, uint32(len(f.Data)))
+	buf.Write(f.Data)
 	return buf.Bytes(), nil
 }
 
