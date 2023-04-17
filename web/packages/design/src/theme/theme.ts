@@ -36,7 +36,7 @@ const colors = {
   The further back an element is, the more "sunken" it is, and the more forwards it is, the more "elevated" it is (think CSS z-index).
 
   A `sunken` colour would be used to represent something like the background of the app.
-  While `surface` would be the color of the primary surface where most content is located (such as ta3es).
+  While `surface` would be the color of the primary surface where most content is located (such as tabes).
   Any colors more "elevated" than that would be used for things such as popovers, menus, and dialogs.
 
   `...Secondary` colours are used to differentiate different colors that represent the same depth.
