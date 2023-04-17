@@ -52,7 +52,9 @@ jobs:
     name: Deploy packages to ${{ inputs.repo-type }} repo
     # Note that the value of this string is arbitrary as long as it contains the `${{ inputs.repo-type }}`
     # and `${{ inputs.environment }}` expressions
-    concurrency: Only allow a single deployment at a time
+    concurrency:
+      group: Only allow a single OS package deployment at a time
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write   # Required for aws-actions/configure-aws-credentials
@@ -62,6 +64,10 @@ jobs:
       - linux
       - x64
       - os-package-repo-tool
+    outputs:
+      # This is the actual name of the version channel used in the repo component. It's calculated here and
+      # used when installing pacakges for smoke tests.
+      component-version-channel: ${{ steps.component-version-channel.outputs.component-version-channel }}
     env:
       TOOL_BINARY_PATH: os-package-repo-tool
       DOWNLOAD_DIRECTORY: /tmp/artifacts
@@ -77,7 +83,25 @@ jobs:
           script: |
             if ("${{ inputs.artifact-tag }}".indexOf("-") > -1)
               core.setFailed("Prerelease artifacts may not be deployed to production repos");
-      - name: Derive and set Github environment-specific variables for APT
+      - name: Derive and set version channel
+        id: component-version-channel
+        if: inputs.package-to-test != ''
+        env:
+          # This is copy/pasted from https://semver.org/#is-there-a-suggested-regular-expression-regex-to-check-a-semver-string
+          # with the addition of "v?" to match Teleport's tag naming scheme
+          SEMVER_TAG_REGEX: ^v?(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$
+          VERSION_CHANNEL: ${{ inputs.version-channel }}
+        run: |
+          # Check if the artifact version is a semver
+          if echo "$VERSION_CHANNEL" | grep --perl-regexp --quiet "$SEMVER_TAG_REGEX"; then
+            # Ensure exactly one "v" prefix exists, and trim the first '.' and everything after
+            echo "component-version-channel=$(echo "v${VERSION_CHANNEL#v}" | sed -e 's/\..*//')" >> "$GITHUB_OUTPUT"
+            exit
+          fi
+
+          # If not a semver (such as when it's set to "cloud")
+          echo "component-version-channel=$VERSION_CHANNEL" >> "$GITHUB_OUTPUT"
+      - name: Derive and set repo type-specific variables for APT
         if: inputs.repo-type == 'apt'
         run: |
           echo "PACKAGE_TYPE=deb" >> "$GITHUB_ENV"
@@ -85,7 +109,7 @@ jobs:
           echo "BUCKET_NAME=${{ vars.APT_S3_BUCKET }}" >> "$GITHUB_ENV"
           echo "TOOL_ARGUMENTS=-aptly-root-dir $APT_CACHE_PATH/aptly" >> "$GITHUB_ENV"
           echo "DEPLOYMENT_AWS_ROLE=${{ vars.APT_DEPLOYMENT_AWS_ROLE }}" >> "$GITHUB_ENV"
-      - name: Derive and set Github environment-specific variables for YUM
+      - name: Derive and set repo type-specific variables for YUM
         if: inputs.repo-type == 'yum'
         run: |
           echo "PACKAGE_TYPE=rpm" >> "$GITHUB_ENV"
@@ -262,7 +286,7 @@ jobs:
       - name: Log the AWS role assumed
         run: aws sts get-caller-identity
       - name: Setup GPG signing key
-        uses: gravitational/teleport.e/.github/actions/load-gpg-key@master
+        uses: ./.github/actions/load-gpg-key
         with:
           gpg-signing-archive: ${{ secrets.GPG_SIGNING_ARCHIVE }}
           gnupghome: ${{ env.GNUPGHOME }}
@@ -322,7 +346,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: log package to test
+      - name: Log package to test
         run: echo "${{ inputs.package-to-test }}"
       # Note: These values are intentionally hard-coded here to prevent false positives or negatives due
       #       to a value in one of our code/IaC repos changing without the change propegating everywhere.
@@ -355,6 +379,10 @@ jobs:
           # Set the package version
           echo "PACKAGE_VERSION=$(echo ${{ inputs.artifact-tag }} | cut -d'v' -f2)" >> "$GITHUB_ENV"
       - name: Install package
+        env:
+          RELEASE_CHANNEL: ${{ inputs.release-channel }}
+          VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
+          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
           # This is designed to be changed as little as possible from the source
@@ -362,10 +390,10 @@ jobs:
             -o /usr/share/keyrings/teleport-archive-keyring.asc
           source /etc/os-release
           echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc] \
-            https://$APT_REPO_DOMAIN_NAME/${ID?} ${VERSION_CODENAME?} ${{ inputs.release-channel }}/${{ inputs.version-channel }}" \
+            https://$APT_REPO_DOMAIN_NAME/${ID?} ${VERSION_CODENAME?} $RELEASE_CHANNEL/$VERSION_CHANNEL" \
             | sudo tee /etc/apt/sources.list.d/teleport.list > /dev/null
           sudo apt-get update
-          sudo apt-get install -y ${{ inputs.package-to-test }}=$PACKAGE_VERSION
+          sudo apt-get install -y "$PACKAGE_TO_TEST=$PACKAGE_VERSION"
       - name: Log Teleport version
         run: teleport version
       - name: Log package cache information
@@ -437,8 +465,12 @@ jobs:
           fi
 
           # Set the package version
-          echo "PACKAGE_VERSION=$(echo ${{ inputs.artifact-tag }} | cut -d'v' -f2 | sed 's/-/_/')" >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=$(echo ${{ inputs.artifact-tag }} | cut -d'v' -f2 | sed 's/-/_/g')" >> "$GITHUB_ENV"
       - name: Install package
+        env:
+          RELEASE_CHANNEL: ${{ inputs.release-channel }}
+          VERSION_CHANNEL: ${{ needs.deploy.outputs.component-version-channel }}
+          PACKAGE_TO_TEST: ${{ inputs.package-to-test }}
         run: |
           # Install teleport based off of instructions from https://goteleport.com/docs/installation/#linux
           # This is designed to be changed as little as possible from the source
@@ -447,8 +479,8 @@ jobs:
           # The UBI images use a slightly different from normal format for VERSION_ID so it must be accounted for here
           VERSION_ID=$(echo $VERSION_ID | cut -d'.' -f1)
 
-          sudo yum-config-manager --add-repo $(rpm --eval "https://${YUM_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/${{ inputs.release-channel }}/${{ inputs.version-channel }}/teleport.repo")
-          sudo yum install -y ${{ inputs.package-to-test }}-$PACKAGE_VERSION
+          sudo yum-config-manager --add-repo $(rpm --eval "https://${YUM_REPO_DOMAIN_NAME}/$ID/$VERSION_ID/Teleport/%{_arch}/$RELEASE_CHANNEL/$VERSION_CHANNEL/teleport.repo")
+          sudo yum install -y "$PACKAGE_TO_TEST-$PACKAGE_VERSION"
       - name: Log Teleport version
         run: teleport version
       - name: Log package cache information

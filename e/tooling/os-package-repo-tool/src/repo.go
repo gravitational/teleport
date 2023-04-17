@@ -39,16 +39,23 @@ func (r *Repo) Name() string {
 }
 
 func NewRepoFromName(name string) (*Repo, error) {
-	splitName := strings.Split(name, "-")
-	if len(splitName) != 4 {
+	nameSeparator := "-"
+	splitName := strings.Split(name, nameSeparator)
+
+	versionChannel := ""
+	if len(splitName) < 4 {
 		return nil, trace.Errorf("the provided repo name %q is not a valid repo name", name)
+	} else if len(splitName) == 4 {
+		versionChannel = splitName[3]
+	} else {
+		versionChannel = strings.Join(splitName[3:], nameSeparator)
 	}
 
 	return &Repo{
 		os:             splitName[0],
 		osVersion:      splitName[1],
 		releaseChannel: splitName[2],
-		versionChannel: splitName[3],
+		versionChannel: versionChannel,
 	}, nil
 }
 

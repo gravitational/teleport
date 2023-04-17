@@ -8,7 +8,6 @@
 --after-upgrade install.sh
 --maintainer "info@goteleport.com"
 --depends teleport
---depends systemd
 --description "Teleports new version of Teleport to your system"
 --license Apache-2.0
 --url https://goteleport.com/docs

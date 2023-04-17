@@ -1,5 +1,5 @@
 ---
-name: Package the Teleport updater
+name: Build the Teleport updater
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - 'v*'
   pull_request:
     paths:
-      - .github/workflows/package-teleport-updater.yaml
+      - .github/workflows/build-teleport-updater.yaml
       - .github/actions/load-gpg-key/action.yaml
       - .github/actions/deploy-os-package/action.yaml
       - assets/systemd-unit-upgrader/**
@@ -44,7 +44,9 @@ jobs:
           else
             echo "package-environment=build" >> "$GITHUB_OUTPUT"
             echo "should-target-production=false" >> "$GITHUB_OUTPUT"
-            echo "artifact-version=$(git describe --tags)" >> "$GITHUB_OUTPUT"
+            # The "match" glob here matches tags that are (probably) semver tags
+            # RPMs don't allow "-" in the version so it is replaced here with an underscore
+            echo "artifact-version=$(git describe --tags --match "v[[:digit:]]*.[[:digit:]]*.[[:digit:]]")" >> "$GITHUB_OUTPUT"
           fi
 
           # Set job summary
@@ -52,7 +54,7 @@ jobs:
           cat "$GITHUB_OUTPUT" | while read line; do
             echo "* $line" | tee -a "$GITHUB_STEP_SUMMARY"
           done
-  package-artifacts:
+  build-artifacts:
     name: Package the Teleport updater
     needs: setup-build
     permissions:
@@ -100,16 +102,16 @@ jobs:
           sudo cat "$INSTALLER_CONFIG_PATH"
       - name: Package the Teleport updater into ${{ matrix.package.file-extension }}s for ISA ${{ matrix.architecture }}
         working-directory: ./assets/systemd-unit-upgrader/
-        env:
-          VERSION: ${{ needs.setup-build.outputs.artifact-version }}
         id: build-package
+        env:
+          ARTIFACT_VERSION: ${{ needs.setup-build.outputs.artifact-version }}
         # This must be ran as root because the directories are owned by root
         run: |
-          PACKAGE_NAME="teleport-ent-updater-${VERSION#v}.${{ matrix.architecture }}.${{ matrix.package.file-extension }}"
+          PACKAGE_NAME="teleport-ent-updater-${ARTIFACT_VERSION#v}.${{ matrix.architecture }}.${{ matrix.package.file-extension }}"
           sudo fpm \
             --output-type "${{ matrix.package.file-extension }}" \
             --architecture "${{ matrix.architecture }}" \
-            --version "$VERSION" \
+            --version "${ARTIFACT_VERSION#v}" \
             --package "$PACKAGE_NAME"
           echo "PACKAGE_NAME=$PACKAGE_NAME" >> "$GITHUB_ENV"
       - name: Update package file ownership
@@ -121,7 +123,7 @@ jobs:
       # When RPM artifact, sign the RPM
       - name: Setup GPG signing key for rpm signing
         if: matrix.package.file-extension == 'rpm'
-        uses: gravitational/teleport.e/.github/actions/load-gpg-key@master
+        uses: ./.github/actions/load-gpg-key
         with:
           gpg-signing-archive: ${{ secrets.GPG_SIGNING_ARCHIVE }}
           gnupghome: ${{ env.GNUPGHOME }}
@@ -218,10 +220,10 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - setup-build
-      - package-artifacts
+      - build-artifacts
     if: needs.setup-build.outputs.should-target-production == 'false'
     environment: ${{ needs.setup-build.outputs.package-environment }}
-    concurrency: Only allow a single deployment at a time
+    concurrency: Only allow a single teleport-ent-updater build at a time
     strategy:
       fail-fast: true
       max-parallel: 1
@@ -230,6 +232,8 @@ jobs:
           - apt
           - yum
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
       - name: Map current environment to deployment environment
         env:
           CURRENT_ENVIRONMENT: ${{ needs.setup-build.outputs.package-environment }}
@@ -250,11 +254,11 @@ jobs:
 
           echo "Deployment environment: $DEPLOY_ENVIRONMENT"
       - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos
-        uses: gravitational/teleport.e/.github/actions/deploy-os-package@master
+        uses: ./.github/actions/deploy-os-package
         with:
           environment: ${{ env.DEPLOY_ENVIRONMENT }}
           repo-type: ${{ matrix.repo-type }}
           artifact-tag: ${{ needs.setup-build.outputs.artifact-version }}
           version-channel: ${{ env.VERSION_CHANNEL }}
-          package-to-test: ""
+          package-name-filter: "teleport-ent-updater*"
     
