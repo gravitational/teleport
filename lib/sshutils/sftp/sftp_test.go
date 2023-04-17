@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -560,6 +561,7 @@ func TestHomeDirExpansion(t *testing.T) {
 		name         string
 		path         string
 		expandedPath string
+		errCheck     require.ErrorAssertionFunc
 	}{
 		{
 			name:         "absolute path",
@@ -567,26 +569,34 @@ func TestHomeDirExpansion(t *testing.T) {
 			expandedPath: "/foo/bar",
 		},
 		{
-			name:         "path with tilde",
+			name:         "path with tilde-slash",
 			path:         "~/foo/bar",
-			expandedPath: "/home/user/foo/bar",
+			expandedPath: "foo/bar",
 		},
 		{
 			name:         "just tilde",
 			path:         "~",
-			expandedPath: "/home/user",
+			expandedPath: ".",
 		},
-	}
 
-	getHomeDirFunc := func() (string, error) {
-		return "/home/user", nil
+		{
+			name: "~user path",
+			path: "~user/foo",
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
+				require.True(t, trace.IsBadParameter(err))
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expanded, err := expandPath(tt.path, getHomeDirFunc)
-			require.NoError(t, err)
-			require.Equal(t, tt.expandedPath, expanded)
+			expanded, err := expandPath(tt.path)
+			if tt.errCheck == nil {
+				require.NoError(t, err)
+				require.Equal(t, tt.expandedPath, expanded)
+			} else {
+				tt.errCheck(t, err)
+			}
 		})
 	}
 }

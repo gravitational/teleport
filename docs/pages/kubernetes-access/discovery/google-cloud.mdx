@@ -169,12 +169,13 @@ Stop your VM so you can attach your service account to it:
 $ gcloud compute instances stop <Var name="vm-name" /> --zone=<Var name="google-cloud-region" />
 ```
 
-Attach your service account to the instance:
+Attach your service account to the instance, assigning the name of your VM to <Var name="vm-name" />
+and the name of your Google Cloud region to <Var name="google-cloud-region" />:
 
 ```code
-$ gcloud compute instances set-service-account ${VM_NAME?} \
+$ gcloud compute instances set-service-account <Var name="vm-name" /> \
    --service-account teleport-discovery-kubernetes@${PROJECT_ID?}.iam.gserviceaccount.com \
-   --zone ${MY_ZONE?} \
+   --zone <Var name="google-cloud-region" /> \
    --scopes=cloud-platform
 ```
 
@@ -189,7 +190,7 @@ Kubernetes Service:
 ```code
 $ gcloud compute instances set-service-account ${VM1_NAME?} \
    --service-account teleport-kubernetes-service@${PROJECT_ID?}.iam.gserviceaccount.com \
-   --zone ${MY_ZONE?} \
+   --zone <Var name="google-cloud-region" /> \
    --scopes=cloud-platform
 ```
 
@@ -199,7 +200,7 @@ Discovery Service:
 ```code
 $ gcloud compute instances set-service-account ${VM2_NAME?} \
    --service-account teleport-discovery-service@${PROJECT_ID?}.iam.gserviceaccount.com \
-   --zone ${MY_ZONE?} \
+   --zone <Var name="google-cloud-region" /> \
    --scopes=cloud-platform
 ```
 
@@ -216,7 +217,7 @@ obtain the required authorization to access the GKE API.
 Once you have attached the service account, restart your VM:
 
 ```code
-$ gcloud compute instances start ${VM_NAME?} --zone ${MY_ZONE?}
+$ gcloud compute instances start <Var name="vm-name" /> --zone <Var name="google-cloud-region" />
 ```
 </TabItem>
 <TabItem label="Other Platform">
@@ -283,22 +284,8 @@ token in order to to join the cluster. Generate one by running the following
 `tctl` command:
 
 ```code
-$ tctl tokens add --type=discovery,kube
-The invite token: (=presets.tokens.first=)
-This token will expire in 60 minutes.
-
-Run this on the new node to join the cluster:
-
-> teleport start \
-   --roles=discovery,kube \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
-
-Please note:
-
-  - This invitation token will expire in 60 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+$ tctl tokens add --type=discovery,kube --format=text
+(=presets.tokens.first=)
 ```
 
 Copy the token (e.g., `(=presets.tokens.first=)` above) and save the token in
@@ -316,42 +303,14 @@ Generate separate tokens for the Kubernetes Service and Discovery Service by
 running the following `tctl` commands:
 
 ```code
-$ tctl tokens add --type=discovery
-The invite token: (=presets.tokens.second=)
-This token will expire in 60 minutes.
-
-Run this on the new node to join the cluster:
-
-> teleport start \
-   --roles=discovery \
-   --token=(=presets.tokens.second=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
-
-Please note:
-
-  - This invitation token will expire in 60 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
-$ tctl tokens add --type=kube
-The invite token: (=presets.tokens.third=)
-This token will expire in 60 minutes.
-
-Run this on the new node to join the cluster:
-
-> teleport start \
-   --roles=kube \
-   --token=(=presets.tokens.third=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
-
-Please note:
-
-  - This invitation token will expire in 60 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+$ tctl tokens add --type=discovery --format=text
+# (=presets.tokens.second=)
+$ tctl tokens add --type=kube --format=text
+# (=presets.tokens.third=)
 ```
 
-Copy each token (e.g., `(=presets.tokens.first=)` and
-`(=presets.tokens.second=)` above) and save it in `/tmp/token` on the machine
+Copy each token (e.g., `(=presets.tokens.second=)` and
+`(=presets.tokens.third=)` above) and save it in `/tmp/token` on the machine
 that will run the appropriate service. 
 
 </Details>

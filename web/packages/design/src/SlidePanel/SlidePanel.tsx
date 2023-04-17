@@ -48,7 +48,7 @@ export function SlidePanel({
 }
 
 const Panel = styled(Box)`
-  background: ${({ theme }) => theme.colors.levels.sunkenSecondary};
+  background: ${({ theme }) => theme.colors.levels.sunken};
   min-height: 100%;
   opacity: 1;
   padding: 20px;

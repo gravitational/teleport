@@ -90,7 +90,7 @@ export function FileListItem(props: FileListItemProps) {
 
 const Error: FC = props => {
   return (
-    <Text color="error.light" typography="body2" mt={1}>
+    <Text color="error.hover" typography="body2" mt={1}>
       <Warning mr={1} color="inherit" />
       {props.children}
     </Text>

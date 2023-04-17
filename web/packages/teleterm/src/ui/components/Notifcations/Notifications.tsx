@@ -33,12 +33,12 @@ const notificationConfig: Record<
 > = {
   error: {
     Icon: Warning,
-    getColor: theme => theme.colors.danger,
+    getColor: theme => theme.colors.error.main,
     isAutoRemovable: false,
   },
   warn: {
     Icon: Warning,
-    getColor: theme => theme.colors.warning,
+    getColor: theme => theme.colors.warning.main,
     isAutoRemovable: true,
   },
   info: {

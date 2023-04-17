@@ -35,7 +35,8 @@ import {
 
 type Props<IntegrationLike> = {
   list: IntegrationLike[];
-  onDelete(i: IntegrationLike): void;
+  onDeletePlugin?(p: Plugin): void;
+  onDeleteIntegration?(i: Integration): void;
 };
 
 type IntegrationLike = Integration | Plugin;
@@ -69,11 +70,29 @@ export function IntegrationList(props: Props<IntegrationLike>) {
         },
         {
           altKey: 'options-btn',
-          render: item => (
-            <ActionCell
-              onDelete={props.onDelete ? () => props.onDelete(item) : null}
-            />
-          ),
+          render: item => {
+            if (item.resourceType === 'plugin') {
+              return (
+                <Cell align="right">
+                  <MenuButton>
+                    <MenuItem onClick={() => props.onDeletePlugin(item)}>
+                      Delete...
+                    </MenuItem>
+                  </MenuButton>
+                </Cell>
+              );
+            }
+
+            return (
+              <Cell align="right">
+                <MenuButton>
+                  <MenuItem onClick={() => props.onDeleteIntegration(item)}>
+                    Delete...
+                  </MenuItem>
+                </MenuButton>
+              </Cell>
+            );
+          },
         },
       ]}
       emptyText="No Results Found"
@@ -96,20 +115,6 @@ const StatusCell = ({ item }: { item: IntegrationLike }) => {
           </Box>
         )}
       </Flex>
-    </Cell>
-  );
-};
-
-const ActionCell = ({ onDelete }: { onDelete: () => void }) => {
-  if (!onDelete) {
-    return null;
-  }
-
-  return (
-    <Cell align="right">
-      <MenuButton>
-        <MenuItem onClick={onDelete}>Delete...</MenuItem>
-      </MenuButton>
     </Cell>
   );
 };
@@ -147,10 +152,10 @@ const StatusLight = styled(Box)`
       return theme.colors.success;
     }
     if (status === Status.Error) {
-      return theme.colors.error.light;
+      return theme.colors.error.main;
     }
     if (status === Status.Warning) {
-      return theme.colors.warning;
+      return theme.colors.warning.main;
     }
     return theme.colors.grey[300]; // Unknown
   }};
@@ -170,7 +175,7 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
     // Default is integration.
     switch (item.kind) {
       case IntegrationKind.AwsOidc:
-        formattedText = 'Amazon Web Services (OIDC)';
+        formattedText = item.name;
         icon = <IconContainer src={awsIcon} />;
         break;
     }

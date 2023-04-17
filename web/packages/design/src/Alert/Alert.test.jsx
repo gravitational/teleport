@@ -24,21 +24,21 @@ describe('design/Alert', () => {
   it('respects default "kind" prop == danger', () => {
     const { container } = render(<Alert />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.danger,
+      background: theme.colors.error.main,
     });
   });
 
-  test('"kind" danger renders bg == theme.colors.danger', () => {
+  test('"kind" danger renders bg == theme.colors.error.main', () => {
     const { container } = render(<Danger />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.danger,
+      background: theme.colors.error.main,
     });
   });
 
-  test('"kind" warning renders bg == theme.colors.warning', () => {
+  test('"kind" warning renders bg == theme.colors.warning.main', () => {
     const { container } = render(<Warning />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.warning,
+      background: theme.colors.warning.main,
     });
   });
 

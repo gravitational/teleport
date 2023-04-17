@@ -501,6 +501,29 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 
 		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent:
+		ret := &UIDiscoverIntegrationAWSOIDCConnectEvent{
+			Metadata: discoverMetadataToPrehog(e.UiDiscoverIntegrationAwsOidcConnectEvent.Metadata, userMD),
+			Resource: discoverResourceToPrehog(e.UiDiscoverIntegrationAwsOidcConnectEvent.Resource),
+			Status:   discoverStatusToPrehog(e.UiDiscoverIntegrationAwsOidcConnectEvent.Status),
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent:
+		ret := &UIDiscoverDatabaseRDSEnrollEvent{
+			Metadata:               discoverMetadataToPrehog(e.UiDiscoverDatabaseRdsEnrollEvent.Metadata, userMD),
+			Resource:               discoverResourceToPrehog(e.UiDiscoverDatabaseRdsEnrollEvent.Resource),
+			Status:                 discoverStatusToPrehog(e.UiDiscoverDatabaseRdsEnrollEvent.Status),
+			SelectedResourcesCount: e.UiDiscoverDatabaseRdsEnrollEvent.SelectedResourcesCount,
+		}
+		if err := ret.CheckAndSetDefaults(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return ret, nil
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
 			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
