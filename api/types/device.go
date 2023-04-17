@@ -81,6 +81,15 @@ func UnmarshalDevice(raw []byte) (*DeviceV1, error) {
 	return dev, trace.Wrap(dev.CheckAndSetDefaults())
 }
 
+// MarshalDevice marshals a DeviceV1 resource.
+func MarshalDevice(dev *DeviceV1) ([]byte, error) {
+	devBytes, err := json.Marshal(dev)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return devBytes, nil
+}
+
 // DeviceFromResource converts a resource DeviceV1 to an API devicepb.Device.
 func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 	if res == nil {
