@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -47,6 +48,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -303,6 +305,120 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// integrationsService returns an Integrations Service.
+func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) {
+	igSvc, err := integrationv1.NewService(&integrationv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return igSvc, nil
+}
+
+// CreateIntegration creates an Integration.
+func (a *ServerWithRoles) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	igv1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected integration type %T", ig)
+	}
+
+	ig, err = igSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igv1})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// GetIntegration returns an Integration by its name.
+func (a *ServerWithRoles) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := igSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{Name: name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// ListIntegrations returns a list of Integrations.
+// A next page can be retreived by calling ListIntegrations again and passing the nextKey from the previous response.
+func (a *ServerWithRoles) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	resp, err := igSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+		Limit:   int32(pageSize),
+		NextKey: nextKey,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	integrations := make([]types.Integration, 0, len(resp.GetIntegrations()))
+	for _, ig := range resp.GetIntegrations() {
+		integrations = append(integrations, ig)
+	}
+
+	return integrations, resp.GetNextKey(), nil
+}
+
+// UpdateIntegration updates an Integration.
+func (a *ServerWithRoles) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	igv1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected integration type %T", ig)
+	}
+
+	ig, err = igSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igv1})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// DeleteAllIntegrations deletes all integrations.
+func (a *ServerWithRoles) DeleteAllIntegrations(ctx context.Context) error {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = igSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
+	return trace.Wrap(err)
+}
+
+// DeleteIntegration deletes an integration integrations.
+func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) error {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = igSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: name})
+	return trace.Wrap(err)
 }
 
 // CreateSessionTracker creates a tracker resource for an active session.
@@ -1216,6 +1332,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	if len(watch.Kinds) == 0 {
 		return nil, trace.AccessDenied("can't setup global watch")
 	}
+
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
 		// Check the permissions for data of each kind. For watching, most
 		// kinds of data just need a Read permission, but some have more
@@ -1227,25 +1345,33 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 				verb = types.VerbRead
 			}
 			if err := a.action(apidefaults.Namespace, types.KindCertAuthority, verb); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 		case types.KindAccessRequest:
 			var filter types.AccessRequestFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 			if filter.User == "" || a.currentUserAction(filter.User) != nil {
 				if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead); err != nil {
+					if watch.AllowPartialSuccess {
+						continue
+					}
 					return nil, trace.Wrap(err)
 				}
-			}
-		case types.KindAppServer:
-			if err := a.action(apidefaults.Namespace, types.KindAppServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
 			}
 		case types.KindWebSession:
 			var filter types.WebSessionFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 			resource := types.KindWebSession
@@ -1255,35 +1381,29 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 			}
 			if filter.User == "" || a.currentUserAction(filter.User) != nil {
 				if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
+					if watch.AllowPartialSuccess {
+						continue
+					}
 					return nil, trace.Wrap(err)
 				}
 			}
-		case types.KindWebToken:
-			if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindRemoteCluster:
-			if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindDatabaseServer:
-			if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindKubeServer:
-			if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindWindowsDesktopService:
-			if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
 		default:
 			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 		}
+
+		validKinds = append(validKinds, kind)
 	}
+
+	if len(validKinds) == 0 {
+		return nil, trace.BadParameter("none of the requested kinds can be watched")
+	}
+
+	watch.Kinds = validKinds
 	switch {
 	case a.hasBuiltinRole(types.RoleProxy):
 		watch.QueueSize = defaults.ProxyQueueSize
@@ -2212,37 +2332,7 @@ func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) 
 	// The Ping method does not require special permissions since it only returns
 	// basic status information.  This is an intentional design choice.  Alternative
 	// methods should be used for relaying any sensitive information.
-	cn, err := a.authServer.GetClusterName()
-	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
-	}
-
-	return proto.PingResponse{
-		ClusterName:     cn.GetClusterName(),
-		ServerVersion:   teleport.Version,
-		ServerFeatures:  modules.GetModules().Features().ToProto(),
-		ProxyPublicAddr: a.getProxyPublicAddr(),
-		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LoadAllCAs:      a.authServer.loadAllCAs,
-	}, nil
-}
-
-// getProxyPublicAddr gets the server's public proxy address.
-func (a *ServerWithRoles) getProxyPublicAddr() string {
-	if proxies, err := a.authServer.GetProxies(); err == nil {
-		for _, p := range proxies {
-			addr := p.GetPublicAddr()
-			if addr == "" {
-				continue
-			}
-			if _, err := utils.ParseAddr(addr); err != nil {
-				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
-				continue
-			}
-			return addr
-		}
-	}
-	return ""
+	return a.authServer.Ping(ctx)
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -4693,6 +4783,13 @@ func (a *ServerWithRoles) DeleteMFADeviceSync(ctx context.Context, req *proto.De
 // client.Client.GenerateUserSingleUseCerts instead.
 func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto.AuthService_GenerateUserSingleUseCertsClient, error) {
 	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
+}
+
+// GetResources exists to satisfy auth.ClientI but is not
+// implemented here. It is a client only interface to make
+// interacting with ListResources friendlier.
+func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	return nil, trace.NotImplemented("bug: GetResources must not be called on auth.ServerWithRoles")
 }
 
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {

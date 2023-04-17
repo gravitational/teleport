@@ -64,12 +64,12 @@ type WorkflowRuns interface {
 
 // ListWorkflowRuns returns a set of RunIDs, representing the set of all for
 // workflow runs created since the supplied start time.
-func ListWorkflowRuns(ctx context.Context, actions WorkflowRuns, owner, repo, path, ref string, since time.Time) (RunIDSet, error) {
+func ListWorkflowRuns(ctx context.Context, actions WorkflowRuns, owner, repo, path, branch string, since time.Time) (RunIDSet, error) {
 	listOptions := github.ListWorkflowRunsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: 100,
 		},
-		Branch:  ref,
+		Branch:  branch,
 		Created: ">" + since.Format(time.RFC3339),
 	}
 

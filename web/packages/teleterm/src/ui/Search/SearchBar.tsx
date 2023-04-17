@@ -17,7 +17,6 @@
 import React, { useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Flex } from 'design';
-import { space, width, color, height } from 'styled-system';
 
 import {
   SearchContextProvider,
@@ -31,8 +30,7 @@ import {
 
 import { useAppContext } from '../appContextProvider';
 
-const OPEN_COMMAND_BAR_SHORTCUT_ACTION: KeyboardShortcutAction =
-  'openCommandBar';
+const OPEN_SEARCH_BAR_SHORTCUT_ACTION: KeyboardShortcutAction = 'openSearchBar';
 
 export function SearchBarConnected() {
   const { workspacesService } = useAppContext();
@@ -65,7 +63,7 @@ function SearchBar() {
   ctx.clustersService.useState();
 
   useKeyboardShortcuts({
-    [OPEN_COMMAND_BAR_SHORTCUT_ACTION]: () => {
+    [OPEN_SEARCH_BAR_SHORTCUT_ACTION]: () => {
       open();
     },
   });
@@ -105,9 +103,15 @@ function SearchBar() {
         flex-shrink: 1;
         min-width: calc(${props => props.theme.space[7]}px * 2);
         height: 100%;
-        background: ${props => props.theme.colors.levels.surface};
+        background: ${props => props.theme.colors.levels.sunkenSecondary};
         border: 1px ${props => props.theme.colors.action.disabledBackground}
           solid;
+        border-radius: ${props => props.theme.radii[2]}px;
+
+        &:hover {
+          color: ${props => props.theme.colors.levels.contrast};
+          background: ${props => props.theme.colors.levels.surface};
+        }
       `}
       justifyContent="center"
       ref={containerRef}
@@ -116,9 +120,7 @@ function SearchBar() {
       {!opened && (
         <>
           <Input {...defaultInputProps} />
-          <Shortcut>
-            {getAccelerator(OPEN_COMMAND_BAR_SHORTCUT_ACTION)}
-          </Shortcut>
+          <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
         </>
       )}
       {opened && (
@@ -131,33 +133,23 @@ function SearchBar() {
   );
 }
 
-const Input = styled.input(props => {
-  const { theme } = props;
-  return {
-    height: '100%',
-    background: theme.colors.levels.sunkenSecondary,
-    boxSizing: 'border-box',
-    color: theme.colors.text.primary,
-    width: '100%',
-    outline: 'none',
-    border: 'none',
-    padding: `${theme.space[1]}px ${theme.space[2]}px`,
-    '&:hover, &:focus': {
-      color: theme.colors.text.contrast,
-      background: theme.colors.levels.surface,
+const Input = styled.input`
+  height: 38px;
+  width: 100%;
+  min-width: calc(${props => props.theme.space[9]}px * 2);
+  background: inherit;
+  color: inherit;
+  box-sizing: border-box;
+  outline: none;
+  border: none;
+  font-size: 14px;
+  border-radius: ${props => props.theme.radii[2]}px;
+  padding-inline: ${props => props.theme.space[2]}px;
 
-      opacity: 1,
-    },
-    '::placeholder': {
-      color: theme.colors.text.secondary,
-    },
-
-    ...space(props),
-    ...width(props),
-    ...height(props),
-    ...color(props),
-  };
-});
+  ::placeholder {
+    color: ${props => props.theme.colors.text.secondary};
+  }
+`;
 
 const Shortcut = styled(Box).attrs({ p: 1 })`
   position: absolute;
@@ -168,5 +160,5 @@ const Shortcut = styled(Box).attrs({ p: 1 })`
   background-color: ${({ theme }) => theme.colors.levels.surface};
   line-height: 12px;
   font-size: 12px;
-  border-radius: 2px;
+  border-radius: ${props => props.theme.radii[2]}px;
 `;

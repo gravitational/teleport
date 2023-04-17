@@ -142,8 +142,8 @@ github.com/docker/cli v20.10.21+incompatible h1:qVkgyYUnOLQ98LtXBrwd/duVqPT2X4SH
 github.com/docker/cli v20.10.21+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.1+incompatible h1:Q50tZOPR6T/hjNsyc9g8/syEs6bk8XXApsHjKukMl68=
 github.com/docker/distribution v2.8.1+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
-github.com/docker/docker v20.10.21+incompatible h1:UTLdBmHk3bEY+w8qeO5KttOhy6OmXWsl/FEet9Uswog=
-github.com/docker/docker v20.10.21+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
+github.com/docker/docker v20.10.24+incompatible h1:Ugvxm7a8+Gz6vqQYQQ2W7GYq5EUPaAiuPgIfVyI3dYE=
+github.com/docker/docker v20.10.24+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/docker/docker-credential-helpers v0.7.0 h1:xtCHsjxogADNZcdv1pKUHXryefjlVRqWqIhk/uXJp0A=
 github.com/docker/docker-credential-helpers v0.7.0/go.mod h1:rETQfLdHNT3foU5kuNkFR1R1V12OJRRO5lzt2D1b5X0=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
@@ -540,8 +540,6 @@ github.com/shibumi/go-pathspec v1.3.0/go.mod h1:Xutfslp817l2I1cZvgcfeMQJG5QnU2lh
 github.com/shopspring/decimal v1.2.0 h1:abSATXmQEYyShuxI4/vyW3tV1MrKAJzCZ/0zLUXYbsQ=
 github.com/shopspring/decimal v1.2.0/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
 github.com/shurcooL/sanitized_anchor_name v1.0.0/go.mod h1:1NzhyTcUVG4SuEtjjoZeVRXNmyL/1OwPU0+IJeTBvfc=
-github.com/sigstore/cosign/v2 v2.0.0 h1:x+K6VQKtrBR9/MYOx6ebJB6/Aux56nmf2Zn3chZlP5w=
-github.com/sigstore/cosign/v2 v2.0.0/go.mod h1:MeJyYfKll3AAsb+CdnhI3YkecDPX2erPvf1JaUaFCrM=
 github.com/sigstore/cosign/v2 v2.0.1-0.20230228132138-2f1ec646de33 h1:WoOeQAj3KNDLSAxNTXfedPbKxlmZtxLg63stCX3o9J4=
 github.com/sigstore/cosign/v2 v2.0.1-0.20230228132138-2f1ec646de33/go.mod h1:lRlNAN2DyhE8e6PG5GfM3i6d39/U/CM1E0yYsISe6gI=
 github.com/sigstore/rekor v1.0.1 h1:rcESXSNkAPRWFYZel9rarspdvneET60F2ngNkadi89c=

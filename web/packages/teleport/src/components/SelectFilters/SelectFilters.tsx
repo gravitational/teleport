@@ -281,7 +281,7 @@ const ActionButton = styled(ButtonBorder)`
 
 const AddButton = styled(ButtonBorder)`
   line-height: normal;
-  background-color: ${props => props.theme.colors.levels.sunkenSecondary};
+  background-color: ${props => props.theme.colors.levels.sunken};
   font-weight: normal;
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: #fff;
@@ -348,7 +348,7 @@ const StyledLabel = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
   color: ${({ theme }) => theme.colors.text.primary};
-  background-color: ${props => props.theme.colors.levels.sunkenSecondary};
+  background-color: ${props => props.theme.colors.levels.sunken};
   font-weight: regular;
   font-size: 12px;
 

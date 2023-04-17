@@ -99,12 +99,12 @@ version: v3
 teleport:
   auth_token: xxxx-token-xxxx
 
-  # Specify either the proxy address
+  # Specify either the Proxy Service address...
   proxy_server: teleport.example.com:3080
-  # or the auth server address
+  # or the Auth Service address
   auth_server: 10.1.1.10:3025
 
-# Enable ssh service and disable auth and proxy:
+# Enable the SSH Service and disable the Auth and Proxy Services:
 ssh_service:
   enabled: true
 auth_service:

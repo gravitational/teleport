@@ -2008,6 +2008,7 @@ func (process *TeleportProcess) newAccessCache(cfg accessCacheConfig) (*cache.Ca
 		SAMLIdPServiceProviders: cfg.services,
 		UserGroups:              cfg.services,
 		Okta:                    cfg.services.OktaClient(),
+		Integrations:            cfg.services,
 		WebSession:              cfg.services.WebSessions(),
 		WebToken:                cfg.services.WebTokens(),
 		Component:               teleport.Component(append(cfg.cacheName, process.id, teleport.ComponentCache)...),
@@ -4132,14 +4133,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		dbProxyServer, err := db.NewProxyServer(process.ExitContext(),
 			db.ProxyServerConfig{
-				AuthClient:        conn.Client,
-				AccessPoint:       accessPoint,
-				Authorizer:        authorizer,
-				Tunnel:            tsrv,
-				TLSConfig:         tlsConfig,
-				Limiter:           connLimiter,
-				IngressReporter:   ingressReporter,
-				ConnectionMonitor: connMonitor,
+				AuthClient:         conn.Client,
+				AccessPoint:        accessPoint,
+				Authorizer:         authorizer,
+				Tunnel:             tsrv,
+				TLSConfig:          tlsConfig,
+				Limiter:            connLimiter,
+				IngressReporter:    ingressReporter,
+				ConnectionMonitor:  connMonitor,
+				MySQLServerVersion: process.Config.Proxy.MySQLServerVersion,
 			})
 		if err != nil {
 			return trace.Wrap(err)

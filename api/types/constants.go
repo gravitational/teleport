@@ -225,6 +225,9 @@ const (
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
 
+	// MetaNameWatchStatus is the name of a watch status resource.
+	MetaNameWatchStatus = "watch-status"
+
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
@@ -348,6 +351,9 @@ const (
 	// window singleton resource.
 	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
 
+	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
+	KindWatchStatus = "watch_status"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -369,7 +375,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -401,6 +407,10 @@ const (
 	// VerbEnroll allows enrollment of trusted devices.
 	// Device Trust is a Teleport Enterprise feature.
 	VerbEnroll = "enroll"
+
+	// VerbUse allows the usage of an Integration.
+	// Roles with this verb can issue API calls using the integration.
+	VerbUse = "use"
 )
 
 const (

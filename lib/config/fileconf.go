@@ -521,8 +521,12 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
 			}
 		} else if matcher.ExternalID != "" {
-			return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
-				matcher.ExternalID)
+			for _, t := range matcher.Types {
+				if !slices.Contains(services.RequireAWSIAMRolesAsUsersMatchers, t) {
+					return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
+						matcher.ExternalID)
+				}
+			}
 		}
 
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
@@ -2012,6 +2016,9 @@ type Proxy struct {
 	// MySQLPublicAddr is the hostport the proxy advertises for MySQL
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
+
+	// MySQLServerVersion allow to overwrite proxy default mysql engine version reported by Teleport proxy.
+	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
 
 	// PostgresAddr is Postgres proxy listen address.
 	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`

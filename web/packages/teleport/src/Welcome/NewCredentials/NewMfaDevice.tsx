@@ -112,7 +112,7 @@ export function NewMfaDevice(props: Props) {
             />
             <Box>
               <Text color="text.secondary">Step 2 of 2</Text>
-              <Text typography="h4" color="light" bold>
+              <Text typography="h4" color="text.primary" bold>
                 Set Two-Factor Device
               </Text>
             </Box>
@@ -120,7 +120,7 @@ export function NewMfaDevice(props: Props) {
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="light" caps mb={1}>
+          <Text typography="subtitle1" color="text.primary" caps mb={1}>
             Two-Factor Method
           </Text>
           <Box mb={1}>

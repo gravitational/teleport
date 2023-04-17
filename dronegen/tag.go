@@ -190,25 +190,27 @@ func tagPipelines() []pipeline {
 	}
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", arch: "arm64", fips: false},
-		trigger:      triggerTag,
-		pipelineName: "build-linux-arm64",
-		ghaWorkflow:  "release-linux-arm64.yml",
-		srcRefVar:    "DRONE_TAG",
-		workflowRef:  "${DRONE_TAG}",
-		timeout:      60 * time.Minute,
-		dependsOn:    []string{tagCleanupPipelineName},
-		inputs:       map[string]string{"upload-artifacts": "true"},
+		buildType:         buildType{os: "linux", arch: "arm64", fips: false},
+		trigger:           triggerTag,
+		pipelineName:      "build-linux-arm64",
+		ghaWorkflow:       "release-linux-arm64.yml",
+		srcRefVar:         "DRONE_TAG",
+		workflowRef:       "${DRONE_TAG}",
+		timeout:           60 * time.Minute,
+		dependsOn:         []string{tagCleanupPipelineName},
+		shouldTagWorkflow: true,
+		inputs:            map[string]string{"upload-artifacts": "true"},
 	}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", fips: false},
-		trigger:      triggerTag,
-		pipelineName: "build-teleport-oci-distroless-images",
-		ghaWorkflow:  "release-teleport-oci-distroless.yml",
-		srcRefVar:    "DRONE_TAG",
-		workflowRef:  "${DRONE_TAG}",
-		timeout:      60 * time.Minute,
+		buildType:         buildType{os: "linux", fips: false},
+		trigger:           triggerTag,
+		pipelineName:      "build-teleport-oci-distroless-images",
+		ghaWorkflow:       "release-teleport-oci-distroless.yml",
+		srcRefVar:         "DRONE_TAG",
+		workflowRef:       "${DRONE_TAG}",
+		timeout:           60 * time.Minute,
+		shouldTagWorkflow: true,
 		dependsOn: []string{
 			tagCleanupPipelineName,
 			"build-linux-amd64-deb",
@@ -217,13 +219,14 @@ func tagPipelines() []pipeline {
 	}))
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", fips: false},
-		trigger:      triggerTag,
-		pipelineName: "build-teleport-kube-agent-updater-oci-images",
-		ghaWorkflow:  "release-teleport-kube-agent-udpater-oci.yml",
-		srcRefVar:    "DRONE_TAG",
-		workflowRef:  "${DRONE_TAG}",
-		timeout:      60 * time.Minute,
+		buildType:         buildType{os: "linux", fips: false},
+		trigger:           triggerTag,
+		pipelineName:      "build-teleport-kube-agent-updater-oci-images",
+		ghaWorkflow:       "release-teleport-kube-agent-updater-oci.yml",
+		srcRefVar:         "DRONE_TAG",
+		workflowRef:       "${DRONE_TAG}",
+		timeout:           60 * time.Minute,
+		shouldTagWorkflow: true,
 	}))
 
 	// Only amd64 Windows is supported for now.
@@ -603,5 +606,5 @@ func tagPackagePipeline(packageType string, b buildType) pipeline {
 }
 
 func tagCleanupPipeline() pipeline {
-	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "relcli auto_destroy -f -v 6")
+	return relcliPipeline(triggerTag, tagCleanupPipelineName, "Clean up previously built artifacts", "auto_destroy -f -v 6")
 }

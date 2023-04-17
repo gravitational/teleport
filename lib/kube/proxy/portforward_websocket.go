@@ -285,5 +285,5 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	// Wait until every goroutine exits.
 	wg.Wait()
 
-	h.Infof("Port forwarding pair completed.")
+	h.Debugf("Port forwarding pair completed.")
 }

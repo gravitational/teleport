@@ -30,7 +30,6 @@ export const TextArea: React.FC<TextAreaProps> = styled.textarea`
   appearance: none;
   border: none;
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.24);
   box-sizing: border-box;
   min-height: 50px;
   height: 80px;

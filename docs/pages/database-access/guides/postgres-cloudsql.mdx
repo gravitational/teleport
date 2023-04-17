@@ -1,6 +1,6 @@
 ---
 title: Database Access with PostgreSQL on GCP Cloud SQL
-description: How to configure Teleport Database Access with GCP Cloud SQL PostgreSQL.
+description: How to configure Teleport database access with GCP Cloud SQL PostgreSQL.
 videoBanner: br9LZ3ZXqCk
 ---
 
@@ -287,7 +287,7 @@ proxy_service:
 >
 
   A single Teleport process can run multiple different services, for example
-  multiple Database Access instances as well as other services such the SSH
+  multiple Database Services instances as well as other services such the SSH
   Service or Application Service.
 
 </Notice>
@@ -357,7 +357,7 @@ $ tsh db connect --db-user=teleport@<project-id>.iam --db-name=postgres cloudsql
   title="What database user name to use?"
 >
 
-  When connecting to the database, use the name of the database service account
+  When connecting to the database, use the name of the database's service account
   that you added as an IAM database user
   [above](#step-27-create-a-service-account-for-the-database), minus the
   `.gserviceaccount.com` suffix. The database user name is shown on the Users

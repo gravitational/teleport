@@ -106,6 +106,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 			ClientConfig:          cfg.SSH,
 			Log:                   cfg.Log,
 			InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+			ClusterCAs:            cfg.TLS.RootCAs,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

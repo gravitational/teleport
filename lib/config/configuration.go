@@ -887,6 +887,10 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Proxy.UI = webclient.UIConfig(*fc.Proxy.UI)
 	}
 
+	if fc.Proxy.MySQLServerVersion != "" {
+		cfg.Proxy.MySQLServerVersion = fc.Proxy.MySQLServerVersion
+	}
+
 	// This is the legacy format. Continue to support it forever, but ideally
 	// users now use the list format below.
 	if fc.Proxy.KeyFile != "" || fc.Proxy.CertFile != "" {

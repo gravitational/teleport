@@ -439,6 +439,8 @@ const (
 	ProtocolCassandra = "cassandra"
 	// ProtocolElasticsearch is the Elasticsearch database protocol.
 	ProtocolElasticsearch = "elasticsearch"
+	// ProtocolOpenSearch is the OpenSearch database protocol.
+	ProtocolOpenSearch = "opensearch"
 	// ProtocolDynamoDB is the DynamoDB database protocol.
 	ProtocolDynamoDB = "dynamodb"
 )
@@ -455,6 +457,7 @@ var DatabaseProtocols = []string{
 	ProtocolSQLServer,
 	ProtocolCassandra,
 	ProtocolElasticsearch,
+	ProtocolOpenSearch,
 	ProtocolDynamoDB,
 }
 
@@ -478,6 +481,8 @@ func ReadableDatabaseProtocol(p string) string {
 		return "Snowflake"
 	case ProtocolElasticsearch:
 		return "Elasticsearch"
+	case ProtocolOpenSearch:
+		return "OpenSearch"
 	case ProtocolSQLServer:
 		return "Microsoft SQL Server"
 	case ProtocolCassandra:
@@ -728,7 +733,7 @@ var (
 	}
 )
 
-// Transport returns a new http.Client with sensible defaults.
+// HTTPClient returns a new http.Client with sensible defaults.
 func HTTPClient() (*http.Client, error) {
 	transport, err := Transport()
 	if err != nil {

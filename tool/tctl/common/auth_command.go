@@ -18,11 +18,9 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -33,6 +31,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
@@ -89,12 +88,14 @@ type AuthCommand struct {
 	authRotate   *kingpin.CmdClause
 	authLS       *kingpin.CmdClause
 	authCRL      *kingpin.CmdClause
+	// testInsecureSkipVerify is used to skip TLS verification during tests
+	// when connecting to the proxy ping address.
+	testInsecureSkipVerify bool
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
 func (a *AuthCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	a.config = config
-
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs)").Hidden()
 	a.authExport = auth.Command("export", "Export public cluster (CA) keys to stdout")
@@ -956,7 +957,7 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.Client
 		if addr == "" {
 			continue
 		}
-
+		// if the proxy is multiplexing, the public address is the web proxy address.
 		if netConfig.GetProxyListenerMode() == types.ProxyListenerMode_Multiplex {
 			u := url.URL{
 				Scheme: "https",
@@ -966,14 +967,32 @@ func (a *AuthCommand) checkProxyAddr(ctx context.Context, clusterAPI auth.Client
 			return nil
 		}
 
-		uaddr, err := utils.ParseAddr(addr)
+		_, err := utils.ParseAddr(addr)
 		if err != nil {
 			log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
 			continue
 		}
+
+		ping, err := webclient.Ping(
+			&webclient.Config{
+				Context:   ctx,
+				ProxyAddr: addr,
+				Timeout:   5 * time.Second,
+				Insecure:  a.testInsecureSkipVerify,
+			},
+		)
+		if err != nil {
+			log.Warningf("Unable to ping proxy public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+			continue
+		}
+
+		if !ping.Proxy.Kube.Enabled || ping.Proxy.Kube.PublicAddr == "" {
+			continue
+		}
+
 		u := url.URL{
 			Scheme: "https",
-			Host:   net.JoinHostPort(uaddr.Host(), strconv.Itoa(defaults.KubeListenPort)),
+			Host:   ping.Proxy.Kube.PublicAddr,
 		}
 		a.proxyAddr = u.String()
 		return nil

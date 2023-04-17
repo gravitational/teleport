@@ -2422,6 +2422,19 @@
   dependencies:
     "@sinonjs/commons" "^1.7.0"
 
+"@storybook/addon-toolbars@^6.5.16":
+  version "6.5.16"
+  resolved "https://registry.npmjs.org/@storybook/addon-toolbars/-/addon-toolbars-6.5.16.tgz#9de04f9cc64b68d6cb680aa1c4fbf874e11afa32"
+  integrity sha512-y3PuUKiwOWrAvqx1YdUvArg0UaAwmboXFeR2bkrowk1xcT+xnRO3rML4npFeUl26OQ1FzwxX/cw6nknREBBLEA==
+  dependencies:
+    "@storybook/addons" "6.5.16"
+    "@storybook/api" "6.5.16"
+    "@storybook/client-logger" "6.5.16"
+    "@storybook/components" "6.5.16"
+    "@storybook/theming" "6.5.16"
+    core-js "^3.8.2"
+    regenerator-runtime "^0.13.7"
+
 "@storybook/addons@6.5.16":
   version "6.5.16"
   resolved "https://registry.yarnpkg.com/@storybook/addons/-/addons-6.5.16.tgz#07e8f2205f86fa4c9dada719e3e096cb468e3cdd"
@@ -2626,7 +2639,7 @@
     core-js "^3.8.2"
     global "^4.4.0"
 
-"@storybook/components@6.5.16":
+"@storybook/components@6.5.16", "@storybook/components@^6.5.16":
   version "6.5.16"
   resolved "https://registry.yarnpkg.com/@storybook/components/-/components-6.5.16.tgz#f8dc51213bc08fe32154be964e1e8b0e2f670ed6"
   integrity sha512-LzBOFJKITLtDcbW9jXl0/PaG+4xAz25PK8JxPZpIALbmOpYWOAPcO6V9C2heX6e6NgWFMUxjplkULEk9RCQMNA==
@@ -6637,10 +6650,10 @@ electron-to-chromium@^1.4.284:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.304.tgz#d6eb7fea4073aacc471cf117df08b4b4978dc6ad"
   integrity sha512-6c8M+ojPgDIXN2NyfGn8oHASXYnayj+gSEnGeLMKb9zjsySeVB/j7KkNAAG9yDcv8gNlhvFg5REa1N/kQU6pgA==
 
-electron@22.3.2:
-  version "22.3.2"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.2.tgz#6adf34561acc23938bfbe35ae771281eaf8706f2"
-  integrity sha512-rcE01ammPJ9RVDF3sCETyeHiDEVxV49Ywn+wXUGiG+jGtOB6erLx5jnBTf2eSVYoTXqoIbigoxGHLq4nLMLLUg==
+electron@22.3.6:
+  version "22.3.6"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-22.3.6.tgz#ab79a2da20e83b02ec9cbb22a4069468e6949b4f"
+  integrity sha512-/1/DivFHH5AWa/uOuqpkeg12/jjicjkBU8kYv70oeqRFwXzoyuJhgwlzER4jZXnbGjF5Nxz9900oXq/QzAViAw==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^16.11.26"
