@@ -80,21 +80,20 @@ const StyledListItem = styled(ListItem)`
 `;
 
 const InvertedLabel = styled(Label)`
-  color: ${props => props.theme.colors.brand.main};
+  color: ${props => props.theme.colors.brand};
   background-color: ${props => props.theme.colors.text.contrast};
 `;
 
 function getBackgroundColor(props) {
   if (props.isSelected) {
     if (props.isActive) {
-      return props.theme.colors.brand.accent;
+      return props.theme.colors.spotBackground[1];
     }
-    return props.theme.colors.brand.main;
   }
 }
 
 function getHoverBackgroundColor(props) {
   if (props.isSelected) {
-    return props.theme.colors.brand.accent;
+    return props.theme.colors.spotBackground[0];
   }
 }

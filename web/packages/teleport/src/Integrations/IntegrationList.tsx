@@ -152,10 +152,10 @@ const StatusLight = styled(Box)`
       return theme.colors.success;
     }
     if (status === Status.Error) {
-      return theme.colors.error.light;
+      return theme.colors.error.main;
     }
     if (status === Status.Warning) {
-      return theme.colors.warning;
+      return theme.colors.warning.main;
     }
     return theme.colors.grey[300]; // Unknown
   }};

@@ -319,6 +319,10 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
+	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
+	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
+	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (
@@ -413,4 +417,12 @@ const (
 	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"
+	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
+	// specifies the upgraded connection should be handled by the ALPN handler
+	// wrapped with the Ping protocol.
+	//
+	// This should be used when the tunneled TLS Routing protocol cannot keep
+	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
+	// has very short idle timeouts.
+	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
 )

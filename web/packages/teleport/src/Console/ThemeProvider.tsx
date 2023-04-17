@@ -15,28 +15,27 @@ limitations under the License.
 */
 
 import React from 'react';
-import theme from 'design/theme';
+import { darkTheme } from 'design/theme';
 import ThemeProvider from 'design/ThemeProvider';
 
-import { colors } from '../colors';
+import { colors } from './colors';
 
 const customTheme = {
-  ...theme,
+  // Force dark theme until we have a light theme for console.
+  ...darkTheme,
   colors: {
-    ...theme.colors,
+    ...darkTheme.colors,
     levels: {
-      ...theme.colors.levels,
+      ...darkTheme.colors.levels,
       ...colors.levels,
     },
     buttons: {
-      ...theme.colors.buttons,
+      ...darkTheme.colors.buttons,
       ...colors.buttons,
     },
   },
 };
 
-const NodesThemeProvider = props => (
+export const ConsoleThemeProvider = props => (
   <ThemeProvider theme={customTheme} children={props.children} />
 );
-
-export default NodesThemeProvider;

@@ -31,6 +31,13 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		Type: eventType,
 	}
 	if in.Type == types.OpInit {
+		watchStatus, ok := in.Resource.(*types.WatchStatusV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected resource type %T for Init event", in.Resource)
+		}
+		out.Resource = &proto.Event_WatchStatus{
+			WatchStatus: watchStatus,
+		}
 		return &out, nil
 	}
 	switch r := in.Resource.(type) {
@@ -229,6 +236,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		Type: eventType,
 	}
 	if eventType == types.OpInit {
+		if r := in.GetWatchStatus(); r != nil {
+			out.Resource = r
+		}
 		return &out, nil
 	}
 	if r := in.GetResourceHeader(); r != nil {
