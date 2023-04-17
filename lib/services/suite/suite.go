@@ -1336,7 +1336,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 
 	testCases = []eventTest{
 		{
@@ -1357,7 +1357,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 
 	testCases = []eventTest{
 		{
@@ -1586,7 +1586,11 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	// this also tests the partial success mode by requesting an unknown kind
+	s.runEventsTests(t, testCases, types.Watch{
+		Kinds:               append(eventsTestKinds(testCases), types.WatchKind{Kind: "unknown"}),
+		AllowPartialSuccess: true,
+	})
 
 	// Namespace with a name
 	testCases = []eventTest{
@@ -1618,7 +1622,22 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
+
+	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
+	s.runUnknownEventsTest(t, types.Watch{Kinds: []types.WatchKind{
+		{Kind: types.KindNamespace},
+		{Kind: "unknown"},
+	}})
+
+	// tests that a watch fails if all given kinds are unknown even if the success mode is enabled
+	s.runUnknownEventsTest(t, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: "unrecognized"},
+			{Kind: "unidentified"},
+		},
+		AllowPartialSuccess: true,
+	})
 }
 
 // EventsClusterConfig tests cluster config resource events
@@ -1716,7 +1735,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 }
 
 // NetworkRestrictions tests network restrictions.
@@ -1761,17 +1780,19 @@ func (s *ServicesTestSuite) NetworkRestrictions(t *testing.T, opts ...Option) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest) {
+func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest, watch types.Watch) {
 	ctx := context.Background()
-	w, err := s.EventsS.NewWatcher(ctx, types.Watch{
-		Kinds: eventsTestKinds(testCases),
-	})
+	w, err := s.EventsS.NewWatcher(ctx, watch)
 	require.NoError(t, err)
 	defer w.Close()
 
 	select {
 	case event := <-w.Events():
 		require.Equal(t, event.Type, types.OpInit)
+		watchStatus, ok := event.Resource.(types.WatchStatus)
+		require.True(t, ok)
+		expectedKinds := eventsTestKinds(testCases)
+		require.Equal(t, expectedKinds, watchStatus.GetKinds())
 	case <-w.Done():
 		t.Fatalf("Watcher exited with error %v", w.Error())
 	case <-time.After(2 * time.Second):
@@ -1812,6 +1833,26 @@ skiploop:
 		// delete events don't have IDs yet
 		header.SetResourceID(0)
 		ExpectDeleteResource(t, w, 3*time.Second, header)
+	}
+}
+
+func (s *ServicesTestSuite) runUnknownEventsTest(t *testing.T, watch types.Watch) {
+	ctx := context.Background()
+	w, err := s.EventsS.NewWatcher(ctx, watch)
+	if err != nil {
+		// depending on the implementation of EventsS, it might fail here immediately
+		// or later before returning the first event from the watcher.
+		return
+	}
+	defer w.Close()
+
+	select {
+	case <-w.Events():
+		t.Fatal("unexpected event from watcher that is supposed to fail")
+	case <-w.Done():
+		require.Error(t, w.Error())
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for error from watcher")
 	}
 }
 

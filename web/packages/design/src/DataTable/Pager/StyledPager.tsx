@@ -45,7 +45,7 @@ export const StyledArrowBtn = styled.button`
 `;
 
 export const StyledFetchMoreBtn = styled.button`
-  color: ${props => props.theme.colors.link};
+  color: ${props => props.theme.colors.buttons.link.default};
   background: none;
   text-decoration: underline;
   text-transform: none;
@@ -61,7 +61,7 @@ export const StyledFetchMoreBtn = styled.button`
   }
 
   &:disabled {
-    color: ${props => props.theme.colors.action.disabled};
+    color: ${props => props.theme.colors.text.disabled};
     cursor: wait;
   }
 `;

@@ -15,18 +15,19 @@ limitations under the License.
 */
 
 import React, { useRef, useState } from 'react';
+import styled from 'styled-components';
 import SlidePanel from 'design/SlidePanel';
 
 import { ArrowBack, Trash } from 'design/Icon';
 import { Alert, Box, ButtonPrimary, Flex, Input, Text } from 'design';
-import { Cell } from 'design/DataTable';
+import Table, { Cell } from 'design/DataTable';
 
 import useStickyClusterId from 'teleport/useStickyClusterId';
 import history from 'teleport/services/history';
 import cfg from 'teleport/config';
 
 import { useLocks } from './useLocks';
-import { StyledSpinner, StyledTable } from './shared';
+import { StyledSpinner } from './shared';
 
 import type { Positions } from 'design/SlidePanel/SlidePanel';
 import type { CreateLockData, SelectedLockTarget } from './types';
@@ -93,7 +94,7 @@ export function CreateLock({
     >
       <div>
         {error && <Alert kind="danger" children={error} data-testid="alert" />}
-        <Flex alignItems="center">
+        <Flex alignItems="center" mb={3}>
           <ArrowBack
             fontSize={25}
             mr={3}
@@ -101,7 +102,7 @@ export function CreateLock({
             style={{ cursor: 'pointer' }}
           />
           <Box>
-            <Text typography="h4" color="light" bold>
+            <Text typography="h4" color="text.primary" bold>
               Create New Lock
             </Text>
           </Box>
@@ -109,9 +110,6 @@ export function CreateLock({
 
         <StyledTable
           data={selectedLockTargets}
-          css={`
-            margin-top: 3rem;
-          `}
           columns={[
             {
               key: 'type',
@@ -134,10 +132,12 @@ export function CreateLock({
                     onClick={onRemove.bind(null, name)}
                     css={`
                       cursor: pointer;
-                      background-color: #2e3860;
+                      background-color: ${({ theme }) =>
+                        theme.colors.buttons.trashButton.default};
                       border-radius: 2px;
                       :hover {
-                        background-color: #414b70;
+                        background-color: ${({ theme }) =>
+                          theme.colors.buttons.trashButton.hover};
                       }
                     `}
                     data-testid="trash-btn"
@@ -177,3 +177,16 @@ export function CreateLock({
     </SlidePanel>
   );
 }
+
+const StyledTable = styled(Table)`
+  & > tbody > tr > td {
+    vertical-align: middle;
+    padding: 8px;
+  }
+  & > thead > tr > th {
+    background: ${props => props.theme.colors.spotBackground[1]};
+  }
+  box-shadow: ${props => props.theme.boxShadow[0]};
+  border-radius: 8px;
+  overflow: hidden;
+` as typeof Table;

@@ -1114,6 +1114,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1219,6 +1220,7 @@ func (proxy *ProxyClient) NewTracingClient(ctx context.Context, clusterName stri
 	case proxy.teleportClient.TLSRoutingEnabled:
 		clientConfig.Addrs = []string{proxy.teleportClient.WebProxyAddr}
 		clientConfig.ALPNSNIAuthDialClusterName = clusterName
+		clientConfig.ALPNConnUpgradeRequired = proxy.teleportClient.TLSRoutingConnUpgradeRequired
 	default:
 		clientConfig.Dialer = client.ContextDialerFunc(func(ctx context.Context, network, _ string) (net.Conn, error) {
 			return proxy.dialAuthServer(ctx, clusterName)

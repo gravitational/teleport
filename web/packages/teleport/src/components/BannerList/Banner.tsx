@@ -55,15 +55,24 @@ export function Banner({
     }
   };
 
+  let backgroundColor;
+  if (severity === 'danger') {
+    backgroundColor = 'error.main';
+  } else if (severity === 'warning') {
+    backgroundColor = 'warning.main';
+  } else {
+    backgroundColor = 'info';
+  }
+
   return (
-    <Box bg={severity} p={1} pl={2}>
+    <Box bg={backgroundColor} p={1} pl={2}>
       <Flex alignItems="center">
         {icon}
         {isValidTeleportLink(link) ? (
           <Link
             href={link}
             target="_blank"
-            color="light"
+            color="text.primaryInverse"
             style={{ fontWeight: 'bold' }}
             onClick={() =>
               userEventService.captureUserEvent({
