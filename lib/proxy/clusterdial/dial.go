@@ -23,34 +23,51 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
-// ClusterDialerFunc is a function that implements a peer.ClusterDialer.
-type ClusterDialerFunc func(clusterName string, request peer.DialParams) (net.Conn, error)
+// ClusterDialer allows dialing resources or the auth server of a cluster.
+type ClusterDialer struct {
+	server reversetunnel.Server
+}
 
 // Dial dials makes a dial request to the given cluster.
-func (f ClusterDialerFunc) Dial(clusterName string, request peer.DialParams) (net.Conn, error) {
-	return f(clusterName, request)
+func (cd *ClusterDialer) Dial(clusterName string, request peer.DialParams) (net.Conn, error) {
+	site, err := cd.server.GetSite(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	dialParams := reversetunnel.DialParams{
+		ServerID:      request.ServerID,
+		ConnType:      request.ConnType,
+		From:          request.From,
+		To:            request.To,
+		FromPeerProxy: true,
+	}
+
+	conn, err := site.Dial(dialParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return conn, nil
+}
+
+// DialAuth dials the auth server of the given cluster.
+func (cd *ClusterDialer) DialAuth(clusterName string, request peer.DialParams) (net.Conn, error) {
+	site, err := cd.server.GetSite(clusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return site.DialAuthServer(reversetunnel.DialParams{
+		From:                  request.From,
+		To:                    request.To,
+		OriginalClientDstAddr: request.To,
+		FromPeerProxy:         true,
+	})
 }
 
 // NewClusterDialer implements proxy.ClusterDialer for a reverse tunnel server.
-func NewClusterDialer(server reversetunnel.Server) ClusterDialerFunc {
-	return func(clusterName string, request peer.DialParams) (net.Conn, error) {
-		site, err := server.GetSite(clusterName)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		dialParams := reversetunnel.DialParams{
-			ServerID:      request.ServerID,
-			ConnType:      request.ConnType,
-			From:          request.From,
-			To:            request.To,
-			FromPeerProxy: true,
-		}
-
-		conn, err := site.Dial(dialParams)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return conn, nil
+func NewClusterDialer(server reversetunnel.Server) *ClusterDialer {
+	return &ClusterDialer{
+		server: server,
 	}
 }

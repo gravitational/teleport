@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/forward"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -54,10 +55,8 @@ type remoteSite struct {
 	lastUsed    int
 	srv         *server
 
-	// connInfo represents the connection to the remote cluster.
+	// connInfo represents the latest tunnel to the remote site.
 	connInfo types.TunnelConnection
-	// lastConnInfo is the last connInfo.
-	lastConnInfo types.TunnelConnection
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -95,6 +94,15 @@ type remoteSite struct {
 	// proxySyncInterval defines the interval at which discovery requests are
 	// sent to keep agents in sync
 	proxySyncInterval time.Duration
+
+	// proxyPeerClient is a client to dial remote sites connected to peer proxies.
+	proxyPeerClient *peer.Client
+	// peerTunnelConnections is a list of tunnels connected to peer proxies.
+	peerTunnelConnections []types.TunnelConnection
+}
+
+func (s *remoteSite) name() string {
+	return fmt.Sprintf("%v-%v", s.srv.ID, s.domainName)
 }
 
 func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
@@ -140,21 +148,53 @@ func (s *remoteSite) authServerContextDialer(ctx context.Context, network, addre
 	return conn, err
 }
 
-// GetTunnelsCount always returns 0 for local cluster
+// GetTunnelsCount returns the numer of local tunnels plus the number
+// of tunnels to peer proxies if proxy peering is enabled.
 func (s *remoteSite) GetTunnelsCount() int {
-	return s.connectionCount()
+	if s.proxyPeerClient == nil {
+		return s.connectionCount()
+	}
+	return s.tunnelCount()
+}
+
+// tunnelCount returns the local tunnel count + peer tunnel count.
+func (s *remoteSite) tunnelCount() int {
+	s.RLock()
+	defer s.RUnlock()
+	return len(s.connections) + len(s.peerTunnelConnections)
 }
 
 func (s *remoteSite) CachingAccessPoint() (auth.RemoteProxyAccessPoint, error) {
+	err := s.checkConnectivity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.remoteAccessPoint, nil
 }
 
 // NodeWatcher returns the services.NodeWatcher for the remote cluster.
 func (s *remoteSite) NodeWatcher() (*services.NodeWatcher, error) {
+	err := s.checkConnectivity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.nodeWatcher, nil
 }
 
+func (s *remoteSite) checkConnectivity() error {
+	s.RLock()
+	defer s.RUnlock()
+	if s.proxyPeerClient == nil && len(s.connections) == 0 {
+		return trace.ConnectionProblem(nil, "unable to fetch client, this proxy %v has not been discovered yet, try again later", s.name())
+	}
+	return nil
+}
+
 func (s *remoteSite) GetClient() (auth.ClientI, error) {
+	err := s.checkConnectivity()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return s.remoteClient, nil
 }
 
@@ -263,6 +303,9 @@ func (s *remoteSite) removeInvalidConns() {
 		}
 	}
 	s.connections = conns
+	if len(s.connections) == 0 {
+		s.connInfo = nil
+	}
 }
 
 // addConn helper adds a new active remote cluster connection to the list
@@ -271,11 +314,16 @@ func (s *remoteSite) addConn(conn net.Conn, sconn ssh.Conn) (*remoteConn, error)
 	s.Lock()
 	defer s.Unlock()
 
+	_, err := s.updateConnInfoUnsafe(s.clock.Now())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	rconn := newRemoteConn(&connConfig{
 		conn:             conn,
 		sconn:            sconn,
 		tunnelType:       string(types.ProxyTunnel),
-		proxyName:        s.connInfo.GetProxyName(),
+		proxyName:        s.srv.ID,
 		clusterName:      s.domainName,
 		offlineThreshold: s.offlineThreshold,
 	})
@@ -315,40 +363,86 @@ func (s *remoteSite) adviseReconnect(ctx context.Context) {
 }
 
 func (s *remoteSite) GetStatus() string {
-	connInfo, err := s.getLastConnInfo()
+	connInfo, err := s.getLatestConnInfo()
 	if err != nil {
 		return teleport.RemoteClusterStatusOffline
 	}
 	return services.TunnelConnectionStatus(s.clock, connInfo, s.offlineThreshold)
 }
 
-func (s *remoteSite) copyConnInfo() types.TunnelConnection {
+func (s *remoteSite) getLatestConnInfo() (types.TunnelConnection, error) {
 	s.RLock()
 	defer s.RUnlock()
-	return s.connInfo.Clone()
+	var (
+		conns      []types.TunnelConnection
+		latestConn types.TunnelConnection
+	)
+
+	if s.proxyPeerClient != nil {
+		conns = append(conns, s.peerTunnelConnections...)
+	}
+	if s.connInfo != nil {
+		conns = append(conns, s.connInfo)
+	}
+
+	for _, conn := range conns {
+		if latestConn == nil {
+			latestConn = conn
+			continue
+		}
+		if conn.GetLastHeartbeat().After(latestConn.GetLastHeartbeat()) {
+			latestConn = conn
+		}
+	}
+
+	if latestConn == nil {
+		return nil, trace.NotFound("no connection to site %s", s.name())
+	}
+	return latestConn, nil
 }
 
-func (s *remoteSite) setLastConnInfo(connInfo types.TunnelConnection) {
-	s.Lock()
-	defer s.Unlock()
-	s.lastConnInfo = connInfo.Clone()
-}
-
-func (s *remoteSite) getLastConnInfo() (types.TunnelConnection, error) {
+func (s *remoteSite) getConnInfo() (types.TunnelConnection, error) {
 	s.RLock()
 	defer s.RUnlock()
-	if s.lastConnInfo == nil {
+	if s.connInfo == nil {
 		return nil, trace.NotFound("no last connection found")
 	}
-	return s.lastConnInfo.Clone(), nil
+	return s.connInfo.Clone(), nil
+}
+
+func (s *remoteSite) updateConnInfo(t time.Time) (types.TunnelConnection, error) {
+	s.Lock()
+	defer s.Unlock()
+	return s.updateConnInfoUnsafe(t)
+}
+
+func (s *remoteSite) updateConnInfoUnsafe(t time.Time) (types.TunnelConnection, error) {
+	if s.connInfo == nil {
+		connInfo, err := types.NewTunnelConnection(
+			s.name(),
+			types.TunnelConnectionSpecV2{
+				ClusterName:   s.domainName,
+				ProxyName:     s.srv.ID,
+				LastHeartbeat: s.clock.Now().UTC(),
+			},
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.connInfo = connInfo
+	}
+
+	s.connInfo.SetLastHeartbeat(t)
+	s.connInfo.SetExpiry(s.clock.Now().Add(s.offlineThreshold))
+	return s.connInfo.Clone(), nil
 }
 
 func (s *remoteSite) registerHeartbeat(t time.Time) {
-	connInfo := s.copyConnInfo()
-	connInfo.SetLastHeartbeat(t)
-	connInfo.SetExpiry(s.clock.Now().Add(s.offlineThreshold))
-	s.setLastConnInfo(connInfo)
-	err := s.localAccessPoint.UpsertTunnelConnection(connInfo)
+	connInfo, err := s.updateConnInfo(t)
+	if err != nil {
+		s.logger.WithError(err).Warn("Failed to update tunnel connection.")
+	}
+	err = s.localAccessPoint.UpsertTunnelConnection(connInfo)
 	if err != nil {
 		s.logger.WithError(err).Warn("Failed to register heartbeat")
 	}
@@ -357,7 +451,7 @@ func (s *remoteSite) registerHeartbeat(t time.Time) {
 // deleteConnectionRecord deletes connection record to let know peer proxies
 // that this node lost the connection and needs to be discovered
 func (s *remoteSite) deleteConnectionRecord() {
-	if err := s.localAccessPoint.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
+	if err := s.localAccessPoint.DeleteTunnelConnection(s.domainName, s.name()); err != nil {
 		s.logger.WithError(err).Warn("Failed to delete tunnel connection")
 	}
 }
@@ -482,7 +576,7 @@ func (s *remoteSite) GetName() string {
 }
 
 func (s *remoteSite) GetLastConnected() time.Time {
-	connInfo, err := s.getLastConnInfo()
+	connInfo, err := s.getLatestConnInfo()
 	if err != nil {
 		return time.Time{}
 	}
@@ -742,12 +836,27 @@ func (s *remoteSite) watchLocks() error {
 	}
 }
 
+func (s *remoteSite) peerProxiesWithTunnels() []string {
+	s.Lock()
+	defer s.Unlock()
+	var ids []string
+	for _, tunnel := range s.peerTunnelConnections {
+		ids = append(ids, tunnel.GetProxyName())
+	}
+	return ids
+}
+
+func (s *remoteSite) updateTunnels(tunnels []types.TunnelConnection) {
+	s.Lock()
+	defer s.Unlock()
+	s.peerTunnelConnections = tunnels
+}
+
 func (s *remoteSite) DialAuthServer(params DialParams) (net.Conn, error) {
-	conn, err := s.connThroughTunnel(&sshutils.DialReq{
-		Address:       constants.RemoteAuthServer,
-		ClientSrcAddr: stringOrEmpty(params.From),
-		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
-	})
+	conn, err := s.getConn(params, true)
+	if err != nil {
+		s.logger.WithError(err).Debugf("Failed to connect to remote auth")
+	}
 	return conn, err
 }
 
@@ -760,28 +869,32 @@ func (s *remoteSite) Dial(params DialParams) (net.Conn, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	conn, err := s.DialTCP(params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Try to dial and forward sshutils.ChConns. Otherwise we are connecting
+	// over a peer proxy that will handle dial and forwarding.
+	sconn, ok := conn.(*sshutils.ChConn)
+	if !ok {
+		return conn, nil
+	}
+
 	// If the proxy is in recording mode and a SSH connection is being
 	// requested or the target server is a registered OpenSSH node, build
 	// an in-memory forwarding server.
-	if shouldDialAndForward(params, recConfig) {
-		return s.dialAndForward(params)
+	if shouldDialAndForward(params, recConfig, false) {
+		return s.dialAndForward(params, sconn)
 	}
 
-	// Attempt to perform a direct TCP dial.
-	return s.DialTCP(params)
+	return sconn, nil
 }
 
 func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	s.logger.Debugf("Dialing from %v to %v.", params.From, params.To)
 
-	conn, err := s.connThroughTunnel(&sshutils.DialReq{
-		Address:         params.To.String(),
-		ServerID:        params.ServerID,
-		ConnType:        params.ConnType,
-		ClientSrcAddr:   stringOrEmpty(params.From),
-		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
-	})
+	conn, err := s.getConn(params, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -789,7 +902,7 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	return conn, nil
 }
 
-func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error) {
+func (s *remoteSite) dialAndForward(params DialParams, sconn *sshutils.ChConn) (_ net.Conn, retErr error) {
 	if params.GetUserAgent == nil && params.AgentlessSigner == nil {
 		return nil, trace.BadParameter("user agent getter and agentless signer both missing")
 	}
@@ -816,18 +929,6 @@ func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error
 		return nil, trace.Wrap(err)
 	}
 
-	targetConn, err := s.connThroughTunnel(&sshutils.DialReq{
-		Address:         params.To.String(),
-		ServerID:        params.ServerID,
-		ConnType:        params.ConnType,
-		ClientSrcAddr:   stringOrEmpty(params.From),
-		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
-		TeleportVersion: params.TeleportVersion,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Create a forwarding server that serves a single SSH connection on it. This
 	// server does not need to close, it will close and release all resources
 	// once conn is closed.
@@ -838,7 +939,7 @@ func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error
 		AuthClient:      s.localClient,
 		UserAgent:       userAgent,
 		AgentlessSigner: params.AgentlessSigner,
-		TargetConn:      targetConn,
+		TargetConn:      sconn,
 		SrcAddr:         params.From,
 		DstAddr:         params.To,
 		HostCertificate: hostCertificate,
@@ -847,7 +948,7 @@ func (s *remoteSite) dialAndForward(params DialParams) (_ net.Conn, retErr error
 		MACAlgorithms:   s.srv.Config.MACAlgorithms,
 		DataDir:         s.srv.Config.DataDir,
 		Address:         params.Address,
-		UseTunnel:       UseTunnel(s.logger, targetConn),
+		UseTunnel:       UseTunnel(s.logger, sconn),
 		FIPS:            s.srv.FIPS,
 		HostUUID:        s.srv.ID,
 		Emitter:         s.srv.Config.Emitter,
@@ -898,13 +999,64 @@ func UseTunnel(logger *log.Entry, c *sshutils.ChConn) bool {
 	}
 }
 
-func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (*sshutils.ChConn, error) {
+func (s *remoteSite) getConn(params DialParams, wantsAuth bool) (net.Conn, error) {
+	var (
+		conn net.Conn
+		err  error
+		req  *sshutils.DialReq
+	)
+
+	if wantsAuth {
+		req = &sshutils.DialReq{
+			Address:       constants.RemoteAuthServer,
+			ClientSrcAddr: stringOrEmpty(params.From),
+			ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
+		}
+	} else {
+		req = &sshutils.DialReq{
+			Address:         params.To.String(),
+			ServerID:        params.ServerID,
+			ConnType:        params.ConnType,
+			ClientSrcAddr:   stringOrEmpty(params.From),
+			ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
+			TeleportVersion: params.TeleportVersion,
+		}
+	}
+
+	conn, err = s.connThroughTunnel(req)
+	if err == nil {
+		return conn, nil
+	} else if s.proxyPeerClient == nil || params.FromPeerProxy {
+		return nil, trace.Wrap(err)
+	}
+
+	s.logger.Info("Dialing remote cluster over peer proxy")
+	ids := s.peerProxiesWithTunnels()
+
+	var peerErr error
+	if wantsAuth {
+		conn, peerErr = s.proxyPeerClient.DialAuth(s.domainName, params.From, params.OriginalClientDstAddr, ids)
+		if peerErr != nil {
+			return nil, trace.NewAggregate(peerErr, err)
+		}
+	} else {
+		conn, peerErr = s.proxyPeerClient.DialNode(ids, params.ServerID, params.From, params.To, params.ConnType)
+		if peerErr != nil {
+			return nil, trace.NewAggregate(peerErr, err)
+		}
+	}
+	return conn, nil
+}
+
+func (s *remoteSite) connThroughTunnel(req *sshutils.DialReq) (net.Conn, error) {
+	var (
+		conn net.Conn
+		err  error
+	)
 	s.logger.Debugf("Requesting connection to %v [%v] in remote cluster.", req.Address, req.ServerID)
 
 	// Loop through existing remote connections and try and establish a
 	// connection over the "reverse tunnel".
-	var conn *sshutils.ChConn
-	var err error
 	for i := 0; i < s.connectionCount(); i++ {
 		conn, err = s.chanTransportConn(req)
 		if err == nil {

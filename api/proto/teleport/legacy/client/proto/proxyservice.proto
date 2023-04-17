@@ -46,6 +46,11 @@ message DialRequest {
   NetAddr Source = 3;
   // Destination is the destination address to connect to over the reverse tunnel.
   NetAddr Destination = 4;
+  // ClusterName is the name of the cluster dial. This must be set
+  // when trying to dial a clusters auth server.
+  string ClusterName = 5;
+  // DialAuth if set will make a dial request to the given clusters auth service.
+  bool DialAuth = 6;
 }
 
 // Addr is a network address.

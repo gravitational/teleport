@@ -96,10 +96,6 @@ type server struct {
 	// localSite is the  local (our own cluster) tunnel client.
 	localSite *localSite
 
-	// clusterPeers is a map of clusters connected to peer proxies
-	// via reverse tunnels
-	clusterPeers map[string]*clusterPeers
-
 	// cancel function will cancel the
 	cancel context.CancelFunc
 
@@ -324,7 +320,6 @@ func NewServer(cfg Config) (Server, error) {
 		ctx:              ctx,
 		cancel:           cancel,
 		proxyWatcher:     proxyWatcher,
-		clusterPeers:     make(map[string]*clusterPeers),
 		log:              cfg.Log,
 		offlineThreshold: offlineThreshold,
 		proxySigner:      cfg.PROXYSigner,
@@ -438,30 +433,33 @@ func (s *server) fetchClusterPeers() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	newConns := make(map[string]types.TunnelConnection)
+
+	tunnelsBySite := make(map[string][]types.TunnelConnection)
 	for i := range conns {
-		newConn := conns[i]
+		tunnel := conns[i]
 		// Filter out non-proxy tunnels.
-		if newConn.GetType() != types.ProxyTunnel {
+		if tunnel.GetType() != types.ProxyTunnel {
 			continue
 		}
 		// Filter out peer records for own proxy.
-		if newConn.GetProxyName() == s.ID {
+		if tunnel.GetProxyName() == s.ID {
 			continue
 		}
-
 		// Filter out tunnels which are not online.
-		if services.TunnelConnectionStatus(s.Clock, newConn, s.offlineThreshold) != teleport.RemoteClusterStatusOnline {
+		if services.TunnelConnectionStatus(s.Clock, tunnel, s.offlineThreshold) != teleport.RemoteClusterStatusOnline {
 			continue
 		}
 
-		newConns[newConn.GetName()] = newConn
+		tunnels := tunnelsBySite[tunnel.GetClusterName()]
+		tunnels = append(tunnels, tunnel)
+		tunnelsBySite[tunnel.GetClusterName()] = tunnels
 	}
-	existingConns := s.existingConns()
-	connsToAdd, connsToUpdate, connsToRemove := s.diffConns(newConns, existingConns)
-	s.removeClusterPeers(connsToRemove)
-	s.updateClusterPeers(connsToUpdate)
-	return s.addClusterPeers(connsToAdd)
+
+	// Create or update remote site with peer tunnels.
+	for clusterName, tunnels := range tunnelsBySite {
+		s.upsertRemoteClusterWithPeerTunnels(clusterName, tunnels)
+	}
+	return nil
 }
 
 func (s *server) reportClusterStats(connectedRemoteClusters []*remoteSite, remoteMap map[string]types.RemoteCluster) error {
@@ -499,98 +497,6 @@ func (s *server) reportClusterStats(connectedRemoteClusters []*remoteSite, remot
 	}
 
 	return nil
-}
-
-func (s *server) addClusterPeers(conns map[string]types.TunnelConnection) error {
-	for key := range conns {
-		connInfo := conns[key]
-		peer, err := newClusterPeer(s, connInfo, s.offlineThreshold)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.addClusterPeer(peer)
-	}
-	return nil
-}
-
-func (s *server) updateClusterPeers(conns map[string]types.TunnelConnection) {
-	for key := range conns {
-		connInfo := conns[key]
-		s.updateClusterPeer(connInfo)
-	}
-}
-
-func (s *server) addClusterPeer(peer *clusterPeer) {
-	s.Lock()
-	defer s.Unlock()
-	clusterName := peer.connInfo.GetClusterName()
-	peers, ok := s.clusterPeers[clusterName]
-	if !ok {
-		peers = newClusterPeers(clusterName)
-		s.clusterPeers[clusterName] = peers
-	}
-	peers.addPeer(peer)
-}
-
-func (s *server) updateClusterPeer(conn types.TunnelConnection) bool {
-	s.Lock()
-	defer s.Unlock()
-	clusterName := conn.GetClusterName()
-	peers, ok := s.clusterPeers[clusterName]
-	if !ok {
-		return false
-	}
-	return peers.updatePeer(conn)
-}
-
-func (s *server) removeClusterPeers(conns []types.TunnelConnection) {
-	s.Lock()
-	defer s.Unlock()
-	for _, conn := range conns {
-		peers, ok := s.clusterPeers[conn.GetClusterName()]
-		if !ok {
-			s.log.Warningf("failed to remove cluster peer, not found peers for %v.", conn)
-			continue
-		}
-		peers.removePeer(conn)
-		s.log.Debugf("Removed cluster peer %v.", conn)
-	}
-}
-
-func (s *server) existingConns() map[string]types.TunnelConnection {
-	s.RLock()
-	defer s.RUnlock()
-	conns := make(map[string]types.TunnelConnection)
-	for _, peers := range s.clusterPeers {
-		for _, cluster := range peers.peers {
-			conns[cluster.connInfo.GetName()] = cluster.connInfo
-		}
-	}
-	return conns
-}
-
-func (s *server) diffConns(newConns, existingConns map[string]types.TunnelConnection) (map[string]types.TunnelConnection, map[string]types.TunnelConnection, []types.TunnelConnection) {
-	connsToAdd := make(map[string]types.TunnelConnection)
-	connsToUpdate := make(map[string]types.TunnelConnection)
-	var connsToRemove []types.TunnelConnection
-
-	for existingKey := range existingConns {
-		conn := existingConns[existingKey]
-		if _, ok := newConns[existingKey]; !ok { // tunnel was removed
-			connsToRemove = append(connsToRemove, conn)
-		}
-	}
-
-	for newKey := range newConns {
-		conn := newConns[newKey]
-		if _, ok := existingConns[newKey]; !ok { // tunnel was added
-			connsToAdd[newKey] = conn
-		} else {
-			connsToUpdate[newKey] = conn
-		}
-	}
-
-	return connsToAdd, connsToUpdate, connsToRemove
 }
 
 func (s *server) Wait(ctx context.Context) {
@@ -652,6 +558,8 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// Server through the reverse tunnel.
 	case constants.ChanTransport:
 		s.handleTransport(sconn, nch)
+	case chanNetworkConfig:
+		s.handleNetConfig(ctx, nch)
 	default:
 		msg := fmt.Sprintf("reversetunnel received unknown channel request %v from %v",
 			nch.ChannelType(), sconn)
@@ -666,6 +574,28 @@ func (s *server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 		s.rejectRequest(nch, ssh.ConnectionFailed, msg)
 		return
 	}
+}
+
+func (s *server) handleNetConfig(ctx context.Context, nch ssh.NewChannel) error {
+	channel, requests, err := nch.Accept()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer channel.Close()
+	go ssh.DiscardRequests(requests)
+
+	netconfig, err := s.localAccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	payload, err := services.MarshalClusterNetworkingConfig(netconfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err = channel.SendRequest(chanNetworkConfigReq, false, payload); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
@@ -757,9 +687,9 @@ func (s *server) handleNewService(role types.SystemRole, conn net.Conn, sconn *s
 
 func (s *server) handleNewCluster(conn net.Conn, sshConn *ssh.ServerConn, nch ssh.NewChannel) {
 	// add the incoming site (cluster) to the list of active connections:
-	site, remoteConn, err := s.upsertRemoteCluster(conn, sshConn)
+	site, remoteConn, err := s.upsertRemoteClusterWithLocalTunnel(conn, sshConn)
 	if err != nil {
-		s.log.Error(trace.Wrap(err))
+		s.log.WithError(err).Error("failed to upsert remote site with local tunnel")
 		s.rejectRequest(nch, ssh.ConnectionFailed, "failed to accept incoming cluster connection")
 		return
 	}
@@ -924,7 +854,7 @@ func (s *server) upsertServiceConn(conn net.Conn, sconn *ssh.ServerConn, connTyp
 	return s.localSite, rconn, nil
 }
 
-func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
+func (s *server) upsertRemoteClusterWithLocalTunnel(conn net.Conn, sshConn *ssh.ServerConn) (*remoteSite, *remoteConn, error) {
 	domainName := sshConn.Permissions.Extensions[extAuthority]
 	if strings.TrimSpace(domainName) == "" {
 		return nil, nil, trace.BadParameter("cannot create reverse tunnel: empty cluster name")
@@ -943,15 +873,17 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	var err error
 	var remoteConn *remoteConn
 	if site != nil {
-		if remoteConn, err = site.addConn(conn, sshConn); err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-	} else {
-		site, err = newRemoteSite(s, domainName, sshConn.Conn)
+		remoteConn, err = site.addConn(conn, sshConn)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		if remoteConn, err = site.addConn(conn, sshConn); err != nil {
+	} else {
+		site, err = newRemoteSiteWithLocalTunnel(s, domainName, sshConn)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		remoteConn, err = site.addConn(conn, sshConn)
+		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 		s.remoteSites = append(s.remoteSites, site)
@@ -964,10 +896,35 @@ func (s *server) upsertRemoteCluster(conn net.Conn, sshConn *ssh.ServerConn) (*r
 	return site, remoteConn, nil
 }
 
+func (s *server) upsertRemoteClusterWithPeerTunnels(clusterName string, tunnels []types.TunnelConnection) (*remoteSite, error) {
+	s.Lock()
+	defer s.Unlock()
+
+	var site *remoteSite
+	for _, st := range s.remoteSites {
+		if st.GetName() == clusterName {
+			site = st
+			break
+		}
+	}
+	var err error
+	if site == nil {
+		site, err = newRemoteSiteWithPeerTunnels(s, clusterName, tunnels)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		s.remoteSites = append(s.remoteSites, site)
+	} else {
+		site.updateTunnels(tunnels)
+	}
+	s.log.Debugf("Updated peer tunnels for cluster %s: %v", clusterName, tunnels)
+	return site, nil
+}
+
 func (s *server) GetSites() ([]RemoteSite, error) {
 	s.RLock()
 	defer s.RUnlock()
-	out := make([]RemoteSite, 0, len(s.remoteSites)+len(s.clusterPeers)+1)
+	out := make([]RemoteSite, 0, len(s.remoteSites)+1)
 	out = append(out, s.localSite)
 
 	haveLocalConnection := make(map[string]bool)
@@ -975,12 +932,6 @@ func (s *server) GetSites() ([]RemoteSite, error) {
 		site := s.remoteSites[i]
 		haveLocalConnection[site.GetName()] = true
 		out = append(out, site)
-	}
-	for i := range s.clusterPeers {
-		cluster := s.clusterPeers[i]
-		if _, ok := haveLocalConnection[cluster.GetName()]; !ok {
-			out = append(out, cluster)
-		}
 	}
 	return out, nil
 }
@@ -1010,11 +961,6 @@ func (s *server) GetSite(name string) (RemoteSite, error) {
 	for i := range s.remoteSites {
 		if s.remoteSites[i].GetName() == name {
 			return s.remoteSites[i], nil
-		}
-	}
-	for i := range s.clusterPeers {
-		if s.clusterPeers[i].GetName() == name {
-			return s.clusterPeers[i], nil
 		}
 	}
 	return nil, trace.NotFound("cluster %q is not found", name)
@@ -1082,20 +1028,26 @@ func (s *server) rejectRequest(ch ssh.NewChannel, reason ssh.RejectionReason, ms
 	}
 }
 
-// newRemoteSite helper creates and initializes 'remoteSite' instance
-func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite, error) {
-	connInfo, err := types.NewTunnelConnection(
-		fmt.Sprintf("%v-%v", srv.ID, domainName),
-		types.TunnelConnectionSpecV2{
-			ClusterName:   domainName,
-			ProxyName:     srv.ID,
-			LastHeartbeat: srv.Clock.Now().UTC(),
-		},
-	)
+func newRemoteSiteWithPeerTunnels(srv *server, clusterName string, tunnels []types.TunnelConnection) (*remoteSite, error) {
+	remoteSite, err := newRemoteSite(srv, clusterName, nil, tunnels)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	connInfo.SetExpiry(srv.Clock.Now().Add(srv.offlineThreshold))
+
+	remoteSite.peerTunnelConnections = tunnels
+	return remoteSite, nil
+}
+
+// newRemoteSite helper creates and initializes 'remoteSite' instance
+func newRemoteSiteWithLocalTunnel(srv *server, clusterName string, sconn *ssh.ServerConn) (*remoteSite, error) {
+	remoteSite, err := newRemoteSite(srv, clusterName, sconn, nil)
+	return remoteSite, trace.Wrap(err)
+}
+
+func newRemoteSite(srv *server, clusterName string, sconn *ssh.ServerConn, tunnels []types.TunnelConnection) (*remoteSite, error) {
+	var (
+		err error
+	)
 
 	closeContext, cancel := context.WithCancel(srv.ctx)
 	defer func() {
@@ -1105,12 +1057,11 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}()
 	remoteSite := &remoteSite{
 		srv:        srv,
-		domainName: domainName,
-		connInfo:   connInfo,
+		domainName: clusterName,
 		logger: log.WithFields(log.Fields{
 			trace.Component: teleport.ComponentReverseTunnelServer,
 			trace.ComponentFields: log.Fields{
-				"cluster": domainName,
+				"cluster": clusterName,
 			},
 		}),
 		ctx:               closeContext,
@@ -1118,12 +1069,16 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 		clock:             srv.Clock,
 		offlineThreshold:  srv.offlineThreshold,
 		proxySyncInterval: proxySyncInterval,
+		proxyPeerClient:   srv.PeerClient,
 	}
 
 	// configure access to the full Auth Server API and the cached subset for
 	// the local cluster within which reversetunnel.Server is running.
 	remoteSite.localClient = srv.localAuthClient
 	remoteSite.localAccessPoint = srv.localAccessPoint
+	if tunnels != nil {
+		remoteSite.updateTunnels(tunnels)
+	}
 
 	clt, _, err := remoteSite.getRemoteClient()
 	if err != nil {
@@ -1131,12 +1086,21 @@ func newRemoteSite(srv *server, domainName string, sconn ssh.Conn) (*remoteSite,
 	}
 	remoteSite.remoteClient = clt
 
-	remoteVersion, err := getRemoteAuthVersion(closeContext, sconn)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var remoteVersion string
+	if sconn != nil {
+		remoteVersion, err = getRemoteAuthVersion(closeContext, sconn)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		response, err := clt.Ping(closeContext)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		remoteVersion = response.ServerVersion
 	}
 
-	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, domainName)
+	accessPoint, err := createRemoteAccessPoint(srv, clt, remoteVersion, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

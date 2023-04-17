@@ -40,27 +40,42 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		return trace.Wrap(err)
 	}
 
-	// The first frame is always expected to be a dial request.
-	dial := frame.GetDialRequest()
-	if dial == nil {
-		return trace.BadParameter("invalid dial request: request must not be nil")
+	if r := frame.GetDialRequest(); r != nil {
+		return trace.Wrap(s.handleDialRequest(stream, r))
 	}
 
+	return trace.BadParameter("unknown dial request")
+}
+
+func (s *proxyService) handleDialRequest(stream proto.ProxyService_DialNodeServer, dial *proto.DialRequest) error {
 	if dial.Source == nil || dial.Destination == nil {
 		return trace.BadParameter("invalid dial request: source and destination must not be nil")
 	}
 
+	// Dial request must be to a node or auth.
+	if !dial.DialAuth && dial.NodeID == "" {
+		return trace.BadParameter("invalid dial request: must be node or auth dial")
+	}
+
+	var err error
+	clusterName := dial.ClusterName
+
+	// For backwards compatibility try to parse cluster name
+	// from node id.
+	if clusterName == "" {
+		_, clusterName, err = splitServerID(dial.NodeID)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	log := s.log.WithFields(logrus.Fields{
-		"node": dial.NodeID,
-		"src":  dial.Source.Addr,
-		"dst":  dial.Destination.Addr,
+		"node":    dial.NodeID,
+		"cluster": clusterName,
+		"src":     dial.Source.Addr,
+		"dst":     dial.Destination.Addr,
 	})
 	log.Debugf("Dial request from peer.")
-
-	_, clusterName, err := splitServerID(dial.NodeID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 
 	source := &utils.NetAddr{
 		Addr:        dial.Source.Addr,
@@ -71,14 +86,25 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 		AddrNetwork: dial.Destination.Network,
 	}
 
-	nodeConn, err := s.clusterDialer.Dial(clusterName, DialParams{
-		From:     source,
-		To:       destination,
-		ServerID: dial.NodeID,
-		ConnType: dial.TunnelType,
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	var (
+		conn net.Conn
+	)
+	if dial.DialAuth {
+		if conn, err = s.clusterDialer.DialAuth(clusterName, DialParams{
+			From: source,
+			To:   destination,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		if conn, err = s.clusterDialer.Dial(clusterName, DialParams{
+			From:     source,
+			To:       destination,
+			ServerID: dial.NodeID,
+			ConnType: dial.TunnelType,
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	err = stream.Send(&proto.Frame{
@@ -96,8 +122,7 @@ func (s *proxyService) DialNode(stream proto.ProxyService_DialNodeServer) error 
 	}
 
 	streamConn := utils.NewTrackingConn(streamutils.NewConn(streamRW, source, destination))
-
-	err = utils.ProxyConn(stream.Context(), streamConn, nodeConn)
+	err = utils.ProxyConn(stream.Context(), streamConn, conn)
 	sent, received := streamConn.Stat()
 	log.Debugf("Closing dial request from peer. sent: %d received %d", sent, received)
 	return trace.Wrap(err)
@@ -116,6 +141,7 @@ func splitServerID(address string) (string, string, error) {
 // ClusterDialer dials a node in the given cluster.
 type ClusterDialer interface {
 	Dial(clusterName string, request DialParams) (net.Conn, error)
+	DialAuth(clusterName string, request DialParams) (net.Conn, error)
 }
 
 type DialParams struct {

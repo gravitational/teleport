@@ -35,10 +35,13 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -592,6 +595,33 @@ func (a *agent) handleDrainChannels() error {
 	}
 }
 
+// GetClusterNetworkConfig gets the cluster networking config from the connected proxy.
+func (a *agent) GetClusterNetworkConfig(ctx context.Context) (types.ClusterNetworkingConfig, error) {
+	ctx, _ = context.WithTimeout(ctx, defaults.DefaultIOTimeout)
+	channel, requests, err := a.client.OpenChannel(ctx, chanNetworkConfig, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer channel.Close()
+
+	var req *ssh.Request
+	select {
+	case req = <-requests:
+	case <-ctx.Done():
+		return nil, trace.Errorf("context done: %s", ctx.Err())
+	}
+
+	if req == nil {
+		return nil, trace.Errorf("failed to get netconfig: received nil request")
+	}
+
+	config, err := services.UnmarshalClusterNetworkingConfig(req.Payload)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return config, nil
+}
+
 // handleChannels handles channels that should run for the entire lifetime of the agent.
 func (a *agent) handleChannels() error {
 	for {
@@ -659,10 +689,12 @@ func (a *agent) handleDiscovery(ch ssh.Channel, reqC <-chan *ssh.Request) {
 }
 
 const (
-	chanHeartbeat    = "teleport-heartbeat"
-	chanDiscovery    = "teleport-discovery"
-	chanDiscoveryReq = "discovery"
-	reconnectRequest = "reconnect@goteleport.com"
+	chanHeartbeat        = "teleport-heartbeat"
+	chanDiscovery        = "teleport-discovery"
+	chanDiscoveryReq     = "discovery"
+	chanNetworkConfig    = "teleport-netconfig"
+	chanNetworkConfigReq = "netconfig"
+	reconnectRequest     = "reconnect@goteleport.com"
 )
 
 const (

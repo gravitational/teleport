@@ -83,6 +83,15 @@ func (s *agentStore) poplen(l int) (Agent, bool) {
 	return agent, true
 }
 
+func (s *agentStore) getLatest() (Agent, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if len(s.agents) == 0 {
+		return nil, false
+	}
+	return s.agents[len(s.agents)-1], true
+}
+
 // proxyIDs returns a list of proxy ids that each agent is connected to ordered
 // from newest to oldest connected proxy id.
 func (s *agentStore) proxyIDs() []string {

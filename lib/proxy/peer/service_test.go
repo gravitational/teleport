@@ -40,6 +40,10 @@ func (m *mockClusterDialer) Dial(clusterName string, request DialParams) (net.Co
 	return m.MockDialCluster(clusterName, request)
 }
 
+func (m *mockClusterDialer) DialAuth(clusterName string, request DialParams) (net.Conn, error) {
+	return nil, trace.NotImplemented("DialAuth not implemented")
+}
+
 func setupService(t *testing.T) (*proxyService, proto.ProxyServiceClient) {
 	server := grpc.NewServer()
 	t.Cleanup(server.Stop)

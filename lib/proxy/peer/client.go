@@ -339,6 +339,34 @@ func (c *Client) updateConnections(proxies []types.Server) error {
 	return trace.NewAggregate(errs...)
 }
 
+func (c *Client) DialAuth(clusterName string, src net.Addr, dst net.Addr, proxyIDs []string) (net.Conn, error) {
+	if src == nil || dst == nil {
+		return nil, trace.BadParameter("unable to dial auth: source and destination address must not be nil")
+	}
+	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
+		ClusterName: clusterName,
+		Source: &clientapi.NetAddr{
+			Addr:    src.String(),
+			Network: src.Network(),
+		},
+		Destination: &clientapi.NetAddr{
+			Addr:    src.String(),
+			Network: src.Network(),
+		},
+		DialAuth: true,
+	})
+	if err != nil {
+		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
+	}
+
+	streamRW, err := streamutils.NewReadWriter(frameStream{stream: stream})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return streamutils.NewConn(streamRW, src, dst), nil
+}
+
 // DialNode dials a node through a peer proxy.
 func (c *Client) DialNode(
 	proxyIDs []string,
@@ -347,6 +375,9 @@ func (c *Client) DialNode(
 	dst net.Addr,
 	tunnelType types.TunnelType,
 ) (net.Conn, error) {
+	if src == nil || dst == nil {
+		return nil, trace.BadParameter("unable to dial node: source and destination address must not be nil")
+	}
 	stream, _, err := c.dial(proxyIDs, &clientapi.DialRequest{
 		NodeID:     nodeID,
 		TunnelType: tunnelType,

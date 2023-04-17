@@ -103,9 +103,9 @@ func stringOrEmpty(addr net.Addr) string {
 
 // shouldDialAndForward returns whether a connection should be proxied
 // and forwarded or not.
-func shouldDialAndForward(params DialParams, recConfig types.SessionRecordingConfig) bool {
+func shouldDialAndForward(params DialParams, recConfig types.SessionRecordingConfig, isLocalSite bool) bool {
 	// connection is already being tunneled, do not forward
-	if params.FromPeerProxy {
+	if params.FromPeerProxy && isLocalSite {
 		return false
 	}
 	// the node is an agentless node, the connection must be forwarded
