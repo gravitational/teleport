@@ -92,9 +92,9 @@ func ListWorkflowRuns(ctx context.Context, actions WorkflowRuns, owner, repo, pa
 	return allRuns, nil
 }
 
-// ListWorkflowRunIds returns a set of RunIDs, representing the set of all for
+// ListWorkflowRunIDs returns a set of RunIDs, representing the set of all for
 // workflow runs created since the supplied start time.
-func ListWorkflowRunIds(ctx context.Context, actions WorkflowRuns, owner, repo, path, branch string, since time.Time) (RunIDSet, error) {
+func ListWorkflowRunIDs(ctx context.Context, actions WorkflowRuns, owner, repo, path, branch string, since time.Time) (RunIDSet, error) {
 	workflowRuns, err := ListWorkflowRuns(ctx, actions, owner, repo, path, branch, since)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a list of workflow runs")

@@ -106,7 +106,7 @@ func main() {
 	// our dispatch event. Note that we pick a time slightly in the past to handle
 	// any clock skew.
 	baselineTime := time.Now().Add(-2 * time.Minute)
-	oldRuns, err := github.ListWorkflowRunIds(dispatchCtx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
+	oldRuns, err := github.ListWorkflowRunIDs(dispatchCtx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
 	if err != nil {
 		log.Fatalf("Failed to fetch initial task list: %s", err)
 	}
@@ -181,6 +181,7 @@ func lookupInstallationID(ctx context.Context, args args) (int64, error) {
 
 // Returns the first incomplete matching workflow run found. If none are found, returns nil.
 func getIncompleteWorkflowRunId(ctx context.Context, gh *ghapi.Client, args args) (*ghapi.WorkflowRun, error) {
+	// If there are runs lasting longer than one hour then there is a probably a much larger problem at play
 	recentRuns, err := github.ListWorkflowRuns(ctx, gh.Actions, args.owner, args.repo, args.workflow, "", time.Now().Add(-time.Hour))
 	if err != nil {
 		return nil, trace.Wrap(err, "failed to get a list of current workflow runs")
@@ -201,7 +202,6 @@ func getIncompleteWorkflowRunId(ctx context.Context, gh *ghapi.Client, args args
 }
 
 func waitForActiveWorkflowRuns(ctx context.Context, gh *ghapi.Client, args args) error {
-	// If there are runs lasting longer than this then there is a probably a much larger problem at play
 	for {
 		incompleteWorkflowRun, err := getIncompleteWorkflowRunId(ctx, gh, args)
 		if err != nil {
@@ -232,7 +232,7 @@ func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag
 			log.Fatal("Timed out waiting for workflow run to start")
 
 		case <-ticker.C:
-			newRuns, err := github.ListWorkflowRunIds(ctx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
+			newRuns, err := github.ListWorkflowRunIDs(ctx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
 			if err != nil {
 				return nil, trace.Wrap(err, "Failed polling for new workflow runs")
 			}
