@@ -71,7 +71,7 @@ runs:
           function generateWorkflowRunUniqueIdentifier() {
             const uuid = require("uuid");
             // UUID v1 is used to be reasonably sure that the value is unique
-            const workflowRunUniqueIdentifier = `${{ github.repository }}@${{ github.ref }} - ${uuid.v4()}`
+            const workflowRunUniqueIdentifier = `Workflow run identifier step: ${uuid.v4()}`
             process.stdout.write(`Generated workflow unique ID ${workflowRunUniqueIdentifier}\n`);
             return workflowRunUniqueIdentifier;
           }
@@ -86,7 +86,7 @@ runs:
               "version-channel": core.getInput("version-channel", { required: true }),
               "release-channel": core.getInput("release-channel", { required: true }),
               "package-to-test": core.getInput("package-to-test", { required: false }),
-              "workflow-run-identifier": workflowRunUniqueIdentifier
+              "workflow-tag": workflowRunUniqueIdentifier
             };
 
             process.stdout.write(`Starting workflow with inputs: ${JSON.stringify(workflowInputs, null, 2)}\n`);
@@ -103,6 +103,50 @@ runs:
             return new Promise(resolve => setTimeout(resolve, milliseconds));
           }
 
+          async function areAllWorkflowsCompleted() {
+            const workflowRuns = (await github.rest.actions.listWorkflowRuns({
+              owner: "gravitational",
+              repo: "teleport.e",
+              workflow_id: "deploy-packages.yaml",
+              per_page: 100
+            })).data;
+
+            for (workflowRun of workflowRuns.workflow_runs) {
+              if (workflowRun.status === "completed") {
+                continue;
+              }
+
+              process.stdout.write(`Workflow ${workflowRun.id} is not yet complete\n`)
+              return false;
+            }
+
+            return true;
+          }
+
+          async function waitForIncompleteWorkflows() {
+            while(!(await areAllWorkflowsCompleted())) {
+              await sleep(10 * 1000);
+            }
+          }
+
+          async function doesRunHaveStepWithName(runId, name) {
+            const workflowJobs = (await github.rest.actions.listJobsForWorkflowRun({
+              owner: "gravitational",
+              repo: "teleport.e",
+              run_id: runId,
+            })).data;
+
+            for (job of workflowJobs.jobs) {
+              for (step of job.steps) {
+                if (step.name === name) {
+                  return true;
+                }
+              }
+            }
+
+            return false;
+          }
+
           // Get the Github-assigned identifier for the run based off of the 
           // unique value provided upon run creation
           async function getWorkflowRunId(workflowRunUniqueIdentifier) {
@@ -115,7 +159,12 @@ runs:
             })).data;
 
             for (workflowRun of workflowRuns.workflow_runs) {
-              if (!workflowRun.display_title.includes(workflowRunUniqueIdentifier)) {
+              if (workflowRun.status === "pending") {
+                process.stdout.write(`Skipping pending workflow with ID ${workflowRun.id}`)
+                continue;
+              }
+
+              if (!(await doesRunHaveStepWithName(workflowRun.id, workflowRunUniqueIdentifier))) {
                 continue;
               }
 
@@ -126,7 +175,24 @@ runs:
               return workflowRun.id;
             }
 
-            throw new Error(`Failed to find matching workflow run for ${workflowRunIdentifier}`);
+            throw new Error(`Failed to find matching workflow run for ${workflowRunUniqueIdentifier}`);
+          }
+
+          async function getWorkflowRunIdWithRetry(workflowRunUniqueIdentifier, retryLimit, waitTimeSeconds) {
+            for (let tryCount = 1; tryCount <= retryLimit; tryCount++) {
+              // Don't try to catch errors the last time
+              if (tryCount === retryLimit) {
+                return await getWorkflowRunId(workflowRunUniqueIdentifier);
+              }
+
+              try {
+                return await getWorkflowRunId(workflowRunUniqueIdentifier);
+              }
+              catch {
+                process.stderr.write(`Failed ${tryCount} time(s) to find workflow run for ${workflowRunUniqueIdentifier}, waiting ${waitTimeSeconds}s and trying again\n`);
+                await sleep(waitTimeSeconds * 1000);
+              }
+            }
           }
 
           function elapsedTimeToString(elapsedTimeSeconds) {
@@ -142,7 +208,8 @@ runs:
           }
 
           async function waitForWorkflowCompletion(workflowRunUniqueIdentifier) {
-            const workflowRunId = await getWorkflowRunId(workflowRunUniqueIdentifier);
+            // Wait up to 5 minutes for the workflow to 
+            const workflowRunId = await getWorkflowRunIdWithRetry(workflowRunUniqueIdentifier, 30, 10);
             const sleepTimeMilliseconds = 10000;
             let iterationCount = 0;
             while (true) {
@@ -190,6 +257,7 @@ runs:
 
           const workflowRunUniqueIdentifier = generateWorkflowRunUniqueIdentifier();
 
+          await waitForIncompleteWorkflows();
           await triggerWorkflow(workflowRunUniqueIdentifier);
           await sleep(5000); // Wait a moment for the workflow to start
           await waitForWorkflowCompletion(workflowRunUniqueIdentifier);

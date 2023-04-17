@@ -261,4 +261,5 @@ jobs:
           artifact-tag: ${{ needs.setup-build.outputs.artifact-version }}
           version-channel: ${{ env.VERSION_CHANNEL }}
           package-name-filter: "teleport-ent-updater*"
+          package-to-test: ""
     

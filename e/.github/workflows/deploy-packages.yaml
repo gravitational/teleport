@@ -1,6 +1,6 @@
 ---
 name: Deploy OS packages to repos
-run-name: Deploy OS packages to ${{ inputs.repo-type }} repos ${{ inputs.workflow-run-identifier }}
+run-name: Deploy OS packages to ${{ inputs.repo-type }} repos
 
 on:
   workflow_dispatch:
@@ -42,8 +42,8 @@ on:
         type: string
         required: false
       # This is a workaround so that the actor who initiated a workflow run via a workflow dispatch event can determine the run ID of the started workflow run
-      workflow-run-identifier:
-        description: "This field adds the provided value to the workflow run display name, allowing the calling actor to associate the started run with the GHA run ID."
+      workflow-tag:
+        description: "This field adds the provided value to a run step, allowing the calling actor to associate the started run with the GHA run ID."
         type: string
         required: false
 
@@ -325,6 +325,10 @@ jobs:
           do
             echo "* $(basename "$package")" | tee -a "$GITHUB_STEP_SUMMARY"
           done
+      - name: ${{ inputs.workflow-tag }}
+        run: |
+          # This is a do-nothing step so that agents calling this workflow can identify the run ID associated
+          # with the run they started
   
   # These jobs are designed to be a very final test to verify that we didn't just publish a broken release
   # They are very much not a catch-all even of the few basic tests they run - but if they fail, something
