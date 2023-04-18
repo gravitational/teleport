@@ -19,7 +19,7 @@ Amazon EC2 Disk Images (a.k.a AMIs) used to ship Teleport to customers.
 
 One way our customers consume Teleport is by using a pre-built and  -configured
 AMI to run Teleport in AWS EC2 instances. As a provider of these images we are 
-(at least partially) responsible for the secutity of all ssoftware included in
+(at least partially) responsible for the security of all software included in
 the image, not just teleport. 
 
 We should endeavour to not ship vulnerabilities to our clients, even if those
