@@ -7,7 +7,7 @@ The Teleport Discovery Service can automatically register your Google Kubernetes
 Engine (GKE) clusters with Teleport. With Teleport Kubernetes Auto-Discovery,
 you can configure the Teleport Kubernetes Service and Discovery Service once,
 then create GKE clusters without needing to register them with Teleport after
-each creation.  
+each creation.
 
 In this guide, we will show you how to get started with Teleport Kubernetes
 Auto-Discovery for GKE.
@@ -75,7 +75,7 @@ $ gcloud iam roles create GKEKubernetesAutoDisc \
 ### Create an IAM role for the Kubernetes Service
 
 The Teleport Kubernetes Service needs Google Cloud IAM permissions in order to
-forward user traffic to your GKE clusters. 
+forward user traffic to your GKE clusters.
 
 Create a file called `GKEAccessManager.yaml` with the following content:
 
@@ -256,11 +256,11 @@ $ gcloud iam service-accounts keys create kube-service-credentials.json \
 ```
 
 Move `discovery-service-credentials.json` to the host running the Teleport
-Discovery Service at the path `/var/lib/teleport/google-cloud-credentials.json`. 
+Discovery Service at the path `/var/lib/teleport/google-cloud-credentials.json`.
 
 Move `kubernetes-service-credentials.json` to the host running the Teleport
 Kubernetes Service at the path
-`/var/lib/teleport/google-cloud-credentials.json`. 
+`/var/lib/teleport/google-cloud-credentials.json`.
 
 We will use these credentials files when running this services later in this
 guide.
@@ -283,7 +283,7 @@ Discovery Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-### Create a join token 
+### Create a join token
 
 The Teleport Discovery Service and Kubernetes Service require an authentication
 token in order to to join the cluster. Generate one by running the following
@@ -317,7 +317,7 @@ $ tctl tokens add --type=kube --format=text
 
 Copy each token (e.g., `(=presets.tokens.second=)` and
 `(=presets.tokens.third=)` above) and save it in `/tmp/token` on the machine
-that will run the appropriate service. 
+that will run the appropriate service.
 
 </Details>
 
@@ -325,6 +325,8 @@ that will run the appropriate service.
 
 On the host running the Kubernetes Service and Discovery Service, create a
 Teleport configuration file with the following content at `/etc/teleport.yaml`:
+
+(!docs/pages/kubernetes-access/discovery/includes/discovery-group.mdx!)
 
 ```yaml
 version: v3
@@ -341,6 +343,7 @@ ssh_service:
   enabled: off
 discovery_service:
   enabled: "yes"
+  discovery_group: "gke-myproject"
   gcp:
     - types: ["gke"]
       locations: ["*"]
@@ -410,7 +413,7 @@ discovery_service:
 
 Edit this configuration for your environment as explained below.
 
-#### `proxy_server` 
+#### `proxy_server`
 
 Replace `teleport.example.com:443` with the host and port of your Teleport
 Proxy Service (e.g., `mytenant.teleport.sh:443` for a Teleport Cloud tenant).
@@ -425,7 +428,7 @@ have declared a single matcher.
 Each matcher searches for clusters that match *all* properties of the matcher,
 i.e., that belong to the specified locations and projects and have the
 specified tags. The Discovery Service registers GKE clusters that match *any*
-configured matcher. 
+configured matcher.
 
 This means that if you declare the following two matchers, the Discovery Service
 will register clusters in project `myproj-dev` running in `us-east1`, as well as
@@ -463,19 +466,19 @@ wildcard character (`*`).
 
 Each matcher's `locations` field contains an array of Google Cloud region or
 zone names that the matcher will search for GKE clusters. The wildcard
-character, `*`, configures the matcher to search all locations.  
+character, `*`, configures the matcher to search all locations.
 
 #### `discovery_service.gcp[0].tags`
 
 Like `locations`, `tags` consists of a map where each key is a string that
 represents the key of a tag, and each value is either a single string or an
-array of strings, representing one tag value or a list of tag values. 
+array of strings, representing one tag value or a list of tag values.
 
 A wildcard key or value matches any tag key or value in your Google Cloud
 account. If you include another value, the matcher will match all GKE clusters
-with the provided tag. 
+with the provided tag.
 
-### Start the Kubernetes Service and Discovery Service 
+### Start the Kubernetes Service and Discovery Service
 
 On the host where you will run the Kubernetes Service, execute the following
 command, depending on:
@@ -484,7 +487,7 @@ command, depending on:
 - Whether you are running the Discovery and Kubernetes Service on Google Cloud
   or another platform
 
-<Tabs dropdownCaption="How your host is running:" 
+<Tabs dropdownCaption="How your host is running:"
 dropdownSelected="Google Cloud">
 <TabItem options="Google Cloud" label="Package Manager ">
 
@@ -511,12 +514,12 @@ $ sudo systemctl start teleport
 
 When you installed Teleport via package manager, the installation process
 created a configuration for the init system `systemd` to run Teleport as a
-daemon. 
+daemon.
 
 This service reads environment variables from a file at the path
 `/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
 credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
-variable. 
+variable.
 
 Ensure that `/etc/default/teleport` has the following content:
 
@@ -544,7 +547,7 @@ $ sudo systemctl enable teleport
 This service reads environment variables from a file at the path
 `/etc/default/teleport`. Teleport's built-in Google Cloud client reads the
 credentials file at the location given by the `GOOGLE_APPLICATION_CREDENTIALS`
-variable. 
+variable.
 
 Ensure that `/etc/default/teleport` has the following content:
 
@@ -621,9 +624,9 @@ user has access to. The list should now include your GKE cluster:
 
 ```code
 $ tsh kube ls
-Kube Cluster Name   Labels                                                                                                   Selected 
-------------------- -------------------------------------------------------------------------------------------------------- -------- 
-mycluster-gke location=us-east1 project-id=myproject teleport.dev/cloud=GCP teleport.dev/origin=cloud          
+Kube Cluster Name   Labels                                                                                                   Selected
+------------------- -------------------------------------------------------------------------------------------------------- --------
+mycluster-gke location=us-east1 project-id=myproject teleport.dev/cloud=GCP teleport.dev/origin=cloud
 ```
 
 Log in to your cluster, replacing `mycluster-gke` with the name of a cluster
