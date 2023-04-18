@@ -15,7 +15,8 @@
  */
 
 import React from 'react';
-import { Flex } from 'design';
+import styled from 'styled-components';
+import { Flex, Box, Label as Pill } from 'design';
 import Table, { Cell } from 'design/DataTable';
 import { FetchStatus } from 'design/DataTable/types';
 
@@ -23,6 +24,7 @@ import {
   AwsDatabase,
   ListAwsDatabaseResponse,
 } from 'teleport/services/integrations';
+import { Label } from 'teleport/types';
 
 type Props = {
   items: ListAwsDatabaseResponse['databases'];
@@ -70,12 +72,35 @@ export const DatabaseList = ({
           headerText: 'Engine',
           render: ({ engine }) => <Cell>{engine}</Cell>,
         },
+        {
+          key: 'labels',
+          headerText: 'Labels',
+          render: ({ labels }) => <LabelCell labels={labels} />,
+        },
+        {
+          key: 'status',
+          headerText: 'Status',
+          render: item => <StatusCell item={item} />,
+        },
       ]}
       emptyText="No Results"
       pagination={{ pageSize: 10 }}
       fetching={{ onFetchMore: fetchNextPage, fetchStatus }}
       isSearchable
     />
+  );
+};
+
+const StatusCell = ({ item }: { item: AwsDatabase }) => {
+  const status = getStatus(item);
+
+  return (
+    <Cell>
+      <Flex alignItems="center">
+        <StatusLight status={status} />
+        {item.status}
+      </Flex>
+    </Cell>
   );
 };
 
@@ -107,3 +132,59 @@ function RadioCell({
     </Cell>
   );
 }
+
+enum Status {
+  Success,
+  Warning,
+  Error,
+}
+
+function getStatus(item: AwsDatabase) {
+  switch (item.status) {
+    case 'Available':
+      return Status.Success;
+
+    case 'Failed':
+    case 'Deleting':
+      return Status.Error;
+  }
+}
+
+// TODO(lisa): copy from IntegrationList.tsx
+// move to common file for both files.
+const StatusLight = styled(Box)`
+  border-radius: 50%;
+  margin-right: 6px;
+  width: 8px;
+  height: 8px;
+  background-color: ${({ status, theme }) => {
+    if (status === Status.Success) {
+      return theme.colors.success;
+    }
+    if (status === Status.Error) {
+      return theme.colors.error.light;
+    }
+    if (status === Status.Warning) {
+      return theme.colors.warning;
+    }
+    return theme.colors.grey[300]; // Unknown
+  }};
+`;
+
+const LabelCell = ({ labels }: { labels: Label[] }) => {
+  const $labels = labels.map((label, index) => {
+    const labelText = `${label.name}: ${label.value}`;
+
+    return (
+      <Pill key={`${label.name}${label.value}${index}`} mr="1" kind="secondary">
+        {labelText}
+      </Pill>
+    );
+  });
+
+  return (
+    <Cell>
+      <Flex flexWrap="wrap">{$labels}</Flex>
+    </Cell>
+  );
+};
