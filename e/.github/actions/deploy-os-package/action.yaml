@@ -30,6 +30,12 @@ inputs:
     description: "Git reference to the version of the workflow that should be ran."
     required: true
     default: "refs/heads/master"
+  github-token:
+    description: >
+      The Github token used to call the Github API on the `gravitational/teleport.e` repo. 
+      Must have `actions: write` permission.
+    default: ${{ github.token }}
+    required: true
 runs:
   using: composite
   steps:
@@ -50,7 +56,8 @@ runs:
         INPUT_RELEASE-CHANNEL: ${{ inputs.release-channel }}
         INPUT_PACKAGE-TO-TEST: ${{ inputs.package-to-test }}
         INPUT_WORKFLOW-GIT-REFERENCE: ${{ inputs.workflow-git-reference }} 
-      with: 
+      with:
+        github-token: ${{ inputs.github-token }}
         script: |
           // Map the input to the actual environment names in Github
           function getWorkflowEnvironment() {
