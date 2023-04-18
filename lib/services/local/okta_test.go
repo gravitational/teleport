@@ -215,56 +215,14 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a couple Okta assignments.
-	assignment1, err := types.NewOktaAssignment(
-		types.Metadata{
-			Name: "assignment1",
-		},
-		types.OktaAssignmentSpecV1{
-			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
-				{
-					Status: types.OktaAssignmentActionV1_PENDING,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
-				},
-				{
-					Status: types.OktaAssignmentActionV1_SUCCESSFUL,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_GROUP,
-						Id:   "234567",
-					},
-				},
-			},
-		},
+	assignment1 := oktaAssignment(t, "assignment1", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusPending, clock.Now()),
+		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567", constants.OktaAssignmentActionStatusSuccessful, clock.Now()),
 	)
-	require.NoError(t, err)
-	assignment2, err := types.NewOktaAssignment(
-		types.Metadata{
-			Name: "assignment2",
-		},
-		types.OktaAssignmentSpecV1{
-			User: "test-user@test.user",
-			Actions: []*types.OktaAssignmentActionV1{
-				{
-					Status: types.OktaAssignmentActionV1_PENDING,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-						Id:   "123456",
-					},
-				},
-				{
-					Status: types.OktaAssignmentActionV1_SUCCESSFUL,
-					Target: &types.OktaAssignmentActionTargetV1{
-						Type: types.OktaAssignmentActionTargetV1_GROUP,
-						Id:   "234567",
-					},
-				},
-			},
-		},
+	assignment2 := oktaAssignment(t, "assignment2", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusPending, clock.Now()),
+		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567", constants.OktaAssignmentActionStatusSuccessful, clock.Now()),
 	)
-	require.NoError(t, err)
 
 	// Initially we expect no assignments.
 	out, nextToken, err := service.ListOktaAssignments(ctx, 200, "")
@@ -327,10 +285,45 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	_, err = service.CreateOktaAssignment(ctx, assignment1)
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
-	// Update an assignment.
-	assignment1.SetExpiry(clock.Now().Add(30 * time.Minute))
+	// Fail to update the assignment due to mismatching number of actions
+	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusPending, clock.Now()),
+	)
+	_, err = service.UpdateOktaAssignment(ctx, assignment1)
+	require.ErrorContains(t, err, "different number of actions")
+
+	// Fail to update the assignment due to actions with differing contents.
+	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "diff", constants.OktaAssignmentActionStatusPending, clock.Now()),
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "diff", constants.OktaAssignmentActionStatusSuccessful, clock.Now()),
+	)
+	_, err = service.UpdateOktaAssignment(ctx, assignment1)
+	require.ErrorContains(t, err, "action mismatch")
+
+	// Fail to update the assignment due to bad transition.
+	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusFailed, clock.Now()),
+		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567", constants.OktaAssignmentActionStatusSuccessful, clock.Now()),
+	)
+	_, err = service.UpdateOktaAssignment(ctx, assignment1)
+	require.ErrorContains(t, err, "invalid transition")
+
+	// Fail to update the assignment because last transition is different even though status remains the same.
+	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusPending, clock.Now().Add(5*time.Minute)),
+		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567", constants.OktaAssignmentActionStatusSuccessful, clock.Now()),
+	)
+	_, err = service.UpdateOktaAssignment(ctx, assignment1)
+	require.ErrorContains(t, err, "invalid transition")
+
+	// Update succeeds with a valid transition.
+	assignment1 = oktaAssignment(t, "assignment1", "test-user@test.user",
+		oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "123456", constants.OktaAssignmentActionStatusProcessing, clock.Now()),
+		oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "234567", constants.OktaAssignmentActionStatusSuccessful, clock.Now()),
+	)
 	_, err = service.UpdateOktaAssignment(ctx, assignment1)
 	require.NoError(t, err)
+
 	assignment, err = service.GetOktaAssignment(ctx, assignment1.GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(assignment1, assignment,
@@ -371,4 +364,82 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, out)
+}
+
+func TestActionsMatch(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name     string
+		action1  types.OktaAssignmentAction
+		action2  types.OktaAssignmentAction
+		expected bool
+	}{
+		{
+			name:     "actions match",
+			action1:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusPending, now),
+			action2:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusPending, now),
+			expected: true,
+		},
+		{
+			name:     "target mismatch",
+			action1:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusPending, now),
+			action2:  oktaAction(t, types.OktaAssignmentActionTargetV1_GROUP, "1", constants.OktaAssignmentActionStatusPending, now),
+			expected: false,
+		},
+		{
+			name:     "id mismatch",
+			action1:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusPending, now),
+			action2:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "2", constants.OktaAssignmentActionStatusPending, now),
+			expected: false,
+		},
+		{
+			name:     "status ignored",
+			action1:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusPending, now),
+			action2:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusCleanupPending, now),
+			expected: true,
+		},
+		{
+			name:     "last transition ignored",
+			action1:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusPending, now),
+			action2:  oktaAction(t, types.OktaAssignmentActionTargetV1_APPLICATION, "1", constants.OktaAssignmentActionStatusPending, now.Add(time.Hour)),
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, actionsMatch(test.action1, test.action2))
+		})
+	}
+}
+
+func oktaAssignment(t *testing.T, name, username string, actions ...*types.OktaAssignmentActionV1) types.OktaAssignment {
+	assignment, err := types.NewOktaAssignment(
+		types.Metadata{
+			Name: name,
+		},
+		types.OktaAssignmentSpecV1{
+			User:    username,
+			Actions: actions,
+		},
+	)
+	require.NoError(t, err)
+
+	return assignment
+}
+
+func oktaAction(t *testing.T, targetType types.OktaAssignmentActionTargetV1_OktaAssignmentActionTargetType,
+	id string, status string, lastTransition time.Time) *types.OktaAssignmentActionV1 {
+
+	action := &types.OktaAssignmentActionV1{
+		Target: &types.OktaAssignmentActionTargetV1{
+			Type: targetType,
+			Id:   id,
+		},
+		LastTransition: lastTransition,
+	}
+	require.NoError(t, action.SetStatus(status))
+
+	return action
 }
