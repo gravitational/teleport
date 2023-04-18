@@ -1139,6 +1139,7 @@ func applySSHConfig(fc *FileConfig, cfg *service.Config) (err error) {
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
+	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
 			services.AWSMatcher{

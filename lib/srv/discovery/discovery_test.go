@@ -37,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -398,6 +399,10 @@ func TestDiscoveryServer(t *testing.T) {
 }
 
 func TestDiscoveryKube(t *testing.T) {
+	const (
+		mainDiscoveryGroup  = "main"
+		otherDiscoveryGroup = "other"
+	)
 	t.Parallel()
 	tcs := []struct {
 		name                          string
@@ -419,8 +424,8 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
 		},
 		{
@@ -434,14 +439,14 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[2]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[2], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], mainDiscoveryGroup),
 			},
 		},
 		{
 			name: "1 cluster in auth server not updated + import 1 prod cluster from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 			},
 			awsMatchers: []services.AWSMatcher{
 				{
@@ -451,15 +456,15 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{"eks-cluster1"},
 		},
 		{
-			name: "1 cluster in auth that no longer matches (deleted) + import 2 prod clusters from EKS",
+			name: "1 cluster in auth that belongs the same discovery group but has unmatched labels + import 2 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], mainDiscoveryGroup),
 			},
 			awsMatchers: []services.AWSMatcher{
 				{
@@ -469,16 +474,15 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{},
 		},
 		{
-			name: "1 cluster in auth that matches but must be updated + import 1 prod clusters from EKS",
+			name: "1 cluster in auth that belongs to a different discovery group + import 2 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				// add an extra static label to force update in auth server
-				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1])),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], otherDiscoveryGroup),
 			},
 			awsMatchers: []services.AWSMatcher{
 				{
@@ -488,8 +492,28 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], otherDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+			},
+			clustersNotUpdated: []string{},
+		},
+		{
+			name: "1 cluster in auth that must be updated + import 1 prod clusters from EKS",
+			existingKubeClusters: []types.KubeCluster{
+				// add an extra static label to force update in auth server
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup)),
+			},
+			awsMatchers: []services.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{},
 		},
@@ -497,8 +521,8 @@ func TestDiscoveryKube(t *testing.T) {
 			name: "2 clusters in auth that matches but one must be updated +  import 2 prod clusters, 1 from EKS and other from AKS",
 			existingKubeClusters: []types.KubeCluster{
 				// add an extra static label to force update in auth server
-				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1])),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0]),
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup)),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
 			},
 			awsMatchers: []services.AWSMatcher{
 				{
@@ -517,10 +541,10 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0]),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{"aks-cluster1"},
 		},
@@ -536,8 +560,8 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[0]),
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[1]),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], mainDiscoveryGroup),
 			},
 		},
 	}
@@ -611,13 +635,14 @@ func TestDiscoveryKube(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:       &testClients,
-					AccessPoint:   tlsServer.Auth(),
-					AWSMatchers:   tc.awsMatchers,
-					AzureMatchers: tc.azureMatchers,
-					GCPMatchers:   tc.gcpMatchers,
-					Emitter:       authClient,
-					Log:           logger,
+					Clients:        &testClients,
+					AccessPoint:    tlsServer.Auth(),
+					AWSMatchers:    tc.awsMatchers,
+					AzureMatchers:  tc.azureMatchers,
+					GCPMatchers:    tc.gcpMatchers,
+					Emitter:        authClient,
+					Log:            logger,
+					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
 			require.NoError(t, err)
@@ -815,15 +840,17 @@ var eksMockClusters = []*eks.Cluster{
 	},
 }
 
-func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster) types.KubeCluster {
+func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
 	require.NoError(t, err)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	return cluster
 }
 
-func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster) types.KubeCluster {
+func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	return cluster
 }
 
@@ -893,9 +920,10 @@ var gkeMockClusters = []gcp.GKECluster{
 	},
 }
 
-func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster) types.KubeCluster {
+func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	return cluster
 }
 
@@ -906,4 +934,59 @@ type mockGKEAPI struct {
 
 func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, location string) ([]gcp.GKECluster, error) {
 	return m.clusters, nil
+}
+
+// TestServer_onCreate tests the update of the discovery_group of a resource
+// when it differs from the one in the database.
+// TODO(tigrato): DELETE in 14.0.0
+func TestServer_onCreate(t *testing.T) {
+	accessPoint := &fakeAccessPoint{}
+	s := &Server{
+		Config: &Config{
+			AccessPoint: accessPoint,
+			Log:         logrus.New(),
+		},
+	}
+	type args struct {
+		resource types.ResourceWithLabels
+		onCreate func(context.Context, types.ResourceWithLabels) error
+	}
+	tests := []struct {
+		name   string
+		args   args
+		verify func(t *testing.T, accessPoint *fakeAccessPoint)
+	}{
+		{
+			name: "onCreate update kube",
+			args: args{
+				resource: mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"),
+				onCreate: s.onKubeCreate,
+			},
+			verify: func(t *testing.T, accessPoint *fakeAccessPoint) {
+				require.True(t, accessPoint.updateKube)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.onCreate(context.Background(), tt.args.resource)
+			require.NoError(t, err)
+			tt.verify(t, accessPoint)
+		})
+	}
+}
+
+type fakeAccessPoint struct {
+	auth.DiscoveryAccessPoint
+	updateKube bool
+}
+
+func (f *fakeAccessPoint) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return trace.AlreadyExists("already exists")
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	f.updateKube = true
+	return nil
 }
