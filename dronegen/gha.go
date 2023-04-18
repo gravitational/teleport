@@ -58,7 +58,7 @@ func ghaBuildPipeline(ghaBuild ghaBuildType) pipeline {
 	return ghaMultiBuildPipeline(nil, ghaBuild)
 }
 
-// Returns a pipeline with multiple supported workflow call steps
+// ghaMultiBuildPipeline returns a pipeline with multiple supported workflow call steps
 func ghaMultiBuildPipeline(setupSteps []step, ghaBuild ghaBuildType) pipeline {
 	p := newKubePipeline(ghaBuild.pipelineName)
 	p.Trigger = ghaBuild.trigger
