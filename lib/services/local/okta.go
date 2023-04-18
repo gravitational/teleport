@@ -123,30 +123,30 @@ func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	var previousAssignment types.OktaAssignment
-	err := o.assignmentSvc.UpdateAndSwapResource(ctx, assignment.GetName(), func(backendAssignment types.OktaAssignment) error {
-		previousAssignment = backendAssignment.Copy()
-		backendActions := backendAssignment.GetActions()
+	err := o.assignmentSvc.UpdateAndSwapResource(ctx, assignment.GetName(), func(currentAssignment types.OktaAssignment) error {
+		previousAssignment = currentAssignment.Copy()
+		currentActions := currentAssignment.GetActions()
 
-		if len(backendActions) != len(assignment.GetActions()) {
+		if len(currentActions) != len(assignment.GetActions()) {
 			return trace.BadParameter("Update to Okta assignment %s failed because the previous version has a different number of actions", assignment.GetName())
 		}
 
 		// Make sure that the status transitions of the updated assignment are valid.
 		for i, action := range assignment.GetActions() {
-			backendAction := backendActions[i]
+			currentAction := currentActions[i]
 
 			// Ensure that the previous actions are equal
-			if !actionsMatch(backendAction, action) {
+			if !actionsMatch(currentAction, action) {
 				return trace.BadParameter("action mismatch when updating Okta assignment %s", assignment.GetName())
 			}
 
 			// Don't check the status transition if the statuses are equal and the last transitions are equal.
-			if backendAction.GetStatus() == action.GetStatus() &&
-				backendAction.GetLastTransition().Equal(action.GetLastTransition()) {
+			if currentAction.GetStatus() == action.GetStatus() &&
+				currentAction.GetLastTransition().Equal(action.GetLastTransition()) {
 				continue
 			}
 
-			if err := backendAction.SetStatus(action.GetStatus()); err != nil {
+			if err := currentAction.SetStatus(action.GetStatus()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
