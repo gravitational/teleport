@@ -570,6 +570,11 @@ func NewDatabaseFromRDSV2Instance(instance *rdsTypesV2.DBInstance) (types.Databa
 		return nil, trace.Wrap(err)
 	}
 
+	uri := ""
+	if instance.Endpoint != nil && instance.Endpoint.Address != nil {
+		uri = fmt.Sprintf("%s:%d", aws.StringValue(instance.Endpoint.Address), instance.Endpoint.Port)
+	}
+
 	return types.NewDatabaseV3(
 		setDBName(types.Metadata{
 			Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
@@ -577,7 +582,7 @@ func NewDatabaseFromRDSV2Instance(instance *rdsTypesV2.DBInstance) (types.Databa
 		}, aws.StringValue(instance.DBInstanceIdentifier)),
 		types.DatabaseSpecV3{
 			Protocol: protocol,
-			URI:      fmt.Sprintf("%v:%v", aws.StringValue(endpoint.Address), endpoint.Port),
+			URI:      uri,
 			AWS:      *metadata,
 		})
 }
