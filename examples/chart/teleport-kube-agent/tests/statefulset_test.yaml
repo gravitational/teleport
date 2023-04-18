@@ -620,3 +620,14 @@ tests:
           path: spec.volumeClaimTemplates
       - matchSnapshot:
           path: spec.template.spec
+
+  - it: should set the installation method environment variable
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+            value: "true"

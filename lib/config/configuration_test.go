@@ -1144,6 +1144,17 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 	}
 }
 
+func TestProxyMustJoinViaAuth(t *testing.T) {
+	cfg := service.MakeDefaultConfig()
+
+	err := ApplyFileConfig(&FileConfig{
+		Version: defaults.TeleportConfigVersionV3,
+		Proxy:   Proxy{Service: Service{EnabledFlag: "yes"}},
+		Global:  Global{ProxyServer: "proxy.example.com:3080"},
+	}, cfg)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+}
+
 func TestBackendDefaults(t *testing.T) {
 	read := func(val string) *service.Config {
 		// Default value is lite backend.
