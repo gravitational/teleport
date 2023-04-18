@@ -32,8 +32,7 @@ func newAzureManagedSQLServerFetcher(config azureFetcherConfig) (common.Fetcher,
 
 // azureManagedSQLServerFetcher implements azureFetcherPlugin for Azure Managed
 // SQL Servers.
-type azureManagedSQLServerFetcher struct {
-}
+type azureManagedSQLServerFetcher struct{}
 
 func (f *azureManagedSQLServerFetcher) GetListClient(cfg *azureFetcherConfig, subID string) (azure.ManagedSQLServerClient, error) {
 	client, err := cfg.AzureClients.GetAzureManagedSQLServerClient(subID)

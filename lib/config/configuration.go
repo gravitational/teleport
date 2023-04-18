@@ -1209,6 +1209,7 @@ func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
 
 func applyDiscoveryConfig(fc *FileConfig, cfg *service.Config) error {
 	cfg.Discovery.Enabled = fc.Discovery.Enabled()
+	cfg.Discovery.DiscoveryGroup = fc.Discovery.DiscoveryGroup
 	for _, matcher := range fc.Discovery.AWSMatchers {
 		installParams, err := matcher.InstallParams.Parse()
 		if err != nil {
