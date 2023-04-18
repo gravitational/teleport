@@ -336,7 +336,7 @@ export type NodeMeta = BaseMeta & {
 // that needs to be preserved throughout the flow.
 export type DbMeta = BaseMeta & {
   db: Database;
-  awsIntegrationName?: string;
+  integrationName?: string;
 };
 
 // KubeMeta describes the fields for a kube resource
