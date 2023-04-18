@@ -16,8 +16,10 @@
 
 import React from 'react';
 
+import { AwsDatabase } from 'teleport/services/integrations';
+
 import { AwsRegionSelector } from './AwsRegionSelector';
-import { DatabaseList } from './DatabaseList';
+import { DatabaseList } from './RdsDatabaseList';
 
 export default {
   title: 'Teleport/Discover/Database/EnrollRds',
@@ -71,11 +73,66 @@ export const RdsDatabaseListLoading = () => (
   />
 );
 
-const fixtures = [
-  { name: 'postgres-name', engine: 'postgres', endpoint: '' },
-  { name: 'mysql-name', engine: 'mysql', endpoint: '' },
-  { name: 'alpaca', engine: 'postgres', endpoint: '' },
-  { name: 'banana', engine: 'postgres', endpoint: '' },
-  { name: 'watermelon', engine: 'mysql', endpoint: '' },
-  { name: 'llama', engine: 'postgres', endpoint: '' },
+const fixtures: AwsDatabase[] = [
+  {
+    name: 'postgres-name',
+    engine: 'postgres',
+    endpoint: '',
+    labels: [],
+    status: 'Available',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'mysql-name',
+    engine: 'mysql',
+    endpoint: '',
+    labels: [],
+    status: 'Available',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'alpaca',
+    engine: 'aurora',
+    endpoint: '',
+    labels: [
+      { name: 'env', value: 'prod' },
+      { name: 'os', value: 'windows' },
+    ],
+    status: 'Deleting',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'banana',
+    engine: 'postgres',
+    endpoint: '',
+    labels: [],
+    status: 'Failed',
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'watermelon',
+    engine: 'mysql',
+    endpoint: '',
+    labels: [
+      { name: 'env', value: 'dev' },
+      { name: 'os', value: 'mac' },
+      { name: 'fruit', value: 'watermelon' },
+    ],
+    status: 'Unknown' as any,
+    accountId: '',
+    resourceId: '',
+  },
+  {
+    name: 'llama',
+    engine: 'postgres',
+    endpoint: '',
+    labels: [{ name: 'testing-name', value: 'testing-value' }],
+    status: 'Available',
+    accountId: '',
+    resourceId: '',
+  },
 ];
