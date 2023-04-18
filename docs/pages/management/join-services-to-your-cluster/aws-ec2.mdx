@@ -10,9 +10,8 @@ are running in AWS.
 <ScopedBlock scope="cloud">
 
 The EC2 join method is not available in Teleport Enterprise Cloud. Teleport
-Enterprise Cloud customers can use the [IAM join
-method](./joining-nodes-aws-iam.mdx) or [secret
-tokens](../admin/adding-nodes.mdx).
+Enterprise Cloud customers can use the [IAM join method](./aws-iam.mdx) or
+[secret tokens](join-token.mdx).
 
 </ScopedBlock>
 
@@ -39,10 +38,9 @@ credentials, such as an EC2 instance with an attached IAM role. No specific
 permissions or IAM policy is required: an IAM role with no attached policies is
 sufficient. No IAM credentials are required on the Teleport Auth Service.
 
-You can also configure services running in AWS to join a cluster via **secret
-tokens**, which is useful when you don't want to rely on AWS-specific APIs. Read
-more in the following guide:
-[Adding services to the cluster](../admin/adding-nodes.mdx)
+You can also configure services running in AWS to join a cluster via [join
+tokens](join-token.mdx), which is useful when you don't want to rely on
+AWS-specific APIs.
 
 </Details>
 
