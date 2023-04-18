@@ -31,7 +31,9 @@ export enum DatabaseLocation {
 // DatabaseEngine represents the db "protocol".
 export enum DatabaseEngine {
   Postgres,
+  AuroraPostgres,
   MySql,
+  AuroraMysql,
   MongoDb,
   Redis,
   CoackroachDb,
