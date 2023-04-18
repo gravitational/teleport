@@ -100,8 +100,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
-	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon")
-	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster")
+	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon.")
+	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
@@ -433,12 +433,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// teleport join --proxy-server=proxy.example.com --token=aws-join-token [--openssh-config=/path/to/sshd.conf] [--restart-sshd=true]
 	joinOpenSSH.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
 	joinOpenSSH.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
-	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
-	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
-	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default(agentlessKeysDir).StringVar(&ccf.OpenSSHKeysPath)
-	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
-	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
-	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
+	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2).").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file.").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
+	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs.").Default(agentlessKeysDir).StringVar(&ccf.OpenSSHKeysPath)
+	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH.").Default("true").BoolVar(&ccf.RestartOpenSSH)
+	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
+	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by.").StringVar(&ccf.AdditionalPrincipals)
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	// parse CLI commands+flags:
@@ -651,6 +651,23 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 
 	if clf.Debug {
 		log.SetLevel(log.DebugLevel)
+	}
+
+	//Proxy Server and Token are required configuration so confirming they exist before continuing
+	missingProxyServerFlag := clf.ProxyServer == ""
+	missingAuthTokenFlag := clf.AuthToken == ""
+
+	if missingProxyServerFlag && missingAuthTokenFlag {
+		return trace.BadParameter("No proxy address and token specified, missed --proxy-server and --token flags?")
+	} else {
+
+		if missingProxyServerFlag {
+			return trace.BadParameter("No proxy server address specified, missed --proxy-server flag?")
+		}
+
+		if missingAuthTokenFlag {
+			return trace.BadParameter("No token specified, missed --token flag?")
+		}
 	}
 
 	addr, err := utils.ParseAddr(clf.ProxyServer)
