@@ -37,7 +37,7 @@ import {
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
-import { integrationRWE } from 'teleport/Discover/yamlTemplates';
+import { integrationRWEAndDbCU } from 'teleport/Discover/yamlTemplates';
 import useTeleport from 'teleport/useTeleport';
 
 import { ActionButtons, HeaderSubtitle, HeaderWithBackBtn } from '../../Shared';
@@ -49,10 +49,14 @@ export function ConnectAwsAccount() {
   const { prevStep, nextStep, agentMeta, updateAgentMeta, eventState } =
     useDiscover();
 
-  // TODO(lisa): also need to check for verb `use` which is pending
-  // work.
-  const access = storeUser.getIntegrationsAccess();
-  const hasAccess = access.create && access.list;
+  const integrationAccess = storeUser.getIntegrationsAccess();
+  const databaseAccess = storeUser.getDatabaseAccess();
+  const hasAccess =
+    integrationAccess.create &&
+    integrationAccess.list &&
+    // Required access after integrating:
+    integrationAccess.use && // required to list AWS RDS db's
+    databaseAccess.create; // required to enroll AWS RDS db
   const { attempt, run } = useAttempt(hasAccess ? 'processing' : '');
 
   const [awsIntegrations, setAwsIntegrations] = useState<Option[]>([]);
@@ -95,7 +99,7 @@ export function ConnectAwsAccount() {
           <Flex minHeight="215px" mt={3}>
             <TextEditor
               readOnly={true}
-              data={[{ content: integrationRWE, type: 'yaml' }]}
+              data={[{ content: integrationRWEAndDbCU, type: 'yaml' }]}
             />
           </Flex>
         </Box>
@@ -133,7 +137,7 @@ export function ConnectAwsAccount() {
 
     updateAgentMeta({
       ...(agentMeta as DbMeta),
-      awsIntegrationName: selectedAwsIntegration.value,
+      integrationName: selectedAwsIntegration.value,
     });
 
     // TODO(lisa): Need to add a new event to emit for this screen.
