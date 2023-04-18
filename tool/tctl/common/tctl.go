@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	toolcommon "github.com/gravitational/teleport/tool/common"
 )
 
 const (
@@ -94,7 +93,7 @@ type CLICommand interface {
 func Run(commands []CLICommand) {
 	err := TryRun(commands, os.Args[1:])
 	if err != nil {
-		var exitError *toolcommon.ExitCodeError
+		var exitError *common.ExitCodeError
 		if errors.As(err, &exitError) {
 			os.Exit(exitError.Code)
 		}
@@ -201,7 +200,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		utils.Consolef(os.Stderr, log.WithField(trace.Component, teleport.ComponentClient), teleport.ComponentClient,
 			"Cannot connect to the auth server: %v.\nIs the auth server running on %q?",
 			err, cfg.AuthServerAddresses()[0].Addr)
-		return trace.NewAggregate(&toolcommon.ExitCodeError{Code: 1}, err)
+		return trace.NewAggregate(&common.ExitCodeError{Code: 1}, err)
 	}
 
 	// execute whatever is selected:
