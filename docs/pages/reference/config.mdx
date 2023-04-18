@@ -162,7 +162,7 @@ teleport:
 
     # Only use one of auth_server or proxy_server.
     #
-    # When you have either the application service or database service enabled,
+    # When you have either the Application Service or Database Service enabled,
     # only tunneling through the proxy is supported, so you should specify proxy_server.
     # All other services support both tunneling through the proxy and directly connecting
     # to the auth server, so you can specify either auth_server or proxy_server.
@@ -771,7 +771,7 @@ proxy_service:
     #  enabled: yes
     #  email: user@example.com
 
-# This section configures the 'application service'
+# This section configures the Application Service
 app_service:
     # Turns 'app' role on. Default is 'no'
     enabled: yes
@@ -809,15 +809,15 @@ app_service:
         #   For example:
         #   - "Host: jenkins.example.com"
 
-## This section configures the 'kubernetes service'
+## This section configures the Kubernetes Service
 (!docs/pages/includes/kubernetes-access/kubernetes-config.yaml!)
 
-# This section configures the 'discovery service'
+# This section configures the Discovery Service
 (!docs/pages/includes/discovery/discovery-config.yaml!)
 
-# This section configures the 'database service'.
+# This section configures the Database Service.
 (!docs/pages/includes/database-access/database-config.yaml!)
 
-# This section configures the windows desktop service
+# This section configures the Windows Desktop Service
 (!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```
