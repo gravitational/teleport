@@ -367,6 +367,8 @@ jobs:
           echo "Set variables:"
           env
       - name: Setup for package install
+        env:
+          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
           # The container images are missing a couple of minor things needed for the install instructions
           # on the downloads page
@@ -381,7 +383,7 @@ jobs:
           apt install -y curl
 
           # Set the package version
-          echo "PACKAGE_VERSION=$(echo ${{ inputs.artifact-tag }} | cut -d'v' -f2)" >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=${ARTIFACT_TAG#v}" >> "$GITHUB_ENV"
       - name: Install package
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
@@ -451,6 +453,8 @@ jobs:
           echo "Set variables:"
           env
       - name: Setup for package install
+        env:
+          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
           # The container images are missing a couple of minor things needed for the install instructions
           # on the downloads page
@@ -469,7 +473,7 @@ jobs:
           fi
 
           # Set the package version
-          echo "PACKAGE_VERSION=$(echo ${{ inputs.artifact-tag }} | cut -d'v' -f2 | sed 's/-/_/g')" >> "$GITHUB_ENV"
+          echo "PACKAGE_VERSION=$(echo "${ARTIFACT_TAG#v}" | sed 's/-/_/g')" >> "$GITHUB_ENV"
       - name: Install package
         env:
           RELEASE_CHANNEL: ${{ inputs.release-channel }}
