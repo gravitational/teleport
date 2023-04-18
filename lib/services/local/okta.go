@@ -152,6 +152,8 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 			currentAction.SetLastTransition(action.GetLastTransition())
 		}
 
+		currentAssignment.SetMetadata(assignment.GetMetadata())
+
 		return nil
 	})
 	if err != nil {
