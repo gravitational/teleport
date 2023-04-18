@@ -22,9 +22,10 @@ import {
   IntegrationCreateRequest,
   IntegrationStatusCode,
   IntegrationListResponse,
-  IntegrationExecuteRequest,
+  AwsOidcListDatabasesRequest,
   AwsDatabase,
   ListAwsDatabaseResponse,
+  RdsEngineIdentifier,
 } from './types';
 
 export const integrationService = {
@@ -56,18 +57,54 @@ export const integrationService = {
 
   fetchAwsDatabases(
     integrationName,
-    req: IntegrationExecuteRequest
+    rdsEngineIdentifier: RdsEngineIdentifier,
+    req: {
+      region: AwsOidcListDatabasesRequest['region'];
+      nextToken?: AwsOidcListDatabasesRequest['nextToken'];
+    }
   ): Promise<ListAwsDatabaseResponse> {
+    let body: AwsOidcListDatabasesRequest;
+    switch (rdsEngineIdentifier) {
+      case 'mysql':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['mysql', 'mariadb'],
+        };
+        break;
+      case 'postgres':
+        body = {
+          ...req,
+          rdsType: 'instance',
+          engines: ['postgres'],
+        };
+        break;
+      case 'aurora-mysql':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora', 'aurora-mysql'],
+        };
+        break;
+      case 'aurora-postgres':
+        body = {
+          ...req,
+          rdsType: 'cluster',
+          engines: ['aurora-postgresql'],
+        };
+        break;
+    }
+
     return api
       .post(
         cfg.getIntegrationExecuteUrl({
           name: integrationName,
-          action: 'list_databases',
+          action: 'aws-oidc/list_databases',
         }),
-        req
+        body
       )
       .then(json => {
-        const dbs = json?.databases;
+        const dbs = json?.databases ?? [];
         return {
           databases: dbs.map(makeAwsDatabase),
           nextToken: json?.nextToken,
@@ -102,10 +139,15 @@ function makeIntegration(json: any): Integration {
 
 export function makeAwsDatabase(json: any): AwsDatabase {
   json = json ?? {};
-  const { engine, name, endpoint } = json;
+  const { engine, name, endpoint, status, labels, resourceId, accountId } =
+    json;
   return {
     engine,
     name,
     endpoint,
+    status,
+    labels: labels ?? [],
+    resourceId,
+    accountId,
   };
 }

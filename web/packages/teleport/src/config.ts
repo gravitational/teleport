@@ -728,7 +728,7 @@ export interface UrlIntegrationExecuteRequestParams {
   name: string;
   // action is the expected backend string value
   // used to describe what to use the integration for.
-  action: 'list_databases';
+  action: 'aws-oidc/list_databases';
 }
 
 export default cfg;
