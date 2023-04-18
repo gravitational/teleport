@@ -48,8 +48,8 @@ See our documentation on [data retention](./architecture.mdx#data-retention).
 
 ## How do I add Nodes to Teleport Enterprise Cloud?
 
-You can connect servers, Kubernetes clusters, databases and applications
-using [reverse tunnels](../../management/admin/adding-nodes.mdx).
+You can connect servers, Kubernetes clusters, databases and applications using
+[reverse tunnels](../../management/join-services-to-your-cluster.mdx).
 
 There is no need to open any ports on your infrastructure for inbound traffic.
 
@@ -122,7 +122,7 @@ $ tctl tokens add --type=node
 ## Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Enterprise Cloud, users can generate
-[dynamic tokens](../../management/admin/adding-nodes.mdx):
+[dynamic tokens](../../management/join-services-to-your-cluster/join-token.mdx):
 
 ```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
