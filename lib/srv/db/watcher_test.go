@@ -200,7 +200,6 @@ func assertReconciledResource(t *testing.T, ch chan types.Databases, databases t
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}
-
 }
 
 func makeStaticDatabase(name string, labels map[string]string, opts ...makeDatabaseOpt) (*types.DatabaseV3, error) {
