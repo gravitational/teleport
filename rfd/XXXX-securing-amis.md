@@ -26,7 +26,7 @@ We should endeavour to not ship vulnerabilities to our clients, even if those
 vulnerabilities are not directly in our software.
 
 This is not simply an academic exercise. Customers have been asking for hardened
-AMIs - especially sor AMIs that conform to well-known security beckhmarks. See 
+AMIs - especially for AMIs that conform to well-known security benchmarks. See 
 [here](https://github.com/gravitational/teleport/issues/8078) for an example.
 
 ## Details
