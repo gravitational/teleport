@@ -62,6 +62,14 @@ type Config struct {
 	Log logrus.FieldLogger
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -407,7 +415,6 @@ func (s *Server) handleEC2Discovery() {
 				} else {
 					s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
 				}
-
 			}
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
