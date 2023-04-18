@@ -25,7 +25,7 @@ spec:
   {{- toYaml $updater.annotations.pod | nindent 8 }}
 {{- end }}
       labels:
-        app: {{ .Release.Name }}
+        app: {{ .Release.Name }}-updater
 {{- if $updater.extraLabels.pod }}
   {{- toYaml $updater.extraLabels.pod | nindent 8 }}
 {{- end }}
