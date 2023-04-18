@@ -1,6 +1,6 @@
 ---
 title: Web Application Access
-description: How to configure Teleport for Application Access.
+description: How to configure Teleport for application access.
 ---
 
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
@@ -9,7 +9,7 @@ and follow the installation [instructions](../../installation.mdx).
 ## Start Auth/Proxy service
 
 Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
+the Auth and Proxy Services:
 
 ```yaml
 teleport:
@@ -93,7 +93,7 @@ comes with a built-in `access` role that grants access to all apps:
 $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
-## Start application service with CLI flags
+## Start the Application Service with CLI flags
 
 Install Teleport:
 
@@ -124,7 +124,7 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
 Teleport proxy server.
 
-## Start application service with a config file
+## Start the Application Service with a config file
 
 Example `teleport.yaml` configuration:
 
@@ -172,7 +172,7 @@ proxy_service:
   enabled: "no"
 ```
 
-Start the application service:
+Start the Application Service:
 
 ```code
 $ sudo teleport start --config=/path/to/teleport.yaml
