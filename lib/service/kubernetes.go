@@ -231,6 +231,7 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
+			ClusterFeatures:               process.getClusterFeatures,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
