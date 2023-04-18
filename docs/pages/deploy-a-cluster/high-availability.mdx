@@ -159,14 +159,14 @@ The Auth Service can also store cluster state in self-hosted
 within item keys to identify cluster state data.
 
 When you configure the Teleport Auth Service to access a table or collection,
-the Auth Service will check that the table or collection exists on startup. If
-it does not, the Auth Service attempts to create it.
+the Auth Service checks that the table or collection exists on startup. If it
+does not, the Auth Service attempts to create it.
 
 <Admonition title="Required permissions">
 
-In your cloud provider's RBAC solution (e.g., AWS or Google Cloud IAM), your
-Auth Service instances need permissions to read from and write to your chosen
-key/value store. 
+Make sure you configure your cloud provider's RBAC solution (e.g., AWS or Google
+Cloud IAM) so that your Auth Service instances have permissions to read from and
+write to your chosen key/value store. 
 
 Unless you have a pre-existing table or collection for the Auth Service to use,
 it must also have permissions to create tables and collections (if your
