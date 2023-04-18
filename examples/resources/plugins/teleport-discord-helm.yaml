@@ -2,7 +2,7 @@ teleport:
   # Teleport HTTPS Proxy web address, for Teleport Cloud should be in the form "your-account.teleport.sh:443"
   address: "teleport.example.com:443"
   # Secret containing identity
-  identitySecretName: teleport-plugin-slack-identity
+  identitySecretName: teleport-plugin-discord-identity
 
 discord:
   token: "XXXXXXXX"  # Discord Bot OAuth token
