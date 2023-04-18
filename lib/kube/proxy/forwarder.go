@@ -64,6 +64,7 @@ import (
 	kubeexec "k8s.io/client-go/util/exec"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -171,7 +172,13 @@ type ForwarderConfig struct {
 	// the upstream Teleport proxy or Kubernetes service when forwarding requests
 	// using the forward identity (i.e. proxy impersonating a user) method.
 	ConnTLSConfig *tls.Config
+	// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+	// It is used to determine if the cluster is licensed for Kubernetes usage.
+	ClusterFeatures ClusterFeaturesGetter
 }
+
+// ClusterFeaturesGetter is a function that returns the Teleport cluster licensed features.
+type ClusterFeaturesGetter func() proto.Features
 
 // CheckAndSetDefaults checks and sets default values
 func (f *ForwarderConfig) CheckAndSetDefaults() error {
@@ -198,6 +205,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	}
 	if f.HostID == "" {
 		return trace.BadParameter("missing parameter ServerID")
+	}
+	if f.ClusterFeatures == nil {
+		return trace.BadParameter("missing parameter ClusterFeatures")
 	}
 	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
 		return trace.BadParameter("missing parameter PROXYSigner")
@@ -274,7 +284,6 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	}
 
 	closeCtx, close := context.WithCancel(cfg.Context)
-
 	fwd := &Forwarder{
 		log:               cfg.log,
 		cfg:               cfg,
@@ -290,6 +299,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		clusterDetails:  make(map[string]*kubeDetails),
 		cachedTransport: transportClients,
 	}
+
 	router := httprouter.New()
 
 	router.UseRawPath = true
@@ -339,6 +349,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+
 	return fwd, nil
 }
 
@@ -498,6 +509,11 @@ const accessDeniedMsg = "[00] access denied"
 
 // authenticate function authenticates request
 func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
+	// If the cluster is not licensed for Kubernetes, return an error to the client.
+	if !f.cfg.ClusterFeatures().Kubernetes {
+		// If the cluster is not licensed for Kubernetes, return an error to the client.
+		return nil, trace.AccessDenied("Teleport cluster is not licensed for Kubernetes")
+	}
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/authenticate",
@@ -711,14 +727,15 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 
 // formatStatusResponseError formats the error response into a kube Status object.
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
+	code := trace.ErrorToCode(respErr)
 	status := &metav1.Status{
 		Status: metav1.StatusFailure,
 		// Don't trace.Unwrap the error, in case it was wrapped with a
 		// user-friendly message. The underlying root error is likely too
 		// low-level to be useful.
 		Message: respErr.Error(),
-		Code:    int32(trace.ErrorToCode(respErr)),
-		Reason:  errorToKubeStatusReason(respErr),
+		Code:    int32(code),
+		Reason:  errorToKubeStatusReason(respErr, code),
 	}
 	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
 	if err != nil {
@@ -2991,7 +3008,7 @@ func getRequestVerb(method string) string {
 
 // errorToKubeStatusReason returns an appropriate StatusReason based on the
 // provided error type.
-func errorToKubeStatusReason(err error) metav1.StatusReason {
+func errorToKubeStatusReason(err error, code int) metav1.StatusReason {
 	switch {
 	case trace.IsAggregate(err):
 		return metav1.StatusReasonTimeout
@@ -3011,6 +3028,8 @@ func errorToKubeStatusReason(err error) metav1.StatusReason {
 		return metav1.StatusReasonTooManyRequests
 	case trace.IsConnectionProblem(err):
 		return metav1.StatusReasonTimeout
+	case code == http.StatusInternalServerError:
+		return metav1.StatusReasonInternalError
 	default:
 		return metav1.StatusReasonUnknown
 	}
