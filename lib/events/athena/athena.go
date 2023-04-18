@@ -317,6 +317,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 // Athena is used for quering Parquet files on S3.
 type Log struct {
 	publisher *publisher
+	querier   *querier
 }
 
 // New creates an instance of an Athena based audit log.
@@ -330,7 +331,20 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	// TODO(tobiaszheller): initialize batcher
-	// TODO(tobiaszheller): initialize querier
+
+	l.querier, err = newQuerier(querierConfig{
+		tablename:               cfg.TableName,
+		database:                cfg.Database,
+		workgroup:               cfg.Workgroup,
+		queryResultsS3:          cfg.QueryResultsS3,
+		getQueryResultsInterval: cfg.GetQueryResultsInterval,
+		awsCfg:                  cfg.AWSConfig,
+		logger:                  cfg.LogEntry,
+		clock:                   cfg.Clock,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return l, nil
 }
@@ -340,11 +354,11 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
 func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotImplemented("not implemented")
+	return l.querier.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
 }
 
 func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
-	return nil, "", trace.NotImplemented("not implemented")
+	return l.querier.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
 }
 
 func (l *Log) Close() error {
