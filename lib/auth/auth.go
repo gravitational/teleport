@@ -1449,9 +1449,19 @@ func certRequestPinIP(pinIP bool) certRequestOption {
 	return func(r *certRequest) { r.pinIP = pinIP }
 }
 
+type GenerateUserTestCertsRequest struct {
+	Key            []byte
+	Username       string
+	TTL            time.Duration
+	Compatiblity   string
+	RouteToCluster string
+	PinnedIP       string
+	MFAVerified    bool
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
-	user, err := a.GetUser(username, false)
+func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1466,14 +1476,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
-		ttl:            ttl,
-		compatibility:  compatibility,
-		publicKey:      key,
-		routeToCluster: routeToCluster,
+		ttl:            req.TTL,
+		compatibility:  req.Compatiblity,
+		publicKey:      req.Key,
+		routeToCluster: req.RouteToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		loginIP:        pinnedIP,
-		pinIP:          pinnedIP != "",
+		loginIP:        req.PinnedIP,
+		pinIP:          req.PinnedIP != "",
+		mfaVerified:    "mfa-verified",
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

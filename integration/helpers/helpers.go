@@ -205,11 +205,13 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.MarshalSSHPublicKey(), username, ttl,
-		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName, "",
-	)
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		Key:            key.MarshalSSHPublicKey(),
+		Username:       username,
+		TTL:            ttl,
+		Compatiblity:   constants.CertificateFormatStandard,
+		RouteToCluster: tc.Secrets.SiteName,
+	})
 	require.NoError(t, err)
 
 	key.Cert = sshCert

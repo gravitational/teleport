@@ -368,6 +368,9 @@ type Config struct {
 	// MockSSOLogin is used in tests for mocking the SSO login response.
 	MockSSOLogin SSOLoginFunc
 
+	// MockHeadlessLogin is used in tests for mocking the Headless login response.
+	MockHeadlessLogin HeadlessLoginFunc
+
 	// HomePath is where tsh stores profiles
 	HomePath string
 
@@ -3672,7 +3675,14 @@ func (tc *TeleportClient) mfaLocalLogin(ctx context.Context, priv *keys.PrivateK
 	return response, trace.Wrap(err)
 }
 
+// HeadlessLoginFunc is a function used in tests to mock Headless logins.
+type HeadlessLoginFunc func(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error)
+
 func (tc *TeleportClient) headlessLogin(ctx context.Context, priv *keys.PrivateKey) (*auth.SSHLoginResponse, error) {
+	if tc.MockHeadlessLogin != nil {
+		return tc.MockHeadlessLogin(ctx, priv)
+	}
+
 	headlessAuthenticationID := services.NewHeadlessAuthenticationID(priv.MarshalSSHPublicKey())
 
 	webUILink, err := url.JoinPath("https://"+tc.WebProxyAddr, "web", "headless", headlessAuthenticationID)
