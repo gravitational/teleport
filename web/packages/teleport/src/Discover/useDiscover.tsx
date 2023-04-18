@@ -40,7 +40,7 @@ import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
 
-interface DiscoverContextState<T = any> {
+export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
   currentStep: number;
   nextStep: (count?: number) => void;
@@ -68,9 +68,16 @@ type CustomEventInput = {
   autoDiscoverResourcesCount?: number;
 };
 
+type DiscoverProviderProps = {
+  // mockCtx used for testing purposes.
+  mockCtx?: DiscoverContextState;
+};
+
 const discoverContext = React.createContext<DiscoverContextState>(null);
 
-export function DiscoverProvider(props: React.PropsWithChildren<unknown>) {
+export function DiscoverProvider(
+  props: React.PropsWithChildren<DiscoverProviderProps>
+) {
   const history = useHistory();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -304,7 +311,7 @@ export function DiscoverProvider(props: React.PropsWithChildren<unknown>) {
   };
 
   return (
-    <discoverContext.Provider value={value}>
+    <discoverContext.Provider value={props.mockCtx || value}>
       {props.children}
     </discoverContext.Provider>
   );
