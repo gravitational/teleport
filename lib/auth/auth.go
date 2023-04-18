@@ -885,7 +885,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		}
 	}
 
-	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) {
+	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) && !sp.SecurityPatchAltOf(current) {
 		// explicit security patch alerts have a more limited audience, so we generate
 		// them as their own separate alert.
 		log.Warnf("A newer security patch has been detected. current=%s, patch=%s", current.Version(), sp.Version())
