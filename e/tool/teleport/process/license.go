@@ -43,8 +43,12 @@ func configureLicense(cfg *servicecfg.Config) (*licensefile.LicenseFile, error) 
 			"location at %v", filepath.Join(cfg.DataDir, defaults.LicenseFile))
 	}
 
-	emodules.SetModules(licenseFile.License)
 	cfg.Log.Infof("Using license from %v %v.", cfg.Auth.LicenseFile, licenseFile.License)
+	err = emodules.SetModules(licenseFile)
+	if err != nil {
+		cfg.Log.Errorf("error setting enterprise modules: %+v", err)
+		return nil, trace.Wrap(err)
+	}
 	return licenseFile, nil
 }
 

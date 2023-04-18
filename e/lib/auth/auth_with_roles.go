@@ -219,6 +219,16 @@ func (ac *cloudWithRoles) GetAccountUpgradeWindowStartHour(ctx context.Context, 
 	return ac.plugin.cloudClient.GetAccountUpgradeWindowStartHour(ctx, req)
 }
 
+// GetFeatures returns the features enabled in the Teleport Cloud cluster
+func (ac *cloudWithRoles) GetFeatures(ctx context.Context, req *v1.EmptyRequest) (*v1.GetFeaturesResponse, error) {
+	_, err := ac.plugin.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("access denied")
+	}
+
+	return ac.plugin.cloudClient.GetFeatures(ctx, req)
+}
+
 func (ac *cloudWithRoles) action(ctx context.Context, namespace, resource, action string) error {
 	if ac.plugin.cloudClient == nil {
 		return trace.AccessDenied("cloud features are disabled")

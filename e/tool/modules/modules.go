@@ -8,18 +8,23 @@ import (
 	"reflect"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	cloudlib "github.com/gravitational/teleport/e/lib/cloud"
 	"github.com/gravitational/teleport/e/lib/hardwarekey"
+	"github.com/gravitational/teleport/e/lib/licensefile"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/modules"
 )
+
+// eModuleComponent is the name of the component used for logging
+const eModuleComponent = "enterprise/modules"
 
 func init() {
 	// Set the modules to Enterprise but with no license information.
@@ -28,57 +33,71 @@ func init() {
 
 // SetModules installs modules that provide custom behavior for the
 // enterprise compared to the open-source version
-func SetModules(license types.License) {
-	modules.SetModules(&enterpriseModules{license: license})
+func SetModules(licenseFile *licensefile.LicenseFile) error {
+	log := logrus.WithField(trace.Component, eModuleComponent)
+	p := enterpriseModules{log: log}
+
+	if licenseFile == nil || licenseFile.License == nil {
+		modules.SetModules(&p)
+		return nil
+	}
+
+	features := getLicenseFeatures(licenseFile.License)
+
+	if licenseFile.License.GetFeatureSource() == types.FeatureSourceCloud {
+		p.log.Debug("fetching features from Cloud")
+		f, err := cloudlib.FetchFeatures(context.Background(), *licenseFile.KeyPair)
+		if err != nil {
+			p.log.Errorf("failed fetching features from Cloud: %+v", err)
+			return trace.Wrap(err)
+		}
+		p.log.Debugf("successfully fetched features from Cloud: %+v", f)
+		features = *f
+	}
+
+	p.features = features
+
+	modules.SetModules(&p)
+	return nil
 }
 
 // enterpriseModules implements pluggable enterprise teleport logic
 type enterpriseModules struct {
-	license             types.License
-	enableRecoveryCodes atomic.Bool
-	enablePlugins       atomic.Bool
-	automaticUpgrades   bool
-	loadDynamicValues   sync.Once
+	mu sync.RWMutex
+	// features is the feature set of the cluster
+	features          modules.Features
+	log               *logrus.Entry
+	automaticUpgrades bool
+	loadDynamicValues sync.Once
 }
 
 // Features returns supported features
 func (p *enterpriseModules) Features() modules.Features {
-	if p.license == nil {
-		return modules.Features{}
-	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	features := p.features
 
 	p.loadDynamicValues.Do(func() {
 		p.automaticUpgrades = automaticupgrades.IsEnabled()
 	})
 
-	// All features are always enabled in Teleport Cloud since it does a
-	// per-resource usage reporting. Also, for backward compatibility so
-	// we don't need to reissue licenses every time we add a new feature.
-	return modules.Features{
-		Kubernetes:              p.license.GetCloud().Value() || p.license.GetSupportsKubernetes().Value(),
-		App:                     p.license.GetCloud().Value() || p.license.GetSupportsApplicationAccess().Value(),
-		DB:                      p.license.GetCloud().Value() || p.license.GetSupportsDatabaseAccess().Value(),
-		Desktop:                 p.license.GetCloud().Value() || p.license.GetSupportsDesktopAccess().Value(),
-		Cloud:                   p.license.GetCloud().Value(),
-		OIDC:                    true,
-		SAML:                    true,
-		AccessControls:          true,
-		AdvancedAccessWorkflows: true,
-		HSM:                     true,
-		RecoveryCodes:           p.license.GetCloud().Value() || p.enableRecoveryCodes.Load(),
-		Plugins:                 p.enablePlugins.Load(),
-		AutomaticUpgrades:       p.automaticUpgrades,
-	}
+	features.AutomaticUpgrades = p.automaticUpgrades
+	return features
 }
 
 // EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 func (p *enterpriseModules) EnableRecoveryCodes() {
-	p.enableRecoveryCodes.Store(true)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.features.RecoveryCodes = true
 }
 
 // EnablePlugins enables the hosted plugins runtime.
 func (p *enterpriseModules) EnablePlugins() {
-	p.enablePlugins.Store(true)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.features.Plugins = true
 }
 
 // BuildType returns build type (OSS or Enterprise)
@@ -111,4 +130,23 @@ func (p *enterpriseModules) AttestHardwareKey(ctx context.Context, serverI inter
 		return "", trace.BadParameter("Received unexpected server interface of type %T", serverI)
 	}
 	return hardwarekey.AttestHardwareKey(ctx, server, requiredKeyPolicy, att, pub, sessionTTL)
+}
+
+func getLicenseFeatures(license types.License) modules.Features {
+	// All features are always enabled in Teleport Cloud since it does a
+	// per-resource usage reporting. Also, for backward compatibility so
+	// we don't need to reissue licenses every time we add a new feature.
+	return modules.Features{
+		Kubernetes:              license.GetCloud().Value() || license.GetSupportsKubernetes().Value(),
+		App:                     license.GetCloud().Value() || license.GetSupportsApplicationAccess().Value(),
+		DB:                      license.GetCloud().Value() || license.GetSupportsDatabaseAccess().Value(),
+		Desktop:                 license.GetCloud().Value() || license.GetSupportsDesktopAccess().Value(),
+		Cloud:                   license.GetCloud().Value(),
+		OIDC:                    true,
+		SAML:                    true,
+		AccessControls:          true,
+		AdvancedAccessWorkflows: true,
+		HSM:                     true,
+		RecoveryCodes:           license.GetCloud().Value(),
+	}
 }

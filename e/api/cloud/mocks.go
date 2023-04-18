@@ -37,6 +37,8 @@ type MockedClient struct {
 	MockGetAccountUpgradeWindowStartHour func() (*v1.GetAccountUpgradeWindowStartHourResponse, error)
 	// MockUpdateAccountUpgradeWindowStartHour updates tenant account upgrade window start
 	MockUpdateAccountUpgradeWindowStartHour func() (*v1.EmptyResponse, error)
+	// MockGetFeatures returns the subscription features
+	MockGetFeatures func(context.Context, *v1.EmptyRequest) (*v1.GetFeaturesResponse, error)
 }
 
 func (m *MockedClient) SubmitUsageReports(ctx context.Context, in *v1.SubmitUsageReportsRequest, opts ...grpc.CallOption) (*v1.EmptyResponse, error) {
@@ -142,5 +144,12 @@ func (m *MockedClient) UpdateAccountUpgradeWindowStartHour(ctx context.Context, 
 	}
 
 	return nil, trace.NotImplemented("MockUpdateAccountUpgradeWindowStartHour is not implemented")
+}
 
+func (m *MockedClient) GetFeatures(ctx context.Context, in *v1.EmptyRequest, opts ...grpc.CallOption) (*v1.GetFeaturesResponse, error) {
+	if m.MockGetFeatures != nil {
+		return m.MockGetFeatures(ctx, in)
+	}
+
+	return nil, trace.NotImplemented("MockGetFeatures is not implemented")
 }
