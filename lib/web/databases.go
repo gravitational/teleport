@@ -413,7 +413,7 @@ func getNewDatabaseResource(req createDatabaseRequest) (*types.DatabaseV3, error
 	return database, nil
 }
 
-// encodeCRLPEM takes a CRL in DER encoded ANS.1 format and encodes into PEM.
+// encodeCRLPEM takes DER encoded CRL and encodes into PEM.
 func encodeCRLPEM(contents []byte) []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  "X509 CRL",
