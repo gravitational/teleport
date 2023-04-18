@@ -86,7 +86,12 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 			a.Log.Debugf("Cluster region %q does not match with allowed values.", cluster.Location)
 			continue
 		}
-		if match, reason, err := services.MatchLabels(a.FilterLabels, cluster.Tags); err != nil {
+		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
+		if err != nil {
+			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
+			continue
+		}
+		if match, reason, err := services.MatchLabels(a.FilterLabels, kubeCluster.GetAllLabels()); err != nil {
 			a.Log.WithError(err).Warn("Unable to match AKS cluster labels against match labels.")
 			continue
 		} else if !match {
@@ -94,11 +99,6 @@ func (a *aksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error)
 			continue
 		}
 
-		kubeCluster, err := services.NewKubeClusterFromAzureAKS(cluster)
-		if err != nil {
-			a.Log.WithError(err).Warn("Unable to create Kubernetes cluster from azure.AKSCluster.")
-			continue
-		}
 		kubeClusters = append(kubeClusters, kubeCluster)
 	}
 	return kubeClusters.AsResources(), nil
