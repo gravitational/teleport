@@ -4934,6 +4934,8 @@ type DeviceTrust struct {
 	// device that is not already enrolled.
 	// `tsh` takes advantage of auto-enroll to automatically enroll devices on
 	// user login, when appropriate.
+	// The effective cluster Mode still applies: AutoEnroll=true is meaningless if
+	// Mode="off".
 	AutoEnroll           bool     `protobuf:"varint,2,opt,name=AutoEnroll,proto3" json:"auto_enroll,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
