@@ -24,6 +24,7 @@ type osPackageDeployment struct {
 	versionChannel    string
 	packageNameFilter string
 	packageToTest     string
+	displayName       string
 }
 
 func promoteBuildOsRepoPipeline() pipeline {
@@ -33,11 +34,13 @@ func promoteBuildOsRepoPipeline() pipeline {
 			versionChannel:    "${DRONE_TAG}",
 			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
 			packageToTest:     "teleport-ent",
+			displayName:       "Teleport",
 		},
 		// teleport-ent-updater to stable/cloud only pipelines
 		{
 			versionChannel:    "cloud",
 			packageNameFilter: `teleport-ent-updater*`,
+			displayName:       "teleport-ent-updater",
 		},
 	}
 
@@ -88,7 +91,7 @@ func buildWorkflows(releaseEnvironmentFilePath string, packageDeployments []osPa
 			}
 
 			workflows = append(workflows, ghaWorkflow{
-				stepName:          fmt.Sprintf("Publish %s to stable/%s %s repo", packageDeployment.packageNameFilter, packageDeployment.versionChannel, repoType),
+				stepName:          fmt.Sprintf("Publish %s to stable/%s %s repo", packageDeployment.displayName, packageDeployment.versionChannel, repoType),
 				name:              "deploy-packages.yaml",
 				ref:               "refs/heads/master",
 				timeout:           12 * time.Hour, // DR takes a long time

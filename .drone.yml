@@ -6597,8 +6597,7 @@ steps:
   - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
     "build") > "/go/vars/release-environment.txt"
-- name: Publish $($DRONE_REPO_PRIVATE && echo "*ent*" || echo "") to stable/${DRONE_TAG}
-    apt repo
+- name: Publish Teleport to stable/${DRONE_TAG} apt repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -6612,8 +6611,7 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-- name: Publish $($DRONE_REPO_PRIVATE && echo "*ent*" || echo "") to stable/${DRONE_TAG}
-    yum repo
+- name: Publish Teleport to stable/${DRONE_TAG} yum repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -6627,7 +6625,7 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-- name: Publish teleport-ent-updater* to stable/cloud apt repo
+- name: Publish teleport-ent-updater to stable/cloud apt repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -6640,7 +6638,7 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-- name: Publish teleport-ent-updater* to stable/cloud yum repo
+- name: Publish teleport-ent-updater to stable/cloud yum repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -20069,6 +20067,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: c06fb6dacdeafb9e96373acead6f9bdb0d1f9ccc13eed1c121e1555fef812700
+hmac: b21082aec9ef11b00b44457d459a8f6a6d60e21cb347a6b7853ae3dfa6619cc9
 
 ...
