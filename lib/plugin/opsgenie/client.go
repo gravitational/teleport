@@ -66,6 +66,7 @@ type ClientConfig struct {
 	// APIKey is the API key for Opsgenie
 	APIKey string
 	// APIEndpoint is the endpoint for the Opsgenie API
+	// api url of the form https://api.opsgenie.com/v2/ with optional trailing '/'
 	APIEndpoint string
 	// DefaultSchedules are the default on-call schedules to check for auto approval
 	DefaultSchedules []string
