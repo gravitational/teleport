@@ -291,13 +291,13 @@ sequenceDiagram
     end
 ```
 
-Note: As far as I can figure out, the contents of the `Release Artifact
-Bucket` are never actually read from anything. Release artifacts are served
-from the `Release API Server`'s CloudFront-backed CDN. 
-
-This bucket _may_ be required for build tracability, but could just as easily
-exist for legacy reasons (i.e. no-one wanted to delete it incase it broke
-something).
+> Note: As far as I can figure out, the contents of the `Release Artifact
+> Bucket` are never actually read from anything. Release artifacts are served
+> from the `Release API Server`'s CloudFront-backed CDN. 
+>
+> This bucket _may_ be required for build tracability, but could just as easily
+> exist for legacy reasons (i.e. no-one wanted to delete it incase it broke
+> something).
 
 #### **Infrastructure**
 
