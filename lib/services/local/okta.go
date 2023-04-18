@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -34,9 +33,6 @@ const (
 	oktaImportRuleMaxPageSize = 200
 	oktaAssignmentPrefix      = "okta_assignment"
 	oktaAssignmentMaxPageSize = 200
-
-	oktaAssignmentModifyLockTTL = 10 * time.Second
-	oktaAssignmentModifyLock    = "okta_assignment_modify_lock"
 )
 
 // OktaService manages Okta resources in the Backend.
@@ -116,17 +112,7 @@ func (o *OktaService) ListOktaAssignments(ctx context.Context, pageSize int, nex
 
 // GetOktaAssignment returns the specified Okta assignment resources.
 func (o *OktaService) GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error) {
-	var assignment types.OktaAssignment
-	err := o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		var err error
-		assignment, err = o.assignmentSvc.GetResource(ctx, name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return nil
-	})
-	return assignment, trace.Wrap(err)
+	return o.assignmentSvc.GetResource(ctx, name)
 }
 
 // CreateOktaAssignment creates a new Okta assignment resource.
@@ -137,42 +123,35 @@ func (o *OktaService) CreateOktaAssignment(ctx context.Context, assignment types
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	var previousAssignment types.OktaAssignment
-	err := o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		var err error
-		previousAssignment, err = o.assignmentSvc.GetResource(ctx, assignment.GetName())
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	err := o.assignmentSvc.UpdateAndSwapResource(ctx, assignment.GetName(), func(backendAssignment types.OktaAssignment) error {
+		previousAssignment = backendAssignment.Copy()
+		backendActions := backendAssignment.GetActions()
 
-		// Make a copy so that we don't modify the previous assignment.
-		previousCopy := previousAssignment.Copy()
-		previousActions := previousCopy.GetActions()
-
-		if len(previousActions) != len(assignment.GetActions()) {
+		if len(backendActions) != len(assignment.GetActions()) {
 			return trace.BadParameter("Update to Okta assignment %s failed because the previous version has a different number of actions", assignment.GetName())
 		}
 
 		// Make sure that the status transitions of the updated assignment are valid.
 		for i, action := range assignment.GetActions() {
-			previousAction := previousActions[i]
+			backendAction := backendActions[i]
 
 			// Ensure that the previous actions are equal
-			if !actionsMatch(previousAction, action) {
+			if !actionsMatch(backendAction, action) {
 				return trace.BadParameter("action mismatch when updating Okta assignment %s", assignment.GetName())
 			}
 
 			// Don't check the status transition if the statuses are equal and the last transitions are equal.
-			if previousAction.GetStatus() == action.GetStatus() &&
-				previousAction.GetLastTransition().Equal(action.GetLastTransition()) {
+			if backendAction.GetStatus() == action.GetStatus() &&
+				backendAction.GetLastTransition().Equal(action.GetLastTransition()) {
 				continue
 			}
 
-			if err := previousAction.SetStatus(action.GetStatus()); err != nil {
+			if err := backendAction.SetStatus(action.GetStatus()); err != nil {
 				return trace.Wrap(err)
 			}
 		}
 
-		return o.assignmentSvc.UpdateResource(ctx, assignment)
+		return nil
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -185,38 +164,29 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 // status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
 // will be updated if possible.
 func (o *OktaService) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
-	var assignment types.OktaAssignment
-	err := o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		var err error
-		assignment, err = o.assignmentSvc.GetResource(ctx, name)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
+	var previousAssignment types.OktaAssignment
+	err := o.assignmentSvc.UpdateAndSwapResource(ctx, name, func(assignment types.OktaAssignment) error {
+		previousAssignment = assignment.Copy()
 		for _, action := range assignment.GetActions() {
 			if err := action.SetStatus(status); err != nil {
 				o.log.Warnf("Unable to transition status from %s -> %s", action.GetStatus(), status)
 			}
 		}
 
-		return o.assignmentSvc.UpdateResource(ctx, assignment)
+		return nil
 	})
-	return assignment, trace.Wrap(err)
+	return previousAssignment, trace.Wrap(err)
 
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) error {
-	return trace.Wrap(o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		return o.assignmentSvc.DeleteResource(ctx, name)
-	}))
+	return o.assignmentSvc.DeleteResource(ctx, name)
 }
 
 // DeleteAllOktaAssignments removes all Okta assignments.
 func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
-	return trace.Wrap(o.assignmentSvc.RunWhileLocked(ctx, oktaAssignmentModifyLock, oktaAssignmentModifyLockTTL, func(ctx context.Context, b backend.Backend) error {
-		return o.assignmentSvc.DeleteAllResources(ctx)
-	}))
+	return o.assignmentSvc.DeleteAllResources(ctx)
 }
 
 // actionsMatch returns true if two actions match minus the status and last transition.
