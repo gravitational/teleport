@@ -153,7 +153,7 @@ These new images will be published to the `teleport-prod` AWS account. This will
 partiall obviate the need to move the legacy images from the `gravitational`
 AWS account. 
 
-As per the existing AMI builds, AMIs wull be constructed as part of the tag build, and
+As per the existing AMI builds, AMIs will be constructed as part of the tag build, and
 made public on promotion.
 
 #### **Post-build validation using Amazon Inspector**
