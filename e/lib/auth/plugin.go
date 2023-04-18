@@ -16,7 +16,6 @@ import (
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	cloudapi "github.com/gravitational/teleport/e/api/cloud/v1"
-	v1 "github.com/gravitational/teleport/e/api/cloud/v1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	dtstorage "github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/e/lib/idp/saml"
@@ -287,7 +286,7 @@ func (p *Plugin) getLicenseCheckResult(w http.ResponseWriter, r *http.Request, p
 // getUpgradeWindowStartHour is passed to the oss auth server to let it pull the start
 // hour when trying to generate a 'MaintenanceWindow' resource.
 func (p *Plugin) getAccountUpgradeWindowStartHour(ctx context.Context) (int64, error) {
-	rsp, err := p.cloudClient.GetAccountUpgradeWindowStartHour(ctx, &v1.EmptyRequest{})
+	rsp, err := p.cloudClient.GetAccountUpgradeWindowStartHour(ctx, &cloudapi.EmptyRequest{})
 	if err != nil {
 		return 0, trace.Wrap(err)
 	}
