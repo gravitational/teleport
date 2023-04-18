@@ -1,6 +1,6 @@
 ---
 title: Role-Based Access Control for Desktop Access
-description: Role-based access control (RBAC) for Teleport Desktop Access
+description: Role-based access control (RBAC) for Teleport desktop access
 ---
 
 Teleport's RBAC allows administrators to set up granular access policies for
@@ -77,9 +77,9 @@ host_labels:
 
 ### Using LDAP
 
-Teleport Desktop Access can automatically discover Windows Desktops and register
-them with the Teleport Cluster by periodically querying an LDAP server. There
-are several ways that these desktops can be labeled:
+The Teleport Desktop Service can automatically discover Windows Desktops and
+register them with the Teleport Cluster by periodically querying an LDAP server.
+There are several ways that these desktops can be labeled:
 
 Teleport applies the following labels automatically to all desktops discovered
 via LDAP:
@@ -97,7 +97,7 @@ via LDAP:
 Additionally, users can configure
 [LDAP attributes](https://docs.microsoft.com/en-us/windows/win32/adschema/attributes-all)
 which will be converted into Teleport labels. For example, consider the
-following Desktop Access configuration:
+following Desktop Service configuration:
 
 ```yaml
 discovery:
