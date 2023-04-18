@@ -779,6 +779,8 @@ func onDatabaseConnect(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+ 
+
 	route, database, err := getDatabaseInfo(cf, tc, cf.DatabaseService)
 	if err != nil {
 		return trace.Wrap(err)
@@ -850,6 +852,10 @@ func getDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, dbName string) (*tl
 	if err != nil && !trace.IsNotFound(err) {
 		return nil, nil, trace.Wrap(err)
 	}
+  if dbName == "" {
+    return nil, nil, trace.NotFound(
+         "No database name given or detected. Provide a database name as an argument or use 'tsh db login [<flags>] <db>' prior to attempting to connect")
+   }
 	db, err := getDatabase(cf, tc, dbName)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
