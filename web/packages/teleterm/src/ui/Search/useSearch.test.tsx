@@ -15,24 +15,27 @@
  */
 
 import React from 'react';
-
 import { renderHook } from '@testing-library/react-hooks';
 
 import { ServerUri } from 'teleterm/ui/uri';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 import { SearchResult } from 'teleterm/ui/services/resources';
-
-import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
-
 import {
-  makeResourceResult,
   makeServer,
   makeKube,
   makeLabelsList,
-} from './searchResultTestHelpers';
+} from 'teleterm/services/tshd/testHelpers';
+
+import { MockAppContextProvider } from '../fixtures/MockAppContextProvider';
+
+import { makeResourceResult } from './testHelpers';
 import { rankResults, useFilterSearch, useResourceSearch } from './useSearch';
 
 import type * as tsh from 'teleterm/services/tshd/types';
+
+beforeEach(() => {
+  jest.restoreAllMocks();
+});
 
 describe('rankResults', () => {
   it('uses the displayed resource name as the tie breaker if the scores are equal', () => {
@@ -145,7 +148,7 @@ describe('useResourceSearch', () => {
     });
     jest
       .spyOn(appContext.resourcesService, 'searchResources')
-      .mockResolvedValue(servers);
+      .mockResolvedValue([{ status: 'fulfilled', value: servers }]);
 
     const { result } = renderHook(() => useResourceSearch(), {
       wrapper: ({ children }) => (

@@ -22,9 +22,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
@@ -193,10 +191,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		return trace.Wrap(err)
 	}
 
-	ctx, cancel := signal.NotifyContext(
-		context.Background(), syscall.SIGTERM, syscall.SIGINT,
-	)
-	defer cancel()
+	ctx := context.Background()
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	if err != nil {

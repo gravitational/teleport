@@ -385,12 +385,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              179
+              181
             </strong>
              of
              
             <strong>
-              179
+              181
             </strong>
           </div>
           <button
@@ -459,6 +459,78 @@ exports[`list of all events 1`] = `
         </tr>
       </thead>
       <tbody>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-database c13 c18"
+                font-size="3"
+              />
+              OpenSearch Request Failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alice@example.com] has attempted to run a [SEARCH] query in [opensearch-aws], request path: [/_count]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-03-11T11:08:29.954Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c17"
+            >
+              <span
+                class="c13 c18 icon icon-database c13 c18"
+                font-size="3"
+              />
+              OpenSearch Request
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [alice@example.com] has ran a [SEARCH] query in [opensearch-aws], request path: [/_count]
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-03-11T11:08:29.954Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c19"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
         <tr>
           <td
             style="vertical-align: inherit;"

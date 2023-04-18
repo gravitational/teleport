@@ -63,8 +63,8 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 		{startStatus: constants.OktaAssignmentActionStatusSuccessful, nextStatus: constants.OktaAssignmentActionStatusCleanupFailed, invalid: true},
 
 		// FAILED transitions
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusProcessing},
+		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusPending},
+		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusProcessing, invalid: true},
 		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusSuccessful, invalid: true},
 		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusFailed, invalid: true},
 		{startStatus: constants.OktaAssignmentActionStatusFailed, nextStatus: constants.OktaAssignmentActionStatusCleanupPending},

@@ -853,9 +853,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
     - [ ] Verify connection to external AWS account works with `assume_role_arn: ""` and `external_id: "<id>"`
@@ -883,9 +884,10 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Self-hosted Redis.
   - [ ] Self-hosted Redis Cluster.
   - [ ] Self-hosted MSSQL.
+  - [ ] Self-hosted MSSQL with PKINIT authentication.
   - [ ] AWS Aurora Postgres.
   - [ ] AWS Aurora MySQL.
-  - [ ] AWS RDS Proxy (MySQL, Postgres, or MariaDB)
+  - [ ] AWS RDS Proxy (MySQL, Postgres, MariaDB, or SQL Server)
   - [ ] AWS Redshift.
   - [ ] AWS Redshift Serverless.
   - [ ] AWS ElastiCache.
@@ -997,7 +999,6 @@ tsh bench web sessions --max=5000 --web user ls
     - [ ] Cassandra/ScyllaDB.
     - [ ] Oracle.
   - [ ] Verify connecting to a database through TLS ALPN SNI local proxy `tsh db proxy` with a GUI client.
-  - [ ] Verify tsh proxy db with teleport proxy behind ALB.
 - [ ] Application Access
   - [ ] Verify app access through proxy running in `multiplex` mode
 - [ ] SSH Access
@@ -1006,6 +1007,13 @@ tsh bench web sessions --max=5000 --web user ls
   - [ ] Verify `tsh ssh` access through proxy running in multiplex mode
 - [ ] Kubernetes access:
   - [ ] Verify kubernetes access through proxy running in `multiplex` mode
+- [ ] Teleport Proxy single port `multiplex` mode behind L7 load balancer
+  - [ ] Agent can join through Proxy and maintain reverse tunnel
+  - [ ] `tsh login` and `tctl`
+  - [ ] SSH Access: `tsh ssh` and `tsh config`
+  - [ ] Database Access: `tsh proxy db` and `tsh db connect`
+  - [ ] Application Access: `tsh proxy app` and `tsh aws`
+  - [ ] Kubernetes Access: `tsh proxy kube`
 
 ## Desktop Access
 

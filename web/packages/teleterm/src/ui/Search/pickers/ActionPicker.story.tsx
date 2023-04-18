@@ -17,18 +17,26 @@
 import React from 'react';
 import { makeSuccessAttempt } from 'shared/hooks/useAsync';
 
-import { routing } from 'teleterm/ui/uri';
+import { Flex } from 'design';
 
-import { SearchResult } from '../searchResult';
+import { routing } from 'teleterm/ui/uri';
 import {
   makeDatabase,
   makeKube,
-  makeResourceResult,
   makeServer,
   makeLabelsList,
-} from '../searchResultTestHelpers';
+} from 'teleterm/services/tshd/testHelpers';
+import { ResourceSearchError } from 'teleterm/ui/services/resources';
 
-import { ComponentMap, NoResultsItem, TypeToSearchItem } from './ActionPicker';
+import { SearchResult } from '../searchResult';
+import { makeResourceResult } from '../testHelpers';
+
+import {
+  ComponentMap,
+  NoResultsItem,
+  ResourceSearchErrorsItem,
+  TypeToSearchItem,
+} from './ActionPicker';
 import { ResultList } from './ResultList';
 
 import type * as uri from 'teleterm/ui/uri';
@@ -41,46 +49,52 @@ const clusterUri: uri.ClusterUri = '/clusters/teleport-local';
 const longClusterUri: uri.ClusterUri =
   '/clusters/teleport-very-long-cluster-name-with-uuid-2f96e498-88ec-442f-a25b-569fa915041c';
 
-export const Items = () => {
-  return (
-    <div
-      css={`
-        position: relative;
-        max-width: 600px;
-        display: flex;
-        flex-direction: column;
-        row-gap: 8px;
+export const Items = (props: { maxWidth: string }) => {
+  const { maxWidth = '600px' } = props;
 
-        > * {
-          max-height: unset;
-        }
-      `}
-    >
-      <List />
-    </div>
+  return (
+    <Flex gap={4}>
+      <div
+        css={`
+          max-width: ${maxWidth};
+          min-width: 0;
+          flex: 1;
+
+          display: flex;
+          flex-direction: column;
+
+          > * {
+            max-height: unset;
+          }
+        `}
+      >
+        <SearchResultItems />
+      </div>
+      <div
+        css={`
+          max-width: ${maxWidth};
+          min-width: 0;
+          flex: 1;
+
+          display: flex;
+          flex-direction: column;
+
+          > * {
+            max-height: unset;
+          }
+        `}
+      >
+        <AuxiliaryItems />
+      </div>
+    </Flex>
   );
 };
+
 export const ItemsNarrow = () => {
-  return (
-    <div
-      css={`
-        position: relative;
-        max-width: 300px;
-        display: flex;
-        flex-direction: column;
-        row-gap: 8px;
-
-        > * {
-          max-height: unset;
-        }
-      `}
-    >
-      <List />
-    </div>
-  );
+  return <Items maxWidth="300px" />;
 };
 
-const List = () => {
+const SearchResultItems = () => {
   const searchResults: SearchResult[] = [
     makeResourceResult({
       kind: 'server',
@@ -306,41 +320,85 @@ const List = () => {
   const attempt = makeSuccessAttempt(searchResults);
 
   return (
-    <>
-      <ResultList<SearchResult>
-        attempts={[attempt]}
-        onPick={() => {}}
-        onBack={() => {}}
-        render={searchResult => {
-          const Component = ComponentMap[searchResult.kind];
+    <ResultList<SearchResult>
+      attempts={[attempt]}
+      onPick={() => {}}
+      onBack={() => {}}
+      render={searchResult => {
+        const Component = ComponentMap[searchResult.kind];
 
-          return {
-            key:
-              searchResult.kind !== 'resource-type-filter'
-                ? searchResult.resource.uri
-                : searchResult.resource,
-            Component: (
-              <Component
-                searchResult={searchResult}
-                getClusterName={routing.parseClusterName}
-              />
-            ),
-          };
-        }}
-      />
-      <NoResultsItem
-        clusters={[
-          {
-            uri: clusterUri,
-            name: 'teleport-12-ent.asteroid.earth',
-            connected: false,
-            leaf: false,
-            proxyHost: 'test:3030',
-            authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
-          },
-        ]}
-      />
-      <TypeToSearchItem />
-    </>
+        return {
+          key:
+            searchResult.kind !== 'resource-type-filter'
+              ? searchResult.resource.uri
+              : searchResult.resource,
+          Component: (
+            <Component
+              searchResult={searchResult}
+              getOptionalClusterName={routing.parseClusterName}
+            />
+          ),
+        };
+      }}
+    />
   );
 };
+
+const AuxiliaryItems = () => (
+  <ResultList<string>
+    onPick={() => {}}
+    onBack={() => {}}
+    render={() => null}
+    attempts={[]}
+    ExtraTopComponent={
+      <>
+        <NoResultsItem
+          clusters={[
+            {
+              uri: clusterUri,
+              name: 'teleport-12-ent.asteroid.earth',
+              connected: false,
+              leaf: false,
+              proxyHost: 'test:3030',
+              authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+            },
+          ]}
+        />
+        <ResourceSearchErrorsItem
+          getClusterName={routing.parseClusterName}
+          onShowDetails={() => window.alert('Error details')}
+          errors={[
+            new ResourceSearchError(
+              '/clusters/foo',
+              'server',
+              new Error(
+                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+              )
+            ),
+          ]}
+        />
+        <ResourceSearchErrorsItem
+          getClusterName={routing.parseClusterName}
+          onShowDetails={() => window.alert('Error details')}
+          errors={[
+            new ResourceSearchError(
+              '/clusters/bar',
+              'database',
+              new Error(
+                '2 UNKNOWN: Unable to connect to ssh proxy at teleport.local:443. Confirm connectivity and availability.\n	dial tcp: lookup teleport.local: no such host'
+              )
+            ),
+            new ResourceSearchError(
+              '/clusters/foo',
+              'server',
+              new Error(
+                '14 UNAVAILABLE: connection error: desc = "transport: authentication handshake failed: EOF"'
+              )
+            ),
+          ]}
+        />
+        <TypeToSearchItem />
+      </>
+    }
+  />
+);

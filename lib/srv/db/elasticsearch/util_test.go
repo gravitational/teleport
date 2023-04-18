@@ -20,113 +20,9 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/types/events"
 )
 
-func Test_parsePath(t *testing.T) {
-	tests := []struct {
-		// name string
-		path         string
-		wantTarget   string
-		wantCategory events.ElasticsearchCategory
-	}{
-		{
-			path:         "",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
-		},
-		{
-			path:         "/",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
-		},
-		{
-			path:         "/bah",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
-		},
-		{
-			path:         "/foo/bar/baz",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_GENERAL,
-		},
-
-		{
-			path:         "/_security",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SECURITY,
-		},
-		{
-			path:         "/_security/foo",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SECURITY,
-		},
-
-		{
-			path:         "/_search",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
-		},
-		{
-			path:         "/_search/",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
-		},
-		{
-			path:         "/_search/asd",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
-		},
-		{
-			path:         "/blah/_search/asd",
-			wantTarget:   "blah",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
-		},
-
-		{
-			path:         "/_async_search/",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
-		},
-		{
-			path:         "/_async_search/asd",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
-		},
-		{
-			path:         "/blah/_async_search/asd",
-			wantTarget:   "blah",
-			wantCategory: events.ElasticsearchCategory_SEARCH,
-		},
-
-		{
-			path:         "/_sql/",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SQL,
-		},
-		{
-			path:         "/_sql",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SQL,
-		},
-		{
-			path:         "/_sql/asd",
-			wantTarget:   "",
-			wantCategory: events.ElasticsearchCategory_SQL,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.path, func(t *testing.T) {
-			target, category := parsePath(tt.path)
-			require.Equal(t, tt.wantTarget, target)
-			require.Equal(t, tt.wantCategory.String(), category.String())
-		})
-	}
-}
-
-func TestEngine_getQueryFromRequestBody(t *testing.T) {
+func TestEngineGetQueryFromRequestBody(t *testing.T) {
 	const jsonSearchAPIQuery = `{
   "query": {
     "bool" : {
@@ -235,7 +131,7 @@ func TestEngine_getQueryFromRequestBody(t *testing.T) {
 			e := &Engine{}
 			e.Log = logrus.StandardLogger()
 
-			result := e.getQueryFromRequestBody(tt.contentType, []byte(tt.body))
+			result := GetQueryFromRequestBody(e.EngineConfig, tt.contentType, []byte(tt.body))
 			t.Log(result)
 			require.Equal(t, tt.want, result)
 		})
