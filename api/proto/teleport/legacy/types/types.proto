@@ -1746,6 +1746,8 @@ message DeviceTrust {
   // device that is not already enrolled.
   // `tsh` takes advantage of auto-enroll to automatically enroll devices on
   // user login, when appropriate.
+  // The effective cluster Mode still applies: AutoEnroll=true is meaningless if
+  // Mode="off".
   bool AutoEnroll = 2 [(gogoproto.jsontag) = "auto_enroll,omitempty"];
 }
 
