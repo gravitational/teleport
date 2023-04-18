@@ -277,7 +277,7 @@ sequenceDiagram
     end
 
     rect rgb(250, 250, 250)
-        Note over release_engineer: Create Release
+        Note over release_engineer: Publishing Phase
         release_engineer->>github: Create Github Release
         github->>releasesvr: New Release vX.Y.Z (Actually polling from Release Server)
         Note over releasesvr: Copy registered artifacts<br/>from staging area to<br/>Production CDN
