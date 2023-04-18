@@ -73,7 +73,7 @@ session to start it. The policy applies to SSH and Kubernetes sessions only.
 
 This policy requires that at least one user with the `auditor` role is present
 as a moderator for SSH or Kubernetes sessions to start. That is applied for
-Servers and Kubernetes resources labeled `env: prod`. The session will pend starting
+Servers and Kubernetes resources labeled `env: prod`. The session will not start
 until the policy is fulfilled.
 
 ```yaml
@@ -120,7 +120,7 @@ The following are required options for `join_sessions`:
 |`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
 
 <Admonition type="note">
-Joining from the UI is available for Server for SSH sessions.  Kubernetes are only joinable by CLI currently.
+Joining from the UI is available for SSH sessions.  Kubernetes sessions can only be joined from the CLI.
 </Admonition>
 
 
