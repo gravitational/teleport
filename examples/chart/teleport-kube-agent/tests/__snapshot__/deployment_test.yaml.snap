@@ -27,6 +27,9 @@ sets Deployment annotations when specified if action is Upgrade:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
+            env:
+            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+              value: "true"
             image: public.ecr.aws/gravitational/teleport:12.2.3
             imagePullPolicy: IfNotPresent
             livenessProbe:
@@ -95,6 +98,9 @@ sets Deployment labels when specified if action is Upgrade:
         containers:
         - args:
           - --diag-addr=0.0.0.0:3000
+          env:
+          - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+            value: "true"
           image: public.ecr.aws/gravitational/teleport:12.2.3
           imagePullPolicy: IfNotPresent
           livenessProbe:
@@ -150,6 +156,9 @@ sets Pod annotations when specified if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -205,6 +214,9 @@ sets Pod labels when specified if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -277,6 +289,9 @@ should add emptyDir for data when existingDataVolume is not set if action is Upg
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -333,6 +348,9 @@ should add insecureSkipProxyTLSVerify to args when set in values if action is Up
     - args:
       - --diag-addr=0.0.0.0:3000
       - --insecure
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -388,6 +406,9 @@ should correctly configure existingDataVolume when set if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -441,6 +462,9 @@ should expose diag port if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -508,6 +532,9 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -575,6 +602,9 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -630,6 +660,9 @@ should have one replica when replicaCount is not set if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -685,6 +718,9 @@ should mount extraVolumes and extraVolumeMounts if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -746,10 +782,10 @@ should mount tls.existingCASecretName and set environment when set in values if 
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: true
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -812,12 +848,12 @@ should mount tls.existingCASecretName and set extra environment when set in valu
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: true
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -879,6 +915,9 @@ should provision initContainer correctly when set in values if action is Upgrade
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -970,6 +1009,9 @@ should set SecurityContext if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1045,6 +1087,9 @@ should set affinity when set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1100,6 +1145,9 @@ should set default serviceAccountName when not set in values if action is Upgrad
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1167,6 +1215,8 @@ should set environment when extraEnv set in values if action is Upgrade:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
       image: public.ecr.aws/gravitational/teleport:12.2.3
@@ -1224,6 +1274,9 @@ should set image and tag correctly if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:8.3.4
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1279,6 +1332,9 @@ should set imagePullPolicy when set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: Always
       livenessProbe:
@@ -1334,6 +1390,9 @@ should set nodeSelector if set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1391,6 +1450,9 @@ should set not set priorityClassName when not set in values if action is Upgrade
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1458,6 +1520,9 @@ should set preferred affinity when more than one replica is used if action is Up
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1513,6 +1578,9 @@ should set priorityClassName when set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1569,6 +1637,9 @@ should set probeTimeoutSeconds when set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1634,6 +1705,9 @@ should set required affinity when highAvailability.requireAntiAffinity is set if
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1689,6 +1763,9 @@ should set resources when set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1751,6 +1828,9 @@ should set serviceAccountName when set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -1806,6 +1886,9 @@ should set tolerations when set in values if action is Upgrade:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
+      env:
+      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+        value: "true"
       image: public.ecr.aws/gravitational/teleport:12.2.3
       imagePullPolicy: IfNotPresent
       livenessProbe:

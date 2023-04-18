@@ -18,7 +18,9 @@ package types
 
 import (
 	"fmt"
+	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -179,6 +181,10 @@ type OktaAssignment interface {
 	GetUser() string
 	// GetActions will return the list of actions that will be performed as part of this assignment.
 	GetActions() []OktaAssignmentAction
+	// GetCleanupTime will return the optional time that the assignment should be cleaned up.
+	GetCleanupTime() *time.Time
+	// Copy returns a copy of this Okta assignment resource.
+	Copy() OktaAssignment
 }
 
 // NewOktaAssignment creates a new Okta assignment object.
@@ -200,6 +206,7 @@ func (o *OktaAssignmentV1) GetUser() string {
 	return o.Spec.User
 }
 
+// GetActions returns the actions associated with the Okta assignment.
 func (o *OktaAssignmentV1) GetActions() []OktaAssignmentAction {
 	actions := make([]OktaAssignmentAction, len(o.Spec.Actions))
 
@@ -208,6 +215,16 @@ func (o *OktaAssignmentV1) GetActions() []OktaAssignmentAction {
 	}
 
 	return actions
+}
+
+// GetCleanupTime will return the optional time that the assignment should be cleaned up.
+func (o *OktaAssignmentV1) GetCleanupTime() *time.Time {
+	return o.Spec.CleanupTime
+}
+
+// Copy returns a copy of this Okta assignment resource.
+func (o *OktaAssignmentV1) Copy() OktaAssignment {
+	return proto.Clone(o).(*OktaAssignmentV1)
 }
 
 // String returns the Okta assignment rule string representation.
@@ -244,6 +261,15 @@ func (o *OktaAssignmentV1) CheckAndSetDefaults() error {
 		return trace.BadParameter("actions is empty")
 	}
 
+	if o.Spec.CleanupTime != nil {
+		utcTime := o.Spec.CleanupTime.UTC()
+		o.Spec.CleanupTime = &utcTime
+	}
+
+	for _, action := range o.Spec.Actions {
+		action.LastTransition = action.LastTransition.UTC()
+	}
+
 	return nil
 }
 
@@ -265,6 +291,10 @@ type OktaAssignmentAction interface {
 	GetTargetType() string
 	// GetID returns the ID of the action target.
 	GetID() string
+	// SetLastTransition sets the last transition time.
+	SetLastTransition(time time.Time)
+	// GetLastTransition returns the optional time that the action last transitioned.
+	GetLastTransition() time.Time
 }
 
 // GetStatus returns the current status of the action.
@@ -399,6 +429,16 @@ func (o *OktaAssignmentActionV1) GetTargetType() string {
 // GetID returns the ID of the action target.
 func (o *OktaAssignmentActionV1) GetID() string {
 	return o.Target.Id
+}
+
+// SetLastTransition sets the last transition time.
+func (o *OktaAssignmentActionV1) SetLastTransition(time time.Time) {
+	o.LastTransition = time.UTC()
+}
+
+// GetLastTransition returns the optional time that the action last transitioned.
+func (o *OktaAssignmentActionV1) GetLastTransition() time.Time {
+	return o.LastTransition
 }
 
 // OktaAssignments is a list of OktaAssignment resources.
