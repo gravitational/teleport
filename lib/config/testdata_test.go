@@ -49,6 +49,7 @@ teleport:
   cache:
     enabled: yes
     ttl: 20h
+    max_backoff: 12m
 
 auth_service:
   enabled: yes
