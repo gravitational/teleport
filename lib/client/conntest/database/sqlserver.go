@@ -43,7 +43,7 @@ func (p *SQLServerPinger) Ping(ctx context.Context, params PingParams) error {
 	u := &url.URL{
 		Scheme:   "sqlserver",
 		User:     url.User(params.Username),
-		Host:     fmt.Sprintf("%s:%d", params.Host, params.Port),
+		Host:     net.JoinHostPort(params.Host, params.Port),
 		RawQuery: query.Encode(),
 	}
 
