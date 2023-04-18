@@ -17,8 +17,9 @@ package database
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"net"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -43,7 +44,7 @@ func (p *SQLServerPinger) Ping(ctx context.Context, params PingParams) error {
 	u := &url.URL{
 		Scheme:   "sqlserver",
 		User:     url.User(params.Username),
-		Host:     net.JoinHostPort(params.Host, params.Port),
+		Host:     net.JoinHostPort(params.Host, strconv.Itoa(params.Port)),
 		RawQuery: query.Encode(),
 	}
 
@@ -51,6 +52,7 @@ func (p *SQLServerPinger) Ping(ctx context.Context, params PingParams) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer db.Close()
 
 	err = db.PingContext(ctx)
 	if err != nil {
