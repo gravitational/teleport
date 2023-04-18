@@ -25,7 +25,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
 
@@ -381,6 +384,23 @@ func TestAuthenticationSection(t *testing.T) {
 					Mode: "required",
 				},
 			},
+		}, {
+			desc: "Device Trust with auto-enroll",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "yes",
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				DeviceTrust: &DeviceTrust{
+					Mode:       "required",
+					AutoEnroll: "yes",
+				},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -611,6 +631,71 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication.RequireMFAType, tt.expectRequireMFAType))
+		})
+	}
+}
+
+func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
+	// Device trust mode=required is an Enterprise feature.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	tests := []struct {
+		name       string
+		configYAML []byte
+		wantErr    bool
+		wantPB     *types.DeviceTrust
+	}{
+		{
+			name: "ok",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "yes",
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				Mode:       "required",
+				AutoEnroll: true,
+			},
+		},
+		{
+			name: "auto-enroll invalid",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "NOT A BOOLEAN", // invalid
+					},
+				}
+			}),
+			wantErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := ReadConfig(bytes.NewBuffer(test.configYAML))
+			require.NoError(t, err, "ReadConfig failed")
+
+			cap, err := cfg.Auth.Authentication.Parse()
+			if test.wantErr {
+				assert.Error(t, err, "ReadConfig error mismatch")
+				assert.True(t, trace.IsBadParameter(err), "ReadConfig returned non-BadParameter error: %v (%T)", err, err)
+				return
+			}
+			require.NoError(t, err, "Parse failed")
+
+			got := cap.GetDeviceTrust()
+			if diff := cmp.Diff(test.wantPB, got, protocmp.Transform()); diff != "" {
+				t.Errorf("Parse mismatch (-want +got)\n%s", diff)
+			}
 		})
 	}
 }
