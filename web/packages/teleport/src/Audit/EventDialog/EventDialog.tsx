@@ -68,7 +68,6 @@ const dialogCss = () => `
   min-height: 100px;
   max-height: 80%;
   height: 100%;
-  
   min-width: 100px;
   max-width: 80%;
   width: 100%;
