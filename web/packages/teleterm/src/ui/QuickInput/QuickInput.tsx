@@ -221,7 +221,7 @@ const Input = styled.input(props => {
       borderColor: theme.colors.light,
     },
     '&:focus': {
-      borderColor: theme.colors.brand.main,
+      borderColor: theme.colors.brand,
       backgroundColor: theme.colors.levels.sunken,
       '::placeholder': {
         color: theme.colors.text.placeholder,

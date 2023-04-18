@@ -38,6 +38,7 @@ import (
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -82,6 +83,7 @@ type TestConfig struct {
 	ResourceMatchers []services.ResourceMatcher
 	OnReconcile      func(types.KubeClusters)
 	OnEvent          func(apievents.AuditEvent)
+	ClusterFeatures  func() proto.Features
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -173,6 +175,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	// heartbeatsWaitChannel waits for clusters heartbeats to start.
 	heartbeatsWaitChannel := make(chan struct{}, len(cfg.Clusters)+1)
 	client := newAuthClientWithStreamer(testCtx)
+
+	features := func() proto.Features { return proto.Features{Kubernetes: true} }
+	if cfg.ClusterFeatures != nil {
+		features = cfg.ClusterFeatures
+	}
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -202,7 +209,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			CheckImpersonationPermissions: func(ctx context.Context, clusterName string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {
 				return nil
 			},
-			Clock: clockwork.NewRealClock(),
+			Clock:           clockwork.NewRealClock(),
+			ClusterFeatures: features,
 		},
 		DynamicLabels: nil,
 		TLS:           tlsConfig,

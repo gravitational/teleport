@@ -42,6 +42,8 @@ export enum CaptureEvent {
 export enum DiscoverEvent {
   Started = 'tp.ui.discover.started',
   ResourceSelection = 'tp.ui.discover.resourceSelection',
+  IntegrationAWSOIDCConnectEvent = 'tp.ui.discover.integration.awsoidc.connect',
+  DatabaseRDSEnrollEvent = 'tp.ui.discover.database.enroll.rds',
   DeployService = 'tp.ui.discover.deployService',
   DatabaseRegister = 'tp.ui.discover.database.register',
   DatabaseConfigureMTLS = 'tp.ui.discover.database.configure.mtls',
@@ -129,10 +131,17 @@ export type DiscoverEventRequest = Omit<UserEvent, 'event'> & {
 export type DiscoverEventData = DiscoverEventStepStatus & {
   id: string;
   resource: DiscoverEventResource;
-  // AutoDiscoverResourcesCount is the number of
+  // autoDiscoverResourcesCount is the number of
   // auto-discovered resources in the Auto Discovering resources screen.
   // This value is only considered for the 'tp.ui.discover.autoDiscoveredResources'.
   autoDiscoverResourcesCount?: number;
+  // selectedResourcesCount is the number of
+  // resources that a user has selected
+  //
+  // eg: number of RDS databases selected
+  // in the RDS enrollment screen for event
+  // tp.ui.discover.database.enroll.rds
+  selectedResourcesCount?: number;
 };
 
 export type DiscoverEventStepStatus = {

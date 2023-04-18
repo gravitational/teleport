@@ -7943,6 +7943,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			},
 			ConnTLSConfig: tlsConfig,
 			Clock:         clockwork.NewRealClock(),
+			ClusterFeatures: func() clientproto.Features {
+				return clientproto.Features{
+					Kubernetes: true,
+				}
+			},
 		},
 		TLS:           tlsConfig,
 		AccessPoint:   client,

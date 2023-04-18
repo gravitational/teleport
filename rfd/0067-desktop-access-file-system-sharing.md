@@ -1,6 +1,6 @@
 ---
 authors: Isaiah Becker-Mayer (isaiah@goteleport.com)
-state: implementation in progress
+state: implemented (v10.2.0)
 ---
 
 ## Required Approvers

@@ -720,6 +720,28 @@ steps:
     CSC_LINK:
       from_secret: WINDOWS_SIGNING_CERT
     WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
+- name: Build Windows Authentication Package
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - cd "$TeleportSrc\e\windowsauth"
+  - make VERSION=v$TeleportVersion  all
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
+  - rm -r windows-signing-cert.pfx
+  environment:
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/push-build-native-windows-amd64
 - name: Clean up workspace (post)
   commands:
   - $ErrorActionPreference = 'Continue'
@@ -963,6 +985,28 @@ steps:
   - Install-Go -GoVersion $GoVersion -ToolchainDir "$Workspace/toolchains"
   environment:
     WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
+- name: Build Windows Authentication Package
+  commands:
+  - $ErrorActionPreference = 'Stop'
+  - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
+  - $Env:GOCACHE = "$Workspace/gocache"
+  - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
+  - . "$TeleportSrc/build.assets/windows/build.ps1"
+  - Enable-Go -ToolchainDir "$Workspace/toolchains"
+  - cd $TeleportSrc
+  - $TeleportVersion=$(make print-version).Trim()
+  - cd "$TeleportSrc\e\windowsauth"
+  - make VERSION=v$TeleportVersion  all
+  - ([System.Convert]::FromBase64String($ENV:WINDOWS_SIGNING_CERT)) | Set-Content
+    windows-signing-cert.pfx -Encoding Byte
+  - '& ''C:\Program Files (x86)\Windows Kits\10\App Certification Kit\signtool.exe''
+    sign /f windows-signing-cert.pfx /d Teleport /t http://timestamp.digicert.com
+    /du https://goteleport.com /fd sha256 build/teleport-windows-auth-setup-v$TeleportVersion-amd64.exe'
+  - rm -r windows-signing-cert.pfx
+  environment:
+    WINDOWS_SIGNING_CERT:
+      from_secret: WINDOWS_SIGNING_CERT
+    WORKSPACE_DIR: C:/Drone/Workspace/build-native-windows-amd64
 - name: Build tsh
   commands:
   - $ErrorActionPreference = 'Stop'
@@ -1042,6 +1086,8 @@ steps:
   - Get-ChildItem "$TeleportSrc/web/packages/teleterm/build/release
   - Copy-Item -Path "$TeleportSrc/web/packages/teleterm/build/release/Teleport Connect
     Setup*.exe" -Destination $OutputsDir
+  - Copy-Item -Path "$TeleportSrc/e/windowsauth/build/teleport-windows-auth-setup-*.exe"
+    -Destination $OutputsDir
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Format-FileHashes -PathGlob "$OutputsDir/*.exe"
   - Copy-Artifacts -ProfileLocation $AwsSharedCredentialsFile -Path $OutputsDir -Bucket
@@ -1058,8 +1104,8 @@ steps:
   - $Workspace = "$Env:WORKSPACE_DIR/$Env:DRONE_BUILD_NUMBER"
   - $TeleportSrc = "$Workspace/go/src/github.com/gravitational/teleport"
   - $OutputsDir = "$Workspace/outputs"
-  - $relcliUrl = 'https://cdn.teleport.dev/relcli-v1.1.76-windows.exe'
-  - $relcliSha256 = '56dfdd9d1a09aac892fcd48eba035072dc6c151eaa2e1b21cf54786bb3c09520'
+  - $relcliUrl = 'https://cdn.teleport.dev/relcli-master-e148541-20230331T1403513-windows.exe'
+  - $relcliSha256 = '6e2ba2275d5d2bdd1c29def84d2de7d11149a9044c4fdca7c8d87c8e3fb8a91c'
   - . "$TeleportSrc/build.assets/windows/build.ps1"
   - Get-Relcli -Url $relcliUrl -Sha256 $relcliSha256 -Workspace $Workspace
   - Register-Artifacts -Workspace $Workspace -Outputs $OutputsDir
@@ -6504,42 +6550,12 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: migrate-apt-new-repos
-trigger:
-  event:
-    include:
-    - custom
-  repo:
-    include:
-    - non-existent-repository
-  branch:
-    include:
-    - non-existent-branch
-clone:
-  disable: true
-steps:
-- name: Placeholder
-  image: alpine:latest
-  commands:
-  - echo "This command, step, and pipeline never runs"
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: publish-apt-new-repos
+name: publish-normal-apt-new-repos
 trigger:
   event:
     include:
@@ -6549,21 +6565,14 @@ trigger:
     - production
   repo:
     include:
-    - gravitational/teleport
-    - gravitational/teleport-private
+    - gravitational/*
 workspace:
   path: /go
 clone:
   disable: true
 steps:
-- name: Verify build is tagged
-  image: alpine:latest
-  pull: if-not-exists
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
 - name: Check out code
-  image: alpine/git:latest
+  image: docker:git
   pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
@@ -6571,176 +6580,37 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-- name: Assume Download AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
-  image: amazon/aws-cli
-  commands:
-  - mkdir -pv "$ARTIFACT_PATH"
-  - rm -rf "$ARTIFACT_PATH"/*
-  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="$${ENT_FILTER}*.deb*"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
-    "$ARTIFACT_PATH"
-  environment:
-    ARTIFACT_PATH: /go/artifacts
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume Download AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Assume Upload AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: APT_REPO_NEW_AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: APT_REPO_NEW_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: APT_REPO_NEW_AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Download artifacts for "${DRONE_TAG}"
-  - Verify build is tagged
-  - Check out code
-- name: Check if tag is prerelease
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
   image: golang:1.18-alpine
   commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Assume Upload AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Publish debs to APT repos for "${DRONE_TAG}"
-  image: golang:1.18-bullseye
-  commands:
-  - apt update
-  - apt install -y aptly
-  - mkdir -pv -m0700 "$GNUPGHOME"
-  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root "$GNUPGHOME"
   - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
-  - export RELEASE_CHANNEL="stable"
-  - go run ./cmd/build-os-package-repos apt -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
-    -artifact-path "$ARTIFACT_PATH" -log-level 4 -aptly-root-dir "$APTLY_ROOT_DIR"
-  environment:
-    APTLY_ROOT_DIR: /mnt/aptly
-    ARTIFACT_PATH: /go/artifacts
-    AWS_REGION: us-west-2
-    BUCKET_CACHE_PATH: /tmp/bucket
-    DEBIAN_FRONTEND: noninteractive
-    GNUPGHOME: /tmpfs/gnupg
-    GPG_RPM_SIGNING_ARCHIVE:
-      from_secret: GPG_RPM_SIGNING_ARCHIVE
-    REPO_S3_BUCKET:
-      from_secret: APT_REPO_NEW_AWS_S3_BUCKET
-  volumes:
-  - name: apt-persistence
-    path: /mnt
-  - name: tmpfs
-    path: /tmpfs
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Check if tag is prerelease
-  - Verify build is tagged
-  - Check out code
-volumes:
-- name: apt-persistence
-  claim:
-    name: drone-s3-aptrepo-pvc
-- name: tmpfs
-  temp:
-    medium: memory
-- name: awsconfig
-  temp: {}
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.buildNeverTriggerPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: migrate-yum-new-repos
-trigger:
-  event:
-    include:
-    - custom
-  repo:
-    include:
-    - non-existent-repository
-  branch:
-    include:
-    - non-existent-branch
-clone:
-  disable: true
-steps:
-- name: Placeholder
-  image: alpine:latest
+  - mkdir -pv "/go/vars"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
   commands:
-  - echo "This command, step, and pipeline never runs"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
+    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
+    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=apt"
+    -input "version-channel=${DRONE_TAG}" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -6748,12 +6618,12 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/os_repos.go (main.(*OsPackageToolPipelineBuilder).buildBaseOsPackagePipeline)
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: publish-yum-new-repos
+name: publish-normal-yum-new-repos
 trigger:
   event:
     include:
@@ -6763,21 +6633,14 @@ trigger:
     - production
   repo:
     include:
-    - gravitational/teleport
-    - gravitational/teleport-private
+    - gravitational/*
 workspace:
   path: /go
 clone:
   disable: true
 steps:
-- name: Verify build is tagged
-  image: alpine:latest
-  pull: if-not-exists
-  commands:
-  - '[ -n ${DRONE_TAG} ] || (echo ''DRONE_TAG is not set. Is the commit tagged?''
-    && exit 1)'
 - name: Check out code
-  image: alpine/git:latest
+  image: docker:git
   pull: if-not-exists
   commands:
   - mkdir -pv "/go/src/github.com/gravitational/teleport"
@@ -6785,147 +6648,171 @@ steps:
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-- name: Assume Download AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
   environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Verify build is tagged
-  - Check out code
-- name: Download artifacts for "${DRONE_TAG}"
-  image: amazon/aws-cli
-  commands:
-  - mkdir -pv "$ARTIFACT_PATH"
-  - rm -rf "$ARTIFACT_PATH"/*
-  - if [ "${DRONE_REPO_PRIVATE}" = true ]; then ENT_FILTER="*ent"; fi
-  - FILTER="$${ENT_FILTER}*.rpm*"
-  - aws s3 sync --no-progress --delete --exclude "*" --include "$FILTER" s3://$AWS_S3_BUCKET/teleport/tag/${DRONE_TAG##v}/
-    "$ARTIFACT_PATH"
-  environment:
-    ARTIFACT_PATH: /go/artifacts
-    AWS_S3_BUCKET:
-      from_secret: AWS_S3_BUCKET
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Assume Download AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Assume Upload AWS Role
-  image: amazon/aws-cli
-  pull: if-not-exists
-  commands:
-  - aws sts get-caller-identity
-  - |-
-    printf "[default]\naws_access_key_id = %s\naws_secret_access_key = %s\naws_session_token = %s\n" \
-      $(aws sts assume-role \
-        --role-arn "$AWS_ROLE" \
-        --role-session-name $(echo "drone-${DRONE_REPO}-${DRONE_BUILD_NUMBER}" | sed "s|/|-|g") \
-        --query "Credentials.[AccessKeyId,SecretAccessKey,SessionToken]" \
-        --output text) \
-      > /root/.aws/credentials
-  - unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  - aws sts get-caller-identity --profile default
-  environment:
-    AWS_ACCESS_KEY_ID:
-      from_secret: YUM_REPO_NEW_AWS_ACCESS_KEY_ID
-    AWS_ROLE:
-      from_secret: YUM_REPO_NEW_AWS_ROLE
-    AWS_SECRET_ACCESS_KEY:
-      from_secret: YUM_REPO_NEW_AWS_SECRET_ACCESS_KEY
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Download artifacts for "${DRONE_TAG}"
-  - Verify build is tagged
-  - Check out code
-- name: Check if tag is prerelease
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
   image: golang:1.18-alpine
   commands:
-  - apk add git
-  - mkdir -pv "/tmp/repo"
-  - cd "/tmp/repo"
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - mkdir -pv "/go/vars"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
+    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
+    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=yum"
+    -input "version-channel=${DRONE_TAG}" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-teleport-ent-updater-apt-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
   - git init
   - git remote add origin ${DRONE_REMOTE_URL}
   - git fetch origin --tags
-  - git checkout -qf "${DRONE_TAG}"
-  - cd "/tmp/repo/build.assets/tooling"
-  - go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is
-    a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)
-  depends_on:
-  - Assume Upload AWS Role
-  - Verify build is tagged
-  - Check out code
-- name: Publish rpms to YUM repos for "${DRONE_TAG}"
-  image: golang:1.18-bullseye
-  commands:
-  - apt update
-  - apt install -y createrepo-c
-  - mkdir -pv "$CACHE_DIR"
-  - mkdir -pv -m0700 "$GNUPGHOME"
-  - echo "$GPG_RPM_SIGNING_ARCHIVE" | base64 -d | tar -xzf - -C $GNUPGHOME
-  - chown -R root:root "$GNUPGHOME"
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - export VERSION="${DRONE_TAG}"
-  - export RELEASE_CHANNEL="stable"
-  - go run ./cmd/build-os-package-repos yum -bucket "$REPO_S3_BUCKET" -local-bucket-path
-    "$BUCKET_CACHE_PATH" -version-channel "$VERSION" -release-channel "$RELEASE_CHANNEL"
-    -artifact-path "$ARTIFACT_PATH" -log-level 4 -cache-dir "$CACHE_DIR"
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
   environment:
-    ARTIFACT_PATH: /go/artifacts
-    AWS_REGION: us-west-2
-    BUCKET_CACHE_PATH: /mnt/bucket
-    CACHE_DIR: /mnt/createrepo_cache
-    DEBIAN_FRONTEND: noninteractive
-    GNUPGHOME: /tmpfs/gnupg
-    GPG_RPM_SIGNING_ARCHIVE:
-      from_secret: GPG_RPM_SIGNING_ARCHIVE
-    REPO_S3_BUCKET:
-      from_secret: YUM_REPO_NEW_AWS_S3_BUCKET
-  volumes:
-  - name: yum-persistence
-    path: /mnt
-  - name: tmpfs
-    path: /tmpfs
-  - name: awsconfig
-    path: /root/.aws
-  depends_on:
-  - Check if tag is prerelease
-  - Verify build is tagged
-  - Check out code
-volumes:
-- name: yum-persistence
-  claim:
-    name: drone-s3-yumrepo-pvc
-- name: tmpfs
-  temp:
-    medium: memory
-- name: awsconfig
-  temp: {}
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - mkdir -pv "/go/vars"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
+    -input "package-name-filter=teleport-ent-updater*" -input "release-channel=stable"
+    -input "repo-type=apt" -input "version-channel=cloud" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+image_pull_secrets:
+- DOCKERHUB_CREDENTIALS
+
+---
+################################################
+# Generated using dronegen, do not edit by hand!
+# Use 'make dronegen' to update.
+# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+################################################
+
+kind: pipeline
+type: kubernetes
+name: publish-teleport-ent-updater-yum-new-repos
+trigger:
+  event:
+    include:
+    - promote
+  target:
+    include:
+    - production
+  repo:
+    include:
+    - gravitational/*
+workspace:
+  path: /go
+clone:
+  disable: true
+steps:
+- name: Check out code
+  image: docker:git
+  pull: if-not-exists
+  commands:
+  - mkdir -pv "/go/src/github.com/gravitational/teleport"
+  - cd "/go/src/github.com/gravitational/teleport"
+  - git init
+  - git remote add origin ${DRONE_REMOTE_URL}
+  - git fetch origin --tags
+  - git checkout -qf "${DRONE_COMMIT_SHA}"
+  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
+    chmod 600 /root/.ssh/id_rsa
+  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
+  - git submodule update --init e
+  - mkdir -pv /go/cache
+  - rm -f /root/.ssh/id_rsa
+  environment:
+    GITHUB_PRIVATE_KEY:
+      from_secret: GITHUB_PRIVATE_KEY
+- name: Determine if release should go to development or production
+  image: golang:1.18-alpine
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - mkdir -pv "/go/vars"
+  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
+    "build") > "/go/vars/release-environment.txt"
+- name: Delegate build to GitHub
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
+    -input "package-name-filter=teleport-ent-updater*" -input "release-channel=stable"
+    -input "repo-type=yum" -input "version-channel=cloud" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -20230,8 +20117,10 @@ clone:
 depends_on:
 - promote-build
 - teleport-container-images-branch-promote
-- publish-apt-new-repos
-- publish-yum-new-repos
+- publish-normal-apt-new-repos
+- publish-normal-yum-new-repos
+- publish-teleport-ent-updater-apt-new-repos
+- publish-teleport-ent-updater-yum-new-repos
 - promote-teleport-oci-distroless-images
 - promote-teleport-kube-agent-updater-oci-images
 steps:
@@ -20343,6 +20232,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 2b0baa890b89809154cbdae3134c92f8ad3d221bf4b205c6ce858eed78e536ab
+hmac: 88c1a612809e190c5b9ebfe10e6df274532105a408af9d6583823a530598fddd
 
 ...

@@ -24,6 +24,8 @@ export const StyledTable = styled(Table)`
     vertical-align: middle;
     padding: 8px;
   }
+  border-radius: 8px;
+  overflow: hidden;
 ` as typeof Table;
 
 export const StyledSpinner = styled(Spinner)`

@@ -25,7 +25,6 @@ import Button, {
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
-import ButtonOutlined from './ButtonOutlined';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
 import DocumentTitle from './DocumentTitle';
@@ -56,7 +55,6 @@ export {
   ButtonIcon,
   ButtonLink,
   ButtonBorder,
-  ButtonOutlined,
   ButtonPrimary,
   ButtonSecondary,
   ButtonWarning,

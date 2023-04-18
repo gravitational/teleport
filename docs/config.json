@@ -357,6 +357,11 @@
               "title": "Login Rules Reference",
               "slug": "/access-controls/login-rules/reference/",
               "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "Terraform",
+              "slug": "/access-controls/login-rules/terraform/",
+              "forScopes": ["enterprise", "cloud"]
             }
           ]
         },
@@ -574,6 +579,11 @@
             {
               "title": "Joining Nodes via Azure",
               "slug": "/management/guides/joining-nodes-azure/"
+            },
+            {
+              "title": "Joining Services via Kubernetes ServiceAccount",
+              "slug": "/management/guides/joining-services-kubernetes-serviceaccount/",
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Using Teleport's CA with GitHub",
