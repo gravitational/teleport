@@ -149,6 +149,7 @@ func (o *OktaService) UpdateOktaAssignment(ctx context.Context, assignment types
 			if err := currentAction.SetStatus(action.GetStatus()); err != nil {
 				return trace.Wrap(err)
 			}
+			currentAction.SetLastTransition(action.GetLastTransition())
 		}
 
 		return nil
