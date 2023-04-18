@@ -248,17 +248,3 @@ func (s *TLSServer) deleteKubernetesServer(ctx context.Context, name string) err
 	}
 	return nil
 }
-
-// startKubeServerResourceWatcher starts watching changes to Kube servers resources.
-func (s *TLSServer) startKubeServerResourceWatcher(ctx context.Context) (*services.KubeServerWatcher, error) {
-	s.log.Debug("Initializing Kube Server resource watcher.")
-	watcher, err := services.NewKubeServerWatcher(ctx, services.KubeServerWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: s.Component,
-			Log:       s.log,
-			Client:    s.AccessPoint,
-			Clock:     s.Clock,
-		},
-	})
-	return watcher, trace.Wrap(err)
-}

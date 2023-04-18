@@ -1259,7 +1259,7 @@ type kubeServerCollector struct {
 	// refreshed.
 	stale atomic.Bool
 	// cache is a helper for temporarily storing the results of GetKubernetesServers.
-	// It's used to limit the ammount of calls to the backend.
+	// It's used to limit the amount of calls to the backend.
 	cache *utils.FnCache
 }
 

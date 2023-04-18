@@ -89,6 +89,13 @@ type TLSServerConfig struct {
 	CloudLabels labels.Importer
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
+	// KubernetesServersWatcher is used by the kube proxy to watch for changes in the
+	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
+	// which holds the list of kubernetes_services connected to the proxy for a given
+	// kubernetes cluster name. Proxy uses this map to route requests to the correct
+	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
+	// unmarshal calls followed by filtering and to improve memory usage.
+	KubernetesServersWatcher *services.KubeServerWatcher
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -115,6 +122,13 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 
 	if err := c.validateLabelKeys(); err != nil {
 		return trace.Wrap(err)
+	}
+
+	switch c.KubeServiceType {
+	case ProxyService, LegacyProxyService:
+		if c.KubernetesServersWatcher == nil {
+			return trace.BadParameter("missing parameter KubernetesServersWatcher")
+		}
 	}
 
 	if c.Log == nil {
@@ -165,14 +179,6 @@ type TLSServer struct {
 	// reconcileCh triggers reconciliation of proxied kube_clusters.
 	reconcileCh chan struct{}
 	log         *logrus.Entry
-
-	// kubeServerWatcher is used by the kube proxy to watch for changes in the
-	// kubernetes servers of a cluster. Proxy requires it to update the kubeServersMap
-	// which holds the list of kubernetes_services connected to the proxy for a given
-	// kubernetes cluster name. Proxy uses this map to route requests to the correct
-	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
-	// unmarshal calls followed by filtering and to improve memory usage.
-	kubeServerWatcher *services.KubeServerWatcher
 }
 
 // NewTLSServer returns new unstarted TLS server
@@ -321,11 +327,11 @@ func (t *TLSServer) Serve(listener net.Listener) error {
 	// kubernetes cluster name. Proxy uses this map to route requests to the correct
 	// kubernetes_service. The servers are kept in memory to avoid making unnecessary
 	// unmarshal calls followed by filtering to improve memory usage.
-	if t.kubeServerWatcher != nil {
+	if t.KubernetesServersWatcher != nil {
 		// Wait for the watcher to initialize before starting the server so that the
 		// proxy can start routing requests to the kubernetes_service instead of
 		// returning an error because the cache is not initialized.
-		if err := t.kubeServerWatcher.WaitInitialization(); err != nil {
+		if err := t.KubernetesServersWatcher.WaitInitialization(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -366,8 +372,8 @@ func (t *TLSServer) close(ctx context.Context) error {
 	}
 
 	// Stop the kube_server resource watcher.
-	if t.kubeServerWatcher != nil {
-		t.kubeServerWatcher.Close()
+	if t.KubernetesServersWatcher != nil {
+		t.KubernetesServersWatcher.Close()
 	}
 
 	t.mu.Lock()
@@ -596,31 +602,18 @@ func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNa
 			return []types.KubeServer{srv}, nil
 		}, nil
 	case ProxyService:
-		// If not a kube_service, we need to watch the kube_server objects.
-		var err error
-		// Start watching the kube_server objects.
-		t.kubeServerWatcher, err = t.startKubeServerResourceWatcher(t.fwd.ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
-			servers, err := t.kubeServerWatcher.GetKubeServersByClusterName(ctx, name)
+			servers, err := t.KubernetesServersWatcher.GetKubeServersByClusterName(ctx, name)
 			return servers, trace.Wrap(err)
 		}, nil
 	case LegacyProxyService:
-		// If this is a legacy kube proxy, then we need to return the local kube servers if
-		// the local server is proxying the target cluster, otherwise act like a proxy_service.
-		// and forward the request to the next proxy.
-		var err error
-		// Start watching the kube_server objects.
-		t.kubeServerWatcher, err = t.startKubeServerResourceWatcher(t.fwd.ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			// If this is a legacy kube proxy, then we need to return the local kube servers if
+			// the local server is proxying the target cluster, otherwise act like a proxy_service.
+			// and forward the request to the next proxy.
 			kube, err := t.getKubeClusterWithServiceLabels(name)
 			if err != nil {
-				servers, err := t.kubeServerWatcher.GetKubeServersByClusterName(ctx, name)
+				servers, err := t.KubernetesServersWatcher.GetKubeServersByClusterName(ctx, name)
 				return servers, trace.Wrap(err)
 			}
 			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
