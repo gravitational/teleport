@@ -18,6 +18,7 @@ package opsgenie
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -58,13 +59,18 @@ func TestCreateAlert(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	expected := `{"message":"Access request from someUser",` +
-		`"alias":"teleport-access-request/someRequestID",` +
-		`"description":"someUser requested permissions for roles role1, role2 on Teleport at 01 Jan 01 00:00 UTC.\n` +
-		`Reason: someReason\n\n",` +
-		`"responders":[{"type":"schedule","id":"responder@teleport.com"}],` +
-		`"priority":"somePriority"}`
-	assert.Equal(t, expected, recievedReq)
+	expected := AlertBody{
+		Message:     "Access request from someUser",
+		Alias:       "teleport-access-request/someRequestID",
+		Description: "someUser requested permissions for roles role1, role2 on Teleport at 01 Jan 01 00:00 UTC.\nReason: someReason\n\n",
+		Responders:  []Responder{{Type: "schedule", ID: "responder@teleport.com"}},
+		Priority:    "somePriority",
+	}
+	var got AlertBody
+	err = json.Unmarshal([]byte(recievedReq), &got)
+	assert.NoError(t, err)
+
+	assert.Equal(t, expected, got)
 }
 
 func TestPostReviewNote(t *testing.T) {
@@ -92,11 +98,14 @@ func TestPostReviewNote(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	expected := `{"user":"","source":"",` +
-		`"note":"someUser reviewed the request at 01 Jan 01 00:00 UTC.\n` +
-		`Resolution: APPROVED.\n` +
-		`Reason: someReason."}`
-	assert.Equal(t, expected, recievedReq)
+	expected := AlertNote{
+		Note: "someUser reviewed the request at 01 Jan 01 00:00 UTC.\nResolution: APPROVED.\nReason: someReason.",
+	}
+	var got AlertNote
+	err = json.Unmarshal([]byte(recievedReq), &got)
+	assert.NoError(t, err)
+
+	assert.Equal(t, expected, got)
 }
 
 func TestResolveAlert(t *testing.T) {
@@ -123,10 +132,15 @@ func TestResolveAlert(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	expected := `{"user":"","source":"",` +
-		`"note":"Access request has been approved\n` +
-		`Reason: someReason"}`
-	assert.Equal(t, expected, recievedReq)
+	expected := AlertNote{
+		Note: "Access request has been approved\nReason: someReason",
+	}
+	var got AlertNote
+	err = json.Unmarshal([]byte(recievedReq), &got)
+	assert.NoError(t, err)
+
+	assert.Equal(t, expected, got)
+
 }
 
 func TestCreateAlertError(t *testing.T) {
