@@ -28,6 +28,7 @@ const (
 // TeleportReportingServiceClient is a client for the prehog.v1alpha.TeleportReportingService
 // service.
 type TeleportReportingServiceClient interface {
+	// Deprecated: do not use.
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
 	SubmitEvents(context.Context, *connect_go.Request[v1alpha.SubmitEventsRequest]) (*connect_go.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
@@ -69,6 +70,8 @@ type teleportReportingServiceClient struct {
 }
 
 // SubmitEvent calls prehog.v1alpha.TeleportReportingService.SubmitEvent.
+//
+// Deprecated: do not use.
 func (c *teleportReportingServiceClient) SubmitEvent(ctx context.Context, req *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error) {
 	return c.submitEvent.CallUnary(ctx, req)
 }
@@ -86,6 +89,7 @@ func (c *teleportReportingServiceClient) HelloTeleport(ctx context.Context, req 
 // TeleportReportingServiceHandler is an implementation of the
 // prehog.v1alpha.TeleportReportingService service.
 type TeleportReportingServiceHandler interface {
+	// Deprecated: do not use.
 	SubmitEvent(context.Context, *connect_go.Request[v1alpha.SubmitEventRequest]) (*connect_go.Response[v1alpha.SubmitEventResponse], error)
 	SubmitEvents(context.Context, *connect_go.Request[v1alpha.SubmitEventsRequest]) (*connect_go.Response[v1alpha.SubmitEventsResponse], error)
 	HelloTeleport(context.Context, *connect_go.Request[v1alpha.HelloTeleportRequest]) (*connect_go.Response[v1alpha.HelloTeleportResponse], error)
