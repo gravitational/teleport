@@ -99,9 +99,11 @@ This name will be shown to Teleport users connecting to the Kubernetes cluster.
 |----------|---------------|-----------|
 | `object` | {}            | no        |
 
-The `teleport-cluster` chart deploys two sets of pods: auth and proxy.
-`auth` contains values specific for the auth pods. You can use it to
-set specific values for auth pods, taking precedence over chart-scoped values.
+The `teleport-cluster` chart deploys two sets of pods, one for the Auth Service
+and another for the Proxy Service.
+
+`auth` contains values specific for Auth Service pods. You can use it to set
+specific values for auth pods, taking precedence over chart-scoped values.
 
 For example, to override the [`postStart`](#postStart) value only for auth pods:
 ```yaml
@@ -148,8 +150,10 @@ auth:
 |----------|---------------|-----------|
 | `object` | {}            | no        |
 
-The `teleport-cluster` charts deploys two sets of pods: auth and proxy.
-`proxy` contains values specific to the proxy pods. You can use it to
+The `teleport-cluster` charts deploys two sets of pods: one for the Auth Service
+and another for the Proxy Service.
+
+`proxy` contains values specific to Proxy Service pods. You can use it to
 set specific values for proxy pods, taking precedence over chart-scoped values.
 
 For example, to override the [`postStart`](#postStart) value only for proxy pods:
@@ -352,8 +356,9 @@ For possible values, [see the Teleport Configuration Reference](../../reference/
 |--------|---------------|-----------|--------------------------------------|
 | `bool` | `false`       | no        | `proxy_service.postgres_listen_addr` |
 
-`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
-over a separate TLS listener to Teleport's web UI.
+`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL
+traffic for the Teleport Database Service over a separate TLS listener to
+Teleport's web UI.
 
 When `separatePostgresListener` is `false` (the default), PostgreSQL traffic will be directed to port 443 (the default Teleport web
 UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
@@ -384,7 +389,7 @@ These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is se
 |--------|---------------|-----------|-----------------------------------|
 | `bool` | `false`       | no        | `proxy_service.mongo_listen_addr` |
 
-`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
+`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for the Teleport Database Service
 over a separate TLS listener to Teleport's web UI.
 
 When `separateMongoListener` is `false` (the default), MongoDB traffic will be directed to port 443 (the default Teleport web
