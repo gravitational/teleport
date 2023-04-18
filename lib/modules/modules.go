@@ -104,6 +104,8 @@ type Modules interface {
 	EnableRecoveryCodes()
 	// EnablePlugins enables the hosted plugins runtime
 	EnablePlugins()
+	// SetCloudFeatures set features queried from Cloud
+	SetCloudFeatures(f Features)
 }
 
 const (
@@ -204,6 +206,11 @@ func (p *defaultModules) EnableRecoveryCodes() {
 // EnablePlugins enables hosted plugins runtime.
 // This is a noop since OSS teleport does not support hosted plugins
 func (p *defaultModules) EnablePlugins() {
+}
+
+// SetCloudFeatures sets features queried from Cloud.
+// This is a noop since OSS teleport does not support enterprise features
+func (p *defaultModules) SetCloudFeatures(f Features) {
 }
 
 var (
