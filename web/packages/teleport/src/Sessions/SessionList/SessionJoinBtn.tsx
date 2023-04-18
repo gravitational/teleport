@@ -49,7 +49,11 @@ export const SessionJoinBtn = ({
           as="a"
           href={cfg.getSshSessionRoute({ sid, clusterId }, participantMode)}
           target="_blank"
-          style={{ textTransform: 'capitalize' }}
+          css={`
+            text-transform: capitalize;
+            text-decoration: none;
+            color: ${props => props.theme.colors.text.secondary};
+          `}
         >
           {participantMode}
         </MenuItem>
@@ -88,7 +92,14 @@ function JoinMenu({ children }: { children: React.ReactNode }) {
         open={Boolean(anchorEl)}
         onClose={handleClose}
       >
-        <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
+        <Text
+          px="2"
+          fontSize="11px"
+          css={`
+            color: ${props => props.theme.colors.text.primary};
+            background: ${props => props.theme.colors.spotBackground[2]};
+          `}
+        >
           Join as...
         </Text>
         {children}

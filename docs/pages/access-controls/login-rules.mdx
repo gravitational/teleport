@@ -66,7 +66,7 @@ They do not apply to local Teleport users.
 Login Rules are evaluated once during each user login, after receiving the
 claims or assertions from your IdP, before mapping claims/assertions to Teleport
 roles, and before generating user certificates.
-If Login Rules modify and traits used for role mapping, the role mapping may be
+If Login Rules modify any traits used for role mapping, the role mapping will be
 affected.
 
 ### Can I define custom helper functions for the predicate language?

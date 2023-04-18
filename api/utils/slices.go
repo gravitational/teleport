@@ -47,7 +47,7 @@ func JoinStrings[T ~string](elems []T, sep string) T {
 
 // Deduplicate deduplicates list of comparable values.
 func Deduplicate[T comparable](in []T) []T {
-	if len(in) == 0 {
+	if len(in) <= 1 {
 		return in
 	}
 	out := make([]T, 0, len(in))
@@ -63,7 +63,7 @@ func Deduplicate[T comparable](in []T) []T {
 
 // DeduplicateAny deduplicates list of any values with compare function.
 func DeduplicateAny[T any](in []T, compare func(T, T) bool) []T {
-	if len(in) == 0 {
+	if len(in) <= 1 {
 		return in
 	}
 	out := make([]T, 0, len(in))

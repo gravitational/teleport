@@ -52,12 +52,18 @@ type OktaImportRules interface {
 	DeleteAllOktaImportRules(context.Context) error
 }
 
-// OktaAssignments defines an interface for managing OktaAssignments.
-type OktaAssignments interface {
+// OktaAssignmentsGetter defines an interface for reading OktaAssignments.
+type OktaAssignmentsGetter interface {
 	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
 	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
-	// GetOktaAssignmen treturns the specified Okta assignment resources.
+	// GetOktaAssignment returns the specified Okta assignment resources.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+}
+
+// OktaAssignments defines an interface for managing OktaAssignments.
+type OktaAssignments interface {
+	OktaAssignmentsGetter
+
 	// CreateOktaAssignment creates a new Okta assignment resource.
 	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.

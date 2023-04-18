@@ -4070,7 +4070,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// using Impersonation headers. The upstream service will validate if
 				// the provided connection certificate is from a proxy server and
 				// will impersonate the identity of the user that is making the request.
-				ConnTLSConfig: tlsConfig.Clone(),
+				ConnTLSConfig:   tlsConfig.Clone(),
+				ClusterFeatures: process.getClusterFeatures,
 			},
 			TLS:             tlsConfig.Clone(),
 			LimiterConfig:   cfg.Proxy.Limiter,
@@ -4133,14 +4134,15 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		dbProxyServer, err := db.NewProxyServer(process.ExitContext(),
 			db.ProxyServerConfig{
-				AuthClient:        conn.Client,
-				AccessPoint:       accessPoint,
-				Authorizer:        authorizer,
-				Tunnel:            tsrv,
-				TLSConfig:         tlsConfig,
-				Limiter:           connLimiter,
-				IngressReporter:   ingressReporter,
-				ConnectionMonitor: connMonitor,
+				AuthClient:         conn.Client,
+				AccessPoint:        accessPoint,
+				Authorizer:         authorizer,
+				Tunnel:             tsrv,
+				TLSConfig:          tlsConfig,
+				Limiter:            connLimiter,
+				IngressReporter:    ingressReporter,
+				ConnectionMonitor:  connMonitor,
+				MySQLServerVersion: process.Config.Proxy.MySQLServerVersion,
 			})
 		if err != nil {
 			return trace.Wrap(err)

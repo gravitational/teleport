@@ -29,12 +29,10 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-type dialProxyConfig struct {
-	tlsConfig *tls.Config
-}
+type dialProxyConfig = dialConfig
 
 // DialProxyOption allows setting options as functional arguments to DialProxy.
-type DialProxyOption func(cfg *dialProxyConfig)
+type DialProxyOption = DialOption
 
 // WithTLSConfig provides the dialer with the TLS config to use when using an
 // HTTPS proxy.
