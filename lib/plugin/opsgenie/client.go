@@ -25,15 +25,16 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gravitational/teleport/integrations/lib"
-
 	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/go-resty/resty/v2"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/lib"
 )
 
 const (
+	// alertKeyPrefix is the prefix for Alert's alias field used when creating an Alert.
 	alertKeyPrefix = "teleport-access-request"
 )
 
@@ -60,6 +61,7 @@ type Client struct {
 	client *resty.Client
 }
 
+// ClientConfig is the config for the opsgenie client.
 type ClientConfig struct {
 	// APIKey is the API key for Opsgenie
 	APIKey string
@@ -81,7 +83,7 @@ type ClientConfig struct {
 func NewClient(conf ClientConfig) (*Client, error) {
 	client := resty.NewWithClient(defaults.Config().HTTPClient)
 	client.SetHeader("Authorization", "GenieKey "+conf.APIKey)
-	client.SetHostURL(conf.APIEndpoint)
+	client.SetBaseURL(conf.APIEndpoint)
 	return &Client{
 		client:       client,
 		ClientConfig: conf,
@@ -124,10 +126,10 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	if err != nil {
 		return OpsgenieData{}, trace.Wrap(err)
 	}
+	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
 		return OpsgenieData{}, errWrapper(resp.StatusCode())
 	}
-	defer resp.RawResponse.Body.Close()
 	return OpsgenieData{
 		AlertID: result.Alert.ID,
 	}, nil
@@ -167,10 +169,10 @@ func (og Client) PostReviewNote(ctx context.Context, alertID string, review type
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
 		return errWrapper(resp.StatusCode())
 	}
-	defer resp.RawResponse.Body.Close()
 	return nil
 }
 
@@ -192,10 +194,10 @@ func (og Client) ResolveAlert(ctx context.Context, alertID string, resolution Re
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
 		return errWrapper(resp.StatusCode())
 	}
-	defer resp.RawResponse.Body.Close()
 	return nil
 }
 
@@ -215,10 +217,10 @@ func (og Client) GetOnCall(ctx context.Context, scheduleName string) (Responders
 	if err != nil {
 		return RespondersResult{}, trace.Wrap(err)
 	}
+	defer resp.RawResponse.Body.Close()
 	if resp.IsError() {
 		return RespondersResult{}, errWrapper(resp.StatusCode())
 	}
-	defer resp.RawResponse.Body.Close()
 	return result, nil
 }
 

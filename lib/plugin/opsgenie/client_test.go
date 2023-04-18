@@ -24,9 +24,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func TestCreateAlert(t *testing.T) {
