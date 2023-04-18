@@ -406,10 +406,12 @@ jobs:
         run: |
           apt-cache policy ${{ inputs.package-to-test }}
       - name: Verify installed Teleport version matches provided artifact version
+        env:
+          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
-          REPORTED_VERSION=v$(teleport version | cut -d'v' -f2 | cut -d' ' -f1) # This is a little hacky to account for Enterprise versions
-          if [ "$REPORTED_VERSION" != "${{ inputs.artifact-tag }}" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${{ inputs.artifact-tag }})!!!"
+          REPORTED_VERSION=$(teleport version --raw)
+          if [ "$REPORTED_VERSION" != "${ARTIFACT_TAG#v}" ]; then
+            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
             exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
           fi
   yum-rhel-smoke-test:
@@ -495,9 +497,11 @@ jobs:
         run: |
           yum --showduplicates list available ${{ inputs.package-to-test }}
       - name: Verify installed Teleport version matches provided artifact version
+        env:
+          ARTIFACT_TAG: ${{ inputs.artifact-tag }}
         run: |
-          REPORTED_VERSION=v$(teleport version | cut -d'v' -f2 | cut -d' ' -f1) # This is a little hacky to account for Enterprise versions
-          if [ "$REPORTED_VERSION" != "${{ inputs.artifact-tag }}" ]; then
-            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${{ inputs.artifact-tag }})!!!"
+          REPORTED_VERSION=$(teleport version --raw)
+          if [ "$REPORTED_VERSION" != "${ARTIFACT_TAG#v}" ]; then
+            echo "Installed version ($REPORTED_VERSION) does not match uploaded artifact version (${ARTIFACT_TAG#v})!!!"
             exit 406  # Picking this number as Googling "error code 406" will show that it is a "not acceptable" error
           fi
