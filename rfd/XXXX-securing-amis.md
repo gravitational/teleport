@@ -95,9 +95,9 @@ but while the STIG-compliance components are free for use on any image, the
 CIS tooling has several drawbacks:
 
   1. The hardening components require the use of a CIS-supplied base image that
-     incurrs an added per-minute royalty to CIS. As we are using this image as a
+     incurs an added per-minute royalty to CIS. As we are using this image as a
      delivery channel to our customers, this is a non-starter.
-  2. The use of the CIS hardening tools requires a subscription to/partnreship with 
+  2. The use of the CIS hardening tools requires a subscription to/partnership with 
      CIS that we do not currently have
 
 The decision to go with STIG is based on being able to improve the situation
@@ -110,7 +110,7 @@ My proposed solution is to use AWS EC2 Image builder, using the available STIG
 tooling, to create a hardened base image. 
 
 We can do this as part of the build process, or on some frequent schedule 
-(e.g. dailiy, weekly).
+(e.g. daily, weekly).
 
 I suggest the latter, scheduled option;
 
@@ -150,7 +150,7 @@ the contents of the AMIs in order to reduce their attack surface.
 #### **Publishing to `teleport-prod`**
 
 These new images will be published to the `teleport-prod` AWS account. This will
-partiall obviate the need to move the legacy images from the `gravitational`
+partially obviate the need to move the legacy images from the `gravitational`
 AWS account. 
 
 As per the existing AMI builds, AMIs will be constructed as part of the tag build, and
@@ -176,7 +176,7 @@ We should mirror our approach for OCI containmer Images ([See RFD-0112](./0112-s
 
  * Routine (e.g. daily) scanning of the most recent release of each 
    supported Teleport version (i.e. 3 most recent major versions). 
- * Detected issues written to the `teleport.e` GitHub Securrity Issues 
+ * Detected issues written to the `teleport.e` GitHub Security Issues 
    tab
  * Any further processing to be handled by our Panther SIEM
 
@@ -190,7 +190,7 @@ There is a default 1114 limit of public AMIs allowed in an AWS region. While thi
 can be raised on request, it seems reasonable to periodically clean up our public
 images.
 
-Propsed deletion criteria:
+Proposed deletion criteria:
  * non-release builds (i.e. anything with a semver suffix) older than 6 months
  * release builds with Teleport major version <= 5 (updated over time )
 
