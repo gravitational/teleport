@@ -57,13 +57,14 @@ func (process *TeleportProcess) initDiscoveryService() error {
 	}
 
 	discoveryService, err := discovery.New(process.ExitContext(), &discovery.Config{
-		Clients:       cloud.NewClients(),
-		AWSMatchers:   process.Config.Discovery.AWSMatchers,
-		AzureMatchers: process.Config.Discovery.AzureMatchers,
-		GCPMatchers:   process.Config.Discovery.GCPMatchers,
-		Emitter:       asyncEmitter,
-		AccessPoint:   accessPoint,
-		Log:           process.log,
+		Clients:        cloud.NewClients(),
+		AWSMatchers:    process.Config.Discovery.AWSMatchers,
+		AzureMatchers:  process.Config.Discovery.AzureMatchers,
+		GCPMatchers:    process.Config.Discovery.GCPMatchers,
+		DiscoveryGroup: process.Config.Discovery.DiscoveryGroup,
+		Emitter:        asyncEmitter,
+		AccessPoint:    accessPoint,
+		Log:            process.log,
 	})
 	if err != nil {
 		return trace.Wrap(err)
