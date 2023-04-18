@@ -198,8 +198,10 @@ thought of as adding more complex layers of automation. In a very loose order of
 In addition to the above tooling, there are several other places a CI or Release 
 build will draw assets from.
 
-  - `./build.assets` - a grab bag directory containing most build and/or realease
-    assets, incluing:
+  - `./assets` - sources for higher-order artifacts
+    - Packer, shell script and various file resources for building AMIs
+  - `./build.assets` - a grab bag directory containing mostly build and/or
+    release-related assets, including:
     - Code generation scripts
     - a `Makefile` automating the construction of buildboxes, and executing
       builds inside them
