@@ -175,10 +175,14 @@ The current build and release process uses a suite of tools of tools that can be
 thought of as adding more complex layers of automation. In a very loose order of complexity, our current toolset looks something like this:
   
   - **Compilers** - (`gcc`, Go `compile`, `rustc`) - Lowest level of automation 
-  - **Language tooling** (e.g. `go`, `cargo`) - intra-language dependency management required to build individial parts of the Teleport bundle.
-  - **Cross Language Tooling** - GNU Make provides extra-language dependency management & build ordering required to build teleport binaries.
-  - **Build orchestrator** - e.g. Drone / GitHub Actions. Tools that decide *when* to run the build, what, to run, where and so on. Our current primary tool is `Drone`, 
-  but we are currently in the process of migrating towards `GitHub Actions`.
+  - **Language tooling** (e.g. `go`, `cargo`) - intra-language dependency 
+    management required to build individial parts of the Teleport bundle.
+  - **Cross Language Tooling** - GNU Make provides extra-language dependency
+    management & build ordering required to build teleport binaries.
+  - **Build orchestrator** - e.g. Drone / GitHub Actions. Tools that decide
+    *when* to run the build, what to run, where to run it, and so on. Our
+    current primary tool is `Drone`, but we are currently in the process of
+    migrating towards `GitHub Actions`.
 
 #### **Custom Tooling**
 
