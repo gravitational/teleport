@@ -80,4 +80,6 @@ const props: State = {
   dbLocation: DatabaseLocation.SelfHosted,
   isDbCreateErr: false,
   prevStep: () => null,
+  nextStep: () => null,
+  createdDb: {} as any,
 };
