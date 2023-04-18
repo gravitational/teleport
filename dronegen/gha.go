@@ -43,15 +43,6 @@ type ghaBuildType struct {
 	checkoutPath string
 	dependsOn    []string
 	workflows    []ghaWorkflow
-	// ghaWorkflow       string
-	// srcRefVar         string
-	// workflowRef       string
-	// timeout           time.Duration
-	// slackOnError      bool
-
-	// shouldTagWorkflow bool
-	// seriesRun         bool
-	// inputs            map[string]string
 }
 
 func ghaBuildPipeline(ghaBuild ghaBuildType) pipeline {
