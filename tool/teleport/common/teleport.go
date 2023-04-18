@@ -75,6 +75,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDatabaseBootstrapFlags configureDatabaseBootstrapFlags
 		dbConfigCreateFlags             createDatabaseConfigFlags
 		systemdInstallFlags             installSystemdFlags
+		rawVersion                      bool
 	)
 
 	// define commands:
@@ -332,6 +333,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
+
 	dumpNode := app.Command("node", "SSH Node configuration commands")
 	dumpNodeConfigure := dumpNode.Command("configure", "Generate a configuration file for an SSH node.")
 	dumpNodeConfigure.Flag("cluster-name",
@@ -404,7 +407,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case park.FullCommand():
 		srv.RunAndExit(teleport.ParkSubCommand)
 	case ver.FullCommand():
-		utils.PrintVersion()
+		if rawVersion {
+			fmt.Printf("%s\n", teleport.Version)
+		} else {
+			utils.PrintVersion()
+		}
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
 	case dbConfigureAWSPrintIAM.FullCommand():
