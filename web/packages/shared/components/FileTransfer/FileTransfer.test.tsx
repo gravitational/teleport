@@ -27,15 +27,26 @@ import { FileTransfer, TransferHandlers } from './FileTransfer';
 import { FileTransferContextProvider } from './FileTransferContextProvider';
 import { FileTransferDialogDirection } from './FileTransferStateless';
 import { createFileTransferEventsEmitter } from './createFileTransferEventsEmitter';
+import { useFilesStore } from './useFilesStore';
 
-test('click opens correct dialog', () => {
-  render(
+function TestWrapper(props: {
+  beforeClose?: () => boolean | Promise<boolean>;
+  afterClose?: () => void;
+  transferHandlers: TransferHandlers;
+}) {
+  const filesStore = useFilesStore();
+
+  return (
     <FileTransferContextProvider
       openedDialog={FileTransferDialogDirection.Download}
     >
-      <FileTransfer beforeClose={undefined} transferHandlers={undefined} />
+      <FileTransfer filesStore={filesStore} {...props} />
     </FileTransferContextProvider>
   );
+}
+
+test('click opens correct dialog', () => {
+  render(<TestWrapper beforeClose={undefined} transferHandlers={undefined} />);
   expect(screen.getByText('Download Files')).toBeInTheDocument();
 });
 
@@ -46,13 +57,7 @@ test('downloads component changes when file transfer callbacks are called', asyn
     getDownloader: async () => fileTransferEvents,
     getUploader: async () => undefined,
   };
-  render(
-    <FileTransferContextProvider
-      openedDialog={FileTransferDialogDirection.Download}
-    >
-      <FileTransfer beforeClose={undefined} transferHandlers={handler} />
-    </FileTransferContextProvider>
-  );
+  render(<TestWrapper beforeClose={undefined} transferHandlers={handler} />);
   fireEvent.change(screen.getByLabelText('File Path'), {
     target: { value: '/Users/g/file.txt' },
   });
@@ -80,13 +85,7 @@ test('onAbort is called when user cancels upload', async () => {
     },
     getUploader: async () => undefined,
   };
-  render(
-    <FileTransferContextProvider
-      openedDialog={FileTransferDialogDirection.Download}
-    >
-      <FileTransfer beforeClose={undefined} transferHandlers={handler} />
-    </FileTransferContextProvider>
-  );
+  render(<TestWrapper beforeClose={undefined} transferHandlers={handler} />);
   fireEvent.change(screen.getByLabelText('File Path'), {
     target: { value: '/Users/g/file.txt' },
   });
@@ -102,13 +101,7 @@ test('file is not added when transferHandler does not return anything', async ()
   };
   const filePath = '/Users/g/file.txt';
 
-  render(
-    <FileTransferContextProvider
-      openedDialog={FileTransferDialogDirection.Download}
-    >
-      <FileTransfer beforeClose={undefined} transferHandlers={handler} />
-    </FileTransferContextProvider>
-  );
+  render(<TestWrapper beforeClose={undefined} transferHandlers={handler} />);
   fireEvent.change(screen.getByLabelText('File Path'), {
     target: { value: filePath },
   });
@@ -126,15 +119,11 @@ describe('handleAfterClose', () => {
     };
 
     render(
-      <FileTransferContextProvider
-        openedDialog={FileTransferDialogDirection.Download}
-      >
-        <FileTransfer
-          beforeClose={handleBeforeClose}
-          afterClose={handleAfterClose}
-          transferHandlers={handler}
-        />
-      </FileTransferContextProvider>
+      <TestWrapper
+        beforeClose={handleBeforeClose}
+        afterClose={handleAfterClose}
+        transferHandlers={handler}
+      />
     );
 
     fireEvent.change(screen.getByLabelText('File Path'), {

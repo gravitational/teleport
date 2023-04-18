@@ -23,6 +23,7 @@ import {
   FileTransferContextProvider,
   FileTransferContainer,
 } from 'shared/components/FileTransfer';
+import { useFilesStore } from 'shared/components/FileTransfer/useFilesStore';
 import { Attempt } from 'shared/hooks/useAsync';
 
 import Document from 'teleterm/ui/Document';
@@ -39,6 +40,7 @@ import type * as types from 'teleterm/ui/services/workspacesService';
 export function DocumentTerminal(props: Props & { visible: boolean }) {
   const ctx = useAppContext();
   const { configService } = ctx.mainProcessClient;
+  const filesStore = useFilesStore();
   const { visible, doc } = props;
   const { attempt, reconnect } = useDocumentTerminal(doc);
   const ptyProcess = attempt.data?.ptyProcess;
@@ -74,6 +76,7 @@ export function DocumentTerminal(props: Props & { visible: boolean }) {
               // TODO (gzdunek): replace with a native dialog
               window.confirm('Are you sure you want to cancel file transfers?')
             }
+            filesStore={filesStore}
             transferHandlers={{
               getDownloader: async (sourcePath, abortController) => {
                 const fileDialog =
