@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { Label } from 'teleport/types';
+
 /**
  * type Integration v. type Plugin:
  *
@@ -137,19 +139,69 @@ export const awsRegionMap = {
 };
 
 export type Regions = keyof typeof awsRegionMap;
-export type IntegrationExecuteRequest = {
+
+// RdsEngines are the expected backend string values,
+// used when requesting lists of rds databases of the
+// specified engine.
+export type RdsEngines =
+  | 'aurora'
+  | 'aurora-mysql'
+  | 'aurora-postgresql'
+  | 'mariadb'
+  | 'mysql'
+  | 'postgres';
+
+// RdsEngineIdentifier are the name of engines
+// used to determine the grouping of similar RdsEngines.
+// eg: if `aurora-mysql` then the grouping of RdsEngines
+// is 'aurora, aurora-mysql`, they are both mysql but
+// refer to different versions. This type is used solely
+// for frontend.
+export type RdsEngineIdentifier =
+  | 'mysql'
+  | 'postgres'
+  | 'aurora-mysql'
+  | 'aurora-postgres';
+
+export type AwsOidcListDatabasesRequest = {
+  // engines is used as a filter to get a list of specified engines only.
+  // The following values are accepted.
+  // mysql related:
+  //   aurora (for MySQL 5.6-compatible Aurora)
+  //   aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
+  //   mysql
+  //   mariadb
+  // postgres related:
+  //   aurora-postgresql
+  //   postgres
+  engines: RdsEngines[];
   region: Regions;
   // nextToken is the start key for the next page
   nextToken?: string;
+  // rdsType describes the type of RDS dbs to request.
+  // `cluster` is used for requesting aurora related
+  // engines, and `instance` for rest of engines.
+  rdsType: 'instance' | 'cluster';
 };
 
 export type AwsDatabase = {
-  // engine of the database. Eg, sqlserver-ex
-  engine: string;
+  // engine of the database. eg. aurora-mysql
+  engine: RdsEngines;
   // name is the the Database's name.
   name: string;
   // endpoint contains the URI for connecting to this Database
   endpoint: string;
+  // resourceId is the AWS Region-unique, immutable identifier for the DB.
+  resourceId: string;
+  // accountId is the AWS account id.
+  accountId: string;
+  // labels contains this Instance tags.
+  labels: Label[];
+  // status contains this Instance status.
+  // There is a lot of status states available so only a select few were
+  // hard defined to use to determine the status color.
+  // https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
+  status: 'Available' | 'Failed' | 'Deleting';
 };
 
 export type ListAwsDatabaseResponse = {
