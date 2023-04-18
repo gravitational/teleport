@@ -18,42 +18,18 @@ package awsoidc
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 var (
 	// filterEngine is the filter name for filtering Databses based on their engine.
 	filterEngine = "engine"
-
-	// EnginesCluster is a list of engines which are considered AWS RDS Clusters.
-	// If the request engine is part of this list, the api call is DescribeDBClusters
-	// List extracted from here and filtered by the supported RDS databases.
-	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbcluster.html
-	// > The name of the database engine to be used for this DB cluster.
-	EnginesCluster = []string{
-		services.RDSEngineAurora,
-		services.RDSEngineAuroraMySQL,
-		services.RDSEngineAuroraPostgres,
-		services.RDSEngineMySQL,
-		services.RDSEnginePostgres,
-	}
-
-	// EnginesInstances is a list of engines which are considered AWS RDS Instances.
-	// If the request engine is part of this list, the api call is DescribeDBInstances
-	// List extracted from here and filtered by the supported RDS databases.
-	// https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbinstance.html
-	// > The name of the database engine that you want to use for this DB instance.
-	EnginesInstances = []string{
-		services.RDSEngineMySQL,
-		services.RDSEnginePostgres,
-		services.RDSEngineMariaDB,
-	}
 )
 
 const (
@@ -95,28 +71,10 @@ func (req *ListDatabasesRequest) CheckAndSetDefaults() error {
 	return nil
 }
 
-// AWSDatabase is a representation of an AWS RDS Database
-type AWSDatabase struct {
-	// Name is the the Database's name.
-	Name string
-	// Engine of the database. Eg, sqlserver-ex
-	Engine string
-	// Status contains the Instance status. Eg, available (https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html)
-	Status string
-	// Endpoint contains the URI for connecting to this Database
-	Endpoint string
-	// Labels contains the Instance tags.
-	Labels map[string]string
-	// ResourceID is the AWS Region-unique, immutable identifier for the DB.
-	ResourceID string
-	// AccountID is the AWS account id.
-	AccountID string
-}
-
 // ListDatabasesResponse contains a page of AWS Databases.
 type ListDatabasesResponse struct {
 	// Databases contains the page of Databases
-	Databases []AWSDatabase
+	Databases []types.Database
 
 	// NextToken is used for pagination.
 	// If non-empty, it can be used to request the next page.
@@ -162,7 +120,7 @@ func ListDatabases(ctx context.Context, clt ListDatabasesClient, req ListDatabas
 
 func listDBInstances(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	describeDBInstanceInput := &rds.DescribeDBInstancesInput{
-		Filters: []types.Filter{
+		Filters: []rdsTypes.Filter{
 			{Name: &filterEngine, Values: req.Engines},
 		},
 	}
@@ -181,58 +139,26 @@ func listDBInstances(ctx context.Context, clt ListDatabasesClient, req ListDatab
 		ret.NextToken = *rdsDBs.Marker
 	}
 
-	ret.Databases = make([]AWSDatabase, 0, len(rdsDBs.DBInstances))
+	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBInstances))
 	for _, db := range rdsDBs.DBInstances {
-		awsDB, err := convertDBInstanceToDatabase(db)
+		if !services.IsRDSInstanceAvailable(db.DBInstanceStatus, db.DBInstanceIdentifier) {
+			continue
+		}
+
+		dbServer, err := services.NewDatabaseFromRDSV2Instance(&db)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		ret.Databases = append(ret.Databases, *awsDB)
+		ret.Databases = append(ret.Databases, dbServer)
 	}
-
-	return ret, nil
-}
-
-// convertDBInstanceToDatabase converts a Database from its rds/types.DBInstance representation into
-// a Teleport representation.
-func convertDBInstanceToDatabase(in types.DBInstance) (*AWSDatabase, error) {
-	ret := &AWSDatabase{}
-
-	if in.DBInstanceIdentifier == nil || *in.DBInstanceIdentifier == "" {
-		return nil, trace.BadParameter("database identifier not present")
-	}
-	ret.Name = *in.DBInstanceIdentifier
-
-	if in.DBInstanceStatus == nil || *in.DBInstanceStatus == "" {
-		return nil, trace.BadParameter("database status not present")
-	}
-	ret.Status = *in.DBInstanceStatus
-
-	if in.Engine == nil || *in.Engine == "" {
-		return nil, trace.BadParameter("database engine not present")
-	}
-	ret.Engine = *in.Engine
-
-	ret.Labels = convertTagListToLabels(in.TagList)
-
-	// Endpoint may not exist.
-	// This is the case when the Database was just created created but is not yet available.
-	if in.Endpoint != nil && in.Endpoint.Address != nil && *in.Endpoint.Address != "" && in.Endpoint.Port != 0 {
-		ret.Endpoint = fmt.Sprintf("%s:%d", *in.Endpoint.Address, in.Endpoint.Port)
-	}
-
-	if in.DbiResourceId == nil {
-		return nil, trace.BadParameter("database resourceid not present")
-	}
-	ret.ResourceID = *in.DbiResourceId
 
 	return ret, nil
 }
 
 func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDatabasesRequest) (*ListDatabasesResponse, error) {
 	describeDBClusterInput := &rds.DescribeDBClustersInput{
-		Filters: []types.Filter{
+		Filters: []rdsTypes.Filter{
 			{Name: &filterEngine, Values: req.Engines},
 		},
 	}
@@ -251,64 +177,19 @@ func listDBClusters(ctx context.Context, clt ListDatabasesClient, req ListDataba
 		ret.NextToken = *rdsDBs.Marker
 	}
 
-	ret.Databases = make([]AWSDatabase, 0, len(rdsDBs.DBClusters))
+	ret.Databases = make([]types.Database, 0, len(rdsDBs.DBClusters))
 	for _, db := range rdsDBs.DBClusters {
-		awsDB, err := convertDBClusterToDatabase(db)
+		if !services.IsRDSClusterAvailable(db.Status, db.DBClusterIdentifier) {
+			continue
+		}
+
+		awsDB, err := services.NewDatabaseFromRDSV2Cluster(&db)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		ret.Databases = append(ret.Databases, *awsDB)
+		ret.Databases = append(ret.Databases, awsDB)
 	}
 
 	return ret, nil
-}
-
-// convertDBClusterToDatabase converts a Database from its rds/types.DBCluster representation into
-// a Teleport representation.
-func convertDBClusterToDatabase(in types.DBCluster) (*AWSDatabase, error) {
-	ret := &AWSDatabase{}
-
-	if in.DBClusterIdentifier == nil || *in.DBClusterIdentifier == "" {
-		return nil, trace.BadParameter("database identifier not present")
-	}
-	ret.Name = *in.DBClusterIdentifier
-
-	if in.Status == nil || *in.Status == "" {
-		return nil, trace.BadParameter("database status not present")
-	}
-	ret.Status = *in.Status
-
-	if in.Engine == nil || *in.Engine == "" {
-		return nil, trace.BadParameter("database engine not present")
-	}
-	ret.Engine = *in.Engine
-
-	ret.Labels = convertTagListToLabels(in.TagList)
-
-	// Endpoint may not exist.
-	// This is the case when the Database was just created created but is not yet available.
-	if in.Endpoint != nil && *in.Endpoint != "" {
-		ret.Endpoint = *in.Endpoint
-	}
-
-	if in.DbClusterResourceId == nil {
-		return nil, trace.BadParameter("database resourceid not present")
-	}
-	ret.ResourceID = *in.DbClusterResourceId
-
-	return ret, nil
-}
-
-// convertTagListToLabels converts an AWS RDS list of Tags into a map[string]string.
-func convertTagListToLabels(in []types.Tag) map[string]string {
-	ret := make(map[string]string, len(in))
-	for _, kv := range in {
-		if kv.Key == nil || kv.Value == nil {
-			continue
-		}
-
-		ret[*kv.Key] = *kv.Value
-	}
-	return ret
 }
