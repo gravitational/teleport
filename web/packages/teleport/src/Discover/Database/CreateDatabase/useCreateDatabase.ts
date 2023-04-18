@@ -65,7 +65,7 @@ export function useCreateDatabase() {
   //      backend error or network failure)
   const [createdDb, setCreatedDb] = useState<CreateDatabaseRequest>();
 
-  const dbSvcPollingResult = usePoll<DatabaseResource>(
+  const dbPollingResult = usePoll<DatabaseResource>(
     signal => fetchDatabaseServer(signal),
     pollActive, // does not poll on init, since the value is false.
     3000 // interval: poll every 3 seconds
@@ -103,7 +103,7 @@ export function useCreateDatabase() {
   // Handles when polling successfully gets
   // a response.
   useEffect(() => {
-    if (!dbSvcPollingResult) return;
+    if (!dbPollingResult) return;
 
     setPollTimeout(null);
     setPollActive(false);
@@ -112,11 +112,11 @@ export function useCreateDatabase() {
       ...(agentMeta as DbMeta),
       resourceName: createdDb.name,
       agentMatcherLabels: createdDb.labels,
-      db: dbSvcPollingResult,
+      db: dbPollingResult,
     });
 
     setAttempt({ status: 'success' });
-  }, [dbSvcPollingResult]);
+  }, [dbPollingResult]);
 
   function fetchDatabaseServer(signal: AbortSignal) {
     const request = {
@@ -230,7 +230,6 @@ export function useCreateDatabase() {
   }
 
   const access = ctx.storeUser.getDatabaseAccess();
-  const resource = resourceSpec;
   return {
     createdDb,
     attempt,
@@ -238,13 +237,13 @@ export function useCreateDatabase() {
     registerDatabase,
     canCreateDatabase: access.create,
     pollTimeout,
-    dbEngine: resource.dbMeta.engine,
-    dbLocation: resource.dbMeta.location,
+    dbEngine: resourceSpec.dbMeta.engine,
+    dbLocation: resourceSpec.dbMeta.location,
     isDbCreateErr,
     prevStep,
-    // If there was a result from database service polling, then
+    // If there was a result from database polling, then
     // allow user to skip the next step.
-    nextStep: dbSvcPollingResult ? () => nextStep(2) : () => nextStep(),
+    nextStep: dbPollingResult ? () => nextStep(2) : () => nextStep(),
   };
 }
 

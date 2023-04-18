@@ -29,7 +29,7 @@ import { TextIcon } from 'teleport/Discover/Shared';
 
 import type { Attempt } from 'shared/hooks/useAttemptNext';
 
-export type Props = {
+export type CreateDatabaseDialogProps = {
   pollTimeout: number;
   attempt: Attempt;
   retry(): void;
@@ -47,8 +47,8 @@ export function CreateDatabaseDialog({
   next,
   dbName,
   alteredRdsDbName,
-}: Props) {
-  let content;
+}: CreateDatabaseDialogProps) {
+  let content: JSX.Element;
   if (attempt.status === 'failed') {
     content = (
       <>
@@ -63,11 +63,9 @@ export function CreateDatabaseDialog({
           <ButtonPrimary mr={2} width="50%" onClick={retry}>
             Retry
           </ButtonPrimary>
-          {!alteredRdsDbName && (
-            <ButtonSecondary width="50%" onClick={close}>
-              Close
-            </ButtonSecondary>
-          )}
+          <ButtonSecondary width="50%" onClick={close}>
+            Close
+          </ButtonSecondary>
         </Flex>
       </>
     );

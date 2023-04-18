@@ -16,7 +16,10 @@
 
 import React from 'react';
 
-import { CreateDatabaseDialog, Props } from './CreateDatabaseDialog';
+import {
+  CreateDatabaseDialog,
+  CreateDatabaseDialogProps,
+} from './CreateDatabaseDialog';
 
 export default {
   title: 'Teleport/Discover/Database/CreateDatabase/Dialog',
@@ -43,7 +46,7 @@ export const SuccessWithRds = () => (
   />
 );
 
-const props: Props = {
+const props: CreateDatabaseDialogProps = {
   pollTimeout: 8080000000,
   attempt: { status: 'processing' },
   retry: () => null,
