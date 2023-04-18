@@ -162,10 +162,13 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 			attestationType: "unspecified",
 		},
 		{
-			attestationType: "tpm",
+			attestationType: "tpm_ekpub",
 		},
 		{
 			attestationType: "tpm_ekcert",
+		},
+		{
+			attestationType: "tpm_ekcert_trusted",
 		},
 		{
 			attestationType: "quantum_entanglement",
