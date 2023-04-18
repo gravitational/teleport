@@ -46,16 +46,7 @@ func (s *Server) startKubeWatchers() error {
 					return nil
 				}
 
-				// filter only discover clusters.
-				var kubeClusters types.KubeClusters
-				for _, kc := range kcs {
-					if kc.Origin() != types.OriginCloud {
-						continue
-					}
-					kubeClusters = append(kubeClusters, kc)
-				}
-
-				return kubeClusters.AsResources().ToMap()
+				return types.KubeClusters(filterResources(kcs, types.OriginCloud, s.DiscoveryGroup)).AsResources().ToMap()
 			},
 			GetNewResources: func() types.ResourcesWithLabelsMap {
 				mu.Lock()
@@ -73,8 +64,9 @@ func (s *Server) startKubeWatchers() error {
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
-		Fetchers: s.kubeFetchers,
-		Log:      s.Log.WithField("kind", types.KindKubernetesCluster),
+		Fetchers:       s.kubeFetchers,
+		Log:            s.Log.WithField("kind", types.KindKubernetesCluster),
+		DiscoveryGroup: s.DiscoveryGroup,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -107,7 +99,18 @@ func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels)
 		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
 	}
 	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
-	return trace.Wrap(s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster))
+	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
+	// If the resource already exists, it means that the resource was created
+	// by a previous discovery_service instance that didn't support the discovery
+	// group feature or the discovery group was changed.
+	// In this case, we need to update the resource with the
+	// discovery group label to ensure the user doesn't have to manually delete
+	// the resource.
+	// TODO(tigrato): DELETE on 14.0.0
+	if trace.IsAlreadyExists(err) {
+		return trace.Wrap(s.onKubeUpdate(ctx, rwl))
+	}
+	return trace.Wrap(err)
 }
 
 func (s *Server) onKubeUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {

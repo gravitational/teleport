@@ -43,6 +43,14 @@ type WatcherConfig struct {
 	Log logrus.FieldLogger
 	// Clock is used to control time.
 	Clock clockwork.Clock
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string
 }
 
 // CheckAndSetDefaults validates the config.
@@ -126,6 +134,18 @@ func (w *Watcher) fetchAndSend() {
 				// never return the error otherwise it will impact other watchers.
 				return nil
 			}
+			if w.cfg.DiscoveryGroup != "" {
+				// Add the discovery group name to the static labels of each resource.
+				for _, r := range resources {
+					staticLabels := r.GetStaticLabels()
+					if staticLabels == nil {
+						staticLabels = make(map[string]string)
+					}
+					staticLabels[types.TeleportInternalDiscoveryGroupName] = w.cfg.DiscoveryGroup
+					r.SetStaticLabels(staticLabels)
+				}
+			}
+
 			fetchersLock.Lock()
 			newFetcherResources = append(newFetcherResources, resources...)
 			fetchersLock.Unlock()
