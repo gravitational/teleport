@@ -283,7 +283,7 @@ type OktaAssignmentAction interface {
 	// * PENDING -> (PROCESSING, CLEANUP_PENDING)
 	// * PROCESSING -> (SUCCESSFUL, FAILED, CLEANUP_PENDING)
 	// * SUCCESSFUL -> (CLEANUP_PENDING, CLEANUP_PROCESSING)
-	// * FAILED -> (PROCESSING, CLEANUP_PENDING, CLEANUP_PROCESSING)
+	// * FAILED -> (PENDING, CLEANUP_PENDING, CLEANUP_PROCESSING)
 	// * CLEANUP_PENDING -> CLEANUP_PROCESSING
 	// * CLEANUP_PROCESSING -> (CLEANUP_FAILED, CLEANED_UP)
 	SetStatus(string) error
@@ -356,7 +356,7 @@ func (o *OktaAssignmentActionV1) SetStatus(status string) error {
 		}
 	case OktaAssignmentActionV1_FAILED:
 		switch status {
-		case constants.OktaAssignmentActionStatusProcessing:
+		case constants.OktaAssignmentActionStatusPending:
 		case constants.OktaAssignmentActionStatusCleanupPending:
 		default:
 			invalidTransition = true
@@ -377,6 +377,10 @@ func (o *OktaAssignmentActionV1) SetStatus(status string) error {
 	case OktaAssignmentActionV1_CLEANED_UP:
 		invalidTransition = true
 	case OktaAssignmentActionV1_CLEANUP_FAILED:
+		invalidTransition = true
+	case OktaAssignmentActionV1_UNKNOWN:
+		// All transitions are allowed from UNKNOWN.
+	default:
 		invalidTransition = true
 	}
 
