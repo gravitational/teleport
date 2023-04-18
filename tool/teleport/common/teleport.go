@@ -661,7 +661,7 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		return trace.BadParameter("No proxy address and token specified, check --proxy-server and --token flags were set")
 	}
 	if missingProxyServerFlag {
-		return trace.BadParameter("Missing proxy server address specified, check --proxy-server flag was set")
+		return trace.BadParameter("No proxy server specified, check --proxy-server flag was set")
 	}
 	if missingAuthTokenFlag {
 		return trace.BadParameter("No token specified, check --token flag was set")
