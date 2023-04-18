@@ -6676,6 +6676,16 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{requiredOriginLabel},
+				AWS: ui.AWS{
+					AWS: types.AWS{
+						Region:    "us-west-2",
+						AccountID: "123123123123",
+						RDS: types.RDS{
+							ResourceID: "db-1234",
+							InstanceID: "llama",
+						},
+					},
+				},
 			},
 		},
 		{
@@ -6693,6 +6703,16 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+				AWS: ui.AWS{
+					AWS: types.AWS{
+						Region:    "us-west-2",
+						AccountID: "123123123123",
+						RDS: types.RDS{
+							ResourceID: "db-1234",
+							InstanceID: "llama",
+						},
+					},
+				},
 			},
 		},
 		{
@@ -6714,6 +6734,16 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
+				AWS: ui.AWS{
+					AWS: types.AWS{
+						Region:    "us-east-1",
+						AccountID: "000000000000",
+						RDS: types.RDS{
+							ResourceID: "db-0000",
+							InstanceID: "alpaca",
+						},
+					},
+				},
 			},
 		},
 	} {

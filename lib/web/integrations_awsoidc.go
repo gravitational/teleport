@@ -27,11 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
-const (
-	// awsoidcListDatabases identifies the List Databases action for the AWS OIDC integration
-	awsoidcListDatabases = "aws-oidc/list_databases"
-)
-
 // IntegrationAWSOIDCTokenGenerator describes the required methods to generate tokens for calling AWS OIDC Integration actions.
 type IntegrationAWSOIDCTokenGenerator interface {
 	// GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
@@ -104,5 +99,8 @@ func (h *Handler) awsOIDCListDatabases(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeAWSOIDCListDatabasesResponse(resp), nil
+	return ui.AWSOIDCListDatabasesResponse{
+		NextToken: resp.NextToken,
+		Databases: ui.MakeDatabases(resp.Databases, nil, nil),
+	}, nil
 }

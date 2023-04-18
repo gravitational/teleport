@@ -23,158 +23,22 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/rds"
-	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+	rdsTypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 func stringPointer(s string) *string {
 	return &s
 }
 
-func TestDBInstanceConverter(t *testing.T) {
-	for _, tt := range []struct {
-		name       string
-		rdsDB      types.DBInstance
-		errCheck   require.ErrorAssertionFunc
-		expectedDB *AWSDatabase
-	}{
-		{
-			name: "all fields",
-			rdsDB: types.DBInstance{
-				DBInstanceStatus:     stringPointer("available"),
-				DBInstanceIdentifier: stringPointer("name"),
-				Engine:               stringPointer("postgres"),
-				Endpoint: &types.Endpoint{
-					Address: stringPointer("endpoint.amazonaws.com"),
-					Port:    1234,
-				},
-				TagList: []types.Tag{
-					{Key: stringPointer("X"), Value: stringPointer("Y")},
-				},
-			},
-			errCheck: require.NoError,
-			expectedDB: &AWSDatabase{
-				Name:     "name",
-				Engine:   "postgres",
-				Status:   "available",
-				Endpoint: "endpoint.amazonaws.com:1234",
-				Labels:   map[string]string{"X": "Y"},
-			},
-		},
-		{
-			name: "no name",
-			rdsDB: types.DBInstance{
-				DBInstanceStatus: stringPointer("available"),
-				Engine:           stringPointer("postgres"),
-				Endpoint: &types.Endpoint{
-					Address: stringPointer("endpoint.amazonaws.com"),
-					Port:    1234,
-				},
-			},
-			errCheck: require.Error,
-		},
-		{
-			name: "no endpoint yet",
-			rdsDB: types.DBInstance{
-				DBInstanceStatus:     stringPointer("available"),
-				DBInstanceIdentifier: stringPointer("name"),
-				Engine:               stringPointer("postgres"),
-				Endpoint:             nil,
-			},
-			errCheck: require.NoError,
-			expectedDB: &AWSDatabase{
-				Name:     "name",
-				Engine:   "postgres",
-				Status:   "available",
-				Endpoint: "",
-				Labels:   map[string]string{},
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			gotDB, err := convertDBInstanceToDatabase(tt.rdsDB)
-			tt.errCheck(t, err)
-			if err != nil {
-				return
-			}
-
-			require.Equal(t, tt.expectedDB, gotDB)
-		})
-	}
-}
-
-func TestDBClusterConverter(t *testing.T) {
-	for _, tt := range []struct {
-		name       string
-		rdsDB      types.DBCluster
-		errCheck   require.ErrorAssertionFunc
-		expectedDB *AWSDatabase
-	}{
-		{
-			name: "all fields",
-			rdsDB: types.DBCluster{
-				Status:              stringPointer("available"),
-				DBClusterIdentifier: stringPointer("name"),
-				Engine:              stringPointer("postgres"),
-				Endpoint:            stringPointer("endpoint.amazonaws.com:1234"),
-				TagList: []types.Tag{
-					{Key: stringPointer("X"), Value: stringPointer("Y")},
-				},
-			},
-			errCheck: require.NoError,
-			expectedDB: &AWSDatabase{
-				Name:     "name",
-				Engine:   "postgres",
-				Status:   "available",
-				Endpoint: "endpoint.amazonaws.com:1234",
-				Labels:   map[string]string{"X": "Y"},
-			},
-		},
-		{
-			name: "no name",
-			rdsDB: types.DBCluster{
-				Status:   stringPointer("available"),
-				Engine:   stringPointer("postgres"),
-				Endpoint: stringPointer("endpoint.amazonaws.com:1234"),
-			},
-			errCheck: require.Error,
-		},
-		{
-			name: "no endpoint yet",
-			rdsDB: types.DBCluster{
-				Status:              stringPointer("available"),
-				DBClusterIdentifier: stringPointer("name"),
-				Engine:              stringPointer("postgres"),
-				Endpoint:            nil,
-			},
-			errCheck: require.NoError,
-			expectedDB: &AWSDatabase{
-				Name:     "name",
-				Engine:   "postgres",
-				Status:   "available",
-				Endpoint: "",
-				Labels:   map[string]string{},
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			gotDB, err := convertDBClusterToDatabase(tt.rdsDB)
-			tt.errCheck(t, err)
-			if err != nil {
-				return
-			}
-
-			require.Equal(t, tt.expectedDB, gotDB)
-		})
-	}
-}
-
 type mockListDatabasesClient struct {
 	pageSize    int
-	dbInstances []types.DBInstance
-	dbClusters  []types.DBCluster
+	dbInstances []rdsTypes.DBInstance
+	dbClusters  []rdsTypes.DBCluster
 }
 
 // Returns information about provisioned RDS instances.
@@ -220,23 +84,27 @@ func (m mockListDatabasesClient) DescribeDBClusters(ctx context.Context, params 
 
 func TestListDatabases(t *testing.T) {
 	ctx := context.Background()
-	pageSize := 100
 
 	noErrorFunc := func(err error) bool {
 		return err == nil
 	}
 
+	clusterPort := int32(5432)
+
+	pageSize := 100
 	t.Run("pagination", func(t *testing.T) {
 		totalDBs := 203
 
-		allInstances := make([]types.DBInstance, 0, totalDBs)
+		allInstances := make([]rdsTypes.DBInstance, 0, totalDBs)
 		for i := 0; i < totalDBs; i++ {
-			allInstances = append(allInstances, types.DBInstance{
+			allInstances = append(allInstances, rdsTypes.DBInstance{
 				DBInstanceStatus:     stringPointer("available"),
 				DBInstanceIdentifier: stringPointer(uuid.NewString()),
+				DbiResourceId:        stringPointer("db-123"),
+				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
 				Engine:               stringPointer("postgres"),
-				Endpoint: &types.Endpoint{
-					Address: stringPointer("address.amazonaws.com"),
+				Endpoint: &rdsTypes.Endpoint{
+					Address: stringPointer("endpoint.amazonaws.com"),
 					Port:    5432,
 				},
 			})
@@ -286,8 +154,8 @@ func TestListDatabases(t *testing.T) {
 	for _, tt := range []struct {
 		name          string
 		req           ListDatabasesRequest
-		mockInstances []types.DBInstance
-		mockClusters  []types.DBCluster
+		mockInstances []rdsTypes.DBInstance
+		mockClusters  []rdsTypes.DBCluster
 		errCheck      func(error) bool
 		respCheck     func(*testing.T, *ListDatabasesResponse)
 	}{
@@ -299,12 +167,14 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			mockInstances: []types.DBInstance{{
+			mockInstances: []rdsTypes.DBInstance{{
 				DBInstanceStatus:     stringPointer("available"),
 				DBInstanceIdentifier: stringPointer("my-db"),
 				Engine:               stringPointer("postgres"),
-				Endpoint: &types.Endpoint{
-					Address: stringPointer("address.amazonaws.com"),
+				DbiResourceId:        stringPointer("db-123"),
+				DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+				Endpoint: &rdsTypes.Endpoint{
+					Address: stringPointer("endpoint.amazonaws.com"),
 					Port:    5432,
 				},
 			},
@@ -312,13 +182,99 @@ func TestListDatabases(t *testing.T) {
 			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
 				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
-				require.Equal(t, ldr.Databases[0], AWSDatabase{
-					Name:     "my-db",
-					Engine:   "postgres",
-					Status:   "available",
-					Endpoint: "address.amazonaws.com:5432",
-					Labels:   make(map[string]string),
-				})
+
+				expectedDB, err := types.NewDatabaseV3(
+					types.Metadata{
+						Name:        "my-db",
+						Description: "RDS instance in ",
+						Labels: map[string]string{
+							"account-id":          "123456789012",
+							"endpoint-type":       "instance",
+							"engine":              "postgres",
+							"engine-version":      "",
+							"region":              "",
+							"teleport.dev/origin": "cloud",
+							"status":              "available",
+						},
+					},
+					types.DatabaseSpecV3{
+						Protocol: "postgres",
+						URI:      "endpoint.amazonaws.com:5432",
+						AWS: types.AWS{
+							AccountID: "123456789012",
+							RDS: types.RDS{
+								InstanceID: "my-db",
+								ResourceID: "db-123",
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				require.Equal(t, expectedDB, ldr.Databases[0])
+			},
+			errCheck: noErrorFunc,
+		},
+		{
+			name: "listing instances returns all valid instances and ignores the others",
+			req: ListDatabasesRequest{
+				Region:    "us-east-1",
+				RDSType:   "instance",
+				Engines:   []string{"postgres"},
+				NextToken: "",
+			},
+			mockInstances: []rdsTypes.DBInstance{
+				{
+					DBInstanceStatus:     stringPointer("available"),
+					DBInstanceIdentifier: stringPointer("my-db"),
+					Engine:               stringPointer("postgres"),
+					DbiResourceId:        stringPointer("db-123"),
+					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+					Endpoint: &rdsTypes.Endpoint{
+						Address: stringPointer("endpoint.amazonaws.com"),
+						Port:    5432,
+					},
+				},
+				{
+					DBInstanceStatus:     stringPointer("creating"),
+					DBInstanceIdentifier: stringPointer("db-without-endpoint"),
+					Engine:               stringPointer("postgres"),
+					DbiResourceId:        stringPointer("db-123"),
+					DBInstanceArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+					Endpoint:             nil,
+				},
+			},
+			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
+				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
+				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
+
+				expectedDB, err := types.NewDatabaseV3(
+					types.Metadata{
+						Name:        "my-db",
+						Description: "RDS instance in ",
+						Labels: map[string]string{
+							"account-id":          "123456789012",
+							"endpoint-type":       "instance",
+							"engine":              "postgres",
+							"engine-version":      "",
+							"region":              "",
+							"teleport.dev/origin": "cloud",
+							"status":              "available",
+						},
+					},
+					types.DatabaseSpecV3{
+						Protocol: "postgres",
+						URI:      "endpoint.amazonaws.com:5432",
+						AWS: types.AWS{
+							AccountID: "123456789012",
+							RDS: types.RDS{
+								InstanceID: "my-db",
+								ResourceID: "db-123",
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				require.Equal(t, expectedDB, ldr.Databases[0])
 			},
 			errCheck: noErrorFunc,
 		},
@@ -330,23 +286,47 @@ func TestListDatabases(t *testing.T) {
 				Engines:   []string{"postgres"},
 				NextToken: "",
 			},
-			mockClusters: []types.DBCluster{{
+			mockClusters: []rdsTypes.DBCluster{{
 				Status:              stringPointer("available"),
-				DBClusterIdentifier: stringPointer("my-db"),
-				Engine:              stringPointer("aurora-postgres"),
-				Endpoint:            stringPointer("address.amazonaws.com:5432"),
-			},
-			},
+				DBClusterIdentifier: stringPointer("my-dbc"),
+				DbClusterResourceId: stringPointer("db-123"),
+				Engine:              stringPointer("aurora-postgresql"),
+				Endpoint:            stringPointer("aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com"),
+				Port:                &clusterPort,
+				DBClusterArn:        stringPointer("arn:aws:iam::123456789012:role/MyARN"),
+			}},
 			respCheck: func(t *testing.T, ldr *ListDatabasesResponse) {
 				require.Len(t, ldr.Databases, 1, "expected 1 database, got %d", len(ldr.Databases))
 				require.Empty(t, ldr.NextToken, "expected an empty NextToken")
-				require.Equal(t, ldr.Databases[0], AWSDatabase{
-					Name:     "my-db",
-					Engine:   "aurora-postgres",
-					Status:   "available",
-					Endpoint: "address.amazonaws.com:5432",
-					Labels:   make(map[string]string),
-				})
+				expectedDB, err := types.NewDatabaseV3(
+					types.Metadata{
+						Name:        "my-dbc",
+						Description: "Aurora cluster in ",
+						Labels: map[string]string{
+							"account-id":          "123456789012",
+							"endpoint-type":       "primary",
+							"engine":              "aurora-postgresql",
+							"engine-version":      "",
+							"region":              "",
+							"teleport.dev/origin": "cloud",
+							"status":              "available",
+						},
+					},
+					types.DatabaseSpecV3{
+						Protocol: "postgres",
+						URI:      "aurora-instance-1.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432",
+						AWS: types.AWS{
+							AccountID: "123456789012",
+							RDS: types.RDS{
+								ClusterID:  "my-dbc",
+								InstanceID: "aurora-instance-1",
+								ResourceID: "db-123",
+							},
+						},
+					},
+				)
+				require.NoError(t, err)
+				require.Equal(t, expectedDB, ldr.Databases[0])
 			},
 			errCheck: noErrorFunc,
 		},
@@ -394,7 +374,7 @@ func TestListDatabases(t *testing.T) {
 				dbClusters:  tt.mockClusters,
 			}
 			resp, err := ListDatabases(ctx, mockListClient, tt.req)
-			tt.errCheck(err)
+			require.True(t, tt.errCheck(err), "unexpected err: %v", err)
 			if err != nil {
 				return
 			}
