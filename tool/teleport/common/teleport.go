@@ -433,12 +433,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// teleport join --proxy-server=proxy.example.com --token=aws-join-token [--openssh-config=/path/to/sshd.conf] [--restart-sshd=true]
 	joinOpenSSH.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
 	joinOpenSSH.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
-	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
-	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
-	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default(agentlessKeysDir).StringVar(&ccf.OpenSSHKeysPath)
-	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
-	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
-	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
+	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2).").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file.").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
+	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs.").Default(agentlessKeysDir).StringVar(&ccf.OpenSSHKeysPath)
+	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH.").Default("true").BoolVar(&ccf.RestartOpenSSH)
+	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
+	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by.").StringVar(&ccf.AdditionalPrincipals)
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	// parse CLI commands+flags:
@@ -652,6 +652,10 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 	if clf.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
+
+  if(clf.ProxyServer == "") {
+    return trace.BadParameter("No proxy address specified, missed --proxy-server flag?")
+  }
 
 	addr, err := utils.ParseAddr(clf.ProxyServer)
 	if err != nil {
