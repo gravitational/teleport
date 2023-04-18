@@ -512,7 +512,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -1250,7 +1250,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -4355,7 +4355,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -4636,7 +4636,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -6550,12 +6550,12 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
 type: kubernetes
-name: publish-normal-apt-new-repos
+name: publish-os-package-repos
 trigger:
   event:
     include:
@@ -6597,7 +6597,7 @@ steps:
   - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
     "build") > "/go/vars/release-environment.txt"
-- name: Delegate build to GitHub
+- name: Publish Teleport to stable/${DRONE_TAG} apt repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -6611,61 +6611,7 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: publish-normal-yum-new-repos
-trigger:
-  event:
-    include:
-    - promote
-  target:
-    include:
-    - production
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  pull: if-not-exists
-  commands:
-  - mkdir -pv "/go/src/github.com/gravitational/teleport"
-  - cd "/go/src/github.com/gravitational/teleport"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
-    chmod 600 /root/.ssh/id_rsa
-  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-  - git submodule update --init e
-  - mkdir -pv /go/cache
-  - rm -f /root/.ssh/id_rsa
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-- name: Determine if release should go to development or production
-  image: golang:1.18-alpine
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
-    "build") > "/go/vars/release-environment.txt"
-- name: Delegate build to GitHub
+- name: Publish Teleport to stable/${DRONE_TAG} yum repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -6679,61 +6625,7 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: publish-teleport-ent-updater-apt-new-repos
-trigger:
-  event:
-    include:
-    - promote
-  target:
-    include:
-    - production
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  pull: if-not-exists
-  commands:
-  - mkdir -pv "/go/src/github.com/gravitational/teleport"
-  - cd "/go/src/github.com/gravitational/teleport"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
-    chmod 600 /root/.ssh/id_rsa
-  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-  - git submodule update --init e
-  - mkdir -pv /go/cache
-  - rm -f /root/.ssh/id_rsa
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-- name: Determine if release should go to development or production
-  image: golang:1.18-alpine
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
-    "build") > "/go/vars/release-environment.txt"
-- name: Delegate build to GitHub
+- name: Publish teleport-ent-updater to stable/cloud apt repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -6746,61 +6638,7 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: publish-teleport-ent-updater-yum-new-repos
-trigger:
-  event:
-    include:
-    - promote
-  target:
-    include:
-    - production
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  pull: if-not-exists
-  commands:
-  - mkdir -pv "/go/src/github.com/gravitational/teleport"
-  - cd "/go/src/github.com/gravitational/teleport"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
-    chmod 600 /root/.ssh/id_rsa
-  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-  - git submodule update --init e
-  - mkdir -pv /go/cache
-  - rm -f /root/.ssh/id_rsa
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-- name: Determine if release should go to development or production
-  image: golang:1.18-alpine
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - mkdir -pv "/go/vars"
-  - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
-    "build") > "/go/vars/release-environment.txt"
-- name: Delegate build to GitHub
+- name: Publish teleport-ent-updater to stable/cloud yum repo
   image: golang:1.18-alpine
   pull: if-not-exists
   commands:
@@ -7352,7 +7190,7 @@ volumes:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -7411,7 +7249,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -8760,7 +8598,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -8822,7 +8660,7 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaBuildPipeline)
+# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
 ################################################
 
 kind: pipeline
@@ -20117,10 +19955,7 @@ clone:
 depends_on:
 - promote-build
 - teleport-container-images-branch-promote
-- publish-normal-apt-new-repos
-- publish-normal-yum-new-repos
-- publish-teleport-ent-updater-apt-new-repos
-- publish-teleport-ent-updater-yum-new-repos
+- publish-os-package-repos
 - promote-teleport-oci-distroless-images
 - promote-teleport-kube-agent-updater-oci-images
 steps:
@@ -20232,6 +20067,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 88c1a612809e190c5b9ebfe10e6df274532105a408af9d6583823a530598fddd
+hmac: b21082aec9ef11b00b44457d459a8f6a6d60e21cb347a6b7853ae3dfa6619cc9
 
 ...
