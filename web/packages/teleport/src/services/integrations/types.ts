@@ -140,12 +140,12 @@ export const awsRegionMap = {
 
 export type Regions = keyof typeof awsRegionMap;
 
-// RdsEngines are the expected backend string values,
+// RdsEngine are the expected backend string values,
 // used when requesting lists of rds databases of the
 // specified engine.
-export type RdsEngines =
-  | 'aurora'
-  | 'aurora-mysql'
+export type RdsEngine =
+  | 'aurora' // (for MySQL 5.6-compatible Aurora)
+  | 'aurora-mysql' // (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
   | 'aurora-postgresql'
   | 'mariadb'
   | 'mysql'
@@ -165,16 +165,7 @@ export type RdsEngineIdentifier =
 
 export type AwsOidcListDatabasesRequest = {
   // engines is used as a filter to get a list of specified engines only.
-  // The following values are accepted.
-  // mysql related:
-  //   aurora (for MySQL 5.6-compatible Aurora)
-  //   aurora-mysql (for MySQL 5.7-compatible and MySQL 8.0-compatible Aurora)
-  //   mysql
-  //   mariadb
-  // postgres related:
-  //   aurora-postgresql
-  //   postgres
-  engines: RdsEngines[];
+  engines: RdsEngine[];
   region: Regions;
   // nextToken is the start key for the next page
   nextToken?: string;
@@ -186,7 +177,7 @@ export type AwsOidcListDatabasesRequest = {
 
 export type AwsDatabase = {
   // engine of the database. eg. aurora-mysql
-  engine: RdsEngines;
+  engine: RdsEngine;
   // name is the the Database's name.
   name: string;
   // endpoint contains the URI for connecting to this Database
