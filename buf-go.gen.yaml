@@ -1,6 +1,7 @@
 version: v1
 plugins:
   - name: go
+    strategy: all
     path:
       - go
       - run
