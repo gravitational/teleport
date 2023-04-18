@@ -33,7 +33,7 @@ AMIs - especially for AMIs that conform to well-known security benchmarks. See
 
 ### Current Situation
 
-We  currently use [Packer](https://www.hashicorp.com/products/packer) and a shell
+We currently use [Packer](https://www.hashicorp.com/products/packer) and a shell
 script to provision our AMIs, based on Amazon Linux 2. The same Packerfile is used
 as a basis for several AMIs
 
@@ -72,20 +72,20 @@ We currently do not test our images against a benchmark.
 
 #### **CIS vs STIG**
 
-The two best-known standards for secuity hardening are 
+The two best-known standards for security hardening are 
  * CIS Benchmarks (Level 1 & 2), and
  * The US DoD Security Technical Implementation Guides (STIGs)
 
-Both of these standards are pretty comprhensive and have wide
+Both of these standards are pretty comprehensive and have wide
 application, although private organisations tend to favour CIS
 over STIG. 
 
 So why choose STIG over CIS?
 
 The decision largely comes down to what tooling is immediately available. Both
-standards are comprensive - the AL2 CIS benchmark document runs to about 600 
+standards are comprehensive - the AL2 CIS benchmark document runs to about 600 
 pages. At an estimated 2 pages per item, that's 300 separate items that need
-detection, remediation and validation. I don't beleive that Teleport wants 
+detection, remediation and validation. I don't believe that Teleport wants 
 to maintain scripts to do that ourselves, so I have been focused on finding 
 tools to do it for us.
 
@@ -168,11 +168,11 @@ Amazon Inspector can't examine AMIs directly, but it is possible to
  4. interrogate the resulting list of findings to decide if a build passes
     or not
 
-This idea is based on a [Continuous Vulnerability Assesment](https://aws.amazon.com/blogs/security/how-to-set-up-continuous-golden-ami-vulnerability-assessments-with-amazon-inspector/) example from the AWS secuity blog, minus the scheduled lambda to trigger the assessment.
+This idea is based on a [Continuous Vulnerability Assessment](https://aws.amazon.com/blogs/security/how-to-set-up-continuous-golden-ami-vulnerability-assessments-with-amazon-inspector/) example from the AWS security blog, minus the scheduled lambda to trigger the assessment.
 
 #### **Ongoing Scanning**
 
-We should mirror our approach for OCI containmer Images ([See RFD-0112](./0112-securing-docker-images.md)), which boils down to:
+We should mirror our approach for OCI container Images ([See RFD-0112](./0112-securing-docker-images.md)), which boils down to:
 
  * Routine (e.g. daily) scanning of the most recent release of each 
    supported Teleport version (i.e. 3 most recent major versions). 
@@ -213,7 +213,7 @@ depending on what is the highest value target.
 ### **Migration Plan**
 
 Changing the contents and configuration of the shipped AMIs is considered a
-compatibility breaking change, and so needs to be habndled with some care. 
+compatibility breaking change, and so needs to be handled with some care. 
 
 We will be rolling out the images over 3 major releases of Teleport:
 
