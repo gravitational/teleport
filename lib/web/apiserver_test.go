@@ -3473,7 +3473,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 			},
 			Spec: types.DatabaseSpecV3{
 				Protocol: "test-protocol",
-				URI:      "test-uri",
+				URI:      "test-uri:1234",
 			},
 		},
 	})
@@ -3515,12 +3515,14 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{{Name: "test-field", Value: "test-value"}},
 		Hostname: "test-uri",
+		URI:      "test-uri:1234",
 	}, {
 		Name:     "db2",
 		Type:     types.DatabaseTypeSelfHosted,
 		Labels:   []ui.Label{},
 		Protocol: "test-protocol",
 		Hostname: "test-uri",
+		URI:      "test-uri:1234",
 	}})
 
 	// Test with a role that defines database names and users.
@@ -3555,6 +3557,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Hostname:      "test-uri",
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
+		URI:           "test-uri:1234",
 	}, {
 		Name:          "db2",
 		Type:          types.DatabaseTypeSelfHosted,
@@ -3563,6 +3566,7 @@ func TestClusterDatabasesGet(t *testing.T) {
 		Hostname:      "test-uri",
 		DatabaseUsers: []string{"user1"},
 		DatabaseNames: []string{"name1"},
+		URI:           "test-uri:1234",
 	}})
 }
 
@@ -6676,7 +6680,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{requiredOriginLabel},
-				AWS: ui.AWS{
+				AWS: &ui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
 						AccountID: "123123123123",
@@ -6703,7 +6707,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "llama.cgi8.us-west-2.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
-				AWS: ui.AWS{
+				AWS: &ui.AWS{
 					AWS: types.AWS{
 						Region:    "us-west-2",
 						AccountID: "123123123123",
@@ -6734,7 +6738,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 				Type:     "rds",
 				Hostname: "alpaca.cgi8.us-east-1.rds.amazonaws.com",
 				Labels:   []ui.Label{{Name: "env", Value: "prod"}, requiredOriginLabel},
-				AWS: ui.AWS{
+				AWS: &ui.AWS{
 					AWS: types.AWS{
 						Region:    "us-east-1",
 						AccountID: "000000000000",

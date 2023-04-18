@@ -238,12 +238,14 @@ type Database struct {
 	Labels []Label `json:"labels"`
 	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
 	Hostname string `json:"hostname"`
+	// URI of the database.
+	URI string `json:"uri"`
 	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
 	// AWS contains AWS specific fields.
-	AWS AWS `json:"aws"`
+	AWS *AWS `json:"aws,omitempty"`
 }
 
 // AWS contains AWS specific fields.
@@ -263,12 +265,8 @@ const (
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
-	dbStatus := ""
-	if statusLabel, ok := database.GetAllLabels()[LabelStatus]; ok {
-		dbStatus = statusLabel
-	}
 
-	return Database{
+	ret := Database{
 		Name:          database.GetName(),
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
@@ -277,11 +275,21 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		DatabaseUsers: dbUsers,
 		DatabaseNames: dbNames,
 		Hostname:      stripProtocolAndPort(database.GetURI()),
-		AWS: AWS{
+		URI:           database.GetURI(),
+	}
+
+	if database.IsAWSHosted() {
+		dbStatus := ""
+		if statusLabel, ok := database.GetAllLabels()[LabelStatus]; ok {
+			dbStatus = statusLabel
+		}
+		ret.AWS = &AWS{
 			AWS:    database.GetAWS(),
 			Status: dbStatus,
-		},
+		}
 	}
+
+	return ret
 }
 
 // MakeDatabases creates database objects.
