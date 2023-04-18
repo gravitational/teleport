@@ -1740,6 +1740,13 @@ message DeviceTrust {
   // Mode is always "off" for OSS.
   // Defaults to "optional" for Enterprise.
   string Mode = 1 [(gogoproto.jsontag) = "mode,omitempty"];
+
+  // Enable device auto-enroll.
+  // Auto-enroll lets any user issue a device enrollment token for a known
+  // device that is not already enrolled.
+  // `tsh` takes advantage of auto-enroll to automatically enroll devices on
+  // user login, when appropriate.
+  bool AutoEnroll = 2 [(gogoproto.jsontag) = "auto_enroll,omitempty"];
 }
 
 // Namespace represents namespace resource specification
