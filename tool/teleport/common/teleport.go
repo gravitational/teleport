@@ -653,7 +653,7 @@ func onJoinOpenSSH(clf config.CommandLineFlags) error {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	//Proxy Server and Token are required configuration so confirming they exist before continuing
+	// Proxy Server and Token are required configuration so confirming they exist before continuing
 	missingProxyServerFlag := clf.ProxyServer == ""
 	missingAuthTokenFlag := clf.AuthToken == ""
 
