@@ -1,5 +1,33 @@
 # Changelog
 
+## 12.2.4 (04/18/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Auto-discovery
+  * Added ability to specify discovery group for discovery services. [#24716](https://github.com/gravitational/teleport/pull/24716)
+* CLI
+  * Improved `tsh` performance on some Windows systems. [#24573](https://github.com/gravitational/teleport/pull/24573)
+  * Improved `teleport configure` error/warning reporting. [#24676](https://github.com/gravitational/teleport/pull/24676)
+  * Added `--raw` flag to `teleport version` command. [#24772](https://github.com/gravitational/teleport/pull/24772)
+* Configuration
+  * Prevent proxies from trying to join cluster over reverse tunnel. [#24668](https://github.com/gravitational/teleport/pull/24668)
+* Server Access
+  * Fixed issue with excessive audit logging when copying files over SFTP. [#24831](https://github.com/gravitational/teleport/pull/24831)
+  * Fixed issue with `tsh scp` not recognizing wildcard patterns. [#24831](https://github.com/gravitational/teleport/pull/24831)
+  * Fixed issue with `tsh scp` failing when max sessions is set to 1. [#24831](https://github.com/gravitational/teleport/pull/24831)
+  * Improved error reporting from `tsh scp` when file copying is disabled. [#24831](https://github.com/gravitational/teleport/pull/24831)
+* Kubernetes Access
+  * Fixed issue with `tctl auth sign` not respecting `kube_public_addr`. [#24516](https://github.com/gravitational/teleport/pull/24516)
+  * Fixed memory leak when using port forwarding. [#24763](https://github.com/gravitational/teleport/pull/24763)
+  * Reduced log spam when using port forwarding. [#24658](https://github.com/gravitational/teleport/pull/24658)
+* Database Access
+  * Updated `teleport db configure` to support more AWS databases. [#24494](https://github.com/gravitational/teleport/pull/24494)
+* Performance & Scalability
+  * Reduced thundering herd effect in large clusters. [#24719](https://github.com/gravitational/teleport/pull/24719)
+* Web UI
+  * Fixed issue with downloading files from leaf clusters when per-session MFA is enabled. [#24768](https://github.com/gravitational/teleport/pull/24768)
+
 ## 12.2.3 (04/13/23)
 
 This release of Teleport contains multiple bug fixes.
