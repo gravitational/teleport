@@ -43,9 +43,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
+	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/transport"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
@@ -53,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -124,6 +128,12 @@ func TestRequestCertificate(t *testing.T) {
 	require.Empty(t, cmp.Diff(*idFromCSR, ctx.UnmappedIdentity.GetIdentity()))
 }
 
+func fakeClusterFeatures() proto.Features {
+	return proto.Features{
+		Kubernetes: true,
+	}
+}
+
 func TestAuthenticate(t *testing.T) {
 	t.Parallel()
 
@@ -163,6 +173,7 @@ func TestAuthenticate(t *testing.T) {
 			CachingAuthClient: ap,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
+			ClusterFeatures:   fakeClusterFeatures,
 		},
 		getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
 			servers, err := ap.GetKubernetesServers(ctx)
@@ -1266,6 +1277,7 @@ func newMockForwader(ctx context.Context, t *testing.T) *Forwarder {
 			Context:           ctx,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
+			ClusterFeatures:   fakeClusterFeatures,
 		},
 		clientCredentials: clientCreds,
 		activeRequests:    make(map[string]context.Context),
@@ -1818,6 +1830,81 @@ func Test_copyImpersonationHeaders(t *testing.T) {
 			dst := http.Header{}
 			copyImpersonationHeaders(dst, tt.inHeaders)
 			require.Equal(t, tt.wantHeaders, dst)
+		})
+	}
+}
+
+func TestKubernetesLicenseEnforcement(t *testing.T) {
+	t.Parallel()
+	// kubeMock is a Kubernetes API mock for the session tests.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	tests := []struct {
+		name          string
+		features      proto.Features
+		assertErrFunc require.ErrorAssertionFunc
+	}{
+		{
+			name: "kubernetes agent is licensed",
+			features: proto.Features{
+				Kubernetes: true,
+			},
+			assertErrFunc: require.NoError,
+		},
+		{
+			name: "kubernetes isn't licensed",
+			features: proto.Features{
+				Kubernetes: false,
+			},
+			assertErrFunc: func(tt require.TestingT, err error, i ...interface{}) {
+				require.Error(tt, err)
+				var kubeErr *kubeerrors.StatusError
+				require.ErrorAs(tt, err, &kubeErr)
+				require.Equal(tt, kubeErr.ErrStatus.Code, int32(http.StatusForbidden))
+				require.Equal(tt, kubeErr.ErrStatus.Reason, metav1.StatusReasonForbidden)
+				require.Equal(tt, kubeErr.ErrStatus.Message, "Teleport cluster is not licensed for Kubernetes")
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// creates a Kubernetes service with a configured cluster pointing to mock api server
+			testCtx := SetupTestContext(
+				context.Background(),
+				t,
+				TestConfig{
+					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+					ClusterFeatures: func() proto.Features {
+						return tt.features
+					},
+				},
+			)
+			// close tests
+			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+			_, _ = testCtx.CreateUserAndRole(
+				testCtx.Context,
+				t,
+				username,
+				RoleSpec{
+					Name:       roleName,
+					KubeUsers:  roleKubeUsers,
+					KubeGroups: roleKubeGroups,
+				})
+
+			// generate a kube client with user certs for auth
+			client, _ := testCtx.GenTestKubeClientTLSCert(
+				t,
+				username,
+				kubeCluster,
+			)
+
+			_, err = client.CoreV1().Pods(metav1.NamespaceDefault).List(context.Background(), metav1.ListOptions{})
+			tt.assertErrFunc(t, err)
 		})
 	}
 }

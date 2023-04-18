@@ -4070,7 +4070,8 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// using Impersonation headers. The upstream service will validate if
 				// the provided connection certificate is from a proxy server and
 				// will impersonate the identity of the user that is making the request.
-				ConnTLSConfig: tlsConfig.Clone(),
+				ConnTLSConfig:   tlsConfig.Clone(),
+				ClusterFeatures: process.getClusterFeatures,
 			},
 			TLS:             tlsConfig.Clone(),
 			LimiterConfig:   cfg.Proxy.Limiter,
