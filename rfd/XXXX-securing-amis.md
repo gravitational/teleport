@@ -86,7 +86,7 @@ The decision largely comes down to what tooling is immediately available. Both
 standards are comprensive - the AL2 CIS benchmark document runs to about 600 
 pages. At an estimated 2 pages per item, that's 300 separate items that need
 detection, remediation and validation. I don't beleive that Teleport wants 
-to maintain scripts to do that ourselves, so I have been focussed on finding 
+to maintain scripts to do that ourselves, so I have been focused on finding 
 tools to do it for us.
 
 Somewhat unsurprisingly, nearly all of the automated hardening tools I have 
