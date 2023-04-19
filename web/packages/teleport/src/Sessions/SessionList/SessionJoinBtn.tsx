@@ -20,8 +20,6 @@ import styled from 'styled-components';
 import { ButtonBorder, Text, Box, Menu, MenuItem, Flex } from 'design';
 import { CarrotDown } from 'design/Icon';
 
-import theme from 'design/theme';
-
 import cfg from 'teleport/config';
 import { ParticipantMode } from 'teleport/services/session';
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
@@ -57,7 +55,11 @@ export const SessionJoinBtn = ({
           as="a"
           href={cfg.getSshSessionRoute({ sid, clusterId }, participantMode)}
           target="_blank"
-          style={{ textTransform: 'capitalize' }}
+          css={`
+            text-transform: capitalize;
+            text-decoration: none;
+            color: ${props => props.theme.colors.text.secondary};
+          `}
         >
           {participantMode}
         </MenuItem>
@@ -131,7 +133,14 @@ function InternalJoinMenu({
 }: InternalJoinMenuProps) {
   return (
     <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleClose}>
-      <Text px="2" fontSize="11px" color="grey.400" bg="subtle">
+      <Text
+        px="2"
+        fontSize="11px"
+        css={`
+          color: ${props => props.theme.colors.text.primary};
+          background: ${props => props.theme.colors.spotBackground[2]};
+        `}
+      >
         Join as...
       </Text>
       {children}
@@ -154,16 +163,19 @@ function LockedFeatureInternalJoinMenu({
       anchorEl={anchorEl}
       open={Boolean(anchorEl)}
       onClose={handleClose}
-      menuListCss={() => `
-        background-color: ${theme.colors.levels.surface};
-  `}
+      //     menuListCss={() => ` TODO
+      //       background-color: ${theme.colors.levels.surface};
+      // `}
     >
       <div></div> {/* this div makes the menu properly positioned */}
       <LockedJoinMenuContainer>
         <ButtonLockedFeature>
           Join Active Sessions with Teleport Enterprise
         </ButtonLockedFeature>
-        <Box style={{ color: theme.colors.text.secondary }} ml="3">
+        <Box
+          // style={{ color: theme.colors.text.secondary }} TODo
+          ml="3"
+        >
           {modes.includes('observer') ? (
             <LockedJoinItem
               name={'As an Observer'}
@@ -192,7 +204,7 @@ function LockedFeatureInternalJoinMenu({
 
 const LockedJoinMenuContainer = styled(Flex)(
   () => `
-    background-color: ${theme.colors.levels.surface};
+    background-color: ${/*theme.colors.levels.surface TODO*/ ''};
     display: flex;
     flex-direction: column;
     align-items: flex-start;

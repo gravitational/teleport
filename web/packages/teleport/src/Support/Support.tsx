@@ -136,20 +136,18 @@ export const DataContainer: React.FC<{ title: string }> = ({
   title,
   children,
 }) => (
-  <Box
-    border="1px solid"
-    borderColor="levels.surface"
-    mt={4}
-    borderRadius={3}
-    px={5}
-    py={4}
-  >
+  <StyledDataContainer mt={4} borderRadius={3} px={5} py={4}>
     <Text as="h5" mb={4} fontWeight="bold" caps>
       {title}
     </Text>
     {children}
-  </Box>
+  </StyledDataContainer>
 );
+
+const StyledDataContainer = styled(Box)`
+  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+`;
+
 /**
  * getDocUrls returns an object of URL's appended with
  * UTM, version, and type of teleport.
@@ -202,7 +200,7 @@ const StyledSupportLink = styled.a.attrs({
   rel: 'noreferrer',
 })`
   display: block;
-  color: ${props => props.theme.colors.light};
+  color: ${props => props.theme.colors.text.primary};
   border-radius: 4px;
   text-decoration: none;
   margin-bottom: 8px;
@@ -210,8 +208,12 @@ const StyledSupportLink = styled.a.attrs({
   transition: all 0.3s;
   ${props => props.theme.typography.body2}
   &:hover, &:focus {
-    background: ${props => props.theme.colors.levels.elevated};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
+`;
+
+const StyledHeader = styled(Flex)`
+  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[2]};
 `;
 
 export const DataItem = ({ title = '', data = null }) => (
@@ -224,22 +226,14 @@ export const DataItem = ({ title = '', data = null }) => (
 );
 
 const Header = ({ title = '', icon = null }) => (
-  <Flex
-    alignItems="center"
-    borderBottom="1px solid"
-    borderColor="levels.sunkenSecondary"
-    mb={3}
-    width={210}
-    mt={4}
-    pb={2}
-  >
+  <StyledHeader alignItems="center" mb={3} width={210} mt={4} pb={2}>
     <Text pr={2} fontSize={18}>
       {icon}
     </Text>
     <Text as="h5" caps>
       {title}
     </Text>
-  </Flex>
+  </StyledHeader>
 );
 
 export type Props = {

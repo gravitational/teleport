@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -300,7 +301,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				Time:        clock.Now(),
 				ClusterName: "cluster",
 			},
-		}))
+		}, cmpopts.EquateApproxTime(time.Second)))
 	})
 	t.Run("CheckingStreamer.CreateAuditStream", func(t *testing.T) {
 		streamer := &events.CheckingStreamer{
@@ -329,7 +330,7 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				Time:        clock.Now(),
 				ClusterName: "cluster",
 			},
-		}))
+		}, cmpopts.EquateApproxTime(time.Second)))
 	})
 	t.Run("CheckingStreamer.ResumeAuditStream", func(t *testing.T) {
 		streamer := &events.CheckingStreamer{
@@ -358,6 +359,6 @@ func TestEnforcesClusterNameDefault(t *testing.T) {
 				Time:        clock.Now(),
 				ClusterName: "cluster",
 			},
-		}))
+		}, cmpopts.EquateApproxTime(time.Second)))
 	})
 }

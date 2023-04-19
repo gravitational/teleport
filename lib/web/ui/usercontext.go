@@ -29,6 +29,7 @@ type access struct {
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
 	Delete bool `json:"remove"`
+	Use    bool `json:"use"`
 }
 
 type accessStrategy struct {
@@ -145,6 +146,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
 		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
 		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
+		Use:    hasAccess(roleSet, ctx, kind, types.VerbUse),
 	}
 }
 
