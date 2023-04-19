@@ -55,7 +55,7 @@ function SearchBar() {
     inputValue,
     onInputValueChange,
     inputRef,
-    opened,
+    isOpen,
     open,
     close,
   } = useSearchContext();
@@ -74,11 +74,11 @@ function SearchBar() {
         close();
       }
     };
-    if (opened) {
+    if (isOpen) {
       window.addEventListener('click', onClickOutside);
       return () => window.removeEventListener('click', onClickOutside);
     }
-  }, [close, opened]);
+  }, [close, isOpen]);
 
   function handleOnFocus(e: React.FocusEvent) {
     open(e.relatedTarget);
@@ -117,13 +117,13 @@ function SearchBar() {
       ref={containerRef}
       onFocus={handleOnFocus}
     >
-      {!opened && (
+      {!isOpen && (
         <>
           <Input {...defaultInputProps} />
           <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
         </>
       )}
-      {opened && (
+      {isOpen && (
         <activePicker.picker
           // autofocusing cannot be done in `open` function as it would focus the input from closed state
           input={<Input {...defaultInputProps} autoFocus={true} />}

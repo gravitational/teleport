@@ -108,7 +108,7 @@ export function NewLockContent({
         </FeatureHeaderTitle>
       </FeatureHeader>
       <Flex justifyContent="space-between">
-        <Box width="150px" mb={4} data-testid="resource-selector">
+        <Box width="164px" mb={4} data-testid="resource-selector">
           <Select
             value={selectedTargetType}
             options={lockTargets}
@@ -136,7 +136,7 @@ export function NewLockContent({
         p={3}
         mt={4}
         css={`
-          background: ${({ theme }) => theme.colors.levels.surfaceSecondary};
+          background: ${({ theme }) => theme.colors.spotBackground[0]};
         `}
       >
         <Box>

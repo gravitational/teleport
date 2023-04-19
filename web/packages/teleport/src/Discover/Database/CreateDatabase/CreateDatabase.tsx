@@ -322,7 +322,7 @@ const CreateDatabaseDialog = ({
               Database Register Failed
             </Text>
             <Text mb={5}>
-              <Icons.Warning ml={1} mr={2} color="danger" />
+              <Icons.Warning ml={1} mr={2} color="error.main" />
               Error: {attempt.statusText}
             </Text>
             <Flex>

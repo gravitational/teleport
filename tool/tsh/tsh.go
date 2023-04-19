@@ -595,10 +595,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	app := utils.InitCLIParser("tsh", "Teleport Command Line Client").Interspersed(true)
 
 	app.Flag("login", "Remote host login").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
-	localUser, _ := client.Username()
 	app.Flag("proxy", "Teleport proxy address").Envar(proxyEnvVar).StringVar(&cf.Proxy)
 	app.Flag("nocache", "do not cache cluster discovery locally").Hidden().BoolVar(&cf.NoCache)
-	app.Flag("user", fmt.Sprintf("Teleport user [%s]", localUser)).Envar(userEnvVar).StringVar(&cf.Username)
+	app.Flag("user", "Teleport user, defaults to current local user").Envar(userEnvVar).StringVar(&cf.Username)
 	app.Flag("mem-profile", "Write memory profile to file").Hidden().StringVar(&memProfile)
 	app.Flag("cpu-profile", "Write CPU profile to file").Hidden().StringVar(&cpuProfile)
 	app.Flag("trace-profile", "Write trace profile to file").Hidden().StringVar(&traceProfile)
