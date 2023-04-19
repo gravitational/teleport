@@ -36,12 +36,6 @@ func promoteBuildOsRepoPipeline() pipeline {
 			packageToTest:     "teleport-ent",
 			displayName:       "Teleport",
 		},
-		// teleport-ent-updater to stable/cloud only pipelines
-		{
-			versionChannel:    "cloud",
-			packageNameFilter: `teleport-ent-updater*`,
-			displayName:       "teleport-ent-updater",
-		},
 	}
 
 	return buildPromoteOsPackagePipelines(packageDeployments)

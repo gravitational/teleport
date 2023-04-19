@@ -6587,32 +6587,6 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-- name: Publish teleport-ent-updater to stable/cloud apt repo
-  image: golang:1.18-alpine
-  pull: if-not-exists
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
-    -input "package-name-filter=teleport-ent-updater*" -input "release-channel=stable"
-    -input "repo-type=apt" -input "version-channel=cloud" '
-  environment:
-    GHA_APP_KEY:
-      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-- name: Publish teleport-ent-updater to stable/cloud yum repo
-  image: golang:1.18-alpine
-  pull: if-not-exists
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
-    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
-    -input "package-name-filter=teleport-ent-updater*" -input "release-channel=stable"
-    -input "repo-type=yum" -input "version-channel=cloud" '
-  environment:
-    GHA_APP_KEY:
-      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -19911,6 +19885,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: cc869b00b6e9af1208bcf09bb0660df92db7c2adfee68dae6d4beb328f501b94
+hmac: fecac8331f395775dd29c92c39c3dfaa9ac2079c3d5e89adb1c90b210fd9e100
 
 ...
