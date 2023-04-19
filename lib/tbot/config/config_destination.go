@@ -116,6 +116,11 @@ type DestinationConfig struct {
 	Roles   []string         `yaml:"roles,omitempty"`
 	Configs []TemplateConfig `yaml:"configs,omitempty"`
 
+	// Kinds is a deprecated and unused field that remains for compatibility
+	// reasons.
+	// DELETE IN 11.0.0: Kinds should be removed after a grace period.
+	Kinds []string `yaml:"kinds,omitempty"`
+
 	// Database is a database to request access to. Mutually exclusive with
 	// `kubernetes_cluster` and other special cert requests.
 	Database *Database `yaml:"database,omitempty"`
@@ -127,14 +132,6 @@ type DestinationConfig struct {
 	// App is an app access request. Mutually exclusive with `database`,
 	// `kubernetes_cluster`, and other special cert requests.
 	App *App `yaml:"app,omitempty"`
-
-	// Cluster allows certificates to be generated for a leaf cluster of the
-	// cluster that the bot is connected to. These certificates can be used
-	// to directly connect to a Teleport proxy of that leaf cluster, or used
-	// with the root cluster's proxy which will forward the request to the
-	// leaf cluster.
-	// For now, only SSH is supported.
-	Cluster string `yaml:"cluster,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -208,10 +205,6 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 			"special certificate request (database, kubernetes_cluster, etc)")
 	}
 
-	if notNilCount > 0 && dc.Cluster != "" {
-		return trace.BadParameter("the cluster option can only be used with ssh certificates")
-	}
-
 	// Note: empty roles is allowed; interpreted to mean "all" at generation
 	// time
 
@@ -221,6 +214,12 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 		if err := cfg.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+
+	if len(dc.Kinds) > 0 {
+		log.Warnf("The `kinds` configuration field has been deprecated and " +
+			"will be removed in a future release. It is now a no-op and can " +
+			"safely be removed from the configuration file.")
 	}
 
 	return nil

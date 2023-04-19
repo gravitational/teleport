@@ -27,7 +27,7 @@ export default function Toggle({
     <StyledWrapper disabled={disabled}>
       <StyledInput
         checked={isToggled}
-        onChange={onToggle}
+        onChange={() => onToggle()}
         disabled={disabled}
       />
       <StyledSlider />
@@ -58,7 +58,7 @@ const StyledSlider = styled.div`
   width: 32px;
   height: 12px;
   border-radius: 12px;
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.primary.light};
   cursor: inherit;
   flex-shrink: 0;
 
@@ -70,7 +70,7 @@ const StyledSlider = styled.div`
     width: 16px;
     height: 16px;
     border-radius: 16px;
-    background: ${props => props.theme.colors.brand};
+    background: ${props => props.theme.colors.secondary.light};
   }
 `;
 
@@ -80,7 +80,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
   cursor: inherit;
 
   &:checked + ${StyledSlider} {
-    background: ${props => props.theme.colors.spotBackground[1]};
+    background: ${props => props.theme.colors.secondary.main};
 
     &:before {
       transform: translate(16px, -50%);
@@ -88,7 +88,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
   }
 
   &:disabled + ${StyledSlider} {
-    background: ${props => props.theme.colors.levels.surface};
+    background: ${props => props.theme.colors.primary.light};
 
     &:before {
       background: ${props => props.theme.colors.grey[700]};

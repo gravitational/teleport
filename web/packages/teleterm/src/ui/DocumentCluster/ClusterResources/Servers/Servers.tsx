@@ -13,17 +13,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import React from 'react';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { Danger } from 'design/Alert';
-import { MenuLogin } from 'shared/components/MenuLogin';
-import { SearchPanel, SearchPagination } from 'shared/components/Search';
 
-import { makeServer } from 'teleterm/ui/services/clusters';
+import React from 'react';
+
+import { Cell } from 'design/DataTable';
+
+import { MenuLogin } from 'shared/components/MenuLogin';
+
+import { Danger } from 'design/Alert';
+
+import * as types from 'teleterm/ui/services/clusters/types';
+import { Table } from 'teleterm/ui/components/Table';
+
+import { renderLabelCell } from '../renderLabelCell';
 
 import { MenuLoginTheme } from '../MenuLoginTheme';
-import { DarkenWhileDisabled } from '../DarkenWhileDisabled';
-import { getEmptyTableText } from '../getEmptyTableText';
 
 import { useServers, State } from './useServers';
 
@@ -33,75 +37,43 @@ export default function Container() {
 }
 
 function ServerList(props: State) {
-  const {
-    getSshLogins,
-    connect,
-    fetchAttempt,
-    agentFilter,
-    pageCount,
-    customSort,
-    prevPage,
-    nextPage,
-    updateQuery,
-    onAgentLabelClick,
-    updateSearch,
-  } = props;
-  const servers = fetchAttempt.data?.agentsList.map(makeServer) || [];
-  const disabled = fetchAttempt.status === 'processing';
-  const emptyText = getEmptyTableText(fetchAttempt.status, 'servers');
-
+  const { servers = [], getSshLogins, connect, syncStatus } = props;
   return (
     <>
-      {fetchAttempt.status === 'error' && (
-        <Danger>{fetchAttempt.statusText}</Danger>
+      {syncStatus.status === 'failed' && (
+        <Danger>{syncStatus.statusText}</Danger>
       )}
-      <SearchPanel
-        updateQuery={updateQuery}
-        updateSearch={updateSearch}
-        pageIndicators={pageCount}
-        filter={agentFilter}
-        showSearchBar={true}
-        disableSearch={disabled}
-      />
-      <DarkenWhileDisabled disabled={disabled}>
-        <Table
-          columns={[
-            {
-              key: 'hostname',
-              headerText: 'Hostname',
-              isSortable: true,
-            },
-            {
-              key: 'addr',
-              headerText: 'Address',
-              isSortable: false,
-              render: renderAddressCell,
-            },
-            {
-              key: 'labels',
-              headerText: 'Labels',
-              render: ({ labels }) => (
-                <ClickableLabelCell
-                  labels={labels}
-                  onClick={onAgentLabelClick}
-                />
+      <Table
+        columns={[
+          {
+            key: 'hostname',
+            headerText: 'Hostname',
+            isSortable: true,
+          },
+          {
+            key: 'addr',
+            headerText: 'Address',
+            isSortable: true,
+            render: renderAddressCell,
+          },
+          {
+            key: 'labelsList',
+            headerText: 'Labels',
+            render: renderLabelCell,
+          },
+          {
+            altKey: 'connect-btn',
+            render: server =>
+              renderConnectCell(
+                () => getSshLogins(server.uri),
+                login => connect(server.uri, login)
               ),
-            },
-            {
-              altKey: 'connect-btn',
-              render: server =>
-                renderConnectCell(
-                  () => getSshLogins(server.uri),
-                  login => connect(server, login)
-                ),
-            },
-          ]}
-          customSort={customSort}
-          emptyText={emptyText}
-          data={servers}
-        />
-        <SearchPagination prevPage={prevPage} nextPage={nextPage} />
-      </DarkenWhileDisabled>
+          },
+        ]}
+        emptyText="No Nodes Found"
+        data={servers}
+        pagination={{ pageSize: 15, pagerPosition: 'bottom' }}
+      />
     </>
   );
 }
@@ -132,7 +104,7 @@ const renderConnectCell = (
   );
 };
 
-const renderAddressCell = ({ addr, tunnel }: ReturnType<typeof makeServer>) => (
+const renderAddressCell = ({ addr, tunnel }: types.Server) => (
   <Cell>
     {tunnel && (
       <span

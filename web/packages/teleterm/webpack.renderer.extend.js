@@ -42,7 +42,7 @@ function createHtmlPlugin({ isDev }) {
 }
 
 function getCsp({ isDev }) {
-  // feedbackAddress needs to be kept in sync with the same property in staticConfig.ts.
+  // feedbackAddress needs to be kept in sync with the address in useShareFeedback.
   const feedbackAddress = isDev
     ? 'https://kcwm2is93l.execute-api.us-west-2.amazonaws.com/prod'
     : 'https://usage.teleport.dev';

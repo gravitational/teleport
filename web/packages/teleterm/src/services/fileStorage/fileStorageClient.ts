@@ -29,17 +29,11 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
     (event, eventType: FileStorageEventType, item) => {
       switch (eventType) {
         case FileStorageEventType.Get:
-          return (event.returnValue = configService.get(item.key));
+          return (event.returnValue = configService.get(item.path));
         case FileStorageEventType.Put:
-          return configService.put(item.key, item.json);
-        case FileStorageEventType.Write:
-          return configService.write();
-        case FileStorageEventType.Replace:
-          return configService.replace(item.json);
-        case FileStorageEventType.GetFilePath:
-          return configService.getFilePath();
-        case FileStorageEventType.GetFileLoadingError:
-          return configService.getFileLoadingError();
+          return configService.put(item.path, item.json);
+        case FileStorageEventType.PutAllSync:
+          return configService.putAllSync();
       }
     }
   );
@@ -47,35 +41,19 @@ export function subscribeToFileStorageEvents(configService: FileStorage): void {
 
 export function createFileStorageClient(): FileStorage {
   return {
-    get: key =>
+    get: path =>
       ipcRenderer.sendSync(FileStorageEventChannel, FileStorageEventType.Get, {
-        key,
+        path,
       }),
-    put: (key, json) =>
+    put: (path, json) =>
       ipcRenderer.send(FileStorageEventChannel, FileStorageEventType.Put, {
-        key,
+        path,
         json,
       }),
-    write: () =>
-      ipcRenderer.invoke(
+    putAllSync: () =>
+      ipcRenderer.send(
         FileStorageEventChannel,
-        FileStorageEventType.Write,
-        {}
-      ),
-    replace: json =>
-      ipcRenderer.send(FileStorageEventChannel, FileStorageEventType.Replace, {
-        json,
-      }),
-    getFilePath: () =>
-      ipcRenderer.sendSync(
-        FileStorageEventChannel,
-        FileStorageEventType.GetFilePath,
-        {}
-      ),
-    getFileLoadingError: () =>
-      ipcRenderer.sendSync(
-        FileStorageEventChannel,
-        FileStorageEventType.GetFileLoadingError,
+        FileStorageEventType.PutAllSync,
         {}
       ),
   };

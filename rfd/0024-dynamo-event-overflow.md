@@ -23,7 +23,7 @@ Another concern is that allowing a single partition to contain too many events m
 
 Currently we do not store a suitable field on audit event entries in Dynamo to partition on. This means that we need to add a new field storing the date of the event in the string format `yyyy-mm-dd`. I propose to create a new Global Secondary index that is identical to existing one except it shall partition on the date key instead of the namespace key. A scheme like this will prevent size blowup on a single partition and instead spread long term data over multiple partitions.
 
-Searching over this new Global Secondary Index is trivial since the partition keys are simply a set of dates which can be generated easily from the start and end timestamps provided internally. We generate a set of partition keys to search over and include it in the query.
+Searching over this new Global Secondary Index is trival since the partition keys are simply a set of dates which can be generated easily from the start and end timestamps provided internally. We generate a set of partition keys to search over and include it in the query.
 
 Since the new date field will not exist on all past events on existing deployments by default, the Teleport auth server will need to go back and retroactively calculate and add this field to all past events. This will be done as a once-off background task created when the DynamoDB backend is created. The consequence of this is that past events will not be visible or searchable until this field as been added but due to the background process they will appear quickly again.
 

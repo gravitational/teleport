@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { fireEvent, render } from 'design/utils/testing';
 import React from 'react';
+import 'jest-canvas-mock';
 
 import { TabHost } from 'teleterm/ui/TabHost/TabHost';
 import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
@@ -33,28 +34,18 @@ import {
 } from 'teleterm/mainProcess/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import AppContext from 'teleterm/ui/appContext';
-
-import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
-
-// TODO(ravicious): Remove the mock once a separate entry point for e-teleterm is created.
-//
-// Mocking out DocumentsRenderer because it imports an e-teleterm component which breaks CI tests
-// for the OSS version. The tests here don't test the behavior of DocumentsRenderer so the only
-// thing we lose by adding the mock is "smoke tests" of different document kinds.
-jest.mock('teleterm/ui/Documents/DocumentsRenderer', () => ({
-  DocumentsRenderer: ({ children }) => <>{children}</>,
-}));
+import { Config } from 'teleterm/services/config';
 
 function getMockDocuments(): Document[] {
   return [
     {
       kind: 'doc.blank',
-      uri: '/docs/test_uri_1',
+      uri: 'test_uri_1',
       title: 'Test 1',
     },
     {
       kind: 'doc.blank',
-      uri: '/docs/test_uri_2',
+      uri: 'test_uri_2',
       title: 'Test 2',
     },
   ];
@@ -64,22 +55,25 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   const keyboardShortcutsService: Partial<KeyboardShortcutsService> = {
     subscribeToEvents() {},
     unsubscribeFromEvents() {},
-    // @ts-expect-error we don't provide entire config
-    getShortcutsConfig() {
-      return {
-        closeTab: 'Command-W',
-        newTab: 'Command-T',
-        openSearchBar: 'Command-K',
-        openConnections: 'Command-P',
-        openClusters: 'Command-E',
-        openProfiles: 'Command-I',
-      };
-    },
   };
 
   const mainProcessClient: Partial<MainProcessClient> = {
     openTabContextMenu: jest.fn(),
     getRuntimeSettings: () => ({} as RuntimeSettings),
+    configService: {
+      get: () =>
+        ({
+          keyboardShortcuts: {
+            'tab-close': 'Command-W',
+            'tab-new': 'Command-T',
+            'open-quick-input': 'Command-K',
+            'toggle-connections': 'Command-P',
+            'toggle-clusters': 'Command-E',
+            'toggle-identity': 'Command-I',
+          },
+        } as Config),
+      update() {},
+    },
   };
 
   const docsService: Partial<DocumentsService> = {
@@ -109,25 +103,23 @@ function getTestSetup({ documents }: { documents: Document[] }) {
   };
 
   const workspacesService: Partial<WorkspacesService> = {
+    // @ts-expect-error - using mocks
+    getWorkspacesDocumentsServices() {
+      return [
+        { clusterUri: 'test_uri', workspaceDocumentsService: docsService },
+      ];
+    },
     isDocumentActive(documentUri: string) {
       return documentUri === documents[0].uri;
     },
     getRootClusterUri() {
-      return '/clusters/test_uri';
-    },
-    getWorkspaces() {
-      return {};
+      return 'test_uri';
     },
     getActiveWorkspace() {
       return {
-        accessRequests: {
-          assumed: {},
-          isBarCollapsed: false,
-          pending: getEmptyPendingAccessRequest(),
-        },
         documents,
         location: undefined,
-        localClusterUri: '/clusters/test_uri',
+        localClusterUri: 'test_uri',
       };
     },
     // @ts-expect-error - using mocks
@@ -137,7 +129,7 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     useState: jest.fn(),
     state: {
       workspaces: {},
-      rootClusterUri: '/clusters/test_uri',
+      rootClusterUri: 'test_uri',
     },
   };
 
@@ -166,13 +158,13 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 }
 
 test('render documents', () => {
-  const { docsService } = getTestSetup({
+  const { queryByTitle, docsService } = getTestSetup({
     documents: getMockDocuments(),
   });
   const documents = docsService.getDocuments();
 
-  expect(screen.getByTitle(documents[0].title)).toBeInTheDocument();
-  expect(screen.getByTitle(documents[1].title)).toBeInTheDocument();
+  expect(queryByTitle(documents[0].title)).toBeInTheDocument();
+  expect(queryByTitle(documents[1].title)).toBeInTheDocument();
 });
 
 test('open tab on click', () => {
@@ -226,8 +218,8 @@ test('open new tab', () => {
   });
   const { add, open } = docsService;
   const mockedClusterDocument: DocumentCluster = {
-    clusterUri: '/clusters/test',
-    uri: '/docs/test',
+    clusterUri: 'test',
+    uri: 'test',
     title: 'Test',
     kind: 'doc.cluster',
   };

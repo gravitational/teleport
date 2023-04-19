@@ -15,7 +15,7 @@
  */
 
 import React, { Fragment, useMemo, useState } from 'react';
-import { debounce } from 'shared/utils/highbar';
+import { debounce } from 'lodash';
 import styled from 'styled-components';
 
 import { prepareVirtualScrollItems } from './prepareVirtualScrollItems';

@@ -15,18 +15,20 @@
  */
 
 import React, { useEffect, useState } from 'react';
+
 import styled from 'styled-components';
+
 import { Indicator, Box, Alert } from 'design';
+
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import { PlayerClient, PlayerClientEvent } from 'teleport/lib/tdp';
+import { PngFrame, ClientScreenSpec } from 'teleport/lib/tdp/codec';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
 import { ProgressBarDesktop } from './ProgressBar';
-
-import type { PngFrame, ClientScreenSpec } from 'teleport/lib/tdp/codec';
 
 export const DesktopPlayer = ({
   sid,
@@ -168,7 +170,7 @@ const useDesktopPlayer = ({
         playerClient.shutdown();
       };
     }
-  }, [playerClient, setAttempt]);
+  }, [playerClient]);
 
   // If the websocket closed for some reason other than the session playback ending,
   // as signaled by the server (which sets prevAttempt.status = '' in
@@ -186,10 +188,11 @@ const useDesktopPlayer = ({
     });
   };
 
-  const tdpCliOnTdpError = (error: Error) => {
+  const tdpCliOnTdpError = (error: { err: Error; isFatal: boolean }) => {
+    const { err } = error;
     setAttempt({
       status: 'failed',
-      statusText: error.message,
+      statusText: err.message,
     });
   };
 

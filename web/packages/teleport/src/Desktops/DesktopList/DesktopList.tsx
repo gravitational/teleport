@@ -15,16 +15,19 @@ limitations under the License.
 */
 
 import React from 'react';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { FetchStatus, SortType } from 'design/DataTable/types';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
 import { Desktop } from 'teleport/services/desktops';
-import { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-
-import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 
 function DesktopList(props: Props) {
   const {
@@ -32,16 +35,20 @@ function DesktopList(props: Props) {
     pageSize,
     onLoginMenuOpen,
     onLoginSelect,
+    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
+    from,
+    to,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
-    pageIndicators,
+    paginationUnsupported,
   } = props;
 
   function onDesktopSelect(
@@ -51,6 +58,39 @@ function DesktopList(props: Props) {
   ) {
     e.preventDefault();
     onLoginSelect(username, desktopName);
+  }
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <Table
+        data={desktops}
+        emptyText="No Desktops Found"
+        isSearchable
+        pagination={{ pageSize }}
+        columns={[
+          {
+            key: 'addr',
+            headerText: 'Address',
+          },
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+          },
+          {
+            key: 'labels',
+            headerText: 'Labels',
+            render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+          },
+          {
+            altKey: 'login-cell',
+            render: desktop =>
+              renderLoginCell(desktop, onLoginMenuOpen, onDesktopSelect),
+          },
+        ]}
+      />
+    );
   }
 
   return (
@@ -90,14 +130,16 @@ function DesktopList(props: Props) {
       serversideProps={{
         sort: params.sort,
         setSort,
+        startKeys,
         serversideSearchPanel: (
           <ServersideSearchPanel
-            pageIndicators={pageIndicators}
+            from={from}
+            to={to}
+            count={totalCount}
             params={params}
             setParams={setParams}
             pathname={pathname}
             replaceHistory={replaceHistory}
-            disabled={fetchStatus === 'loading'}
           />
         ),
       }}
@@ -155,14 +197,18 @@ type Props = {
   onLoginSelect(username: string, desktopName: string): void;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: FetchStatus;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  fetchStatus: any;
+  from: number;
+  to: number;
+  totalCount: number;
+  params: ResourceUrlQueryParams;
+  setParams: (params: ResourceUrlQueryParams) => void;
+  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
-  pageIndicators: PageIndicators;
+  paginationUnsupported: boolean;
 };
 
 export default DesktopList;

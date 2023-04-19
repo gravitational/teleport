@@ -17,6 +17,7 @@ limitations under the License.
 package postgres
 
 import (
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
@@ -42,7 +42,7 @@ type ServiceFile struct {
 func Load() (*ServiceFile, error) {
 	// Default location is .pg_service.conf file in the user's home directory.
 	// TODO(r0mant): Check PGSERVICEFILE and PGSYSCONFDIR env vars as well.
-	user, err := utils.CurrentUser()
+	user, err := user.Current()
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -67,18 +67,18 @@ func LoadFromPath(path string) (*ServiceFile, error) {
 // The profile goes into a separate section with the name equal to the
 // name of the database that user is logged into and looks like this:
 //
-//	[postgres]
-//	host=proxy.example.com
-//	port=3080
-//	sslmode=verify-full
-//	sslrootcert=/home/user/.tsh/keys/proxy.example.com/certs.pem
-//	sslcert=/home/user/.tsh/keys/proxy.example.com/alice-db/root/aurora-x509.pem
-//	sslkey=/home/user/.tsh/keys/proxy.example.com/user
+//   [postgres]
+//   host=proxy.example.com
+//   port=3080
+//   sslmode=verify-full
+//   sslrootcert=/home/user/.tsh/keys/proxy.example.com/certs.pem
+//   sslcert=/home/user/.tsh/keys/proxy.example.com/alice-db/root/aurora-x509.pem
+//   sslkey=/home/user/.tsh/keys/proxy.example.com/user
 //
 // With the profile like this, a user can refer to it using "service" psql
 // parameter:
 //
-//	$ psql "service=postgres <other parameters>"
+//   $ psql "service=postgres <other parameters>"
 func (s *ServiceFile) Upsert(profile profile.ConnectProfile) error {
 	section := s.iniFile.Section(profile.Name)
 	if section != nil {

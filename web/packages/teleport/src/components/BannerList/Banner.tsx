@@ -20,9 +20,6 @@ import styled from 'styled-components';
 import { Box, Flex, Link, Text } from 'design';
 import { Cross, Info, Warning } from 'design/Icon';
 
-import { CaptureEvent } from 'teleport/services/userEvent/types';
-import { userEventService } from 'teleport/services/userEvent';
-
 export type Severity = 'info' | 'warning' | 'danger';
 
 export type Props = {
@@ -55,31 +52,16 @@ export function Banner({
     }
   };
 
-  let backgroundColor;
-  if (severity === 'danger') {
-    backgroundColor = 'error.main';
-  } else if (severity === 'warning') {
-    backgroundColor = 'warning.main';
-  } else {
-    backgroundColor = 'info';
-  }
-
   return (
-    <Box bg={backgroundColor} p={1} pl={2}>
+    <Box bg={severity} p={1} pl={2}>
       <Flex alignItems="center">
         {icon}
         {isValidTeleportLink(link) ? (
           <Link
             href={link}
             target="_blank"
-            color="text.primaryInverse"
+            color="light"
             style={{ fontWeight: 'bold' }}
-            onClick={() =>
-              userEventService.captureUserEvent({
-                event: CaptureEvent.BannerClickEvent,
-                alert: id,
-              })
-            }
           >
             {message}
           </Link>

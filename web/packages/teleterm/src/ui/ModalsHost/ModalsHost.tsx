@@ -20,124 +20,55 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 import { ClusterConnect } from 'teleterm/ui/ClusterConnect';
 import { DocumentsReopen } from 'teleterm/ui/DocumentsReopen';
-import { Dialog } from 'teleterm/ui/services/modals';
 
 import ClusterLogout from '../ClusterLogout/ClusterLogout';
-import { ResourceSearchErrors } from '../Search/ResourceSearchErrors';
-import { assertUnreachable } from '../utils';
-
-import { UsageData } from './modals/UsageData';
-import { UserJobRole } from './modals/UserJobRole';
 
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
-  const { regular: regularDialog, important: importantDialog } =
-    modalsService.useState();
+  const dialog = modalsService.useState();
 
-  const closeRegularDialog = () => modalsService.closeRegularDialog();
-  const closeImportantDialog = () => modalsService.closeImportantDialog();
+  const handleClose = () => modalsService.closeDialog();
 
-  return (
-    <>
-      {renderDialog(regularDialog, closeRegularDialog)}
-      {renderDialog(importantDialog, closeImportantDialog)}
-    </>
-  );
-}
-
-function renderDialog(dialog: Dialog, handleClose: () => void) {
-  switch (dialog.kind) {
-    case 'cluster-connect': {
-      return (
-        <ClusterConnect
-          clusterUri={dialog.clusterUri}
-          reason={dialog.reason}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel?.();
-          }}
-          onSuccess={clusterUri => {
-            handleClose();
-            dialog.onSuccess(clusterUri);
-          }}
-        />
-      );
-    }
-    case 'cluster-logout': {
-      return (
-        <ClusterLogout
-          clusterUri={dialog.clusterUri}
-          clusterTitle={dialog.clusterTitle}
-          onClose={handleClose}
-        />
-      );
-    }
-    case 'documents-reopen': {
-      return (
-        <DocumentsReopen
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onConfirm={() => {
-            handleClose();
-            dialog.onConfirm();
-          }}
-        />
-      );
-    }
-    case 'usage-data': {
-      return (
-        <UsageData
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onAllow={() => {
-            handleClose();
-            dialog.onAllow();
-          }}
-          onDecline={() => {
-            handleClose();
-            dialog.onDecline();
-          }}
-        />
-      );
-    }
-    case 'user-job-role': {
-      return (
-        <UserJobRole
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-          onSend={jobRole => {
-            handleClose();
-            dialog.onSend(jobRole);
-          }}
-        />
-      );
-    }
-
-    case 'resource-search-errors': {
-      return (
-        <ResourceSearchErrors
-          errors={dialog.errors}
-          getClusterName={dialog.getClusterName}
-          onCancel={() => {
-            handleClose();
-            dialog.onCancel();
-          }}
-        />
-      );
-    }
-
-    case 'none': {
-      return null;
-    }
-
-    default: {
-      return assertUnreachable(dialog);
-    }
+  if (dialog.kind === 'cluster-connect') {
+    return (
+      <ClusterConnect
+        clusterUri={dialog.clusterUri}
+        onCancel={() => {
+          handleClose();
+          dialog.onCancel?.();
+        }}
+        onSuccess={clusterUri => {
+          handleClose();
+          dialog.onSuccess(clusterUri);
+        }}
+      />
+    );
   }
+
+  if (dialog.kind === 'cluster-logout') {
+    return (
+      <ClusterLogout
+        clusterUri={dialog.clusterUri}
+        clusterTitle={dialog.clusterTitle}
+        onClose={handleClose}
+      />
+    );
+  }
+
+  if (dialog.kind === 'documents-reopen') {
+    return (
+      <DocumentsReopen
+        onCancel={() => {
+          handleClose();
+          dialog.onCancel();
+        }}
+        onConfirm={() => {
+          handleClose();
+          dialog.onConfirm();
+        }}
+      />
+    );
+  }
+
+  return null;
 }

@@ -25,17 +25,15 @@ function error({ hasError, theme }) {
 
   return {
     border: `2px solid ${theme.colors.error.main}`,
-    '&:hover, &:focus': {
-      border: `2px solid ${theme.colors.error.main}`,
-    },
     padding: '10px 14px',
   };
 }
 
 const Input = styled.input`
   appearance: none;
-  border: 1px solid ${props => props.theme.colors.text.placeholder};
+  border: none;
   border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -43,30 +41,17 @@ const Input = styled.input`
   padding: 0 16px;
   outline: none;
   width: 100%;
-  background: ${props => props.theme.colors.levels.surface};
-  color: ${props => props.theme.colors.text.primary};
-
-  &:hover,
-  &:focus,
-  &:active {
-    border: 1px solid ${props => props.theme.colors.text.secondary};
-  }
 
   ::-ms-clear {
     display: none;
   }
 
   ::placeholder {
-    color: ${props => props.theme.colors.text.placeholder};
+    opacity: 0.4;
   }
 
   :read-only {
     cursor: not-allowed;
-  }
-
-  :disabled {
-    color: ${props => props.theme.colors.text.disabled};
-    border-color: ${props => props.theme.colors.text.disabled};
   }
 
   ${color} ${space} ${width} ${height} ${error};
@@ -77,6 +62,11 @@ Input.displayName = 'Input';
 Input.propTypes = {
   placeholder: PropTypes.string,
   hasError: PropTypes.bool,
+};
+
+Input.defaultProps = {
+  bg: 'light',
+  color: 'text.onLight',
 };
 
 export default Input;

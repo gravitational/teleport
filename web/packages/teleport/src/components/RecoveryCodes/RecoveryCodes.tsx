@@ -16,30 +16,19 @@
 
 import React, { useRef } from 'react';
 import styled from 'styled-components';
-import { Box, ButtonPrimary, Card, Flex, Text } from 'design';
+import { Flex, Card, Text, Box, ButtonPrimary } from 'design';
 import copyToClipboard from 'design/utils/copyToClipboard';
 import selectElementContent from 'design/utils/selectElementContent';
 
 import { RecoveryCodes } from 'teleport/services/auth';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 export default function RecoveryCodesDialog({
   recoveryCodes,
   onContinue,
   isNewCodes,
   continueText = 'Continue',
-  username = '',
 }: Props) {
   const codesRef = useRef();
-
-  const captureRecoveryCodeEvent = (event: CaptureEvent) => {
-    if (username) {
-      userEventService.capturePreUserEvent({
-        event: event,
-        username: username,
-      });
-    }
-  };
 
   const onCopyClick = () => {
     copyToClipboard(
@@ -49,19 +38,6 @@ export default function RecoveryCodesDialog({
     ).then(() => {
       selectElementContent(codesRef.current);
     });
-    captureRecoveryCodeEvent(CaptureEvent.PreUserRecoveryCodesCopyClickEvent);
-  };
-
-  const onPrintClick = () => {
-    window.print();
-    captureRecoveryCodeEvent(CaptureEvent.PreUserRecoveryCodesPrintClickEvent);
-  };
-
-  const handleContinue = () => {
-    captureRecoveryCodeEvent(
-      CaptureEvent.PreUserRecoveryCodesContinueClickEvent
-    );
-    onContinue();
   };
 
   let title = 'Backup & Recovery Codes';
@@ -85,14 +61,14 @@ export default function RecoveryCodesDialog({
       >
         <Flex
           flex={4}
-          bg="levels.surface"
+          bg="primary.light"
           minWidth="584px"
           flexDirection="column"
           p={5}
           className="print"
         >
           <Box mb={5}>
-            <Text typography="h2" mb={3} color="text.primary">
+            <Text typography="h2" mb={3} color="light">
               {title}
             </Text>
             <Text mb={1}>
@@ -108,7 +84,7 @@ export default function RecoveryCodesDialog({
               Recovery Codes ({recoveryCodes?.codes.length} Total)
             </Text>
             <Flex
-              bg="levels.sunken"
+              bg="primary.dark"
               p={2}
               pb={4}
               pl={3}
@@ -125,7 +101,7 @@ export default function RecoveryCodesDialog({
               </Text>
               <Flex flexDirection="column" className="no-print" ml={2}>
                 <MiniActionButton onClick={onCopyClick}>COPY</MiniActionButton>
-                <MiniActionButton onClick={onPrintClick} mt={2}>
+                <MiniActionButton onClick={window.print} mt={2}>
                   PRINT
                 </MiniActionButton>
               </Flex>
@@ -138,7 +114,7 @@ export default function RecoveryCodesDialog({
               size="large"
               width="100%"
               className="no-print"
-              onClick={handleContinue}
+              onClick={onContinue}
             >
               {btnText}
             </ButtonPrimary>
@@ -146,12 +122,10 @@ export default function RecoveryCodesDialog({
         </Flex>
         <Flex
           flex={2}
+          bg="primary.main"
           minWidth="384px"
           flexDirection="column"
           p={5}
-          css={`
-            background: ${props => props.theme.colors.spotBackground[0]};
-          `}
         >
           <Box mb={4}>
             <Text typography="h4" mb={2}>
@@ -221,5 +195,4 @@ export type Props = {
   onContinue: () => void;
   isNewCodes: boolean;
   continueText?: string;
-  username?: string;
 };

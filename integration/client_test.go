@@ -26,8 +26,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -35,16 +34,15 @@ import (
 // using an expired user identity
 // We should receive an error message which contains the real cause (ssh: handshake)
 func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
-	cfg := helpers.InstanceConfig{
+	rc := NewInstance(InstanceConfig{
 		ClusterName: "root.example.com",
 		HostID:      uuid.New().String(),
 		NodeName:    Loopback,
 		Log:         utils.NewLoggerForTests(),
-	}
-	cfg.Listeners = helpers.SingleProxyPortSetup(t, &cfg.Fds)
-	rc := helpers.NewInstance(t, cfg)
+		Ports:       singleProxyPortSetup(),
+	})
 
-	rcConf := servicecfg.MakeDefaultConfig()
+	rcConf := service.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
@@ -52,7 +50,7 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	rcConf.SSH.Enabled = true
 	rcConf.Version = "v2"
 
-	username := helpers.MustGetCurrentUser(t).Username
+	username := mustGetCurrentUser(t).Username
 	rc.AddUser(username, []string{username})
 
 	err := rc.CreateEx(t, nil, rcConf)
@@ -62,12 +60,12 @@ func TestClientWithExpiredCredentialsAndDetailedErrorMessage(t *testing.T) {
 	defer rc.StopAll()
 
 	// Create an expired identity file: ttl is 1 second in the past
-	identityFilePath := helpers.MustCreateUserIdentityFile(t, rc, username, -time.Second)
+	identityFilePath := MustCreateUserIdentityFile(t, rc, username, -time.Second)
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()
 	_, err = client.New(ctx, client.Config{
-		Addrs:       []string{rc.Auth},
+		Addrs:       []string{rc.GetAuthAddr()},
 		Credentials: []client.Credentials{client.LoadIdentityFile(identityFilePath)},
 		DialOpts: []grpc.DialOption{
 			// ask for underlying errors

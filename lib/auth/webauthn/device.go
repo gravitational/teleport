@@ -20,9 +20,9 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
+	wan "github.com/duo-labs/webauthn/webauthn"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/go-webauthn/webauthn/protocol/webauthncose"
-	wan "github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -80,7 +80,7 @@ func u2fDERKeyToCBOR(der []byte) ([]byte, error) {
 	// https://fidoalliance.org/specs/fido-u2f-v1.2-ps-20170411/fido-u2f-raw-message-formats-v1.2-ps-20170411.html#h3_registration-response-message-success.
 	pubKey, ok := pubKeyI.(*ecdsa.PublicKey)
 	if !ok {
-		return nil, trace.BadParameter("U2F public key has an unexpected type: %T", pubKeyI)
+		return nil, trace.Wrap(err)
 	}
 	return U2FKeyToCBOR(pubKey)
 }

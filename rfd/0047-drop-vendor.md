@@ -1,5 +1,5 @@
 ---
-authors: Zac Bergquist <zac@goteleport.com>
+authors: Zac Bergquist <zac@goteleport.com
 state: Implemented
 ---
 
@@ -77,7 +77,7 @@ running our own proxy is warranted.
 Committing the vendor directory has led to a number of minor issues, and
 dropping it would result in an improved developer experience.
 
-First, committing these changes results in repo bloat. Since go.mod and go.sum
+First, comitting these changes results in repo bloat. Since go.mod and go.sum
 already contain everything needed for a reproducible build, the teleport repo
 ends up being larger than necessary. This causes clone operations to take longer,
 increases the time taken for CI builds, etc.
@@ -97,7 +97,7 @@ which is difficult to maintain in a cross-platform way, and has broken
 [gopls integration](https://github.com/gravitational/teleport/blob/30effc1f08b6a699772ff22f79ebe756fe1a1e34/Makefile#L942-L952)
 a common tool used in Go development environments.
 
-Lastly, there is no guarantee that the code comitted to vendor actually
+Lastly, there is no guarantee that the code committed to vendor actually
 reflects the contents of go.mod. The onus is on the developer to remember to run
 `make update-vendor` and commit the results after making changes to
 dependencies. This has created several cases of confusing build results amongst

@@ -15,12 +15,12 @@
  */
 
 import React, { useRef, useEffect } from 'react';
+
 import Flex from 'design/Flex';
 
 import * as tshd from 'teleterm/services/tshd/types';
 
 import { Identity, IdentityHandler, IdentityProps } from './Identity';
-import { IdentityRootCluster } from './useIdentity';
 
 export default {
   title: 'Teleterm/Identity',
@@ -57,12 +57,13 @@ export function NoRootClusters() {
 }
 
 export function OneClusterWithNoActiveCluster() {
-  const identityRootCluster: IdentityRootCluster = {
+  const identityRootCluster = {
     active: false,
     clusterName: 'teleport-localhost',
     userName: '',
     uri: '/clusters/localhost',
     connected: false,
+    isSyncing: false,
   };
 
   return (
@@ -78,12 +79,13 @@ export function OneClusterWithNoActiveCluster() {
 }
 
 export function OneClusterWithActiveCluster() {
-  const identityRootCluster: IdentityRootCluster = {
+  const identityRootCluster = {
     active: true,
     clusterName: 'Teleport-Localhost',
     userName: 'alice',
     uri: '/clusters/localhost',
     connected: true,
+    isSyncing: false,
   };
 
   const cluster: tshd.Cluster = {
@@ -92,14 +94,10 @@ export function OneClusterWithActiveCluster() {
     proxyHost: 'localhost:3080',
     connected: true,
     leaf: false,
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
     loggedInUser: {
-      activeRequestsList: [],
       name: 'alice',
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
     },
   };
 
@@ -116,26 +114,29 @@ export function OneClusterWithActiveCluster() {
 }
 
 export function ManyClustersWithNoActiveCluster() {
-  const identityRootCluster1: IdentityRootCluster = {
+  const identityRootCluster1 = {
     active: false,
     clusterName: 'orange',
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
+    isSyncing: false,
   };
-  const identityRootCluster2: IdentityRootCluster = {
+  const identityRootCluster2 = {
     active: false,
     clusterName: 'violet',
     userName: 'sammy',
     uri: '/clusters/violet',
     connected: true,
+    isSyncing: true,
   };
-  const identityRootCluster3: IdentityRootCluster = {
+  const identityRootCluster3 = {
     active: false,
     clusterName: 'green',
     userName: '',
     uri: '/clusters/green',
     connected: true,
+    isSyncing: false,
   };
 
   return (
@@ -155,26 +156,29 @@ export function ManyClustersWithNoActiveCluster() {
 }
 
 export function ManyClustersWithActiveCluster() {
-  const identityRootCluster1: IdentityRootCluster = {
+  const identityRootCluster1 = {
     active: false,
     clusterName: 'orange',
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
+    isSyncing: true,
   };
-  const identityRootCluster2: IdentityRootCluster = {
+  const identityRootCluster2 = {
     active: true,
     clusterName: 'violet',
     userName: 'sammy',
     uri: '/clusters/violet',
     connected: true,
+    isSyncing: false,
   };
-  const identityRootCluster3: IdentityRootCluster = {
+  const identityRootCluster3 = {
     active: false,
     clusterName: 'green',
     userName: '',
     uri: '/clusters/green',
     connected: true,
+    isSyncing: false,
   };
 
   const activeIdentityRootCluster = identityRootCluster2;
@@ -184,14 +188,10 @@ export function ManyClustersWithActiveCluster() {
     proxyHost: 'localhost:3080',
     connected: true,
     leaf: false,
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
     loggedInUser: {
-      activeRequestsList: [],
       name: activeIdentityRootCluster.userName,
       rolesList: ['access', 'editor'],
       sshLoginsList: ['root'],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
     },
   };
 
@@ -212,26 +212,29 @@ export function ManyClustersWithActiveCluster() {
 }
 
 export function LongNamesWithManyRoles() {
-  const identityRootCluster1: IdentityRootCluster = {
+  const identityRootCluster1 = {
     active: false,
     clusterName: 'orange',
     userName: 'bob',
     uri: '/clusters/orange',
     connected: true,
+    isSyncing: true,
   };
-  const identityRootCluster2: IdentityRootCluster = {
+  const identityRootCluster2 = {
     active: true,
     clusterName: 'psv-eindhoven-eredivisie-production-lorem-ipsum',
     userName: 'ruud-van-nistelrooy-van-der-sar',
     uri: '/clusters/psv',
     connected: true,
+    isSyncing: false,
   };
-  const identityRootCluster3: IdentityRootCluster = {
+  const identityRootCluster3 = {
     active: false,
     clusterName: 'green',
     userName: '',
     uri: '/clusters/green',
     connected: true,
+    isSyncing: false,
   };
 
   const activeIdentityRootCluster = identityRootCluster2;
@@ -241,9 +244,7 @@ export function LongNamesWithManyRoles() {
     proxyHost: 'localhost:3080',
     connected: true,
     leaf: false,
-    authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
     loggedInUser: {
-      activeRequestsList: [],
       name: activeIdentityRootCluster.userName,
       rolesList: [
         'circle-mark-app-access',
@@ -257,8 +258,6 @@ export function LongNamesWithManyRoles() {
         'sales-center-floor-db-access',
       ],
       sshLoginsList: ['root'],
-      requestableRolesList: [],
-      suggestedReviewersList: [],
     },
   };
 

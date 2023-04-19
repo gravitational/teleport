@@ -21,7 +21,8 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // SessionRecordingConfig defines session recording configuration. This is
@@ -43,7 +44,7 @@ type SessionRecordingConfig interface {
 }
 
 // NewSessionRecordingConfigFromConfigFile is a convenience method to create
-// SessionRecordingConfigV2 labeled as originating from config file.
+// SessionRecordingConfigV2 labelled as originating from config file.
 func NewSessionRecordingConfigFromConfigFile(spec SessionRecordingConfigSpecV2) (SessionRecordingConfig, error) {
 	return newSessionRecordingConfigWithLabels(spec, map[string]string{
 		OriginLabel: OriginConfigFile,
@@ -185,7 +186,7 @@ func (c *SessionRecordingConfigV2) CheckAndSetDefaults() error {
 	}
 
 	// Check that the session recording mode is set to a valid value.
-	if !slices.Contains(SessionRecordingModes, c.Spec.Mode) {
+	if !utils.SliceContainsStr(SessionRecordingModes, c.Spec.Mode) {
 		return trace.BadParameter("session recording mode must be one of %v; got %q", strings.Join(SessionRecordingModes, ","), c.Spec.Mode)
 	}
 

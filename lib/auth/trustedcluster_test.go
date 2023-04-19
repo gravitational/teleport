@@ -302,20 +302,10 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, resp.CAs, 4)
+		require.Len(t, resp.CAs, 3)
 		require.ElementsMatch(t,
-			[]types.CertAuthType{
-				types.HostCA,
-				types.UserCA,
-				types.DatabaseCA,
-				types.OpenSSHCA,
-			},
-			[]types.CertAuthType{
-				resp.CAs[0].GetType(),
-				resp.CAs[1].GetType(),
-				resp.CAs[2].GetType(),
-				resp.CAs[3].GetType(),
-			},
+			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
+			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
 		)
 
 		for _, returnedCA := range resp.CAs {
@@ -353,14 +343,9 @@ func TestValidateTrustedCluster(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dbCAs, 1)
 		require.Equal(t, localClusterName, dbCAs[0].GetName())
-
-		osshCAs, err := a.GetCertAuthorities(ctx, types.OpenSSHCA, false)
-		require.NoError(t, err)
-		require.Len(t, osshCAs, 1)
-		require.Equal(t, localClusterName, osshCAs[0].GetName())
 	})
 
-	t.Run("Host User and Database CA are returned by default", func(t *testing.T) {
+	t.Run("only Host and User CA are returned for v9", func(t *testing.T) {
 		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
 		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
 			Token:           validToken,
@@ -369,26 +354,10 @@ func TestValidateTrustedCluster(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, resp.CAs, 3)
+		require.Len(t, resp.CAs, 2)
 		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
-		)
-	})
-
-	t.Run("OpenSSH CA not returned for pre v12", func(t *testing.T) {
-		leafClusterCA := types.CertAuthority(suite.NewTestCA(types.HostCA, "leafcluster"))
-		resp, err := a.validateTrustedCluster(ctx, &ValidateTrustedClusterRequest{
-			Token:           validToken,
-			CAs:             []types.CertAuthority{leafClusterCA},
-			TeleportVersion: "11.0.0",
-		})
-		require.NoError(t, err)
-
-		require.Len(t, resp.CAs, 3)
-		require.ElementsMatch(t,
-			[]types.CertAuthType{types.HostCA, types.UserCA, types.DatabaseCA},
-			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType(), resp.CAs[2].GetType()},
+			[]types.CertAuthType{types.HostCA, types.UserCA},
+			[]types.CertAuthType{resp.CAs[0].GetType(), resp.CAs[1].GetType()},
 		)
 	})
 }
@@ -413,9 +382,7 @@ func newTestAuthServer(ctx context.Context, t *testing.T, name ...string) *Serve
 		Authority:              authority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: authority.New().GenerateKeyPair,
-			},
+			RSAKeyPairSource: authority.New().GenerateKeyPair,
 		},
 	}
 	a, err := NewServer(authConfig)
@@ -454,7 +421,7 @@ func TestRemoteDBCAMigration(t *testing.T) {
 	remoteHostCA := suite.NewTestCA(types.HostCA, remoteClusterName)
 	types.RemoveCASecrets(remoteHostCA)
 
-	err = a.UpsertCertAuthority(ctx, remoteHostCA)
+	err = a.UpsertCertAuthority(remoteHostCA)
 	require.NoError(t, err)
 
 	// Run the migration
@@ -518,10 +485,10 @@ func TestUpsertTrustedCluster(t *testing.T) {
 	require.NoError(t, err)
 
 	ca := suite.NewTestCA(types.UserCA, "trustedcluster")
-	err = a.addCertAuthorities(ctx, trustedCluster, []types.CertAuthority{ca})
+	err = a.addCertAuthorities(trustedCluster, []types.CertAuthority{ca})
 	require.NoError(t, err)
 
-	err = a.UpsertCertAuthority(ctx, ca)
+	err = a.UpsertCertAuthority(ca)
 	require.NoError(t, err)
 
 	err = a.createReverseTunnel(trustedCluster)

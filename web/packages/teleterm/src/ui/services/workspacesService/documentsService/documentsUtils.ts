@@ -14,27 +14,21 @@
  * limitations under the License.
  */
 
-import { ClusterOrResourceUri, routing } from 'teleterm/ui/uri';
+import { routing } from 'teleterm/ui/uri';
 import { assertUnreachable } from 'teleterm/ui/utils';
 
-import { Document, isDocumentTshNodeWithServerId } from './types';
+import { Document } from './types';
 
-export function getResourceUri(
-  document: Document
-): ClusterOrResourceUri | undefined {
+export function getResourceUri(document: Document): string {
   switch (document.kind) {
     case 'doc.cluster':
       return document.clusterUri;
     case 'doc.gateway':
       return document.targetUri;
     case 'doc.terminal_tsh_node':
-      return isDocumentTshNodeWithServerId(document)
-        ? document.serverUri
-        : undefined;
+      return document.serverUri;
     case 'doc.terminal_tsh_kube':
       return document.kubeUri;
-    case 'doc.access_requests':
-      return document.clusterUri;
     case 'doc.terminal_shell':
       return routing.getClusterUri({
         rootClusterId: document.rootClusterId,

@@ -12,6 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package test
@@ -28,15 +29,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
+	"gopkg.in/check.v1"
+	"k8s.io/utils/strings/slices"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // UploadDownload tests uploads and downloads
@@ -77,13 +79,13 @@ func DownloadNotFound(t *testing.T, handler events.MultipartHandler) {
 
 // EventsSuite is a conformance test suite to verify external event backends
 type EventsSuite struct {
-	Log        events.AuditLogger
+	Log        events.IAuditLog
 	Clock      clockwork.Clock
 	QueryDelay time.Duration
 }
 
 // EventPagination covers event search pagination.
-func (s *EventsSuite) EventPagination(t *testing.T) {
+func (s *EventsSuite) EventPagination(c *check.C) {
 	// This serves no special purpose except to make querying easier.
 	baseTime := time.Date(2019, time.May, 10, 14, 43, 0, 0, time.UTC)
 
@@ -99,7 +101,7 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 				Time: baseTime.Add(time.Second * time.Duration(i)),
 			},
 		})
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 	}
 
 	toTime := baseTime.Add(time.Hour)
@@ -107,63 +109,63 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 	var err error
 	var checkpoint string
 
-	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 100, types.EventOrderAscending, checkpoint)
 		return err
 	})
-	require.NoError(t, err)
-	require.Len(t, arr, 4)
-	require.Equal(t, checkpoint, "")
+	c.Assert(err, check.IsNil)
+	c.Assert(arr, check.HasLen, 4)
+	c.Assert(checkpoint, check.Equals, "")
 
 	for _, name := range names {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
-		require.NoError(t, err)
-		require.Len(t, arr, 1)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
-		require.True(t, ok)
-		require.Equal(t, name, event.User)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(name, check.Equals, event.User)
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
-		require.NoError(t, err)
-		require.Len(t, arr, 0)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
 	}
-	require.Equal(t, checkpoint, "")
+	c.Assert(checkpoint, check.Equals, "")
 
 	for _, i := range []int{0, 2} {
 		nameA := names[i]
 		nameB := names[i+1]
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 2, types.EventOrderAscending, checkpoint)
-		require.NoError(t, err)
-		require.Len(t, arr, 2)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 2)
 		eventA, okA := arr[0].(*apievents.UserLogin)
 		eventB, okB := arr[1].(*apievents.UserLogin)
-		require.True(t, okA)
-		require.True(t, okB)
-		require.Equal(t, nameA, eventA.User)
-		require.Equal(t, nameB, eventB.User)
+		c.Assert(okA, check.Equals, true)
+		c.Assert(okB, check.Equals, true)
+		c.Assert(nameA, check.Equals, eventA.User)
+		c.Assert(nameB, check.Equals, eventB.User)
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
-		require.NoError(t, err)
-		require.Len(t, arr, 0)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
 	}
-	require.Equal(t, checkpoint, "")
+	c.Assert(checkpoint, check.Equals, "")
 
 	for i := len(names) - 1; i >= 0; i-- {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
-		require.NoError(t, err)
-		require.Len(t, arr, 1)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
-		require.True(t, ok)
-		require.Equal(t, names[i], event.User)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(names[i], check.Equals, event.User)
 	}
 	if checkpoint != "" {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime, toTime, apidefaults.Namespace, nil, 1, types.EventOrderDescending, checkpoint)
-		require.NoError(t, err)
-		require.Len(t, arr, 0)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 0)
 	}
-	require.Equal(t, checkpoint, "")
+	c.Assert(checkpoint, check.Equals, "")
 
 	// This serves no special purpose except to make querying easier.
 	baseTime2 := time.Date(2019, time.August, 10, 14, 43, 47, 0, time.UTC)
@@ -178,18 +180,18 @@ func (s *EventsSuite) EventPagination(t *testing.T) {
 				Time: baseTime2,
 			},
 		})
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 	}
 
 Outer:
 	for i := 0; i < len(names); i++ {
 		arr, checkpoint, err = s.Log.SearchEvents(baseTime2, baseTime2.Add(time.Second), apidefaults.Namespace, nil, 1, types.EventOrderAscending, checkpoint)
-		require.NoError(t, err)
-		require.Len(t, arr, 1)
+		c.Assert(err, check.IsNil)
+		c.Assert(arr, check.HasLen, 1)
 		event, ok := arr[0].(*apievents.UserLogin)
-		require.True(t, ok)
-		require.Equal(t, event.GetTime(), baseTime2)
-		require.True(t, slices.Contains(names, event.User))
+		c.Assert(ok, check.Equals, true)
+		c.Assert(event.GetTime(), check.Equals, baseTime2)
+		c.Assert(slices.Contains(names, event.User), check.Equals, true)
 
 		for i, name := range names {
 			if name == event.User {
@@ -200,12 +202,12 @@ Outer:
 			}
 		}
 
-		t.Fatalf("unexpected event: %#v", event)
+		c.Fatalf("unexpected event: %#v", event)
 	}
 }
 
 // SessionEventsCRUD covers session events
-func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
+func (s *EventsSuite) SessionEventsCRUD(c *check.C) {
 	// Bob has logged in
 	err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 		Method:       events.LoginMethodSAML,
@@ -216,7 +218,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Time: s.Clock.Now().UTC(),
 		},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	// For eventually consistent queries
 	if s.QueryDelay != 0 {
@@ -225,12 +227,12 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 
 	var history []apievents.AuditEvent
 
-	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
+	err = utils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
 		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
 		return err
 	})
-	require.NoError(t, err)
-	require.Len(t, history, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 1)
 
 	// start the session and emit data stream to it and wrap it up
 	sessionID := session.NewID()
@@ -248,7 +250,7 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 			Login: "bob",
 		},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	err = s.Log.EmitAuditEvent(context.Background(), &apievents.SessionEnd{
 		Metadata: apievents.Metadata{
@@ -264,22 +266,18 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 		},
 		Participants: []string{"bob", "alice"},
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
-	// search for the session event.
-	err = retryutils.RetryStaticFor(time.Minute*5, time.Second*5, func() error {
-		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 100, types.EventOrderAscending, "")
-		return err
-	})
-	require.NoError(t, err)
-	require.Len(t, history, 3)
-
-	require.Equal(t, history[1].GetType(), events.SessionStartEvent)
-	require.Equal(t, history[2].GetType(), events.SessionEndEvent)
+	// read the session event
+	historyEvents, err := s.Log.GetSessionEvents(apidefaults.Namespace, sessionID, 0, false)
+	c.Assert(err, check.IsNil)
+	c.Assert(historyEvents, check.HasLen, 2)
+	c.Assert(historyEvents[0].GetString(events.EventType), check.Equals, events.SessionStartEvent)
+	c.Assert(historyEvents[1].GetString(events.EventType), check.Equals, events.SessionEndEvent)
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", nil, "")
-	require.NoError(t, err)
-	require.Len(t, history, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 1)
 
 	withParticipant := func(participant string) *types.WhereExpr {
 		return &types.WhereExpr{Contains: types.WhereExpr2{
@@ -289,19 +287,19 @@ func (s *EventsSuite) SessionEventsCRUD(t *testing.T) {
 	}
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("alice"), "")
-	require.NoError(t, err)
-	require.Len(t, history, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 1)
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(2*time.Hour), 100, types.EventOrderAscending, "", withParticipant("cecile"), "")
-	require.NoError(t, err)
-	require.Len(t, history, 0)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 0)
 
 	history, _, err = s.Log.SearchSessionEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour-time.Second), 100, types.EventOrderAscending, "", nil, "")
-	require.NoError(t, err)
-	require.Len(t, history, 0)
+	c.Assert(err, check.IsNil)
+	c.Assert(history, check.HasLen, 0)
 }
 
-func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
+func (s *EventsSuite) SearchSessionEvensBySessionID(c *check.C) {
 	now := time.Now().UTC()
 	firstID := uuid.New().String()
 	secondID := uuid.New().String()
@@ -319,7 +317,7 @@ func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
 			},
 		}
 		err := s.Log.EmitAuditEvent(context.Background(), event)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 	}
 	from := time.Time{}
 	to := now.Add(10 * time.Second)
@@ -328,16 +326,16 @@ func (s *EventsSuite) SearchSessionEvensBySessionID(t *testing.T) {
 	go func() {
 		defer close(done)
 		events, _, err := s.Log.SearchSessionEvents(from, to, 1000, types.EventOrderDescending, "", nil, secondID)
-		require.NoError(t, err)
-		require.Len(t, events, 1)
+		c.Assert(err, check.IsNil)
+		c.Assert(events, check.HasLen, 1)
 		e, ok := events[0].(*apievents.WindowsDesktopSessionEnd)
-		require.True(t, ok)
-		require.Equal(t, e.GetSessionID(), secondID)
+		c.Assert(ok, check.Equals, true)
+		c.Assert(e.GetSessionID(), check.Equals, secondID)
 	}()
 
 	select {
 	case <-time.After(time.Second * 10):
-		t.Fatalf("Search event query timeout")
+		c.Fatalf("Search event query timeout")
 	case <-done:
 	}
 }

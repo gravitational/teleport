@@ -33,7 +33,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
@@ -86,18 +85,22 @@ type Router struct {
 // MatchFunc is a type of the match route functions.
 type MatchFunc func(sni, alpn string) bool
 
-// MatchByProtocol creates a match function that matches the client TLS ALPN
-// protocol against the provided list of ALPN protocols and their corresponding
-// Ping protocols.
+// MatchByProtocol creates match function based on client TLS ALPN protocol.
 func MatchByProtocol(protocols ...common.Protocol) MatchFunc {
 	m := make(map[common.Protocol]struct{})
-	for _, v := range common.WithPingProtocols(protocols) {
+	for _, v := range protocols {
 		m[v] = struct{}{}
 	}
 	return func(sni, alpn string) bool {
 		_, ok := m[common.Protocol(alpn)]
 		return ok
 	}
+}
+
+// MatchByProtocolWithPing creates match function based on client TLS APLN
+// protocol matching also their ping protocol variations.
+func MatchByProtocolWithPing(protocols ...common.Protocol) MatchFunc {
+	return MatchByProtocol(append(protocols, common.ProtocolsWithPing(protocols...)...)...)
 }
 
 // MatchByALPNPrefix creates match function based on client TLS ALPN protocol prefix.
@@ -353,14 +356,14 @@ type ConnectionInfo struct {
 type HandlerFuncWithInfo func(ctx context.Context, conn net.Conn, info ConnectionInfo) error
 
 // handleConn routes incoming connection based on SNI TLS information to the proper Handler by following steps:
-//  1. Read TLS hello message without TLS termination and returns conn that will be used for further operations.
-//  2. Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
-//  3. If the selected handler was configured with the ForwardTLS
-//     forwards the connection to the handler without TLS termination.
-//  4. Trigger TLS handshake and terminates the TLS connection.
-//  5. For backward compatibility check RouteToDatabase identity field
-//     was set if yes forward to the generic TLS DB handler.
-//  6. Forward connection to the handler obtained in step 2.
+// 1) Read TLS hello message without TLS termination and returns conn that will be used for further operations.
+// 2) Get routing rules for p.Router.Router based on SNI and ALPN fields read in step 1.
+// 3) If the selected handler was configured with the ForwardTLS
+//    forwards the connection to the handler without TLS termination.
+// 4) Trigger TLS handshake and terminates the TLS connection.
+// 5) For backward compatibility check RouteToDatabase identity field
+//    was set if yes forward to the generic TLS DB handler.
+// 6) Forward connection to the handler obtained in step 2.
 func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOverride *tls.Config) error {
 	hello, conn, err := p.readHelloMessageWithoutTLSTermination(clientConn)
 	if err != nil {
@@ -376,7 +379,6 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		SNI:  hello.ServerName,
 		ALPN: hello.SupportedProtos,
 	}
-	ctx = utils.ClientAddrContext(ctx, clientConn.RemoteAddr(), clientConn.LocalAddr())
 
 	if handlerDesc.ForwardTLS {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))
@@ -410,8 +412,8 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 }
 
 // handlePingConnection starts the server ping routine and returns `pingConn`.
-func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) utils.TLSConn {
-	pingConn := pingconn.NewTLS(conn)
+func (p *Proxy) handlePingConnection(ctx context.Context, conn *tls.Conn) net.Conn {
+	pingConn := NewPingConn(conn)
 
 	// Start ping routine. It will continuously send pings in a defined
 	// interval.
@@ -563,7 +565,7 @@ func (p *Proxy) getHandleDescBasedOnALPNVal(clientHelloInfo *tls.ClientHelloInfo
 }
 
 func shouldRouteToKubeService(sni string) bool {
-	// DELETE IN 14.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
+	// DELETE IN 11.0. Deprecated, use only KubeTeleportProxyALPNPrefix.
 	if strings.HasPrefix(sni, constants.KubeSNIPrefix) {
 		return true
 	}

@@ -94,7 +94,7 @@ func (pp *Player) Play(ctx context.Context) {
 	go pp.receiveActions(cancel)
 	go pp.streamSessionEvents(ppCtx, cancel)
 
-	// Wait until the ctx is canceled, either by
+	// Wait until the ctx is cancelled, either by
 	// one of the goroutines above or by the http handler.
 	<-ppCtx.Done()
 }
@@ -121,11 +121,14 @@ const (
 )
 
 // actionMessage is a message passed from the playback client
-// to the server over the websocket connection in order to
-// control playback.
+// to the server over the websocket connection in order to modify
+// the playback state.
 type actionMessage struct {
-	Action        playbackAction `json:"action"`
-	PlaybackSpeed float32        `json:"speed,omitempty"`
+	// actionPlayPause toggles the playbackState.playState
+	Action playbackAction `json:"action"`
+
+	// PlaySpeed is the playback speed to use.
+	PlaybackSpeed float32 `json:"speed,omitempty"`
 }
 
 // waitWhilePaused waits idly while the player's state is paused, waiting until:
@@ -230,6 +233,8 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 
 		select {
 		case err := <-errC:
+			// TODO(zmb3, isaiah): send some sort of error to the browser,
+			// otherwise it just sits at the player UI
 			if err != nil && !errors.Is(err, context.Canceled) {
 				pp.log.WithError(err).Errorf("streaming session %v", pp.sID)
 				var errorText string

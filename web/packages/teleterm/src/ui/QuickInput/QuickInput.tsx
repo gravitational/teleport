@@ -16,10 +16,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { debounce } from 'shared/utils/highbar';
+import { debounce } from 'lodash';
 import { Box, Flex } from 'design';
 import { color, height, space, width } from 'styled-system';
-import { Spinner } from 'design/Icon';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 
@@ -39,10 +38,9 @@ export default function Container() {
 
 function QuickInput() {
   const props = useQuickInput();
-  const { visible, activeSuggestion, suggestionsAttempt, inputValue } = props;
+  const { visible, activeSuggestion, autocompleteResult, inputValue } = props;
   const hasSuggestions =
-    suggestionsAttempt.data?.length > 0 &&
-    suggestionsAttempt.status === 'success';
+    autocompleteResult.kind === 'autocomplete.partial-match';
   const refInput = useRef<HTMLInputElement>();
   const measuringInputRef = useRef<HTMLSpanElement>();
   const refList = useRef<HTMLElement>();
@@ -98,7 +96,7 @@ function QuickInput() {
     }
     const next = getNext(
       activeSuggestion + nudge,
-      suggestionsAttempt.data?.length
+      autocompleteResult.suggestions.length
     );
     props.onActiveSuggestion(next);
   };
@@ -118,7 +116,7 @@ function QuickInput() {
         props.onEnter(activeSuggestion);
         return;
       case KeyEnum.ESC:
-        props.onEscape();
+        props.onBack();
         return;
       case KeyEnum.TAB:
         return;
@@ -145,13 +143,11 @@ function QuickInput() {
 
   return (
     <Flex
-      css={`
-        position: relative;
-        flex: 7;
-        flex-shrink: 1;
-        min-width: calc(${props => props.theme.space[7]}px * 2);
-        height: 100%;
-      `}
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100%',
+      }}
       flex={1}
       ref={refContainer}
       onFocus={handleOnFocus}
@@ -166,21 +162,12 @@ function QuickInput() {
         onKeyDown={handleKeyDown}
         isOpened={visible}
       />
-      {suggestionsAttempt.status === 'processing' && (
-        <Animate>
-          <Spinner
-            css={`
-              vertical-align: top;
-            `}
-          />
-        </Animate>
-      )}
       {!visible && <Shortcut>{props.keyboardShortcut}</Shortcut>}
       {visible && hasSuggestions && (
         <QuickInputList
           ref={refList}
           position={measuredInputTextWidth}
-          items={suggestionsAttempt.data}
+          items={autocompleteResult.suggestions}
           activeItem={activeSuggestion}
           onPick={props.onEnter}
         />
@@ -217,12 +204,12 @@ const Input = styled.input(props => {
       color: theme.colors.text.secondary,
     },
     '&:hover, &:focus': {
-      color: theme.colors.text.contrast,
+      color: theme.colors.primary.contrastText,
       borderColor: theme.colors.light,
     },
     '&:focus': {
-      borderColor: theme.colors.brand,
-      backgroundColor: theme.colors.levels.sunken,
+      borderColor: theme.colors.secondary.main,
+      backgroundColor: theme.colors.primary.darker,
       '::placeholder': {
         color: theme.colors.text.placeholder,
       },
@@ -241,28 +228,10 @@ const Shortcut = styled(Box)`
   top: 12px;
   padding: 2px 3px;
   color: ${({ theme }) => theme.colors.text.secondary};
-  background-color: ${({ theme }) => theme.colors.levels.surface};
+  background-color: ${({ theme }) => theme.colors.primary.light};
   line-height: 12px;
   font-size: 12px;
   border-radius: 2px;
-`;
-
-const Animate = styled(Box)`
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  padding: 2px 2px;
-  line-height: 12px;
-  font-size: 12px;
-  animation: spin 1s linear infinite;
-  @keyframes spin {
-    from {
-      transform: rotate(0deg);
-    }
-    to {
-      transform: rotate(360deg);
-    }
-  }
 `;
 
 const KeyEnum = {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, AgentQueryMeta } from 'teleport/services/resources';
 
 export interface App {
   id: string;
@@ -33,6 +33,10 @@ export interface App {
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
 }
+
+export type AppsResponse = AgentQueryMeta & {
+  apps: App[];
+};
 
 export type AwsRole = {
   arn: string;

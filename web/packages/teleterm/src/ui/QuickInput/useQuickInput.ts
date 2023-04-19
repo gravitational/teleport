@@ -16,71 +16,36 @@ limitations under the License.
 
 import React, { useEffect } from 'react';
 
-import { CanceledError, useAsync } from 'shared/hooks/useAsync';
-
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import {
   useKeyboardShortcuts,
   useKeyboardShortcutFormatters,
 } from 'teleterm/ui/services/keyboardShortcuts';
 import {
-  AutocompleteCommand,
-  AutocompleteToken,
-  Suggestion,
+  AutocompleteResult,
+  AutocompletePartialMatch,
 } from 'teleterm/ui/services/quickInput/types';
 import { routing } from 'teleterm/ui/uri';
-import { KeyboardShortcutAction } from 'teleterm/services/config';
-
-import { assertUnreachable, retryWithRelogin } from '../utils';
+import { KeyboardShortcutType } from 'teleterm/services/config';
 
 export default function useQuickInput() {
-  const appContext = useAppContext();
-  const {
-    quickInputService,
-    workspacesService,
-    commandLauncher,
-    usageService,
-  } = appContext;
+  const { quickInputService, workspacesService, commandLauncher } =
+    useAppContext();
   workspacesService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
   const { visible, inputValue } = quickInputService.useState();
   const [activeSuggestion, setActiveSuggestion] = React.useState(0);
-
-  const parseResult = React.useMemo(
-    () => quickInputService.parse(inputValue),
+  const autocompleteResult = React.useMemo(
+    () => quickInputService.getAutocompleteResult(inputValue),
     // `localClusterUri` has been added to refresh suggestions from
     // `QuickSshLoginPicker` and `QuickServerPicker` when it changes
     [inputValue, workspacesService.getActiveWorkspace()?.localClusterUri]
   );
-
-  const [suggestionsAttempt, getSuggestions] = useAsync(() =>
-    retryWithRelogin(
-      appContext,
-      workspacesService.getActiveWorkspace()?.localClusterUri,
-      () => parseResult.getSuggestions()
-    )
-  );
-
-  useEffect(() => {
-    async function get() {
-      const [, err] = await getSuggestions();
-      if (err && !(err instanceof CanceledError)) {
-        appContext.notificationsService.notifyError({
-          title: 'Could not fetch command bar suggestions',
-          description: err.message,
-        });
-      }
-    }
-
-    get();
-  }, [parseResult]);
-
   const hasSuggestions =
-    suggestionsAttempt.status === 'success' &&
-    suggestionsAttempt.data.length > 0;
-  const openSearchBarShortcutAction: KeyboardShortcutAction = 'openSearchBar';
-  const { getAccelerator } = useKeyboardShortcutFormatters();
+    autocompleteResult.kind === 'autocomplete.partial-match';
+  const openQuickInputShortcutKey: KeyboardShortcutType = 'open-quick-input';
+  const { getShortcut } = useKeyboardShortcutFormatters();
 
   const onFocus = (e: any) => {
     if (e.relatedTarget) {
@@ -97,27 +62,23 @@ export default function useQuickInput() {
 
   const onEnter = (index?: number) => {
     if (!hasSuggestions || !visible) {
-      executeCommand(parseResult.command);
+      executeCommand(autocompleteResult);
       return;
     }
 
-    pickSuggestion(parseResult.targetToken, suggestionsAttempt.data, index);
+    // Passing `autocompleteResult` directly to narrow down AutocompleteResult type to
+    // AutocompletePartialMatch.
+    pickSuggestion(autocompleteResult, index);
   };
 
-  const executeCommand = (command: AutocompleteCommand) => {
+  const executeCommand = (autocompleteResult: AutocompleteResult) => {
+    const { command } = autocompleteResult;
+
     switch (command.kind) {
       case 'command.unknown': {
         const params = routing.parseClusterUri(
           workspacesService.getActiveWorkspace()?.localClusterUri
         ).params;
-        // ugly hack but QuickInput will be removed in v13
-        if (inputValue.startsWith('tsh proxy db')) {
-          usageService.captureProtocolUse(
-            workspacesService.getRootClusterUri(),
-            'db',
-            'search_bar'
-          );
-        }
         documentsService.openNewTerminal({
           initCommand: inputValue,
           rootClusterId: routing.parseClusterUri(
@@ -133,20 +94,8 @@ export default function useQuickInput() {
         commandLauncher.executeCommand('tsh-ssh', {
           loginHost: command.loginHost,
           localClusterUri,
-          origin: 'search_bar',
         });
         break;
-      }
-      case 'command.tsh-install': {
-        commandLauncher.executeCommand('tsh-install', undefined);
-        break;
-      }
-      case 'command.tsh-uninstall': {
-        commandLauncher.executeCommand('tsh-uninstall', undefined);
-        break;
-      }
-      default: {
-        assertUnreachable(command);
       }
     }
 
@@ -154,17 +103,19 @@ export default function useQuickInput() {
   };
 
   const pickSuggestion = (
-    targetToken: AutocompleteToken,
-    suggestions: Suggestion[],
+    autocompleteResult: AutocompletePartialMatch,
     index?: number
   ) => {
-    const suggestion = suggestions[index];
+    const suggestion = autocompleteResult.suggestions[index];
 
     setActiveSuggestion(index);
-    quickInputService.pickSuggestion(targetToken, suggestion);
+    quickInputService.pickSuggestion(
+      autocompleteResult.targetToken,
+      suggestion
+    );
   };
 
-  const onEscape = () => {
+  const onBack = () => {
     setActiveSuggestion(0);
 
     // If there are suggestions to show, the first onBack call should always just close the
@@ -177,7 +128,7 @@ export default function useQuickInput() {
   };
 
   useKeyboardShortcuts({
-    [openSearchBarShortcutAction]: () => {
+    [openQuickInputShortcutKey]: () => {
       quickInputService.show();
     },
   });
@@ -185,30 +136,28 @@ export default function useQuickInput() {
   // Reset active suggestion when the suggestion list changes.
   // We extract just the tokens and stringify the list to avoid stringifying big objects.
   // See https://github.com/facebook/react/issues/14476#issuecomment-471199055
-  // TODO(ravicious): Remove the unnecessary effect.
-  // https://beta.reactjs.org/learn/you-might-not-need-an-effect#chains-of-computations
-  // https://beta.reactjs.org/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
   useEffect(() => {
     setActiveSuggestion(0);
   }, [
-    // We want to reset the active suggestion only if the
-    // suggestions have changed.
-    suggestionsAttempt.data?.map(suggestion => suggestion.token).join(','),
+    hasSuggestions &&
+      JSON.stringify(
+        autocompleteResult.suggestions.map(suggestion => suggestion.token)
+      ),
   ]);
 
   return {
     visible,
-    suggestionsAttempt,
+    autocompleteResult,
     activeSuggestion,
     inputValue,
     onFocus,
-    onEscape,
+    onBack,
     onEnter,
     onActiveSuggestion,
     onInputChange: quickInputService.setInputValue,
     onHide: quickInputService.hide,
     onShow: quickInputService.show,
-    keyboardShortcut: getAccelerator(openSearchBarShortcutAction),
+    keyboardShortcut: getShortcut(openQuickInputShortcutKey),
   };
 }
 

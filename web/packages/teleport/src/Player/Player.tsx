@@ -20,8 +20,6 @@ import styled from 'styled-components';
 import { Flex, Box } from 'design';
 
 import { Danger } from 'design/Alert';
-import ThemeProvider from 'design/ThemeProvider';
-import { darkTheme } from 'design/theme';
 
 import { useParams, useLocation } from 'teleport/components/Router';
 
@@ -86,35 +84,32 @@ export default function Player() {
   }
 
   return (
-    // Force dark theme until we have light theme for player
-    <ThemeProvider theme={darkTheme}>
-      <StyledPlayer>
-        <Flex bg={colors.levels.surface} height="38px">
-          <Tabs flex="1 0">
-            <TabItem title="Session Player" />
-          </Tabs>
-          <ActionBar onLogout={onLogout} />
-        </Flex>
-        <Flex
-          bg={colors.bgTerminal}
-          flex="1"
-          style={{
-            overflow: 'auto',
-            position: 'relative',
-          }}
-        >
-          {recordingType === 'desktop' ? (
-            <DesktopPlayer
-              sid={sid}
-              clusterId={clusterId}
-              durationMs={durationMs}
-            />
-          ) : (
-            <SshPlayer sid={sid} clusterId={clusterId} />
-          )}
-        </Flex>
-      </StyledPlayer>
-    </ThemeProvider>
+    <StyledPlayer>
+      <Flex bg={colors.primary.light} height="38px">
+        <Tabs flex="1 0">
+          <TabItem title="Session Player" />
+        </Tabs>
+        <ActionBar onLogout={onLogout} />
+      </Flex>
+      <Flex
+        bg={colors.bgTerminal}
+        flex="1"
+        style={{
+          overflow: 'auto',
+          position: 'relative',
+        }}
+      >
+        {recordingType === 'desktop' ? (
+          <DesktopPlayer
+            sid={sid}
+            clusterId={clusterId}
+            durationMs={durationMs}
+          />
+        ) : (
+          <SshPlayer sid={sid} clusterId={clusterId} />
+        )}
+      </Flex>
+    </StyledPlayer>
   );
 }
 const StyledPlayer = styled.div`

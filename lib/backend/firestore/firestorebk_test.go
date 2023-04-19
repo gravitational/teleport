@@ -20,12 +20,9 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"reflect"
 	"strings"
-	"sync"
 	"testing"
 	"time"
-	"unsafe"
 
 	"cloud.google.com/go/firestore"
 	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
@@ -35,11 +32,11 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/api/option"
-	"google.golang.org/genproto/googleapis/rpc/code"
-	"google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -57,6 +54,7 @@ func TestMain(m *testing.M) {
 // to verify backwards compatibility. Gogoproto is incompatible with ApiV2 protoc-gen-go code.
 //
 // Track the issue here: https://github.com/gogo/protobuf/issues/678
+//
 func TestMarshal(t *testing.T) {
 	meta := adminpb.IndexOperationMetadata{}
 	data, err := proto.Marshal(&meta)
@@ -191,39 +189,31 @@ type mockFirestoreServer struct {
 	// in the future.
 	firestorepb.FirestoreServer
 
-	mu   sync.RWMutex
 	reqs []proto.Message
 
 	// If set, Commit returns this error.
 	commitErr error
 }
 
-func (s *mockFirestoreServer) BatchWrite(ctx context.Context, req *firestorepb.BatchWriteRequest) (*firestorepb.BatchWriteResponse, error) {
+func (s *mockFirestoreServer) Commit(ctx context.Context, req *firestorepb.CommitRequest) (*firestorepb.CommitResponse, error) {
 	md, _ := metadata.FromIncomingContext(ctx)
 	if xg := md["x-goog-api-client"]; len(xg) == 0 || !strings.Contains(xg[0], "gl-go/") {
 		return nil, fmt.Errorf("x-goog-api-client = %v, expected gl-go key", xg)
 	}
 
-	s.mu.Lock()
-	s.reqs = append(s.reqs, req)
-	s.mu.Unlock()
+	if len(req.Writes) > commitLimit {
+		return nil, status.Errorf(codes.InvalidArgument, "too many writes in a transaction")
+	}
 
+	s.reqs = append(s.reqs, req)
 	if s.commitErr != nil {
 		return nil, s.commitErr
 	}
-
-	resp := &firestorepb.BatchWriteResponse{}
-	for range req.Writes {
-		resp.Status = append(resp.Status, &status.Status{
-			Code: int32(code.Code_OK),
-		})
-
-		resp.WriteResults = append(resp.WriteResults, &firestorepb.WriteResult{
+	return &firestorepb.CommitResponse{
+		WriteResults: []*firestorepb.WriteResult{{
 			UpdateTime: timestamppb.Now(),
-		})
-	}
-
-	return resp, nil
+		}},
+	}, nil
 }
 
 func TestDeleteDocuments(t *testing.T) {
@@ -242,9 +232,19 @@ func TestDeleteDocuments(t *testing.T) {
 			documents: 1,
 		},
 		{
-			name:      "commit success",
+			name:      "commit less than limit",
 			assertion: require.NoError,
-			documents: 1796,
+			documents: commitLimit - 123,
+		},
+		{
+			name:      "commit limit",
+			assertion: require.NoError,
+			documents: commitLimit,
+		},
+		{
+			name:      "commit more than limit",
+			assertion: require.NoError,
+			documents: (commitLimit * 3) + 173,
 		},
 	}
 
@@ -262,14 +262,6 @@ func TestDeleteDocuments(t *testing.T) {
 					CreateTime: time.Now(),
 					UpdateTime: time.Now(),
 				})
-
-				// We really shouldn't need this, but the Firestore SDK made some unfortunate design
-				// decisions that make it impossible to set the field of a DocumentRef used for the seemingly
-				// useless deduplication in the BulkWriter API.
-				rs := reflect.ValueOf(docs[i].Ref).Elem()
-				rf := rs.FieldByName("shortPath")
-				rf = reflect.NewAt(rf.Type(), unsafe.Pointer(rf.UnsafeAddr())).Elem()
-				rf.SetString(docs[i].Ref.Path)
 			}
 
 			mockFirestore := &mockFirestoreServer{
@@ -280,13 +272,8 @@ func TestDeleteDocuments(t *testing.T) {
 
 			lis, err := net.Listen("tcp", "localhost:0")
 			require.NoError(t, err)
-
-			errCh := make(chan error, 1)
-			go func() { errCh <- srv.Serve(lis) }()
-			t.Cleanup(func() {
-				srv.Stop()
-				require.NoError(t, <-errCh)
-			})
+			go func() { require.NoError(t, srv.Serve(lis)) }()
+			t.Cleanup(srv.Stop)
 
 			ctx, cancel := context.WithCancel(context.Background())
 			t.Cleanup(cancel)
@@ -317,14 +304,12 @@ func TestDeleteDocuments(t *testing.T) {
 			}
 
 			var committed int
-			mockFirestore.mu.RLock()
 			for _, req := range mockFirestore.reqs {
 				switch r := req.(type) {
-				case *firestorepb.BatchWriteRequest:
+				case *firestorepb.CommitRequest:
 					committed += len(r.Writes)
 				}
 			}
-			mockFirestore.mu.RUnlock()
 
 			require.Equal(t, tt.documents, committed)
 

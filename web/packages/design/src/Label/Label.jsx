@@ -24,49 +24,50 @@ import { space } from 'design/system';
 const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {
     return {
-      backgroundColor: theme.colors.spotBackground[0],
+      backgroundColor: theme.colors.primary.dark,
       color: theme.colors.text.primary,
-      fontWeight: 400,
     };
   }
 
   if (kind === 'warning') {
     return {
-      backgroundColor: theme.colors.warning.main,
-      color: theme.colors.text.primaryInverse,
+      backgroundColor: theme.colors.warning,
+      color: theme.colors.primary.contrastText,
     };
   }
 
   if (kind === 'danger') {
     return {
-      backgroundColor: theme.colors.error.main,
-      color: theme.colors.text.primaryInverse,
+      backgroundColor: theme.colors.danger,
+      color: theme.colors.primary.contrastText,
     };
   }
 
   if (kind === 'success') {
     return {
       backgroundColor: theme.colors.success,
-      color: theme.colors.text.primaryInverse,
+      color: theme.colors.primary.contrastText,
     };
   }
 
   // default is primary
   return {
-    backgroundColor: theme.colors.brand,
-    color: theme.colors.text.primaryInverse,
+    backgroundColor: theme.colors.secondary.main,
+    color: theme.colors.text.secondary.contrastText,
   };
 };
 
 const Label = styled.div`
   box-sizing: border-box;
-  border-radius: 10px;
-  display: inline-block;
+  border-radius: 100px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 16px;
+  line-height: 1.4;
   font-size: 10px;
   font-weight: 500;
   padding: 0 8px;
-  margin: 1px 0;
-  vertical-align: middle;
 
   ${kind}
   ${space}

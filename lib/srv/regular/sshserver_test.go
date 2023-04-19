@@ -55,23 +55,21 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/pam"
 	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
 // teleportTestUser is additional user used for tests
@@ -207,7 +205,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	nodeID := uuid.New().String()
 	nodeClient, err := testServer.NewClient(auth.TestIdentity{
-		I: authz.BuiltinRole{
+		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -233,12 +231,13 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetSessionServer(nodeClient),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
 				"baz": &types.CommandLabelV2{
-					Period:  types.NewDuration(time.Second),
+					Period:  types.NewDuration(time.Millisecond),
 					Command: []string{"expr", "1", "+", "3"},
 				},
 			}, nil,
@@ -399,7 +398,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
 	proxyClient, err := testSvr.NewClient(auth.TestIdentity{
-		I: authz.BuiltinRole{
+		I: auth.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -411,7 +410,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
 	nodeID := uuid.New().String()
 	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
-		I: authz.BuiltinRole{
+		I: auth.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -1223,7 +1222,7 @@ func TestKeyAlgorithms(t *testing.T) {
 	t.Parallel()
 	f := newFixtureWithoutDiskBasedLogging(t)
 
-	_, ellipticSigner, err := cert.CreateEllipticCertificate("foo", ssh.UserCert)
+	_, ellipticSigner, err := utils.CreateEllipticCertificate("foo", ssh.UserCert)
 	require.NoError(t, err)
 
 	sshConfig := &ssh.ClientConfig{
@@ -1461,9 +1460,10 @@ func TestProxyRoundRobin(t *testing.T) {
 		utils.NetAddr{},
 		proxyClient,
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
+		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -1602,9 +1602,10 @@ func TestProxyDirectAccess(t *testing.T) {
 		utils.NetAddr{},
 		proxyClient,
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
+		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -1760,6 +1761,14 @@ func TestClientDisconnect(t *testing.T) {
 	require.NoError(t, clt.Close())
 }
 
+func getWaitForNumberOfConnsFunc(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
+	return func() bool {
+		connNumber, err := limiter.GetNumConnection(token)
+		require.NoError(t, err)
+		return connNumber == num
+	}
+}
+
 // fakeClock is a wrapper around clockwork.FakeClock that satisfies the timetoools.TimeProvider interface.
 // We are wrapping this so we can use the same mocked clock across the server and rate limiter.
 type fakeClock struct {
@@ -1788,14 +1797,6 @@ func TestLimiter(t *testing.T) {
 	fClock := &fakeClock{
 		clock: f.clock,
 	}
-
-	getConns := func(t *testing.T, limiter *limiter.Limiter, token string, num int64) func() bool {
-		return func() bool {
-			connNumber, err := limiter.GetNumConnection(token)
-			return err == nil && connNumber == num
-		}
-	}
-
 	limiter, err := limiter.NewLimiter(
 		limiter.Config{
 			Clock:          fClock,
@@ -1843,9 +1844,10 @@ func TestLimiter(t *testing.T) {
 		nodeClient,
 		SetLimiter(limiter),
 		SetShell("/bin/sh"),
+		SetSessionServer(nodeClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -1888,7 +1890,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	clt, err = tracessh.Dial(ctx, "tcp", srv.Addr(), config)
@@ -1907,7 +1909,7 @@ func TestLimiter(t *testing.T) {
 	require.NoError(t, clt.Close())
 	require.ErrorIs(t, clt.Wait(), net.ErrClosed)
 
-	require.Eventually(t, getConns(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
+	require.Eventually(t, getWaitForNumberOfConnsFunc(t, limiter, "127.0.0.1", 1), time.Second*10, time.Millisecond*100)
 
 	// current connections = 1
 	// requests rate should exceed now
@@ -1930,6 +1932,49 @@ func TestServerAliveInterval(t *testing.T) {
 	ok, _, err := f.ssh.clt.SendRequest(context.Background(), teleport.KeepAliveReqType, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
+}
+
+// TestGlobalRequestRecordingProxy simulates sending a global out-of-band
+// recording-proxy@teleport.com request.
+func TestGlobalRequestRecordingProxy(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	f := newFixture(t)
+
+	// set cluster config to record at the node
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtNode,
+	})
+	require.NoError(t, err)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	require.NoError(t, err)
+
+	// send the request again, we have cluster config and when we parse the
+	// response, it should be false because recording is occurring at the node.
+	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+	response, err := strconv.ParseBool(string(responseBytes))
+	require.NoError(t, err)
+	require.False(t, response)
+
+	// set cluster config to record at the proxy
+	recConfig, err = types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: types.RecordAtProxy,
+	})
+	require.NoError(t, err)
+	err = f.testSrv.Auth().SetSessionRecordingConfig(ctx, recConfig)
+	require.NoError(t, err)
+
+	// send request again, now that we have cluster config and it's set to record
+	// at the proxy, we should return true and when we parse the payload it should
+	// also be true
+	ok, responseBytes, err = f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+	response, err = strconv.ParseBool(string(responseBytes))
+	require.NoError(t, err)
+	require.True(t, response)
 }
 
 // TestGlobalRequestClusterDetails simulates sending a global out-of-band
@@ -2235,14 +2280,12 @@ func TestX11ProxySupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that the proxy is in recording mode
-	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.ClusterDetailsReqType, true, nil)
+	ok, responseBytes, err := f.ssh.clt.SendRequest(ctx, teleport.RecordingProxyReqType, true, nil)
 	require.NoError(t, err)
 	require.True(t, ok)
-
-	var details sshutils.ClusterDetails
-	require.NoError(t, ssh.Unmarshal(responseBytes, &details))
+	response, err := strconv.ParseBool(string(responseBytes))
 	require.NoError(t, err)
-	require.True(t, details.RecordingProxy)
+	require.True(t, response)
 
 	// setup our fake X11 echo server.
 	x11Ctx, x11Cancel := context.WithCancel(ctx)
@@ -2383,9 +2426,10 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		utils.NetAddr{},
 		proxyClient,
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
+		SetSessionServer(proxyClient),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
+		SetPAMConfig(&pam.Config{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -2493,7 +2537,7 @@ func TestHandlePuTTYWinadj(t *testing.T) {
 	require.Equal(t, "hello once more\n", string(out))
 }
 
-// upack holds all ssh signing artifacts needed for signing and checking user keys
+// upack holds all ssh signing artefacts needed for signing and checking user keys
 type upack struct {
 	// key is a raw private user key
 	key []byte

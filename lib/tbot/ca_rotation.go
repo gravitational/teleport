@@ -25,12 +25,12 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/api/utils"
+	libUtils "github.com/gravitational/teleport/lib/utils"
 )
 
 // See https://github.com/gravitational/teleport/blob/1aa38f4bc56997ba13b26a1ef1b4da7a3a078930/lib/auth/rotate.go#L135
@@ -87,7 +87,7 @@ func (rd *debouncer) attempt() {
 const caRotationRetryBackoff = time.Second * 2
 
 // caRotationLoop continually triggers `watchCARotations` until the context is
-// canceled. This allows the watcher to be re-established if an error occurs.
+// cancelled. This allows the watcher to be re-established if an error occurs.
 //
 // caRotationLoop also manages debouncing the renewals across multiple watch
 // attempts.
@@ -109,7 +109,7 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 		},
 		debouncePeriod: time.Second * 10,
 	}
-	jitter := retryutils.NewJitter()
+	jitter := libUtils.NewJitter()
 
 	for {
 		err := b.watchCARotations(ctx, rd.attempt)
@@ -136,7 +136,7 @@ func (b *Bot) caRotationLoop(ctx context.Context) error {
 
 		select {
 		case <-ctx.Done():
-			b.log.Warn("Context canceled during backoff for CA rotation watcher. Aborting.")
+			b.log.Warn("Context cancelled during backoff for CA rotation watcher. Aborting.")
 			return nil
 		case <-time.After(backoffPeriod):
 		}
@@ -209,7 +209,7 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 
 	// We want to update for all phases but init and update_servers
 	phase := ca.GetRotation().Phase
-	if slices.Contains([]string{
+	if utils.SliceContainsStr([]string{
 		"", types.RotationPhaseInit, types.RotationPhaseUpdateServers,
 	}, phase) {
 		return fmt.Sprintf("skipping due to phase '%s'", phase)
@@ -224,8 +224,8 @@ func filterCAEvent(log logrus.FieldLogger, event types.Event, clusterName string
 		)
 	}
 
-	// We want to skip anything that is not host, user, or db
-	if !slices.Contains([]string{
+	// We want to skip anything that is not host, user, db
+	if !utils.SliceContainsStr([]string{
 		string(types.HostCA),
 		string(types.UserCA),
 		string(types.DatabaseCA),

@@ -15,5 +15,4 @@ limitations under the License.
 */
 
 import ClusterResources from './ClusterResources';
-export { DarkenWhileDisabled } from './DarkenWhileDisabled';
 export default ClusterResources;

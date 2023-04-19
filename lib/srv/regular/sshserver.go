@@ -53,14 +53,14 @@ import (
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -84,12 +84,13 @@ type Server struct {
 	addr      utils.NetAddr
 	hostname  string
 
-	srv         *sshutils.Server
-	shell       string
-	getRotation services.RotationGetter
-	authService srv.AccessPoint
-	reg         *srv.SessionRegistry
-	limiter     *limiter.Limiter
+	srv           *sshutils.Server
+	shell         string
+	getRotation   RotationGetter
+	authService   srv.AccessPoint
+	reg           *srv.SessionRegistry
+	sessionServer rsession.Service
+	limiter       *limiter.Limiter
 
 	inventoryHandle inventory.DownstreamHandle
 
@@ -151,7 +152,7 @@ type Server struct {
 	termHandlers *srv.TermHandlers
 
 	// pamConfig holds configuration for PAM.
-	pamConfig *servicecfg.PAMConfig
+	pamConfig *pam.Config
 
 	// dataDir is a server local data directory
 	dataDir string
@@ -223,16 +224,6 @@ type Server struct {
 	// sessionController is used to restrict new sessions
 	// based on locks and cluster preferences
 	sessionController *srv.SessionController
-
-	// ingressReporter reports new and active connections.
-	ingressReporter *ingress.Reporter
-	// ingressService the service name passed to the ingress reporter.
-	ingressService string
-
-	// proxySigner is used to generate signed PROXYv2 header so we can securely propagate client IP
-	proxySigner PROXYHeaderSigner
-	// caGetter is used to get host CA of the cluster to verify signed PROXY headers
-	caGetter CertAuthorityGetter
 }
 
 // TargetMetadata returns metadata about the server.
@@ -264,13 +255,20 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
+func (s *Server) GetSessionServer() rsession.Service {
+	if s.isAuditedAtProxy() {
+		return rsession.NewDiscardSessionServer()
+	}
+	return s.sessionServer
+}
+
 // GetUtmpPath returns the optional override of the utmp and wtmp path.
 func (s *Server) GetUtmpPath() (string, string) {
 	return s.utmpPath, s.wtmpPath
 }
 
 // GetPAM returns the PAM configuration for this server.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
+func (s *Server) GetPAM() (*pam.Config, error) {
 	return s.pamConfig, nil
 }
 
@@ -305,6 +303,24 @@ func (s *Server) GetCreateHostUser() bool {
 // host user provisioning
 func (s *Server) GetHostUsers() srv.HostUsers {
 	return s.users
+}
+
+// isAuditedAtProxy returns true if sessions are being recorded at the proxy
+// and this is a Teleport node.
+func (s *Server) isAuditedAtProxy() bool {
+	// always be safe, better to double record than not record at all
+	recConfig, err := s.GetAccessPoint().GetSessionRecordingConfig(s.ctx)
+	if err != nil {
+		return false
+	}
+
+	isRecordAtProxy := services.IsRecordAtProxy(recConfig.GetMode())
+	isTeleportNode := s.Component() == teleport.ComponentNode
+
+	if isRecordAtProxy && isTeleportNode {
+		return true
+	}
+	return false
 }
 
 // ServerOption is a functional option passed to the server
@@ -403,6 +419,9 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.srv.HandleConnection(conn)
 }
 
+// RotationGetter returns rotation state
+type RotationGetter func(role types.SystemRole) (*types.Rotation, error)
+
 // SetUtmpPath is a functional server option to override the user accounting database and log path.
 func SetUtmpPath(utmpPath, wtmpPath string) ServerOption {
 	return func(s *Server) error {
@@ -422,7 +441,7 @@ func SetClock(clock clockwork.Clock) ServerOption {
 }
 
 // SetRotationGetter sets rotation state getter
-func SetRotationGetter(getter services.RotationGetter) ServerOption {
+func SetRotationGetter(getter RotationGetter) ServerOption {
 	return func(s *Server) error {
 		s.getRotation = getter
 		return nil
@@ -438,6 +457,14 @@ func SetShell(shell string) ServerOption {
 	}
 }
 
+// SetSessionServer represents realtime session registry server
+func SetSessionServer(sessionServer rsession.Service) ServerOption {
+	return func(s *Server) error {
+		s.sessionServer = sessionServer
+		return nil
+	}
+}
+
 // SetProxyMode starts this server in SSH proxying mode
 func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyAccessPoint, router *proxy.Router) ServerOption {
 	return func(s *Server) error {
@@ -449,15 +476,6 @@ func SetProxyMode(peerAddr string, tsrv reversetunnel.Tunnel, ap auth.ReadProxyA
 		s.proxyAccessPoint = ap
 		s.peerAddr = peerAddr
 		s.router = router
-		return nil
-	}
-}
-
-// SetIngressReporter sets the reporter for reporting new and active connections.
-func SetIngressReporter(service string, r *ingress.Reporter) ServerOption {
-	return func(s *Server) error {
-		s.ingressReporter = r
-		s.ingressService = service
 		return nil
 	}
 }
@@ -553,7 +571,7 @@ func SetMACAlgorithms(macAlgorithms []string) ServerOption {
 	}
 }
 
-func SetPAMConfig(pamConfig *servicecfg.PAMConfig) ServerOption {
+func SetPAMConfig(pamConfig *pam.Config) ServerOption {
 	return func(s *Server) error {
 		s.pamConfig = pamConfig
 		return nil
@@ -687,22 +705,6 @@ func SetSessionController(controller *srv.SessionController) ServerOption {
 	}
 }
 
-// SetPROXYSigner sets the PROXY headers signer
-func SetPROXYSigner(proxySigner PROXYHeaderSigner) ServerOption {
-	return func(s *Server) error {
-		s.proxySigner = proxySigner
-		return nil
-	}
-}
-
-// SetCAGetter sets the cert authority getter
-func SetCAGetter(caGetter CertAuthorityGetter) ServerOption {
-	return func(s *Server) error {
-		s.caGetter = caGetter
-		return nil
-	}
-}
-
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -825,11 +827,6 @@ func New(
 		SessionRegistry: s.reg,
 	}
 
-	clusterName, err := s.GetAccessPoint().GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	server, err := sshutils.NewServer(
 		component,
 		addr, s, signers,
@@ -842,9 +839,6 @@ func New(
 		sshutils.SetMACAlgorithms(s.macAlgorithms),
 		sshutils.SetFIPS(s.fips),
 		sshutils.SetClock(s.clock),
-		sshutils.SetIngressReporter(s.ingressService, s.ingressReporter),
-		sshutils.SetCAGetter(s.caGetter),
-		sshutils.SetClusterName(clusterName.GetClusterName()),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -864,6 +858,7 @@ func New(
 		heartbeat, err = srv.NewSSHServerHeartbeat(srv.SSHServerHeartbeatConfig{
 			InventoryHandle: s.inventoryHandle,
 			GetServer:       s.getServerInfo,
+			Announcer:       s.authService,
 			OnHeartbeat:     s.onHeartbeat,
 		})
 	} else {
@@ -1097,6 +1092,8 @@ func (s *Server) HandleRequest(ctx context.Context, r *ssh.Request) {
 	switch r.Type {
 	case teleport.KeepAliveReqType:
 		s.handleKeepAlive(r)
+	case teleport.RecordingProxyReqType:
+		s.handleRecordingProxy(ctx, r)
 	case teleport.ClusterDetailsReqType:
 		s.handleClusterDetails(ctx, r)
 	case teleport.VersionRequest:
@@ -1719,7 +1716,7 @@ func (s *Server) handleAgentForwardNode(req *ssh.Request, ctx *srv.ServerContext
 func (s *Server) handleAgentForwardProxy(req *ssh.Request, ctx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
-	if !services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == false {
 		return trace.BadParameter("agent forwarding to proxy only supported in recording mode")
 	}
 
@@ -1743,7 +1740,11 @@ func (s *Server) handleX11Forward(ch ssh.Channel, req *ssh.Request, ctx *srv.Ser
 			Type: events.X11ForwardEvent,
 			Code: events.X11ForwardCode,
 		},
-		UserMetadata: ctx.Identity.GetUserMetadata(),
+		UserMetadata: apievents.UserMetadata{
+			Login:        ctx.Identity.Login,
+			User:         ctx.Identity.TeleportUser,
+			Impersonator: ctx.Identity.Impersonator,
+		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			LocalAddr:  ctx.ServerConn.LocalAddr().String(),
 			RemoteAddr: ctx.ServerConn.RemoteAddr().String(),
@@ -1895,6 +1896,39 @@ func (s *Server) handleClusterDetails(ctx context.Context, req *ssh.Request) {
 	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, details)
 }
 
+// handleRecordingProxy responds to global out-of-band with a bool which
+// indicates if it is in recording mode or not.
+//
+// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+// cluster information.
+// TODO(tross):DELETE IN 12.0
+func (s *Server) handleRecordingProxy(ctx context.Context, req *ssh.Request) {
+	s.Logger.Debugf("Global request (%v, %v) received", req.Type, req.WantReply)
+
+	if !req.WantReply {
+		return
+	}
+
+	// get the cluster config, if we can't get it, reply false
+	recConfig, err := s.authService.GetSessionRecordingConfig(ctx)
+	if err != nil {
+		if err := req.Reply(false, nil); err != nil {
+			s.Logger.Warnf("Unable to respond to global request (%v, %v): %v", req.Type, req.WantReply, err)
+		}
+		return
+	}
+
+	// reply true that we were able to process the message and reply with a
+	// bool if we are in recording mode or not
+	recordingProxy := services.IsRecordAtProxy(recConfig.GetMode())
+	if err := req.Reply(true, []byte(strconv.FormatBool(recordingProxy))); err != nil {
+		s.Logger.Warnf("Unable to respond to global request (%v, %v): %v: %v", req.Type, req.WantReply, recordingProxy, err)
+		return
+	}
+
+	s.Logger.Debugf("Replied to global request (%v, %v): %v", req.Type, req.WantReply, recordingProxy)
+}
+
 // handleVersionRequest replies with the Teleport version of the server.
 func (s *Server) handleVersionRequest(req *ssh.Request) {
 	err := req.Reply(true, []byte(teleport.Version))
@@ -2014,6 +2048,12 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 	}
 }
 
+// TODO: tsh scp will display neither the message sent in stderr or in
+// the reply; github.com/pkg/sftp ignores the SSH channel stderr, and
+// golang.org/x/crypto/ssh.channel.SendRequest ignores the message in
+// a channel reply. This is bad UX for users, as
+// 'ssh: subsystem request failed' will be the only error displayed when
+// access is denied.
 func (s *Server) replyError(ch ssh.Channel, req *ssh.Request, err error) {
 	s.Logger.WithError(err).Errorf("failure handling SSH %q request", req.Type)
 	// Terminate the error with a newline when writing to remote channel's
@@ -2040,11 +2080,9 @@ func (s *Server) parseSubsystemRequest(req *ssh.Request, ch ssh.Channel, ctx *sr
 		return parseProxySubsys(r.Name, s, ctx)
 	case s.proxyMode && strings.HasPrefix(r.Name, "proxysites"):
 		return parseProxySitesSubsys(r.Name, s)
-	// DELETE IN 15.0.0 (deprecated, tsh will not be using this anymore)
-	case r.Name == teleport.GetHomeDirSubsystem:
-		return newHomeDirSubsys(), nil
 	case r.Name == sftpSubsystem:
-		if err := ctx.CheckSFTPAllowed(s.reg); err != nil {
+		if err := ctx.CheckSFTPAllowed(); err != nil {
+			s.replyError(ch, req, err)
 			return nil, trace.Wrap(err)
 		}
 

@@ -18,10 +18,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
-// serverMetrics represents a collection of grpcMetrics for a proxy peer server
+// serverMetrics represents a collection of metrics for a proxy peer server
 type serverMetrics struct {
 	connections     *prometheus.GaugeVec
 	rpcs            *prometheus.GaugeVec
@@ -31,7 +31,7 @@ type serverMetrics struct {
 	messageReceived *prometheus.HistogramVec
 }
 
-// newServerMetrics inits and registers client grpcMetrics prometheus collectors.
+// newServerMetrics inits and registers client metrics prometheus collectors.
 func newServerMetrics() (*serverMetrics, error) {
 	sm := &serverMetrics{
 		connections: prometheus.NewGaugeVec(
@@ -97,7 +97,7 @@ func newServerMetrics() (*serverMetrics, error) {
 		),
 	}
 
-	if err := metrics.RegisterPrometheusCollectors(
+	if err := utils.RegisterPrometheusCollectors(
 		sm.connections,
 		sm.rpcs,
 		sm.rpcTotal,

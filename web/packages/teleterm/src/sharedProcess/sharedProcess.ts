@@ -14,27 +14,15 @@
  * limitations under the License.
  */
 
-import { Server, ServerCredentials } from '@grpc/grpc-js';
+import { Server } from '@grpc/grpc-js';
 
-import { createStdoutLoggerService } from 'teleterm/services/logger';
-
-import {
-  createInsecureServerCredentials,
-  createServerCredentials,
-  generateAndSaveGrpcCert,
-  GrpcCertName,
-  readGrpcCert,
-  shouldEncryptConnection,
-} from 'teleterm/services/grpcCredentials';
+import createLoggerService from 'teleterm/services/logger';
+import { getServerCredentials } from 'teleterm/services/grpcCredentials';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
 import Logger from 'teleterm/logger';
 
 import { PtyHostService } from './api/protogen/ptyHostService_grpc_pb';
 import { createPtyHostService } from './ptyHost/ptyHostService';
-
-const runtimeSettings = getRuntimeSettings();
-initializeLogger();
-initializeServer(runtimeSettings);
 
 function getRuntimeSettings(): RuntimeSettings {
   const args = process.argv.slice(2);
@@ -51,8 +39,13 @@ function getRuntimeSettings(): RuntimeSettings {
   return runtimeSettings;
 }
 
-function initializeLogger(): void {
-  const loggerService = createStdoutLoggerService();
+function initializeLogger(runtimeSettings: RuntimeSettings): void {
+  const loggerService = createLoggerService({
+    dev: runtimeSettings.dev,
+    dir: runtimeSettings.userDataDir,
+    name: 'shared',
+  });
+
   Logger.init(loggerService);
   const logger = new Logger('uncaught exception');
 
@@ -78,17 +71,19 @@ async function initializeServer(
   const grpcServerAddress = address.replace('tcp://', '');
 
   try {
-    const credentials = await createGrpcCredentials(runtimeSettings);
+    server.bindAsync(
+      grpcServerAddress,
+      (await getServerCredentials(runtimeSettings)).shared,
+      (error, port) => {
+        sendBoundNetworkPortToStdout(port);
 
-    server.bindAsync(grpcServerAddress, credentials, (error, port) => {
-      sendBoundNetworkPortToStdout(port);
+        if (error) {
+          return logger.error(error.message);
+        }
 
-      if (error) {
-        return logger.error(error.message);
+        server.start();
       }
-
-      server.start();
-    });
+    );
   } catch (e) {
     logger.error('Could not start shared server', e);
   }
@@ -102,21 +97,6 @@ function sendBoundNetworkPortToStdout(port: number) {
   console.log(`{CONNECT_GRPC_PORT: ${port}}`);
 }
 
-/**
- * Creates credentials for the gRPC server running in the shared process.
- */
-async function createGrpcCredentials(
-  runtimeSettings: RuntimeSettings
-): Promise<ServerCredentials> {
-  if (!shouldEncryptConnection(runtimeSettings)) {
-    return createInsecureServerCredentials();
-  }
-
-  const { certsDir } = runtimeSettings;
-  const [sharedKeyPair, rendererCert] = await Promise.all([
-    generateAndSaveGrpcCert(certsDir, GrpcCertName.Shared),
-    readGrpcCert(certsDir, GrpcCertName.Renderer),
-  ]);
-
-  return createServerCredentials(sharedKeyPair, rendererCert);
-}
+const runtimeSettings = getRuntimeSettings();
+initializeLogger(runtimeSettings);
+initializeServer(runtimeSettings);

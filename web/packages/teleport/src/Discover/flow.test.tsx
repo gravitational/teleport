@@ -144,13 +144,14 @@
 
 import { ResourceKind } from 'teleport/Discover/Shared';
 
-import { computeViewChildrenSize, ResourceViewConfig, View } from './flow';
+import { computeViewChildrenSize, Resource } from './flow';
 
 describe('discover flow', () => {
   describe('computeViewChildrenSize', () => {
     it('should calculate the children size correctly', () => {
-      const resource: ResourceViewConfig = {
+      const resource: Resource = {
         kind: ResourceKind.Server,
+        icon: null,
         shouldPrompt: () => null,
         views: [
           {
@@ -177,7 +178,7 @@ describe('discover flow', () => {
         ],
       };
 
-      expect(computeViewChildrenSize(resource.views as View[])).toBe(2);
+      expect(computeViewChildrenSize(resource.views)).toBe(2);
     });
   });
 });

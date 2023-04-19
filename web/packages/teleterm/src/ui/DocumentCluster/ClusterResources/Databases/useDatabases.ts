@@ -15,35 +15,61 @@ limitations under the License.
 */
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { Database, GetResourcesParams } from 'teleterm/services/tshd/types';
-import { makeDatabase } from 'teleterm/ui/services/clusters';
-import { connectToDatabase } from 'teleterm/ui/services/workspacesService';
-
-import { useServerSideResources } from '../useServerSideResources';
+import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
+import { routing } from 'teleterm/ui/uri';
+import { GatewayProtocol } from 'teleterm/ui/services/clusters';
 
 export function useDatabases() {
   const appContext = useAppContext();
+  const clusterContext = useClusterContext();
+  const dbs = clusterContext.getDbs();
+  const syncStatus = clusterContext.getSyncStatus().dbs;
+  const documentUri = clusterContext.documentUri;
 
-  const { fetchAttempt, ...serverSideResources } =
-    useServerSideResources<Database>(
-      { fieldName: 'name', dir: 'ASC' }, // default sort
-      (params: GetResourcesParams) =>
-        appContext.resourcesService.fetchDatabases(params)
-    );
+  function connect(dbUri: string, dbUser: string): void {
+    const db = appContext.clustersService.findDb(dbUri);
+    const rootClusterUri = routing.ensureRootClusterUri(db.uri);
+    const documentsService =
+      appContext.workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
-  function connect(db: ReturnType<typeof makeDatabase>, dbUser: string): void {
-    const { uri, name, protocol } = db;
-    connectToDatabase(
-      appContext,
-      { uri, name, protocol, dbUser },
-      { origin: 'resource_table' }
-    );
+    const doc = documentsService.createGatewayDocument({
+      // Not passing the `gatewayUri` field here, as at this point the gateway doesn't exist yet.
+      // `port` is not passed as well, we'll let the tsh daemon pick a random one.
+      targetUri: db.uri,
+      targetName: db.name,
+      targetUser: getTargetUser(db.protocol as GatewayProtocol, dbUser),
+    });
+
+    const connectionToReuse =
+      appContext.connectionTracker.findConnectionByDocument(doc);
+
+    if (connectionToReuse) {
+      appContext.connectionTracker.activateItem(connectionToReuse.id);
+    } else {
+      documentsService.add(doc);
+      documentsService.open(doc.uri);
+    }
+  }
+
+  function getTargetUser(
+    protocol: GatewayProtocol,
+    providedDbUser: string
+  ): string {
+    // we are replicating tsh behavior (user can be omitted for Redis)
+    // https://github.com/gravitational/teleport/blob/796e37bdbc1cb6e0a93b07115ffefa0e6922c529/tool/tsh/db.go#L240-L244
+    // but unlike tsh, Connect has to provide a user that is then used in a gateway document
+    if (protocol === 'redis') {
+      return providedDbUser || 'default';
+    }
+
+    return providedDbUser;
   }
 
   return {
-    fetchAttempt,
     connect,
-    ...serverSideResources,
+    dbs,
+    syncStatus,
+    documentUri,
   };
 }
 

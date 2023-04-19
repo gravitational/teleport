@@ -27,7 +27,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -62,7 +61,7 @@ func TestEcho(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-acct-echo",
 		Login:       username,
@@ -103,7 +102,7 @@ func TestEnvironment(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-session-environment",
 		Login:       username,
@@ -123,7 +122,7 @@ func TestSuccess(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-success",
 		Login:       username,
@@ -148,7 +147,7 @@ func TestAccountFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-acct-failure",
 		Login:       username,
@@ -165,7 +164,7 @@ func TestAuthFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-auth-failure",
 		Login:       username,
@@ -183,7 +182,7 @@ func TestAuthDisabled(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	pamContext, err := Open(&servicecfg.PAMConfig{
+	pamContext, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-auth-failure",
 		Login:       username,
@@ -207,7 +206,7 @@ func TestSessionFailure(t *testing.T) {
 	username := currentUser(t)
 
 	var buf bytes.Buffer
-	_, err := Open(&servicecfg.PAMConfig{
+	_, err := Open(&Config{
 		Enabled:     true,
 		ServiceName: "teleport-session-failure",
 		Login:       username,

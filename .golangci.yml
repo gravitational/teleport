@@ -6,10 +6,6 @@ issues:
     - linters:
       - revive
       text: "exported: exported const"
-    # TODO(hugoShaka): Remove once https://github.com/dominikh/go-tools/issues/1294 is fixed
-    - linters:
-      - unused
-      path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
@@ -19,59 +15,31 @@ linters:
   enable:
     - bodyclose
     - depguard
-    - gci
     - goimports
     - gosimple
     - govet
     - ineffassign
     - misspell
-    - nolintlint
     - revive
     - staticcheck
-    - unconvert
     - unused
+    - unconvert
 
 linters-settings:
   depguard:
     list-type: denylist
     include-go-root: true # check against stdlib
     packages-with-error-message:
-      - io/ioutil: 'use "io" or "os" packages instead'
-      - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
-      - github.com/hashicorp/go-uuid: 'use "github.com/google/uuid" instead'
-      - github.com/pborman/uuid: 'use "github.com/google/uuid" instead'
-      - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
-      - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
-      - go.uber.org/atomic: 'use "sync/atomic" instead'
-  gci:
-    sections:
-      - standard # Standard section: captures all standard packages.
-      - default # Default section: contains all imports that could not be matched to another section type.
-      - prefix(github.com/gravitational/teleport) # Custom section: groups all imports with the specified Prefix.
-    skip-generated: true # Skip generated files.
-    custom-order: true # Required for "sections" to take effect.
-  misspell:
-    locale: US
-  nolintlint:
-    allow-unused: true # Enabled because of conditional builds / build tags.
-    require-explanation: true
-    require-specific: true
-  revive:
-    rules:
-    - name: unused-parameter
-      disabled: true
-
+    - io/ioutil: 'use "io" or "os" packages instead'
+    - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
+    - github.com/hashicorp/go-uuid: 'use "github.com/google/uuid" instead'
+    - github.com/pborman/uuid: 'use "github.com/google/uuid" instead'
+    - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
+    - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
 output:
   uniq-by-line: false
 
 run:
-  go: '1.19'
-  skip-dirs:
-    - (^|/)node_modules/
-    - ^api/gen/
-    - ^docs/
-    - ^gen/
-    - ^rfd/
-    - ^web/
   skip-dirs-use-default: false
   timeout: 5m
+  go: '1.19'

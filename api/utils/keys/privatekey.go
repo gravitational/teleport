@@ -24,39 +24,33 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"os"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/utils/sshutils/ppk"
 )
 
 const (
-	PKCS1PrivateKeyType      = "RSA PRIVATE KEY"
-	PKCS8PrivateKeyType      = "PRIVATE KEY"
-	ECPrivateKeyType         = "EC PRIVATE KEY"
-	pivYubiKeyPrivateKeyType = "PIV YUBIKEY PRIVATE KEY"
+	PKCS1PrivateKeyType = "RSA PRIVATE KEY"
+	PKCS8PrivateKeyType = "PRIVATE KEY"
+	ECPrivateKeyType    = "EC PRIVATE KEY"
 )
-
-type cryptoPublicKeyI interface {
-	Equal(x crypto.PublicKey) bool
-}
 
 // PrivateKey implements crypto.Signer with additional helper methods. The underlying
 // private key may be a standard crypto.Signer implemented in the standard library
 // (aka *rsa.PrivateKey, *ecdsa.PrivateKey, or ed25519.PrivateKey), or it may be a
 // custom implementation for a non-standard private key, such as a hardware key.
 type PrivateKey struct {
-	crypto.Signer
-	// sshPub is the public key in ssh.PublicKey form.
+	Signer
 	sshPub ssh.PublicKey
-	// keyPEM is PEM-encoded private key data which can be parsed with ParsePrivateKey.
-	keyPEM []byte
 }
 
 // NewPrivateKey returns a new PrivateKey for the given crypto.Signer.
-func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
+func NewPrivateKey(signer Signer) (*PrivateKey, error) {
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -65,7 +59,6 @@ func NewPrivateKey(signer crypto.Signer, keyPEM []byte) (*PrivateKey, error) {
 	return &PrivateKey{
 		Signer: signer,
 		sshPub: sshPub,
-		keyPEM: keyPEM,
 	}, nil
 }
 
@@ -79,62 +72,47 @@ func (k *PrivateKey) MarshalSSHPublicKey() []byte {
 	return ssh.MarshalAuthorizedKey(k.sshPub)
 }
 
-// PrivateKeyPEM returns PEM encoded private key data. This may be data necessary
-// to retrieve the key, such as a YubiKey serial number and slot, or it can be a
-// PKCS marshaled private key.
-//
-// The resulting PEM encoded data should only be decoded with ParsePrivateKey to
-// prevent errors from parsing non PKCS marshaled keys, such as a PIV key.
-func (k *PrivateKey) PrivateKeyPEM() []byte {
-	return k.keyPEM
+// agentKeyComment is used to generate an agent key comment.
+type agentKeyComment struct {
+	user string
 }
 
-// TLSCertificate parses the given TLS certificate(s) paired with the private key
-// to rerturn a tls.Certificate, ready to be used in a TLS handshake.
-func (k *PrivateKey) TLSCertificate(certPEMBlock []byte) (tls.Certificate, error) {
-	cert := tls.Certificate{
-		PrivateKey: k.Signer,
+func (a *agentKeyComment) String() string {
+	return fmt.Sprintf("teleport:%s", a.user)
+}
+
+// AsAgentKey converts PrivateKey to a agent.AddedKey. If the given PrivateKey is not
+// supported as an agent key, a trace.NotImplemented error is returned.
+func (k *PrivateKey) AsAgentKey(sshCert *ssh.Certificate) (agent.AddedKey, error) {
+	signer, ok := k.Signer.(*StandardSigner)
+	if !ok {
+		// We return a not implemented error because agent.AddedKey only
+		// supports plain RSA, ECDSA, and ED25519 keys. Non-standard private
+		// keys, like hardware-based private keys, will require custom solutions
+		// which may not be included in their initial implementation. This will
+		// only affect functionality related to agent forwarding, so we give the
+		// caller the ability to handle the error gracefully.
+		return agent.AddedKey{}, trace.NotImplemented("cannot create an agent key using private key signer of type %T", k.Signer)
 	}
 
-	var skippedBlockTypes []string
-	for {
-		var certDERBlock *pem.Block
-		certDERBlock, certPEMBlock = pem.Decode(certPEMBlock)
-		if certDERBlock == nil {
-			break
-		}
-		if certDERBlock.Type == "CERTIFICATE" {
-			cert.Certificate = append(cert.Certificate, certDERBlock.Bytes)
-		} else {
-			skippedBlockTypes = append(skippedBlockTypes, certDERBlock.Type)
-		}
-	}
-
-	if len(cert.Certificate) == 0 {
-		if len(skippedBlockTypes) == 0 {
-			return tls.Certificate{}, trace.BadParameter("tls: failed to find any PEM data in certificate input")
-		}
-		return tls.Certificate{}, trace.BadParameter("tls: failed to find \"CERTIFICATE\" PEM block in certificate input after skipping PEM blocks of the following types: %v", skippedBlockTypes)
-	}
-
-	// Check that the certificate's public key matches this private key.
-	x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	if keyPub, ok := k.Public().(cryptoPublicKeyI); !ok {
-		return tls.Certificate{}, trace.BadParameter("private key does not contain a valid public key")
-	} else if !keyPub.Equal(x509Cert.PublicKey) {
-		return tls.Certificate{}, trace.BadParameter("private key does not match certificate's public key")
-	}
-
-	return cert, nil
+	// put a teleport identifier along with the teleport user into the comment field
+	comment := agentKeyComment{user: sshCert.KeyId}
+	return agent.AddedKey{
+		PrivateKey:       signer.Signer,
+		Certificate:      sshCert,
+		Comment:          comment.String(),
+		LifetimeSecs:     0,
+		ConfirmBeforeUse: false,
+	}, nil
 }
 
 // PPKFile returns a PuTTY PPK-formatted keypair
 func (k *PrivateKey) PPKFile() ([]byte, error) {
-	rsaKey, ok := k.Signer.(*rsa.PrivateKey)
+	signer, ok := k.Signer.(*StandardSigner)
+	if !ok {
+		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
+	}
+	rsaKey, ok := signer.Signer.(*rsa.PrivateKey)
 	if !ok {
 		return nil, trace.BadParameter("cannot use private key of type %T as rsa.PrivateKey", k)
 	}
@@ -151,10 +129,21 @@ func (k *PrivateKey) PPKFile() ([]byte, error) {
 // This is used by some integrations which currently only support raw RSA private keys,
 // like Kubernetes, MongoDB, and PPK files for windows.
 func (k *PrivateKey) RSAPrivateKeyPEM() ([]byte, error) {
-	if _, ok := k.Signer.(*rsa.PrivateKey); !ok {
-		return nil, trace.BadParameter("cannot get rsa key PEM for private key of type %T", k.Signer)
+	signer := k.GetBaseSigner()
+	if _, ok := signer.(*rsa.PrivateKey); !ok {
+		return nil, trace.BadParameter("cannot get rsa key PEM for private key of type %T", signer)
 	}
-	return k.keyPEM, nil
+	return k.PrivateKeyPEM(), nil
+}
+
+// GetBaseSigner is a helper method to return the actual nested crypto.Signer for this PrivateKey.
+func (k *PrivateKey) GetBaseSigner() crypto.Signer {
+	switch signer := k.Signer.(type) {
+	case *StandardSigner:
+		return signer.Signer
+	default:
+		return signer
+	}
 }
 
 // LoadPrivateKey returns the PrivateKey for the given key file.
@@ -184,13 +173,13 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
+		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
 	case ECPrivateKeyType:
 		cryptoSigner, err := x509.ParseECPrivateKey(block.Bytes)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
+		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
 	case PKCS8PrivateKeyType:
 		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 		if err != nil {
@@ -200,13 +189,7 @@ func ParsePrivateKey(keyPEM []byte) (*PrivateKey, error) {
 		if !ok {
 			return nil, trace.BadParameter("x509.ParsePKCS8PrivateKey returned an invalid private key of type %T", priv)
 		}
-		return NewPrivateKey(cryptoSigner, keyPEM)
-	case pivYubiKeyPrivateKeyType:
-		priv, err := parseYubiKeyPrivateKeyData(block.Bytes)
-		if err != nil {
-			return nil, trace.Wrap(err, "failed to parse YubiKey private key")
-		}
-		return NewPrivateKey(priv, keyPEM)
+		return NewPrivateKey(newStandardSigner(cryptoSigner, keyPEM))
 	default:
 		return nil, trace.BadParameter("unexpected private key PEM type %q", block.Type)
 	}
@@ -281,29 +264,4 @@ func X509KeyPair(certPEMBlock, keyPEMBlock []byte) (tls.Certificate, error) {
 	}
 
 	return tlsCert, nil
-}
-
-// IsRSAPrivateKey returns true if the given private key is an RSA private key.
-// This function does a similar check to ParsePrivateKey, followed by key.RSAPrivateKeyPEM()
-// without parsing the private fully into a crypto.Signer.
-// This reduces the time it takes to check if a private key is an RSA private key
-// and improves the performance compared to ParsePrivateKey by a factor of 20.
-func IsRSAPrivateKey(privKey []byte) bool {
-	block, _ := pem.Decode(privKey)
-	if block == nil {
-		return false
-	}
-	switch block.Type {
-	case PKCS1PrivateKeyType:
-		return true
-	case PKCS8PrivateKeyType:
-		priv, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-		if err != nil {
-			return false
-		}
-		_, ok := priv.(*rsa.PrivateKey)
-		return ok
-	default:
-		return false
-	}
 }

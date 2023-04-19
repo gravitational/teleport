@@ -261,9 +261,6 @@ const (
 	// ComponentUsageReporting is the component responsible for reporting usage metrics.
 	ComponentUsageReporting = "usage-reporting"
 
-	// ComponentAthena represents athena clients.
-	ComponentAthena = "athena"
-
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -290,6 +287,14 @@ const (
 	// a server keep pining each other with it.
 	KeepAliveReqType = "keepalive@openssh.com"
 
+	// RecordingProxyReqType is the name of a global request which returns if
+	// the proxy is recording sessions or not.
+	//
+	// DEPRECATED: ClusterDetailsReqType should be used instead to avoid multiple round trips for
+	// cluster information.
+	// TODO(tross):DELETE IN 12.0
+	RecordingProxyReqType = "recording-proxy@teleport.com"
+
 	// ClusterDetailsReqType is the name of a global request which returns cluster details like
 	// if the proxy is recording sessions or not and if FIPS is enabled.
 	ClusterDetailsReqType = "cluster-details@goteleport.com"
@@ -303,7 +308,7 @@ const (
 	// Text means text serialization format
 	Text = "text"
 
-	// PTY is a raw PTY session capture format
+	// PTY is a raw pty session capture format
 	PTY = "pty"
 
 	// Names is for formatting node names in plain text
@@ -314,11 +319,11 @@ const (
 
 	// DirMaskSharedGroup is the mask for a directory accessible
 	// by the owner and group
-	DirMaskSharedGroup = 0o770
+	DirMaskSharedGroup = 0770
 
 	// FileMaskOwnerOnly is the file mask that allows read write access
 	// to owers only
-	FileMaskOwnerOnly = 0o600
+	FileMaskOwnerOnly = 0600
 
 	// On means mode is on
 	On = "on"
@@ -381,6 +386,16 @@ const (
 	MinimumEtcdVersion = "3.3.0"
 )
 
+// OTPType is the type of the One-time Password Algorithm.
+type OTPType string
+
+const (
+	// TOTP means Time-based One-time Password Algorithm (for Two-Factor Authentication)
+	TOTP = OTPType("totp")
+	// HOTP means HMAC-based One-time Password Algorithm (for Two-Factor Authentication)
+	HOTP = OTPType("hotp")
+)
+
 const (
 	// These values are from https://openid.net/specs/openid-connect-core-1_0.html#AuthRequest
 
@@ -434,9 +449,9 @@ const (
 	// deadline in cases where both require_session_mfa and disconnect_expired_cert
 	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
 	CertExtensionPreviousIdentityExpires = "prev-identity-expires"
-	// CertExtensionLoginIP is used to embed the IP of the client that created
+	// CertExtensionClientIP is used to embed the IP of the client that created
 	// the certificate.
-	CertExtensionLoginIP = "login-ip"
+	CertExtensionClientIP = "client-ip"
 	// CertExtensionImpersonator is set when one user has requested certificates
 	// for another user
 	CertExtensionImpersonator = "impersonator"
@@ -455,16 +470,6 @@ const (
 	// CertExtensionConnectionDiagnosticID contains the ID of the ConnectionDiagnostic.
 	// The Node/Agent will append connection traces to this diagnostic instance.
 	CertExtensionConnectionDiagnosticID = "teleport-connection-diagnostic-id"
-	// CertExtensionPrivateKeyPolicy is used to mark certificates with their supported
-	// private key policy.
-	CertExtensionPrivateKeyPolicy = "private-key-policy"
-	// CertExtensionDeviceID is the trusted device identifier.
-	CertExtensionDeviceID = "teleport-device-id"
-	// CertExtensionDeviceAssetTag is the device inventory identifier.
-	CertExtensionDeviceAssetTag = "teleport-device-asset-tag"
-	// CertExtensionDeviceCredentialID is the identifier for the credential used
-	// by the device to authenticate itself.
-	CertExtensionDeviceCredentialID = "teleport-device-credential-id"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -565,14 +570,6 @@ const (
 	// role ARNs for local accounts.
 	TraitInternalAWSRoleARNs = "{{internal.aws_role_arns}}"
 
-	// TraitInternalAzureIdentities is the variable used to store allowed
-	// Azure identities for local accounts.
-	TraitInternalAzureIdentities = "{{internal.azure_identities}}"
-
-	// TraitInternalGCPServiceAccounts is the variable used to store allowed
-	// GCP service accounts for local accounts.
-	TraitInternalGCPServiceAccounts = "{{internal.gcp_service_accounts}}"
-
 	// TraitInternalJWTVariable is the variable used to store JWT token for
 	// app sessions.
 	TraitInternalJWTVariable = "{{internal.jwt}}"
@@ -599,8 +596,6 @@ const (
 	PresetAuditorRoleName = "auditor"
 )
 
-var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
-
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
 
@@ -622,10 +617,10 @@ const (
 
 const (
 	// SharedDirMode is a mode for a directory shared with group
-	SharedDirMode = 0o750
+	SharedDirMode = 0750
 
 	// PrivateDirMode is a mode for private directories
-	PrivateDirMode = 0o700
+	PrivateDirMode = 0700
 )
 
 const (
@@ -746,11 +741,6 @@ const (
 	// SFTPSubCommand is the sub-command Teleport uses to re-exec itself to
 	// handle SFTP connections.
 	SFTPSubCommand = "sftp"
-
-	// WaitSubCommand is the sub-command Teleport uses to wait
-	// until a domain name stops resolving. Its main use is to ensure no
-	// auth instances are still running the previous major version.
-	WaitSubCommand = "wait"
 )
 
 const (
@@ -759,12 +749,6 @@ const (
 
 	// ChanSession is a SSH channel of type "session".
 	ChanSession = "session"
-)
-
-const (
-	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
-	// uses to get the home directory of a remote user.
-	GetHomeDirSubsystem = "gethomedir"
 )
 
 // A principal name for use in SSH certificates.
@@ -804,14 +788,13 @@ const UserSingleUseCertTTL = time.Minute
 const StandardHTTPSPort = 443
 
 const (
-	// KubeSessionDisplayParticipantRequirementsQueryParam is the query parameter used to
-	// indicate that the client wants to display the participant requirements
-	// for the given session.
-	KubeSessionDisplayParticipantRequirementsQueryParam = "displayParticipantRequirements"
-	// KubeSessionReasonQueryParam is the query parameter used to indicate the reason
-	// for the session request.
-	KubeSessionReasonQueryParam = "reason"
-	// KubeSessionInvitedQueryParam is the query parameter used to indicate the users
-	// to invite to the session.
-	KubeSessionInvitedQueryParam = "invite"
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
 )

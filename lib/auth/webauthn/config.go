@@ -17,8 +17,8 @@ limitations under the License.
 package webauthn
 
 import (
-	"github.com/go-webauthn/webauthn/protocol"
-	wan "github.com/go-webauthn/webauthn/webauthn"
+	"github.com/duo-labs/webauthn/protocol"
+	wan "github.com/duo-labs/webauthn/webauthn"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -45,11 +45,6 @@ func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 		attestation = protocol.PreferDirectAttestation
 	}
 
-	residentKeyRequirement := protocol.ResidentKeyRequirementDiscouraged
-	if p.requireResidentKey {
-		residentKeyRequirement = protocol.ResidentKeyRequirementRequired
-	}
-
 	// Default to "discouraged", otherwise some browsers may do needless PIN
 	// prompts.
 	userVerification := protocol.VerificationDiscouraged
@@ -65,7 +60,6 @@ func newWebAuthn(p webAuthnParams) (*wan.WebAuthn, error) {
 		AttestationPreference: attestation,
 		AuthenticatorSelection: protocol.AuthenticatorSelection{
 			RequireResidentKey: &p.requireResidentKey,
-			ResidentKey:        residentKeyRequirement,
 			UserVerification:   userVerification,
 		},
 		Timeout: int(defaults.WebauthnChallengeTimeout.Milliseconds()),

@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { debounce } from 'shared/utils/highbar';
+import { debounce } from 'lodash';
 import styled from 'styled-components';
 import { height, space, color } from 'design/system';
 
@@ -67,13 +67,13 @@ class InputSearch extends React.Component {
 
 function fromTheme(props) {
   return {
-    background: props.theme.colors.levels.sunken,
+    background: props.theme.colors.primary.dark,
 
     '&:hover': {
-      background: props.theme.colors.levels.elevated,
+      background: props.theme.colors.primary.lighter,
     },
     '&:focus, &:active': {
-      background: props.theme.colors.levels.elevated,
+      background: props.theme.colors.primary.lighter,
       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
       color: props.theme.colors.text.primary,
     },

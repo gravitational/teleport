@@ -18,27 +18,26 @@ package auth
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/pem"
+	"encoding/json"
 	"errors"
 	"fmt"
 	mathrand "math/rand"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/coreos/go-oidc/jose"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
-	"github.com/gravitational/license"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -50,12 +49,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/keystore"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -78,9 +74,7 @@ type testPack struct {
 	mockEmitter *eventstest.MockEmitter
 }
 
-func newTestPack(
-	ctx context.Context, dataDir string, opts ...ServerOption,
-) (testPack, error) {
+func newTestPack(ctx context.Context, dataDir string) (testPack, error) {
 	var (
 		p   testPack
 		err error
@@ -95,21 +89,16 @@ func newTestPack(
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
-
-	p.mockEmitter = &eventstest.MockEmitter{}
 	authConfig := &InitConfig{
 		Backend:                p.bk,
 		ClusterName:            p.clusterName,
 		Authority:              testauthority.New(),
-		Emitter:                p.mockEmitter,
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
-			},
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 		},
 	}
-	p.a, err = NewServer(authConfig, opts...)
+	p.a, err = NewServer(authConfig)
 	if err != nil {
 		return p, trace.Wrap(err)
 	}
@@ -164,13 +153,10 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
-		return p, trace.Wrap(err)
-	}
-	if err := p.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.OpenSSHCA, p.clusterName.GetClusterName())); err != nil {
+	if err := p.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, p.clusterName.GetClusterName())); err != nil {
 		return p, trace.Wrap(err)
 	}
 
@@ -178,6 +164,8 @@ func newTestPack(
 		return p, trace.Wrap(err)
 	}
 
+	p.mockEmitter = &eventstest.MockEmitter{}
+	p.a.emitter = p.mockEmitter
 	return p, nil
 }
 
@@ -195,7 +183,6 @@ func newAuthSuite(t *testing.T) *testPack {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -214,7 +201,7 @@ func TestSessions(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, _, err = CreateUserAndRole(s.a, user, []string{user}, nil)
+	_, _, err = CreateUserAndRole(s.a, user, []string{user})
 	require.NoError(t, err)
 
 	err = s.a.UpsertPassword(user, pass)
@@ -270,7 +257,7 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Create the user.
-	_, role, err := CreateUserAndRole(s.a, user, []string{user}, nil)
+	_, role, err := CreateUserAndRole(s.a, user, []string{user})
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(user, pass)
 	require.NoError(t, err)
@@ -288,10 +275,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login to the root cluster.
 	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
 		},
+		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 	})
@@ -318,19 +305,18 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:          gotTLSCert.NotAfter,
 		RouteToCluster:   s.clusterName.GetClusterName(),
 		TeleportCluster:  s.clusterName.GetClusterName(),
-		PrivateKeyPolicy: keys.PrivateKeyPolicyNone,
 	}
 	gotID, err := tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
-	require.Equal(t, wantID, *gotID)
+	require.Equal(t, *gotID, wantID)
 
 	// Login to the leaf cluster.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
 		},
+		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    "leaf.localhost",
 		KubernetesCluster: "leaf-kube-cluster",
@@ -351,7 +337,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    "leaf.localhost",
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -359,26 +344,23 @@ func TestAuthenticateSSHUser(t *testing.T) {
 
 	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
 	// generation.
-	kubeCluster, err := types.NewKubernetesClusterV3(
-		types.Metadata{
-			Name: "root-kube-cluster",
+	_, err = s.a.UpsertKubeServiceV2(ctx, &types.ServerV2{
+		Metadata: types.Metadata{Name: "kube-service"},
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
 		},
-		types.KubernetesClusterSpecV3{},
-	)
-	require.NoError(t, err)
-
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "host", "uuid")
-	require.NoError(t, err)
-	_, err = s.a.UpsertKubernetesServer(ctx, kubeServer)
+	})
 	require.NoError(t, err)
 
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
 		},
+		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
@@ -397,7 +379,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -407,10 +388,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// automatically.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
 		},
+		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
@@ -431,19 +412,30 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
 	require.Equal(t, *gotID, wantID)
 
+	// Register a kubernetes cluster to verify the defaulting logic in TLS cert
+	// generation.
+	err = s.a.UpsertKubeService(ctx, &types.ServerV2{
+		Metadata: types.Metadata{Name: "kube-service"},
+		Kind:     types.KindKubeService,
+		Version:  types.V2,
+		Spec: types.ServerSpecV2{
+			KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+		},
+	})
+	require.NoError(t, err)
+
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
 		},
+		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
@@ -462,7 +454,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -472,10 +463,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// automatically.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
 		},
+		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
@@ -496,7 +487,6 @@ func TestAuthenticateSSHUser(t *testing.T) {
 		Expires:           gotTLSCert.NotAfter,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		TeleportCluster:   s.clusterName.GetClusterName(),
-		PrivateKeyPolicy:  keys.PrivateKeyPolicyNone,
 	}
 	gotID, err = tlsca.FromSubject(gotTLSCert.Subject, gotTLSCert.NotAfter)
 	require.NoError(t, err)
@@ -505,10 +495,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username:  user,
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Username: user,
+			Pass:     &PassCreds{Password: pass},
 		},
+		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "invalid-kube-cluster",
@@ -530,7 +520,7 @@ func TestUserLock(t *testing.T) {
 	})
 	require.Error(t, err)
 
-	_, _, err = CreateUserAndRole(s.a, username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(s.a, username, []string{username})
 	require.NoError(t, err)
 
 	err = s.a.UpsertPassword(username, pass)
@@ -569,119 +559,94 @@ func TestUserLock(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func requireTokenExpiry(t *testing.T, token types.ProvisionToken, expectExpiry time.Duration) {
-	t.Helper()
+func TestTokensCRUD(t *testing.T) {
+	t.Parallel()
+	s := newAuthSuite(t)
+
+	ctx := context.Background()
+
+	// before we do anything, we should have 0 tokens
+	btokens, err := s.a.GetTokens(ctx)
+	require.NoError(t, err)
+	require.Empty(t, btokens, 0)
+
+	// generate persistent token
+	tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+	})
+	require.NoError(t, err)
+	require.Len(t, tokenName, 2*TokenLenBytes)
+	tokens, err := s.a.GetTokens(ctx)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	require.Equal(t, tokens[0].GetName(), tokenName)
+
+	tokenResource, err := s.a.ValidateToken(ctx, tokenName)
+	require.NoError(t, err)
+	roles := tokenResource.GetRoles()
+	require.True(t, roles.Include(types.RoleNode))
+	require.False(t, roles.Include(types.RoleProxy))
+
+	// generate persistent token with defined TTL
+	desiredTTL := 6 * time.Hour
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		TTL:   proto.Duration(desiredTTL),
+	})
+	require.NoError(t, err)
+	token, err := s.a.GetToken(ctx, tokenName)
+	require.NoError(t, err)
 	actualTTL := time.Until(token.Expiry())
-	diff := actualTTL - expectExpiry
+	diff := actualTTL - desiredTTL
 	require.True(
 		t,
 		diff <= time.Minute && diff >= (-1*time.Minute),
 		"Token TTL should be within one minute of the desired TTL",
 	)
-}
 
-func TestTokensCRUD(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-	ctx := context.Background()
+	require.NoError(t, s.a.DeleteToken(ctx, tokenName))
 
-	t.Run("GenerateToken: default TTL", func(t *testing.T) {
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-		})
-		require.NoError(t, err)
-		require.Len(t, tokenName, 2*TokenLenBytes)
-
-		// Ensure GetTokens returns token
-		tokens, err := s.a.GetTokens(ctx)
-		require.NoError(t, err)
-		require.Len(t, tokens, 1)
-		require.Equal(t, tokens[0].GetName(), tokenName)
-
-		tokenResource, err := s.a.ValidateToken(ctx, tokenName)
-		require.NoError(t, err)
-		roles := tokenResource.GetRoles()
-		require.True(t, roles.Include(types.RoleNode))
-		require.False(t, roles.Include(types.RoleProxy))
-		// Check that GenerateToken applies a default TTL
-		requireTokenExpiry(t, tokenResource, defaults.ProvisioningTokenTTL)
+	// generate predefined token
+	customToken := "custom-token"
+	tokenName, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
+		Roles: types.SystemRoles{types.RoleNode},
+		Token: customToken,
 	})
+	require.NoError(t, err)
+	require.Equal(t, tokenName, customToken)
 
-	t.Run("GenerateToken: defined TTL", func(t *testing.T) {
-		// generate persistent token with defined TTL
-		desiredTTL := 6 * time.Hour
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-			TTL:   proto.Duration(desiredTTL),
-		})
-		require.NoError(t, err)
-		token, err := s.a.GetToken(ctx, tokenName)
-		require.NoError(t, err)
-		requireTokenExpiry(t, token, desiredTTL)
-		require.NoError(t, s.a.DeleteToken(ctx, tokenName))
-	})
+	tokenResource, err = s.a.ValidateToken(ctx, tokenName)
+	require.NoError(t, err)
+	roles = tokenResource.GetRoles()
+	require.True(t, roles.Include(types.RoleNode))
+	require.False(t, roles.Include(types.RoleProxy))
 
-	t.Run("GenerateToken: defined token name", func(t *testing.T) {
-		customToken := "custom-token"
-		tokenName, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{
-			Roles: types.SystemRoles{types.RoleNode},
-			Token: customToken,
-		})
-		require.NoError(t, err)
-		require.Equal(t, tokenName, customToken)
-		token, err := s.a.ValidateToken(ctx, tokenName)
-		require.NoError(t, err)
-		roles := token.GetRoles()
-		require.True(t, roles.Include(types.RoleNode))
-		require.False(t, roles.Include(types.RoleProxy))
-		err = s.a.DeleteToken(ctx, customToken)
-		require.NoError(t, err)
-	})
-
-	// TODO(strideynet): In Teleport 14.0.0 when GenerateToken is removed
-	// break this SetStaticTokens test out into its own test as the rest of
-	// this test is removed.
-	t.Run("SetStaticTokens", func(t *testing.T) {
-		// lets use static tokens now
-		roles := types.SystemRoles{types.RoleProxy}
-		st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
-			StaticTokens: []types.ProvisionTokenV1{{
-				Token:   "static-token-value",
-				Roles:   roles,
-				Expires: time.Unix(0, 0).UTC(),
-			}},
-		})
-		require.NoError(t, err)
-		err = s.a.SetStaticTokens(st)
-		require.NoError(t, err)
-		token, err := s.a.ValidateToken(ctx, "static-token-value")
-		require.NoError(t, err)
-		fetchesRoles := token.GetRoles()
-		require.Equal(t, fetchesRoles, roles)
-	})
-}
-
-type tokenCreatorAndDeleter interface {
-	CreateToken(ctx context.Context, token types.ProvisionToken) error
-	DeleteToken(ctx context.Context, token string) error
-}
-
-func generateTestToken(
-	ctx context.Context,
-	t *testing.T,
-	roles types.SystemRoles,
-	expires time.Time,
-	auth tokenCreatorAndDeleter,
-) string {
-	t.Helper()
-	token, err := utils.CryptoRandomHex(TokenLenBytes)
+	err = s.a.DeleteToken(ctx, customToken)
 	require.NoError(t, err)
 
-	pt, err := types.NewProvisionToken(token, roles, expires)
+	// lets use static tokens now
+	roles = types.SystemRoles{types.RoleProxy}
+	st, err := types.NewStaticTokens(types.StaticTokensSpecV2{
+		StaticTokens: []types.ProvisionTokenV1{{
+			Token:   "static-token-value",
+			Roles:   roles,
+			Expires: time.Unix(0, 0).UTC(),
+		}},
+	})
 	require.NoError(t, err)
-	require.NoError(t, auth.CreateToken(ctx, pt))
 
-	return token
+	err = s.a.SetStaticTokens(st)
+	require.NoError(t, err)
+
+	tokenResource, err = s.a.ValidateToken(ctx, "static-token-value")
+	require.NoError(t, err)
+	fetchesRoles := tokenResource.GetRoles()
+	require.Equal(t, fetchesRoles, roles)
+
+	// List tokens (should see 2: one static, one regular)
+	tokens, err = s.a.GetTokens(ctx)
+	require.NoError(t, err)
+	require.Len(t, tokens, 2)
 }
 
 func TestBadTokens(t *testing.T) {
@@ -698,12 +663,9 @@ func TestBadTokens(t *testing.T) {
 	require.Error(t, err)
 
 	// tampered
-	tok := generateTestToken(
-		ctx, t,
-		types.SystemRoles{types.RoleNode},
-		time.Time{},
-		s.a,
-	)
+	tok, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleAuth}})
+	require.NoError(t, err)
+
 	tampered := string(tok[0]+1) + tok[1:]
 	_, err = s.a.ValidateToken(ctx, tampered)
 	require.Error(t, err)
@@ -781,6 +743,107 @@ func TestGenerateTokenEventsEmitted(t *testing.T) {
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
 }
 
+func TestValidateACRValues(t *testing.T) {
+	s := newAuthSuite(t)
+
+	tests := []struct {
+		comment       string
+		inIDToken     string
+		inACRValue    string
+		inACRProvider string
+		outIsValid    require.ErrorAssertionFunc
+	}{
+		{
+			"0 - default, acr values match",
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo",
+			"",
+			require.NoError,
+		},
+		{
+			"1 - default, acr values do not match",
+			`
+{
+	"acr": "foo",
+	"aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"bar",
+			"",
+			require.Error,
+		},
+		{
+			"2 - netiq, acr values match",
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			require.NoError,
+		},
+		{
+			"3 - netiq, invalid format",
+			`
+{
+    "acr": {
+        "values": "foo/bar/baz"
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			require.Error,
+		},
+		{
+			"4 - netiq, invalid value",
+			`
+{
+    "acr": {
+        "values": [
+            "foo/bar/baz/qux"
+        ]
+    },
+    "aud": "00000000-0000-0000-0000-000000000000",
+    "exp": 1111111111
+}
+			`,
+			"foo/bar/baz",
+			"netiq",
+			require.Error,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.comment, func(t *testing.T) {
+			t.Parallel()
+			var claims jose.Claims
+			err := json.Unmarshal([]byte(tt.inIDToken), &claims)
+			require.NoError(t, err)
+
+			err = s.a.validateACRValues(tt.inACRValue, tt.inACRProvider, claims)
+			tt.outIsValid(t, err)
+		})
+	}
+}
+
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -805,9 +868,7 @@ func TestUpdateConfig(t *testing.T) {
 		Authority:              testauthority.New(),
 		SkipPeriodicOperations: true,
 		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
-			},
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 		},
 	}
 	authServer, err := NewServer(authConfig)
@@ -915,8 +976,8 @@ func TestTrustedClusterCRUDEventEmitted(t *testing.T) {
 	_, err = s.a.Services.UpsertTrustedCluster(ctx, tc)
 	require.NoError(t, err)
 
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.UserCA, "test")))
-	require.NoError(t, s.a.UpsertCertAuthority(ctx, suite.NewTestCA(types.HostCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.UserCA, "test")))
+	require.NoError(t, s.a.UpsertCertAuthority(suite.NewTestCA(types.HostCA, "test")))
 
 	err = s.a.createReverseTunnel(tc)
 	require.NoError(t, err)
@@ -961,21 +1022,18 @@ func TestGithubConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github update event
 	err = s.a.upsertGithubConnector(ctx, github)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.GithubConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test github delete event
 	err = s.a.deleteGithubConnector(ctx, "test")
 	require.NoError(t, err)
-	require.IsType(t, &apievents.GithubConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.GithubConnectorDeletedEvent)
 }
 
@@ -999,21 +1057,18 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc update event
 	err = s.a.UpsertOIDCConnector(ctx, oidc)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test oidc delete event
 	err = s.a.DeleteOIDCConnector(ctx, "test")
 	require.NoError(t, err)
-	require.IsType(t, &apievents.OIDCConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.OIDCConnectorDeletedEvent)
 }
 
@@ -1039,7 +1094,7 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 	require.NoError(t, err)
 
 	// SAML connector validation requires the roles in mappings exist.
-	role, err := types.NewRole("dummy", types.RoleSpecV6{})
+	role, err := types.NewRole("dummy", types.RoleSpecV5{})
 	require.NoError(t, err)
 	err = s.a.CreateRole(ctx, role)
 	require.NoError(t, err)
@@ -1062,21 +1117,18 @@ func TestSAMLConnectorCRUDEventsEmitted(t *testing.T) {
 
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml update event
 	err = s.a.UpsertSAMLConnector(ctx, saml)
 	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorCreate{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorCreatedEvent)
 	s.mockEmitter.Reset()
 
 	// test saml delete event
 	err = s.a.DeleteSAMLConnector(ctx, "test")
 	require.NoError(t, err)
-	require.IsType(t, &apievents.SAMLConnectorDelete{}, s.mockEmitter.LastEvent())
 	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.SAMLConnectorDeletedEvent)
 }
 
@@ -1114,596 +1166,6 @@ func TestEmitSSOLoginFailureEvent(t *testing.T) {
 	})
 }
 
-func TestServer_AugmentContextUserCertificates(t *testing.T) {
-	t.Parallel()
-
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	ctx := context.Background()
-
-	const username = "llama"
-	const pass = "secret!!1!"
-
-	// Use a >1 list of principals.
-	// This is enough to cause ordering issues between the TLS and SSH principal
-	// lists, which caused a bug in the device trust preview.
-	principals := []string{"login0", username, "-teleport-internal-join"}
-
-	// Prepare the user to test with.
-	_, _, err := CreateUserAndRole(authServer, username, principals, nil)
-	require.NoError(t, err, "CreateUserAndRole failed")
-	require.NoError(t,
-		authServer.UpsertPassword(username, []byte(pass)),
-		"UpsertPassword failed")
-
-	// Authenticate and create certificates.
-	_, pub, err := testauthority.New().GetNewKeyPairFromPool()
-	require.NoError(t, err, "GetNewKeyPairFromPool failed")
-	authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: username,
-			Pass: &PassCreds{
-				Password: []byte(pass),
-			},
-			PublicKey: pub,
-		},
-		TTL: 1 * time.Hour,
-	})
-	require.NoError(t, err, "AuthenticateSSHUser failed")
-
-	const devID = "deviceid1"
-	const devTag = "devicetag1"
-	const devCred = "devicecred1"
-
-	advanceClock := func(d time.Duration) {
-		if fc, ok := testServer.Clock().(clockwork.FakeClock); ok {
-			fc.Advance(d)
-		}
-	}
-
-	tests := []struct {
-		name           string
-		x509PEM        []byte
-		opts           *AugmentUserCertificateOpts
-		wantSSHCert    bool
-		assertX509Cert func(t *testing.T, c *x509.Certificate)
-		assertSSHCert  func(t *testing.T, c *ssh.Certificate)
-	}{
-		{
-			name:    "device extensions",
-			x509PEM: authResp.TLSCert,
-			opts: &AugmentUserCertificateOpts{
-				SSHAuthorizedKey: authResp.Cert,
-				DeviceExtensions: &DeviceExtensions{
-					DeviceID:     devID,
-					AssetTag:     devTag,
-					CredentialID: devCred,
-				},
-			},
-			wantSSHCert: true,
-			assertX509Cert: func(t *testing.T, c *x509.Certificate) {
-				id, err := tlsca.FromSubject(c.Subject, c.NotAfter)
-				require.NoError(t, err, "FromSubject failed")
-				assert.Equal(t, devID, id.DeviceExtensions.DeviceID, "DeviceID mismatch")
-				assert.Equal(t, devTag, id.DeviceExtensions.AssetTag, "AssetTag mismatch")
-				assert.Equal(t, devCred, id.DeviceExtensions.CredentialID, "CredentialID mismatch")
-			},
-			assertSSHCert: func(t *testing.T, c *ssh.Certificate) {
-				assert.Equal(t, devID, c.Extensions[teleport.CertExtensionDeviceID], "DeviceID mismatch")
-				assert.Equal(t, devTag, c.Extensions[teleport.CertExtensionDeviceAssetTag], "AssetTag mismatch")
-				assert.Equal(t, devCred, c.Extensions[teleport.CertExtensionDeviceCredentialID], "CredentialID mismatch")
-			},
-		},
-		{
-			name:    "augment without SSH",
-			x509PEM: authResp.TLSCert,
-			opts: &AugmentUserCertificateOpts{
-				DeviceExtensions: &DeviceExtensions{
-					DeviceID:     devID,
-					AssetTag:     devTag,
-					CredentialID: devCred,
-				},
-			},
-			// Nothing to assert, we are just looking for the absence of errors here.
-			assertX509Cert: func(t *testing.T, c *x509.Certificate) {},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			xCert, identity := parseX509PEMAndIdentity(t, test.x509PEM)
-
-			// Prepare ctx and authz.Context.
-			ctx = authz.ContextWithUserCertificate(ctx, xCert)
-			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
-				Username: username,
-				Identity: *identity,
-			})
-			authCtx, err := testServer.APIConfig.Authorizer.Authorize(ctx)
-			require.NoError(t, err, "Authorize failed")
-
-			// Advance time before issuing new certs. This makes timestamp checks
-			// effective under fake clocks.
-			// 1m is enough to make tests fail if the timestamps aren't correct.
-			advanceClock(1 * time.Minute)
-			validAfter := testServer.Clock().Now().UTC().Add(-61 * time.Second)
-
-			// Test!
-			certs, err := authServer.AugmentContextUserCertificates(ctx, authCtx, test.opts)
-			require.NoError(t, err, "AugmentContextUserCertificates failed")
-			require.NotNil(t, certs, "AugmentContextUserCertificates returned nil certs")
-
-			// Assert X.509 certificate.
-			newXCert, _ := parseX509PEMAndIdentity(t, certs.TLS)
-			test.assertX509Cert(t, newXCert)
-			assert.True(t,
-				validAfter.Before(newXCert.NotBefore),
-				"got newXCert.NotBefore = %v, want > %v", newXCert.NotBefore, validAfter)
-			assert.Equal(t, xCert.NotAfter, newXCert.NotAfter, "newXCert.NotAfter mismatch")
-
-			// Assert SSH certificate.
-			if test.wantSSHCert && len(certs.SSH) == 0 {
-				t.Errorf("AugmentContextUserCertificates returned no SSH certificate")
-			} else if !test.wantSSHCert {
-				return
-			}
-			newSSHCert, err := sshutils.ParseCertificate(certs.SSH)
-			require.NoError(t, err, "ParseCertificate failed")
-			test.assertSSHCert(t, newSSHCert)
-			assert.True(t,
-				uint64(validAfter.Unix()) < newSSHCert.ValidAfter,
-				"got newSSHCert.ValidAfter = %v, want > %v", newSSHCert.ValidAfter, validAfter.Unix())
-			assert.Equal(t, uint64(xCert.NotAfter.Unix()), newSSHCert.ValidBefore, "newSSHCert.ValidBefore mismatch")
-		})
-	}
-}
-
-func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
-	t.Parallel()
-
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	ctx := context.Background()
-
-	const pass1 = "secret!!1!"
-	const pass2 = "secret!!2!"
-	const pass3 = "secret!!3!"
-
-	// Prepare a few distinct users.
-	user1, _, err := CreateUserAndRole(authServer, "llama", []string{"llama"}, nil)
-	require.NoError(t, err, "CreateUserAndRole failed")
-	require.NoError(t,
-		authServer.UpsertPassword(user1.GetName(), []byte(pass1)),
-		"UpsertPassword failed")
-
-	user2, _, err := CreateUserAndRole(authServer, "alpaca", []string{"alpaca"}, nil)
-	require.NoError(t, err, "CreateUserAndRole failed")
-	require.NoError(t,
-		authServer.UpsertPassword(user2.GetName(), []byte(pass2)),
-		"UpsertPassword failed")
-
-	user3, _, err := CreateUserAndRole(authServer, "camel", []string{"camel"}, nil)
-	require.NoError(t, err, "CreateUserAndRole failed")
-	require.NoError(t,
-		authServer.UpsertPassword(user3.GetName(), []byte(pass3)),
-		"UpsertPassword failed")
-
-	// authenticate authenticates the specified user, creating a new key pair, a
-	// new pair of certificates, and parsing all relevant responses.
-	authenticate := func(t *testing.T, user, pass string) (tlsRaw, sshRaw []byte, xCert *x509.Certificate, sshCert *ssh.Certificate, identity *tlsca.Identity) {
-		// Avoid using recycled keys here, otherwise the test may flake.
-		privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-		require.NoError(t, err, "GenerateKey failed")
-		sPubKey, err := ssh.NewPublicKey(privKey.Public())
-		require.NoError(t, err, "NewPublicKey failed")
-
-		authResp, err := authServer.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
-			AuthenticateUserRequest: AuthenticateUserRequest{
-				Username: user,
-				Pass: &PassCreds{
-					Password: []byte(pass),
-				},
-				PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
-			},
-			TTL: 1 * time.Hour,
-		})
-		require.NoError(t, err, "AuthenticateSSHUser(%q) failed", user)
-
-		xCert, identity = parseX509PEMAndIdentity(t, authResp.TLSCert)
-		// parseX509PEMAndIdentity reports errors via t.
-
-		sshCert, err = sshutils.ParseCertificate(authResp.Cert)
-		require.NoError(t, err, "ParseCertificate failed")
-
-		return authResp.TLSCert, authResp.Cert, xCert, sshCert, identity
-	}
-
-	// Authenticate.
-	// user1 covers most of the tests.
-	// user2 is mainly used to test mismatched certificates against user1.
-	// user3 is used to test user locks.
-	_, sshRaw1, xCert1, sshCert1, identity1 := authenticate(t, user1.GetName(), pass1)
-	_, sshRaw2, xCert2, _, _ := authenticate(t, user2.GetName(), pass2)
-	_, _, xCert3, _, identity3 := authenticate(t, user3.GetName(), pass3)
-
-	// sshRaw11 is identical to sshRaw1, except it is backed by a different
-	// key pair.
-	_, sshRaw11, _, _, _ := authenticate(t, user1.GetName(), pass1)
-
-	// wrongKey is used to represent an invalid/unknown CA.
-	wrongKey, err := rsa.GenerateKey(rand.Reader, 2048 /* bits */)
-	require.NoError(t, err, "GenerateKey failed")
-
-	// Build an invalid version of xCert1 (signed using wrongKey).
-	userCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: testServer.ClusterName(),
-	}, true /* loadKeys */)
-	require.NoError(t, err, "GetCertAuthority failed")
-	caXPEM := userCA.GetActiveKeys().TLS[0].Cert
-
-	caXCert, _ := parseX509PEMAndIdentity(t, caXPEM)
-	caXCert.PublicKey = wrongKey.Public()
-	wrongXCert1DER, err := x509.CreateCertificate(rand.Reader, xCert1, caXCert, xCert1.PublicKey, wrongKey)
-	require.NoError(t, err, "CreateCertificate failed")
-	wrongXCert1, err := x509.ParseCertificate(wrongXCert1DER)
-	require.NoError(t, err, "ParseCertificate failed")
-
-	// Build an invalid version of sshCert1 (signed using wrongKey).
-	sshSigner, err := ssh.NewSignerFromKey(wrongKey)
-	require.NoError(t, err, "NewSignerFromKey failed")
-	wrongSSHCert1, err := sshutils.ParseCertificate(sshRaw1)
-	require.NoError(t, err, "ParseCertificate failed")
-	require.NoError(t, wrongSSHCert1.SignCert(rand.Reader, sshSigner), "SignCert failed")
-	wrongSSHRaw1 := ssh.MarshalAuthorizedKey(wrongSSHCert1)
-
-	// Issue augmented certs for user1.
-	// Used to test that re-issue of augmented certs is not allowed.
-	ctxFromAuthorize := testServer.APIConfig.Authorizer.Authorize
-	aCtx := authz.ContextWithUserCertificate(context.Background(), xCert1)
-	aCtx = authz.ContextWithUser(aCtx, authz.LocalUser{
-		Username: identity1.Username,
-		Identity: *identity1,
-	})
-	aaCtx, err := ctxFromAuthorize(aCtx)
-	require.NoError(t, err, "ctxFromAuthorize failed")
-	augResp, err := authServer.AugmentContextUserCertificates(aCtx, aaCtx, &AugmentUserCertificateOpts{
-		SSHAuthorizedKey: sshRaw1,
-		DeviceExtensions: &DeviceExtensions{
-			DeviceID:     "device1",
-			AssetTag:     "tag1",
-			CredentialID: "credential1",
-		},
-	})
-	require.NoError(t, err, "AugmentContextUserCertificates failed")
-	augCert1, augIdentity1 := parseX509PEMAndIdentity(t, augResp.TLS)
-	augSSHRaw1 := augResp.SSH
-
-	// signAndMarshalSSH is used to create variations of SSH certificates signed
-	// by the Teleport CA.
-	signAndMarshalSSH := func(t *testing.T, c *ssh.Certificate) (sshRaw []byte) {
-		signer, err := authServer.GetKeyStore().GetSSHSigner(ctx, userCA)
-		require.NoError(t, err, "GetSSHSigner failed")
-
-		err = c.SignCert(rand.Reader, signer)
-		require.NoError(t, err, "SignCert failed")
-
-		return ssh.MarshalAuthorizedKey(c)
-	}
-
-	baseOpts := &AugmentUserCertificateOpts{
-		DeviceExtensions: &DeviceExtensions{
-			DeviceID:     "deviceid1",
-			AssetTag:     "devicetag1",
-			CredentialID: "credentialid1",
-		},
-	}
-	optsFromBase := func(_ *testing.T) *AugmentUserCertificateOpts { return baseOpts }
-
-	tests := []struct {
-		name     string
-		x509Cert *x509.Certificate
-		identity *tlsca.Identity
-		// createAuthCtx defaults to ctxFromAuthorize.
-		createAuthCtx func(ctx context.Context) (*authz.Context, error)
-		// createOpts defaults to optsFromBase.
-		createOpts func(t *testing.T) *AugmentUserCertificateOpts
-		wantErr    string
-	}{
-		// Simple input validation errors.
-		{
-			name:          "authCtx nil",
-			x509Cert:      xCert1,
-			identity:      identity1,
-			createAuthCtx: func(ctx context.Context) (*authz.Context, error) { return nil, nil },
-			wantErr:       "authCtx",
-		},
-		{
-			name:       "opts nil",
-			x509Cert:   xCert1,
-			identity:   identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts { return nil },
-			wantErr:    "opts",
-		},
-		{
-			name:     "opts missing extensions",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.DeviceExtensions = nil
-				return &cp
-			},
-			wantErr: "at least one opts extension",
-		},
-
-		// DeviceExtensions.
-		{
-			name:     "opts.DeviceExtensions.DeviceID empty",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.DeviceExtensions = &DeviceExtensions{
-					DeviceID:     "",
-					AssetTag:     "asset1",
-					CredentialID: "credential1",
-				}
-				return &cp
-			},
-			wantErr: "DeviceID",
-		},
-		{
-			name:     "opts.DeviceExtensions.AssetTag empty",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.DeviceExtensions = &DeviceExtensions{
-					DeviceID:     "id1",
-					AssetTag:     "",
-					CredentialID: "credential1",
-				}
-				return &cp
-			},
-			wantErr: "AssetTag",
-		},
-		{
-			name:     "opts.DeviceExtensions.CredentialID empty",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.DeviceExtensions = &DeviceExtensions{
-					DeviceID:     "id1",
-					AssetTag:     "asset1",
-					CredentialID: "",
-				}
-				return &cp
-			},
-			wantErr: "CredentialID",
-		},
-
-		// Identity and certificate mismatch scenarios.
-		{
-			name:     "x509/identity mismatch",
-			x509Cert: xCert2, // should be xCert1
-			identity: identity1,
-			wantErr:  "x509 user mismatch",
-		},
-		{
-			name:     "x509/SSH public key mismatch",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.SSHAuthorizedKey = sshRaw11 // should be sshRaw1
-				return &cp
-			},
-			wantErr: "public key mismatch",
-		},
-		{
-			name:     "SSH/identity mismatch",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.SSHAuthorizedKey = sshRaw2 // should be sshRaw1
-				return &cp
-			},
-			wantErr: "SSH user mismatch",
-		},
-		{
-			name:     "SSH/identity principals mismatch",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(t *testing.T) *AugmentUserCertificateOpts {
-				changedPrincipals := *sshCert1
-				changedPrincipals.ValidPrincipals = append(changedPrincipals.ValidPrincipals, "camel")
-				sshRaw := signAndMarshalSSH(t, &changedPrincipals)
-
-				cp := *baseOpts
-				cp.SSHAuthorizedKey = sshRaw
-				return &cp
-			},
-			wantErr: "principals mismatch",
-		},
-		{
-			name:     "SSH cert type mismatch",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(t *testing.T) *AugmentUserCertificateOpts {
-				changedType := *sshCert1
-				changedType.CertType = ssh.HostCert // shouldn't happen!
-				sshRaw := signAndMarshalSSH(t, &changedType)
-
-				cp := *baseOpts
-				cp.SSHAuthorizedKey = sshRaw
-				return &cp
-			},
-			wantErr: "cert type mismatch",
-		},
-
-		// Invalid certificates.
-		{
-			name:     "x509 cert unknown authority",
-			x509Cert: wrongXCert1, // signed by a different CA
-			identity: identity1,
-			wantErr:  "unknown authority",
-		},
-		{
-			name:     "SSH cert unknown authority",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.SSHAuthorizedKey = wrongSSHRaw1 // signed by a different CA
-				return &cp
-			},
-			wantErr: "unknown authority",
-		},
-		{
-			name:     "SSH cert expired",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(t *testing.T) *AugmentUserCertificateOpts {
-				// Fake a 1h TTL, expired cert.
-				now := testServer.Clock().Now()
-				after := now.Add(-1 * time.Hour)
-				before := now.Add(-1 * time.Minute)
-
-				expiredCert := *sshCert1
-				expiredCert.ValidAfter = uint64(after.Unix())
-				expiredCert.ValidBefore = uint64(before.Unix())
-				sshRaw := signAndMarshalSSH(t, &expiredCert)
-
-				cp := *baseOpts
-				cp.SSHAuthorizedKey = sshRaw
-				return &cp
-			},
-			wantErr: "cert has expired",
-		},
-
-		// Certificates with existing extensions are not reissued.
-		{
-			name:     "x509 cert with device extensions not reissued",
-			x509Cert: augCert1,     // already has extensions
-			identity: augIdentity1, // already has extensions
-			wantErr:  "extensions already present",
-		},
-		{
-			name:     "SSH cert with device extensions not reissued",
-			x509Cert: xCert1,
-			identity: identity1,
-			createOpts: func(_ *testing.T) *AugmentUserCertificateOpts {
-				cp := *baseOpts
-				cp.SSHAuthorizedKey = augSSHRaw1 // already has extensions.
-				return &cp
-			},
-			wantErr: "extensions already present",
-		},
-
-		// Locks.
-		{
-			name:     "locked user",
-			x509Cert: xCert3,
-			identity: identity3, // user3 locked below.
-			createAuthCtx: func(ctx context.Context) (*authz.Context, error) {
-				// Authorize user3...
-				authCtx, err := ctxFromAuthorize(ctx)
-				if err != nil {
-					return nil, err
-				}
-
-				lockTarget := types.LockTarget{
-					User: user3.GetName(),
-				}
-				watcher, err := authServer.lockWatcher.Subscribe(ctx, lockTarget)
-				if err != nil {
-					return nil, err
-				}
-				defer watcher.Close()
-
-				// ...and lock them right after.
-				user3Lock, err := types.NewLock("user3-lock", types.LockSpecV2{
-					Target:  lockTarget,
-					Message: "user locked",
-				})
-				if err != nil {
-					return nil, err
-				}
-				if err := authServer.UpsertLock(ctx, user3Lock); err != nil {
-					return nil, err
-				}
-
-				// Wait for the lock to propagate.
-				<-watcher.Events()
-				return authCtx, nil
-			},
-			wantErr: "user locked",
-		},
-		{
-			name:     "locked device",
-			x509Cert: xCert1,
-			identity: identity1, // device locked below.
-			createOpts: func(t *testing.T) *AugmentUserCertificateOpts {
-				opts := &AugmentUserCertificateOpts{
-					DeviceExtensions: &DeviceExtensions{
-						DeviceID:     "bad-device-1",
-						AssetTag:     "bad-device-tag",
-						CredentialID: "bad-device-credential",
-					},
-				}
-
-				// Create a target matching the device device.
-				lockTarget := types.LockTarget{
-					Device: opts.DeviceExtensions.DeviceID,
-				}
-				watcher, err := authServer.lockWatcher.Subscribe(ctx, lockTarget)
-				require.NoError(t, err, "Subscribe failed")
-				defer watcher.Close()
-
-				// Lock the device before returning opts.
-				lock, err := types.NewLock("bad-device-lock", types.LockSpecV2{
-					Target:  lockTarget,
-					Message: "device locked",
-				})
-				require.NoError(t, err, "NewLock failed")
-				require.NoError(t,
-					authServer.UpsertLock(ctx, lock),
-					"NewLock failed")
-
-				// Wait for the lock to propagate.
-				<-watcher.Events()
-				return opts
-			},
-			wantErr: "device locked",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if test.createAuthCtx == nil {
-				test.createAuthCtx = ctxFromAuthorize
-			}
-			if test.createOpts == nil {
-				test.createOpts = optsFromBase
-			}
-
-			// Prepare ctx and authz.Context.
-			ctx = authz.ContextWithUserCertificate(ctx, test.x509Cert)
-			ctx = authz.ContextWithUser(ctx, authz.LocalUser{
-				Username: test.identity.Username,
-				Identity: *test.identity,
-			})
-			authCtx, err := test.createAuthCtx(ctx)
-			require.NoError(t, err, "createAuthCtx failed")
-
-			// Test!
-			_, err = authServer.AugmentContextUserCertificates(ctx, authCtx, test.createOpts(t))
-			assert.ErrorContains(t, err, test.wantErr, "AugmentContextUserCertificates error mismatch")
-		})
-	}
-}
-
 func TestGenerateUserCertIPPinning(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
@@ -1716,13 +1178,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	pass := []byte("abc123")
 
 	// Create the user without IP pinning
-	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser}, nil)
+	_, _, err := CreateUserAndRole(s.a, unpinnedUser, []string{unpinnedUser})
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(unpinnedUser, pass)
 	require.NoError(t, err)
 
 	// Create the user with IP pinning enabled
-	_, pinnedRole, err := CreateUserAndRole(s.a, pinnedUser, []string{pinnedUser}, nil)
+	_, pinnedRole, err := CreateUserAndRole(s.a, pinnedUser, []string{pinnedUser})
 	require.NoError(t, err)
 	err = s.a.UpsertPassword(pinnedUser, pass)
 	require.NoError(t, err)
@@ -1737,18 +1199,9 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	err = s.a.UpsertRole(ctx, pinnedRole)
 	require.NoError(t, err)
 
-	findTLSLoginIP := func(names []pkix.AttributeTypeAndValue) any {
+	findTLSClientIP := func(names []pkix.AttributeTypeAndValue) any {
 		for _, name := range names {
-			if name.Type.Equal(tlsca.LoginIPASN1ExtensionOID) {
-				return name.Value
-			}
-		}
-		return nil
-	}
-
-	findTLSPinnedIP := func(names []pkix.AttributeTypeAndValue) any {
-		for _, name := range names {
-			if name.Type.Equal(tlsca.PinnedIPASN1ExtensionOID) {
+			if name.Type.Equal(tlsca.ClientIPASN1ExtensionOID) {
 				return name.Value
 			}
 		}
@@ -1758,21 +1211,21 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 	testCases := []struct {
 		desc       string
 		user       string
-		loginIP    string
+		clientIP   string
 		wantPinned bool
 	}{
-		{desc: "no client ip, not pinned", user: unpinnedUser, loginIP: "", wantPinned: false},
-		{desc: "client ip, not  pinned", user: unpinnedUser, loginIP: "1.2.3.4", wantPinned: false},
-		{desc: "client ip, pinned", user: pinnedUser, loginIP: "1.2.3.4", wantPinned: true},
-		{desc: "no client ip, pinned", user: pinnedUser, loginIP: "", wantPinned: true},
+		{desc: "no client ip, not pinned", user: unpinnedUser, clientIP: "", wantPinned: false},
+		{desc: "client ip, not  pinned", user: unpinnedUser, clientIP: "1.2.3.4", wantPinned: false},
+		{desc: "client ip, pinned", user: pinnedUser, clientIP: "1.2.3.4", wantPinned: true},
+		{desc: "no client ip, pinned", user: pinnedUser, clientIP: "", wantPinned: true},
 	}
 
 	baseAuthRequest := AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Pass:      &PassCreds{Password: pass},
-			PublicKey: pub,
+			Pass: &PassCreds{Password: pass},
 		},
 		TTL:            time.Hour,
+		PublicKey:      pub,
 		RouteToCluster: s.clusterName.GetClusterName(),
 	}
 
@@ -1780,13 +1233,13 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			authRequest := baseAuthRequest
 			authRequest.AuthenticateUserRequest.Username = tt.user
-			if tt.loginIP != "" {
+			if tt.clientIP != "" {
 				authRequest.ClientMetadata = &ForwardedClientMetadata{
-					RemoteAddr: tt.loginIP,
+					RemoteAddr: tt.clientIP,
 				}
 			}
 			resp, err := s.a.AuthenticateSSHUser(ctx, authRequest)
-			if tt.wantPinned && tt.loginIP == "" {
+			if tt.wantPinned && tt.clientIP == "" {
 				require.ErrorContains(t, err, "source IP pinning is enabled but client IP is unknown")
 				return
 			}
@@ -1799,49 +1252,30 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 			tlsCert, err := tlsca.ParseCertificatePEM(resp.TLSCert)
 			require.NoError(t, err)
 
-			tlsLoginIP := findTLSLoginIP(tlsCert.Subject.Names)
-			tlsPinnedIP := findTLSPinnedIP(tlsCert.Subject.Names)
-			sshLoginIP, sshLoginIPOK := sshCert.Extensions[teleport.CertExtensionLoginIP]
+			tlsClientIP := findTLSClientIP(tlsCert.Subject.Names)
+			sshClientIP, sshClientIPOK := sshCert.Extensions[teleport.CertExtensionClientIP]
 			sshCriticalAddress, sshCriticalAddressOK := sshCert.CriticalOptions["source-address"]
 
-			if tt.loginIP != "" {
-				require.NotNil(t, tlsLoginIP, "client IP not found on TLS cert")
-				require.Equal(t, tlsLoginIP, tt.loginIP, "TLS LoginIP mismatch")
+			if tt.clientIP != "" {
+				require.NotNil(t, tlsClientIP, "client IP not found on TLS cert")
+				require.Equal(t, tlsClientIP, tt.clientIP, "TLS ClientIP mismatch")
 
-				require.True(t, sshLoginIPOK, "SSH LoginIP extension not present")
-				require.Equal(t, tt.loginIP, sshLoginIP, "SSH LoginIP mismatch")
+				require.True(t, sshClientIPOK, "SSH ClientIP extension not present")
+				require.Equal(t, tt.clientIP, sshClientIP, "SSH ClientIP mismatch")
 			} else {
-				require.Nil(t, tlsLoginIP, "client IP unexpectedly found on TLS cert")
+				require.Nil(t, tlsClientIP, "client IP unexpectedly found on TLS cert")
 
-				require.False(t, sshLoginIPOK, "client IP unexpectedly found on SSH cert")
+				require.False(t, sshClientIPOK, "client IP unexpectedly found on SSH cert")
 			}
 
 			if tt.wantPinned {
-				require.NotNil(t, tlsPinnedIP, "pinned IP not found on TLS cert")
-				require.Equal(t, tt.loginIP, tlsPinnedIP, "pinned IP on TLS cert mismatch")
-
 				require.True(t, sshCriticalAddressOK, "source address not found on SSH cert")
-				require.Equal(t, tt.loginIP+"/32", sshCriticalAddress, "SSH source address mismatch")
+				require.Equal(t, tt.clientIP+"/32", sshCriticalAddress, "SSH source address mismatch")
 			} else {
-				require.Nil(t, tlsPinnedIP, "pinned IP unexpectedly found on TLS cert")
-
 				require.False(t, sshCriticalAddressOK, "source address unexpectedly found on SSH cert")
 			}
 		})
 	}
-}
-
-func parseX509PEMAndIdentity(t *testing.T, rawPEM []byte) (*x509.Certificate, *tlsca.Identity) {
-	b, _ := pem.Decode(rawPEM)
-	require.NotNil(t, b, "Decode failed")
-
-	cert, err := x509.ParseCertificate(b.Bytes)
-	require.NoError(t, err, "ParseCertificate failed: %v", err)
-
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	require.NoError(t, err, "FromSubject failed: %v", err)
-
-	return cert, identity
 }
 
 func TestGenerateUserCertWithCertExtension(t *testing.T) {
@@ -1850,7 +1284,7 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, role, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	user, role, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
 
 	extension := types.CertExtension{
@@ -1888,64 +1322,19 @@ func TestGenerateUserCertWithCertExtension(t *testing.T) {
 	require.Equal(t, extension.Value, val)
 }
 
-func TestGenerateOpenSSHCert(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	p, err := newTestPack(ctx, t.TempDir())
-	require.NoError(t, err)
-
-	// create keypair and sign with OpenSSH CA
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
-	require.NoError(t, err)
-
-	priv, err := native.GeneratePrivateKey()
-	require.NoError(t, err)
-
-	reply, err := p.a.GenerateOpenSSHCert(ctx, &proto.OpenSSHCertRequest{
-		Username:  user.GetName(),
-		PublicKey: priv.MarshalSSHPublicKey(),
-		TTL:       proto.Duration(time.Hour),
-		Cluster:   p.clusterName.GetClusterName(),
-	})
-	require.NoError(t, err)
-
-	// verify that returned cert is signed with OpenSSH CA
-	signedCert, err := sshutils.ParseCertificate(reply.Cert)
-	require.NoError(t, err)
-
-	ca, err := p.a.GetCertAuthority(
-		ctx,
-		types.CertAuthID{
-			Type:       types.OpenSSHCA,
-			DomainName: p.clusterName.GetClusterName(),
-		},
-		false,
-	)
-	require.NoError(t, err)
-
-	keys := ca.GetActiveKeys().SSH
-	require.NotEmpty(t, keys)
-	caPubkey, _, _, _, err := ssh.ParseAuthorizedKey(keys[0].PublicKey)
-	require.NoError(t, err)
-
-	require.Equal(t, caPubkey.Marshal(), signedCert.SignatureKey.Marshal())
-}
-
 func TestGenerateUserCertWithLocks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{}, nil)
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{})
 	require.NoError(t, err)
 	accessInfo := services.AccessInfoFromUser(user)
 	accessChecker, err := services.NewAccessChecker(accessInfo, p.clusterName.GetClusterName(), p.a)
 	require.NoError(t, err)
-	const mfaID = "test-mfa-id"
-	const requestID = "test-access-request"
-	const deviceID = "deviceid1"
+	mfaID := "test-mfa-id"
+	requestID := "test-access-request"
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
@@ -1955,22 +1344,12 @@ func TestGenerateUserCertWithLocks(t *testing.T) {
 		mfaVerified:    mfaID,
 		publicKey:      pub,
 		activeRequests: services.RequestIDs{AccessRequests: []string{requestID}},
-		deviceExtensions: DeviceExtensions{
-			DeviceID:     deviceID,
-			AssetTag:     "assettag1",
-			CredentialID: "credentialid1",
-		},
 	}
 	_, err = p.a.generateUserCert(certReq)
 	require.NoError(t, err)
 
 	testTargets := append(
-		[]types.LockTarget{
-			{User: user.GetName()},
-			{MFADevice: mfaID},
-			{AccessRequest: requestID},
-			{Device: deviceID},
-		},
+		[]types.LockTarget{{User: user.GetName()}, {MFADevice: mfaID}, {AccessRequest: requestID}},
 		services.RolesToLockTargets(user.GetRoles())...,
 	)
 	for _, target := range testTargets {
@@ -2004,11 +1383,11 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	p, err := newTestPack(ctx, t.TempDir())
 	require.NoError(t, err)
 
-	hostID := uuid.New().String()
+	hostID := uuid.NewString()
 	keygen := testauthority.New()
 	_, pub, err := keygen.GetNewKeyPairFromPool()
 	require.NoError(t, err)
-	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{},
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{},
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
@@ -2029,12 +1408,12 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for lock update.")
 	}
-	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-node", []string{}, p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
 	// Locks targeting nodes should not apply to other system roles.
-	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
+	_, err = p.a.GenerateHostCert(pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
 	require.NoError(t, err)
 }
 
@@ -2052,7 +1431,7 @@ func TestNewWebSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a user.
-	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"}, nil)
+	user, _, err := CreateUserAndRole(p.a, "test-user", []string{"test-role"})
 	require.NoError(t, err)
 
 	// Create a new web session.
@@ -2086,7 +1465,7 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 	srv.Auth().emitter = mockEmitter
 
 	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2172,7 +1551,7 @@ func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {
 	ctx := context.Background()
 
 	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2343,7 +1722,7 @@ func TestDeleteMFADeviceSync_lastDevice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Create a user with no MFA device.
 			username := fmt.Sprintf("llama%v@goteleport.com", mathrand.Int())
-			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+			_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
 			require.NoError(t, err)
 
 			// Set auth preference.
@@ -2547,7 +1926,7 @@ func TestGetMFADevices_WithToken(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(TestUser(username))
@@ -2631,7 +2010,7 @@ func TestGetMFADevices_WithAuth(t *testing.T) {
 	require.NoError(t, err)
 
 	username := "llama@goteleport.com"
-	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	_, _, err = CreateUserAndRole(srv.Auth(), username, []string{username})
 	require.NoError(t, err)
 
 	clt, err := srv.NewClient(TestUser(username))
@@ -2654,15 +2033,15 @@ func newTestServices(t *testing.T) Services {
 	require.NoError(t, err)
 
 	return Services{
-		Trust:                   local.NewCAService(bk),
-		PresenceInternal:        local.NewPresenceService(bk),
-		Provisioner:             local.NewProvisioningService(bk),
-		Identity:                local.NewIdentityService(bk),
-		Access:                  local.NewAccessService(bk),
-		DynamicAccessExt:        local.NewDynamicAccessService(bk),
-		ClusterConfiguration:    configService,
-		Events:                  local.NewEventsService(bk),
-		AuditLogSessionStreamer: events.NewDiscardAuditLog(),
+		Trust:                local.NewCAService(bk),
+		Presence:             local.NewPresenceService(bk),
+		Provisioner:          local.NewProvisioningService(bk),
+		Identity:             local.NewIdentityService(bk),
+		Access:               local.NewAccessService(bk),
+		DynamicAccessExt:     local.NewDynamicAccessService(bk),
+		ClusterConfiguration: configService,
+		Events:               local.NewEventsService(bk),
+		IAuditLog:            events.NewDiscardAuditLog(),
 	}
 }
 
@@ -2796,63 +2175,6 @@ func TestFilterResources(t *testing.T) {
 	}
 }
 
-func TestCAGeneration(t *testing.T) {
-	ctx := context.Background()
-	const (
-		clusterName = "cluster1"
-		HostUUID    = "0000-000-000-0000"
-	)
-	native.PrecomputeKeys()
-	// Cache key for better performance as we don't care about the value being unique.
-	privKey, pubKey, err := testauthority.New().GenerateKeyPair()
-	require.NoError(t, err)
-
-	ksConfig := keystore.Config{
-		Software: keystore.SoftwareConfig{
-			RSAKeyPairSource: func() (priv []byte, pub []byte, err error) {
-				return privKey, pubKey, nil
-			},
-		},
-	}
-	keyStore, err := keystore.NewManager(ctx, ksConfig)
-	require.NoError(t, err)
-
-	for _, caType := range types.CertAuthTypes {
-		t.Run(string(caType), func(t *testing.T) {
-			testKeySet := suite.NewTestCA(caType, clusterName, privKey).Spec.ActiveKeys
-			keySet, err := newKeySet(ctx, keyStore, types.CertAuthID{Type: caType, DomainName: clusterName})
-			require.NoError(t, err)
-
-			// Don't compare values as those are different. Only check if the key is set/not set in both cases.
-			require.Equal(t, len(testKeySet.SSH) > 0, len(keySet.SSH) > 0,
-				"test CA and production CA have different SSH keys for type %v", caType)
-			require.Equal(t, len(testKeySet.TLS) > 0, len(keySet.TLS) > 0,
-				"test CA and production CA have different TLS keys for type %v", caType)
-			require.Equal(t, len(testKeySet.JWT) > 0, len(keySet.JWT) > 0,
-				"test CA and production CA have different JWT keys for type %v", caType)
-		})
-	}
-}
-
-func TestGetLicense(t *testing.T) {
-	s := newAuthSuite(t)
-
-	// GetLicense should return error if license is not set
-	_, err := s.a.GetLicense(context.Background())
-	assert.NotNil(t, err)
-
-	// GetLicense should return cert and key pem concatenated, when license is set
-	l := license.License{
-		CertPEM: []byte("cert"),
-		KeyPEM:  []byte("key"),
-	}
-	s.a.SetLicense(&l)
-
-	actual, err := s.a.GetLicense(context.Background())
-	assert.Nil(t, err)
-	assert.Equal(t, fmt.Sprintf("%s%s", l.CertPEM, l.KeyPEM), actual)
-}
-
 func TestInstallerCRUD(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
@@ -2897,4 +2219,108 @@ func TestInstallerCRUD(t *testing.T) {
 	_, err = s.a.GetInstaller(ctx, installers.InstallerScriptName)
 	require.Error(t, err)
 	require.True(t, trace.IsNotFound(err))
+
+}
+
+func TestVersionMetrics(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	const resourceCount = 1100
+
+	expiry := srv.Auth().clock.Now().Add(time.Hour)
+	for i := 0; i < resourceCount; i++ {
+		version := strconv.Itoa(i % 2)
+
+		// create node
+		s, err := types.NewServer(uuid.NewString(), types.KindNode, types.ServerSpecV2{Version: version})
+		require.NoError(t, err)
+		s.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertNode(ctx, s)
+		require.NoError(t, err)
+
+		// create database resource.
+		db, err := types.NewDatabaseV3(types.Metadata{
+			Name:    uuid.NewString(),
+			Expires: &expiry,
+		},
+			types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			})
+		require.NoError(t, err)
+
+		dbserver, err := types.NewDatabaseServerV3(types.Metadata{
+			Name:    uuid.NewString(),
+			Expires: &expiry,
+		},
+			types.DatabaseServerSpecV3{
+				Version:  version,
+				Hostname: "host",
+				HostID:   uuid.NewString(),
+				Database: db,
+			})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertDatabaseServer(ctx, dbserver)
+		require.NoError(t, err)
+
+		// create app server
+		app, err := types.NewAppV3(types.Metadata{Name: uuid.NewString()}, types.AppSpecV3{URI: "localhost"})
+		require.NoError(t, err)
+
+		appserver, err := types.NewAppServerV3(types.Metadata{
+			Name:    uuid.NewString(),
+			Expires: &expiry,
+		}, types.AppServerSpecV3{
+			Hostname: "host",
+			HostID:   uuid.NewString(),
+			App:      app,
+			Version:  version,
+		})
+		require.NoError(t, err)
+
+		_, err = srv.Auth().UpsertApplicationServer(ctx, appserver)
+		require.NoError(t, err)
+
+		// create desktop
+		desktop, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: uuid.NewString()}, types.WindowsDesktopServiceSpecV3{
+			Addr:            "localhost:1234",
+			TeleportVersion: version,
+		})
+		require.NoError(t, err)
+		desktop.SetExpiry(expiry)
+
+		_, err = srv.Auth().UpsertWindowsDesktopService(ctx, desktop)
+		require.NoError(t, err)
+
+		// create kube service
+		kube := &types.ServerV2{
+			Metadata: types.Metadata{Name: uuid.NewString(), Expires: &expiry},
+			Kind:     types.KindKubeService,
+			Version:  types.V2,
+			Spec: types.ServerSpecV2{
+				KubernetesClusters: []*types.KubernetesCluster{{Name: "root-kube-cluster"}},
+				Version:            version,
+			},
+		}
+
+		require.NoError(t, srv.Auth().UpsertKubeService(ctx, kube))
+	}
+
+	// calculate the versions of all resources
+	srv.Auth().updateVersionMetrics()
+
+	// half the resources should be version 1
+	version1, err := registeredAgents.GetMetricWithLabelValues("1")
+	require.NoError(t, err)
+	assert.Equal(t, resourceCount*2.5, testutil.ToFloat64(version1))
+
+	// half the resources should be version 2
+	version0, err := registeredAgents.GetMetricWithLabelValues("0")
+	require.NoError(t, err)
+	assert.Equal(t, resourceCount*2.5, testutil.ToFloat64(version0))
+
 }

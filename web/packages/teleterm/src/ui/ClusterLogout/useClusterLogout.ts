@@ -17,8 +17,6 @@
 import { useAsync } from 'shared/hooks/useAsync';
 import { useEffect } from 'react';
 
-import { RootClusterUri } from 'teleterm/ui/uri';
-
 import { useAppContext } from '../appContextProvider';
 
 export function useClusterLogout({ clusterUri, onClose, clusterTitle }: Props) {
@@ -56,9 +54,9 @@ export function useClusterLogout({ clusterUri, onClose, clusterTitle }: Props) {
 }
 
 export type Props = {
-  onClose?(): void;
-  clusterTitle?: string;
-  clusterUri: RootClusterUri;
+  onClose(): void;
+  clusterTitle: string;
+  clusterUri: string;
 };
 
 export type State = ReturnType<typeof useClusterLogout>;

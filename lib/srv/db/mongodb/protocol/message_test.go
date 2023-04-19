@@ -316,51 +316,6 @@ func TestOpCompressed(t *testing.T) {
 	}
 }
 
-// TestInvalidPayloadSize verifiers that invalid payload size is rejected.
-func TestInvalidPayloadSize(t *testing.T) {
-	tests := []struct {
-		name        string
-		payloadSize int32
-		errMsg      string
-	}{
-		{
-			name:        "invalid payload",
-			payloadSize: -2147483638, // This value used to cause integer underflow,
-			// as we extracted the header size from it (16).
-			errMsg: "invalid header size",
-		},
-		{
-			name:        "exceeded payload size",
-			payloadSize: int32(2*defaultMaxMessageSizeBytes + 1024),
-			errMsg:      "exceeded the maximum message size",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			payloadSize := tt.payloadSize
-
-			src := [4]byte{}
-			src[0] = byte(payloadSize & 0xFF)
-			src[1] = byte((payloadSize >> 8) & 0xFF)
-			src[2] = byte((payloadSize >> 16) & 0xFF)
-			src[3] = byte((payloadSize >> 24) & 0xFF)
-
-			buf := bytes.NewBuffer(src[:])
-			size := tt.payloadSize
-			if size < 0 {
-				size = 1024
-			}
-
-			buf.Write(bytes.Repeat([]byte{0x1}, int(size)))
-			msg := bytes.NewReader(buf.Bytes())
-
-			_, err := ReadMessage(msg)
-			require.ErrorContains(t, err, tt.errMsg)
-		})
-	}
-}
-
 func makeTestOpCompressed(t *testing.T, message Message) *MessageOpCompressed {
 	// Marshal the original message to wire representation.
 	bytes := message.ToWire(0)

@@ -34,7 +34,6 @@ import (
 	clientapi "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
-	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,7 +42,7 @@ import (
 
 // ClientConfig configures a Client instance.
 type ClientConfig struct {
-	// Context is a signaling context
+	// Context is a signalling context
 	Context context.Context
 	// ID is the ID of this server proxy
 	ID string
@@ -363,49 +362,7 @@ func (c *Client) DialNode(
 		return nil, trace.ConnectionProblem(err, "error dialing peer proxies %s: %v", proxyIDs, err)
 	}
 
-	streamRW, err := streamutils.NewReadWriter(frameStream{stream: stream})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return streamutils.NewConn(streamRW, src, dst), nil
-}
-
-// stream is the common subset of the [clientapi.ProxyService_DialNodeClient] and
-// [clientapi.ProxyService_DialNodeServer] interfaces.
-type stream interface {
-	Send(*clientapi.Frame) error
-	Recv() (*clientapi.Frame, error)
-}
-
-// frameStream implements [streamutils.Source].
-type frameStream struct {
-	stream stream
-}
-
-func (s frameStream) Send(p []byte) error {
-	return trace.Wrap(s.stream.Send(&clientapi.Frame{Message: &clientapi.Frame_Data{Data: &clientapi.Data{Bytes: p}}}))
-}
-
-func (s frameStream) Recv() ([]byte, error) {
-	frame, err := s.stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if frame.GetData() == nil {
-		return nil, trace.BadParameter("received invalid frame")
-	}
-
-	return frame.GetData().Bytes, nil
-}
-
-func (s frameStream) Close() error {
-	if cs, ok := s.stream.(grpc.ClientStream); ok {
-		return trace.Wrap(cs.CloseSend())
-	}
-
-	return nil
+	return newStreamConn(stream, src, dst), nil
 }
 
 // Shutdown gracefully shuts down all existing client connections.

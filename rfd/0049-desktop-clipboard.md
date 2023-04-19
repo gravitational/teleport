@@ -7,7 +7,7 @@ state: implemented
 
 ## What
 
-This RFD defines the high-level goals and architecture for supporting copy and
+This RFD defines the high-level goals and architecture for supporing copy and
 paste between a Teleport user's workstation and a remote Windows Desktop.
 
 ## Details
@@ -34,7 +34,7 @@ An RDP connection contains a number of "virtual channels" that provide separate
 logical streams of data. Today, we use the _global_ channel for desktop data, and
 the _device redirection_ ("RDPDR") channel to implement a smart card emulator.
 
-Clipboard support for RDP is implemented as a series of messages sent over a
+Clipboard support for RDP is implmemented as a series of messages sent over a
 dedicated virtual channel called "CLIPRDR". The details of the protocol are specified
 in [MS-RDPECLIP](https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpeclip/fb9b7e0b-6db4-41c2-b83c-f889c1ee7688).
 
@@ -171,7 +171,7 @@ will extend support for other browsers if and when they support the required API
 
 ### Implementation Notes
 
-Since the TDP protocol does not implement the delayed rendering approach used by
+Since the TDP protocol does not implement the delayed rendering appraoch used by
 RDP, the Windows Desktop Service will be responsible for storing and
 synchronizing the state of the clipboard between the local workstation and the
 remote Windows desktop.
@@ -205,7 +205,7 @@ the Teleport backend of the latest data. The general sequence of operations is:
 In this scenario, the user copies text in the remote Windows Desktop, and
 expects that data to end up on their system clipboard. The sequence is:
 
-- The Windows Desktop sends a notification to the Windows Desktop Service that
+- The Windows Desktop sends a notfication to the Windows Desktop Service that
   new data has been copied to the clipboard.
 - The Teleport Windows Desktop Service fakes a "paste" operation by immediately
   responding with a request for the clipboard data.

@@ -16,7 +16,7 @@
 
 import React from 'react';
 import 'jest-canvas-mock';
-import { render, screen } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 
 import {
   Processing,
@@ -29,6 +29,7 @@ import {
   ConnectionError,
   UnintendedDisconnect,
   WebAuthnPrompt,
+  DismissibleError,
   AnotherSessionActive,
 } from './DesktopSession.story';
 
@@ -43,8 +44,8 @@ test('tdp processing', () => {
 });
 
 test('invalid processing', () => {
-  render(<InvalidProcessingState />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+  const { getByTestId } = render(<InvalidProcessingState />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('connected settings false', () => {
@@ -63,26 +64,31 @@ test('disconnected', () => {
 });
 
 test('fetch error', () => {
-  render(<FetchError />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+  const { getByTestId } = render(<FetchError />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('connection error', () => {
-  render(<ConnectionError />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+  const { getByTestId } = render(<ConnectionError />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('unintended disconnect', () => {
-  render(<UnintendedDisconnect />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+  const { getByTestId } = render(<UnintendedDisconnect />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
+});
+
+test('dismissible error', () => {
+  const { getByTestId } = render(<DismissibleError />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('webauthn prompt', () => {
-  render(<WebAuthnPrompt />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+  const { getByTestId } = render(<WebAuthnPrompt />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });
 
 test('another session active', () => {
-  render(<AnotherSessionActive />);
-  expect(screen.getByTestId('Modal')).toMatchSnapshot();
+  const { getByTestId } = render(<AnotherSessionActive />);
+  expect(getByTestId('Modal')).toMatchSnapshot();
 });

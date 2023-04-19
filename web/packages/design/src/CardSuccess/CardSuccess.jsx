@@ -16,8 +16,7 @@ limitations under the License.
 
 import React from 'react';
 
-import Card from 'design/Card';
-import Text from 'design/Text';
+import { Card, Text } from 'design';
 import { CircleCheck } from 'design/Icon';
 
 export default function CardSuccess({ title, children }) {

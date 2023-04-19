@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestCLICommandUsesCLICommandProvider(t *testing.T) {
@@ -53,24 +52,14 @@ func TestGatewayStart(t *testing.T) {
 		hs.Close()
 	})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
-		Username: "alice",
-		Groups:   []string{"test-group"},
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: "foo",
-			Protocol:    defaults.ProtocolPostgres,
-			Username:    "alice",
-		},
-	})
-
 	gateway, err := New(
 		Config{
 			TargetName:         "foo",
 			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           keyPairPaths.CertPath,
-			KeyPath:            keyPairPaths.KeyPath,
+			CertPath:           "../../../fixtures/certs/proxy1.pem",
+			KeyPath:            "../../../fixtures/certs/proxy1-key.pem",
 			Insecure:           true,
 			WebProxyAddr:       hs.Listener.Addr().String(),
 			CLICommandProvider: mockCLICommandProvider{},
@@ -78,11 +67,7 @@ func TestGatewayStart(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		if err := gateway.Close(); err != nil {
-			t.Logf("Ignoring error from gateway.Close() during cleanup, it appears the gateway was already closed. The error was: %s", err)
-		}
-	})
+	t.Cleanup(func() { gateway.Close() })
 	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 
 	require.NotEmpty(t, gateway.LocalPort())
@@ -106,7 +91,7 @@ func TestNewWithLocalPortStartsListenerOnNewPortIfPortIsFree(t *testing.T) {
 	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{}
 	oldGateway := createAndServeGateway(t, &tcpPortAllocator)
 
-	newGateway, err := NewWithLocalPort(oldGateway, "12345")
+	newGateway, err := NewWithLocalPort(*oldGateway, "12345")
 	require.NoError(t, err)
 	require.Equal(t, "12345", newGateway.LocalPort())
 	require.Equal(t, oldGateway.URI(), newGateway.URI())
@@ -124,7 +109,7 @@ func TestNewWithLocalPortReturnsErrorIfNewPortIsOccupied(t *testing.T) {
 	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{PortsInUse: []string{"12345"}}
 	gateway := createAndServeGateway(t, &tcpPortAllocator)
 
-	_, err := NewWithLocalPort(gateway, "12345")
+	_, err := NewWithLocalPort(*gateway, "12345")
 	require.ErrorContains(t, err, "address already in use")
 }
 
@@ -134,7 +119,7 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 	port := gateway.LocalPort()
 	expectedErrMessage := fmt.Sprintf("port is already set to %s", port)
 
-	_, err := NewWithLocalPort(gateway, port)
+	_, err := NewWithLocalPort(*gateway, port)
 	require.True(t, trace.IsBadParameter(err), "Expected err to be a BadParameter error")
 	require.ErrorContains(t, err, expectedErrMessage)
 }
@@ -159,24 +144,14 @@ func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 		hs.Close()
 	})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
-		Username: "alice",
-		Groups:   []string{"test-group"},
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: "foo",
-			Protocol:    defaults.ProtocolPostgres,
-			Username:    "alice",
-		},
-	})
-
 	gateway, err := New(
 		Config{
 			TargetName:         "foo",
 			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           keyPairPaths.CertPath,
-			KeyPath:            keyPairPaths.KeyPath,
+			CertPath:           "../../../fixtures/certs/proxy1.pem",
+			KeyPath:            "../../../fixtures/certs/proxy1-key.pem",
 			Insecure:           true,
 			WebProxyAddr:       hs.Listener.Addr().String(),
 			CLICommandProvider: mockCLICommandProvider{},
@@ -196,9 +171,7 @@ func serveGatewayAndBlockUntilItAcceptsConnections(t *testing.T, gateway *Gatewa
 		serveErr <- err
 	}()
 	t.Cleanup(func() {
-		if err := gateway.Close(); err != nil {
-			t.Logf("Ignoring error from gateway.Close() during cleanup, it appears the gateway was already closed. The error was: %s", err)
-		}
+		gateway.Close()
 		require.NoError(t, <-serveErr, "Gateway %s returned error from Serve()", gateway.URI())
 	})
 

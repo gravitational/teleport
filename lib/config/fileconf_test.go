@@ -37,7 +37,7 @@ import (
 )
 
 // minimalConfigFile is a minimal subset of a teleport config file that can be
-// mutated programatically by test cases and then re-serialized to test the
+// mutated programatically by test cases and then re-serialised to test the
 // config file loader
 const minimalConfigFile string = `
 teleport:
@@ -57,9 +57,9 @@ discovery_service:
 // representation of a parsed YAML file.
 type cfgMap map[interface{}]interface{}
 
-// editConfig takes the minimal YAML configuration file, de-serializes it into a
+// editConfig takes the minimal YAML configuration file, de-serialises it into a
 // nested key-value dictionary suitable for manipulation by a test case,
-// passes that dictionary to the caller-supplied mutator and then re-serializes
+// passes that dictionary to the caller-supplied mutator and then re-serialises
 // it ready to be injected into the config loader.
 func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 	var cfg cfgMap
@@ -343,44 +343,6 @@ func TestAuthenticationSection(t *testing.T) {
 				Passwordless:  types.NewBoolOption(true),
 				ConnectorName: "passwordless",
 			},
-		}, {
-			desc: "Local auth with headless connector",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"type":          "local",
-					"second_factor": "on",
-					"webauthn": cfgMap{
-						"rp_id": "example.com",
-					},
-					"headless":       "true",
-					"connector_name": "headless",
-				}
-			},
-			expectError: require.NoError,
-			expected: &AuthenticationConfig{
-				Type:         "local",
-				SecondFactor: "on",
-				Webauthn: &Webauthn{
-					RPID: "example.com",
-				},
-				Headless:      types.NewBoolOption(true),
-				ConnectorName: "headless",
-			},
-		}, {
-			desc: "Device Trust config",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"device_trust": cfgMap{
-						"mode": "required",
-					},
-				}
-			},
-			expectError: require.NoError,
-			expected: &AuthenticationConfig{
-				DeviceTrust: &DeviceTrust{
-					Mode: "required",
-				},
-			},
 		},
 	}
 	for _, tt := range tests {
@@ -394,7 +356,7 @@ func TestAuthenticationSection(t *testing.T) {
 	}
 }
 
-func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQuotes(t *testing.T) {
+func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQoutes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		desc               string
@@ -402,8 +364,7 @@ func TestAuthenticationConfig_HandleSecondFactorOffOnWithoutQuotes(t *testing.T)
 		expectError        require.ErrorAssertionFunc
 		expectSecondFactor require.ValueAssertionFunc
 	}{
-		{
-			desc: "handle off with quotes", input: `
+		{desc: "handle off with quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -414,10 +375,8 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff),
-		},
-		{
-			desc: "handle off without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle off without quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -428,10 +387,8 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOff),
-		},
-		{
-			desc: "handle on without quotes", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOff)},
+		{desc: "handle on without quotes", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -442,10 +399,8 @@ teleport:
 ssh_service:
   enabled: yes`,
 			expectError:        require.NoError,
-			expectSecondFactor: requireEqual(constants.SecondFactorOn),
-		},
-		{
-			desc: "unsupported numeric type as second_factor", input: `
+			expectSecondFactor: requireEqual(constants.SecondFactorOn)},
+		{desc: "unsupported numeric type as second_factor", input: `
 auth_service:
   enabled: yes
   authentication:
@@ -521,98 +476,10 @@ func TestAuthenticationConfig_Parse_nilU2F(t *testing.T) {
 
 	_, u2fErr := cap.GetU2F()
 	require.Error(t, u2fErr, "U2F configuration present")
-	require.True(t, trace.IsNotFound(u2fErr), "unexpected U2F error")
+	require.True(t, trace.IsNotFound(u2fErr), "uxpected U2F error")
 
 	_, webErr := cap.GetWebauthn()
 	require.NoError(t, webErr, "unexpected webauthn error")
-}
-
-func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		desc                 string
-		mutate               func(cfgMap)
-		expectError          bool
-		expectRequireMFAType types.RequireMFAType
-	}{
-		{
-			desc: "RequireSessionMFA invalid",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"require_session_mfa": "unknown",
-				}
-			},
-			expectError: true,
-		}, {
-			desc: "RequireSessionMFA empty",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{}
-			},
-			expectRequireMFAType: types.RequireMFAType_OFF,
-		}, {
-			desc: "RequireSessionMFA true",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"require_session_mfa": true,
-				}
-			},
-			expectRequireMFAType: types.RequireMFAType_SESSION,
-		}, {
-			desc: "RequireSessionMFA false",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"require_session_mfa": false,
-				}
-			},
-			expectRequireMFAType: types.RequireMFAType_OFF,
-		}, {
-			desc: "RequireSessionMFA true string",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"require_session_mfa": "yes",
-				}
-			},
-			expectRequireMFAType: types.RequireMFAType_SESSION,
-		}, {
-			desc: "RequireSessionMFA false string",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"require_session_mfa": "off",
-				}
-			},
-			expectRequireMFAType: types.RequireMFAType_OFF,
-		}, {
-			desc: "RequireSessionMFA hardware_key",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"require_session_mfa": types.RequireMFATypeHardwareKeyString,
-				}
-			},
-			expectRequireMFAType: types.RequireMFAType_SESSION_AND_HARDWARE_KEY,
-		}, {
-			desc: "RequireSessionMFA hardware_key",
-			mutate: func(cfg cfgMap) {
-				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
-					"require_session_mfa": types.RequireMFATypeHardwareKeyTouchString,
-				}
-			},
-			expectRequireMFAType: types.RequireMFAType_HARDWARE_KEY_TOUCH,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.desc, func(t *testing.T) {
-			text := bytes.NewBuffer(editConfig(t, tt.mutate))
-			cfg, err := ReadConfig(text)
-			if tt.expectError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(cfg.Auth.Authentication.RequireMFAType, tt.expectRequireMFAType))
-		})
-	}
 }
 
 // TestSSHSection tests the config parser for the SSH config block
@@ -642,7 +509,7 @@ func TestSSHSection(t *testing.T) {
 			expectEnabled:             require.True,
 			expectAllowsTCPForwarding: require.True,
 		}, {
-			desc: "disabled",
+			desc: "diasbled",
 			mutate: func(cfg cfgMap) {
 				cfg["ssh_service"].(cfgMap)["enabled"] = "no"
 			},
@@ -714,6 +581,7 @@ func TestSSHSection(t *testing.T) {
 			if testCase.expectFileCopying != nil {
 				testCase.expectFileCopying(t, cfg.SSH.SSHFileCopy())
 			}
+
 		})
 	}
 }
@@ -728,138 +596,12 @@ func TestDiscoveryConfig(t *testing.T) {
 		expectedDiscoverySection Discovery
 	}{
 		{
-			desc:                     "default",
-			mutate:                   func(cfgMap) {},
-			expectError:              require.NoError,
-			expectEnabled:            require.False,
-			expectedDiscoverySection: Discovery{},
-		},
-		{
-			desc:          "GCP section without project_ids",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
-					{
-						"types": []string{"gke"},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{},
-		},
-		{
-			desc:          "GCP section is filled with defaults",
+			desc:          "default",
+			mutate:        func(cfgMap) {},
 			expectError:   require.NoError,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
-					{
-						"types":       []string{"gke"},
-						"project_ids": []string{"p1", "p2"},
-					},
-				}
-			},
+			expectEnabled: require.False,
 			expectedDiscoverySection: Discovery{
-				GCPMatchers: []GCPMatcher{
-					{
-						Types:     []string{"gke"},
-						Locations: []string{"*"},
-						Tags: map[string]apiutils.Strings{
-							"*": []string{"*"},
-						},
-						ProjectIDs: []string{"p1", "p2"},
-					},
-				},
-			},
-		},
-		{
-			desc:          "GCP section is filled",
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["gcp"] = []cfgMap{
-					{
-						"types":     []string{"gke"},
-						"locations": []string{"eucentral1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"project_ids": []string{"p1", "p2"},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{
-				GCPMatchers: []GCPMatcher{
-					{
-						Types:     []string{"gke"},
-						Locations: []string{"eucentral1"},
-						Tags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-						ProjectIDs: []string{"p1", "p2"},
-					},
-				},
-			},
-		},
-		{
-			desc:          "Azure section is filled with defaults (aks)",
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{
-						"types": []string{"aks"},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
-					{
-						Types:   []string{"aks"},
-						Regions: []string{"*"},
-						ResourceTags: map[string]apiutils.Strings{
-							"*": []string{"*"},
-						},
-						Subscriptions:  []string{"*"},
-						ResourceGroups: []string{"*"},
-					},
-				},
-			},
-		},
-		{
-			desc:          "Azure section is filled with values",
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{
-						"types":   []string{"aks"},
-						"regions": []string{"eucentral1"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"subscriptions":   []string{"sub1", "sub2"},
-						"resource_groups": []string{"group1", "group2"},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
-					{
-						Types:   []string{"aks"},
-						Regions: []string{"eucentral1"},
-						ResourceTags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-						Subscriptions:  []string{"sub1", "sub2"},
-						ResourceGroups: []string{"group1", "group2"},
-					},
-				},
+				AWSMatchers: []AWSMatcher{},
 			},
 		},
 		{
@@ -891,15 +633,12 @@ func TestDiscoveryConfig(t *testing.T) {
 								TokenName: defaults.IAMInviteTokenName,
 								Method:    types.JoinMethodIAM,
 							},
-							SSHDConfig: "/etc/ssh/sshd_config",
 							ScriptName: installers.InstallerScriptName,
 						},
 						SSM: AWSSSM{DocumentName: defaults.AWSInstallerDocument},
 					},
-				},
-			},
-		},
-		{
+				}},
+		}, {
 			desc:          "AWS section is filled with custom configs",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
@@ -922,8 +661,6 @@ func TestDiscoveryConfig(t *testing.T) {
 						"ssm": cfgMap{
 							"document_name": "hello_document",
 						},
-						"assume_role_arn": "arn:aws:iam::123456789012:role/DBDiscoverer",
-						"external_id":     "externalID123",
 					},
 				}
 			},
@@ -940,35 +677,13 @@ func TestDiscoveryConfig(t *testing.T) {
 								TokenName: "hello-iam-a-token",
 								Method:    types.JoinMethodIAM,
 							},
-							SSHDConfig: "/etc/ssh/sshd_config",
 							ScriptName: "installer-custom",
 						},
-						SSM:           AWSSSM{DocumentName: "hello_document"},
-						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
-						ExternalID:    "externalID123",
+						SSM: AWSSSM{DocumentName: "hello_document"},
 					},
 				},
 			},
-		},
-		{
-			desc:          "AWS section is filled with invalid region",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":   []string{"ec2"},
-						"regions": []string{"*"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{},
-		},
-		{
+		}, {
 			desc:          "AWS section is filled with invalid join method",
 			expectError:   require.Error,
 			expectEnabled: require.True,
@@ -986,107 +701,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{},
-		},
-		{
-			desc:          "AWS section is filled with external_id but empty assume_role_arn",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":           []string{"rds"},
-						"regions":         []string{"us-west-1"},
-						"assume_role_arn": "",
-						"external_id":     "externalid123",
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{},
-		},
-		{
-			desc:          "AWS section is filled with external_id but empty assume_role_arn is ok for redshift serverless",
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":           []string{"redshift-serverless"},
-						"regions":         []string{"us-west-1"},
-						"assume_role_arn": "",
-						"external_id":     "externalid123",
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{
-				AWSMatchers: []AWSMatcher{
-					{
-						Types:   []string{"redshift-serverless"},
-						Regions: []string{"us-west-1"},
-						Tags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
-								TokenName: "aws-discovery-iam-token",
-								Method:    types.JoinMethodIAM,
-							},
-							SSHDConfig: "/etc/ssh/sshd_config",
-							ScriptName: "default-installer",
-						},
-						SSM:           AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
-						AssumeRoleARN: "",
-						ExternalID:    "externalid123",
-					},
-				},
-			},
-		},
-		{
-			desc:          "AWS section is filled with invalid assume_role_arn",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":           []string{"rds"},
-						"regions":         []string{"us-west-1"},
-						"assume_role_arn": "foobar",
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{},
-		},
-		{
-			desc:          "AWS section is filled with assume_role_arn that is not an iam ARN",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
-					{
-						"types":           []string{"rds"},
-						"regions":         []string{"us-west-1"},
-						"assume_role_arn": "arn:aws:sts::123456789012:federated-user/Alice",
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{},
-		},
-		{
+		}, {
 			desc:          "AWS section is filled with no token",
 			expectError:   require.NoError,
 			expectEnabled: require.True,
@@ -1094,7 +709,6 @@ func TestDiscoveryConfig(t *testing.T) {
 				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
 				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
 					{
-						"regions": []string{"eu-west-1"},
 						"install": cfgMap{
 							"join_params": cfgMap{
 								"method": "iam",
@@ -1109,130 +723,17 @@ func TestDiscoveryConfig(t *testing.T) {
 						SSM: AWSSSM{
 							DocumentName: defaults.AWSInstallerDocument,
 						},
-						Regions: []string{"eu-west-1"},
-						Tags:    map[string]apiutils.Strings{"*": {"*"}},
+						Tags: map[string]apiutils.Strings{"*": {"*"}},
 						InstallParams: &InstallParams{
 							JoinParams: JoinParams{
 								TokenName: defaults.IAMInviteTokenName,
 								Method:    types.JoinMethodIAM,
 							},
 							ScriptName: installers.InstallerScriptName,
-							SSHDConfig: "/etc/ssh/sshd_config",
 						},
 					},
 				},
 			},
-		},
-		{
-			desc:          "Azure section is filled with defaults (vm)",
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{
-						"types":           []string{"vm"},
-						"regions":         []string{"westcentralus"},
-						"resource_groups": []string{"rg1"},
-						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
-					{
-						Types:          []string{"vm"},
-						Regions:        []string{"westcentralus"},
-						ResourceGroups: []string{"rg1"},
-						Subscriptions:  []string{"88888888-8888-8888-8888-888888888888"},
-						ResourceTags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
-								TokenName: "azure-discovery-token",
-								Method:    "azure",
-							},
-							ScriptName: "default-installer",
-						},
-					},
-				},
-			},
-		},
-		{
-			desc:          "Azure section is filled with custom config",
-			expectError:   require.NoError,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
-						"regions":         []string{"westcentralus"},
-						"resource_groups": []string{"rg1"},
-						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "custom-azure-token",
-								"method":     "azure",
-							},
-							"script_name":       "custom-installer",
-							"public_proxy_addr": "teleport.example.com",
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{
-				AzureMatchers: []AzureMatcher{
-					{
-						Types:          []string{"vm"},
-						Regions:        []string{"westcentralus"},
-						ResourceGroups: []string{"rg1"},
-						Subscriptions:  []string{"88888888-8888-8888-8888-888888888888"},
-						ResourceTags: map[string]apiutils.Strings{
-							"discover_teleport": []string{"yes"},
-						},
-						InstallParams: &InstallParams{
-							JoinParams: JoinParams{
-								TokenName: "custom-azure-token",
-								Method:    "azure",
-							},
-							ScriptName:      "custom-installer",
-							PublicProxyAddr: "teleport.example.com",
-						},
-					},
-				},
-			},
-		},
-		{
-			desc:          "Azure section is filled with invalid join method",
-			expectError:   require.Error,
-			expectEnabled: require.True,
-			mutate: func(cfg cfgMap) {
-				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
-				cfg["discovery_service"].(cfgMap)["azure"] = []cfgMap{
-					{"types": []string{"vm"},
-						"regions":         []string{"westcentralus"},
-						"resource_groups": []string{"rg1"},
-						"subscriptions":   []string{"88888888-8888-8888-8888-888888888888"},
-						"tags": cfgMap{
-							"discover_teleport": "yes",
-						},
-						"install": cfgMap{
-							"join_params": cfgMap{
-								"token_name": "custom-azure-token",
-								"method":     "token",
-							},
-						},
-					},
-				}
-			},
-			expectedDiscoverySection: Discovery{},
 		},
 	}
 	for _, testCase := range testCases {
@@ -1244,12 +745,7 @@ func TestDiscoveryConfig(t *testing.T) {
 				return
 			}
 			testCase.expectEnabled(t, cfg.Discovery.Enabled())
-			if expectedAWS := testCase.expectedDiscoverySection.AWSMatchers; expectedAWS != nil {
-				require.Equal(t, expectedAWS, cfg.Discovery.AWSMatchers)
-			}
-			if expectedAzure := testCase.expectedDiscoverySection.AzureMatchers; expectedAzure != nil {
-				require.Equal(t, expectedAzure, cfg.Discovery.AzureMatchers)
-			}
+			require.Equal(t, testCase.expectedDiscoverySection.AWSMatchers, cfg.Discovery.AWSMatchers)
 		})
 	}
 }
@@ -1484,31 +980,12 @@ func TestMakeSampleFileConfig(t *testing.T) {
 		require.Equal(t, "no", fc.Databases.EnabledFlag) // db is always disabled
 	})
 
-	t.Run("V3 - auth server", func(t *testing.T) {
+	t.Run("Auth server", func(t *testing.T) {
 		fc, err := MakeSampleFileConfig(SampleFlags{
-			Version:    defaults.TeleportConfigVersionV3,
 			AuthServer: "auth-server",
 		})
 		require.NoError(t, err)
-		require.Equal(t, "auth-server", fc.AuthServer)
-	})
-
-	t.Run("V3 - proxy server", func(t *testing.T) {
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			Version:      defaults.TeleportConfigVersionV3,
-			ProxyAddress: "proxy.server",
-		})
-		require.NoError(t, err)
-		require.Equal(t, "proxy.server", fc.ProxyServer)
-	})
-
-	t.Run("v2 - auth server", func(t *testing.T) {
-		fc, err := MakeSampleFileConfig(SampleFlags{
-			Version:    defaults.TeleportConfigVersionV2,
-			AuthServer: "auth-server",
-		})
-		require.NoError(t, err)
-		require.Equal(t, []string{"auth-server"}, fc.AuthServers)
+		require.Equal(t, "auth-server", fc.AuthServers[0])
 	})
 
 	t.Run("Data dir", func(t *testing.T) {

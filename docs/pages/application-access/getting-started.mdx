@@ -21,12 +21,13 @@ Let's connect to Grafana using Teleport in three steps:
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
+
 - A Docker installation, which we will use to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with Teleport, you can use that instead.
 - A host where you will run the Teleport Application Service.
 
 <Admonition type="tip" title="Not yet a Teleport user?">
-If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../try-out-teleport/introduction.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon). 
+If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../getting-started.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon). 
 </Admonition>
 
 We will assume your Teleport cluster is accessible at `teleport.example.com` and `*.teleport.example.com`. You can substitute the address of your Teleport Proxy Service. (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
@@ -52,7 +53,7 @@ $ docker run -d -p 3000:3000 grafana/grafana
 
 On your Application Service host, download the latest version of Teleport for
 your platform from our
-[downloads page](https://goteleport.com/download).
+[downloads page](https://goteleport.com/teleport/download).
 
 ### Generate a token
 
@@ -68,6 +69,7 @@ $ tctl tokens add \
 ```
 
 ### Start Teleport
+
 
 Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
 

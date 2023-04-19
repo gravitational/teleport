@@ -21,35 +21,31 @@ import styled from 'styled-components';
 
 import Document from 'teleterm/ui/Document';
 import { useKeyboardShortcutFormatters } from 'teleterm/ui/services/keyboardShortcuts';
-import { KeyboardShortcutAction } from 'teleterm/services/config';
+import { KeyboardShortcutType } from 'teleterm/services/config';
 
 export function KeyboardShortcutsPanel() {
-  const { getAccelerator } = useKeyboardShortcutFormatters();
+  const { getShortcut } = useKeyboardShortcutFormatters();
 
-  const items: { title: string; shortcutAction: KeyboardShortcutAction }[] = [
+  const items: { title: string; shortcutKey: KeyboardShortcutType }[] = [
     {
       title: 'Open New Tab',
-      shortcutAction: 'newTab',
-    },
-    {
-      title: 'Open New Terminal Tab',
-      shortcutAction: 'newTerminalTab',
+      shortcutKey: 'tab-new',
     },
     {
       title: 'Go To Next Tab',
-      shortcutAction: 'nextTab',
+      shortcutKey: 'tab-next',
     },
     {
       title: 'Open Connections',
-      shortcutAction: 'openConnections',
+      shortcutKey: 'toggle-connections',
     },
     {
       title: 'Open Clusters',
-      shortcutAction: 'openClusters',
+      shortcutKey: 'toggle-clusters',
     },
     {
       title: 'Open Profiles',
-      shortcutAction: 'openProfiles',
+      shortcutKey: 'toggle-identity',
     },
   ];
 
@@ -59,10 +55,10 @@ export function KeyboardShortcutsPanel() {
         {items.map(item => (
           <Entry
             title={item.title}
-            accelerator={getAccelerator(item.shortcutAction, {
+            shortcut={getShortcut(item.shortcutKey, {
               useWhitespaceSeparator: true,
             })}
-            key={item.shortcutAction}
+            key={item.shortcutKey}
           />
         ))}
       </Grid>
@@ -70,19 +66,14 @@ export function KeyboardShortcutsPanel() {
   );
 }
 
-function Entry(props: { title: string; accelerator: string }) {
+function Entry(props: { title: string; shortcut: string }) {
   return (
     <>
       <Text textAlign="right" color="light" typography="subtitle1" py="4px">
         {props.title}
       </Text>
-      <MonoText
-        bg="levels.surfaceSecondary"
-        textAlign="left"
-        px="12px"
-        py="4px"
-      >
-        {props.accelerator}
+      <MonoText bg="primary.main" textAlign="left" px="12px" py="4px">
+        {props.shortcut}
       </MonoText>
     </>
   );

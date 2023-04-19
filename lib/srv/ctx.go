@@ -43,8 +43,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -105,7 +105,7 @@ type AccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
@@ -140,11 +140,14 @@ type Server interface {
 	// GetAccessPoint returns an AccessPoint for this cluster.
 	GetAccessPoint() AccessPoint
 
+	// GetSessionServer returns a session server.
+	GetSessionServer() rsession.Service
+
 	// GetDataDir returns data directory of the server
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*servicecfg.PAMConfig, error)
+	GetPAM() (*pam.Config, error)
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -210,6 +213,7 @@ func writeChildError(w io.Writer, err error) {
 		Code:     trace.ErrorToCode(err),
 		RawError: data,
 	})
+
 }
 
 // DecodeChildError consumes the output from a child
@@ -236,7 +240,7 @@ type IdentityContext struct {
 	// Login is the operating system user associated with the connection.
 	Login string
 
-	// Certificate is the SSH user certificate bytes marshaled in the OpenSSH
+	// Certificate is the SSH user certificate bytes marshalled in the OpenSSH
 	// authorized_keys format.
 	Certificate *ssh.Certificate
 
@@ -428,9 +432,6 @@ type ServerContext struct {
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
 
-	// ServerSubKind if the sub kind of the node this context is for.
-	ServerSubKind string
-
 	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
 	UserCreatedByTeleport bool
 }
@@ -464,7 +465,6 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
-		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
 	}
 
 	fields := log.Fields{
@@ -725,11 +725,11 @@ func (c *ServerContext) SetAllowFileCopying(allow bool) {
 func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if remote file operations are disabled for this node.
 	if !c.AllowFileCopying {
-		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
+		return ErrNodeFileCopyingNotPermitted
 	}
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return trace.Wrap(errRoleFileCopyingNotPermitted)
+		return errRoleFileCopyingNotPermitted
 	}
 
 	return nil
@@ -738,7 +738,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 // CheckSFTPAllowed returns an error if remote file operations via SCP
 // or SFTP are not allowed by the user's role or the node's config, or
 // if the user is not allowed to start unattended sessions.
-func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
+func (c *ServerContext) CheckSFTPAllowed() error {
 	if err := c.CheckFileCopyingAllowed(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -750,21 +750,8 @@ func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	// canStart will be true for non-moderated sessions. If canStart is false, check to
-	// see if the request has been approved through a moderated session next.
-	if canStart {
-		return nil
-	}
-	if registry == nil {
-		return trace.Wrap(errCannotStartUnattendedSession)
-	}
-
-	approved, err := registry.isApprovedFileTransfer(c)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if !approved {
-		return trace.Wrap(errCannotStartUnattendedSession)
+	if !canStart {
+		return errCannotStartUnattendedSession
 	}
 
 	return nil
@@ -1031,6 +1018,14 @@ func (c *ServerContext) SendSubsystemResult(r SubsystemResult) {
 	}
 }
 
+// ProxyPublicAddress tries to get the public address from the first
+// available proxy. if public_address is not set, fall back to the hostname
+// of the first proxy we get back.
+func (c *ServerContext) ProxyPublicAddress() string {
+	//TODO(tross): Get the proxy address somehow - types.KindProxy is not replicated to Nodes
+	return "<proxyhost>:3080"
+}
+
 func (c *ServerContext) String() string {
 	return fmt.Sprintf("ServerContext(%v->%v, user=%v, id=%v)", c.ServerConn.RemoteAddr(), c.ServerConn.LocalAddr(), c.ServerConn.User(), c.id)
 }
@@ -1153,32 +1148,12 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 	}, nil
 }
 
-func eventDeviceMetadataFromCert(cert *ssh.Certificate) *apievents.DeviceMetadata {
-	if cert == nil {
-		return nil
-	}
-
-	devID := cert.Extensions[teleport.CertExtensionDeviceID]
-	assetTag := cert.Extensions[teleport.CertExtensionDeviceAssetTag]
-	credID := cert.Extensions[teleport.CertExtensionDeviceCredentialID]
-	if devID == "" && assetTag == "" && credID == "" {
-		return nil
-	}
-
-	return &apievents.DeviceMetadata{
-		DeviceId:     devID,
-		AssetTag:     assetTag,
-		CredentialId: credID,
-	}
-}
-
 func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 	return apievents.UserMetadata{
 		Login:          id.Login,
 		User:           id.TeleportUser,
 		Impersonator:   id.Impersonator,
 		AccessRequests: id.ActiveRequests,
-		TrustedDevice:  eventDeviceMetadataFromCert(id.Certificate),
 	}
 }
 
@@ -1221,7 +1196,9 @@ func buildEnvironment(ctx *ServerContext) []string {
 	}
 
 	// Set some Teleport specific environment variables: SSH_TELEPORT_USER,
-	// SSH_TELEPORT_HOST_UUID, and SSH_TELEPORT_CLUSTER_NAME.
+	// SSH_SESSION_WEBPROXY_ADDR, SSH_TELEPORT_HOST_UUID, and
+	// SSH_TELEPORT_CLUSTER_NAME.
+	env = append(env, teleport.SSHSessionWebproxyAddr+"="+ctx.ProxyPublicAddress())
 	env = append(env, teleport.SSHTeleportHostUUID+"="+ctx.srv.ID())
 	env = append(env, teleport.SSHTeleportClusterName+"="+ctx.ClusterName)
 	env = append(env, teleport.SSHTeleportUser+"="+ctx.Identity.TeleportUser)
@@ -1275,12 +1252,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 		{Login: id.Login},
 		{Node: serverID},
 		{Node: auth.HostFQDN(serverID, clusterName)},
-	}
-	if mfaDevice := id.Certificate.Extensions[teleport.CertExtensionMFAVerified]; mfaDevice != "" {
-		lockTargets = append(lockTargets, types.LockTarget{MFADevice: mfaDevice})
-	}
-	if trustedDevice := id.Certificate.Extensions[teleport.CertExtensionDeviceID]; trustedDevice != "" {
-		lockTargets = append(lockTargets, types.LockTarget{Device: trustedDevice})
+		{MFADevice: id.Certificate.Extensions[teleport.CertExtensionMFAVerified]},
 	}
 	roles := apiutils.Deduplicate(append(id.AccessChecker.RoleNames(), id.UnmappedRoles...))
 	lockTargets = append(lockTargets, services.RolesToLockTargets(roles)...)
@@ -1288,7 +1260,7 @@ func ComputeLockTargets(clusterName, serverID string, id IdentityContext) []type
 	return lockTargets
 }
 
-// SetSSHRequest sets the ssh request that was issued by the client.
+// SetRequest sets the ssh request that was issued by the client.
 // Will return an error if called more than once for a single server context.
 func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	c.mu.Lock()
@@ -1301,7 +1273,7 @@ func (c *ServerContext) SetSSHRequest(e *ssh.Request) error {
 	return nil
 }
 
-// GetSSHRequest returns the ssh request that was issued by the client and saved on
+// GetRequest returns the ssh request that was issued by the client and saved on
 // this ServerContext by SetExecRequest, or an error if it has not been set.
 func (c *ServerContext) GetSSHRequest() (*ssh.Request, error) {
 	c.mu.RLock()

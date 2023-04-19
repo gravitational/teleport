@@ -52,10 +52,6 @@ func (p *mfaPrompt) PromptPIN() (string, error) {
 
 // PromptMFAChallengeOpts groups optional settings for PromptMFAChallenge.
 type PromptMFAChallengeOpts struct {
-	// HintBeforePrompt is an optional hint message to print before an MFA prompt.
-	// It is used to provide context about why the user is being prompted where it may
-	// not be obvious.
-	HintBeforePrompt string
 	// PromptDevicePrefix is an optional prefix printed before "security key" or
 	// "device". It is used to emphasize between different kinds of devices, like
 	// registered vs new.
@@ -77,9 +73,6 @@ type PromptMFAChallengeOpts struct {
 
 // promptMFAStandalone is used to mock PromptMFAChallenge for tests.
 var promptMFAStandalone = PromptMFAChallenge
-
-// hasPlatformSupport is used to mock wancli.HasPlatformSupport for tests.
-var hasPlatformSupport = wancli.HasPlatformSupport
 
 // PromptMFAChallenge prompts the user to complete MFA authentication
 // challenges.
@@ -123,10 +116,6 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 	if opts == nil {
 		opts = &PromptMFAChallengeOpts{}
 	}
-	writer := os.Stderr
-	if opts.HintBeforePrompt != "" {
-		fmt.Fprintln(writer, opts.HintBeforePrompt)
-	}
 	promptDevicePrefix := opts.PromptDevicePrefix
 	quiet := opts.Quiet
 
@@ -135,9 +124,9 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 
 	// Does the current platform support hardware MFA? Adjust accordingly.
 	switch {
-	case !hasTOTP && !hasPlatformSupport():
+	case !hasTOTP && !wancli.HasPlatformSupport():
 		return nil, trace.BadParameter("hardware device MFA not supported by your platform, please register an OTP device")
-	case !hasPlatformSupport():
+	case !wancli.HasPlatformSupport():
 		// Do not prompt for hardware devices, it won't work.
 		hasWebauthn = false
 	}
@@ -197,7 +186,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 				msg = fmt.Sprintf("Enter an OTP code from a %sdevice", promptDevicePrefix)
 			}
 
-			otp, err := prompt.Password(otpCtx, writer, prompt.Stdin(), msg)
+			otp, err := prompt.Password(otpCtx, os.Stderr, prompt.Stdin(), msg)
 			if err != nil {
 				respC <- response{kind: kind, err: err}
 				return
@@ -224,7 +213,7 @@ func PromptMFAChallenge(ctx context.Context, c *proto.MFAAuthenticateChallenge, 
 			defer wg.Done()
 			log.Debugf("WebAuthn: prompting devices with origin %q", origin)
 
-			prompt := wancli.NewDefaultPrompt(ctx, writer)
+			prompt := wancli.NewDefaultPrompt(ctx, os.Stderr)
 			prompt.SecondTouchMessage = fmt.Sprintf("Tap your %ssecurity key to complete login", promptDevicePrefix)
 			switch {
 			case quiet:

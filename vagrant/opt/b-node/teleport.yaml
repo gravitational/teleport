@@ -1,0 +1,23 @@
+# Node for cluster-B
+teleport:
+  nodename: bear
+  auth_token: hello
+  auth_servers: ["b-auth:5025"] 
+  log:
+    output: stderr
+    severity: INFO
+
+auth_service:
+  enabled: no
+
+ssh_service:
+  enabled: yes
+  labels:
+      role: node
+  commands:
+      - name: kernel
+        command: [/bin/uname, -r]
+        period: 5m
+
+proxy_service:
+  enabled: no

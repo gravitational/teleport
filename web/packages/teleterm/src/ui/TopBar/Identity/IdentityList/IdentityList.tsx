@@ -15,10 +15,13 @@
  */
 
 import React from 'react';
+
 import styled from 'styled-components';
-import { Box, Flex, Text, Label } from 'design';
+
+import { Box, Flex, Text } from 'design';
 
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
+
 import { LoggedInUser } from 'teleterm/services/tshd/types';
 
 import { IdentityRootCluster } from '../useIdentity';
@@ -45,13 +48,9 @@ export function IdentityList(props: IdentityListProps) {
           <Flex px={3} pt={2} pb={2} justifyContent="space-between">
             <Box>
               <Text bold>{props.loggedInUser.name}</Text>
-              <Flex flexWrap="wrap" gap={1}>
-                {props.loggedInUser.rolesList.map(role => (
-                  <Label key={role} kind="secondary">
-                    {role}
-                  </Label>
-                ))}
-              </Flex>
+              <Text typography="body2" color="text.secondary">
+                {props.loggedInUser.rolesList.join(', ')}
+              </Text>
             </Box>
           </Flex>
           <Separator />
@@ -67,6 +66,7 @@ export function IdentityList(props: IdentityListProps) {
               isSelected={i.active}
               userName={i.userName}
               clusterName={i.clusterName}
+              isSyncing={i.isSyncing}
               onSelect={() => props.onSelectCluster(i.uri)}
               onLogout={() => props.onLogout(i.uri)}
             />
@@ -100,6 +100,6 @@ const focusGrabber = (
 );
 
 const Separator = styled.div`
-  background: ${props => props.theme.colors.levels.elevated};
+  background: ${props => props.theme.colors.primary.lighter};
   height: 1px;
 `;

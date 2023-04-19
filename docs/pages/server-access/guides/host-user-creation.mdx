@@ -29,7 +29,7 @@ since it must execute these commands in order to create transient users:
   - `getent`
   - `visudo`
 
-- (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Configure a role
 
@@ -111,7 +111,7 @@ If an SSH Node must never allow the automatic creation of transient Unix users
 you can set `disable_create_host_user` to `true` in the Node's configuration:
 
 ```yaml
-# teleport.yaml
+# teleport.yml
 teleport:
   nodename: node
 ssh_service:
@@ -119,8 +119,6 @@ ssh_service:
   # Disable automatic host user creation on this Node, regardless of role permissions.
   disable_create_host_user: true
 ```
-
-(!docs/pages/includes/add-role-to-user.mdx role="auto-users"!)
 
 ## Step 2/2 Test host user creation
 

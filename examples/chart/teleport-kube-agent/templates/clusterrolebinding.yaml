@@ -1,4 +1,3 @@
-{{- if .Values.rbac.create -}}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -13,6 +12,5 @@ roleRef:
   name: {{ .Values.clusterRoleName | default .Release.Name }}
 subjects:
 - kind: ServiceAccount
-  name: {{ template "teleport-kube-agent.serviceAccountName" . }}
+  name: {{ template "teleport.serviceAccountName" . }}
   namespace: {{ .Release.Namespace }}
-{{- end -}}

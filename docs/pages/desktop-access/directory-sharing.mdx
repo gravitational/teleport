@@ -18,6 +18,12 @@ desktop. You can disable Directory Sharing for specific users via their Teleport
 roles, and use session recording to audit activity in the shared directory
 after the session ends.
 
+<Notice type="note">
+
+Directory Sharing is available beginning in Teleport v10.2.0.
+
+</Notice>
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -27,6 +33,7 @@ after the session ends.
   your cluster. If you have not yet configured Desktop Access, read [Getting
   Started with Desktop Access](./getting-started.mdx) before beginning this
   guide.
+
 - A browser on your local machine that supports the File System Access API,
   which Teleport uses for Directory Sharing. We support the latest versions of
   Chromium-based browsers like Google Chrome, Brave, and Microsoft Edge.
@@ -38,7 +45,7 @@ after the session ends.
   You can see a full compatibility table in the [Mozilla Developer Network
   documentation](https://developer.mozilla.org/en-US/docs/Web/API/File_System_Access_API#browser_compatibility).
 
-- (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Share a directory
 
@@ -169,7 +176,31 @@ Create the role:
 $ tctl create -f role.yaml
 ```
 
-(!docs/pages/includes/add-role-to-user.mdx role="no-sharing"!)
+Retrieve the role for the Teleport user you want to modify and save their role
+definition in `user.yaml`. Here we assume the user is called `myser`:
+
+```code
+$ tctl get user/myuser > user.yaml
+```
+
+Edit `user.yaml` to add the new role:
+
+```diff
+spec:
+  - access
+  - editor
+  - auditor
++ - no-sharing
+  status:
+    is_locked: false
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f role.yaml
+$ tctl create -f user.yaml
+```
 
 ## Next steps
 

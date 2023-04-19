@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
+import { at } from 'lodash';
+
 import { ResetToken } from './types';
 
-export function makeResetToken(json): ResetToken {
-  json = json || {};
-  const { expiry, user, tokenId } = json;
+export default function makeResetToken(json): ResetToken {
+  const [expires, username, value] = at(json, ['expiry', 'user', 'tokenId']);
   return {
-    username: user || '',
-    expires: expiry ? new Date(expiry) : null,
-    value: tokenId || '',
+    username,
+    expires: new Date(expires),
+    value,
   };
 }

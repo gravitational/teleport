@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kubeserver
+package proxy
 
 import (
 	"bytes"
@@ -26,7 +26,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,6 +36,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/httpstream"
 	spdystream "k8s.io/apimachinery/pkg/util/httpstream/spdy"
 	"k8s.io/apiserver/pkg/util/wsstream"
@@ -44,7 +44,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -88,16 +87,20 @@ const (
 	PortForwardPayload = "Portforward handler message"
 )
 
+// statusScheme is private scheme for the decoding here until someone fixes the TODO in NewConnection
+var statusScheme = runtime.NewScheme()
+
+// ParameterCodec knows about query parameters used with the meta v1 API spec.
+var statusCodecs = serializer.NewCodecFactory(statusScheme)
+
 type KubeMockServer struct {
-	router      *httprouter.Router
-	log         *log.Entry
-	server      *httptest.Server
-	TLS         *tls.Config
-	Addr        net.Addr
-	URL         string
-	CA          []byte
-	deletedPods map[string][]string
-	mu          sync.Mutex
+	router *httprouter.Router
+	log    *log.Entry
+	server *httptest.Server
+	TLS    *tls.Config
+	Addr   net.Addr
+	URL    string
+	CA     []byte
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -109,9 +112,8 @@ type KubeMockServer struct {
 // TODO(tigrato): add support for other endpoints
 func NewKubeAPIMock() (*KubeMockServer, error) {
 	s := &KubeMockServer{
-		router:      httprouter.New(),
-		log:         log.NewEntry(log.New()),
-		deletedPods: make(map[string][]string),
+		router: httprouter.New(),
+		log:    log.NewEntry(log.New()),
 	}
 	s.setup()
 	if err := http2.ConfigureServer(s.server.Config, &http2.Server{}); err != nil {
@@ -130,10 +132,6 @@ func (s *KubeMockServer) setup() {
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
 	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
-	s.router.GET("/api/:ver/namespaces/:podNamespace/pods", s.withWriter(s.listPods))
-	s.router.GET("/api/:ver/pods", s.withWriter(s.listPods))
-	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.getPod))
-	s.router.DELETE("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.deletePod))
 	s.router.POST("/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", s.withWriter(s.selfSubjectAccessReviews))
 	s.server = httptest.NewUnstartedServer(s.router)
 	s.server.EnableHTTP2 = true
@@ -157,13 +155,13 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 		Message: respErr.Error(),
 		Code:    int32(trace.ErrorToCode(respErr)),
 	}
-	data, err := runtime.Encode(kubeCodecs.LegacyCodec(), status)
+	data, err := runtime.Encode(statusCodecs.LegacyCodec(), status)
 	if err != nil {
 		s.log.Warningf("Failed encoding error into kube Status object: %v", err)
 		trace.WriteError(rw, respErr)
 		return
 	}
-	rw.Header().Set(responsewriters.ContentTypeHeader, "application/json")
+	rw.Header().Set("Content-Type", "application/json")
 	// Always write InternalServerError, that's the only code that kubectl will
 	// parse the Status object for. The Status object has the real status code
 	// embedded.
@@ -173,7 +171,7 @@ func (s *KubeMockServer) formatResponseError(rw http.ResponseWriter, respErr err
 	}
 }
 
-func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+func (s *KubeMockServer) exec(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
 	q := req.URL.Query()
 
 	request := remoteCommandRequest{
@@ -524,7 +522,7 @@ func v4WriteStatusFunc(stream io.Writer) func(status *apierrors.StatusError) err
 	}
 }
 
-func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
+func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp interface{}, err error) {
 	s1 := &v1.SelfSubjectAccessReview{
 		Spec: v1.SelfSubjectAccessReviewSpec{
 			ResourceAttributes: &v1.ResourceAttributes{
@@ -543,7 +541,7 @@ func (s *KubeMockServer) selfSubjectAccessReviews(w http.ResponseWriter, req *ht
 
 // portforward supports SPDY protocols only. Teleport always uses SPDY when
 // portforwarding to upstreams even if the original request is WebSocket.
-func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
+func (s *KubeMockServer) portforward(w http.ResponseWriter, req *http.Request, p httprouter.Params) (interface{}, error) {
 	_, err := httpstream.Handshake(req, w, []string{portForwardProtocolV1Name})
 	if err != nil {
 		return nil, trace.Wrap(err)

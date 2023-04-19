@@ -123,11 +123,11 @@ func TestRemoteClusterCRUD(t *testing.T) {
 	require.Len(t, allRC, 2)
 
 	// delete cluster
-	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
+	err = presenceBackend.DeleteRemoteCluster("foo")
 	require.NoError(t, err)
 
 	// make sure it's really gone
-	err = presenceBackend.DeleteRemoteCluster(ctx, "foo")
+	err = presenceBackend.DeleteRemoteCluster("foo")
 	require.Error(t, err)
 	require.ErrorIs(t, err, trace.NotFound("key /remoteClusters/foo is not found"))
 }
@@ -219,15 +219,21 @@ func TestApplicationServersCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Make another app and an app server.
-	appB, err := types.NewAppV3(types.Metadata{Name: "b"},
-		types.AppSpecV3{URI: "http://localhost:8081"})
+	// Make a legacy app server.
+	appBLegacy := &types.App{Name: "b", URI: "http://localhost:8081"}
+	appB, err := types.NewAppV3FromLegacyApp(appBLegacy)
+	require.NoError(t, err)
+	serverBLegacy, err := types.NewServer(uuid.New().String(), types.KindAppServer,
+		types.ServerSpecV2{
+			Hostname: "localhost",
+			Apps:     []*types.App{appBLegacy},
+		})
 	require.NoError(t, err)
 	serverB, err := types.NewAppServerV3(types.Metadata{
-		Name: appB.GetName(),
+		Name: appBLegacy.Name,
 	}, types.AppServerSpecV3{
 		Hostname: "localhost",
-		HostID:   uuid.New().String(),
+		HostID:   serverBLegacy.GetName(),
 		App:      appB,
 	})
 	require.NoError(t, err)
@@ -237,27 +243,27 @@ func TestApplicationServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, len(out))
 
-	// Create app servers.
+	// Create app server.
 	lease, err := presence.UpsertApplicationServer(ctx, serverA)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{}, lease)
-	lease, err = presence.UpsertApplicationServer(ctx, serverB)
+
+	// Create legacy app server.
+	lease, err = presence.UpsertAppServer(ctx, serverBLegacy)
 	require.NoError(t, err)
 	require.Equal(t, &types.KeepAlive{}, lease)
 
 	// Make sure all app servers are registered.
 	out, err = presence.GetApplicationServers(ctx, serverA.GetNamespace())
 	require.NoError(t, err)
-	servers := types.AppServers(out)
-	require.NoError(t, servers.SortByCustom(types.SortBy{Field: types.ResourceMetadataName}))
 	require.Empty(t, cmp.Diff([]types.AppServer{serverA, serverB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 
-	// Delete an app server.
+	// Delete app server.
 	err = presence.DeleteApplicationServer(ctx, serverA.GetNamespace(), serverA.GetHostID(), serverA.GetName())
 	require.NoError(t, err)
 
-	// Expect only one to return.
+	// Expect only the legacy one to be returned.
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
@@ -280,10 +286,11 @@ func TestApplicationServersCRUD(t *testing.T) {
 	err = presence.DeleteAllApplicationServers(ctx, serverA.GetNamespace())
 	require.NoError(t, err)
 
-	// Expect no servers to return.
+	// Expect only legacy one to be returned.
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
-	require.Empty(t, out)
+	require.Empty(t, cmp.Diff([]types.AppServer{serverB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
 }
 
 func TestDatabaseServersCRUD(t *testing.T) {
@@ -581,30 +588,23 @@ func TestListResources(t *testing.T) {
 				return presence.DeleteAllApplicationServers(ctx, apidefaults.Namespace)
 			},
 		},
-		"KubeServer": {
-			resourceType: types.KindKubeServer,
+		"KubeService": {
+			resourceType: types.KindKubeService,
 			createResourceFunc: func(ctx context.Context, presence *PresenceService, name string, labels map[string]string) error {
-				kube, err := types.NewKubernetesClusterV3(
-					types.Metadata{
-						Name:   name,
-						Labels: labels,
+				server, err := types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
+					KubernetesClusters: []*types.KubernetesCluster{
+						{Name: name, StaticLabels: labels},
 					},
-					types.KubernetesClusterSpecV3{},
-				)
-				if err != nil {
-					return err
-				}
-				kubeServer, err := types.NewKubernetesServerV3FromCluster(kube, "host", "hostID")
+				}, labels)
 				if err != nil {
 					return err
 				}
 
 				// Upsert server.
-				_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
-				return err
+				return presence.UpsertKubeService(ctx, server)
 			},
 			deleteAllResourcesFunc: func(ctx context.Context, presence *PresenceService) error {
-				return presence.DeleteAllKubernetesServers(ctx)
+				return presence.DeleteAllKubeServices(ctx)
 			},
 		},
 		"Node": {
@@ -1254,8 +1254,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 								Name:   names[i],
 								Labels: labels[i],
 							},
-							Spec: types.AppSpecV3{URI: "_"},
-						},
+							Spec: types.AppSpecV3{URI: "_"}},
 					})
 					require.NoError(t, err)
 					_, err = presence.UpsertApplicationServer(ctx, server)
@@ -1268,25 +1267,16 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
 				for i := 0; i < len(names); i++ {
-
-					kube, err := types.NewKubernetesClusterV3(
-						types.Metadata{
-							Name:   names[i],
-							Labels: labels[i],
+					server, err := types.NewServer(fmt.Sprintf("name-%v", i), types.KindKubeService, types.ServerSpecV2{
+						KubernetesClusters: []*types.KubernetesCluster{
+							// Test dedup inside this list as well as from each service.
+							{Name: names[i], StaticLabels: labels[i]},
+							{Name: names[i], StaticLabels: labels[i]},
 						},
-						types.KubernetesClusterSpecV3{},
-					)
+					})
 					require.NoError(t, err)
-					kubeServer, err := types.NewKubernetesServerV3FromCluster(
-						kube,
-						fmt.Sprintf("host-%v", i),
-						fmt.Sprintf("hostID-%v", i),
-					)
+					_, err = presence.UpsertKubeServiceV2(ctx, server)
 					require.NoError(t, err)
-					// Upsert server.
-					_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
-					require.NoError(t, err)
-
 				}
 			},
 		},

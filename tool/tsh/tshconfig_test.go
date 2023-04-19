@@ -27,8 +27,6 @@ import (
 )
 
 func TestLoadConfigNonExistingFile(t *testing.T) {
-	t.Parallel()
-
 	fullFilePath := "/tmp/doesntexist." + uuid.NewString()
 	gotConfig, gotErr := loadConfig(fullFilePath)
 	require.NoError(t, gotErr)
@@ -36,8 +34,6 @@ func TestLoadConfigNonExistingFile(t *testing.T) {
 }
 
 func TestLoadConfigEmptyFile(t *testing.T) {
-	t.Parallel()
-
 	file, err := os.CreateTemp("", "test-telelport")
 	require.NoError(t, err)
 	defer os.Remove(file.Name())
@@ -51,8 +47,6 @@ func TestLoadConfigEmptyFile(t *testing.T) {
 }
 
 func TestLoadAllConfigs(t *testing.T) {
-	t.Parallel()
-
 	writeConf := func(fn string, config TshConfig) {
 		dir, _ := path.Split(fn)
 		err := os.MkdirAll(dir, 0777)

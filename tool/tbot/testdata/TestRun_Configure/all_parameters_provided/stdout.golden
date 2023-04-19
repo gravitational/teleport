@@ -15,4 +15,3 @@ auth_server: example.com
 certificate_ttl: 42m0s
 renewal_interval: 21m0s
 oneshot: true
-fips: true

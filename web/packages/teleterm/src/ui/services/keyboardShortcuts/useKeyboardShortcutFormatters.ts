@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-import { KeyboardShortcutAction } from '../../../services/config';
+import { KeyboardShortcutType } from '../../../services/config';
 import { useAppContext } from '../../appContextProvider';
 import { Platform } from '../../../mainProcess/types';
 
 interface KeyboardShortcutFormatters {
-  getLabelWithAccelerator(
+  getLabelWithShortcut(
     label: string,
-    action: KeyboardShortcutAction,
+    shortcutKey: KeyboardShortcutType,
     options?: KeyboardShortcutFormattingOptions
   ): string;
 
-  getAccelerator(
-    action: KeyboardShortcutAction,
+  getShortcut(
+    shortcutKey: KeyboardShortcutType,
     options?: KeyboardShortcutFormattingOptions
   ): string;
 }
@@ -36,45 +36,46 @@ interface KeyboardShortcutFormattingOptions {
 }
 
 export function useKeyboardShortcutFormatters(): KeyboardShortcutFormatters {
-  const { mainProcessClient, keyboardShortcutsService } = useAppContext();
+  const { mainProcessClient } = useAppContext();
   const { platform } = mainProcessClient.getRuntimeSettings();
-  const keyboardShortcuts = keyboardShortcutsService.getShortcutsConfig();
+  const { keyboardShortcuts } = mainProcessClient.configService.get();
 
   return {
-    getLabelWithAccelerator(label, action, options) {
-      const formattedAccelerator = formatAccelerator({
+    getLabelWithShortcut(label, shortcutKey, options) {
+      const formattedShortcut = formatKeyboardShortcut({
         platform,
-        accelerator: keyboardShortcuts[action],
+        shortcutValue: keyboardShortcuts[shortcutKey],
         ...options,
       });
-      return `${label} (${formattedAccelerator})`;
+      return `${label} (${formattedShortcut})`;
     },
-    getAccelerator(action, options) {
-      return formatAccelerator({
+    getShortcut(shortcutKey, options) {
+      return formatKeyboardShortcut({
         platform,
-        accelerator: keyboardShortcuts[action],
+        shortcutValue: keyboardShortcuts[shortcutKey],
         ...options,
       });
     },
   };
 }
 
-function formatAccelerator(options: {
+function formatKeyboardShortcut(options: {
   platform: Platform;
-  accelerator: string;
+  shortcutValue: string;
   useWhitespaceSeparator?: boolean;
 }): string {
   switch (options.platform) {
     case 'darwin':
-      return options.accelerator
-        .replaceAll('+', options.useWhitespaceSeparator ? ' ' : '')
+      return options.shortcutValue
+        .replace('-', options.useWhitespaceSeparator ? ' ' : '')
         .replace('Command', '⌘')
         .replace('Control', '⌃')
         .replace('Option', '⌥')
         .replace('Shift', '⇧');
     default:
-      return options.useWhitespaceSeparator
-        ? options.accelerator.replaceAll('+', ' + ')
-        : options.accelerator;
+      return options.shortcutValue.replace(
+        '-',
+        options.useWhitespaceSeparator ? ' + ' : '+'
+      );
   }
 }

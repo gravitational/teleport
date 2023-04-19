@@ -15,60 +15,35 @@
  */
 
 import { useStore } from 'shared/libs/stores';
-import { arrayObjectIsEqual } from 'shared/utils/highbar';
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleport/Workflow/NewRequest/useNewRequest';
+import { isEqual } from 'lodash';
 
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
-import {
-  StatePersistenceService,
-  WorkspacesPersistedState,
-} from 'teleterm/ui/services/statePersistence';
+import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { ImmutableStore } from 'teleterm/ui/services/immutableStore';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
-import {
-  ClusterOrResourceUri,
-  ClusterUri,
-  DocumentUri,
-  RootClusterUri,
-  routing,
-} from 'teleterm/ui/uri';
-
-import {
-  AccessRequestsService,
-  getEmptyPendingAccessRequest,
-} from './accessRequestsService';
+import { routing } from 'teleterm/ui/uri';
 
 import { Document, DocumentsService } from './documentsService';
 
 export interface WorkspacesState {
-  rootClusterUri?: RootClusterUri;
-  workspaces: Record<RootClusterUri, Workspace>;
+  rootClusterUri?: string;
+  workspaces: Record<string, Workspace>;
 }
 
 export interface Workspace {
-  localClusterUri: ClusterUri;
+  localClusterUri: string;
   documents: Document[];
-  location: DocumentUri;
-  accessRequests: {
-    isBarCollapsed: boolean;
-    pending: PendingAccessRequest;
-  };
+  location: string;
   previous?: {
     documents: Document[];
-    location: DocumentUri;
+    location: string;
   };
 }
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
-  private documentsServicesCache = new Map<RootClusterUri, DocumentsService>();
-  private accessRequestsServicesCache = new Map<
-    RootClusterUri,
-    AccessRequestsService
-  >();
+  private documentsServicesCache = new Map<string, DocumentsService>();
   state: WorkspacesState = {
     rootClusterUri: undefined,
     workspaces: {},
@@ -83,39 +58,42 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     super();
   }
 
-  getActiveWorkspace() {
+  getActiveWorkspace(): Workspace | undefined {
     return this.state.workspaces[this.state.rootClusterUri];
   }
 
-  getRootClusterUri() {
+  getRootClusterUri(): string | undefined {
     return this.state.rootClusterUri;
   }
 
-  getWorkspaces() {
+  getWorkspaces(): Record<string, Workspace> {
     return this.state.workspaces;
   }
 
-  getWorkspace(clusterUri: RootClusterUri) {
+  getWorkspace(clusterUri): Workspace {
     return this.state.workspaces[clusterUri];
   }
 
-  getActiveWorkspaceDocumentService() {
+  getActiveWorkspaceDocumentService(): DocumentsService | undefined {
     if (!this.state.rootClusterUri) {
       return;
     }
     return this.getWorkspaceDocumentService(this.state.rootClusterUri);
   }
 
-  getActiveWorkspaceAccessRequestsService() {
-    if (!this.state.rootClusterUri) {
-      return;
-    }
-    return this.getWorkspaceAccessRequestsService(this.state.rootClusterUri);
+  getWorkspacesDocumentsServices(): Array<{
+    clusterUri: string;
+    workspaceDocumentsService: DocumentsService;
+  }> {
+    return Object.entries(this.state.workspaces).map(([clusterUri]) => ({
+      clusterUri,
+      workspaceDocumentsService: this.getWorkspaceDocumentService(clusterUri),
+    }));
   }
 
   setWorkspaceLocalClusterUri(
-    clusterUri: RootClusterUri,
-    localClusterUri: ClusterUri
+    clusterUri: string,
+    localClusterUri: string
   ): void {
     this.setState(draftState => {
       draftState.workspaces[clusterUri].localClusterUri = localClusterUri;
@@ -123,7 +101,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   }
 
   getWorkspaceDocumentService(
-    clusterUri: RootClusterUri
+    clusterUri: string
   ): DocumentsService | undefined {
     if (!this.documentsServicesCache.has(clusterUri)) {
       this.documentsServicesCache.set(
@@ -143,38 +121,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return this.documentsServicesCache.get(clusterUri);
   }
 
-  getWorkspaceAccessRequestsService(
-    clusterUri: RootClusterUri
-  ): AccessRequestsService | undefined {
-    if (!this.accessRequestsServicesCache.has(clusterUri)) {
-      this.accessRequestsServicesCache.set(
-        clusterUri,
-        new AccessRequestsService(
-          () => {
-            return this.state.workspaces[clusterUri].accessRequests;
-          },
-          newState =>
-            this.setState(draftState => {
-              newState(draftState.workspaces[clusterUri].accessRequests);
-            })
-        )
-      );
-    }
-    return this.accessRequestsServicesCache.get(clusterUri);
-  }
-
   isDocumentActive(documentUri: string): boolean {
     const documentService = this.getActiveWorkspaceDocumentService();
     return documentService && documentService.isActive(documentUri);
-  }
-
-  doesResourceBelongToActiveWorkspace(
-    resourceUri: ClusterOrResourceUri
-  ): boolean {
-    return (
-      this.state.rootClusterUri &&
-      routing.belongsToProfile(this.state.rootClusterUri, resourceUri)
-    );
   }
 
   useState() {
@@ -186,7 +135,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.persistState();
   }
 
-  setActiveWorkspace(clusterUri: RootClusterUri): Promise<void> {
+  setActiveWorkspace(clusterUri: string): Promise<void> {
     const setWorkspace = () => {
       this.setState(draftState => {
         // adding a new workspace
@@ -254,14 +203,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       .catch(() => undefined); // catch ClusterConnectDialog cancellation
   }
 
-  removeWorkspace(clusterUri: RootClusterUri): void {
+  removeWorkspace(clusterUri: string): void {
     this.setState(draftState => {
       delete draftState.workspaces[clusterUri];
     });
   }
 
-  getConnectedWorkspacesClustersUri() {
-    return (Object.keys(this.state.workspaces) as RootClusterUri[]).filter(
+  getConnectedWorkspacesClustersUri(): string[] {
+    return Object.keys(this.state.workspaces).filter(
       clusterUri => this.clustersService.findCluster(clusterUri)?.connected
     );
   }
@@ -269,7 +218,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   restorePersistedState(): void {
     const persistedState = this.statePersistenceService.getWorkspacesState();
     const restoredWorkspaces = this.clustersService
-      .getRootClusters()
+      .getClusters()
       .reduce((workspaces, cluster) => {
         const persistedWorkspace = persistedState.workspaces[cluster.uri];
         const workspaceDefaultState = this.getWorkspaceDefaultState(
@@ -301,7 +250,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     }
   }
 
-  private reopenPreviousDocuments(clusterUri: RootClusterUri): void {
+  private reopenPreviousDocuments(clusterUri: string): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
       workspace.documents = workspace.previous.documents.map(d => {
@@ -316,14 +265,6 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           return {
             ...d,
             status: 'connecting',
-            origin: 'reopened_session',
-          };
-        }
-
-        if (d.kind === 'doc.gateway') {
-          return {
-            ...d,
-            origin: 'reopened_session',
           };
         }
         return d;
@@ -333,7 +274,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     });
   }
 
-  private discardPreviousDocuments(clusterUri: RootClusterUri): void {
+  private discardPreviousDocuments(clusterUri: string): void {
     this.setState(draftState => {
       const workspace = draftState.workspaces[clusterUri];
       workspace.previous = undefined;
@@ -352,23 +293,19 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
     return (
       previousDocuments?.length &&
-      !arrayObjectIsEqual(
+      !isEqual(
         omitUriAndTitle(previousDocuments),
         omitUriAndTitle(currentDocuments)
       )
     );
   }
 
-  private getWorkspaceDefaultState(localClusterUri: ClusterUri): Workspace {
+  private getWorkspaceDefaultState(localClusterUri: string): Workspace {
     const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
     const defaultDocument = this.getWorkspaceDocumentService(
       rootClusterUri
     ).createClusterDocument({ clusterUri: localClusterUri });
     return {
-      accessRequests: {
-        pending: getEmptyPendingAccessRequest(),
-        isBarCollapsed: false,
-      },
       localClusterUri,
       location: defaultDocument.uri,
       documents: [defaultDocument],
@@ -376,7 +313,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
   }
 
   private persistState(): void {
-    const stateToSave: WorkspacesPersistedState = {
+    const stateToSave: WorkspacesState = {
       rootClusterUri: this.state.rootClusterUri,
       workspaces: {},
     };
@@ -391,7 +328,3 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     this.statePersistenceService.saveWorkspacesState(stateToSave);
   }
 }
-
-export type PendingAccessRequest = {
-  [k in ResourceKind]: Record<string, string>;
-};

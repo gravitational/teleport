@@ -24,13 +24,3 @@ func (r *RegisterUsingIAMMethodRequest) CheckAndSetDefaults() error {
 	}
 	return trace.Wrap(r.RegisterUsingTokenRequest.CheckAndSetDefaults())
 }
-
-func (r *RegisterUsingAzureMethodRequest) CheckAndSetDefaults() error {
-	if len(r.AttestedData) == 0 {
-		return trace.BadParameter("missing parameter AttestedData")
-	}
-	if len(r.AccessToken) == 0 {
-		return trace.BadParameter("missing parameter AccessToken")
-	}
-	return trace.Wrap(r.RegisterUsingTokenRequest.CheckAndSetDefaults())
-}

@@ -39,7 +39,7 @@ to only approve certain access requests (e.g. members of team `dev` may be permi
 approve access requests for `dev`, without necessarily being able to approve access requests
 for `admin`).
 
-- Support sufficiently granular configuration to allow scenarios such as "requires 2 dev
+- Support sufficiently granular confuguration to allow scenarios such as "requires 2 dev
 approvals or 1 admin approval" or "requires 2 dev approvals, but may be denied by any
 non-contractor".
 
@@ -137,7 +137,7 @@ spec:
 ```
 
 Within the above framework, we can model the current default behavior of access requests
-(applying the first proposed state-transition immediately) like so:
+(applying the first proposed state-transition immmediately) like so:
 
 ```yaml
 kind: role
@@ -202,10 +202,10 @@ state once whatever conditions that plugin cares about happen to be met.
 
 With more users being potentially eligible to approve requests, it may become necessary to
 provide hints for who should be reviewing a given request.  While it isn't feasible to
-directly notify a user via teleport (non-static users are lazily created on login), that
+direcly notify a user via teleport (non-static users are lazily created on login), that
 doesn't stop us from supporting a loose concept of *suggested* reviewers.
 
-When a user generates an access request, we can accept a list of arbitrary strings identifying
+When a user generates an access request, we can accept a list of arbitrary strings identiying
 suggested reviewers:
 
 ```
@@ -259,7 +259,7 @@ Given that annotations are of the form `map[string][]string`, the annotations of
 reviews could theoretically be "summed" (e.g. `{"hello": ["world"]}` and `{"hello": ["there"]}`
 become `{"hello": ["there","world"]}`).  This isn't a perfect solution, as it would prevent
 users from treating the order of annotations as meaningful, but that may be for the best.
-They were never intended to be meaningfully ordered, and this same kind of summing already
+They were never intended to be meaninfully ordered, and this same kind of summing already
 happens elsewhere.
 
 
@@ -321,7 +321,7 @@ they would resolve to (i.e. an approval for a specific set of roles counts only 
 request state with that exact set of roles).  Taking this strategy, the access request in the above
 example would remain in a `PENDING` state because `alice`, `bob`, and `carol` effectively proposed
 three separate possible outcomes.  Each possible outcome only has one supporting review, failing
-to meet the threshold of `2`.  This doesn't eliminate the possibility of nondeterminism due to ordering
+to meet the threshold of `2`.  This doesn't elminate the possibility of nondeterminism due to ordering
 (after all, 4 people voting for two possible states still results in a race), but it does ensure
 that no `APPROVED` state is reached that wasn't exactly supported by the requisite number of
 approvals.  Whether this is better than simply disabling the role override feature in the
@@ -339,7 +339,7 @@ a request for `staging` *and* `prod`, can `alice` approve the request if she sub
 `staging`? She obviously can't approve for `prod`, but granting `bob` access to `staging` is within her
 power.  If so, can she *deny* the request?  It would be strange to have someone with no explicit
 permissions allowing them to control access to `prod` be able to indirectly deny it.  On the other
-hand, if a given user is allowed to control access to a role, it seems equally strange to have them
+hand, if a given user is allowed to control acces to a role, it seems equally strange to have them
 be powerless to deny access to the role because of the presence of an unrelated role within the
 request.
 

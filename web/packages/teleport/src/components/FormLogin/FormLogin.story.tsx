@@ -34,7 +34,6 @@ const props: Props = {
   auth2faType: 'off',
   primaryAuthType: 'local',
   isPasswordlessEnabled: false,
-  privateKeyPolicyEnabled: false,
 };
 
 export default {
@@ -51,19 +50,6 @@ export const LocalWithWebauthn = () => (
 
 export const LocalWithOptional = () => (
   <FormLogin {...props} auth2faType="optional" />
-);
-
-export const LocalProcessing = () => (
-  <FormLogin
-    {...props}
-    auth2faType="optional"
-    attempt={{
-      isProcessing: true,
-      isFailed: false,
-      isSuccess: false,
-      message: '',
-    }}
-  />
 );
 
 export const LocalWithOnAndPwdless = () => (
@@ -119,10 +105,6 @@ export const LocalWithSsoAndPwdless = () => {
     />
   );
 };
-
-export const PrivateKeyPolicyEnabled = () => (
-  <FormLogin {...props} privateKeyPolicyEnabled={true} />
-);
 
 export const LocalDisabledWithSso = () => {
   const ssoProvider = [

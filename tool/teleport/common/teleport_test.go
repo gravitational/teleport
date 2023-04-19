@@ -137,24 +137,11 @@ func TestTeleportMain(t *testing.T) {
 			InitOnly: true,
 		})
 		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.BootstrapResources))
+		require.Equal(t, len(bootstrapEntries), len(conf.Auth.Resources))
 		for i, entry := range bootstrapEntries {
-			require.Equal(t, entry.kind, conf.Auth.BootstrapResources[i].GetKind(), entry.fileName)
-			require.Equal(t, entry.name, conf.Auth.BootstrapResources[i].GetName(), entry.fileName)
-			require.NoError(t, conf.Auth.BootstrapResources[i].CheckAndSetDefaults(), entry.fileName)
-		}
-	})
-	t.Run("ApplyOnStartup", func(t *testing.T) {
-		_, cmd, conf := Run(Options{
-			Args:     []string{"start", "--apply-on-startup", bootstrapFile},
-			InitOnly: true,
-		})
-		require.Equal(t, "start", cmd)
-		require.Equal(t, len(bootstrapEntries), len(conf.Auth.ApplyOnStartupResources))
-		for i, entry := range bootstrapEntries {
-			require.Equal(t, entry.kind, conf.Auth.ApplyOnStartupResources[i].GetKind(), entry.fileName)
-			require.Equal(t, entry.name, conf.Auth.ApplyOnStartupResources[i].GetName(), entry.fileName)
-			require.NoError(t, conf.Auth.ApplyOnStartupResources[i].CheckAndSetDefaults(), entry.fileName)
+			require.Equal(t, entry.kind, conf.Auth.Resources[i].GetKind(), entry.fileName)
+			require.Equal(t, entry.name, conf.Auth.Resources[i].GetName(), entry.fileName)
+			require.NoError(t, conf.Auth.Resources[i].CheckAndSetDefaults(), entry.fileName)
 		}
 	})
 }
@@ -218,11 +205,11 @@ func TestDumpConfigFile(t *testing.T) {
 }
 
 const configData = `
-version: v3
 teleport:
   advertise_ip: 10.5.5.5
   nodename: hvostongo.example.org
-  auth_server: auth.server.example.org:3024
+  auth_servers:
+    - auth.server.example.org:3024
   auth_token: xxxyyy
   log:
     output: stderr

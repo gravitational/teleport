@@ -20,48 +20,73 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
-import { Acl } from 'teleport/services/user';
+import { Access, Acl, makeUserContext } from 'teleport/services/user';
+import TeleportContext from 'teleport/teleportContext';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { getAcl, createTeleportContext } from 'teleport/mocks/contexts';
-import { getOSSFeatures } from 'teleport/features';
-import cfg from 'teleport/config';
-import {
-  SERVERS,
-  APPLICATIONS,
-  KUBERNETES,
-  WINDOWS_DESKTOPS,
-} from 'teleport/Discover/SelectResource/resources';
-import {
-  DATABASES,
-  DATABASES_UNGUIDED,
-  DATABASES_UNGUIDED_DOC,
-} from 'teleport/Discover/SelectResource/databases';
 
-import { ResourceKind } from './Shared';
+const fullAccess: Access = {
+  list: true,
+  read: true,
+  edit: true,
+  create: true,
+  remove: true,
+};
 
-const crypto = require('crypto');
+const fullAcl: Acl = {
+  tokens: fullAccess,
+  appServers: fullAccess,
+  kubeServers: fullAccess,
+  recordedSessions: fullAccess,
+  activeSessions: fullAccess,
+  authConnectors: fullAccess,
+  roles: fullAccess,
+  users: fullAccess,
+  trustedClusters: fullAccess,
+  events: fullAccess,
+  accessRequests: fullAccess,
+  billing: fullAccess,
+  dbServers: fullAccess,
+  desktops: fullAccess,
+  nodes: fullAccess,
+  clipboardSharingEnabled: true,
+  desktopSessionRecordingEnabled: true,
+  directorySharingEnabled: true,
+  connectionDiagnostic: fullAccess,
+};
 
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
+const userContextJson = {
+  authType: 'sso',
+  userName: 'Sam',
+  accessCapabilities: {
+    suggestedReviewers: ['george_washington@gmail.com', 'chad'],
+    requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
   },
-});
+  cluster: {
+    name: 'aws',
+    lastConnected: '2020-09-26T17:30:23.512876876Z',
+    status: 'online',
+    nodeCount: 1,
+    publicURL: 'localhost',
+    authVersion: '4.4.0-dev',
+    proxyVersion: '4.4.0-dev',
+  },
+};
 
 describe('discover', () => {
   function create(initialEntry: string, userAcl: Acl) {
-    const ctx = createTeleportContext({ customAcl: userAcl });
+    const ctx = new TeleportContext();
+
+    ctx.storeUser.state = makeUserContext({
+      ...userContextJson,
+      userAcl,
+    });
 
     return render(
-      <MemoryRouter
-        initialEntries={[
-          { pathname: cfg.routes.discover, state: { entity: initialEntry } },
-        ]}
-      >
+      <MemoryRouter initialEntries={[{ state: { entity: initialEntry } }]}>
         <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
+          <FeaturesContextProvider>
             <Discover />
           </FeaturesContextProvider>
         </TeleportContextProvider>
@@ -70,54 +95,32 @@ describe('discover', () => {
   }
 
   describe('server', () => {
-    test('shows all the servers when location state is server', () => {
-      create('server', getAcl());
+    test('shows the server view when the location state is server', () => {
+      create('server', {
+        ...fullAcl,
+      });
 
-      expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
-        SERVERS.length
-      );
+      expect(
+        screen.getByText(
+          /Teleport officially supports the following operating systems/
+        )
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
     });
   });
 
   describe('desktop', () => {
-    test('shows the desktops when the location state is desktop', () => {
-      create('desktop', getAcl());
+    test('shows the desktop view when the location state is desktop', () => {
+      create('desktop', {
+        ...fullAcl,
+      });
 
-      expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
-        WINDOWS_DESKTOPS.length
-      );
-    });
-  });
-
-  describe('application', () => {
-    test('shows the apps when the location state is application', () => {
-      create('application', getAcl());
-
-      expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
-        APPLICATIONS.length
-      );
-    });
-  });
-
-  describe('database', () => {
-    test('shows the database when the location state is database', () => {
-      create('database', getAcl());
-
-      expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
-        DATABASES.length +
-          DATABASES_UNGUIDED.length +
-          DATABASES_UNGUIDED_DOC.length
-      );
-    });
-  });
-
-  describe('kube', () => {
-    test('shows the kubes when the location state is kubernetes', () => {
-      create('kubernetes', getAcl());
-
-      expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
-        KUBERNETES.length
-      );
+      expect(
+        screen.getByText(
+          /Teleport Desktop Access currently only supports Windows Desktops managed by Active Directory/
+        )
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
     });
   });
 });

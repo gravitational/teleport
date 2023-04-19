@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-webauthn/webauthn/protocol"
-	wan "github.com/go-webauthn/webauthn/webauthn"
+	"github.com/duo-labs/webauthn/protocol"
+	wan "github.com/duo-labs/webauthn/webauthn"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
@@ -103,16 +103,16 @@ func sessionDataKey(user, sessionID string) string {
 //
 // Registration consists of:
 //
-//  1. Client requests a CredentialCreation (containing a challenge and various
-//     settings that may constrain allowed authenticators).
-//  2. Server runs Begin(), generates a credential creation.
-//  3. Client validates the credential creation, performs a user presence test
-//     (usually by asking the user to touch a secure token), and replies with a
-//     CredentialCreationResponse (containing the signed challenge and
-//     information about the credential and authenticator)
-//  4. Server runs Finish()
-//  5. If all server-side checks are successful, then registration is complete
-//     and the authenticator may now be used to login.
+// 1. Client requests a CredentialCreation (containing a challenge and various
+//    settings that may constrain allowed authenticators).
+// 2. Server runs Begin(), generates a credential creation.
+// 3. Client validates the credential creation, performs a user presence test
+//    (usually by asking the user to touch a secure token), and replies with a
+//    CredentialCreationResponse (containing the signed challenge and
+//    information about the credential and authenticator)
+// 4. Server runs Finish()
+// 5. If all server-side checks are successful, then registration is complete
+//    and the authenticator may now be used to login.
 type RegistrationFlow struct {
 	Webauthn *types.Webauthn
 	Identity RegistrationIdentity
@@ -175,10 +175,14 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	cc, sessionData, err := web.BeginRegistration(u, wan.WithExclusions(exclusions))
+	credentialCreation, sessionData, err := web.BeginRegistration(u, wan.WithExclusions(exclusions))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Copy settings manually, the framework doesn't do it.
+	credentialCreation.Response.AuthenticatorSelection = web.Config.AuthenticatorSelection
+	sessionData.UserVerification = web.Config.AuthenticatorSelection.UserVerification
 
 	// TODO(codingllama): Send U2F App ID back in creation requests too. Useful to
 	//  detect duplicate devices.
@@ -191,7 +195,7 @@ func (f *RegistrationFlow) Begin(ctx context.Context, user string, passwordless 
 		return nil, trace.Wrap(err)
 	}
 
-	return (*CredentialCreation)(cc), nil
+	return (*CredentialCreation)(credentialCreation), nil
 }
 
 func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIdentity) ([]byte, error) {

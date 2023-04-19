@@ -74,9 +74,7 @@ export function TextSelectCopyMulti({ lines, bash = true }: Props) {
               <Flex>
                 <Flex>
                   {bash && <Box mr="1">{`$`}</Box>}
-                  <div className="text-to-copy">
-                    <pre css={{ margin: 0 }}>{line.text}</pre>
-                  </div>
+                  <div className="text-to-copy">{line.text}</div>
                 </Flex>
                 <Box
                   pr={3}
@@ -86,8 +84,8 @@ export function TextSelectCopyMulti({ lines, bash = true }: Props) {
                   `}
                 >
                   <ButtonCopyCheck onClick={() => onCopyClick(index)}>
-                    <Icon className="icon-container" color="dark">
-                      <Copy data-testid="btn-copy" color="light" />
+                    <Icon className="icon-container">
+                      <Copy data-testid="btn-copy" />
                       <Check data-testid="btn-check" />
                     </Icon>
                   </ButtonCopyCheck>
@@ -130,11 +128,6 @@ const ButtonCopyCheck = styled(ButtonSecondary)`
   min-height: auto;
   padding: 0;
   margin-top: -4px;
-  background: rgba(255, 255, 255, 0.07);
-  &:hover,
-  &:focus {
-    background: rgba(255, 255, 255, 0.13);
-  }
 `;
 
 const Lines = styled(Box)`
@@ -144,7 +137,6 @@ const Lines = styled(Box)`
   font-family: ${({ theme }) => theme.fonts.mono};
   overflow: scroll;
   line-height: 20px;
-  color: ${props => props.theme.colors.light};
 `;
 
 type Line = {

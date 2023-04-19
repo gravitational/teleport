@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -41,14 +40,14 @@ type SSHServerHeartbeatConfig struct {
 	InventoryHandle inventory.DownstreamHandle
 	// GetServer gets the latest server spec.
 	GetServer func() *types.ServerV2
-
-	// -- below values are all optional
-
 	// Announcer is a fallback used to perform basic upsert-style heartbeats
 	// if the control stream is unavailable.
 	//
 	// DELETE IN: 11.0 (only exists for back-compat with v9 auth servers)
 	Announcer auth.Announcer
+
+	// -- below values are all optional
+
 	// OnHeartbeat is a per-attempt callback (optional).
 	OnHeartbeat func(error)
 	// AnnounceInterval is the interval at which heartbeats are attempted (optional).
@@ -63,6 +62,9 @@ func (c *SSHServerHeartbeatConfig) Check() error {
 	}
 	if c.GetServer == nil {
 		return trace.BadParameter("missing required parameter GetServer for ssh heartbeat")
+	}
+	if c.Announcer == nil {
+		return trace.BadParameter("missing required parameter Announcer for ssh heartbeat")
 	}
 	return nil
 }
@@ -102,14 +104,9 @@ const (
 	hbv2Start hbv2TestEvent = "hb-start"
 	hbv2Close hbv2TestEvent = "hb-close"
 
-	hbv2AnnounceInterval hbv2TestEvent = "hb-announce-interval"
+	hbv2AnnounceInterval = "hb-announce-interval"
 
-	hbv2FallbackBackoff hbv2TestEvent = "hb-fallback-backoff"
-
-	hbv2NoFallback hbv2TestEvent = "no-fallback"
-
-	hbv2OnHeartbeatOk  = "on-heartbeat-ok"
-	hbv2OnHeartbeatErr = "on-heartbeat-err"
+	hbv2FallbackBackoff = "hb-fallback-backoff"
 )
 
 // newHeartbeatV2 configures a new HeartbeatV2 instance to wrap a given implementation.
@@ -145,11 +142,10 @@ type HeartbeatV2 struct {
 
 	announceFailed error
 	fallbackFailed error
-	icsUnavailable error
 
-	announce      *interval.Interval
-	poll          *interval.Interval
-	degradedCheck *interval.Interval
+	announce *interval.Interval
+	poll     *interval.Interval
+	dc       *interval.Interval
 
 	// fallbackBackoffTime approximately replicate the backoff used by heartbeat V1 when an announce
 	// fails. It can be removed once we remove the fallback announce operation, since control-stream
@@ -174,9 +170,8 @@ type heartbeatV2Config struct {
 
 	// -- below values only used in tests
 
-	fallbackBackoff       time.Duration
-	testEvents            chan hbv2TestEvent
-	degradedCheckInterval time.Duration
+	fallbackBackoff time.Duration
+	testEvents      chan hbv2TestEvent
 }
 
 func (c *heartbeatV2Config) SetDefaults() {
@@ -193,12 +188,6 @@ func (c *heartbeatV2Config) SetDefaults() {
 		// only set externally during tests
 		c.fallbackBackoff = time.Minute
 	}
-
-	if c.degradedCheckInterval == 0 {
-		// a lot of integration tests rely on overriding ServerKeepAliveTTL to modify how
-		// quickly teleport detects that it is in a degraded state.
-		c.degradedCheckInterval = apidefaults.ServerKeepAliveTTL()
-	}
 }
 
 // noSenderErr is used to periodically trigger "degraded state" events when the control
@@ -210,13 +199,12 @@ func (h *HeartbeatV2) run() {
 	// so we just allocate something reasonably descriptive once.
 	h.announceFailed = trace.Errorf("control stream heartbeat failed (variant=%T)", h.inner)
 	h.fallbackFailed = trace.Errorf("upsert fallback heartbeat failed (variant=%T)", h.inner)
-	h.icsUnavailable = trace.Errorf("ics unavailable for heartbeat (variant=%T)", h.inner)
 
 	// set up interval for forced announcement (i.e. heartbeat even if state is unchanged).
 	h.announce = interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(h.announceInterval),
 		Duration:      h.announceInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer h.announce.Stop()
 
@@ -224,7 +212,7 @@ func (h *HeartbeatV2) run() {
 	h.poll = interval.New(interval.Config{
 		FirstDuration: utils.HalfJitter(h.pollInterval),
 		Duration:      h.pollInterval,
-		Jitter:        retryutils.NewSeventhJitter(),
+		Jitter:        utils.NewSeventhJitter(),
 	})
 	defer h.poll.Stop()
 
@@ -234,45 +222,40 @@ func (h *HeartbeatV2) run() {
 	// down.  Since we no longer perform keepalives, we instead simply emit an error on this
 	// interval when we don't have a healthy control stream.
 	// TODO(fspmarshall): find a more elegant solution to this problem.
-	h.degradedCheck = interval.New(interval.Config{
-		Duration: h.degradedCheckInterval,
+	h.dc = interval.New(interval.Config{
+		Duration: apidefaults.ServerKeepAliveTTL(),
 	})
-	defer h.degradedCheck.Stop()
+	defer h.dc.Stop()
 
 	h.testEvent(hbv2Start)
 	defer h.testEvent(hbv2Close)
 
 	for {
 		// outer loop performs announcement via the fallback method (used for backwards compatibility
-		// with older auth servers). Not all drivers support fallback.
+		// with older auth servers).
 
 		if h.shouldAnnounce {
-			if h.inner.SupportsFallback() {
-				if time.Now().After(h.fallbackBackoffTime) {
-					if ok := h.inner.FallbackAnnounce(h.closeContext); ok {
-						h.testEvent(hbv2FallbackOk)
-						// reset announce interval and state on successful announce
-						h.announce.Reset()
-						h.degradedCheck.Reset()
-						h.shouldAnnounce = false
-						h.onHeartbeat(nil)
+			if time.Now().After(h.fallbackBackoffTime) {
+				if ok := h.inner.FallbackAnnounce(h.closeContext); ok {
+					h.testEvent(hbv2FallbackOk)
+					// reset announce interval and state on successful announce
+					h.announce.Reset()
+					h.shouldAnnounce = false
+					h.onHeartbeat(nil)
 
-						// unblock tests waiting on an announce operation
-						for _, waiter := range h.announceWaiters {
-							close(waiter)
-						}
-						h.announceWaiters = nil
-					} else {
-						h.testEvent(hbv2FallbackErr)
-						// announce failed, enter a backoff state.
-						h.fallbackBackoffTime = time.Now().Add(utils.SeventhJitter(h.fallbackBackoff))
-						h.onHeartbeat(h.fallbackFailed)
+					// unblock tests waiting on an announce operation
+					for _, waiter := range h.announceWaiters {
+						close(waiter)
 					}
+					h.announceWaiters = nil
 				} else {
-					h.testEvent(hbv2FallbackBackoff)
+					h.testEvent(hbv2FallbackErr)
+					// announce failed, enter a backoff state.
+					h.fallbackBackoffTime = time.Now().Add(utils.SeventhJitter(h.fallbackBackoff))
+					h.onHeartbeat(h.fallbackFailed)
 				}
 			} else {
-				h.testEvent(hbv2NoFallback)
+				h.testEvent(hbv2FallbackBackoff)
 			}
 		}
 
@@ -283,7 +266,7 @@ func (h *HeartbeatV2) run() {
 		case sender := <-h.handle.Sender():
 			// sender is available, hand off to the primary run loop
 			h.runWithSender(sender)
-			h.degradedCheck.Reset()
+			h.dc.Reset()
 		case <-h.announce.Next():
 			h.testEvent(hbv2AnnounceInterval)
 			h.shouldAnnounce = true
@@ -294,11 +277,8 @@ func (h *HeartbeatV2) run() {
 			} else {
 				h.testEvent(hbv2PollSame)
 			}
-		case <-h.degradedCheck.Next():
-			if !h.inner.SupportsFallback() || (!h.inner.Poll() && !h.shouldAnnounce) {
-				// if we don't have fallback and/or aren't planning to hit the fallback
-				// soon, then we need to emit a heartbeat error in order to inform the
-				// rest of teleport that we are in a degraded state.
+		case <-h.dc.Next():
+			if !h.inner.Poll() && !h.shouldAnnounce {
 				h.onHeartbeat(noSenderErr)
 			}
 		case ch := <-h.testAnnounce:
@@ -322,7 +302,6 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 				h.testEvent(hbv2AnnounceOk)
 				// reset announce interval and state on successful announce
 				h.announce.Reset()
-				h.degradedCheck.Reset()
 				h.shouldAnnounce = false
 				h.onHeartbeat(nil)
 
@@ -351,12 +330,6 @@ func (h *HeartbeatV2) runWithSender(sender inventory.DownstreamSender) {
 				h.shouldAnnounce = true
 			} else {
 				h.testEvent(hbv2PollSame)
-			}
-		case <-h.degradedCheck.Next():
-			if !h.inner.Poll() && !h.shouldAnnounce {
-				// its been a while since we announced and we are not in a retry/announce
-				// state now, so clear up any degraded state.
-				h.onHeartbeat(nil)
 			}
 		case waiter := <-h.testAnnounce:
 			h.shouldAnnounce = true
@@ -404,11 +377,6 @@ func (h *HeartbeatV2) ForceSend(timeout time.Duration) error {
 }
 
 func (h *HeartbeatV2) onHeartbeat(err error) {
-	if err != nil {
-		h.testEvent(hbv2OnHeartbeatErr)
-	} else {
-		h.testEvent(hbv2OnHeartbeatOk)
-	}
 	if h.onHeartbeatInner == nil {
 		return
 	}
@@ -428,8 +396,6 @@ type heartbeatV2Driver interface {
 	FallbackAnnounce(ctx context.Context) (ok bool)
 	// Announce attempts to heartbeat via the inventory control stream.
 	Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool)
-	// SupportsFallback checks if the driver supports fallback.
-	SupportsFallback() bool
 }
 
 // sshServerHeartbeatV2 is the heartbeatV2 implementation for ssh servers.
@@ -444,10 +410,6 @@ func (h *sshServerHeartbeatV2) Poll() (changed bool) {
 		return true
 	}
 	return services.CompareServers(h.getServer(), h.prev) == services.Different
-}
-
-func (h *sshServerHeartbeatV2) SupportsFallback() bool {
-	return h.announcer != nil
 }
 
 func (h *sshServerHeartbeatV2) FallbackAnnounce(ctx context.Context) (ok bool) {

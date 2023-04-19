@@ -38,7 +38,6 @@ export default function FieldSelect({
   isSimpleValue = false,
   autoFocus = false,
   isDisabled = false,
-  elevated = false,
   ...styles
 }: Props) {
   const { valid, message } = useRule(rule(value));
@@ -47,13 +46,12 @@ export default function FieldSelect({
   return (
     <Box mb="4" {...styles}>
       {label && (
-        <LabelInput htmlFor={'select'} hasError={hasError}>
+        <LabelInput hasError={hasError}>
           {labelText}
           {labelTip && <LabelTip text={labelTip} />}
         </LabelInput>
       )}
       <Select
-        inputId="select"
         menuPosition={menuPosition}
         hasError={hasError}
         isSimpleValue={isSimpleValue}
@@ -67,7 +65,6 @@ export default function FieldSelect({
         isMulti={isMulti}
         autoFocus={autoFocus}
         isDisabled={isDisabled}
-        elevated={elevated}
       />
     </Box>
   );

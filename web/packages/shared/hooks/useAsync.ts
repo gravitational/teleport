@@ -14,7 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useCallback, useState, useRef, useEffect } from 'react';
+/* eslint-disable @typescript-eslint/ban-types */
+
+import { useCallback, useState } from 'react';
 
 /**
  * `useAsync` lets you represent the state of an async operation as data. It accepts an async function
@@ -56,66 +58,47 @@ import { useCallback, useState, useRef, useEffect } from 'react';
  *       return <UserAvatar url={fetchUserProfileAttempt.data.avatarUrl} />;
  *    }
  * }
- *
  */
-export function useAsync<Args extends unknown[], AttemptData>(
-  cb: (...args: Args) => Promise<AttemptData>
-) {
-  const [state, setState] = useState<Attempt<AttemptData>>(makeEmptyAttempt);
-  const isMounted = useIsMounted();
-  const asyncTask = useRef<Promise<AttemptData>>();
+export function useAsync<R, T extends Function>(cb?: AsyncCb<R, T>) {
+  const [state, setState] = useState<Attempt<R>>(makeEmptyAttempt);
 
   const run = useCallback(
-    (...args: Args) => {
-      setState(prevState => ({
-        ...prevState,
-        status: 'processing',
-      }));
-
-      const promise = cb(...args);
-      asyncTask.current = promise;
-
-      return promise.then(
-        data => {
-          if (!isMounted()) {
-            return [null, new CanceledError()] as [AttemptData, Error];
-          }
-          if (asyncTask.current !== promise) {
-            return [null, new CanceledError()] as [AttemptData, Error];
-          }
-
+    (...p: Parameters<AsyncCb<R, T>>) =>
+      Promise.resolve()
+        .then(() => {
           setState(prevState => ({
             ...prevState,
-            status: 'success',
-            data,
+            status: 'processing',
           }));
 
-          return [data, null] as [AttemptData, Error];
-        },
-        err => {
-          if (!isMounted()) {
-            return [null, new CanceledError()] as [AttemptData, Error];
-          }
-          if (asyncTask.current !== promise) {
-            return [null, new CanceledError()] as [AttemptData, Error];
-          }
+          return cb.call(null, ...p) as R;
+        })
+        .then(
+          data => {
+            setState(prevState => ({
+              ...prevState,
+              status: 'success',
+              data,
+            }));
 
-          setState(prevState => ({
-            ...prevState,
-            status: 'error',
-            statusText: err?.message,
-            data: null,
-          }));
+            return [data, null] as [R, Error];
+          },
+          err => {
+            setState(prevState => ({
+              ...prevState,
+              status: 'error',
+              statusText: err?.message,
+              data: null,
+            }));
 
-          return [null, err] as [AttemptData, Error];
-        }
-      );
-    },
-    [setState, cb, isMounted]
+            return [null, err] as [R, Error];
+          }
+        ),
+    [setState, cb]
   );
 
   const setAttempt = useCallback(
-    (attempt: Attempt<AttemptData>) => {
+    (attempt: Attempt<R>) => {
       setState(attempt);
     },
     [setState]
@@ -124,38 +107,11 @@ export function useAsync<Args extends unknown[], AttemptData>(
   return [state, run, setAttempt] as const;
 }
 
-function useIsMounted() {
-  const isMounted = useRef(false);
-
-  useEffect(() => {
-    isMounted.current = true;
-
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  return useCallback(() => isMounted.current, []);
-}
-
-export class CanceledError extends Error {
-  constructor() {
-    super('Ignored response from stale useAsync request');
-    this.name = 'CanceledError';
-  }
-}
-
-export type AttemptStatus = 'processing' | 'success' | 'error' | '';
-
 export type Attempt<T> = {
   data?: T;
-  status: AttemptStatus;
+  status: 'processing' | 'success' | 'error' | '';
   statusText: string;
 };
-
-export function hasFinished<T>(attempt: Attempt<T>): boolean {
-  return attempt.status === 'success' || attempt.status === 'error';
-}
 
 export function makeEmptyAttempt<T>(): Attempt<T> {
   return {
@@ -189,22 +145,45 @@ export function makeErrorAttempt<T>(statusText: string): Attempt<T> {
   };
 }
 
-/**
- * mapAttempt maps attempt data but only if the attempt is successful.
- */
-export function mapAttempt<A, B>(
-  attempt: Attempt<A>,
-  mapFunction: (attemptData: A) => B
-): Attempt<B> {
-  if (attempt.status !== 'success') {
-    return {
-      ...attempt,
-      data: null,
-    };
-  }
+type IsValidArg<T> = T extends object
+  ? keyof T extends never
+    ? false
+    : true
+  : true;
 
-  return {
-    ...attempt,
-    data: mapFunction(attempt.data),
-  };
-}
+type AsyncCb<R, T extends Function> = T extends (...args: any[]) => Promise<any>
+  ? T
+  : T extends (
+      a: infer A,
+      b: infer B,
+      c: infer C,
+      d: infer D,
+      e: infer E,
+      f: infer F,
+      g: infer G,
+      h: infer H,
+      i: infer I,
+      j: infer J
+    ) => Promise<R>
+  ? IsValidArg<J> extends true
+    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H, i: I, j: J) => Promise<R>
+    : IsValidArg<I> extends true
+    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H, i: I) => Promise<R>
+    : IsValidArg<H> extends true
+    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G, h: H) => Promise<R>
+    : IsValidArg<G> extends true
+    ? (a: A, b: B, c: C, d: D, e: E, f: F, g: G) => Promise<R>
+    : IsValidArg<F> extends true
+    ? (a: A, b: B, c: C, d: D, e: E, f: F) => Promise<R>
+    : IsValidArg<E> extends true
+    ? (a: A, b: B, c: C, d: D, e: E) => Promise<R>
+    : IsValidArg<D> extends true
+    ? (a: A, b: B, c: C, d: D) => Promise<R>
+    : IsValidArg<C> extends true
+    ? (a: A, b: B, c: C) => Promise<R>
+    : IsValidArg<B> extends true
+    ? (a: A, b: B) => Promise<R>
+    : IsValidArg<A> extends true
+    ? (a: A) => Promise<R>
+    : () => Promise<R>
+  : never;

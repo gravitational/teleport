@@ -19,9 +19,9 @@ package utils
 import (
 	"context"
 	"encoding/hex"
+	"sort"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 )
 
 // GetKubeClient returns instance of client to the kubernetes cluster
@@ -137,16 +138,17 @@ func GetKubeConfig(configPath string, allConfigEntries bool, clusterName string)
 //
 // It is hex encoded to allow wildcard matching to work. In DNS wildcard match
 // include only one '.'
+//
 func EncodeClusterName(clusterName string) string {
 	// k is to avoid first letter to be a number
 	return "k" + hex.EncodeToString([]byte(clusterName))
 }
 
-// KubeServicesPresence fetches a list of registered kubernetes servers.
+// KubeServicesPresence fetches a list of registered kubernetes services.
 // It's a subset of services.Presence.
 type KubeServicesPresence interface {
-	// GetKubernetesServers returns a list of registered kubernetes servers.
-	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+	// GetKubeServices returns a list of registered kubernetes services.
+	GetKubeServices(context.Context) ([]types.Server, error)
 }
 
 // KubeClusterNames returns a sorted list of unique kubernetes cluster
@@ -154,18 +156,18 @@ type KubeServicesPresence interface {
 //
 // DELETE IN 11.0.0, replaced by ListKubeClustersWithFilters
 func KubeClusterNames(ctx context.Context, p KubeServicesPresence) ([]string, error) {
-	kss, err := p.GetKubernetesServers(ctx)
+	kss, err := p.GetKubeServices(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return extractAndSortKubeClusterNames(kss), nil
 }
 
-func extractAndSortKubeClusterNames(kubeServers []types.KubeServer) []string {
-	kubeClusters := extractAndSortKubeClusters(kubeServers)
+func extractAndSortKubeClusterNames(kss []types.Server) []string {
+	kubeClusters := extractAndSortKubeClusters(kss)
 	kubeClusterNames := make([]string, len(kubeClusters))
 	for i := range kubeClusters {
-		kubeClusterNames[i] = kubeClusters[i].GetName()
+		kubeClusterNames[i] = kubeClusters[i].Name
 	}
 
 	return kubeClusterNames
@@ -175,21 +177,26 @@ func extractAndSortKubeClusterNames(kubeServers []types.KubeServer) []string {
 // registered in p.
 //
 // DELETE IN 11.0.0, replaced by ListKubeClustersWithFilters
-func KubeClusters(ctx context.Context, p KubeServicesPresence) ([]types.KubeCluster, error) {
-	kubeServers, err := p.GetKubernetesServers(ctx)
+func KubeClusters(ctx context.Context, p KubeServicesPresence) ([]*types.KubernetesCluster, error) {
+	kss, err := p.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return extractAndSortKubeClusters(kss), nil
+}
+
+// ListKubeClusterWithFilters returns a sorted list of unique kubernetes clusters
+// registered in p.
+func ListKubeClustersWithFilters(ctx context.Context, p client.ListResourcesClient, req proto.ListResourcesRequest) ([]*types.KubernetesCluster, error) {
+	req.ResourceType = types.KindKubeService
+	var kss []types.Server
+
+	resources, err := client.GetResourcesWithFilters(ctx, p, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return extractAndSortKubeClusters(kubeServers), nil
-}
-
-// ListKubeClustersWithFilters returns a sorted list of unique kubernetes clusters
-// registered in p.
-func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
-	req.ResourceType = types.KindKubeServer
-
-	kss, err := client.GetAllResources[types.KubeServer](ctx, p, &req)
+	kss, err = types.ResourcesWithLabels(resources).AsServers()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -197,22 +204,22 @@ func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClien
 	return extractAndSortKubeClusters(kss), nil
 }
 
-func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
-	uniqueClusters := make(map[string]types.KubeCluster)
+func extractAndSortKubeClusters(kss []types.Server) []*types.KubernetesCluster {
+	uniqueClusters := make(map[string]*types.KubernetesCluster)
 	for _, ks := range kss {
-		uniqueClusters[ks.GetName()] = ks.GetCluster()
+		for _, kc := range ks.GetKubernetesClusters() {
+			uniqueClusters[kc.Name] = kc
+		}
 	}
-	kubeClusters := make([]types.KubeCluster, 0, len(uniqueClusters))
+	kubeClusters := make([]*types.KubernetesCluster, 0, len(uniqueClusters))
 	for _, cluster := range uniqueClusters {
 		kubeClusters = append(kubeClusters, cluster)
 	}
-
-	sorted := types.KubeClusters(kubeClusters)
-	sorted.SortByCustom(types.SortBy{
-		Field: types.ResourceMetadataName,
+	sort.Slice(kubeClusters, func(i, j int) bool {
+		return kubeClusters[i].Name < kubeClusters[j].Name
 	})
 
-	return []types.KubeCluster(sorted)
+	return kubeClusters
 }
 
 // CheckOrSetKubeCluster validates kubeClusterName if it's set, or a sane
@@ -225,7 +232,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 		return "", trace.Wrap(err)
 	}
 	if kubeClusterName != "" {
-		if !slices.Contains(kubeClusterNames, kubeClusterName) {
+		if !apiutils.SliceContainsStr(kubeClusterNames, kubeClusterName) {
 			return "", trace.BadParameter("kubernetes cluster %q is not registered in this teleport cluster; you can list registered kubernetes clusters using 'tsh kube ls'", kubeClusterName)
 		}
 		return kubeClusterName, nil
@@ -236,7 +243,7 @@ func CheckOrSetKubeCluster(ctx context.Context, p KubeServicesPresence, kubeClus
 	if len(kubeClusterNames) == 0 {
 		return "", trace.NotFound("no kubernetes clusters registered")
 	}
-	if slices.Contains(kubeClusterNames, teleportClusterName) {
+	if apiutils.SliceContainsStr(kubeClusterNames, teleportClusterName) {
 		return teleportClusterName, nil
 	}
 	return kubeClusterNames[0], nil

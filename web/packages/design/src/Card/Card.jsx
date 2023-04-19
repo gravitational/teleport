@@ -17,16 +17,16 @@ limitations under the License.
 import styled from 'styled-components';
 
 import Box from './../Box';
-import { darkTheme } from './../theme';
+import theme from './../theme';
 
 const Card = styled(Box)`
-  box-shadow: ${props => props.theme.boxShadow[2]};
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
   border-radius: 8px;
 `;
 
 Card.defaultProps = {
-  theme: { darkTheme },
-  bg: 'levels.surface',
+  theme: theme,
+  bg: 'primary.light',
 };
 
 Card.displayName = 'Card';

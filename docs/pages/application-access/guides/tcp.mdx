@@ -12,7 +12,8 @@ Service.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
+
 - TCP application to connect to. In this guide we'll use a PostgreSQL running
   in Docker as an example. You can also use any TCP-based application you may
   already have.
@@ -77,10 +78,10 @@ Create the Application Service configuration file `/etc/teleport.yaml` with
 the following contents:
 
 ```yaml
-version: v3
 teleport:
   auth_token: "/tmp/token"
-  proxy_server: teleport.example.com:3080
+  auth_servers:
+  - teleport.example.com:3080
 auth_service:
   enabled: "no"
 ssh_service:
@@ -97,7 +98,7 @@ app_service:
 Note that the URI scheme must be `tcp://` in order for Teleport to recognize
 this as a TCP application.
 
-(!docs/pages/includes/start-teleport.mdx!)
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
 ## Step 3/4. Start app proxy
 

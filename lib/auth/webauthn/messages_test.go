@@ -19,8 +19,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/go-webauthn/webauthn/protocol"
-	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -236,55 +236,22 @@ func TestRequireResidentKey(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "discouraged and rrk=true",
+			name: "rrk=false",
 			in: protocol.AuthenticatorSelection{
-				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
-				RequireResidentKey: protocol.ResidentKeyRequired(),
+				RequireResidentKey: protocol.ResidentKeyUnrequired(),
 			},
-			wantErr: "invalid combination of ResidentKey",
-		},
-		{
-			name: "required and rrk=false",
-			in: protocol.AuthenticatorSelection{
-				ResidentKey:        protocol.ResidentKeyRequirementRequired,
-				RequireResidentKey: protocol.ResidentKeyNotRequired(),
-			},
-			wantErr: "invalid combination of ResidentKey",
+			want: false,
 		},
 		{
 			name: "support nil RequireResidentKey",
 			in: protocol.AuthenticatorSelection{
-				ResidentKey:        "",
 				RequireResidentKey: nil,
 			},
 			want: false,
 		},
 		{
-			name: "ResidentKey preferred result in false",
+			name: "use RequireResidentKey required",
 			in: protocol.AuthenticatorSelection{
-				ResidentKey:        protocol.ResidentKeyRequirementPreferred,
-				RequireResidentKey: nil,
-			},
-			want: false,
-		},
-		{
-			name: "ResidentKey required",
-			in: protocol.AuthenticatorSelection{
-				ResidentKey: protocol.ResidentKeyRequirementRequired,
-			},
-			want: true,
-		},
-		{
-			name: "ResidentKey discouraged",
-			in: protocol.AuthenticatorSelection{
-				ResidentKey: protocol.ResidentKeyRequirementDiscouraged,
-			},
-			want: false,
-		},
-		{
-			name: "use RequireResidentKey required if ResidentKey empty",
-			in: protocol.AuthenticatorSelection{
-				ResidentKey:        "",
 				RequireResidentKey: protocol.ResidentKeyRequired(),
 			},
 			want: true,

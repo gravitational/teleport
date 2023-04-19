@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
@@ -29,10 +28,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -84,7 +81,6 @@ type mockAccessChecker struct {
 
 	lockMode       constants.LockingMode
 	maxConnections int64
-	keyPolicy      keys.PrivateKeyPolicy
 	roleNames      []string
 }
 
@@ -96,72 +92,18 @@ func (m mockAccessChecker) MaxConnections() int64 {
 	return m.maxConnections
 }
 
-func (m mockAccessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
-	return m.keyPolicy
-}
 func (m mockAccessChecker) RoleNames() []string {
 	return m.roleNames
 }
 
 func TestSessionController_AcquireSessionContext(t *testing.T) {
+	t.Parallel()
+
 	clock := clockwork.NewFakeClock()
 	emitter := &eventstest.MockEmitter{}
 
-	minimalCfg := SessionControllerConfig{
-		Semaphores: mockSemaphores{},
-		AccessPoint: mockAccessPoint{
-			authPreference: &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{},
-			},
-			clusterName: &types.ClusterNameV2{
-				Spec: types.ClusterNameSpecV2{
-					ClusterName: "llama",
-				},
-			},
-		},
-		LockEnforcer: mockLockEnforcer{},
-		Emitter:      emitter,
-		Component:    teleport.ComponentNode,
-		ServerID:     "1234",
-	}
-
-	minimalIdentity := IdentityContext{
-		TeleportUser: "alpaca",
-		Login:        "alpaca",
-		Certificate: &ssh.Certificate{
-			KeyId: "alpaca",
-		},
-		AccessChecker: &mockAccessChecker{
-			keyPolicy: keys.PrivateKeyPolicyNone,
-		},
-	}
-
-	cfgWithDeviceMode := func(mode string) SessionControllerConfig {
-		cfg := minimalCfg
-		authPref, _ := cfg.AccessPoint.GetAuthPreference(context.Background())
-		authPref.(*types.AuthPreferenceV2).Spec.DeviceTrust = &types.DeviceTrust{
-			Mode: mode,
-		}
-		return cfg
-	}
-	identityWithDeviceExtensions := func() IdentityContext {
-		idCtx := minimalIdentity
-		idCtx.Certificate = &ssh.Certificate{
-			KeyId: "alpaca",
-			Permissions: ssh.Permissions{
-				Extensions: map[string]string{
-					teleport.CertExtensionDeviceID:           "deviceid1",
-					teleport.CertExtensionDeviceAssetTag:     "assettag1",
-					teleport.CertExtensionDeviceCredentialID: "credentialid1",
-				},
-			},
-		}
-		return idCtx
-	}
-
 	cases := []struct {
 		name      string
-		buildType string // defaults to modules.BuildOSS
 		cfg       SessionControllerConfig
 		identity  IdentityContext
 		assertion func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter)
@@ -189,13 +131,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				Login:        "alpaca",
 				Certificate: &ssh.Certificate{
 					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
+						Extensions: map[string]string{},
 					},
 				},
 				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
 				},
 			},
@@ -240,13 +179,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				Login:        "alpaca",
 				Certificate: &ssh.Certificate{
 					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
+						Extensions: map[string]string{},
 					},
 				},
 				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
 				},
 			},
@@ -281,13 +217,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				Login:        "alpaca",
 				Certificate: &ssh.Certificate{
 					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
+						Extensions: map[string]string{},
 					},
 				},
 				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
 				},
 			},
@@ -302,46 +235,6 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				require.Equal(t, events.SessionRejectedCode, evt.Metadata.Code)
 				require.Equal(t, events.EventProtocolSSH, evt.ConnectionMetadata.Protocol)
 				require.Equal(t, "lock in force", evt.Reason)
-			},
-		},
-		{
-			name: "session rejected due to private key policy",
-			cfg: SessionControllerConfig{
-				Clock:      clock,
-				Semaphores: mockSemaphores{},
-				AccessPoint: mockAccessPoint{
-					authPreference: &types.AuthPreferenceV2{
-						Spec: types.AuthPreferenceSpecV2{
-							LockingMode: constants.LockingModeStrict,
-						},
-					},
-					clusterName: &types.ClusterNameV2{Spec: types.ClusterNameSpecV2{ClusterName: "llama"}},
-				},
-				LockEnforcer: mockLockEnforcer{},
-				Emitter:      emitter,
-				Component:    teleport.ComponentNode,
-				ServerID:     "1234",
-			},
-			identity: IdentityContext{
-				TeleportUser: "alpaca",
-				Login:        "alpaca",
-				Certificate: &ssh.Certificate{
-					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
-					},
-				},
-				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyHardwareKey,
-					maxConnections: 1,
-				},
-			},
-			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter) {
-				require.Error(t, err)
-				require.True(t, trace.IsBadParameter(err))
-				require.NotNil(t, ctx)
-				require.Empty(t, emitter.Events())
 			},
 		},
 		{
@@ -374,13 +267,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				Login:        "alpaca",
 				Certificate: &ssh.Certificate{
 					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
+						Extensions: map[string]string{},
 					},
 				},
 				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 1,
 				},
 			},
@@ -429,13 +319,10 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				Login:        "alpaca",
 				Certificate: &ssh.Certificate{
 					Permissions: ssh.Permissions{
-						Extensions: map[string]string{
-							teleport.CertExtensionPrivateKeyPolicy: string(keys.PrivateKeyPolicyNone),
-						},
+						Extensions: map[string]string{},
 					},
 				},
 				AccessChecker: mockAccessChecker{
-					keyPolicy:      keys.PrivateKeyPolicyNone,
 					maxConnections: 0,
 				},
 			},
@@ -445,50 +332,17 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 				require.Empty(t, emitter.Events(), 0)
 			},
 		},
-		{
-			name:     "device extensions not enforced for OSS",
-			cfg:      cfgWithDeviceMode(constants.DeviceTrustModeRequired),
-			identity: minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
-				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
-			},
-		},
-		{
-			name:      "device extensions enforced for Enterprise",
-			buildType: modules.BuildEnterprise,
-			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
-			identity:  minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
-				assert.ErrorContains(t, err, "device", "AcquireSessionContext returned an unexpected error")
-				assert.True(t, trace.IsAccessDenied(err), "AcquireSessionContext returned an error other than trace.AccessDeniedError: %T", err)
-			},
-		},
-		{
-			name:      "device extensions valid for Enterprise",
-			buildType: modules.BuildEnterprise,
-			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
-			identity:  identityWithDeviceExtensions(),
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
-				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
-			},
-		},
 	}
+
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
-			buildType := tt.buildType
-			if buildType == "" {
-				buildType = modules.BuildOSS
-			}
-			modules.SetTestModules(t, &modules.TestModules{
-				TestBuildType: buildType,
-			})
-
 			emitter.Reset()
 			ctrl, err := NewSessionController(tt.cfg)
-			require.NoError(t, err, "NewSessionController failed")
+			require.NoError(t, err)
 
 			ctx, err := ctrl.AcquireSessionContext(context.Background(), tt.identity, "127.0.0.1:1", "127.0.0.1:2")
 			tt.assertion(t, ctx, err, emitter)
+
 		})
 	}
 }

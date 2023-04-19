@@ -23,7 +23,7 @@ import auth from 'teleport/services/auth';
 import { MfaDevice } from 'teleport/services/mfa';
 
 export default function useManageDevices(ctx: Ctx) {
-  const [devices, setDevices] = useState<MfaDevice[]>([]);
+  const [devices, setDevices] = useState<MfaDevice[]>();
   const [isDialogVisible, setIsDialogVisible] = useState(false);
   const [deviceToRemove, setDeviceToRemove] = useState<DeviceToRemove>();
   const [token, setToken] = useState('');

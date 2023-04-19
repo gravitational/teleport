@@ -1,6 +1,6 @@
 ---
 title: Using the tsh Command Line Tool
-description: This reference shows you how to use Teleport's tsh tool to authenticate to a cluster, explore your infrastructure, and connect to a resource.
+description: Using the tsh command line tool
 ---
 
 This guide will show you how to use the Teleport client tool, `tsh`.
@@ -13,7 +13,7 @@ You will learn how to:
   reverse tunnels.
 - Explore a cluster and execute commands on specific nodes in the cluster.
 - Share interactive shell sessions with colleagues or join someone else's session.
-- List and replay recorded interactive sessions.
+- Replay recorded interactive sessions.
 
 In addition to this document, you can always simply type `tsh` into your
 terminal for the CLI reference.
@@ -241,7 +241,7 @@ $ tsh status
 ```code
 $ tsh status
 
-# > Profile URL:  https://mytenant.teleport.sh:443
+# > Profile URL:  https://mytenant.teleport.sh:3080
 #   Logged in as: johndoe
 #  Cluster:      mytenant.teleport.sh
 #   Roles:        admin*
@@ -341,7 +341,7 @@ CI/CD pipeline.
 For this kind of automation, it is recommended to create a separate Teleport
 user for bots and request a certificate for them with a long time to live (TTL).
 
-In this example, we're creating a certificate with a TTL of one hour for the
+In this example, we're creating a certificate with a TTL of one hour for the 
 `jenkins` user and storing it in a `jenkins.pem` file, which can be later used with
 `-i` (identity) flag for `tsh`.
 
@@ -369,7 +369,7 @@ $ tctl auth sign --ttl=1h --user=jenkins --out=jenkins.pem
 [CLI Docs - tctl auth sign](../reference/cli.mdx#tctl-auth-sign)
 
 Now `jenkins.pem` can be copied to the Jenkins server and passed to the `-i`
-(identity file) flag of `tsh`.
+(identity file) flag of `tsh`. 
 
 `tctl auth sign` is an admin's equivalent of `tsh login --out` and allows for
 unrestricted certificate TTL values.
@@ -582,7 +582,7 @@ $ tsh logout
 ## Copying files
 
 To securely copy files to and from cluster Nodes, use the `tsh scp` command. It
-is designed to mimic OpenSSH's `scp` command as much as possible:
+is designed to mimic traditional `scp` as much as possible:
 
 ```code
 $ tsh scp example.txt root@node:/path/to/dest
@@ -594,10 +594,6 @@ scp"` and use the familiar syntax:
 ```code
 $ scp -P 61122 -r files root@node:/path/to/dest
 ```
-
-Starting from Teleport 9 the SCP and SFTP protocols are both supported by Server
-Access. OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
-if desired. 
 
 ## Sharing sessions
 
@@ -752,7 +748,7 @@ so that it can communicate directly with your local display and I/O devices.
   The `-Y` flag can be used to start Trusted X11 forwarding. This is needed
   in order to enable more "unsafe" features, such as running clipboard or
   screenshot utilities like `xclip`. However, it provides the server with
-  unmitigated access to your local X Server and puts your local machine at
+  unmitigated access to your local X Server and puts your local machine at 
   risk of X11 attacks, so it should only be used with extreme caution.
 </Notice>
 
@@ -836,45 +832,6 @@ The alias substitution happens before the command line flags are fully parsed. T
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
-```
-
-## Interactive Recording
-
-Within the Teleport cluster, server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
-The same listings, including Windows desktop sessions, are available in the Web Console under Session Recordings in the Activity section.
-
-### List and Play Recordings
-
-Get the list of recorded sessions. By default, recordings for the past 24 hours are shown.
-The time range can be customized with the `--last`, `--from-utc`, and `--to-utc` flags.
-
-```code
-$ tsh recordings ls
-ID                                   Type Participants Hostname Timestamp           
------------------------------------- ---- ------------ -------- ------------------- 
-b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC 
-c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC 
-d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC 
-```
-
-To play sessions, use the `tsh play <sessionid>` command. The screen will reset playing the interactive session with the timestamp in the upper right.
-
-```code
-$ tsh play c0a02222-70dc-4be8-9308-7b7901d2d600
-root@ubuntu:/# df                                                                     2022-11-26T21:20:52.715Z
-Filesystem     1K-blocks    Used Available Use% Mounted on
-overlay         20959212 4387284  16571928  21% /
-tmpfs              65536       0     65536   0% /dev
-tmpfs            1982720       0   1982720   0% /sys/fs/cgroup
-/dev/nvme0n1p1  20959212 4387284  16571928  21% /etc/hosts
-shm                65536       0     65536   0% /dev/shm
-tmpfs            3410436      12   3410424   1% /run/secrets/kubernetes.io/serviceaccount
-tmpfs            1982720       0   1982720   0% /proc/acpi
-tmpfs            1982720       0   1982720   0% /sys/firmware
-root@ubuntu:/# exit
-exit
-
-end of session playback
 ```
 
 ## Further reading

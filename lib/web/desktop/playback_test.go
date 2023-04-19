@@ -17,6 +17,7 @@ limitations under the License.
 package desktop_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,7 +28,7 @@ import (
 	"golang.org/x/net/websocket"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
@@ -71,7 +72,10 @@ func TestStreamsDesktopEvents(t *testing.T) {
 func newServer(t *testing.T, streamInterval time.Duration, events []apievents.AuditEvent) *httptest.Server {
 	t.Helper()
 
-	fs := eventstest.NewFakeStreamer(events, streamInterval)
+	fs := fakeStreamer{
+		interval: streamInterval,
+		events:   events,
+	}
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		websocket.Handler(func(ws *websocket.Conn) {
 			desktop.NewPlayer("session-id", ws, fs, utils.NewLoggerForTests()).Play(r.Context())
@@ -80,4 +84,39 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 	t.Cleanup(s.Close)
 
 	return s
+}
+
+// fakeStreamer streams the provided events, sending one every interval.
+// An interval of 0 sends the events immediately, throttled only by the
+// ability of the receiver to keep up.
+type fakeStreamer struct {
+	events   []apievents.AuditEvent
+	interval time.Duration
+}
+
+func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	errors := make(chan error, 1)
+	events := make(chan apievents.AuditEvent)
+
+	go func() {
+		defer close(events)
+
+		for _, event := range f.events {
+			if f.interval != 0 {
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(f.interval):
+				}
+			}
+
+			select {
+			case <-ctx.Done():
+				return
+			case events <- event:
+			}
+		}
+	}()
+
+	return events, errors
 }

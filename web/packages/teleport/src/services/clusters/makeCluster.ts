@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+import { at } from 'lodash';
 
 import { displayDateTime } from 'shared/services/loc';
 
@@ -20,48 +21,39 @@ import cfg from 'teleport/config';
 
 import { Cluster } from './types';
 
-export function makeCluster(json): Cluster {
-  const {
-    name,
+export default function makeCluster(json): Cluster {
+  const [
+    clusterId,
     lastConnected,
     status,
     nodeCount,
     publicURL,
     authVersion,
     proxyVersion,
-  } = json;
+  ] = at(json, [
+    'name',
+    'lastConnected',
+    'status',
+    'nodeCount',
+    'publicURL',
+    'authVersion',
+    'proxyVersion',
+  ]);
 
   const lastConnectedDate = new Date(lastConnected);
   const connectedText = displayDateTime(lastConnectedDate);
 
   return {
-    clusterId: name,
+    clusterId,
     lastConnected: lastConnectedDate,
     connectedText,
     status,
-    url: cfg.getClusterRoute(name),
+    url: cfg.getClusterRoute(clusterId),
     authVersion,
     nodeCount,
     publicURL,
     proxyVersion,
   };
-}
-
-export function makeClusterList(json: any): Cluster[] {
-  json = json || [];
-
-  const clusters = json.map(cluster => makeCluster(cluster));
-
-  // Sort by clusterId.
-  return clusters.sort((a, b) => {
-    if (a.clusterId < b.clusterId) {
-      return -1;
-    }
-    if (a.clusterId > b.clusterId) {
-      return 1;
-    }
-    return 0;
-  });
 }
 
 export const StatusEnum = {

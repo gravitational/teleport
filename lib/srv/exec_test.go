@@ -53,8 +53,6 @@ func TestMain(m *testing.M) {
 // TestEmitExecAuditEvent make sure the full command and exit code for a
 // command is always recorded.
 func TestEmitExecAuditEvent(t *testing.T) {
-	t.Parallel()
-
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
 
@@ -123,8 +121,6 @@ func TestEmitExecAuditEvent(t *testing.T) {
 }
 
 func TestLoginDefsParser(t *testing.T) {
-	t.Parallel()
-
 	expectedEnvSuPath := "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/bar"
 	expectedSuPath := "PATH=/usr/local/bin:/usr/bin:/bin:/foo"
 

@@ -27,22 +27,20 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/backend/lite"
 )
 
 func TestListWindowsDesktops(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	liteBackend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 
-	service := NewWindowsDesktopService(bk)
+	service := NewWindowsDesktopService(liteBackend)
 
 	// Initially we expect no desktops.
 	out, err := service.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
@@ -113,17 +111,15 @@ func TestListWindowsDesktops(t *testing.T) {
 
 func TestListWindowsDesktops_Filters(t *testing.T) {
 	t.Parallel()
-
 	ctx := context.Background()
-	clock := clockwork.NewFakeClock()
 
-	bk, err := memory.New(memory.Config{
-		Context: ctx,
-		Clock:   clock,
+	liteBackend, err := lite.NewWithConfig(ctx, lite.Config{
+		Path:  t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
 	})
 	require.NoError(t, err)
 
-	service := NewWindowsDesktopService(bk)
+	service := NewWindowsDesktopService(liteBackend)
 
 	// Upsert some windows desktops.
 

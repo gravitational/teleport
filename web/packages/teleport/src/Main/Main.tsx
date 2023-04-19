@@ -14,78 +14,48 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Suspense, useEffect, useMemo } from 'react';
+import * as RouterDOM from 'react-router-dom';
+import React, { Suspense } from 'react';
 import styled from 'styled-components';
 import { Indicator } from 'design';
 import { Failed } from 'design/CardError';
 
-import useAttempt from 'shared/hooks/useAttemptNext';
-
-import { matchPath, useHistory } from 'react-router';
-
-import { Redirect, Route, Switch } from 'teleport/components/Router';
+import { Redirect, Switch, Route } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import cfg from 'teleport/config';
-import useTeleport from 'teleport/useTeleport';
-import { TopBar } from 'teleport/TopBar';
+import SideNav from 'teleport/SideNav';
+import TopBar from 'teleport/TopBar';
 import { BannerList } from 'teleport/components/BannerList';
 import localStorage from 'teleport/services/localStorage';
+import history from 'teleport/services/history';
 
 import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
 
-import { Navigation } from 'teleport/Navigation';
-
-import { useAlerts } from 'teleport/components/BannerList/useAlerts';
-
-import { FeaturesContextProvider, useFeatures } from 'teleport/FeaturesContext';
-
-import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
-
-import { NavigationCategory } from 'teleport/Navigation/categories';
-
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
+import useMain from './useMain';
 
 import type { BannerType } from 'teleport/components/BannerList/BannerList';
-import type { TeleportFeature } from 'teleport/types';
 
 interface MainProps {
   initialAlerts?: ClusterAlert[];
   customBanners?: React.ReactNode[];
-  features: TeleportFeature[];
 }
 
 export function Main(props: MainProps) {
-  const ctx = useTeleport();
-  const history = useHistory();
-
-  const { attempt, setAttempt, run } = useAttempt('processing');
-
-  useEffect(() => {
-    if (ctx.storeUser.state) {
-      setAttempt({ status: 'success' });
-      return;
-    }
-
-    run(() => ctx.init());
-  }, []);
-
-  const featureFlags = ctx.getFeatureFlags();
-
-  const features = useMemo(
-    () => props.features.filter(feature => feature.hasAccess(featureFlags)),
-    [featureFlags, props.features]
-  );
-
-  const { alerts, dismissAlert } = useAlerts(props.initialAlerts);
+  const { alerts, ctx, customBanners, dismissAlert, status, statusText } =
+    useMain({
+      initialAlerts: props.initialAlerts,
+      customBanners: props.customBanners,
+    });
 
   const [showOnboardDiscover, setShowOnboardDiscover] = React.useState(true);
 
-  if (attempt.status === 'failed') {
-    return <Failed message={attempt.statusText} />;
+  if (status === 'failed') {
+    return <Failed message={statusText} />;
   }
 
-  if (attempt.status !== 'success') {
+  if (status !== 'success') {
     return (
       <StyledIndicator>
         <Indicator />
@@ -108,17 +78,25 @@ export function Main(props: MainProps) {
     localStorage.setOnboardDiscover({ ...discover, notified: true });
   }
 
-  // redirect to the default feature when hitting the root /web URL
-  if (
-    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
-  ) {
-    const indexRoute = getFirstRouteForCategory(
-      features,
-      NavigationCategory.Resources
+  // render feature routes
+  const $features = ctx.features.map((f, index) => {
+    const { path, title, exact, component } = f.route;
+    const Cmpt = component;
+    return (
+      <Route title={title} key={index} path={path} exact={exact}>
+        <CatchError>
+          <Suspense fallback={null}>
+            <Cmpt />
+          </Suspense>
+        </CatchError>
+      </Route>
     );
+  });
 
-    return <Redirect to={indexRoute} />;
-  }
+  // default feature to show when hitting the index route
+  const indexRoute =
+    ctx.storeNav.getSideItems()[0]?.getLink(cfg.proxyCluster) ||
+    cfg.routes.support;
 
   // The backend defines the severity as an integer value with the current
   // pre-defined values: LOW: 0; MEDIUM: 5; HIGH: 10
@@ -144,20 +122,21 @@ export function Main(props: MainProps) {
     onboard && !onboard.hasResource && !onboard.notified;
 
   return (
-    <FeaturesContextProvider value={features}>
+    <>
+      <RouterDOM.Switch>
+        <Redirect exact={true} from={cfg.routes.root} to={indexRoute} />
+      </RouterDOM.Switch>
       <BannerList
         banners={banners}
-        customBanners={props.customBanners}
+        customBanners={customBanners}
         onBannerDismiss={dismissAlert}
       >
         <MainContainer>
-          <Navigation />
+          <SideNav />
           <HorizontalSplit>
             <ContentMinWidth>
-              <Suspense fallback={null}>
-                <TopBar />
-                <FeatureRoutes />
-              </Suspense>
+              <TopBar />
+              <Switch>{$features}</Switch>
             </ContentMinWidth>
           </HorizontalSplit>
         </MainContainer>
@@ -165,37 +144,8 @@ export function Main(props: MainProps) {
       {requiresOnboarding && showOnboardDiscover && (
         <OnboardDiscover onClose={handleOnClose} onOnboard={handleOnboard} />
       )}
-    </FeaturesContextProvider>
+    </>
   );
-}
-
-function renderRoutes(features: TeleportFeature[]) {
-  const routes = [];
-
-  for (const [index, feature] of features.entries()) {
-    if (feature.route) {
-      const { path, title, exact, component: Component } = feature.route;
-
-      routes.push(
-        <Route title={title} key={index} path={path} exact={exact}>
-          <CatchError>
-            <Suspense fallback={null}>
-              <Component />
-            </Suspense>
-          </CatchError>
-        </Route>
-      );
-    }
-  }
-
-  return routes;
-}
-
-function FeatureRoutes() {
-  const features = useFeatures();
-  const routes = renderRoutes(features);
-
-  return <Switch>{routes}</Switch>;
 }
 
 export const ContentMinWidth = styled.div`

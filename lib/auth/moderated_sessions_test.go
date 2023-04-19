@@ -20,6 +20,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -30,10 +31,11 @@ import (
 )
 
 // TestUnmoderatedSessionsAllowed tests that we allow creating unmoderated sessions even if the
-// license does not support the moderated sessions feature.
+// moderated sessions feature is disabled via modules.
 func TestUnmoderatedSessionsAllowed(t *testing.T) {
-	// Use OSS License (which doesn't support moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		ModeratedSessions: false, // Explicily turn off moderated sessions.
+	}})
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),
@@ -57,11 +59,12 @@ func TestUnmoderatedSessionsAllowed(t *testing.T) {
 	require.NotNil(t, tracker)
 }
 
-// TestModeratedSessionsDisabled makes sure moderated sessions are disabled when the license does not support it.
+// TestModeratedSessionsDisabled makes sure moderated sessions can be disabled via modules.
 // Since moderated sessions require trackers, we mediate this in the tracker creation function.
 func TestModeratedSessionsDisabled(t *testing.T) {
-	// Use OSS License (which doesn't support moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildOSS})
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		ModeratedSessions: false, // Explicily turn off moderated sessions.
+	}})
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),
@@ -93,15 +96,17 @@ func TestModeratedSessionsDisabled(t *testing.T) {
 
 	tracker, err = srv.CreateSessionTracker(context.Background(), tracker)
 	require.Error(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 	require.Nil(t, tracker)
-	require.ErrorIs(t, err, ErrRequiresEnterprise)
+	require.Contains(t, err.Error(), "this Teleport cluster is not licensed for moderated sessions, please contact the cluster administrator")
 }
 
 // TestModeratedSessionsEnabled verifies that we can create session trackers with moderation
-// requirements when the license supports it.
+// requirements when the feature is enabled.
 func TestModeratedSesssionsEnabled(t *testing.T) {
-	// Use Enterprise License (which supports moderated sessions).
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
+		ModeratedSessions: true,
+	}})
 
 	srv := &Server{
 		clock:    clockwork.NewRealClock(),

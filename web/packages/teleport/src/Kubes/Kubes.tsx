@@ -29,7 +29,7 @@ import useTeleport from 'teleport/useTeleport';
 
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import { useKubes, State } from './useKubes';
+import useKubes, { State } from './useKubes';
 
 export default function Container() {
   const ctx = useTeleport();
@@ -47,12 +47,15 @@ export function Kubes(props: State) {
     isLeafCluster,
     clusterId,
     canCreate,
-    fetchedData,
+    results,
     fetchNext,
     fetchPrev,
+    from,
+    to,
     pageSize,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
@@ -60,13 +63,9 @@ export function Kubes(props: State) {
     isSearchEmpty,
     onLabelClick,
     accessRequestId,
-    pageIndicators,
   } = props;
 
-  const hasNoKubes =
-    attempt.status === 'success' &&
-    fetchedData.agents.length === 0 &&
-    isSearchEmpty;
+  const hasNoKubes = results.kubes.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -90,24 +89,30 @@ export function Kubes(props: State) {
         </Box>
       )}
       {attempt.status !== 'processing' && !hasNoKubes && (
-        <KubeList
-          kubes={fetchedData.agents}
-          username={username}
-          authType={authType}
-          clusterId={clusterId}
-          fetchNext={fetchNext}
-          fetchPrev={fetchPrev}
-          fetchStatus={fetchStatus}
-          pageIndicators={pageIndicators}
-          pageSize={pageSize}
-          params={params}
-          setParams={setParams}
-          setSort={setSort}
-          pathname={pathname}
-          replaceHistory={replaceHistory}
-          onLabelClick={onLabelClick}
-          accessRequestId={accessRequestId}
-        />
+        <>
+          <KubeList
+            kubes={results.kubes}
+            username={username}
+            authType={authType}
+            clusterId={clusterId}
+            fetchNext={fetchNext}
+            fetchPrev={fetchPrev}
+            fetchStatus={fetchStatus}
+            from={from}
+            to={to}
+            totalCount={results.totalCount}
+            pageSize={pageSize}
+            params={params}
+            setParams={setParams}
+            startKeys={startKeys}
+            setSort={setSort}
+            pathname={pathname}
+            replaceHistory={replaceHistory}
+            onLabelClick={onLabelClick}
+            accessRequestId={accessRequestId}
+            paginationUnsupported={results.paginationUnsupported}
+          />
+        </>
       )}
       {attempt.status === 'success' && hasNoKubes && (
         <Empty

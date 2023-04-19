@@ -32,6 +32,15 @@ export const Loading = () => (
   </MemoryRouter>
 );
 
+export const PaginationUnsupported = () => (
+  <MemoryRouter>
+    <Desktops
+      {...props}
+      results={{ ...props.results, paginationUnsupported: true }}
+    />
+  </MemoryRouter>
+);
+
 export const Loaded = () => (
   <MemoryRouter>
     <Desktops {...props} />
@@ -40,7 +49,7 @@ export const Loaded = () => (
 
 export const Empty = () => (
   <MemoryRouter>
-    <Desktops {...props} fetchedData={{ agents: [] }} isSearchEmpty={true} />
+    <Desktops {...props} results={{ desktops: [] }} isSearchEmpty={true} />
   </MemoryRouter>
 );
 
@@ -54,8 +63,8 @@ export const Failed = () => (
 );
 
 export const props: State = {
-  fetchedData: {
-    agents: desktops,
+  results: {
+    desktops,
     totalCount: desktops.length,
   },
   fetchStatus: '',
@@ -69,15 +78,8 @@ export const props: State = {
   fetchNext: () => null,
   fetchPrev: () => null,
   pageSize: desktops.length,
-  pageIndicators: {
-    from: 1,
-    to: desktops.length,
-    totalCount: desktops.length,
-  },
-  page: {
-    index: 0,
-    keys: [],
-  },
+  from: 1,
+  to: desktops.length,
   params: {
     search: '',
     query: '',
@@ -85,6 +87,7 @@ export const props: State = {
   },
   setParams: () => null,
   setSort: () => null,
+  startKeys: [''],
   pathname: '',
   replaceHistory: () => null,
   isSearchEmpty: false,

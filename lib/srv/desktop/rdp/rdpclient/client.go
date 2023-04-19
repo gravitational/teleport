@@ -66,8 +66,8 @@ import "C"
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
+	"image"
 	"os"
 	"runtime/cgo"
 	"sync"
@@ -138,10 +138,9 @@ type Client struct {
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 
-	// png2FrameBuffer is used in the handlePNG function
-	// to avoid allocation of the buffer on each png as
-	// that part of the code is performance-sensitive.
-	png2FrameBuffer []byte
+	// since most RDP bitmaps are full 64x64 pixel bitmaps,
+	// we reuse the same image to avoid allocating on each bitmap
+	img *image.RGBA
 
 	clientActivityMu sync.RWMutex
 	clientLastActive time.Time
@@ -242,21 +241,19 @@ func (c *Client) connect(ctx context.Context) error {
 
 	res := C.connect_rdp(
 		C.uintptr_t(c.handle),
-		C.CGOConnectParams{
-			go_addr:     addr,
-			go_username: username,
-			// cert length and bytes.
-			cert_der_len: C.uint32_t(len(userCertDER)),
-			cert_der:     (*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
-			// key length and bytes.
-			key_der_len:             C.uint32_t(len(userKeyDER)),
-			key_der:                 (*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
-			screen_width:            C.uint16_t(c.clientWidth),
-			screen_height:           C.uint16_t(c.clientHeight),
-			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
-			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
-			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
-		},
+		addr,
+		username,
+		// cert length and bytes.
+		C.uint32_t(len(userCertDER)),
+		(*C.uint8_t)(unsafe.Pointer(&userCertDER[0])),
+		// key length and bytes.
+		C.uint32_t(len(userKeyDER)),
+		(*C.uint8_t)(unsafe.Pointer(&userKeyDER[0])),
+		// screen size.
+		C.uint16_t(c.clientWidth),
+		C.uint16_t(c.clientHeight),
+		C.bool(c.cfg.AllowClipboard),
+		C.bool(c.cfg.AllowDirectorySharing),
 	)
 	if res.err != C.ErrCodeSuccess {
 		return trace.ConnectionProblem(nil, "RDP connection failed")
@@ -279,7 +276,7 @@ func (c *Client) start() {
 		c.cfg.Log.Info("RDP output streaming starting")
 
 		// C.read_rdp_output blocks for the duration of the RDP connection and
-		// calls handle_png repeatedly with the incoming pngs.
+		// calls handle_bitmap repeatedly with the incoming bitmaps.
 		res := C.read_rdp_output(c.rustClient)
 
 		// Copy the returned message and free the C memory.
@@ -330,9 +327,6 @@ func (c *Client) start() {
 			msg, err := c.cfg.Conn.ReadMessage()
 			if utils.IsOKNetworkError(err) {
 				return
-			} else if tdp.IsNonFatalErr(err) {
-				c.cfg.Conn.SendNotification(err.Error(), tdp.SeverityWarning)
-				continue
 			} else if err != nil {
 				c.cfg.Log.Warningf("Failed reading TDP input message: %v", err)
 				return
@@ -585,35 +579,59 @@ func (c *Client) start() {
 	}()
 }
 
-//export handle_png
-func handle_png(handle C.uintptr_t, cb *C.CGOPNG) C.CGOErrCode {
-	return cgo.Handle(handle).Value().(*Client).handlePNG(cb)
+//export handle_bitmap
+func handle_bitmap(handle C.uintptr_t, cb *C.CGOBitmap) C.CGOErrCode {
+	return cgo.Handle(handle).Value().(*Client).handleBitmap(cb)
 }
 
-func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
+func (c *Client) handleBitmap(cb *C.CGOBitmap) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
-	// from the fact that a png was sent.
+	// from the fact that a bitmap was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
 	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice
 	// creates a Go slice backed by data managed from Rust - it does not
-	// copy.
+	// copy. This way we only need one copy into img.Pix below.
 	ptr := unsafe.Pointer(cb.data_ptr)
 	uptr := (*uint8)(ptr)
 	data := unsafe.Slice(uptr, int(cb.data_len))
 
-	c.png2FrameBuffer = c.png2FrameBuffer[:0]
-	c.png2FrameBuffer = append(c.png2FrameBuffer, byte(tdp.TypePNG2Frame))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(len(data)))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_left))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_top))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_right))
-	c.png2FrameBuffer = binary.BigEndian.AppendUint32(c.png2FrameBuffer, uint32(cb.dest_bottom))
-	c.png2FrameBuffer = append(c.png2FrameBuffer, data...)
+	// Convert BGRA to RGBA. It's likely due to Windows using uint32 values for
+	// pixels (ARGB) and encoding them as big endian. The image.RGBA type uses
+	// a byte slice with 4-byte segments representing pixels (RGBA).
+	//
+	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpegdi/8ab64b94-59cb-43f4-97ca-79613838e0bd
+	//
+	// Also, always force Alpha value to 100% (opaque). On some Windows
+	// versions (e.g. Windows 10) it's sent as 0% after decompression for some reason.
+	for i := 0; i < len(data); i += 4 {
+		data[i], data[i+2], data[i+3] = data[i+2], data[i], 255
+	}
 
-	if err := c.cfg.Conn.WriteMessage(tdp.PNG2Frame(c.png2FrameBuffer)); err != nil {
-		c.cfg.Log.Errorf("failed to write PNG2Frame: %v", err)
+	rect := image.Rectangle{
+		Min: image.Pt(int(cb.dest_left), int(cb.dest_top)),
+		Max: image.Pt(int(cb.dest_right)+1, int(cb.dest_bottom)+1),
+	}
+
+	var img *image.RGBA
+	isFullBitmap := cb.dest_right-cb.dest_left == 63 &&
+		cb.dest_bottom-cb.dest_top == 63
+	if isFullBitmap {
+		if c.img == nil {
+			c.img = image.NewRGBA(rect)
+		} else {
+			c.img.Rect = rect
+		}
+		img = c.img
+	} else {
+		img = image.NewRGBA(rect)
+	}
+
+	copy(img.Pix, data)
+
+	if err := c.cfg.Conn.WriteMessage(tdp.NewPNG(img, c.cfg.Encoder)); err != nil {
+		c.cfg.Log.Errorf("failed to send PNG frame %v: %v", img.Rect, err)
 		return C.ErrCodeFailure
 	}
 	return C.ErrCodeSuccess

@@ -18,15 +18,15 @@ import React, { useCallback, useContext, useEffect, useState } from 'react';
 
 import { useTeleport } from 'teleport';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
-import {
-  INTERNAL_RESOURCE_ID_LABEL_KEY,
-  JoinToken,
-} from 'teleport/services/joinToken';
+import { INTERNAL_RESOURCE_ID_LABEL_KEY } from 'teleport/services/joinToken';
+import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
 import { ResourceKind } from 'teleport/Discover/Shared/ResourceKind';
 
 interface PingTeleportContextState<T> {
   active: boolean;
-  start: (tokenOrTerm: JoinToken | string) => void;
+  start: () => void;
+  timeout: number;
+  timedOut: boolean;
   result: T | null;
 }
 
@@ -34,28 +34,19 @@ const pingTeleportContext =
   React.createContext<PingTeleportContextState<any>>(null);
 
 export function PingTeleportProvider<T>(props: {
+  timeout: number;
   interval?: number;
   children?: React.ReactNode;
   resourceKind: ResourceKind;
 }) {
   const ctx = useTeleport();
 
-  // Start in an inactive state so that polling doesn't begin
-  // until a call to usePingTeleport passes in the joinToken or
-  // searchTerm.
   const [active, setActive] = useState(false);
+  const [timeout, setPollTimeout] = useState<number>(null);
 
-  // searchTerm can be passed in by the caller of usePingTeleport
-  // to be used as the search term.
-  // Applies to certain resource's eg: looking up database server
-  // that proxies a database that goes by this searchTerm (eg. resourceName).
-  const [searchTerm, setSearchTerm] = useState('');
+  const joinToken = useJoinTokenValue();
 
-  // joinToken can be passed in by the caller of usePingTeleport to have its
-  // internalResourceId used as the search term.
-  const [joinToken, setJoinToken] = useState<JoinToken | null>(null);
-
-  const result = usePoll<T>(
+  const { timedOut, result } = usePoll<T>(
     signal =>
       servicesFetchFn(signal).then(res => {
         if (res.agents.length) {
@@ -64,20 +55,17 @@ export function PingTeleportProvider<T>(props: {
 
         return null;
       }),
+    timeout,
     active,
     props.interval
   );
 
   function servicesFetchFn(signal: AbortSignal) {
     const clusterId = ctx.storeUser.getClusterId();
-    const search =
-      searchTerm ||
-      `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`;
     const request = {
-      search,
+      search: `${INTERNAL_RESOURCE_ID_LABEL_KEY} ${joinToken.internalResourceId}`,
       limit: 1,
     };
-
     switch (props.resourceKind) {
       case ResourceKind.Server:
         return ctx.nodeService.fetchNodes(clusterId, request, signal);
@@ -89,57 +77,46 @@ export function PingTeleportProvider<T>(props: {
         );
       case ResourceKind.Kubernetes:
         return ctx.kubeService.fetchKubernetes(clusterId, request, signal);
-      case ResourceKind.Database:
-        return ctx.databaseService.fetchDatabases(clusterId, request, signal);
+      // TODO (when we start implementing them)
+      // the fetch XXX needs a param defined for abort signal
+      // case 'app':
+      // case 'db':
     }
   }
 
-  // start is called by usePingTeleport. It begins polling if polling is not
-  // yet active AND we haven't yet found a result.
-  // start updates state to start polling.
-  const start = useCallback((tokenOrTerm: JoinToken | string) => {
-    if (typeof tokenOrTerm === 'string') {
-      setSearchTerm(tokenOrTerm);
-    } else {
-      setJoinToken(tokenOrTerm);
+  useEffect(() => {
+    if (active && Date.now() > timeout) {
+      setActive(false);
     }
+  }, [active, timeout, timedOut]);
+
+  const start = useCallback(() => {
+    setPollTimeout(Date.now() + props.timeout);
     setActive(true);
-  }, []);
+  }, [props.timeout]);
 
   useEffect(() => {
     if (result) {
-      // Once we get a result, stop the polling.
-      // This result will be passed down to all consumers of
-      // this context.
+      setPollTimeout(null);
       setActive(false);
     }
   }, [result]);
 
   return (
     <pingTeleportContext.Provider
-      value={{
-        active,
-        start,
-        result,
-      }}
+      value={{ active, start, result, timedOut, timeout }}
     >
       {props.children}
     </pingTeleportContext.Provider>
   );
 }
 
-/**
- * usePingTeleport, when first called within a component hierarchy wrapped by
- * PingTeleportProvider, will poll the server for the resource described by
- * the internal resource id on the joinToken or the search term.
- */
-export function usePingTeleport<T>(tokenOrTerm: JoinToken | string) {
+export function usePingTeleport<T>() {
   const ctx = useContext<PingTeleportContextState<T>>(pingTeleportContext);
 
   useEffect(() => {
-    // start polling only on the first call to usePingTeleport
     if (!ctx.active && !ctx.result) {
-      ctx.start(tokenOrTerm);
+      ctx.start();
     }
   }, []);
 

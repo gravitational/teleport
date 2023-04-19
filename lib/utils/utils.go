@@ -426,6 +426,16 @@ func (p *PortList) PopInt() int {
 	return i
 }
 
+// PopIntSlice returns a slice of values from the list, it panics if not enough
+// ports were allocated
+func (p *PortList) PopIntSlice(num int) []int {
+	ports := make([]int, num)
+	for i := range ports {
+		ports[i] = p.PopInt()
+	}
+	return ports
+}
+
 // PortStartingNumber is a starting port number for tests
 const PortStartingNumber = 20000
 
@@ -440,12 +450,6 @@ func GetFreeTCPPorts(n int, offset ...int) (PortList, error) {
 		list = append(list, strconv.Itoa(i))
 	}
 	return PortList{ports: list}, nil
-}
-
-// HostUUIDExistsLocally checks if dataDir/host_uuid file exists in local storage.
-func HostUUIDExistsLocally(dataDir string) bool {
-	_, err := ReadHostUUID(dataDir)
-	return err == nil
 }
 
 // ReadHostUUID reads host UUID from the file in the data dir
@@ -637,21 +641,6 @@ func HasPrefixAny(prefix string, values []string) bool {
 	}
 
 	return false
-}
-
-// ByteCount converts a size in bytes to a human-readable string.
-func ByteCount(b int64) string {
-	const unit = 1000
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB",
-		float64(b)/float64(div), "kMGTPE"[exp])
 }
 
 // ErrLimitReached means that the read limit is reached.

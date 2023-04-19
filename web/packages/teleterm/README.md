@@ -9,9 +9,6 @@ docs](https://goteleport.com/docs/connect-your-client/teleport-connect/).
 
 ## Building and packaging
 
-**Note: At the moment, the OSS build of Connect is broken. Please refer to
-[#17706](https://github.com/gravitational/teleport/issues/17706) for a temporary workaround.**
-
 Teleport Connect consists of two main components: the `tsh` tool and the Electron app.
 
 To get started, first we need to build `tsh`.
@@ -91,16 +88,6 @@ var is used to provide the path to the tsh binary that will be included in the p
 See [Teleport Connect build
 process](https://gravitational.slab.com/posts/teleport-connect-build-process-fu6da5ld) on Slab for
 bulid process documentation that is specific to Gravitational.
-
-### Native dependencies
-
-If node-pty doesn't provide precompiled binaries for your system and the specific Electron version,
-you will need to install [the dependencies required by
-node-pty](https://github.com/microsoft/node-pty#dependencies).
-
-### Linux
-
-To create arm64 deb and RPM packages you need to provide `USE_SYSTEM_FPM=1` env var.
 
 ### macOS
 

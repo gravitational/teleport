@@ -14,11 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { formatDatabaseInfo } from 'shared/services/databases';
+import { Database, DbType, DbProtocol } from './types';
 
-import { Database, DatabaseService } from './types';
-
-export function makeDatabase(json: any): Database {
+export default function makeDatabase(json): Database {
   const { name, desc, protocol, type } = json;
 
   const labels = json.labels || [];
@@ -31,41 +29,46 @@ export function makeDatabase(json: any): Database {
     labels,
     names: json.database_names || [],
     users: json.database_users || [],
-    hostname: json.hostname,
   };
 }
 
-export function makeDatabaseService(json: any): DatabaseService {
-  const { name, resource_matchers } = json;
+export const formatDatabaseInfo = (type: DbType, protocol: DbProtocol) => {
+  const output = { type, protocol, title: '' };
 
-  return {
-    name,
-    matcherLabels: combineResourceMatcherLabels(resource_matchers || []),
-  };
-}
+  switch (type) {
+    case 'rds':
+      output.title = `RDS ${formatProtocol(protocol)}`;
+      return output;
+    case 'redshift':
+      output.title = 'Redshift';
+      return output;
+    case 'self-hosted':
+      output.title = `Self-hosted ${formatProtocol(protocol)}`;
+      return output;
+    case 'gcp':
+      output.title = `Cloud SQL ${formatProtocol(protocol)}`;
+      return output;
+    default:
+      output.title = `${type} ${formatProtocol(protocol)}`;
+      return output;
+  }
+};
 
-function combineResourceMatcherLabels(
-  resourceMatchers: any[]
-): Record<string, string[]> {
-  const labelMap: Record<string, string[]> = {};
+const formatProtocol = (input: DbProtocol) => {
+  switch (input) {
+    case 'postgres':
+      return 'PostgreSQL';
+    case 'mysql':
+      return 'MySQL/MariaDB';
+    case 'mongodb':
+      return 'MongoDB';
+    case 'sqlserver':
+      return 'SQL Server';
+    case 'redis':
+      return 'Redis';
+    default:
+      return input;
+  }
+};
 
-  resourceMatchers.forEach(rm => {
-    Object.keys(rm.labels || []).forEach(key => {
-      if (!labelMap[key]) {
-        labelMap[key] = [];
-      }
-
-      // The type return can be a list of strings, or
-      // just a string. We convert it to an array
-      // to keep it consistent.
-      let vals = rm.labels[key];
-      if (!Array.isArray(vals)) {
-        vals = [vals];
-      }
-
-      labelMap[key] = [...labelMap[key], ...vals];
-    });
-  });
-
-  return labelMap;
-}
+export type DatabaseInfo = ReturnType<typeof formatDatabaseInfo>;

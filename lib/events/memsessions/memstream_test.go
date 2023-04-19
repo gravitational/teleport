@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -35,12 +35,12 @@ func TestMain(m *testing.M) {
 func TestStreams(t *testing.T) {
 	// Stream with handler and many parts
 	t.Run("StreamManyParts", func(t *testing.T) {
-		test.StreamManyParts(t, eventstest.NewMemoryUploader())
+		test.StreamManyParts(t, events.NewMemoryUploader())
 	})
 	t.Run("UploadDownload", func(t *testing.T) {
-		test.UploadDownload(t, eventstest.NewMemoryUploader())
+		test.UploadDownload(t, events.NewMemoryUploader())
 	})
 	t.Run("DownloadNotFound", func(t *testing.T) {
-		test.DownloadNotFound(t, eventstest.NewMemoryUploader())
+		test.DownloadNotFound(t, events.NewMemoryUploader())
 	})
 }

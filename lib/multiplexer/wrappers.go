@@ -22,8 +22,6 @@ import (
 	"net"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Conn is a connection wrapper that supports
@@ -43,11 +41,6 @@ func NewConn(conn net.Conn) *Conn {
 		Conn:   conn,
 		reader: bufio.NewReader(conn),
 	}
-}
-
-// NetConn returns the underlying net.Conn.
-func (c *Conn) NetConn() net.Conn {
-	return c.Conn
 }
 
 // Read reads from connection
@@ -156,47 +149,4 @@ func (l *Listener) HandleConnection(ctx context.Context, conn net.Conn) {
 func (l *Listener) Close() error {
 	l.cancel()
 	return nil
-}
-
-// PROXYEnabledListener wraps provided listener and can receive and apply PROXY headers and then pass connection up the chain.
-type PROXYEnabledListener struct {
-	cfg Config
-	mux *Mux
-	net.Listener
-}
-
-// NewPROXYEnabledListener creates news instance of PROXYEnabledListener
-func NewPROXYEnabledListener(cfg Config) (*PROXYEnabledListener, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	mux, err := New(cfg) // Creating Mux to leverage protocol detection with PROXY headers
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	muxListener := mux.SSH()
-	go func() {
-		if err := mux.Serve(); err != nil && !utils.IsOKNetworkError(err) {
-			mux.Entry.WithError(err).Error("Mux encountered err serving")
-		}
-	}()
-	pl := &PROXYEnabledListener{
-		cfg:      cfg,
-		mux:      mux,
-		Listener: muxListener,
-	}
-
-	return pl, nil
-}
-
-func (p *PROXYEnabledListener) Close() error {
-	return trace.Wrap(p.mux.Close())
-}
-
-// Accept gets connection from the wrapped listener and detects whether we receive PROXY headers on it,
-// after first non PROXY protocol detected it returns connection with PROXY addresses applied to it.
-func (p *PROXYEnabledListener) Accept() (net.Conn, error) {
-	conn, err := p.Listener.Accept()
-	return conn, trace.Wrap(err)
 }

@@ -26,6 +26,7 @@ import (
 )
 
 func TestString(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		in  uri.ResourceURI
 		out string
@@ -45,7 +46,10 @@ func TestString(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(fmt.Sprintf("%v", tt.in), func(t *testing.T) {
+			t.Parallel()
+
 			out := tt.in.String()
 			require.Equal(t, tt.out, out)
 		})
@@ -53,6 +57,7 @@ func TestString(t *testing.T) {
 }
 
 func TestParseClusterURI(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		in  string
 		out uri.ResourceURI
@@ -76,142 +81,12 @@ func TestParseClusterURI(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.in, func(t *testing.T) {
+			t.Parallel()
+
 			out, err := uri.ParseClusterURI(tt.in)
 			require.NoError(t, err)
-			require.Equal(t, tt.out, out)
-		})
-	}
-}
-
-func TestGetDbName(t *testing.T) {
-	tests := []struct {
-		name string
-		in   uri.ResourceURI
-		out  string
-	}{
-		{
-			name: "returns root cluster db name",
-			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
-			out:  "postgres",
-		},
-		{
-			name: "returns leaf cluster db name",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
-			out:  "postgres",
-		},
-		{
-			name: "returns empty string when given root cluster URI",
-			in:   uri.NewClusterURI("foo"),
-			out:  "",
-		},
-		{
-			name: "returns empty string when given leaf cluster URI",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
-			out:  "",
-		},
-		{
-			name: "returns empty string when given root cluster non-db resource URI",
-			in:   uri.NewClusterURI("foo").AppendKube("k8s"),
-			out:  "",
-		},
-		{
-			name: "returns empty string when given leaf cluster non-db resource URI",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
-			out:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			out := tt.in.GetDbName()
-			require.Equal(t, tt.out, out)
-		})
-	}
-}
-
-func TestGetServerUUID(t *testing.T) {
-	tests := []struct {
-		name string
-		in   uri.ResourceURI
-		out  string
-	}{
-		{
-			name: "returns root cluster server UUID",
-			in:   uri.NewClusterURI("foo").AppendServer("uuid"),
-			out:  "uuid",
-		},
-		{
-			name: "returns leaf cluster server UUID",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendServer("uuid"),
-			out:  "uuid",
-		},
-		{
-			name: "returns empty string when given root cluster URI",
-			in:   uri.NewClusterURI("foo"),
-			out:  "",
-		},
-		{
-			name: "returns empty string when given leaf cluster URI",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
-			out:  "",
-		},
-		{
-			name: "returns empty string when given root cluster non-server resource URI",
-			in:   uri.NewClusterURI("foo").AppendKube("k8s"),
-			out:  "",
-		},
-		{
-			name: "returns empty string when given leaf cluster non-server resource URI",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("k8s"),
-			out:  "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			out := tt.in.GetServerUUID()
-			require.Equal(t, tt.out, out)
-		})
-	}
-}
-
-func TestGetRootClusterURI(t *testing.T) {
-	tests := []struct {
-		name string
-		in   uri.ResourceURI
-		out  uri.ResourceURI
-	}{
-		{
-			name: "noop on root cluster URI",
-			in:   uri.NewClusterURI("foo"),
-			out:  uri.NewClusterURI("foo"),
-		},
-		{
-			name: "trims root cluster resource URI",
-			in:   uri.NewClusterURI("foo").AppendDB("postgres"),
-			out:  uri.NewClusterURI("foo"),
-		},
-		{
-			name: "trims leaf cluster URI",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar"),
-			out:  uri.NewClusterURI("foo"),
-		},
-		{
-			name: "trims leaf cluster resource URI",
-			in:   uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("postgres"),
-			out:  uri.NewClusterURI("foo"),
-		},
-		{
-			name: "returns empty URI if given a gateway URI",
-			in:   uri.NewGatewayURI("quux"),
-			out:  uri.NewClusterURI(""),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			out := tt.in.GetRootClusterURI()
 			require.Equal(t, tt.out, out)
 		})
 	}

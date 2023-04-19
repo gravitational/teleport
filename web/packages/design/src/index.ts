@@ -25,6 +25,7 @@ import Button, {
 } from './Button';
 import ButtonIcon from './ButtonIcon';
 import ButtonLink from './ButtonLink';
+import ButtonOutlined from './ButtonOutlined';
 import Card from './Card';
 import CardSuccess, { CardSuccessLogin } from './CardSuccess';
 import DocumentTitle from './DocumentTitle';
@@ -38,16 +39,13 @@ import Image from './Image';
 import Text from './Text';
 import SideNav, { SideNavItem } from './SideNav';
 import { StepSlider } from './StepSlider';
-import TopNav from './TopNav';
+import TopNav, { TopNavItem } from './TopNav';
 import Flex from './Flex';
 import Menu, { MenuItem, MenuItemIcon } from './Menu';
 import { Pill } from './Pill';
 import Popover from './Popover';
-import { TextArea } from './TextArea';
+import { TextArea, type TextAreaProps } from './TextArea';
 
-import type { TextAreaProps } from './TextArea';
-
-export { AnimatedProgressBar } from './AnimatedProgressBar';
 export {
   Alert,
   Box,
@@ -55,6 +53,7 @@ export {
   ButtonIcon,
   ButtonLink,
   ButtonBorder,
+  ButtonOutlined,
   ButtonPrimary,
   ButtonSecondary,
   ButtonWarning,
@@ -78,6 +77,7 @@ export {
   StepSlider,
   Text,
   TopNav,
+  TopNavItem,
   Menu,
   MenuItem,
   MenuItemIcon,

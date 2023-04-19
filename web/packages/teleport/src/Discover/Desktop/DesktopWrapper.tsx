@@ -17,9 +17,15 @@
 import React, { useEffect } from 'react';
 
 import { PingTeleportProvider } from 'teleport/Discover/Shared/PingTeleportContext';
-import { PING_INTERVAL } from 'teleport/Discover/Desktop/config';
-
-import { clearCachedJoinTokenResult } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import {
+  JoinTokenProvider,
+  clearCachedJoinTokenResult,
+} from 'teleport/Discover/Shared/JoinTokenContext';
+import {
+  PING_INTERVAL,
+  PING_TIMEOUT,
+  SCRIPT_TIMEOUT,
+} from 'teleport/Discover/Desktop/config';
 
 import { ResourceKind } from '../Shared';
 
@@ -36,11 +42,14 @@ export function DesktopWrapper(props: DesktopWrapperProps) {
   }, []);
 
   return (
-    <PingTeleportProvider
-      interval={PING_INTERVAL}
-      resourceKind={ResourceKind.Desktop}
-    >
-      {props.children}
-    </PingTeleportProvider>
+    <JoinTokenProvider timeout={SCRIPT_TIMEOUT}>
+      <PingTeleportProvider
+        timeout={PING_TIMEOUT}
+        interval={PING_INTERVAL}
+        resourceKind={ResourceKind.Desktop}
+      >
+        {props.children}
+      </PingTeleportProvider>
+    </JoinTokenProvider>
   );
 }

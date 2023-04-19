@@ -30,12 +30,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -175,7 +173,7 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			continue
 		}
 		codeMatch = true
-		// Mark matched token as used in backend, so it can't be used again.
+		// Mark matched token as used in backend so it can't be used again.
 		recovery.GetCodes()[i].IsUsed = true
 		if err := s.UpsertRecoveryCodes(ctx, user, recovery); err != nil {
 			log.Error(trace.DebugReport(err))
@@ -189,7 +187,9 @@ func (s *Server) verifyRecoveryCode(ctx context.Context, user string, givenCode 
 			Type: events.RecoveryCodeUsedEvent,
 			Code: events.RecoveryCodeUseSuccessCode,
 		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, user),
+		UserMetadata: apievents.UserMetadata{
+			User: user,
+		},
 		Status: apievents.Status{
 			Success: true,
 		},
@@ -509,7 +509,7 @@ func (s *Server) GetAccountRecoveryToken(ctx context.Context, req *proto.GetAcco
 
 // GetAccountRecoveryCodes implements AuthService.GetAccountRecoveryCodes.
 func (s *Server) GetAccountRecoveryCodes(ctx context.Context, req *proto.GetAccountRecoveryCodesRequest) (*proto.RecoveryCodes, error) {
-	username, err := authz.GetClientUsername(ctx)
+	username, err := GetClientUsername(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -532,7 +532,7 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 
 	hashedCodes := make([]types.RecoveryCode, len(codes))
 	for i, token := range codes {
-		hashedCode, err := utils.BcryptFromPassword([]byte(token), bcrypt.DefaultCost)
+		hashedCode, err := bcrypt.GenerateFromPassword([]byte(token), bcrypt.DefaultCost)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -554,7 +554,9 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 			Type: events.RecoveryCodeGeneratedEvent,
 			Code: events.RecoveryCodesGenerateCode,
 		},
-		UserMetadata: authz.ClientUserMetadataWithUser(ctx, username),
+		UserMetadata: apievents.UserMetadata{
+			User: username,
+		},
 	}); err != nil {
 		log.WithError(err).WithFields(logrus.Fields{"user": username}).Warn("Failed to emit recovery tokens generate event.")
 	}
@@ -568,8 +570,8 @@ func (s *Server) generateAndUpsertRecoveryCodes(ctx context.Context, username st
 // isAccountRecoveryAllowed gets cluster auth configuration and check if cloud, local auth
 // and second factor is allowed, which are required for account recovery.
 func (s *Server) isAccountRecoveryAllowed(ctx context.Context) error {
-	if !modules.GetModules().Features().RecoveryCodes {
-		return trace.AccessDenied("account recovery is only available for Teleport enterprise")
+	if modules.GetModules().Features().Cloud == false {
+		return trace.AccessDenied("account recovery is only available for enterprise cloud")
 	}
 
 	authPref, err := s.GetAuthPreference(ctx)

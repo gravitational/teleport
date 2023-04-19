@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !windows
-
 package system
 
 /*
@@ -33,7 +31,6 @@ int resetInterruptSignalHandler() {
 }
 */
 import "C"
-
 import log "github.com/sirupsen/logrus"
 
 // ResetInterruptSignal will reset the handler for SIGINT back to the default

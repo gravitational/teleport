@@ -14,4 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export { Clusters as default } from './Clusters';
+import Clusters from './Clusters';
+
+export default Clusters;

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import {
   Indicator,
   Box,
@@ -23,7 +23,7 @@ import {
   ButtonSecondary,
   ButtonPrimary,
 } from 'design';
-import { Danger } from 'design/Alert';
+import { Danger, Warning } from 'design/Alert';
 import Dialog, {
   DialogHeader,
   DialogTitle,
@@ -34,12 +34,8 @@ import Dialog, {
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 import AuthnDialog from 'teleport/components/AuthnDialog';
 
-import useDesktopSession from './useDesktopSession';
+import useDesktopSession, { State } from './useDesktopSession';
 import TopBar from './TopBar';
-
-import type { PropsWithChildren } from 'react';
-
-import type { State } from './useDesktopSession';
 
 export default function Container() {
   const state = useDesktopSession();
@@ -54,6 +50,8 @@ declare global {
 
 export function DesktopSession(props: State) {
   const {
+    directorySharingState,
+    setDirectorySharingState,
     fetchAttempt,
     tdpConnection,
     disconnected,
@@ -82,6 +80,11 @@ export function DesktopSession(props: State) {
       }
       return prevState;
     });
+
+    setDirectorySharingState(prevState => ({
+      ...prevState,
+      browserError: false,
+    }));
   };
 
   const computeErrorDialog = () => {
@@ -101,6 +104,13 @@ export function DesktopSession(props: State) {
       errorText = tdpConnection.statusText || 'encountered a non-fatal error';
     } else if (unknownConnectionError) {
       errorText = 'Session disconnected for an unknown reason.';
+    } else if (directorySharingState.browserError) {
+      errorText =
+        'Your user role supports directory sharing over desktop access, \
+      however this feature is only available by default on some Chromium \
+      based browsers like Google Chrome or Microsoft Edge. Brave users can \
+      use the feature by navigating to brave://flags/#file-system-access-api \
+      and selecting "Enable". Please switch to a supported browser.';
     } else if (
       fetchAttempt.status === 'processing' &&
       tdpConnection.status === 'success'
@@ -111,39 +121,67 @@ export function DesktopSession(props: State) {
         https://github.com/gravitational/teleport/issues/new?assignees=&labels=bug&template=bug_report.md';
     }
     const open = errorText !== '';
+    const fatal = !(
+      tdpConnection.status === '' || directorySharingState.browserError
+    );
 
-    return { open, text: errorText };
+    return { open, text: errorText, fatal };
   };
 
   const errorDialog = computeErrorDialog();
 
   if (errorDialog.open) {
+    // A non-fatal error should only occur when a session is active, so we set initTdpCli and displayCanvas
+    // to true in so that the TdpClientCanvas state doesn't change, and the user can continue the session
+    // after dismissing the dialog.
+    const initAndDisplay = !errorDialog.fatal;
+
     return (
-      <Session {...props} initTdpCli={false} displayCanvas={false}>
+      <Session
+        {...props}
+        initTdpCli={initAndDisplay}
+        displayCanvas={initAndDisplay}
+      >
         <Dialog
           dialogCss={() => ({ width: '484px' })}
           onClose={onDialogClose}
           open={errorDialog.open}
         >
           <DialogHeader style={{ flexDirection: 'column' }}>
-            <DialogTitle>Error</DialogTitle>
+            {errorDialog.fatal && <DialogTitle>Fatal Error</DialogTitle>}
+            {!errorDialog.fatal && (
+              <DialogTitle>Unsupported Action</DialogTitle>
+            )}
           </DialogHeader>
           <DialogContent>
-            <>
-              <Danger children={<>{errorDialog.text}</>} />
-              Refresh the page to try again.
-            </>
+            {errorDialog.fatal && (
+              <>
+                <Danger children={<>{errorDialog.text}</>} />
+                Refresh the page to try again.
+              </>
+            )}
+
+            {!errorDialog.fatal && (
+              <Warning my={2} children={errorDialog.text} />
+            )}
           </DialogContent>
           <DialogFooter>
-            <ButtonSecondary
-              size="large"
-              width="30%"
-              onClick={() => {
-                window.location.reload();
-              }}
-            >
-              Refresh
-            </ButtonSecondary>
+            {!errorDialog.fatal && (
+              <ButtonSecondary size="large" width="30%" onClick={onDialogClose}>
+                Dismiss
+              </ButtonSecondary>
+            )}
+            {errorDialog.fatal && (
+              <ButtonSecondary
+                size="large"
+                width="30%"
+                onClick={() => {
+                  window.location.reload();
+                }}
+              >
+                Refresh
+              </ButtonSecondary>
+            )}
           </DialogFooter>
         </Dialog>
       </Session>
@@ -219,36 +257,61 @@ export function DesktopSession(props: State) {
   return <Session {...props} initTdpCli={true} displayCanvas={true} />;
 }
 
-function Session({
-  setDisconnected,
-  webauthn,
-  tdpClient,
-  username,
-  hostname,
-  setClipboardSharingEnabled,
-  directorySharingState,
-  setDirectorySharingState,
-  onPngFrame,
-  onClipboardData,
-  onTdpError,
-  onTdpWarning,
-  onWsClose,
-  onWsOpen,
-  onKeyDown,
-  onKeyUp,
-  onMouseMove,
-  onMouseDown,
-  onMouseUp,
-  onMouseWheelScroll,
-  onContextMenu,
-  initTdpCli,
-  displayCanvas,
-  clipboardSharingEnabled,
-  onShareDirectory,
-  warnings,
-  onRemoveWarning,
-  children,
-}: PropsWithChildren<Props>) {
+function Session(props: PropsWithChildren<Props>) {
+  const {
+    setDisconnected,
+    webauthn,
+    tdpClient,
+    username,
+    hostname,
+    clipboardSharingEnabled,
+    setClipboardSharingEnabled,
+    directorySharingState,
+    setDirectorySharingState,
+    onPngFrame,
+    onClipboardData,
+    onTdpError,
+    onWsClose,
+    onWsOpen,
+    onKeyDown,
+    onKeyUp,
+    onMouseMove,
+    onMouseDown,
+    onMouseUp,
+    onMouseWheelScroll,
+    onContextMenu,
+    initTdpCli,
+    displayCanvas,
+  } = props;
+
+  const clipboardSharingActive = clipboardSharingEnabled;
+
+  const onShareDirectory = () => {
+    try {
+      window
+        .showDirectoryPicker()
+        .then(sharedDirHandle => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: true,
+          }));
+          tdpClient.addSharedDirectory(sharedDirHandle);
+          tdpClient.sendSharedDirectoryAnnounce();
+        })
+        .catch(() => {
+          setDirectorySharingState(prevState => ({
+            ...prevState,
+            isSharing: false,
+          }));
+        });
+    } catch (e) {
+      setDirectorySharingState(prevState => ({
+        ...prevState,
+        browserError: true,
+      }));
+    }
+  };
+
   return (
     <Flex flexDirection="column">
       <TopBar
@@ -262,15 +325,13 @@ function Session({
           tdpClient.shutdown();
         }}
         userHost={`${username}@${hostname}`}
+        clipboardSharingEnabled={clipboardSharingActive}
         canShareDirectory={directorySharingState.canShare}
         isSharingDirectory={directorySharingState.isSharing}
-        clipboardSharingEnabled={clipboardSharingEnabled}
         onShareDirectory={onShareDirectory}
-        warnings={warnings}
-        onRemoveWarning={onRemoveWarning}
       />
 
-      {children}
+      {props.children}
 
       {webauthn.requested && (
         <AuthnDialog
@@ -298,7 +359,6 @@ function Session({
         tdpCliOnPngFrame={onPngFrame}
         tdpCliOnClipboardData={onClipboardData}
         tdpCliOnTdpError={onTdpError}
-        tdpCliOnTdpWarning={onTdpWarning}
         tdpCliOnWsClose={onWsClose}
         tdpCliOnWsOpen={onWsOpen}
         onKeyDown={onKeyDown}

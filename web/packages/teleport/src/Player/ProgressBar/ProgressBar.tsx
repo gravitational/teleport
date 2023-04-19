@@ -42,25 +42,7 @@ export default function ProgressBar(props: ProgressBarProps) {
           className="grv-slider"
         />
       </SliderContainer>
-      <Restart onRestart={props.onRestart} />
     </StyledProgessBar>
-  );
-}
-
-function Restart(props: { onRestart?: () => void }) {
-  if (!props.onRestart) {
-    return null;
-  }
-
-  return (
-    <ActionButton
-      style={{
-        marginLeft: '16px',
-      }}
-      onClick={props.onRestart}
-    >
-      <Icons.Refresh />
-    </ActionButton>
   );
 }
 
@@ -75,7 +57,6 @@ export type ProgressBarProps = {
   style?: React.CSSProperties;
   id?: string;
   onPlaySpeedChange?: (newSpeed: number) => void;
-  onRestart?: () => void;
 };
 
 function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
@@ -137,10 +118,6 @@ const ActionButton = styled.button`
   text-align: center;
   transition: all 0.3s;
   width: 24px;
-
-  .icon {
-    color: ${colors.light};
-  }
 
   &:hover {
     opacity: 1;

@@ -22,6 +22,7 @@ package utils
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"reflect"
 	"regexp"
 	"runtime"
@@ -31,7 +32,8 @@ import (
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 type TextFormatter struct {
@@ -79,6 +81,12 @@ func NewDefaultTextFormatter(enableColors bool) *TextFormatter {
 	}
 }
 
+func NewTestTextFormatter() *TextFormatter {
+	formatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
+	formatter.timestampEnabled = true
+	return formatter
+}
+
 // CheckAndSetDefaults checks and sets log format configuration
 func (tf *TextFormatter) CheckAndSetDefaults() error {
 	// set padding
@@ -101,11 +109,11 @@ func (tf *TextFormatter) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if slices.Contains(res, timestampField) {
+	if utils.SliceContainsStr(res, timestampField) {
 		tf.timestampEnabled = true
 	}
 
-	if slices.Contains(res, callerField) {
+	if utils.SliceContainsStr(res, callerField) {
 		tf.callerEnabled = true
 	}
 
@@ -209,15 +217,15 @@ func (j *JSONFormatter) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if slices.Contains(res, timestampField) {
+	if utils.SliceContainsStr(res, timestampField) {
 		j.JSONFormatter.DisableTimestamp = true
 	}
 
-	if slices.Contains(res, callerField) {
+	if utils.SliceContainsStr(res, callerField) {
 		j.callerEnabled = true
 	}
 
-	if slices.Contains(res, componentField) {
+	if utils.SliceContainsStr(res, componentField) {
 		j.componentEnabled = true
 	}
 
@@ -247,14 +255,6 @@ func (j *JSONFormatter) Format(e *log.Entry) ([]byte, error) {
 	delete(e.Data, trace.Component)
 
 	return j.JSONFormatter.Format(e)
-}
-
-func NewTestJSONFormatter() *JSONFormatter {
-	formatter := &JSONFormatter{}
-	if err := formatter.CheckAndSetDefaults(); err != nil {
-		panic(err)
-	}
-	return formatter
 }
 
 func (w *writer) writeError(value interface{}) {
@@ -312,7 +312,7 @@ func (w *writer) writeValue(value interface{}, color int) {
 	w.WriteString(s)
 }
 
-func (w *writer) writeMap(m map[string]any) {
+func (w *writer) writeMap(m map[string]interface{}) {
 	if len(m) == 0 {
 		return
 	}
@@ -326,7 +326,7 @@ func (w *writer) writeMap(m map[string]any) {
 			continue
 		}
 		switch value := m[key].(type) {
-		case map[string]any:
+		case map[string]interface{}:
 			w.writeMap(value)
 		case log.Fields:
 			w.writeMap(value)

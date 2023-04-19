@@ -17,7 +17,6 @@ limitations under the License.
 package users
 
 import (
-	"context"
 	"strings"
 	"sync"
 
@@ -153,11 +152,10 @@ func genRandomPassword(length int) (string, error) {
 }
 
 // newSecretStore create a new secrets store helper for provided database.
-func newSecretStore(ctx context.Context, database types.Database, clients cloud.Clients) (secrets.Secrets, error) {
+func newSecretStore(database types.Database, clients cloud.Clients) (secrets.Secrets, error) {
 	secretStoreConfig := database.GetSecretStore()
 
-	meta := database.GetAWS()
-	client, err := clients.GetAWSSecretsManagerClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := clients.GetAWSSecretsManagerClient(database.GetAWS().Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

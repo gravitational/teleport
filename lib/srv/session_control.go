@@ -31,12 +31,9 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/keys"
-	"github.com/gravitational/teleport/lib/auth"
-	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var (
@@ -49,7 +46,7 @@ var (
 )
 
 func init() {
-	_ = metrics.RegisterPrometheusCollectors(userSessionLimitHitCount)
+	_ = utils.RegisterPrometheusCollectors(userSessionLimitHitCount)
 }
 
 // LockEnforcer determines whether a lock is being enforced on the provided targets
@@ -169,61 +166,30 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 		return ctx, trace.Wrap(lockErr)
 	}
 
-	// Check that the required private key policy, defined by roles and auth pref,
-	// is met by this Identity's ssh certificate.
-	identityPolicy := identity.Certificate.Extensions[teleport.CertExtensionPrivateKeyPolicy]
-	requiredPolicy := identity.AccessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
-	if err := requiredPolicy.VerifyPolicy(keys.PrivateKeyPolicy(identityPolicy)); err != nil {
-		return ctx, trace.Wrap(err)
-	}
-
 	// Don't apply the following checks in non-node contexts.
 	if s.cfg.Component != teleport.ComponentNode {
 		return ctx, nil
 	}
 
-	// Device Trust: authorize device extensions.
-	if err := dtauthz.VerifySSHUser(authPref.GetDeviceTrust(), identity.Certificate); err != nil {
-		return ctx, trace.Wrap(err)
-	}
-
-	ctx, err = s.EnforceConnectionLimits(
-		ctx,
-		auth.ConnectionIdentity{
-			Username:       identity.TeleportUser,
-			MaxConnections: identity.AccessChecker.MaxConnections(),
-			LocalAddr:      localAddr,
-			RemoteAddr:     remoteAddr,
-			UserMetadata:   identity.GetUserMetadata(),
-		},
-		closers...,
-	)
-	return ctx, trace.Wrap(err)
-}
-
-// EnforceConnectionLimits retrieves a semaphore lock to ensure that connection limits
-// for the identity are enforced. If the lock is closed for any reason prior to the connection
-// being terminated any of the provided closers will be closed.
-func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identity auth.ConnectionIdentity, closers ...io.Closer) (context.Context, error) {
-	maxConnections := identity.MaxConnections
+	maxConnections := identity.AccessChecker.MaxConnections()
 	if maxConnections == 0 {
 		// concurrent session control is not active, nothing
 		// else needs to be done here.
 		return ctx, nil
 	}
 
-	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
+	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(spanCtx)
 	if err != nil {
 		return ctx, trace.Wrap(err)
 	}
 
-	semLock, err := services.AcquireSemaphoreLock(ctx, services.SemaphoreLockConfig{
+	semLock, err := services.AcquireSemaphoreLock(spanCtx, services.SemaphoreLockConfig{
 		Service: s.cfg.Semaphores,
 		Clock:   s.cfg.Clock,
 		Expiry:  netConfig.GetSessionControlTimeout(),
 		Params: types.AcquireSemaphoreRequest{
 			SemaphoreKind: types.SemaphoreKindConnection,
-			SemaphoreName: identity.Username,
+			SemaphoreName: identity.TeleportUser,
 			MaxLeases:     maxConnections,
 			Holder:        s.cfg.ServerID,
 		},
@@ -232,9 +198,9 @@ func (s *SessionController) EnforceConnectionLimits(ctx context.Context, identit
 		if strings.Contains(err.Error(), teleport.MaxLeases) {
 			// user has exceeded their max concurrent ssh connections.
 			userSessionLimitHitCount.Inc()
-			s.emitRejection(ctx, identity.UserMetadata, identity.LocalAddr, identity.RemoteAddr, events.SessionRejectedEvent, maxConnections)
+			s.emitRejection(spanCtx, identity.GetUserMetadata(), localAddr, remoteAddr, events.SessionRejectedEvent, maxConnections)
 
-			return ctx, trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)", identity.Username, maxConnections)
+			return ctx, trace.AccessDenied("too many concurrent ssh connections for user %q (max=%d)", identity.TeleportUser, maxConnections)
 		}
 
 		return ctx, trace.Wrap(err)

@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import Table, { Cell } from 'design/DataTable';
-import Icon, * as Icons from 'design/Icon/Icon';
 import React from 'react';
 import styled from 'styled-components';
+import Table, { Cell } from 'design/DataTable';
+import { ButtonBorder } from 'design';
+import Icon, * as Icons from 'design/Icon/Icon';
 
-import { Participant, Session, SessionKind } from 'teleport/services/session';
-
-import { SessionJoinBtn } from './SessionJoinBtn';
+import cfg from 'teleport/config';
+import { Session, Participant, SessionKind } from 'teleport/services/session';
 
 export default function SessionList(props: Props) {
   const { sessions, pageSize = 100 } = props;
@@ -59,7 +59,7 @@ export default function SessionList(props: Props) {
         },
         {
           altKey: 'join-btn',
-          render: renderJoinCell,
+          render: renderPlayCell,
         },
       ]}
       emptyText="No Active Sessions Found"
@@ -83,18 +83,12 @@ export default function SessionList(props: Props) {
   );
 }
 
-const kinds: {
-  [key in SessionKind]: { icon: React.ReactNode; joinable: boolean };
-} = {
-  ssh: { icon: Icons.Cli, joinable: true },
-  k8s: { icon: Icons.Kubernetes, joinable: false },
-  desktop: { icon: Icons.Desktop, joinable: false },
-  app: { icon: Icons.NewTab, joinable: false },
-  db: { icon: Icons.Database, joinable: false },
-};
-
 const renderIconCell = (kind: SessionKind) => {
-  const { icon } = kinds[kind];
+  let icon = Icons.Cli;
+  if (kind === 'k8s') {
+    icon = Icons.Kubernetes;
+  }
+
   return (
     <Cell>
       <Icon p={1} mr={3} fontSize={3} as={icon} />
@@ -102,24 +96,24 @@ const renderIconCell = (kind: SessionKind) => {
   );
 };
 
-const renderJoinCell = ({
-  sid,
-  clusterId,
-  kind,
-  participantModes,
-}: Session) => {
-  const { joinable } = kinds[kind];
-  if (!joinable || participantModes.length === 0) {
+const renderPlayCell = ({ sid, clusterId, kind }: Session) => {
+  if (kind === 'k8s') {
     return <Cell align="right" height="26px" />;
   }
 
+  const url = cfg.getSshSessionRoute({ sid, clusterId });
   return (
     <Cell align="right" height="26px">
-      <SessionJoinBtn
-        sid={sid}
-        clusterId={clusterId}
-        participantModes={participantModes}
-      />
+      <ButtonBorder
+        kind="primary"
+        as="a"
+        href={url}
+        width="80px"
+        target="_blank"
+        size="small"
+      >
+        Join
+      </ButtonBorder>
     </Cell>
   );
 };

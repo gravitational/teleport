@@ -151,8 +151,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionChunk{}
 	case AppSessionRequestEvent:
 		e = &events.AppSessionRequest{}
-	case AppSessionDynamoDBRequestEvent:
-		e = &events.AppSessionDynamoDBRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -215,18 +213,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SQLServerRPCRequest{}
 	case DatabaseSessionElasticsearchRequestEvent:
 		e = &events.ElasticsearchRequest{}
-	case DatabaseSessionOpenSearchRequestEvent:
-		e = &events.OpenSearchRequest{}
-	case DatabaseSessionDynamoDBRequestEvent:
-		e = &events.DynamoDBRequest{}
 	case KubeRequestEvent:
 		e = &events.KubeRequest{}
 	case MFADeviceAddEvent:
 		e = &events.MFADeviceAdd{}
 	case MFADeviceDeleteEvent:
 		e = &events.MFADeviceDelete{}
-	case DeviceEvent:
-		e = &events.DeviceEvent{}
 	case LockCreatedEvent:
 		e = &events.LockCreate{}
 	case LockDeletedEvent:
@@ -263,49 +255,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
-	case KubernetesClusterCreateEvent:
-		e = &events.KubernetesClusterCreate{}
-	case KubernetesClusterUpdateEvent:
-		e = &events.KubernetesClusterUpdate{}
-	case KubernetesClusterDeleteEvent:
-		e = &events.KubernetesClusterDelete{}
-	case DesktopSharedDirectoryStartEvent:
-		e = &events.DesktopSharedDirectoryStart{}
-	case DesktopSharedDirectoryReadEvent:
-		e = &events.DesktopSharedDirectoryRead{}
-	case DesktopSharedDirectoryWriteEvent:
-		e = &events.DesktopSharedDirectoryWrite{}
-	case BotJoinEvent:
-		e = &events.BotJoin{}
-	case InstanceJoinEvent:
-		e = &events.InstanceJoin{}
-	case LoginRuleCreateEvent:
-		e = &events.LoginRuleCreate{}
-	case LoginRuleDeleteEvent:
-		e = &events.LoginRuleDelete{}
-	case SAMLIdPAuthAttemptEvent:
-		e = &events.SAMLIdPAuthAttempt{}
-	case SAMLIdPServiceProviderCreateEvent:
-		e = &events.SAMLIdPServiceProviderCreate{}
-	case SAMLIdPServiceProviderUpdateEvent:
-		e = &events.SAMLIdPServiceProviderUpdate{}
-	case SAMLIdPServiceProviderDeleteEvent:
-		e = &events.SAMLIdPServiceProviderDelete{}
-	case SAMLIdPServiceProviderDeleteAllEvent:
-		e = &events.SAMLIdPServiceProviderDeleteAll{}
 	case UnknownEvent:
 		e = &events.Unknown{}
-
-	// Cassandra events.
-	case CassandraBatchEventCode:
-		e = &events.CassandraBatch{}
-	case CassandraRegisterEventCode:
-		e = &events.CassandraRegister{}
-	case CassandraPrepareEventCode:
-		e = &events.CassandraPrepare{}
-	case CassandraExecuteEventCode:
-		e = &events.CassandraExecute{}
-
 	default:
 		log.Errorf("Attempted to convert dynamic event of unknown type \"%v\" into protobuf event.", eventType)
 		unknown := &events.Unknown{}

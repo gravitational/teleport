@@ -28,7 +28,7 @@ export function UserIcon(props: UserIconProps) {
 const Circle = styled.span`
   border-radius: 50%;
   color: ${props => props.theme.colors.light};
-  background: ${props => props.theme.colors.brand};
+  background: ${props => props.theme.colors.secondary.main};
   height: 24px;
   width: 24px;
   display: flex;

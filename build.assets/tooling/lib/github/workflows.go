@@ -62,17 +62,18 @@ type WorkflowRuns interface {
 	ListWorkflowRunsByFileName(ctx context.Context, owner, repo, workflowFileName string, opts *github.ListWorkflowRunsOptions) (*github.WorkflowRuns, *github.Response, error)
 }
 
-// Returns information about all matched runs started after `since`.
-func ListWorkflowRuns(ctx context.Context, actions WorkflowRuns, owner, repo, path, branch string, since time.Time) ([]*github.WorkflowRun, error) {
+// ListWorkflowRuns returns a set of RunIDs, representing the set of all for
+// workflow runs created since the supplied start time.
+func ListWorkflowRuns(ctx context.Context, actions WorkflowRuns, owner, repo, path, ref string, since time.Time) (RunIDSet, error) {
 	listOptions := github.ListWorkflowRunsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: 100,
 		},
-		Branch:  branch,
+		Branch:  ref,
 		Created: ">" + since.Format(time.RFC3339),
 	}
 
-	allRuns := make([]*github.WorkflowRun, 0)
+	runIDs := make(RunIDSet)
 
 	for {
 		runs, resp, err := actions.ListWorkflowRunsByFileName(ctx, owner, repo, path, &listOptions)
@@ -80,29 +81,15 @@ func ListWorkflowRuns(ctx context.Context, actions WorkflowRuns, owner, repo, pa
 			return nil, trace.Wrap(err, "Failed to fetch runs")
 		}
 
-		allRuns = append(allRuns, runs.WorkflowRuns...)
+		for _, r := range runs.WorkflowRuns {
+			runIDs.Insert(r.GetID())
+		}
 
 		if resp.NextPage == 0 {
 			break
 		}
 
 		listOptions.Page = resp.NextPage
-	}
-
-	return allRuns, nil
-}
-
-// ListWorkflowRunIDs returns a set of RunIDs, representing the set of all for
-// workflow runs created since the supplied start time.
-func ListWorkflowRunIDs(ctx context.Context, actions WorkflowRuns, owner, repo, path, branch string, since time.Time) (RunIDSet, error) {
-	workflowRuns, err := ListWorkflowRuns(ctx, actions, owner, repo, path, branch, since)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get a list of workflow runs")
-	}
-
-	runIDs := make(RunIDSet, len(workflowRuns))
-	for _, workflowRun := range workflowRuns {
-		runIDs.Insert(workflowRun.GetID())
 	}
 
 	return runIDs, nil
@@ -139,7 +126,7 @@ func ListWorkflowJobs(ctx context.Context, lister WorkflowJobLister, owner, repo
 
 // WaitForRun blocks until the specified workflow run completes, and returns the overall
 // workflow status.
-func WaitForRun(ctx context.Context, actions WorkflowRuns, owner, repo, path string, runID int64) (string, error) {
+func WaitForRun(ctx context.Context, actions WorkflowRuns, owner, repo, path, ref string, runID int64) (string, error) {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 

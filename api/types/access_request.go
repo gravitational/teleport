@@ -23,15 +23,14 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// AccessRequest is a request for temporarily granted roles
+// AccessRequest is a request for temporarily granted roles.
 type AccessRequest interface {
-	ResourceWithLabels
+	Resource
 	// GetUser gets the name of the requesting user
 	GetUser() string
 	// GetRoles gets the roles being requested by the user
@@ -47,11 +46,11 @@ type AccessRequest interface {
 	GetCreationTime() time.Time
 	// SetCreationTime sets the creation time of the request.
 	SetCreationTime(time.Time)
-	// GetAccessExpiry gets the expiration time for the elevated certificate
-	// that will be issued if the Access Request is approved.
+	// GetAccessExpiry gets the upper limit for which this request
+	// may be considered active.
 	GetAccessExpiry() time.Time
-	// SetAccessExpiry sets the expiration time for the elevated certificate
-	// that will be issued if the Access Request is approved.
+	// SetAccessExpiry sets the upper limit for which this request
+	// may be considered active.
 	SetAccessExpiry(time.Time)
 	// GetRequestReason gets the reason for the request's creation.
 	GetRequestReason() string
@@ -104,8 +103,6 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
-	// Copy returns a copy of the access request resource.
-	Copy() AccessRequest
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -171,7 +168,7 @@ func (r *AccessRequestV3) GetCreationTime() time.Time {
 
 // SetCreationTime sets CreationTime
 func (r *AccessRequestV3) SetCreationTime(t time.Time) {
-	r.Spec.Created = t.UTC()
+	r.Spec.Created = t
 }
 
 // GetAccessExpiry gets AccessExpiry
@@ -181,7 +178,7 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 
 // SetAccessExpiry sets AccessExpiry
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
-	r.Spec.Expires = expiry.UTC()
+	r.Spec.Expires = expiry
 }
 
 // GetRequestReason gets RequestReason
@@ -264,12 +261,7 @@ func (r *AccessRequestV3) SetRoleThresholdMapping(rtm map[string]ThresholdIndexS
 
 // SetReviews sets the list of currently applied access reviews.
 func (r *AccessRequestV3) SetReviews(revs []AccessReview) {
-	utcRevs := make([]AccessReview, len(revs))
-	for i, rev := range revs {
-		utcRevs[i] = rev
-		utcRevs[i].Created = rev.Created.UTC()
-	}
-	r.Spec.Reviews = utcRevs
+	r.Spec.Reviews = revs
 }
 
 // GetReviews gets the list of currently applied access reviews.
@@ -371,7 +363,7 @@ func (r *AccessRequestV3) Expiry() time.Time {
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry.UTC())
+	r.Metadata.SetExpiry(expiry)
 }
 
 // GetMetadata gets Metadata
@@ -418,50 +410,6 @@ func (r *AccessRequestV3) GetDryRun() bool {
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
-}
-
-// Copy returns a copy of the access request resource.
-func (r *AccessRequestV3) Copy() AccessRequest {
-	return proto.Clone(r).(*AccessRequestV3)
-}
-
-// GetLabel retrieves the label with the provided key. If not found
-// value will be empty and ok will be false.
-func (r *AccessRequestV3) GetLabel(key string) (value string, ok bool) {
-	v, ok := r.Metadata.Labels[key]
-	return v, ok
-}
-
-// GetStaticLabels returns the access request static labels.
-func (r *AccessRequestV3) GetStaticLabels() map[string]string {
-	return r.Metadata.Labels
-}
-
-// SetStaticLabels sets the access request static labels.
-func (r *AccessRequestV3) SetStaticLabels(sl map[string]string) {
-	r.Metadata.Labels = sl
-}
-
-// GetAllLabels returns the access request static labels.
-func (r *AccessRequestV3) GetAllLabels() map[string]string {
-	return r.Metadata.Labels
-}
-
-// MatchSearch goes through select field values and tries to
-// match against the list of search values.
-func (r *AccessRequestV3) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(r.GetAllLabels()), r.GetName())
-	return MatchSearch(fieldVals, values, nil)
-}
-
-// Origin returns the origin value of the resource.
-func (r *AccessRequestV3) Origin() string {
-	return r.Metadata.Origin()
-}
-
-// SetOrigin sets the origin value of the resource.
-func (r *AccessRequestV3) SetOrigin(origin string) {
-	r.Metadata.SetOrigin(origin)
 }
 
 // String returns a text representation of this AccessRequest
@@ -664,32 +612,3 @@ func (f *AccessRequestFilter) Match(req AccessRequest) bool {
 	}
 	return true
 }
-
-// AccessRequests is a list of AccessRequest resources.
-type AccessRequests []AccessRequest
-
-// ToMap returns these access requests as a map keyed by access request name.
-func (a AccessRequests) ToMap() map[string]AccessRequest {
-	m := make(map[string]AccessRequest)
-	for _, accessRequest := range a {
-		m[accessRequest.GetName()] = accessRequest
-	}
-	return m
-}
-
-// AsResources returns these access requests as resources with labels.
-func (a AccessRequests) AsResources() (resources ResourcesWithLabels) {
-	for _, accessRequest := range a {
-		resources = append(resources, accessRequest)
-	}
-	return resources
-}
-
-// Len returns the slice length.
-func (a AccessRequests) Len() int { return len(a) }
-
-// Less compares access requests by name.
-func (a AccessRequests) Less(i, j int) bool { return a[i].GetName() < a[j].GetName() }
-
-// Swap swaps two access requests.
-func (a AccessRequests) Swap(i, j int) { a[i], a[j] = a[j], a[i] }

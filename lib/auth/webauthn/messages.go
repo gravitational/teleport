@@ -15,7 +15,7 @@
 package webauthn
 
 import (
-	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/trace"
 )
 
@@ -57,25 +57,9 @@ type CredentialAssertionResponse struct {
 type CredentialCreation protocol.CredentialCreation
 
 // RequireResidentKey returns information whether resident key is required or
-// not. It checks ResidentKey and fallbacks to RequireResidentKey.
+// not.
 func (cc *CredentialCreation) RequireResidentKey() (bool, error) {
 	as := cc.Response.AuthenticatorSelection
-	switch as.ResidentKey {
-	case protocol.ResidentKeyRequirementRequired:
-		if as.RequireResidentKey != nil && !*as.RequireResidentKey {
-			return false, trace.BadParameter("invalid combination of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
-		}
-		return true, nil
-	case protocol.ResidentKeyRequirementDiscouraged:
-		if as.RequireResidentKey != nil && *as.RequireResidentKey {
-			return false, trace.BadParameter("invalid combination of ResidentKey: %v and RequireResidentKey: %v", as.ResidentKey, *as.RequireResidentKey)
-		}
-		return false, nil
-	case protocol.ResidentKeyRequirementPreferred:
-		return false, nil
-	}
-	// If ResidentKey is not set, then fallback to the legacy RequireResidentKey
-	// field.
 	return as.RequireResidentKey != nil && *as.RequireResidentKey, nil
 }
 

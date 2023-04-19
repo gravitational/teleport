@@ -74,7 +74,6 @@ func (h *Handler) diagnoseConnection(w http.ResponseWriter, r *http.Request, p h
 		ResourceKind:              req.ResourceKind,
 		UserClient:                userClt,
 		ProxyHostPort:             h.ProxyHostPort(),
-		PublicProxyAddr:           h.PublicProxyAddr(),
 		KubernetesPublicProxyAddr: h.kubeProxyHostPort(),
 		TLSRoutingEnabled:         proxySettings.TLSRoutingEnabled,
 	}

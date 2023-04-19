@@ -47,7 +47,7 @@ func (p *Proxy) HandleConnection(ctx context.Context, proxyCtx *common.ProxyCont
 		return trace.Wrap(err)
 	}
 
-	serviceConn, err := p.Service.Connect(ctx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
+	serviceConn, err := p.Service.Connect(ctx, proxyCtx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

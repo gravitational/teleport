@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 export type Props = {
-  inputId?: string;
   hasError?: boolean;
   isClearable?: boolean;
   isSimpleValue?: boolean;
@@ -25,14 +24,14 @@ export type Props = {
   hideSelectedOptions?: boolean;
   controlShouldRenderValue?: boolean;
   maxMenuHeight?: number;
-  onChange(e: Option<any, any> | Option<any, any>[]): void;
+  onChange(e: Option<any> | Option<any>[]): void;
   onKeyDown?(e: KeyboardEvent): void;
-  value: null | Option<any, any> | Option<any, any>[];
+  value: null | Option<any> | Option<any>[];
   isMulti?: boolean;
   autoFocus?: boolean;
   label?: string;
   placeholder?: string;
-  options: Option<any, any>[];
+  options: Option<any>[];
   width?: string | number;
   menuPlacement?: string;
   minMenuHeight?: number;
@@ -42,8 +41,6 @@ export type Props = {
   inputValue?: string;
   filterOption?(): null | boolean;
   onInputChange?(value: string, actionMeta: ActionMeta): void;
-  // Whether or not the element is on an elevated platform (such as a dialog).
-  elevated?: boolean;
 };
 
 export type AsyncProps = Omit<Props, 'options'> & {
@@ -55,11 +52,11 @@ export type AsyncProps = Omit<Props, 'options'> & {
 };
 
 // Option defines the data type for select dropdown list.
-export type Option<T = string, S = string> = {
+export type Option<T = string> = {
   // value is the actual value used inlieu of label.
   value: T;
   // label is the value user sees in the select options dropdown.
-  label: S;
+  label: string;
 };
 
 export type ActionMeta = {

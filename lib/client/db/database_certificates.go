@@ -41,8 +41,6 @@ type GenerateDatabaseCertificatesRequest struct {
 	IdentityFileWriter identityfile.ConfigWriter
 	TTL                time.Duration
 	Key                *client.Key
-	// Password is used to generate JKS keystore used for cassandra format or Oracle wallet.
-	Password string
 }
 
 // GenerateDatabaseCertificates to be used by databases to set up mTLS authentication
@@ -113,17 +111,13 @@ func GenerateDatabaseCertificates(ctx context.Context, req GenerateDatabaseCerti
 	}
 
 	req.Key.TLSCert = resp.Cert
-	req.Key.TrustedCerts = []auth.TrustedCerts{{
-		ClusterName:     req.Key.ClusterName,
-		TLSCertificates: resp.CACerts,
-	}}
+	req.Key.TrustedCA = []auth.TrustedCerts{{TLSCertificates: resp.CACerts}}
 	filesWritten, err := identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           req.OutputLocation,
 		Key:                  req.Key,
 		Format:               req.OutputFormat,
 		OverwriteDestination: req.OutputCanOverwrite,
 		Writer:               req.IdentityFileWriter,
-		Password:             req.Password,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

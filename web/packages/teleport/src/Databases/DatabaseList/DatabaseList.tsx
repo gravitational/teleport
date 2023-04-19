@@ -16,17 +16,19 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { FetchStatus, SortType } from 'design/DataTable/types';
-import { DbProtocol } from 'shared/services/databases';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 
 import { AuthType } from 'teleport/services/user';
-import { Database } from 'teleport/services/databases';
-import { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import { Database, DbProtocol } from 'teleport/services/databases';
+import { AgentLabel } from 'teleport/services/agents';
 import ConnectDialog from 'teleport/Databases/ConnectDialog';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-
-import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 
 function DatabaseList(props: Props) {
   const {
@@ -35,24 +37,79 @@ function DatabaseList(props: Props) {
     username,
     clusterId,
     authType,
+    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
+    from,
+    to,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
     accessRequestId,
-    pageIndicators,
+    paginationUnsupported,
   } = props;
 
-  const [dbConnectInfo, setDbConnectInfo] =
-    useState<{
-      name: string;
-      protocol: DbProtocol;
-    }>(null);
+  const [dbConnectInfo, setDbConnectInfo] = useState<{
+    name: string;
+    protocol: DbProtocol;
+  }>(null);
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <>
+        <Table
+          data={databases}
+          emptyText="No Databases Found"
+          isSearchable
+          pagination={{ pageSize }}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'description',
+              headerText: 'Description',
+              isSortable: true,
+            },
+            {
+              key: 'type',
+              headerText: 'Type',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+            },
+            {
+              altKey: 'connect-btn',
+              render: database =>
+                renderConnectButton(database, setDbConnectInfo),
+            },
+          ]}
+        />
+        {dbConnectInfo && (
+          <ConnectDialog
+            username={username}
+            clusterId={clusterId}
+            dbName={dbConnectInfo.name}
+            dbProtocol={dbConnectInfo.protocol}
+            onClose={() => setDbConnectInfo(null)}
+            authType={authType}
+            accessRequestId={accessRequestId}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -95,14 +152,16 @@ function DatabaseList(props: Props) {
         serversideProps={{
           sort: params.sort,
           setSort,
+          startKeys,
           serversideSearchPanel: (
             <ServersideSearchPanel
-              pageIndicators={pageIndicators}
+              from={from}
+              to={to}
+              count={totalCount}
               params={params}
               setParams={setParams}
               pathname={pathname}
               replaceHistory={replaceHistory}
-              disabled={fetchStatus === 'loading'}
             />
           ),
         }}
@@ -155,15 +214,19 @@ type Props = {
   authType: AuthType;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: FetchStatus;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  fetchStatus: any;
+  from: number;
+  to: number;
+  totalCount: number;
+  params: ResourceUrlQueryParams;
+  setParams: (params: ResourceUrlQueryParams) => void;
+  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
   accessRequestId?: string;
-  pageIndicators: PageIndicators;
+  paginationUnsupported: boolean;
 };
 
 export default DatabaseList;

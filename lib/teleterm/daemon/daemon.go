@@ -17,25 +17,12 @@ package daemon
 import (
 	"context"
 	"sync"
-	"time"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
-)
-
-const (
-	// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
-	// wait for a response from the tshd events server managed by the Electron app. This timeout
-	// should be used for quick one-off calls where the client doesn't need the server or the user to
-	// perform any additional work, such as the SendNotification RPC.
-	tshdEventsTimeout = time.Second
 )
 
 // New creates an instance of Daemon service
@@ -44,22 +31,9 @@ func New(cfg Config) (*Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	closeContext, cancel := context.WithCancel(context.Background())
-
-	connectUsageReporter, err := usagereporter.NewConnectUsageReporter(closeContext, cfg.PrehogAddr)
-	if err != nil {
-		cancel()
-		return nil, trace.Wrap(err)
-	}
-
-	go connectUsageReporter.Run(closeContext)
-
 	return &Service{
-		cfg:           &cfg,
-		closeContext:  closeContext,
-		cancel:        cancel,
-		gateways:      make(map[string]*gateway.Gateway),
-		usageReporter: connectUsageReporter,
+		cfg:      &cfg,
+		gateways: make(map[string]*gateway.Gateway),
 	}, nil
 }
 
@@ -123,10 +97,7 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 	return nil
 }
 
-// ResolveCluster resolves a cluster by URI by reading data stored on disk in the profile.
-//
-// It doesn't make network requests so the returned clusters.Cluster will not include full
-// information returned from the web/auth servers.
+// ResolveCluster resolves a cluster by URI
 func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
 	if err != nil {
@@ -134,22 +105,6 @@ func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
 	}
 
 	return cluster, nil
-}
-
-// ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
-// details about the cluster and logged in user.
-func (s *Service) ResolveClusterWithDetails(ctx context.Context, uri string) (*clusters.ClusterWithDetails, error) {
-	cluster, err := s.ResolveCluster(uri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	withDetails, err := cluster.GetWithDetails(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return withDetails, nil
 }
 
 // ClusterLogout logs a user out from the cluster
@@ -193,7 +148,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 		LocalPort:             params.LocalPort,
 		CLICommandProvider:    cliCommandProvider,
 		TCPPortAllocator:      s.cfg.TCPPortAllocator,
-		OnExpiredCert:         s.onExpiredGatewayCert,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -210,15 +164,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
-}
-
-func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
-	cluster, err := s.ResolveCluster(gateway.TargetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster))
 }
 
 // RemoveGateway removes cluster gateway
@@ -247,6 +192,41 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 	}
 
 	delete(s.gateways, gateway.URI().String())
+
+	return nil
+}
+
+// RestartGateway stops a gateway and starts a new one with identical parameters.
+// It also keeps the original URI so that from the perspective of Connect it's still the same
+// gateway but with fresh certs.
+func (s *Service) RestartGateway(ctx context.Context, gatewayURI string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	oldGateway, err := s.findGateway(gatewayURI)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.removeGateway(oldGateway); err != nil {
+		return trace.Wrap(err)
+	}
+
+	newGateway, err := s.createGateway(ctx, CreateGatewayParams{
+		TargetURI:             oldGateway.TargetURI(),
+		TargetUser:            oldGateway.TargetUser(),
+		TargetSubresourceName: oldGateway.TargetSubresourceName(),
+		LocalPort:             oldGateway.LocalPort(),
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// s.createGateway adds a gateway under a random URI, so we need to place the new gateway under
+	// the URI of the old gateway.
+	delete(s.gateways, newGateway.URI().String())
+	newGateway.SetURI(oldGateway.URI())
+	s.gateways[oldGateway.URI().String()] = newGateway
 
 	return nil
 }
@@ -311,7 +291,7 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 		return oldGateway, nil
 	}
 
-	newGateway, err := gateway.NewWithLocalPort(oldGateway, localPort)
+	newGateway, err := gateway.NewWithLocalPort(*oldGateway, localPort)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -342,154 +322,49 @@ func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Ga
 	return newGateway, nil
 }
 
-// GetServers accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetServers(ctx context.Context, req *api.GetServersRequest) (*clusters.GetServersResponse, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+// ListServers returns cluster servers
+func (s *Service) ListServers(ctx context.Context, clusterURI string) ([]clusters.Server, error) {
+	cluster, err := s.ResolveCluster(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetServers(ctx, req)
+	servers, err := cluster.GetServers(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return response, nil
+	return servers, nil
 }
 
-func (s *Service) GetRequestableRoles(ctx context.Context, req *api.GetRequestableRolesRequest) (*api.GetRequestableRolesResponse, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+// ListServers returns cluster servers
+func (s *Service) ListApps(ctx context.Context, clusterURI string) ([]clusters.App, error) {
+	cluster, err := s.ResolveCluster(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetRequestableRoles(ctx, req)
+	apps, err := cluster.GetApps(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.GetRequestableRolesResponse{
-		Roles:           response.RequestableRoles,
-		ApplicableRoles: response.ApplicableRolesForResources,
-	}, nil
+	return apps, nil
 }
 
-// GetAccessRequests returns all access requests with filtered input
-func (s *Service) GetAccessRequests(ctx context.Context, req *api.GetAccessRequestsRequest) ([]clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := cluster.GetAccessRequests(ctx, types.AccessRequestFilter{})
+// ListKubes lists kubernetes clusters
+func (s *Service) ListKubes(ctx context.Context, uri string) ([]clusters.Kube, error) {
+	cluster, err := s.ResolveCluster(uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return response, nil
-}
-
-// GetAccessRequest returns AccessRequests filtered by ID
-func (s *Service) GetAccessRequest(ctx context.Context, req *api.GetAccessRequestRequest) (*clusters.AccessRequest, error) {
-	if req.AccessRequestId == "" {
-		return nil, trace.BadParameter("missing request id")
-	}
-
-	cluster, err := s.ResolveCluster(req.ClusterUri)
+	kubes, err := cluster.GetKubes(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := cluster.GetAccessRequest(ctx, types.AccessRequestFilter{
-		ID: req.AccessRequestId,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
-// CreateAccessRequest creates an access request
-func (s *Service) CreateAccessRequest(ctx context.Context, req *api.CreateAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	request, err := cluster.CreateAccessRequest(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return request, nil
-}
-
-func (s *Service) ReviewAccessRequest(ctx context.Context, req *api.ReviewAccessRequestRequest) (*clusters.AccessRequest, error) {
-	cluster, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response, err := cluster.ReviewAccessRequest(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
-func (s *Service) DeleteAccessRequest(ctx context.Context, req *api.DeleteAccessRequestRequest) error {
-	if req.AccessRequestId == "" {
-		return trace.BadParameter("missing request id")
-	}
-
-	cluster, err := s.ResolveCluster((req.RootClusterUri))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = cluster.DeleteAccessRequest(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func (s *Service) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) error {
-	cluster, err := s.ResolveCluster(req.RootClusterUri)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = cluster.AssumeRole(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-// GetKubes accepts parameterized input to enable searching, sorting, and pagination.
-func (s *Service) GetKubes(ctx context.Context, req *api.GetKubesRequest) (*clusters.GetKubesResponse, error) {
-	cluster, err := s.ResolveCluster(req.ClusterUri)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	response, err := cluster.GetKubes(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return response, nil
-}
-
-func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
-	prehogEvent, err := usagereporter.GetAnonymizedPrehogEvent(req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	s.usageReporter.AddEventsToQueue(prehogEvent)
-	return nil
+	return kubes, nil
 }
 
 // Stop terminates all cluster open connections
@@ -497,76 +372,18 @@ func (s *Service) Stop() {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	s.cfg.Log.Info("Stopping")
-
 	for _, gateway := range s.gateways {
 		gateway.Close()
 	}
-
-	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
-	defer cancel()
-
-	if err := s.usageReporter.GracefulStop(timeoutCtx); err != nil {
-		s.cfg.Log.WithError(err).Error("Gracefully stopping usage reporter failed")
-	}
-
-	// s.closeContext is used for the tshd events client which might make requests as long as any of
-	// the resources managed by daemon.Service are up and running. So let's cancel the context only
-	// after closing those resources.
-	s.cancel()
-}
-
-// UpdateAndDialTshdEventsServerAddress allows the Electron app to provide the tshd events server
-// address.
-//
-// The startup of the app is orchestrated so that this method is called before any other method on
-// daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
-// client is available right from the beginning, without the need for nil checks.
-func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	withCreds, err := s.cfg.CreateTshdEventsClientCredsFunc()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	conn, err := grpc.Dial(serverAddress, withCreds)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	client := api.NewTshdEventsServiceClient(conn)
-	// If the need arises to reuse the client in other places,
-	// read https://github.com/gravitational/teleport/pull/17950#discussion_r1039434456
-	s.cfg.GatewayCertReissuer.TSHDEventsClient = client
-
-	return nil
-}
-
-func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferRequest, sendProgress clusters.FileTransferProgressSender) error {
-	cluster, err := s.ResolveCluster(request.GetServerUri())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return cluster.TransferFile(ctx, request, sendProgress)
 }
 
 // Service is the daemon service
 type Service struct {
 	cfg *Config
-	// mu guards gateways and the creation of tshdEventsClient.
-	mu sync.RWMutex
-	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
-	// to the tshd events gRPC client.
-	closeContext context.Context
-	cancel       context.CancelFunc
+	mu  sync.RWMutex
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
-	// usageReporter batches the events and sends them to prehog
-	usageReporter *usagereporter.UsageReporter
 }
 
 type CreateGatewayParams struct {

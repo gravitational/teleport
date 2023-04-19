@@ -16,8 +16,6 @@ limitations under the License.
 
 import React from 'react';
 
-import { Text } from 'design';
-
 import Validation from '../../components/Validation';
 
 import FieldInput from './FieldInput';
@@ -41,25 +39,6 @@ export const Fields = () => (
         <FieldInput
           mb="6"
           label="Label with placeholder"
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-        />
-        <FieldInput
-          mb="6"
-          label="Label with tooltip"
-          name="optional name"
-          onChange={() => {}}
-          placeholder="placeholder"
-          value={''}
-          toolTipContent={<Text>Hello world</Text>}
-        />
-        <FieldInput
-          mb="6"
-          label="Label with labeltip and tooltip"
-          labelTip="the label tip"
-          toolTipContent={<Text>Hello world</Text>}
           name="optional name"
           onChange={() => {}}
           placeholder="placeholder"

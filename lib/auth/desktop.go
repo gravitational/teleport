@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"crypto/x509"
-	"crypto/x509/pkix"
 
 	"github.com/gravitational/trace"
 
@@ -51,7 +50,7 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(ctx, userCA)
+	caCert, signer, err := s.GetKeyStore().GetTLSCertAndSigner(userCA)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -71,10 +70,6 @@ func (s *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		// CRL is required for Windows smartcard certs.
 		CRLDistributionPoints: []string{req.CRLEndpoint},
 	}
-	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
-		Id:    tlsca.LicenseOID,
-		Value: []byte(modules.GetModules().BuildType()),
-	})
 	cert, err := tlsCA.GenerateCertificate(certReq)
 	if err != nil {
 		return nil, trace.Wrap(err)

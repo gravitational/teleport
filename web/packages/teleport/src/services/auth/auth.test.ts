@@ -61,15 +61,10 @@ describe('services/auth', () => {
     };
 
     await auth.resetPassword({
-      req: {
-        tokenId: 'tokenId',
-        password: password,
-        otpCode: '2fa_token',
-      },
+      tokenId: 'tokenId',
+      password,
+      otpCode: '2fa_token',
     });
-    expect(api.put).toHaveBeenCalledWith(
-      cfg.getPasswordTokenUrl(),
-      expect.objectContaining(submitData)
-    );
+    expect(api.put).toHaveBeenCalledWith(cfg.getPasswordTokenUrl(), submitData);
   });
 });

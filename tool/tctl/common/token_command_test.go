@@ -49,7 +49,6 @@ type listedToken struct {
 }
 
 func TestTokens(t *testing.T) {
-	dynAddr := newDynamicServiceAddr(t)
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
@@ -63,18 +62,18 @@ func TestTokens(t *testing.T) {
 			Service: config.Service{
 				EnabledFlag: "true",
 			},
-			WebAddr: dynAddr.webAddr,
-			TunAddr: dynAddr.tunnelAddr,
+			WebAddr: mustGetFreeLocalListenerAddr(t),
+			TunAddr: mustGetFreeLocalListenerAddr(t),
 		},
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: dynAddr.authAddr,
+				ListenAddress: mustGetFreeLocalListenerAddr(t),
 			},
 		},
 	}
 
-	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig))
 
 	// Test all output formats of "tokens add".
 	t.Run("add", func(t *testing.T) {

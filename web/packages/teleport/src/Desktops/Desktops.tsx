@@ -29,7 +29,7 @@ import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
 import DesktopList from './DesktopList';
-import { useDesktops, State } from './useDesktops';
+import useDesktops, { State } from './useDesktops';
 
 const DOC_URL = 'https://goteleport.com/docs/desktop-access/getting-started/';
 
@@ -48,25 +48,24 @@ export function Desktops(props: State) {
     isLeafCluster,
     getWindowsLoginOptions,
     openRemoteDesktopTab,
-    fetchedData,
+    results,
     fetchNext,
     fetchPrev,
+    from,
+    to,
     pageSize,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
     onLabelClick,
-    pageIndicators,
   } = props;
 
-  const hasNoDesktops =
-    attempt.status === 'success' &&
-    fetchedData.agents.length === 0 &&
-    isSearchEmpty;
+  const hasNoDesktops = results.desktops.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -91,7 +90,7 @@ export function Desktops(props: State) {
       )}
       {attempt.status !== 'processing' && !hasNoDesktops && (
         <DesktopList
-          desktops={fetchedData.agents}
+          desktops={results.desktops}
           username={username}
           clusterId={clusterId}
           onLoginMenuOpen={getWindowsLoginOptions}
@@ -99,14 +98,18 @@ export function Desktops(props: State) {
           fetchNext={fetchNext}
           fetchPrev={fetchPrev}
           fetchStatus={fetchStatus}
-          pageIndicators={pageIndicators}
+          from={from}
+          to={to}
+          totalCount={results.totalCount}
           pageSize={pageSize}
           params={params}
           setParams={setParams}
+          startKeys={startKeys}
           setSort={setSort}
           pathname={pathname}
           replaceHistory={replaceHistory}
           onLabelClick={onLabelClick}
+          paginationUnsupported={results.paginationUnsupported}
         />
       )}
       {attempt.status === 'success' && hasNoDesktops && (

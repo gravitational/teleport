@@ -21,11 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -36,43 +32,17 @@ type Kube struct {
 	// URI is the kube URI
 	URI uri.ResourceURI
 
-	KubernetesCluster types.KubeCluster
+	types.KubernetesCluster
 }
 
-// GetKubes returns a paginated kubes list
-func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKubesResponse, error) {
-	var (
-		page        apiclient.ResourcePage[types.KubeCluster]
-		authClient  auth.ClientI
-		proxyClient *client.ProxyClient
-		err         error
-	)
-
-	req := &proto.ListResourcesRequest{
-		Namespace:           defaults.Namespace,
-		ResourceType:        types.KindKubernetesCluster,
-		Limit:               r.Limit,
-		SortBy:              types.GetSortByFromString(r.SortBy),
-		StartKey:            r.StartKey,
-		PredicateExpression: r.Query,
-		SearchKeywords:      client.ParseSearchKeywords(r.Search, ' '),
-		UseSearchAsRoles:    r.SearchAsRoles == "yes",
-	}
+// GetKubes returns kube services
+func (c *Cluster) GetKubes(ctx context.Context) ([]Kube, error) {
+	var authClient auth.ClientI
+	var proxyClient *client.ProxyClient
+	var err error
 
 	err = addMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer proxyClient.Close()
-
-		authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		defer authClient.Close()
-
-		page, err = apiclient.GetResourcePage[types.KubeCluster](ctx, authClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -82,26 +52,34 @@ func (c *Cluster) GetKubes(ctx context.Context, r *api.GetKubesRequest) (*GetKub
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
 
-	results := make([]Kube, 0, len(page.Resources))
-	for _, cluster := range page.Resources {
-		results = append(results, Kube{
-			URI:               c.URI.AppendKube(cluster.GetName()),
-			KubernetesCluster: cluster,
-		})
+	authClient, err = proxyClient.ConnectToCluster(ctx, c.clusterClient.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	return &GetKubesResponse{
-		Kubes:      results,
-		StartKey:   page.NextKey,
-		TotalCount: page.Total,
-	}, nil
-}
+	defer authClient.Close()
 
-type GetKubesResponse struct {
-	Kubes []Kube
-	// StartKey is the next key to use as a starting point.
-	StartKey string
-	// // TotalCount is the total number of resources available as a whole.
-	TotalCount int
+	services, err := authClient.GetKubeServices(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	kubeMap := map[string]Kube{}
+	for _, service := range services {
+		for _, kube := range service.GetKubernetesClusters() {
+			kubeMap[kube.Name] = Kube{
+				URI:               c.URI.AppendKube(kube.Name),
+				KubernetesCluster: *kube,
+			}
+		}
+	}
+
+	kubes := make([]Kube, 0, len(kubeMap))
+	for _, value := range kubeMap {
+		kubes = append(kubes, value)
+	}
+
+	return kubes, nil
 }

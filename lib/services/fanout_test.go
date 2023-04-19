@@ -30,10 +30,9 @@ import (
 // TestFanoutWatcherClose tests fanout watcher close
 // removes it from the buffer
 func TestFanoutWatcherClose(t *testing.T) {
-	ctx := context.Background()
 	eventsCh := make(chan FanoutEvent, 1)
 	f := NewFanout(eventsCh)
-	w, err := f.NewWatcher(ctx,
+	w, err := f.NewWatcher(context.TODO(),
 		types.Watch{Name: "test", Kinds: []types.WatchKind{{Name: "test"}}})
 	require.NoError(t, err)
 	require.Equal(t, f.Len(), 1)
@@ -54,16 +53,15 @@ func TestFanoutInit(t *testing.T) {
 
 	w, err := f.NewWatcher(context.TODO(), types.Watch{
 		Name:  "test",
-		Kinds: []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
+		Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
 	})
 	require.NoError(t, err)
 
-	f.SetInit([]types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}})
+	f.SetInit()
 
 	select {
 	case e := <-w.Events():
 		require.Equal(t, types.OpInit, e.Type)
-		require.Equal(t, types.NewWatchStatus([]types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}}), e.Resource)
 	default:
 		t.Fatalf("Expected init event")
 	}
@@ -72,81 +70,6 @@ func TestFanoutInit(t *testing.T) {
 	case e := <-w.Events():
 		t.Fatalf("Unexpected second event: %+v", e)
 	default:
-	}
-}
-
-// TestUnsupportedKindInitialized verifies that an initialized Fanout fails immediately when requested a watched
-// for a resource kind that wasn't confirmed by the event source in regular mode, but works in partial success mode.
-func TestUnsupportedKindInitialized(t *testing.T) {
-	ctx := context.Background()
-
-	f := NewFanout()
-	f.SetInit([]types.WatchKind{{Kind: "spam"}})
-
-	// fails immediately in regular mode
-	testWatch := types.Watch{
-		Name:  "test",
-		Kinds: []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
-	}
-	_, err := f.NewWatcher(ctx, testWatch)
-	require.Error(t, err)
-
-	// works in partial success mode
-	testWatch.AllowPartialSuccess = true
-	w, err := f.NewWatcher(ctx, testWatch)
-	require.NoError(t, err)
-
-	select {
-	case e := <-w.Events():
-		require.Equal(t, types.OpInit, e.Type)
-		watchStatus, ok := e.Resource.(types.WatchStatus)
-		require.True(t, ok)
-		require.Equal(t, []types.WatchKind{{Kind: "spam"}}, watchStatus.GetKinds())
-	case <-time.After(time.Second):
-		t.Fatal("Timeout waiting for event.")
-	}
-}
-
-// TestUnsupportedKindDelayed verifies that, upon initialization, Fanout closes pending watchers that requested
-// resource kinds that weren't confirmed by the event source and didn't enable partial success mode.
-func TestUnsupportedKindDelayed(t *testing.T) {
-	ctx := context.Background()
-	f := NewFanout()
-
-	regularWatcher, err := f.NewWatcher(ctx, types.Watch{
-		Name:  "test",
-		Kinds: []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
-	})
-	require.NoError(t, err)
-
-	partialSuccessWatcher, err := f.NewWatcher(ctx, types.Watch{
-		Name:                "test",
-		Kinds:               []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
-		AllowPartialSuccess: true,
-	})
-	require.NoError(t, err)
-
-	f.SetInit([]types.WatchKind{{Kind: "spam"}})
-
-	// regular watcher fails upon Fanout initialization
-	select {
-	case <-regularWatcher.Events():
-		t.Fatal("unexpected event from watcher that's supposed to fail")
-	case <-regularWatcher.Done():
-		require.Error(t, regularWatcher.Error())
-	case <-time.After(time.Second):
-		t.Fatal("Timeout waiting for close event.")
-	}
-
-	// watcher in partial success mode receives OpInit with partial confirmation
-	select {
-	case e := <-partialSuccessWatcher.Events():
-		require.Equal(t, types.OpInit, e.Type)
-		watchStatus, ok := e.Resource.(types.WatchStatus)
-		require.True(t, ok)
-		require.Equal(t, []types.WatchKind{{Kind: "spam"}}, watchStatus.GetKinds())
-	case <-time.After(time.Second):
-		t.Fatal("Timeout waiting for event.")
 	}
 }
 
@@ -165,7 +88,7 @@ func BenchmarkFanoutRegistration(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		f := NewFanout()
-		f.SetInit([]types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}})
+		f.SetInit()
 
 		var wg sync.WaitGroup
 
@@ -175,7 +98,7 @@ func BenchmarkFanoutRegistration(b *testing.B) {
 				defer wg.Done()
 				w, err := f.NewWatcher(ctx, types.Watch{
 					Name:  "test",
-					Kinds: []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
+					Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
 				})
 				require.NoError(b, err)
 				w.Close()
@@ -199,7 +122,7 @@ func BenchmarkFanoutSetRegistration(b *testing.B) {
 
 	for n := 0; n < b.N; n++ {
 		f := NewFanoutSet()
-		f.SetInit([]types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}})
+		f.SetInit()
 
 		var wg sync.WaitGroup
 
@@ -209,7 +132,7 @@ func BenchmarkFanoutSetRegistration(b *testing.B) {
 				defer wg.Done()
 				w, err := f.NewWatcher(ctx, types.Watch{
 					Name:  "test",
-					Kinds: []types.WatchKind{{Kind: "spam"}, {Kind: "eggs"}},
+					Kinds: []types.WatchKind{{Name: "spam"}, {Name: "eggs"}},
 				})
 				require.NoError(b, err)
 				w.Close()

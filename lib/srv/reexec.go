@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/shell"
 	"github.com/gravitational/teleport/lib/srv/uacc"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -289,7 +288,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		}
 
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.PAMConfig.ServiceName,
 			UsePAMAuth:  c.PAMConfig.UsePAMAuth,
 			Login:       c.Login,
@@ -320,6 +319,13 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	if err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
+	defer func() {
+		for _, f := range cmd.ExtraFiles {
+			if err := f.Close(); err != nil {
+				log.WithError(err).Warn("Error closing extra file.")
+			}
+		}
+	}()
 
 	// Wait until the continue signal is received from Teleport signaling that
 	// the child process has been placed in a cgroup.
@@ -595,7 +601,7 @@ func RunForward() (errw io.Writer, code int, err error) {
 	// launch the shell under.
 	if c.PAMConfig != nil {
 		// Open the PAM context.
-		pamContext, err := pam.Open(&servicecfg.PAMConfig{
+		pamContext, err := pam.Open(&pam.Config{
 			ServiceName: c.PAMConfig.ServiceName,
 			Login:       c.Login,
 			Stdin:       os.Stdin,
@@ -645,8 +651,6 @@ func runCheckHomeDir() (errw io.Writer, code int, err error) {
 
 // runPark does nothing, forever.
 func runPark() (errw io.Writer, code int, err error) {
-	// Do not replace this with an empty select because there are no other
-	// goroutines running so it will panic.
 	for {
 		time.Sleep(time.Hour)
 	}
@@ -795,7 +799,7 @@ func buildCommand(c *ExecCommand, localUser *user.User, tty *os.File, pty *os.Fi
 	// Set the command's cwd to the user's $HOME, or "/" if
 	// they don't have an existing home dir.
 	// TODO (atburke): Generalize this to support Windows.
-	exists, err := CheckHomeDir(localUser)
+	exists, err := checkHomeDir(localUser)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	} else if exists {
@@ -930,8 +934,8 @@ func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	}
 }
 
-// CheckHomeDir checks if the user's home dir exists
-func CheckHomeDir(localUser *user.User) (bool, error) {
+// checkHomeDir checks if the user's home dir exists
+func checkHomeDir(localUser *user.User) (bool, error) {
 	if fi, err := os.Stat(localUser.HomeDir); err == nil {
 		return fi.IsDir(), nil
 	}

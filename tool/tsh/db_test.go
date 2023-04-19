@@ -41,9 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -60,44 +58,30 @@ func TestDatabaseLogin(t *testing.T) {
 	alice.SetRoles([]string{"access"})
 
 	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
-		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
+		withAuthConfig(func(cfg *service.AuthConfig) {
 			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}))
-	makeTestDatabaseServer(t, authProcess, proxyProcess,
-		servicecfg.Database{
-			Name:     "postgres",
-			Protocol: defaults.ProtocolPostgres,
-			URI:      "localhost:5432",
-		}, servicecfg.Database{
-			Name:     "mysql",
-			Protocol: defaults.ProtocolMySQL,
-			URI:      "localhost:3306",
-		}, servicecfg.Database{
-			Name:     "cassandra",
-			Protocol: defaults.ProtocolCassandra,
-			URI:      "localhost:9042",
-		}, servicecfg.Database{
-			Name:     "snowflake",
-			Protocol: defaults.ProtocolSnowflake,
-			URI:      "localhost.snowflakecomputing.com",
-		}, servicecfg.Database{
-			Name:     "mongo",
-			Protocol: defaults.ProtocolMongoDB,
-			URI:      "localhost:27017",
-		}, servicecfg.Database{
-			Name:     "mssql",
-			Protocol: defaults.ProtocolSQLServer,
-			URI:      "localhost:1433",
-		}, servicecfg.Database{
-			Name:     "dynamodb",
-			Protocol: defaults.ProtocolDynamoDB,
-			URI:      "", // uri can be blank for DynamoDB, it will be derived from the region and requests.
-			AWS: servicecfg.DatabaseAWS{
-				AccountID:  "123456789012",
-				ExternalID: "123123123",
-				Region:     "us-west-1",
-			},
-		})
+	makeTestDatabaseServer(t, authProcess, proxyProcess, service.Database{
+		Name:     "postgres",
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:5432",
+	}, service.Database{
+		Name:     "mysql",
+		Protocol: defaults.ProtocolMySQL,
+		URI:      "localhost:3306",
+	}, service.Database{
+		Name:     "snowflake",
+		Protocol: defaults.ProtocolSnowflake,
+		URI:      "localhost.snowflakecomputing.com",
+	}, service.Database{
+		Name:     "mongo",
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "localhost:27017",
+	}, service.Database{
+		Name:     "mssql",
+		Protocol: defaults.ProtocolSQLServer,
+		URI:      "localhost:1433",
+	})
 
 	authServer := authProcess.GetAuthServer()
 	require.NotNil(t, authServer)
@@ -144,22 +128,10 @@ func TestDatabaseLogin(t *testing.T) {
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for MySQL with TLS routing.
 		},
 		{
-			databaseName:          "cassandra",
-			expectCertsLen:        1,
-			expectErrForConfigCmd: true, // "tsh db config" not supported for Cassandra.
-			expectErrForEnvCmd:    true, // "tsh db env" not supported for Cassandra.
-		},
-		{
 			databaseName:          "snowflake",
 			expectCertsLen:        1,
 			expectErrForConfigCmd: true, // "tsh db config" not supported for Snowflake.
 			expectErrForEnvCmd:    true, // "tsh db env" not supported for Snowflake.
-		},
-		{
-			databaseName:          "dynamodb",
-			expectCertsLen:        1,
-			expectErrForConfigCmd: true, // "tsh db config" not supported for DynamoDB.
-			expectErrForEnvCmd:    true, // "tsh db env" not supported for DynamoDB.
 		},
 	}
 
@@ -175,10 +147,8 @@ func TestDatabaseLogin(t *testing.T) {
 			require.NoError(t, err)
 
 			// Fetch the active profile.
-			clientStore := client.NewFSClientStore(tmpHomePath)
-			profile, err := clientStore.ReadProfileStatus(proxyAddr.Host())
+			profile, err := client.StatusFor(tmpHomePath, proxyAddr.Host(), alice.GetName())
 			require.NoError(t, err)
-			require.Equal(t, alice.GetName(), profile.Username)
 
 			// Verify certificates.
 			certs, keys, err := decodePEM(profile.DatabaseCertPathForCluster("", test.databaseName))
@@ -221,134 +191,24 @@ func TestDatabaseLogin(t *testing.T) {
 	}
 }
 
-func TestLocalProxyRequirement(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	tmpHomePath := t.TempDir()
-	connector := mockConnector(t)
-	alice, err := types.NewUser("alice@example.com")
-	require.NoError(t, err)
-	alice.SetRoles([]string{"access"})
-
-	authProcess, proxyProcess := makeTestServers(t, withBootstrap(connector, alice),
-		withAuthConfig(func(cfg *servicecfg.AuthConfig) {
-			cfg.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-		}))
-
-	authServer := authProcess.GetAuthServer()
-	require.NotNil(t, authServer)
-
-	proxyAddr, err := proxyProcess.ProxyWebAddr()
-	require.NoError(t, err)
-
-	// Log into Teleport cluster.
-	err = Run(context.Background(), []string{
-		"login", "--insecure", "--debug", "--auth", connector.GetName(), "--proxy", proxyAddr.String(),
-	}, setHomePath(tmpHomePath), cliOption(func(cf *CLIConf) error {
-		cf.mockSSOLogin = mockSSOLogin(t, authServer, alice)
-		return nil
-	}))
-	require.NoError(t, err)
-
-	defaultAuthPref, err := authServer.GetAuthPreference(ctx)
-	require.NoError(t, err)
-	tests := map[string]struct {
-		clusterAuthPref types.AuthPreference
-		route           *tlsca.RouteToDatabase
-		setupTC         func(*client.TeleportClient)
-		wantLocalProxy  bool
-		wantTunnel      bool
-	}{
-		"tunnel not required": {
-			clusterAuthPref: defaultAuthPref,
-			wantLocalProxy:  true,
-			wantTunnel:      false,
-		},
-		"tunnel required for MFA DB session": {
-			clusterAuthPref: &types.AuthPreferenceV2{
-				Spec: types.AuthPreferenceSpecV2{
-					Type:         constants.Local,
-					SecondFactor: constants.SecondFactorOptional,
-					Webauthn: &types.Webauthn{
-						RPID: "127.0.0.1",
-					},
-					RequireMFAType: types.RequireMFAType_SESSION,
-				},
-			},
-			wantLocalProxy: true,
-			wantTunnel:     true,
-		},
-		"local proxy not required for separate port": {
-			clusterAuthPref: defaultAuthPref,
-			setupTC: func(tc *client.TeleportClient) {
-				tc.TLSRoutingEnabled = false
-				tc.TLSRoutingConnUpgradeRequired = true
-				tc.PostgresProxyAddr = "separate.postgres.hostport:8888"
-			},
-			wantLocalProxy: false,
-			wantTunnel:     false,
-		},
-		"local proxy required if behind lb": {
-			clusterAuthPref: defaultAuthPref,
-			setupTC: func(tc *client.TeleportClient) {
-				tc.TLSRoutingEnabled = true
-				tc.TLSRoutingConnUpgradeRequired = true
-			},
-			wantLocalProxy: true,
-			wantTunnel:     false,
-		},
-	}
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			require.NoError(t, authServer.SetAuthPreference(ctx, tt.clusterAuthPref))
-			t.Cleanup(func() {
-				require.NoError(t, authServer.SetAuthPreference(ctx, defaultAuthPref))
-			})
-			cf := &CLIConf{
-				Context:         ctx,
-				TracingProvider: tracing.NoopProvider(),
-				HomePath:        tmpHomePath,
-			}
-			tc, err := makeClient(cf, false)
-			require.NoError(t, err)
-			if tt.setupTC != nil {
-				tt.setupTC(tc)
-			}
-			route := &tlsca.RouteToDatabase{
-				ServiceName: "foo-db",
-				Protocol:    "postgres",
-				Username:    "alice",
-				Database:    "postgres",
-			}
-			requires := getDBLocalProxyRequirement(tc, route, withConnectRequirements(ctx, tc, route))
-			require.Equal(t, tt.wantLocalProxy, requires.localProxy)
-			require.Equal(t, tt.wantTunnel, requires.tunnel)
-			if requires.tunnel {
-				require.Len(t, requires.tunnelReasons, 1)
-				require.Contains(t, requires.tunnelReasons[0], "MFA is required")
-			}
-		})
-	}
-}
-
 func TestListDatabase(t *testing.T) {
 	lib.SetInsecureDevMode(true)
 	defer lib.SetInsecureDevMode(false)
 
 	s := newTestSuite(t,
-		withRootConfigFunc(func(cfg *servicecfg.Config) {
+		withRootConfigFunc(func(cfg *service.Config) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Databases.Enabled = true
-			cfg.Databases.Databases = []servicecfg.Database{{
+			cfg.Databases.Databases = []service.Database{{
 				Name:     "root-postgres",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
 			}}
 		}),
 		withLeafCluster(),
-		withLeafConfigFunc(func(cfg *servicecfg.Config) {
+		withLeafConfigFunc(func(cfg *service.Config) {
 			cfg.Databases.Enabled = true
-			cfg.Databases.Databases = []servicecfg.Database{{
+			cfg.Databases.Databases = []service.Database{{
 				Name:     "leaf-postgres",
 				Protocol: defaults.ProtocolPostgres,
 				URI:      "localhost:5432",
@@ -521,11 +381,11 @@ func TestDBInfoHasChanged(t *testing.T) {
 	}
 }
 
-func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
+func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *service.TeleportProcess, dbs ...service.Database) (db *service.TeleportProcess) {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -533,7 +393,7 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	proxyAddr, err := proxy.ProxyWebAddr()
 	require.NoError(t, err)
 
-	cfg.SetAuthServerAddress(*proxyAddr)
+	cfg.AuthServers = []utils.NetAddr{*proxyAddr}
 
 	token, err := proxy.Config.Token()
 	require.NoError(t, err)
@@ -541,19 +401,29 @@ func makeTestDatabaseServer(t *testing.T, auth *service.TeleportProcess, proxy *
 	cfg.SetToken(token)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = false
-	cfg.Proxy.Enabled = false
 	cfg.Databases.Enabled = true
 	cfg.Databases.Databases = dbs
 	cfg.Log = utils.NewLoggerForTests()
 
-	db = runTeleport(t, cfg)
+	db, err = service.NewTeleport(cfg)
+	require.NoError(t, err)
+	require.NoError(t, db.Start())
+
+	t.Cleanup(func() {
+		db.Close()
+	})
+
+	// Wait for database agent to start.
+	_, err = db.WaitForEventTimeout(10*time.Second, service.DatabasesReady)
+	require.NoError(t, err, "database server didn't start after 10s")
 
 	// Wait for all databases to register to avoid races.
 	waitForDatabases(t, auth, dbs)
+
 	return db
 }
 
-func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
@@ -654,18 +524,6 @@ func TestFormatDatabaseConnectArgs(t *testing.T) {
 			cluster:   "",
 			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolMySQL, Username: "bob", ServiceName: "svc"},
 			wantFlags: []string{"svc"},
-		},
-		{
-			name:      "match user name, dynamodb",
-			cluster:   "",
-			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolDynamoDB, ServiceName: "svc"},
-			wantFlags: []string{"--db-user=<user>", "svc"},
-		},
-		{
-			name:      "match user and db name, oracle protocol",
-			cluster:   "",
-			route:     tlsca.RouteToDatabase{Protocol: defaults.ProtocolOracle, ServiceName: "svc"},
-			wantFlags: []string{"--db-user=<user>", "--db-name=<name>", "svc"},
 		},
 	}
 	for _, tt := range tests {

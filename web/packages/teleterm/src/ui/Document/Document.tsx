@@ -45,7 +45,7 @@ const Document: React.FC<{
       tabIndex={visible ? 0 : -1}
       flex="1"
       ref={ref}
-      bg="levels.sunken"
+      bg="primary.darker"
       onContextMenu={handleContextMenu}
       style={{
         overflow: 'auto',

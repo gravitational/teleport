@@ -103,7 +103,7 @@ func NewConnectionContext(ctx context.Context, nconn net.Conn, sconn *ssh.Server
 // allowing the underlying ssh.Channel to be closed when the agent
 // is no longer needed.
 type agentChannel struct {
-	agent.ExtendedAgent
+	agent.Agent
 	ch ssh.Channel
 }
 
@@ -132,7 +132,7 @@ func (a *agentChannel) Close() error {
 func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 	// refuse to start an agent if forwardAgent has not yet been set.
 	if !c.GetForwardAgent() {
-		return nil, trace.AccessDenied("agent forwarding has not been requested")
+		return nil, trace.AccessDenied("agent forwarding required in proxy recording mode")
 	}
 	// open a agent channel to client
 	ch, _, err := c.ServerConn.OpenChannel(AuthAgentRequest, nil)
@@ -140,8 +140,8 @@ func (c *ConnectionContext) StartAgentChannel() (teleagent.Agent, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &agentChannel{
-		ExtendedAgent: agent.NewClient(ch),
-		ch:            ch,
+		Agent: agent.NewClient(ch),
+		ch:    ch,
 	}, nil
 }
 

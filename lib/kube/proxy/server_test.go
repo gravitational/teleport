@@ -17,7 +17,6 @@ limitations under the License.
 package proxy
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -29,7 +28,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"sort"
 	"testing"
 	"time"
 
@@ -37,10 +35,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -99,10 +94,10 @@ func TestMTLSClientCAs(t *testing.T) {
 	}
 	hostCert := genCert(t, "localhost", "localhost", "127.0.0.1", "::1")
 	userCert := genCert(t, "user")
-	log := logrus.New()
+
 	srv := &TLSServer{
 		TLSServerConfig: TLSServerConfig{
-			Log: log,
+			Log: logrus.New(),
 			ForwarderConfig: ForwarderConfig{
 				ClusterName: mainClusterName,
 			},
@@ -111,9 +106,7 @@ func TestMTLSClientCAs(t *testing.T) {
 				ClientAuth:   tls.RequireAndVerifyClientCert,
 				Certificates: []tls.Certificate{hostCert},
 			},
-			GetRotation: func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
-		log: logrus.NewEntry(log),
 	}
 
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -199,105 +192,38 @@ func TestGetServerInfo(t *testing.T) {
 			ForwarderConfig: ForwarderConfig{
 				Clock:       clockwork.NewFakeClock(),
 				ClusterName: "kube-cluster",
-				HostID:      "server_uuid",
 			},
 			AccessPoint:          ap,
 			TLS:                  &tls.Config{},
 			ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-			GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
 		},
 		fwd: &Forwarder{
 			cfg: ForwarderConfig{},
-			clusterDetails: map[string]*kubeDetails{
-				"kube-cluster": {
-					kubeCluster: mustCreateKubernetesClusterV3(t, "kube-cluster"),
-				},
-			},
 		},
 		listener: listener,
 	}
 
 	t.Run("GetServerInfo gets listener addr with PublicAddr unset", func(t *testing.T) {
-		serverInfo, err := srv.getServerInfo("kube-cluster")
+		serverInfo, err := srv.GetServerInfo()
 		require.NoError(t, err)
 
-		kubeServer, ok := serverInfo.(types.KubeServer)
+		kubeServer, ok := serverInfo.(*types.ServerV2)
 		require.True(t, ok)
 
-		require.Equal(t, listener.Addr().String(), kubeServer.GetHostname())
+		require.Equal(t, listener.Addr().String(), kubeServer.GetAddr())
 	})
 
 	t.Run("GetServerInfo gets correct public addr with PublicAddr set", func(t *testing.T) {
 		srv.TLSServerConfig.ForwarderConfig.PublicAddr = "k8s.example.com"
 
-		serverInfo, err := srv.getServerInfo("kube-cluster")
+		serverInfo, err := srv.GetServerInfo()
 		require.NoError(t, err)
 
-		kubeServer, ok := serverInfo.(types.KubeServer)
+		kubeServer, ok := serverInfo.(*types.ServerV2)
 		require.True(t, ok)
 
-		require.Equal(t, "k8s.example.com", kubeServer.GetHostname())
+		require.Equal(t, "k8s.example.com", kubeServer.GetAddr())
 	})
-}
-
-func TestHeartbeat(t *testing.T) {
-	kubeCluster1 := "kubeCluster1"
-	kubeCluster2 := "kubeCluster2"
-
-	kubeMock, err := testingkubemock.NewKubeAPIMock()
-	require.NoError(t, err)
-	t.Cleanup(func() { kubeMock.Close() })
-
-	// creates a Kubernetes service with a configured cluster pointing to mock api server
-	testCtx := SetupTestContext(
-		context.Background(),
-		t,
-		TestConfig{
-			Clusters: []KubeClusterConfig{{Name: kubeCluster1, APIEndpoint: kubeMock.URL}, {Name: kubeCluster2, APIEndpoint: kubeMock.URL}},
-		},
-	)
-
-	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
-
-	type args struct {
-		kubeClusterGetter func(auth.ClientI) []string
-	}
-	tests := []struct {
-		name      string
-		args      args
-		wantEmpty bool
-	}{
-		{
-			name: "List KubeServers",
-			args: args{
-				kubeClusterGetter: func(authClient auth.ClientI) []string {
-					rsp, err := authClient.ListResources(testCtx.Context, proto.ListResourcesRequest{
-						ResourceType: types.KindKubeServer,
-						Limit:        10,
-					})
-					require.NoError(t, err)
-					clusters := []string{}
-					for _, resource := range rsp.Resources {
-						srv, ok := resource.(types.KubeServer)
-						require.Truef(t, ok, "type is %T; expected types.KubeServer", srv)
-						clusters = append(clusters, srv.GetName())
-					}
-					sort.Strings(clusters)
-					return clusters
-				},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			kubeClusters := tt.args.kubeClusterGetter(testCtx.AuthClient)
-			if tt.wantEmpty {
-				require.Empty(t, kubeClusters)
-			} else {
-				require.Equal(t, []string{kubeCluster1, kubeCluster2}, kubeClusters)
-			}
-		})
-	}
 }
 
 func TestTLSServerConfig_validateLabelsKey(t *testing.T) {
@@ -343,7 +269,9 @@ func TestTLSServerConfig_validateLabelsKey(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &TLSServerConfig{
-				StaticLabels: tt.fields.staticLabels,
+				ForwarderConfig: ForwarderConfig{
+					StaticLabels: tt.fields.staticLabels,
+				},
 			}
 			err := c.validateLabelKeys()
 			tt.errorAssertion(t, err)

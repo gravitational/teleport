@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -162,7 +163,7 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 		return nil
 	}
 
-	if !utils.IsRedirect(resp.StatusCode) {
+	if !isRedirect(resp.StatusCode) {
 		return nil
 	}
 
@@ -197,6 +198,14 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 	return nil
 }
 
+// isRedirect returns true if the status code is a 3xx code.
+func isRedirect(code int) bool {
+	if code >= http.StatusMultipleChoices && code <= http.StatusPermanentRedirect {
+		return true
+	}
+	return false
+}
+
 // rewriteRequest applies any rewriting rules to the request before it's forwarded.
 func (t *transport) rewriteRequest(r *http.Request) error {
 	// Set dummy values for the request forwarder. Dialing through the tunnel is
@@ -204,6 +213,13 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	// are needed for the forwarder.
 	r.URL.Scheme = "https"
 	r.URL.Host = constants.APIDomain
+
+	// Don't trust any "X-Forward-*" headers the client sends, instead set own and then
+	// forward request.
+	headers := &forward.HeaderRewriter{
+		TrustForwardHeader: false,
+	}
+	headers.Rewrite(r)
 
 	// Remove the application session cookie from the header. This is done by
 	// first wiping out the "Cookie" header then adding back all cookies
@@ -237,7 +253,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (net.Conn, err
 		}
 
 		var dialErr error
-		conn, dialErr = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
+		conn, dialErr = dialAppServer(t.c.proxyClient, t.c.identity, appServer)
 		if dialErr != nil {
 			if isReverseTunnelDownError(dialErr) {
 				t.c.log.Warnf("Failed to connect to application server %q: %v.", serverID, dialErr)
@@ -278,28 +294,24 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
-	clusterClient, err := proxyClient.GetSite(clusterName)
+func dialAppServer(proxyClient reversetunnel.Tunnel, identity *tlsca.Identity, server types.AppServer) (net.Conn, error) {
+	clusterClient, err := proxyClient.GetSite(identity.RouteToApp.ClusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var from net.Addr
-	from = &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
-	clientSrcAddr, originalDst := utils.ClientAddrFromContext(ctx)
-	if clientSrcAddr != nil {
-		from = clientSrcAddr
+	conn, err := clusterClient.Dial(reversetunnel.DialParams{
+		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
+		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+		ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), identity.RouteToApp.ClusterName),
+		ConnType: types.AppTunnel,
+		ProxyIDs: server.GetProxyIDs(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		From:                  from,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-		OriginalClientDstAddr: originalDst,
-		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
-		ConnType:              server.GetTunnelType(),
-		ProxyIDs:              server.GetProxyIDs(),
-	})
-	return conn, trace.Wrap(err)
+	return conn, nil
 }
 
 // configureTLS creates and configures a *tls.Config that will be used for

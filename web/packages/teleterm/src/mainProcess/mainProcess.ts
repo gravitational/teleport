@@ -14,28 +14,24 @@
  * limitations under the License.
  */
 
-import { ChildProcess, fork, spawn, exec } from 'child_process';
+import { ChildProcess, fork, spawn } from 'child_process';
 import path from 'path';
-import fs from 'fs/promises';
 
-import { promisify } from 'util';
+import fs from 'fs/promises';
 
 import {
   app,
-  dialog,
   ipcMain,
+  shell,
   Menu,
   MenuItemConstructorOptions,
-  shell,
 } from 'electron';
-import { wait } from 'shared/utils/wait';
 
-import { FileStorage, RuntimeSettings } from 'teleterm/types';
+import { FileStorage, Logger, RuntimeSettings } from 'teleterm/types';
 import { subscribeToFileStorageEvents } from 'teleterm/services/fileStorage';
-import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
+import createLoggerService from 'teleterm/services/logger';
 import { ChildProcessAddresses } from 'teleterm/mainProcess/types';
 import { getAssetPath } from 'teleterm/mainProcess/runtimeSettings';
-import Logger from 'teleterm/logger';
 
 import {
   ConfigService,
@@ -45,15 +41,12 @@ import {
 import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalContextMenu';
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
-import { WindowsManager } from './windowsManager';
 
 type Options = {
   settings: RuntimeSettings;
   logger: Logger;
   configService: ConfigService;
-  appStateFileStorage: FileStorage;
-  configFileStorage: FileStorage;
-  windowsManager: WindowsManager;
+  fileStorage: FileStorage;
 };
 
 export default class MainProcess {
@@ -62,18 +55,14 @@ export default class MainProcess {
   private readonly configService: ConfigService;
   private tshdProcess: ChildProcess;
   private sharedProcess: ChildProcess;
-  private appStateFileStorage: FileStorage;
-  private configFileStorage: FileStorage;
+  private fileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
-  private windowsManager: WindowsManager;
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
     this.logger = opts.logger;
     this.configService = opts.configService;
-    this.appStateFileStorage = opts.appStateFileStorage;
-    this.configFileStorage = opts.configFileStorage;
-    this.windowsManager = opts.windowsManager;
+    this.fileStorage = opts.fileStorage;
   }
 
   static create(opts: Options) {
@@ -83,17 +72,8 @@ export default class MainProcess {
   }
 
   dispose() {
-    this.killTshdProcess();
     this.sharedProcess.kill('SIGTERM');
-    const processesExit = Promise.all([
-      promisifyProcessExit(this.tshdProcess),
-      promisifyProcessExit(this.sharedProcess),
-    ]);
-    // sending usage events on tshd shutdown has 10 seconds timeout
-    const timeout = wait(10_000).then(() =>
-      this.logger.error('Child process(es) did not exit within 10 seconds')
-    );
-    return Promise.race([processesExit, timeout]);
+    this.tshdProcess.kill('SIGTERM');
   }
 
   private _init() {
@@ -115,7 +95,7 @@ export default class MainProcess {
     this.logger.info(`Starting tsh daemon from ${binaryPath}`);
 
     this.tshdProcess = spawn(binaryPath, flags, {
-      stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
+      stdio: 'pipe',
       windowsHide: true,
       env: {
         ...process.env,
@@ -123,16 +103,15 @@ export default class MainProcess {
       },
     });
 
-    const tshdPassThroughLogger = createFileLoggerService({
+    const tshdLogger = createLoggerService({
       dev: this.settings.dev,
       dir: this.settings.userDataDir,
       name: 'tshd',
-      loggerNameColor: LoggerColor.Cyan,
       passThroughMode: true,
     });
 
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stdout);
-    tshdPassThroughLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stderr);
+    tshdLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stdout);
+    tshdLogger.pipeProcessOutputIntoLogger(this.tshdProcess.stderr);
 
     this.tshdProcess.on('error', error => {
       this.logger.error('tshd failed to start', error);
@@ -148,22 +127,8 @@ export default class MainProcess {
       path.join(__dirname, 'sharedProcess.js'),
       [`--runtimeSettingsJson=${JSON.stringify(this.settings)}`],
       {
-        stdio: 'pipe', // stdio must be set to `pipe` as the gRPC server address is read from stdout
+        stdio: 'pipe',
       }
-    );
-    const sharedProcessPassThroughLogger = createFileLoggerService({
-      dev: this.settings.dev,
-      dir: this.settings.userDataDir,
-      name: 'shared',
-      loggerNameColor: LoggerColor.Yellow,
-      passThroughMode: true,
-    });
-
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stdout
-    );
-    sharedProcessPassThroughLogger.pipeProcessOutputIntoLogger(
-      this.sharedProcess.stderr
     );
 
     this.sharedProcess.on('error', error => {
@@ -224,72 +189,10 @@ export default class MainProcess {
       }
     );
 
-    ipcMain.handle('main-process-show-file-save-dialog', (_, filePath) =>
-      dialog.showSaveDialog({
-        defaultPath: path.basename(filePath),
-      })
-    );
-
-    ipcMain.handle('main-process-force-focus-window', () => {
-      this.windowsManager.forceFocusWindow();
-    });
-
-    // Used in the `tsh install` command on macOS to make the bundled tsh available in PATH.
-    // Returns true if tsh got successfully installed, false if the user closed the osascript
-    // prompt. Throws an error when osascript fails.
-    ipcMain.handle('main-process-symlink-tsh-macos', async () => {
-      const source = this.settings.tshd.binaryPath;
-      const target = '/usr/local/bin/tsh';
-      const prompt =
-        'Teleport Connect wants to create a symlink for tsh in /usr/local/bin.';
-      const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf '${source}' '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
-
-      try {
-        await promisify(exec)(command);
-        this.logger.info(`Created the symlink to ${source} under ${target}`);
-        return true;
-      } catch (error) {
-        // Ignore the error if the user canceled the prompt.
-        // https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_error_codes.html#//apple_ref/doc/uid/TP40000983-CH220-SW2
-        if (error instanceof Error && error.message.includes('-128')) {
-          return false;
-        }
-        this.logger.error(error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('main-process-remove-tsh-symlink-macos', async () => {
-      const target = '/usr/local/bin/tsh';
-      const prompt =
-        'Teleport Connect wants to remove a symlink for tsh from /usr/local/bin.';
-      const command = `osascript -e "do shell script \\"rm '${target}'\\" with prompt \\"${prompt}\\" with administrator privileges"`;
-
-      try {
-        await promisify(exec)(command);
-        this.logger.info(`Removed the symlink under ${target}`);
-        return true;
-      } catch (error) {
-        // Ignore the error if the user canceled the prompt.
-        // https://developer.apple.com/library/archive/documentation/AppleScript/Conceptual/AppleScriptLangGuide/reference/ASLR_error_codes.html#//apple_ref/doc/uid/TP40000983-CH220-SW2
-        if (error instanceof Error && error.message.includes('-128')) {
-          return false;
-        }
-        this.logger.error(error);
-        throw error;
-      }
-    });
-
-    ipcMain.handle('main-process-open-config-file', async () => {
-      const path = this.configFileStorage.getFilePath();
-      await shell.openPath(path);
-      return path;
-    });
-
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();
     subscribeToConfigServiceEvents(this.configService);
-    subscribeToFileStorageEvents(this.appStateFileStorage);
+    subscribeToFileStorageEvents(this.fileStorage);
   }
 
   private _setAppMenu() {
@@ -345,41 +248,10 @@ export default class MainProcess {
       });
     }
   }
-
-  /**
-   * On Windows, where POSIX signals do not exist, the only way to gracefully
-   * kill a process is to send Ctrl-Break to its console. This task is done by
-   * `tsh daemon stop` program. On Unix, the standard `SIGTERM` signal is sent.
-   */
-  private killTshdProcess() {
-    if (this.settings.platform !== 'win32') {
-      this.tshdProcess.kill('SIGTERM');
-      return;
-    }
-
-    const logger = new Logger('Daemon stop');
-    const daemonStop = spawn(
-      this.settings.tshd.binaryPath,
-      ['daemon', 'stop', `--pid=${this.tshdProcess.pid}`],
-      {
-        windowsHide: true,
-        timeout: 2_000,
-      }
-    );
-    daemonStop.on('error', error => {
-      logger.error('daemon stop process failed to start', error);
-    });
-    daemonStop.stderr.setEncoding('utf-8');
-    daemonStop.stderr.on('data', logger.error);
-  }
 }
 
 const DOCS_URL = 'https://goteleport.com/docs/use-teleport/teleport-connect/';
 
 function openDocsUrl() {
   shell.openExternal(DOCS_URL);
-}
-
-function promisifyProcessExit(childProcess: ChildProcess) {
-  return new Promise(resolve => childProcess.once('exit', resolve));
 }

@@ -46,6 +46,7 @@ information about the temporary user.
 You can inspect a temporary `user` resource created via your SSO integration
 by using the `tctl` command:
 
+
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
@@ -259,8 +260,9 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
   metadata:
     name: cluster-auth-preference
   spec:
-    # Set as saml, oidc, or github
-    type: saml|oidc|github
+    authentication:
+      # Set as saml, oidc, or github
+      type: saml|oidc|github
   version: v2
   ```
 
@@ -558,6 +560,7 @@ must be able to:
 If something is not working, we recommend to:
 
 - Double-check the host names, tokens and TCP ports in a connector definition.
+
 
 ### Using the Web UI
 

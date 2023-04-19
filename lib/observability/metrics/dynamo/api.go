@@ -23,7 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodb/dynamodbiface"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // APIMetrics wraps a dynamodbiface.DynamoDBAPI implementation and
@@ -35,7 +35,7 @@ type APIMetrics struct {
 
 // NewAPIMetrics returns a new APIMetrics for the provided TableType
 func NewAPIMetrics(tableType TableType, api dynamodbiface.DynamoDBAPI) (*APIMetrics, error) {
-	if err := metrics.RegisterPrometheusCollectors(dynamoCollectors...); err != nil {
+	if err := utils.RegisterPrometheusCollectors(dynamoCollectors...); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

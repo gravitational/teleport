@@ -1,5 +1,4 @@
 ### Kubernetes authentication
-
 To authenticate to a Kubernetes cluster via Teleport, your Teleport roles must
 allow access as at least one Kubernetes user or group. Ensure that you have a
 Teleport role that grants access to the cluster you plan to interact with.
@@ -18,34 +17,41 @@ Create a file called `kube-access.yaml` with the following content, replacing
 kind: role
 metadata:
   name: kube-access
-version: v6
+version: v5
 spec:
   allow:
     kubernetes_labels:
       '*': '*'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
     kubernetes_groups:
-    - viewers
+    - view
     kubernetes_users:
-    # Replace USER with the Kubernetes user for your current context.
     - USER
   deny: {}
+```
+
+Retrieve your Teleport user:
+
+```code
+$ TELEPORT_USER=myuser
+$ tctl get user/${TELEPORT_USER?} > user.yaml
+```
+
+Add `kube-access` to your Teleport user's list of roles:
+
+```diff
+   roles:
++  - kube-access
 ```
 
 Apply your changes:
 
 ```code
 $ tctl create -f kube-access.yaml
+$ tctl create -f user.yaml
 ```
 
-(!docs/pages/includes/add-role-to-user.mdx role="kube-access"!)
-
-Now that Teleport RBAC is configured, you can authenticate to your Kubernetes
-cluster via Teleport. To interact with your Kubernetes cluster, you will need to
-configure authorization within Kubernetes.
+Now that Teleport RBAC is configured, you can authenticate to your Kubernetes cluster via Teleport.
+To interact with your Kubernetes cluster, you will need to configure authorization within Kubernetes.
 
 ### Kubernetes authorization
 

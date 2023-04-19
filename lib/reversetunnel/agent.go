@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -116,8 +115,6 @@ type agentConfig struct {
 	// localAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	localAuthAddresses []string
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
-	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // checkAndSetDefaults ensures an agentConfig contains required parameters.
@@ -189,8 +186,6 @@ type agent struct {
 	// drainWG tracks transports and other concurrent operations required
 	// to drain a connection are finished.
 	drainWG sync.WaitGroup
-	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
-	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // newAgent intializes a reverse tunnel agent.
@@ -207,7 +202,6 @@ func newAgent(config agentConfig) (*agent, error) {
 		drainCancel:    noop,
 		unclaim:        noop,
 		doneConnecting: make(chan struct{}),
-		proxySigner:    config.proxySigner,
 	}, nil
 }
 
@@ -294,7 +288,7 @@ func (a *agent) updateState(state AgentState) (AgentState, error) {
 }
 
 // Start starts an agent returning after successfully connecting and sending
-// the first heartbeat.
+// the first heatbeat.
 func (a *agent) Start(ctx context.Context) error {
 	a.log.Debugf("Starting agent %v", a.addr)
 
@@ -473,7 +467,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 					continue
 				}
 			case reconnectRequest:
-				a.log.Debugf("Received reconnect advisory request from proxy.")
+				a.log.Debugf("Receieved reconnect advisory request from proxy.")
 				if r.WantReply {
 					err := a.client.Reply(r, true, nil)
 					if err != nil {
@@ -485,7 +479,7 @@ func (a *agent) handleGlobalRequests(ctx context.Context, requests <-chan *ssh.R
 				// context is canceled to allow the agent to drain.
 				go a.Stop()
 			default:
-				// This handles keep-alive messages and matches the behavior of OpenSSH.
+				// This handles keep-alive messages and matches the behaviour of OpenSSH.
 				err := a.client.Reply(r, false, nil)
 				if err != nil {
 					a.log.Debugf("Failed to reply to %v request: %v.", r.Type, err)

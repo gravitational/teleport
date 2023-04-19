@@ -5,27 +5,22 @@ metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "teleport-cluster.labels" . | nindent 4 }}
+    app: {{ .Release.Name }}
   {{- with .Values.podMonitor.additionalLabels }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
-  jobLabel: {{ .Release.Name }}
+  jobLabel: app
   namespaceSelector:
     matchNames:
       - {{ .Release.Namespace }}
   selector:
-    matchLabels: {{- include "teleport-cluster.selectorLabels" . | nindent 6 }}
+    matchLabels:
+      app: {{ .Release.Name }}
   podMetricsEndpoints:
     - port: diag
       path: /metrics
       {{- with .Values.podMonitor.interval }}
       interval: {{ . | quote }}
       {{- end }}
-  podTargetLabels:
-    - "app.kubernetes.io/name"
-    - "app.kubernetes.io/instance"
-    - "app.kubernetes.io/component"
-    - "app.kubernetes.io/version"
-    - "teleport.dev/majorVersion"
 {{- end }}

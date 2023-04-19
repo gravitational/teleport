@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/integration"
 	"github.com/gravitational/teleport/integration/helpers"
 )
 
@@ -275,7 +276,7 @@ func TestResolveDefaultAddrHTTPProxy(t *testing.T) {
 	t.Cleanup(proxyServer.Close)
 
 	// Go won't proxy to localhost, so use this address instead.
-	localIP, err := helpers.GetLocalIP()
+	localIP, err := integration.GetLocalIP()
 	require.NoError(t, err)
 
 	var serverAddr net.Addr

@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import { useTheme } from 'styled-components';
 import FieldInput from 'shared/components/FieldInput';
 import { requiredField } from 'shared/components/Validation/rules';
 import { FieldTextArea } from 'shared/components/FieldTextArea';
@@ -42,8 +41,6 @@ export function ShareFeedbackFormFields({
   ) {
     setFormValues({ ...formValues, [field]: value });
   }
-
-  const theme = useTheme();
 
   return (
     <>
@@ -76,19 +73,7 @@ export function ShareFeedbackFormFields({
       <FieldTextArea
         label="Suggestions"
         textAreaCss={`
-        font-size: 14px;
-        outline: none;
-        color: ${theme.colors.text.primary};
-        background: ${theme.colors.levels.surface};
-        border: 1px solid ${theme.colors.text.placeholder};
-        ::placeholder {
-          color: ${theme.colors.text.placeholder};
-        }
-        &:hover,
-        &:focus,
-        &:active {
-          border: 1px solid ${theme.colors.text.secondary};
-        }
+          font-size: 14px;
         `}
         rule={requiredField('Suggestions are required')}
         readOnly={disabled}

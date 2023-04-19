@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package events_test
+package events
 
 import (
 	"context"
@@ -26,13 +26,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
@@ -43,25 +44,64 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func TestNew(t *testing.T) {
-	alog := makeLog(t, clockwork.NewFakeClock())
+type AuditTestSuite struct {
+	dataDir string
+}
 
-	// Close twice.
-	require.NoError(t, alog.Close())
-	require.NoError(t, alog.Close())
+// bootstrap check
+func TestAuditLog(t *testing.T) { check.TestingT(t) }
+
+var _ = check.Suite(&AuditTestSuite{})
+
+func (a *AuditTestSuite) TearDownSuite(c *check.C) {
+	os.RemoveAll(a.dataDir)
+}
+
+// creates a file-based audit log and returns a proper *AuditLog pointer
+// instead of the usual IAuditLog interface
+func (a *AuditTestSuite) makeLog(c *check.C, dataDir string) (*AuditLog, error) {
+	return a.makeLogWithClock(c, dataDir, nil)
+}
+
+// creates a file-based audit log and returns a proper *AuditLog pointer
+// instead of the usual IAuditLog interface
+func (a *AuditTestSuite) makeLogWithClock(c *check.C, dataDir string, clock clockwork.Clock) (*AuditLog, error) {
+	alog, err := NewAuditLog(AuditLogConfig{
+		DataDir:       dataDir,
+		ServerID:      "server1",
+		Clock:         clock,
+		UIDGenerator:  utils.NewFakeUID(),
+		UploadHandler: NewMemoryUploader(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return alog, nil
+}
+
+func (a *AuditTestSuite) SetUpTest(c *check.C) {
+	a.dataDir = c.MkDir()
+}
+
+func (a *AuditTestSuite) TestNew(c *check.C) {
+	alog, err := a.makeLog(c, a.dataDir)
+	c.Assert(err, check.IsNil)
+	// close twice:
+	c.Assert(alog.Close(), check.IsNil)
+	c.Assert(alog.Close(), check.IsNil)
 }
 
 // TestLogRotation makes sure that logs are rotated
 // on the day boundary and symlinks are created and updated
-func TestLogRotation(t *testing.T) {
-	ctx := context.Background()
+func (a *AuditTestSuite) TestLogRotation(c *check.C) {
 	start := time.Date(1984, time.April, 4, 0, 0, 0, 0, time.UTC)
 	clock := clockwork.NewFakeClockAt(start)
 
 	// create audit log, write a couple of events into it, close it
-	alog := makeLog(t, clock)
+	alog, err := a.makeLogWithClock(c, a.dataDir, clock)
+	c.Assert(err, check.IsNil)
 	defer func() {
-		require.NoError(t, alog.Close())
+		c.Assert(alog.Close(), check.IsNil)
 	}()
 
 	for _, duration := range []time.Duration{0, time.Hour * 25} {
@@ -70,48 +110,41 @@ func TestLogRotation(t *testing.T) {
 		clock.Advance(duration)
 
 		// emit regular event:
-		event := &apievents.Resize{
-			Metadata:     apievents.Metadata{Type: "resize", Time: now},
+		event := &events.Resize{
+			Metadata:     events.Metadata{Type: "resize", Time: now},
 			TerminalSize: "10:10",
 		}
-		err := alog.EmitAuditEvent(ctx, event)
-		require.NoError(t, err)
-		logfile := alog.CurrentFile()
+		err = alog.EmitAuditEvent(context.TODO(), event)
+		c.Assert(err, check.IsNil)
+		logfile := alog.localLog.file.Name()
 
 		// make sure that file has the same date as the event
-		dt, err := events.ParseFileTime(filepath.Base(logfile))
-		require.NoError(t, err)
-		require.Equal(t, time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()), dt)
+		dt, err := parseFileTime(filepath.Base(logfile))
+		c.Assert(err, check.IsNil)
+		c.Assert(dt, check.Equals, time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()))
 
 		// read back what's been written:
 		bytes, err := os.ReadFile(logfile)
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 		contents, err := json.Marshal(event)
 		contents = append(contents, '\n')
-		require.NoError(t, err)
-		require.Equal(t, string(bytes), string(contents))
+		c.Assert(err, check.IsNil)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
 		// read back the contents using symlink
-		bytes, err = os.ReadFile(alog.CurrentFileSymlink())
-		require.NoError(t, err)
-		require.Equal(t, string(bytes), string(contents))
+		bytes, err = os.ReadFile(filepath.Join(alog.localLog.SymlinkDir, SymlinkFilename))
+		c.Assert(err, check.IsNil)
+		c.Assert(string(bytes), check.Equals, string(contents))
 
-		found, _, err := alog.SearchEvents(
-			now.Add(-time.Hour),
-			now.Add(time.Hour),
-			apidefaults.Namespace,
-			nil, // event types
-			0,   // limit
-			types.EventOrderAscending,
-			"") // start key
-		require.NoError(t, err)
-		require.Len(t, found, 1)
+		found, _, err := alog.SearchEvents(now.Add(-time.Hour), now.Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
+		c.Assert(err, check.IsNil)
+		c.Assert(found, check.HasLen, 1)
 	}
 }
 
 func TestConcurrentStreaming(t *testing.T) {
-	uploader := eventstest.NewMemoryUploader()
-	alog, err := events.NewAuditLog(events.AuditLogConfig{
+	uploader := NewMemoryUploader()
+	alog, err := NewAuditLog(AuditLogConfig{
 		DataDir:       t.TempDir(),
 		Clock:         clockwork.NewFakeClock(),
 		ServerID:      "remote",
@@ -156,38 +189,27 @@ func TestConcurrentStreaming(t *testing.T) {
 	}
 }
 
-func TestExternalLog(t *testing.T) {
-	m := &eventstest.MockAuditLog{
-		Emitter: &eventstest.MockEmitter{},
+// TestExternalLog tests forwarding server and upload
+// server case
+func (a *AuditTestSuite) TestExternalLog(c *check.C) {
+	m := &mockAuditLog{
+		emitter: eventstest.MockEmitter{},
 	}
 
 	fakeClock := clockwork.NewFakeClock()
-	alog, err := events.NewAuditLog(events.AuditLogConfig{
-		DataDir:       t.TempDir(),
+	alog, err := NewAuditLog(AuditLogConfig{
+		DataDir:       a.dataDir,
 		Clock:         fakeClock,
 		ServerID:      "remote",
-		UploadHandler: eventstest.NewMemoryUploader(),
+		UploadHandler: NewMemoryUploader(),
 		ExternalLog:   m,
 	})
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer alog.Close()
 
-	evt := &apievents.SessionConnect{}
-	require.NoError(t, alog.EmitAuditEvent(context.Background(), evt))
+	evt := &events.SessionConnect{}
+	c.Assert(alog.EmitAuditEvent(context.Background(), evt), check.IsNil)
 
-	require.Len(t, m.Emitter.Events(), 1)
-	require.Equal(t, m.Emitter.Events()[0], evt)
-}
-
-func makeLog(t *testing.T, clock clockwork.Clock) *events.AuditLog {
-	alog, err := events.NewAuditLog(events.AuditLogConfig{
-		DataDir:       t.TempDir(),
-		ServerID:      "server1",
-		Clock:         clock,
-		UIDGenerator:  utils.NewFakeUID(),
-		UploadHandler: eventstest.NewMemoryUploader(),
-	})
-	require.NoError(t, err)
-
-	return alog
+	c.Assert(m.emitter.Events(), check.HasLen, 1)
+	c.Assert(m.emitter.Events()[0], check.Equals, evt)
 }

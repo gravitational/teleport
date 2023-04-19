@@ -20,7 +20,6 @@ import { Box, ButtonBorder, Card, Text } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { getUserWithClusterName } from 'teleterm/ui/utils';
-import { RootClusterUri } from 'teleterm/ui/uri';
 
 export function RecentClusters() {
   const ctx = useAppContext();
@@ -38,7 +37,7 @@ export function RecentClusters() {
       uri: cluster.uri,
     }));
 
-  function connect(clusterUri: RootClusterUri): void {
+  function connect(clusterUri: string): void {
     ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
@@ -47,7 +46,7 @@ export function RecentClusters() {
   }
 
   return (
-    <Card p={3} maxWidth="480px" bg="levels.surfaceSecondary" m="auto">
+    <Card p={3} maxWidth="480px" bg="primary.main" m="auto">
       <Text bold fontSize={3} mb={1} color="light">
         Recent clusters
       </Text>

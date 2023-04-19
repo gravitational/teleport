@@ -32,73 +32,55 @@ import (
 )
 
 func TestTemplateSSHClient_Render(t *testing.T) {
-	tests := []struct {
-		Name    string
-		Version string
-	}{
-		{
-			Name:    "legacy OpenSSH",
-			Version: "6.5.0",
+	dir := t.TempDir()
+	mockAuth := newMockAuth(t)
+
+	cfg, err := NewDefaultConfig("example.com")
+	require.NoError(t, err)
+
+	mockBot := newMockBot(cfg, mockAuth)
+	template := TemplateSSHClient{
+		ProxyPort: 1337,
+		getSSHVersion: func() (*semver.Version, error) {
+			return openSSHMinVersionForRSAWorkaround, nil
 		},
-		{
-			Name:    "latest OpenSSH",
-			Version: "9.0.0",
+		getExecutablePath: func() (string, error) {
+			return "/path/to/tbot", nil
+		},
+	}
+	// ident is passed in, but not used.
+	var ident *identity.Identity
+	dest := &DestinationConfig{
+		DestinationMixin: DestinationMixin{
+			Directory: &DestinationDirectory{
+				Path:     dir,
+				Symlinks: botfs.SymlinksInsecure,
+				ACLs:     botfs.ACLOff,
+			},
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.Name, func(t *testing.T) {
-			dir := t.TempDir()
-			mockAuth := newMockAuth(t)
+	err = template.Render(context.Background(), mockBot, ident, dest)
+	require.NoError(t, err)
 
-			cfg, err := NewDefaultConfig("example.com")
-			require.NoError(t, err)
-
-			mockBot := newMockBot(cfg, mockAuth)
-			template := TemplateSSHClient{
-				ProxyPort: 1337,
-				getSSHVersion: func() (*semver.Version, error) {
-					return semver.New(tc.Version), nil
-				},
-				getExecutablePath: func() (string, error) {
-					return "/path/to/tbot", nil
-				},
-			}
-			// ident is passed in, but not used.
-			var ident *identity.Identity
-			dest := &DestinationConfig{
-				DestinationMixin: DestinationMixin{
-					Directory: &DestinationDirectory{
-						Path:     dir,
-						Symlinks: botfs.SymlinksInsecure,
-						ACLs:     botfs.ACLOff,
-					},
-				},
-			}
-
-			err = template.Render(context.Background(), mockBot, ident, ident, dest)
-			require.NoError(t, err)
-
-			replaceTestDir := func(b []byte) []byte {
-				return bytes.ReplaceAll(b, []byte(dir), []byte("/test/dir"))
-			}
-
-			knownHostBytes, err := os.ReadFile(filepath.Join(dir, knownHostsName))
-			require.NoError(t, err)
-			knownHostBytes = replaceTestDir(knownHostBytes)
-			sshConfigBytes, err := os.ReadFile(filepath.Join(dir, sshConfigName))
-			require.NoError(t, err)
-			sshConfigBytes = replaceTestDir(sshConfigBytes)
-			if golden.ShouldSet() {
-				golden.SetNamed(t, "known_hosts", knownHostBytes)
-				golden.SetNamed(t, "ssh_config", sshConfigBytes)
-			}
-			require.Equal(
-				t, string(golden.GetNamed(t, "known_hosts")), string(knownHostBytes),
-			)
-			require.Equal(
-				t, string(golden.GetNamed(t, "ssh_config")), string(sshConfigBytes),
-			)
-		})
+	replaceTestDir := func(b []byte) []byte {
+		return bytes.ReplaceAll(b, []byte(dir), []byte("/test/dir"))
 	}
+
+	knownHostBytes, err := os.ReadFile(filepath.Join(dir, knownHostsName))
+	require.NoError(t, err)
+	knownHostBytes = replaceTestDir(knownHostBytes)
+	sshConfigBytes, err := os.ReadFile(filepath.Join(dir, sshConfigName))
+	require.NoError(t, err)
+	sshConfigBytes = replaceTestDir(sshConfigBytes)
+	if golden.ShouldSet() {
+		golden.SetNamed(t, "known_hosts", knownHostBytes)
+		golden.SetNamed(t, "ssh_config", sshConfigBytes)
+	}
+	require.Equal(
+		t, string(golden.GetNamed(t, "known_hosts")), string(knownHostBytes),
+	)
+	require.Equal(
+		t, string(golden.GetNamed(t, "ssh_config")), string(sshConfigBytes),
+	)
 }

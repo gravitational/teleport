@@ -61,7 +61,7 @@ function ConnectorListItem({ name, id, onEdit, onDelete }) {
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
-      bg="levels.surface"
+      bg="primary.light"
       px="5"
       pt="2"
       pb="5"

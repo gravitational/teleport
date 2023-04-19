@@ -22,10 +22,9 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport10
       env:
         GOCACHE: /tmp/gocache
-        WEBASSETS_SKIP_BUILD: 1
 
     steps:
       - name: Checkout Teleport

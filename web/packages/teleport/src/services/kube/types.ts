@@ -14,10 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, AgentQueryMeta } from 'teleport/services/resources';
 export interface Kube {
   name: string;
   labels: AgentLabel[];
   users?: string[];
   groups?: string[];
 }
+
+export type KubesResponse = AgentQueryMeta & {
+  kubes: Kube[];
+};

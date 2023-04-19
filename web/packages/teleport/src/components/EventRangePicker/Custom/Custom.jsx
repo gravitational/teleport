@@ -17,16 +17,10 @@ limitations under the License.
 import React from 'react';
 import { isAfter, endOfDay, startOfDay, isSameDay, subMonths } from 'date-fns';
 import styled from 'styled-components';
-import dayPicker from 'react-day-picker/DayPicker';
+import DayPicker, { DateUtils } from 'react-day-picker';
 import 'react-day-picker/lib/style.css';
 import { Flex } from 'design';
 import { Close as CloseIcon } from 'design/Icon';
-
-// There is a vite issue with react-day-picker in production builds
-// https://github.com/vitejs/vite/issues/2139
-// TODO(ryan): After node v18 upgrade, swap to the Vite config approach instead of this one
-// also, we should look into upgrading react-day-picker
-const DayPicker = dayPicker.default || dayPicker;
 
 export default class CustomRange extends React.Component {
   constructor(props) {
@@ -57,7 +51,7 @@ export default class CustomRange extends React.Component {
       this.startSelecting = true;
     }
 
-    const range = dayPicker.DateUtils.addDayToRange(day, { from, end });
+    const range = DateUtils.addDayToRange(day, { from, end });
 
     if (range.from) {
       range.from = startOfDay(range.from);

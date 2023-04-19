@@ -51,8 +51,6 @@ type AppServer interface {
 	GetApp() Application
 	// SetApp sets the app this app server proxies.
 	SetApp(Application) error
-	// GetTunnelType returns the tunnel type associated with the app server.
-	GetTunnelType() TunnelType
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
 }
@@ -78,6 +76,51 @@ func NewAppServerV3FromApp(app *AppV3, hostname, hostID string) (*AppServerV3, e
 		HostID:   hostID,
 		App:      app,
 	})
+}
+
+// NewLegacyAppServer creates legacy app server object. Used in tests.
+//
+// DELETE IN 9.0.
+func NewLegacyAppServer(app *AppV3, hostname, hostID string) (Server, error) {
+	return NewServer(hostID, KindAppServer,
+		ServerSpecV2{
+			Hostname: hostname,
+			Apps: []*App{
+				{
+					Name:         app.GetName(),
+					URI:          app.GetURI(),
+					PublicAddr:   app.GetPublicAddr(),
+					StaticLabels: app.GetStaticLabels(),
+				},
+			},
+		})
+}
+
+// NewAppServersV3FromServer creates a list of app servers from Server resource.
+//
+// DELETE IN 9.0.
+func NewAppServersV3FromServer(server Server) (result []AppServer, err error) {
+	for _, legacyApp := range server.GetApps() {
+		app, err := NewAppV3FromLegacyApp(legacyApp)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		appServer, err := NewAppServerV3(Metadata{
+			Name:    app.GetName(),
+			Expires: server.GetMetadata().Expires,
+		}, AppServerSpecV3{
+			Version:  server.GetTeleportVersion(),
+			Hostname: server.GetHostname(),
+			HostID:   server.GetName(),
+			Rotation: server.GetRotation(),
+			App:      app,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		result = append(result, appServer)
+	}
+	return result, nil
 }
 
 // GetVersion returns the database server resource version.
@@ -178,16 +221,6 @@ func (s *AppServerV3) SetApp(app Application) error {
 	}
 	s.Spec.App = appV3
 	return nil
-}
-
-// GetTunnelType returns the tunnel type associated with the app server.
-func (s *AppServerV3) GetTunnelType() TunnelType {
-	switch {
-	case s.Origin() == OriginOkta:
-		return OktaTunnel
-	default:
-		return AppTunnel
-	}
 }
 
 // String returns the server string representation.

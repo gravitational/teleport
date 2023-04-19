@@ -23,10 +23,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/elasticache/elasticacheiface"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/api/utils"
 	libaws "github.com/gravitational/teleport/lib/cloud/aws"
 	libsecrets "github.com/gravitational/teleport/lib/srv/db/secrets"
 	libutils "github.com/gravitational/teleport/lib/utils"
@@ -67,24 +66,23 @@ func (f *elastiCacheFetcher) GetType() string {
 
 // FetchDatabaseUsers fetches users for provided database. Implements Fetcher.
 func (f *elastiCacheFetcher) FetchDatabaseUsers(ctx context.Context, database types.Database) ([]User, error) {
-	meta := database.GetAWS()
-	if len(meta.ElastiCache.UserGroupIDs) == 0 {
+	if len(database.GetAWS().ElastiCache.UserGroupIDs) == 0 {
 		return nil, nil
 	}
 
-	client, err := f.cfg.Clients.GetAWSElastiCacheClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	client, err := f.cfg.Clients.GetAWSElastiCacheClient(database.GetAWS().Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	secrets, err := newSecretStore(ctx, database, f.cfg.Clients)
+	secrets, err := newSecretStore(database, f.cfg.Clients)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	users := []User{}
-	for _, userGroupID := range meta.ElastiCache.UserGroupIDs {
-		managedUsers, err := f.getManagedUsersForGroup(ctx, meta.Region, userGroupID, client)
+	for _, userGroupID := range database.GetAWS().ElastiCache.UserGroupIDs {
+		managedUsers, err := f.getManagedUsersForGroup(ctx, database.GetAWS().Region, userGroupID, client)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -111,7 +109,7 @@ func (f *elastiCacheFetcher) getManagedUsersForGroup(ctx context.Context, region
 	managedUsers := []*elasticache.User{}
 	for _, user := range allUsers {
 		// Match user group ID.
-		if !slices.Contains(aws.StringValueSlice(user.UserGroupIds), userGroupID) {
+		if !utils.SliceContainsStr(aws.StringValueSlice(user.UserGroupIds), userGroupID) {
 			continue
 		}
 

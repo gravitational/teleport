@@ -26,31 +26,30 @@ import (
 )
 
 func Test_ssoDiagContext_writeToBackend(t *testing.T) {
-	diag := &SSODiagContext{
-		AuthKind:  types.KindSAML,
-		RequestID: "123",
-		Info:      types.SSODiagnosticInfo{},
+	diag := &ssoDiagContext{
+		authKind:  types.KindSAML,
+		requestID: "123",
+		info:      types.SSODiagnosticInfo{},
 	}
 
 	callCount := 0
 
-	diagFn := func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error {
+	diag.createSSODiagnosticInfo = func(ctx context.Context, authKind string, authRequestID string, info types.SSODiagnosticInfo) error {
 		callCount++
-		require.Truef(t, info.TestFlow, "CreateSSODiagnosticInfo must not be called if info.TestFlow is false.")
-		require.Equal(t, diag.AuthKind, authKind)
-		require.Equal(t, diag.RequestID, authRequestID)
-		require.Equal(t, diag.Info, info)
+		require.Truef(t, info.TestFlow, "createSSODiagnosticInfo must not be called if info.TestFlow is false.")
+		require.Equal(t, diag.authKind, authKind)
+		require.Equal(t, diag.requestID, authRequestID)
+		require.Equal(t, diag.info, info)
 		return nil
 	}
-	diag.DiagService = SSODiagServiceFunc(diagFn)
 
 	// with TestFlow: false, no call is made.
-	diag.Info.TestFlow = false
-	diag.WriteToBackend(context.Background())
+	diag.info.TestFlow = false
+	diag.writeToBackend(context.Background())
 	require.Equal(t, 0, callCount)
 
 	// with TestFlow: true, a call is made.
-	diag.Info.TestFlow = true
-	diag.WriteToBackend(context.Background())
+	diag.info.TestFlow = true
+	diag.writeToBackend(context.Background())
 	require.Equal(t, 1, callCount)
 }

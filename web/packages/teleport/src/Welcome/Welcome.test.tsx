@@ -17,14 +17,12 @@ limitations under the License.
 import React from 'react';
 import { MemoryRouter, Route, Router } from 'react-router';
 import { createMemoryHistory } from 'history';
-import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
+import { screen, fireEvent, act, render, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
-
-import { userEventService } from 'teleport/services/userEvent';
 
 import Welcome from './Welcome';
 
@@ -41,9 +39,6 @@ describe('teleport/components/Welcome', () => {
       tokenId: 'test123',
       qrCode: 'test12345',
     }));
-    jest
-      .spyOn(userEventService, 'capturePreUserEvent')
-      .mockImplementation(() => new Promise(() => null));
   });
 
   afterEach(() => {
@@ -71,13 +66,13 @@ describe('teleport/components/Welcome', () => {
 
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText(/get started/i));
-    mockHistory.push(inviteContinuePath);
+    await waitFor(() => {
+      fireEvent.click(screen.getByText(/get started/i));
+      mockHistory.push(inviteContinuePath);
+    });
 
     expect(history.push).toHaveBeenCalledWith(inviteContinuePath);
-    await waitFor(() => {
-      expect(auth.fetchPasswordToken).toHaveBeenCalled();
-    });
+    expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
     expect(screen.getByText(/confirm password/i)).toBeInTheDocument();
   });
@@ -105,12 +100,12 @@ describe('teleport/components/Welcome', () => {
 
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText(/Continue/i));
-    mockHistory.push(resetContinuePath);
-
     await waitFor(() => {
-      expect(history.push).toHaveBeenCalledWith(resetContinuePath);
+      fireEvent.click(screen.getByText(/Continue/i));
+      mockHistory.push(resetContinuePath);
     });
+
+    expect(history.push).toHaveBeenCalledWith(resetContinuePath);
     expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
     expect(screen.getByText(/submit/i)).toBeInTheDocument();
@@ -122,9 +117,9 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPassword')
       .mockImplementation(() => new Promise(() => null));
 
-    renderInvite();
+    await act(async () => renderInvite());
 
-    const pwdField = await screen.findByPlaceholderText('Password');
+    const pwdField = screen.getByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
 
     // fill out input boxes and trigger submit
@@ -132,16 +127,12 @@ describe('teleport/components/Welcome', () => {
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
     fireEvent.click(screen.getByRole('button'));
 
-    expect(auth.resetPassword).toHaveBeenCalledWith(
-      expect.objectContaining({
-        req: {
-          tokenId: '5182',
-          password: 'pwd_value',
-          otpCode: '',
-          deviceName: '',
-        },
-      })
-    );
+    expect(auth.resetPassword).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: 'pwd_value',
+      otpCode: '',
+      deviceName: '',
+    });
   });
 
   it('reset password with otp', async () => {
@@ -150,10 +141,10 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPassword')
       .mockImplementation(() => new Promise(() => null));
 
-    renderInvite();
+    await act(async () => renderInvite());
 
     // Fill out password.
-    const pwdField = await screen.findByPlaceholderText('Password');
+    const pwdField = screen.getByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
@@ -166,16 +157,12 @@ describe('teleport/components/Welcome', () => {
     fireEvent.change(otpField, { target: { value: '2222' } });
     fireEvent.click(screen.getByText(/submit/i));
 
-    expect(auth.resetPassword).toHaveBeenCalledWith(
-      expect.objectContaining({
-        req: {
-          tokenId: '5182',
-          password: 'pwd_value',
-          otpCode: '2222',
-          deviceName: 'otp-device',
-        },
-      })
-    );
+    expect(auth.resetPassword).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: 'pwd_value',
+      otpCode: '2222',
+      deviceName: 'otp-device',
+    });
   });
 
   it('reset password with webauthn', async () => {
@@ -184,10 +171,10 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
 
-    renderInvite();
+    await act(async () => renderInvite());
 
     // Fill out password.
-    const pwdField = await screen.findByPlaceholderText('Password');
+    const pwdField = screen.getByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });
@@ -198,15 +185,11 @@ describe('teleport/components/Welcome', () => {
     // Trigger submit.
     fireEvent.click(screen.getByText(/submit/i));
 
-    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        req: {
-          tokenId: '5182',
-          password: 'pwd_value',
-          deviceName: 'webauthn-device',
-        },
-      })
-    );
+    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: 'pwd_value',
+      deviceName: 'webauthn-device',
+    });
   });
 
   it('reset password with passwordless', async () => {
@@ -217,30 +200,26 @@ describe('teleport/components/Welcome', () => {
       .spyOn(auth, 'resetPasswordWithWebauthn')
       .mockImplementation(() => new Promise(() => null));
 
-    renderInvite();
+    await act(async () => renderInvite());
 
     // Trigger submit.
-    fireEvent.click(await screen.findByText(/submit/i));
+    fireEvent.click(screen.getByText(/submit/i));
 
-    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith(
-      expect.objectContaining({
-        req: {
-          tokenId: '5182',
-          password: '',
-          deviceName: 'passwordless-device',
-        },
-      })
-    );
+    expect(auth.resetPasswordWithWebauthn).toHaveBeenCalledWith({
+      tokenId: '5182',
+      password: '',
+      deviceName: 'passwordless-device',
+    });
   });
 
   it('switch between primary password to passwordless and vice versa', async () => {
     jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
     jest.spyOn(cfg, 'isPasswordlessEnabled').mockImplementation(() => true);
 
-    renderInvite();
+    await act(async () => renderInvite());
 
     // Switch to passwordless.
-    fireEvent.click(await screen.findByText(/go passwordless/i));
+    fireEvent.click(screen.getByText(/go passwordless/i));
     expect(screen.getByTestId('passwordless')).toBeVisible();
 
     // Switch back to password.
@@ -253,10 +232,10 @@ describe('teleport/components/Welcome', () => {
       .spyOn(cfg, 'getPrimaryAuthType')
       .mockImplementation(() => 'passwordless');
 
-    renderInvite();
+    await act(async () => renderInvite());
 
     // Switch to password.
-    fireEvent.click(await screen.findByText(/use password/i));
+    fireEvent.click(screen.getByText(/use password/i));
     expect(screen.getByTestId('password')).toBeVisible();
 
     // Switch back to passwordless.
@@ -268,10 +247,10 @@ describe('teleport/components/Welcome', () => {
     jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'local');
     jest.spyOn(cfg, 'getAuth2faType').mockImplementation(() => 'optional');
 
-    renderInvite();
+    await act(async () => renderInvite());
 
     // Fill out password to get to the next screen.
-    const pwdField = await screen.findByPlaceholderText('Password');
+    const pwdField = screen.getByPlaceholderText('Password');
     const pwdConfirmField = screen.getByPlaceholderText('Confirm Password');
     fireEvent.change(pwdField, { target: { value: 'pwd_value' } });
     fireEvent.change(pwdConfirmField, { target: { value: 'pwd_value' } });

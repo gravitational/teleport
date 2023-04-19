@@ -14,25 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
-import auth, {
-  ChangedUserAuthn,
-  RecoveryCodes,
-  ResetPasswordReqWithEvent,
-  ResetPasswordWithWebauthnReqWithEvent,
-  ResetToken,
-} from 'teleport/services/auth';
+import auth, { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 
 export default function useToken(tokenId: string) {
   const [resetToken, setResetToken] = useState<ResetToken>();
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const [success, setSuccess] = useState(false); // TODO rename
-  const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(false);
-
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
   const auth2faType = cfg.getAuth2faType();
@@ -45,40 +37,31 @@ export default function useToken(tokenId: string) {
     );
   }, []);
 
-  function handleResponse(res: ChangedUserAuthn) {
-    if (res.privateKeyPolicyEnabled) {
-      setPrivateKeyPolicyEnabled(true);
-    }
-    if (res.recovery.createdDate) {
-      setRecoveryCodes(res.recovery);
-    } else {
-      finishedRegister();
-    }
-  }
-
   function onSubmit(password: string, otpCode = '', deviceName = '') {
-    const req: ResetPasswordReqWithEvent = {
-      req: { tokenId, password, otpCode, deviceName },
-      eventMeta: { username: resetToken.user },
-    };
-
     submitAttempt.setAttempt({ status: 'processing' });
     auth
-      .resetPassword(req)
-      .then(handleResponse)
+      .resetPassword({ tokenId, password, otpCode, deviceName })
+      .then(recoveryCodes => {
+        if (recoveryCodes.createdDate) {
+          setRecoveryCodes(recoveryCodes);
+        } else {
+          finishedRegister();
+        }
+      })
       .catch(submitAttempt.handleError);
   }
 
   function onSubmitWithWebauthn(password?: string, deviceName = '') {
-    const req: ResetPasswordWithWebauthnReqWithEvent = {
-      req: { tokenId, password, deviceName },
-      eventMeta: { username: resetToken.user, mfaType: auth2faType },
-    };
-
     submitAttempt.setAttempt({ status: 'processing' });
     auth
-      .resetPasswordWithWebauthn(req)
-      .then(handleResponse)
+      .resetPasswordWithWebauthn({ tokenId, password, deviceName })
+      .then(recoveryCodes => {
+        if (recoveryCodes.createdDate) {
+          setRecoveryCodes(recoveryCodes);
+        } else {
+          finishedRegister();
+        }
+      })
       .catch(submitAttempt.handleError);
   }
 
@@ -108,7 +91,6 @@ export default function useToken(tokenId: string) {
     redirect,
     success,
     finishedRegister,
-    privateKeyPolicyEnabled,
   };
 }
 

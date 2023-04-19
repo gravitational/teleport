@@ -33,42 +33,9 @@ export interface Session {
   // of resource that the session is running in:
   //  - ssh: is referring to the hostname
   //  - k8s: is referring to the kubernetes cluster name
-  //  - db: is referring to the database
-  //  - desktop: is referring to the desktop
-  //  - app: is referring to the app
   resourceName: string;
-  // participantModes are the participant modes that are available to the user listing this session.
-  participantModes: ParticipantMode[];
-  // whether this session requires moderation or not. this is NOT if the session is currently being actively moderated
-  moderated: boolean;
 }
-
-export type SessionMetadata = {
-  kind: string;
-  id: string;
-  namespace: string;
-  parties: any;
-  terminal_params: {
-    w: number;
-    h: number;
-  };
-  login: string;
-  created: string;
-  last_active: string;
-  server_id: string;
-  server_hostname: string;
-  server_hostport: number;
-  server_addr: string;
-  cluster_name: string;
-  kubernetes_cluster_name: string;
-  desktop_name: string;
-  database_name: string;
-  app_name: string;
-  resourceName: string;
-};
-
-export type ParticipantMode = 'observer' | 'moderator' | 'peer';
 
 export type ParticipantList = Record<string, Participant[]>;
 
-export type SessionKind = 'ssh' | 'k8s' | 'db' | 'app' | 'desktop';
+export type SessionKind = 'ssh' | 'k8s';

@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,8 +24,8 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
 
@@ -50,11 +50,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing UpdateMeta")
 	}
 	if c.Clients == nil {
-		cloudClients, err := cloud.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.Clients = cloudClients
+		c.Clients = cloud.NewClients()
 	}
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
@@ -153,7 +149,7 @@ func (u *Users) Start(ctx context.Context, getAllDatabases func() types.Database
 
 	ticker := interval.New(interval.Config{
 		// Use jitter for HA setups.
-		Jitter: retryutils.NewSeventhJitter(),
+		Jitter: utils.NewSeventhJitter(),
 
 		// NewSeventhJitter builds a new jitter on the range [6n/7,n).
 		// Use n = cfg.Interval*7/6 gives an effective duration range of
@@ -196,7 +192,7 @@ func (u *Users) setupAllDatabasesAndRotatePassowrds(ctx context.Context, allData
 			delete(u.usersByID, userID)
 
 			if err := user.Teardown(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user.GetID())
+				u.cfg.Log.WithError(err).Errorf("Failed to tear down user %v.", user)
 			}
 		}
 	}
@@ -239,7 +235,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		var users []User
 		for _, fetchedUser := range fetchedUsers {
 			if user, err := u.setupUser(ctx, fetchedUser); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to setup user %s for database %v.", fetchedUser.GetID(), database)
+				u.cfg.Log.WithError(err).Errorf("Failed to setup user %v for database %v.", fetchedUser, database)
 			} else {
 				users = append(users, user)
 			}
@@ -248,7 +244,7 @@ func (u *Users) setupDatabasesAndRotatePasswords(ctx context.Context, databases 
 		// Rotate passwords.
 		for _, user := range users {
 			if err = user.RotatePassword(ctx); err != nil {
-				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %s", user.GetID())
+				u.cfg.Log.WithError(err).Errorf("Failed to rotate password for user %v", user)
 			}
 		}
 

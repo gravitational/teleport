@@ -9,9 +9,8 @@
         "podSecurityPolicy",
         "labels",
         "chartMode",
-        "validateConfigOnDeploy",
         "highAvailability",
-        "podMonitor",
+	"podMonitor",
         "tls",
         "image",
         "enterpriseImage",
@@ -32,19 +31,6 @@
             "$id": "#/properties/clusterName",
             "type": "string",
             "default": ""
-        },
-        "auth": {
-            "$id": "#/properties/auth",
-            "type": "object"
-        },
-        "proxy": {
-            "$id": "#/properties/proxy",
-            "type": "object"
-        },
-        "createProxyToken": {
-            "$id": "#/properties/createProxyToken",
-            "type": "boolean",
-            "default": true
         },
         "podMonitor": {
             "$id": "#/properties/podMonitor",
@@ -271,7 +257,7 @@
                 "image": {
                     "$id": "#/properties/operator/properties/image",
                     "type": "string",
-                    "default": "public.ecr.aws/gravitational/teleport-operator"
+                    "default": "quay.io/gravitational/teleport-operator"
                 },
                 "resources": {
                     "$id": "#/properties/operator/properties/resources",
@@ -306,14 +292,9 @@
                 "standalone",
                 "aws",
                 "gcp",
-                "scratch"
+                "custom"
             ],
             "default": "standalone"
-        },
-        "validateConfigOnDeploy": {
-            "$id": "#/properties/validateConfigOnDeploy",
-            "type": "boolean",
-            "default": true
         },
         "standalone": {
             "$id": "#/properties/standalone",
@@ -607,17 +588,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport-distroless"
+            "default": "quay.io/gravitational/teleport"
         },
         "enterpriseImage": {
             "$id": "#/properties/enterpriseImage",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
-        },
-        "imagePullSecrets": {
-            "$id": "#/properties/imagePullSecrets",
-            "type": "array",
-            "default": []
+            "default": "quay.io/gravitational/teleport-ent"
         },
         "logLevel": {
             "$id": "#/properties/logLevel",
@@ -736,35 +712,6 @@
                 }
             }
         },
-        "serviceAccount": {
-            "$id": "#/properties/serviceAccount",
-            "type": "object",
-            "required": [],
-            "properties": {
-                "name": {
-                    "$id": "#properties/service/name",
-                    "type": "string",
-                    "default": ""
-                },
-                "create": {
-                    "$id": "#properties/service/create",
-                    "type": "boolean",
-                    "default": true
-                }
-            }
-        },
-        "rbac": {
-            "$id": "#/properties/rbac",
-            "type": "object",
-            "required": [],
-            "properties": {
-                "create": {
-                    "$id": "#properties/rbac/create",
-                    "type": "boolean",
-                    "default": true
-                }
-            }
-        },
         "extraArgs": {
             "$id": "#/properties/extraArgs",
             "type": "array",
@@ -843,11 +790,6 @@
             "$id": "#/properties/probeTimeoutSeconds",
             "type": "integer",
             "default": 1
-        },
-        "terminationGracePeriodSeconds": {
-            "$id": "#/properties/terminationGracePeriodSeconds",
-            "type": "integer",
-            "default": 60
         }
     }
 }

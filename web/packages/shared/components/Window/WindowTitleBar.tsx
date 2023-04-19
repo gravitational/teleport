@@ -28,11 +28,7 @@ interface WindowTitleBarProps {
 
 export function WindowTitleBar(props: WindowTitleBarProps) {
   return (
-    <WindowTitleBarContainer
-      css={`
-        color: ${props => props.theme.colors.light};
-      `}
-    >
+    <WindowTitleBarContainer>
       <WindowTitleBarButtons>
         <WindowTitleBarButton style={{ backgroundColor: '#f95e57' }} />
         <WindowTitleBarButton style={{ backgroundColor: '#fbbe2e' }} />

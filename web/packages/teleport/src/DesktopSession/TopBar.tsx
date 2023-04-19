@@ -18,10 +18,9 @@ import styled, { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 
-import ActionMenu from './ActionMenu';
-import { WarningDropdown } from './WarningDropdown';
+import { colors } from 'teleport/Console/colors';
 
-import type { NotificationItem } from 'shared/components/Notification';
+import ActionMenu from './ActionMenu';
 
 export default function TopBar(props: Props) {
   const {
@@ -31,8 +30,6 @@ export default function TopBar(props: Props) {
     canShareDirectory,
     isSharingDirectory,
     onShareDirectory,
-    warnings,
-    onRemoveWarning,
   } = props;
   const theme = useTheme();
 
@@ -45,7 +42,7 @@ export default function TopBar(props: Props) {
   return (
     <TopNav
       height={`${TopBarHeight}px`}
-      bg="levels.deep"
+      bg={colors.dark}
       style={{
         justifyContent: 'space-between',
       }}
@@ -73,10 +70,6 @@ export default function TopBar(props: Props) {
                 ? 'Clipboard Sharing Enabled'
                 : 'Clipboard Sharing Disabled'
             }
-          />
-          <WarningDropdown
-            warnings={warnings}
-            onRemoveWarning={onRemoveWarning}
           />
         </Flex>
         <ActionMenu
@@ -110,6 +103,4 @@ type Props = {
   isSharingDirectory: boolean;
   onDisconnect: VoidFunction;
   onShareDirectory: VoidFunction;
-  warnings: NotificationItem[];
-  onRemoveWarning(id: string): void;
 };

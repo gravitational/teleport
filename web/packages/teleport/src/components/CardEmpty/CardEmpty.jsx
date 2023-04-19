@@ -21,7 +21,7 @@ export default function CardEmpty(props) {
   const { title, children, ...styles } = props;
   return (
     <Box
-      bg="levels.surface"
+      bg="primary.light"
       p="4"
       width="100%"
       m="0 auto"

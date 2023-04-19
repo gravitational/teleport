@@ -26,7 +26,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	"github.com/gravitational/teleport/lib/services"
@@ -86,7 +85,7 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	})
 	require.NoError(t, err)
 
-	pool.backoff, err = retryutils.NewLinear(retryutils.LinearConfig{
+	pool.backoff, err = utils.NewLinear(utils.LinearConfig{
 		Step: time.Millisecond,
 		Max:  time.Millisecond,
 	})
@@ -117,8 +116,6 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 // TestAgentPoolConnectionCount ensures that an agent pool creates the desired
 // number of connections based on the runtime config.
 func TestAgentPoolConnectionCount(t *testing.T) {
-	// TODO: fix flaky test https://github.com/gravitational/teleport/issues/22984
-	t.Skip("flaky test - skip until it's fixed")
 	pool, client := setupTestAgentPool(t)
 	client.mockGetClusterNetworkingConfig = func(ctx context.Context) (types.ClusterNetworkingConfig, error) {
 		config := types.DefaultClusterNetworkingConfig()
@@ -134,8 +131,13 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		return pool.active.len() == 1
-	}, time.Second*5, time.Millisecond*10, "wait for agent pool")
+		select {
+		case <-pool.tracker.Acquire():
+			return true
+		default:
+			return false
+		}
+	}, time.Second*5, time.Millisecond*10, "expected a lease to be available")
 
 	require.False(t, pool.isAgentRequired())
 	require.Equal(t, pool.Count(), 1)

@@ -127,9 +127,7 @@ func (s *Storage) Add(ctx context.Context, webProxyAddress string) (*Cluster, er
 	return cluster, nil
 }
 
-// addCluster adds a new cluster. This makes the underlying profile .yaml file to be saved to the
-// tsh home dir without logging in the user yet. Adding a cluster makes it show up in the UI as the
-// list of clusters depends on the profiles in the home dir of tsh.
+// addCluster adds a new cluster
 func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (*Cluster, error) {
 	if webProxyAddress == "" {
 		return nil, trace.BadParameter("cluster address is missing")
@@ -152,22 +150,24 @@ func (s *Storage) addCluster(ctx context.Context, dir, webProxyAddress string) (
 		return nil, trace.Wrap(err)
 	}
 
-	// Ping verifies that the cluster is reachable. It also updates a couple of TeleportClient fields
-	// automatically based on the ping response – those fields are then saved to the profile file.
-	pingResponse, err := clusterClient.Ping(ctx)
+	// verify that cluster is reachable
+	_, err = clusterClient.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := clusterClient.SaveProfile(false); err != nil {
+	webConfig, err := clusterClient.GetWebConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := cfg.SaveProfile(s.Dir, false); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &Cluster{
-		URI: clusterURI,
-		// The cluster name cannot be deduced from the web proxy address alone. The name of the cluster
-		// might be different than the address of the proxy.
-		Name:          pingResponse.ClusterName,
+		URI:           clusterURI,
+		Name:          webConfig.ProxyClusterName,
 		ProfileName:   profileName,
 		clusterClient: clusterClient,
 		dir:           s.Dir,
@@ -185,10 +185,8 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	clusterNameForKey := profileName
 	clusterURI := uri.NewClusterURI(profileName)
 
-	profileStore := client.NewFSProfileStore(s.Dir)
-
 	cfg := client.MakeDefaultConfig()
-	if err := cfg.LoadProfile(profileStore, profileName); err != nil {
+	if err := cfg.LoadProfile(s.Dir, profileName); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	cfg.KeysDir = s.Dir
@@ -215,12 +213,12 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	}
 
 	if err == nil && cfg.Username != "" {
-		status, err = clusterClient.ProfileStatus()
+		status, err = client.ReadProfileStatus(s.Dir, profileName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
+		if err := clusterClient.LoadKeyForCluster(status.Cluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

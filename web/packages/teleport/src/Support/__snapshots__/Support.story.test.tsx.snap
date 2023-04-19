@@ -5,6 +5,18 @@ exports[`support Cloud 1`] = `
   box-sizing: border-box;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
 .c6 {
   display: inline-block;
   transition: color 0.3s;
@@ -18,7 +30,7 @@ exports[`support Cloud 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -71,6 +83,18 @@ exports[`support Cloud 1`] = `
   flex-wrap: wrap;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -93,17 +117,6 @@ exports[`support Cloud 1`] = `
   padding-bottom: 24px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
-}
-
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -119,18 +132,7 @@ exports[`support Cloud 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -155,6 +157,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -167,7 +170,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/discussions"
           rel="noreferrer"
-          target="_blank"
         >
           Ask the Community Questions
         </a>
@@ -175,7 +177,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/issues/new/choose"
           rel="noreferrer"
-          target="_blank"
         >
           Request a New Feature
         </a>
@@ -183,7 +184,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="mailto:support@goteleport.com"
           rel="noreferrer"
-          target="_blank"
         >
           Send Product Feedback
         </a>
@@ -201,6 +201,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -213,7 +214,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://goteleport.com/docs/getting-started?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Quickstart Guide
         </a>
@@ -221,7 +221,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           tsh User Guide
         </a>
@@ -229,7 +228,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://goteleport.com/docs/setup/admin?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Admin Guide
         </a>
@@ -237,7 +235,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://goteleport.com/docs/cloud/downloads/"
           rel="noreferrer"
-          target="_blank"
         >
           Download Page
         </a>
@@ -245,7 +242,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://goteleport.com/docs/faq?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           FAQ
         </a>
@@ -263,6 +259,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -275,7 +272,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Monitoring & Debugging
         </a>
@@ -293,6 +289,7 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5
@@ -305,7 +302,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
           rel="noreferrer"
-          target="_blank"
         >
           Product Changelog
         </a>
@@ -313,7 +309,6 @@ exports[`support Cloud 1`] = `
           class="c8"
           href="https://goteleport.com/blog/"
           rel="noreferrer"
-          target="_blank"
         >
           Teleport Blog
         </a>
@@ -386,6 +381,18 @@ exports[`support Enterprise 1`] = `
   box-sizing: border-box;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
 .c6 {
   display: inline-block;
   transition: color 0.3s;
@@ -399,7 +406,7 @@ exports[`support Enterprise 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -452,6 +459,18 @@ exports[`support Enterprise 1`] = `
   flex-wrap: wrap;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -474,17 +493,6 @@ exports[`support Enterprise 1`] = `
   padding-bottom: 24px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
-}
-
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -500,18 +508,7 @@ exports[`support Enterprise 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -536,6 +533,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -548,7 +546,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://support.goteleport.com"
           rel="noreferrer"
-          target="_blank"
         >
           Create a Support Ticket
         </a>
@@ -556,7 +553,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/discussions"
           rel="noreferrer"
-          target="_blank"
         >
           Ask the Community Questions
         </a>
@@ -564,7 +560,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/issues/new/choose"
           rel="noreferrer"
-          target="_blank"
         >
           Request a New Feature
         </a>
@@ -572,7 +567,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="mailto:support@goteleport.com"
           rel="noreferrer"
-          target="_blank"
         >
           Send Product Feedback
         </a>
@@ -590,6 +584,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -602,7 +597,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://goteleport.com/docs/getting-started?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Quickstart Guide
         </a>
@@ -610,7 +604,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           tsh User Guide
         </a>
@@ -618,7 +611,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://goteleport.com/docs/setup/admin?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Admin Guide
         </a>
@@ -626,7 +618,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://dashboard.gravitational.com/web/downloads"
           rel="noreferrer"
-          target="_blank"
         >
           Download Page
         </a>
@@ -634,7 +625,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://goteleport.com/docs/faq?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           FAQ
         </a>
@@ -652,6 +642,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -664,7 +655,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=e_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Monitoring & Debugging
         </a>
@@ -682,6 +672,7 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5
@@ -694,7 +685,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
           rel="noreferrer"
-          target="_blank"
         >
           Product Changelog
         </a>
@@ -702,7 +692,6 @@ exports[`support Enterprise 1`] = `
           class="c8"
           href="https://goteleport.com/blog/"
           rel="noreferrer"
-          target="_blank"
         >
           Teleport Blog
         </a>
@@ -775,6 +764,18 @@ exports[`support OSS 1`] = `
   box-sizing: border-box;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border: 1px solid;
+  border-radius: 8px;
+  border-color: #222C59;
+}
+
 .c6 {
   display: inline-block;
   transition: color 0.3s;
@@ -788,7 +789,7 @@ exports[`support OSS 1`] = `
   padding-left: 32px;
   padding-right: 32px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -841,6 +842,18 @@ exports[`support OSS 1`] = `
   flex-wrap: wrap;
 }
 
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  border-bottom: 1px solid;
+  border-color: #111B48;
+  display: flex;
+  align-items: center;
+}
+
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -863,17 +876,6 @@ exports[`support OSS 1`] = `
   padding-bottom: 24px;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.13);
-}
-
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -889,18 +891,7 @@ exports[`support OSS 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: rgba(255,255,255,0.07);
-}
-
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.18);
+  background: #2C3A73;
 }
 
 <div
@@ -925,6 +916,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
+              color="light"
             />
           </div>
           <h5
@@ -937,7 +929,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/discussions"
           rel="noreferrer"
-          target="_blank"
         >
           Ask the Community Questions
         </a>
@@ -945,7 +936,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/issues/new/choose"
           rel="noreferrer"
-          target="_blank"
         >
           Request a New Feature
         </a>
@@ -953,7 +943,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="mailto:support@goteleport.com"
           rel="noreferrer"
-          target="_blank"
         >
           Send Product Feedback
         </a>
@@ -971,6 +960,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
+              color="light"
             />
           </div>
           <h5
@@ -983,7 +973,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/docs/getting-started?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Quickstart Guide
         </a>
@@ -991,7 +980,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           tsh User Guide
         </a>
@@ -999,7 +987,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/docs/setup/admin?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Admin Guide
         </a>
@@ -1007,7 +994,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/download/"
           rel="noreferrer"
-          target="_blank"
         >
           Download Page
         </a>
@@ -1015,7 +1001,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/docs/faq?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           FAQ
         </a>
@@ -1033,6 +1018,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-graph "
+              color="light"
             />
           </div>
           <h5
@@ -1045,7 +1031,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=oss_4.4.0-dev"
           rel="noreferrer"
-          target="_blank"
         >
           Monitoring & Debugging
         </a>
@@ -1063,6 +1048,7 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
+              color="light"
             />
           </div>
           <h5
@@ -1075,7 +1061,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
           rel="noreferrer"
-          target="_blank"
         >
           Product Changelog
         </a>
@@ -1083,7 +1068,6 @@ exports[`support OSS 1`] = `
           class="c8"
           href="https://goteleport.com/blog/"
           rel="noreferrer"
-          target="_blank"
         >
           Teleport Blog
         </a>

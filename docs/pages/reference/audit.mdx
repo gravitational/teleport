@@ -9,6 +9,7 @@ There are two components of the audit log:
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
 
+
 1. **Cluster Events:** Teleport logs events like successful user logins along
    with metadata like remote IP address, time, and the session ID.
 2. **Recorded Sessions:** Every SSH, desktop, or Kubernetes shell session is recorded and
@@ -17,6 +18,7 @@ There are two components of the audit log:
 
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Cloud">
+
 
 1. **Cluster Events:** Teleport logs events like successful user logins along
    with metadata like remote IP address, time, and the session ID.
@@ -126,8 +128,8 @@ Below are some possible types of audit events.
 
 This list is not comprehensive. We recommend exporting audit events to a
 platform that automatically parses event payloads so you can group and filter
-them by their `event` key and discover trends. To set up audit event exporting,
-read [Exporting Teleport Audit Events](../management/export-audit-events.mdx).
+them by their `event` key and discover trends. Read how to [export audit events
+via Fluentd](../management/guides/fluentd.mdx).
 
 </Notice>
 
@@ -154,6 +156,7 @@ read [Exporting Teleport Audit Events](../management/export-audit-events.mdx).
 In addition to logging start and end events, Teleport can also record the entire session.
 For SSH or Kubernetes sessions this captures the entire stream of bytes from the PTY.
 For desktop sessions the recording includes the contents of the screen.
+
 
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">

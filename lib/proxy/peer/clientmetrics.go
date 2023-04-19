@@ -18,7 +18,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 	errorProxyPeerProxiesUnreachable = "PROXIES_UNREACHABLE"
 )
 
-// clientMetrics represents a collection of grpcMetrics for a proxy peer client
+// clientMetrics represents a collection of metrics for a proxy peer client
 type clientMetrics struct {
 	dialErrors      *prometheus.CounterVec
 	connections     *prometheus.GaugeVec
@@ -41,7 +41,7 @@ type clientMetrics struct {
 	messageReceived *prometheus.HistogramVec
 }
 
-// newClientMetrics inits and registers client grpcMetrics prometheus collectors.
+// newClientMetrics inits and registers client metrics prometheus collectors.
 func newClientMetrics() (*clientMetrics, error) {
 	cm := &clientMetrics{
 		dialErrors: prometheus.NewCounterVec(
@@ -117,7 +117,7 @@ func newClientMetrics() (*clientMetrics, error) {
 		),
 	}
 
-	if err := metrics.RegisterPrometheusCollectors(
+	if err := utils.RegisterPrometheusCollectors(
 		cm.dialErrors,
 		cm.connections,
 		cm.rpcs,

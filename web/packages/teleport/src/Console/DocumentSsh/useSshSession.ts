@@ -16,29 +16,21 @@ limitations under the License.
 
 import React from 'react';
 
-import { context, trace } from '@opentelemetry/api';
-
 import cfg from 'teleport/config';
+import { Session } from 'teleport/services/session';
 import { TermEvent } from 'teleport/lib/term/enums';
 import Tty from 'teleport/lib/term/tty';
 import ConsoleContext from 'teleport/Console/consoleContext';
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 import { DocumentSsh } from 'teleport/Console/stores';
 
-import type {
-  ParticipantMode,
-  Session,
-  SessionMetadata,
-} from 'teleport/services/session';
-
-const tracer = trace.getTracer('TTY');
-
 export default function useSshSession(doc: DocumentSsh) {
-  const { clusterId, sid, serverId, login, mode } = doc;
+  const { clusterId, sid, serverId, login } = doc;
   const ctx = useConsoleContext();
   const ttyRef = React.useRef<Tty>(null);
   const tty = ttyRef.current as ReturnType<typeof ctx.createTty>;
   const [session, setSession] = React.useState<Session>(null);
+  const [statusText, setStatusText] = React.useState('');
   const [status, setStatus] = React.useState<Status>('loading');
 
   function closeDocument() {
@@ -47,35 +39,22 @@ export default function useSshSession(doc: DocumentSsh) {
 
   React.useEffect(() => {
     // initializes tty instances
-    function initTty(session, mode?: ParticipantMode) {
-      tracer.startActiveSpan(
-        'initTTY',
-        undefined, // SpanOptions
-        context.active(),
-        span => {
-          const tty = ctx.createTty(session, mode);
+    function initTty(session: Session) {
+      const tty = ctx.createTty(session);
 
-          // subscribe to tty events to handle connect/disconnects events
-          tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
+      // subscribe to tty events to handle connect/disconnects events
+      tty.on(TermEvent.CLOSE, () => ctx.closeTab(doc));
 
-          tty.on(TermEvent.CONN_CLOSE, () =>
-            ctx.updateSshDocument(doc.id, { status: 'disconnected' })
-          );
-
-          tty.on(TermEvent.SESSION, payload => {
-            const data = JSON.parse(payload);
-            data.session.kind = 'ssh';
-            data.session.resourceName = data.session.server_hostname;
-            handleTtyConnect(ctx, data.session, doc.id);
-          });
-
-          // assign tty reference so it can be passed down to xterm
-          ttyRef.current = tty;
-          setSession(session);
-          setStatus('initialized');
-          span.end();
-        }
+      tty.on(TermEvent.CONN_CLOSE, () =>
+        ctx.updateSshDocument(doc.id, { status: 'disconnected' })
       );
+
+      tty.on('open', () => handleTtyConnect(ctx, session, doc.id));
+
+      // assign tty reference so it can be passed down to xterm
+      ttyRef.current = tty;
+      setSession(session);
+      setStatus('initialized');
     }
 
     // cleanup by unsubscribing from tty
@@ -83,25 +62,33 @@ export default function useSshSession(doc: DocumentSsh) {
       ttyRef.current && ttyRef.current.removeAllListeners();
     }
 
-    initTty(
-      {
-        login,
-        serverId,
-        clusterId,
-        sid,
-      },
-      mode
-    );
+    if (sid) {
+      // join existing session
+      ctx
+        .fetchSshSession(clusterId, sid)
+        .then(initTty)
+        .catch(err => {
+          setStatus('notfound');
+          setStatusText(err.message);
+        });
+    } else {
+      // create new ssh session
+      ctx
+        .createSshSession(clusterId, serverId, login)
+        .then(initTty)
+        .catch(err => {
+          setStatus('error');
+          setStatusText(err.message);
+        });
+    }
 
     return cleanup;
-
-    // Only run this once on the initial render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {
     tty,
     status,
+    statusText,
     session,
     closeDocument,
   };
@@ -109,26 +96,17 @@ export default function useSshSession(doc: DocumentSsh) {
 
 function handleTtyConnect(
   ctx: ConsoleContext,
-  session: SessionMetadata,
+  session: Session,
   docId: number
 ) {
-  const {
-    resourceName,
-    login,
-    id: sid,
-    cluster_name: clusterId,
-    server_id: serverId,
-    created,
-  } = session;
-
+  const { resourceName, login, sid, clusterId, serverId, created } = session;
   const url = cfg.getSshSessionRoute({ sid, clusterId });
-  const createdDate = new Date(created);
   ctx.updateSshDocument(docId, {
     title: `${login}@${resourceName}`,
     status: 'connected',
     url,
     serverId,
-    created: createdDate,
+    created,
     login,
     sid,
     clusterId,
@@ -137,4 +115,4 @@ function handleTtyConnect(
   ctx.gotoTab({ url });
 }
 
-type Status = 'initialized' | 'loading';
+type Status = 'initialized' | 'loading' | 'notfound' | 'error';

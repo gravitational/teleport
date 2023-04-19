@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"sync"
 	"sync/atomic"
 
 	"github.com/gravitational/trace"
@@ -73,35 +72,19 @@ type TestServer struct {
 	queryCount uint32
 	// parametersCh receives startup message connection parameters.
 	parametersCh chan map[string]string
-
-	// nextPid is a dummy variable used to assign each connection a unique fake "pid".
-	// it's incremented after each new startup connection. Starts counting from 1.
-	nextPid uint32
-	// pids is a map of fake connection pid handles, used for cancel requests.
-	pids map[uint32]*pidHandle
-	// pidMu is a lock protecting nextPid and pids.
-	pidMu sync.Mutex
-}
-
-// pidHandle represents a fake pid handle that can cancel operations in progress.
-// For test purposes, only a stub query "pg_sleep(forever)" will actually be
-// cancellable.
-type pidHandle struct {
-	// secretKey is checked for equality when cancel request is received.
-	secretKey uint32
-	// cancel cancels the operation in progress, if any.
-	cancel context.CancelFunc
 }
 
 // NewTestServer returns a new instance of a test Postgres server.
-func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) {
-	err = config.CheckAndSetDefaults()
+func NewTestServer(config common.TestServerConfig) (*TestServer, error) {
+	address := "localhost:0"
+	if config.Address != "" {
+		address = config.Address
+	}
+	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer config.CloseOnError(&err)
-
-	port, err := config.Port()
+	_, port, err := net.SplitHostPort(listener.Addr().String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,10 +92,9 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &TestServer{
 		cfg:       config,
-		listener:  config.Listener,
+		listener:  listener,
 		port:      port,
 		tlsConfig: tlsConfig,
 		log: logrus.WithFields(logrus.Fields{
@@ -120,7 +102,6 @@ func NewTestServer(config common.TestServerConfig) (svr *TestServer, err error) 
 			"name":          config.Name,
 		}),
 		parametersCh: make(chan map[string]string, 100),
-		pids:         make(map[uint32]*pidHandle),
 	}, nil
 }
 
@@ -156,20 +137,44 @@ func (s *TestServer) handleConnection(conn net.Conn) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	startupMessage, err := client.ReceiveStartupMessage()
+	// Next should come StartupMessage.
+	err = s.handleStartup(client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.log.Debugf("Received %#v.", startupMessage)
-	switch msg := startupMessage.(type) {
-	case *pgproto3.StartupMessage:
-		return s.handleStartup(client, msg)
-	case *pgproto3.CancelRequest:
-		s.handleCancelRequest(client, msg)
-		// never return errors on cancel requests.
-		return nil
-	default:
-		return trace.BadParameter("expected *pgproto3.StartupMessage or *pgproto3.CancelRequest, got: %T", msg)
+	// Enter the loop replying to client messages.
+	for {
+		message, err := client.Receive()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.log.Debugf("Received %#v.", message)
+		switch message.(type) {
+		case *pgproto3.Query:
+			if err := s.handleQuery(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle query.")
+			}
+		// Following messages are for handling Postgres extended query
+		// protocol flow used by prepared statements.
+		case *pgproto3.Parse:
+			// Parse prepares the statement.
+		case *pgproto3.Bind:
+			// Bind binds prepared statement with parameters.
+		case *pgproto3.Describe:
+		case *pgproto3.Sync:
+			if err := s.handleSync(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle sync.")
+			}
+		case *pgproto3.Execute:
+			// Execute executes prepared statement.
+			if err := s.handleQuery(client); err != nil {
+				s.log.WithError(err).Error("Failed to handle query.")
+			}
+		case *pgproto3.Terminate:
+			return nil
+		default:
+			return trace.BadParameter("unsupported message %#v", message)
+		}
 	}
 }
 
@@ -192,7 +197,16 @@ func (s *TestServer) startTLS(conn net.Conn) (*pgproto3.Backend, error) {
 	return pgproto3.NewBackend(pgproto3.NewChunkReader(conn), conn), nil
 }
 
-func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgproto3.StartupMessage) error {
+func (s *TestServer) handleStartup(client *pgproto3.Backend) error {
+	startupMessageI, err := client.ReceiveStartupMessage()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	startupMessage, ok := startupMessageI.(*pgproto3.StartupMessage)
+	if !ok {
+		return trace.BadParameter("expected *pgproto3.StartupMessage, got: %#v", startupMessage)
+	}
+	s.log.Debugf("Received %#v.", startupMessage)
 	// Push connect parameters into the channel so tests can consume them.
 	s.parametersCh <- startupMessage.Parameters
 	// If auth token is specified, used it for password authentication, this
@@ -211,64 +225,10 @@ func (s *TestServer) handleStartup(client *pgproto3.Backend, startupMessage *pgp
 	if err := client.Send(&pgproto3.AuthenticationOk{}); err != nil {
 		return trace.Wrap(err)
 	}
-
-	pid := s.newPid()
-	defer s.cleanupPid(pid)
-
-	err := client.Send(&pgproto3.BackendKeyData{
-		ProcessID: pid,
-		SecretKey: testSecretKey,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := client.Send(&pgproto3.ReadyForQuery{}); err != nil {
 		return trace.Wrap(err)
 	}
-	// Enter the loop replying to client messages.
-	for {
-		message, err := client.Receive()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		s.log.Debugf("Received %#v.", message)
-		switch msg := message.(type) {
-		case *pgproto3.Query:
-			if err := s.handleQuery(client, msg.String, pid); err != nil {
-				s.log.WithError(err).Error("Failed to handle query.")
-			}
-		// Following messages are for handling Postgres extended query
-		// protocol flow used by prepared statements.
-		case *pgproto3.Parse:
-			// Parse prepares the statement.
-		case *pgproto3.Bind:
-			// Bind binds prepared statement with parameters.
-		case *pgproto3.Describe:
-		case *pgproto3.Sync:
-			if err := s.handleSync(client); err != nil {
-				s.log.WithError(err).Error("Failed to handle sync.")
-			}
-		case *pgproto3.Execute:
-			// Execute executes prepared statement.
-			if err := s.handleQuery(client, "", pid); err != nil {
-				s.log.WithError(err).Error("Failed to handle query.")
-			}
-		case *pgproto3.Terminate:
-			return nil
-		default:
-			return trace.BadParameter("unsupported message %#v", message)
-		}
-	}
-}
-
-func (s *TestServer) handleCancelRequest(client *pgproto3.Backend, req *pgproto3.CancelRequest) {
-	s.pidMu.Lock()
-	defer s.pidMu.Unlock()
-	p, ok := s.pids[req.ProcessID]
-	if ok && p != nil && p.secretKey == req.SecretKey && p.cancel != nil {
-		p.cancel()
-	}
+	return nil
 }
 
 func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
@@ -293,39 +253,12 @@ func (s *TestServer) handlePasswordAuth(client *pgproto3.Backend) error {
 	return nil
 }
 
-func (s *TestServer) handleQuery(client *pgproto3.Backend, query string, pid uint32) error {
+func (s *TestServer) handleQuery(client *pgproto3.Backend) error {
 	atomic.AddUint32(&s.queryCount, 1)
-	if query == TestLongRunningQuery {
-		return trace.Wrap(s.fakeLongRunningQuery(client, pid))
-	}
 	messages := []pgproto3.BackendMessage{
 		&pgproto3.RowDescription{Fields: TestQueryResponse.FieldDescriptions},
 		&pgproto3.DataRow{Values: TestQueryResponse.Rows[0]},
 		&pgproto3.CommandComplete{CommandTag: TestQueryResponse.CommandTag},
-		&pgproto3.ReadyForQuery{},
-	}
-	for _, message := range messages {
-		s.log.Debugf("Sending %#v.", message)
-		err := client.Send(message)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func (s *TestServer) fakeLongRunningQuery(client *pgproto3.Backend, pid uint32) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	if err := s.registerCancel(pid, cancel); err != nil {
-		return trace.Wrap(err)
-	}
-	<-ctx.Done()
-	messages := []pgproto3.BackendMessage{
-		&pgproto3.ErrorResponse{
-			Code:    pgerrcode.QueryCanceled,
-			Message: "canceling statement due to user request",
-		},
 		&pgproto3.ReadyForQuery{},
 	}
 	for _, message := range messages {
@@ -365,53 +298,7 @@ func (s *TestServer) ParametersCh() chan map[string]string {
 
 // Close closes the server listener.
 func (s *TestServer) Close() error {
-	closeErr := s.listener.Close()
-	s.cleanupPids()
-	return trace.Wrap(closeErr)
-}
-
-// newPid makes a unique PID and inserts it into the server's pid map.
-// For test purposes, every pid will have the same stub secret key.
-func (s *TestServer) newPid() uint32 {
-	s.pidMu.Lock()
-	defer s.pidMu.Unlock()
-	s.nextPid++
-	s.pids[s.nextPid] = &pidHandle{secretKey: testSecretKey}
-	return s.nextPid
-}
-
-// cleanupPid cleans up a pid by calling its cancel func and
-// deleting it from the pid map.
-func (s *TestServer) cleanupPid(pid uint32) {
-	s.pidMu.Lock()
-	defer s.pidMu.Unlock()
-	if entry, ok := s.pids[pid]; ok && entry != nil && entry.cancel != nil {
-		entry.cancel()
-		delete(s.pids, pid)
-	}
-}
-
-func (s *TestServer) cleanupPids() {
-	s.pidMu.Lock()
-	defer s.pidMu.Unlock()
-	for pid, entry := range s.pids {
-		if entry != nil && entry.cancel != nil {
-			entry.cancel()
-		}
-		delete(s.pids, pid)
-	}
-}
-
-// registerCancel registers a cancel func for a given pid and returns a context.
-func (s *TestServer) registerCancel(pid uint32, cancel context.CancelFunc) error {
-	s.pidMu.Lock()
-	defer s.pidMu.Unlock()
-	entry, ok := s.pids[pid]
-	if !ok || entry == nil {
-		return trace.BadParameter("expected registered info for pid %v", pid)
-	}
-	entry.cancel = cancel
-	return nil
+	return s.listener.Close()
 }
 
 // TestQueryResponse is the response test Postgres server sends to every query.
@@ -420,10 +307,3 @@ var TestQueryResponse = &pgconn.Result{
 	Rows:              [][][]byte{{[]byte("test-value")}},
 	CommandTag:        pgconn.CommandTag("select 1"),
 }
-
-// TestLongRunningQuery is a stub SQL query clients can use to simulate a long
-// running query that can be only be stopped by a cancel request.
-const TestLongRunningQuery = "pg_sleep(forever)"
-
-// testSecretKey is the secret key stub for all connections, used for cancel requests.
-const testSecretKey = 1234

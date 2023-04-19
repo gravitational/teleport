@@ -35,15 +35,6 @@ function getCacheConfig() {
   return cache;
 }
 
-const plugins = [
-  configFactory.plugins.tsChecker(),
-  configFactory.plugins.reactRefresh(),
-];
-
-if (process.env.WEBPACK_ANALYZE_BUNDLE === 'true') {
-  plugins.push(configFactory.plugins.bundleAnalyzer());
-}
-
 /**
  * @type { import('webpack').webpack.Configuration }
  */
@@ -57,7 +48,10 @@ module.exports = {
   },
   devtool: process.env.WEBPACK_SOURCE_MAP || 'eval-source-map',
   mode: 'development',
-  plugins,
+  plugins: [
+    configFactory.plugins.tsChecker(),
+    configFactory.plugins.reactRefresh(),
+  ],
   module: {
     strictExportPresence: true,
     rules: [

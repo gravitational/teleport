@@ -32,9 +32,7 @@ export default function AuthnDialog({
   return (
     <Dialog dialogCss={() => ({ width: '400px' })} open={true}>
       <DialogHeader style={{ flexDirection: 'column' }}>
-        <DialogTitle textAlign="center">
-          Multi-factor authentication
-        </DialogTitle>
+        <DialogTitle textAlign="center">Verify Your Identity</DialogTitle>
       </DialogHeader>
       <DialogContent mb={6}>
         {errorText && (
@@ -43,12 +41,13 @@ export default function AuthnDialog({
           </Danger>
         )}
         <Text textAlign="center">
-          Re-enter your multi-factor authentication in the browser to continue.
+          Re-authentication is required. Follow the prompts given by your
+          browser to complete authentication.
         </Text>
       </DialogContent>
       <DialogFooter textAlign="center">
-        <ButtonPrimary onClick={onContinue} autoFocus mr={3} width="130px">
-          {errorText ? 'Retry' : 'OK'}
+        <ButtonPrimary onClick={onContinue} mr={3} width="130px">
+          {errorText ? 'Retry' : 'Verify'}
         </ButtonPrimary>
         <ButtonSecondary onClick={onCancel}>Cancel</ButtonSecondary>
       </DialogFooter>

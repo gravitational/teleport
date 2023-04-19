@@ -16,9 +16,6 @@ limitations under the License.
 
 import Logger from 'shared/libs/logger';
 
-import { context, defaultTextMapSetter, trace } from '@opentelemetry/api';
-import { W3CTraceContextPropagator } from '@opentelemetry/core';
-
 import webSession from 'teleport/services/websession';
 import history from 'teleport/services/history';
 import cfg, { UrlResourcesParams, UrlSshParams } from 'teleport/config';
@@ -28,18 +25,13 @@ import TtyAddressResolver from 'teleport/lib/term/ttyAddressResolver';
 import serviceSession, {
   Session,
   ParticipantList,
-  ParticipantMode,
 } from 'teleport/services/session';
-import ServiceNodes from 'teleport/services/nodes';
+import serviceNodes from 'teleport/services/nodes';
 import serviceClusters from 'teleport/services/clusters';
-import { StoreUserContext } from 'teleport/stores';
-import usersService from 'teleport/services/user';
 
 import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 
 const logger = Logger.create('teleport/console');
-
-const tracer = trace.getTracer('console-context');
 
 /**
  * Console Context is used by components to access shared state and also to communicate
@@ -48,8 +40,7 @@ const tracer = trace.getTracer('console-context');
 export default class ConsoleContext {
   storeDocs = new StoreDocs();
   storeParties = new StoreParties();
-  nodesService = new ServiceNodes();
-  storeUser = new StoreUserContext();
+  nodesService = new serviceNodes();
 
   constructor() {
     // always initialize the console with 1 document
@@ -59,15 +50,6 @@ export default class ConsoleContext {
       clusterId: cfg.proxyCluster,
       created: new Date(),
     });
-  }
-
-  async initStoreUser() {
-    const user = await usersService.fetchUserContext();
-    this.storeUser.setState(user);
-  }
-
-  getStoreUser() {
-    return this.storeUser.state;
   }
 
   getActiveDocId(url: string) {
@@ -96,14 +78,13 @@ export default class ConsoleContext {
     });
   }
 
-  addSshDocument({ login, serverId, sid, clusterId, mode }: UrlSshParams) {
+  addSshDocument({ login, serverId, sid, clusterId }: UrlSshParams) {
     const title = login && serverId ? `${login}@${serverId}` : sid;
     const url = this.getSshDocumentUrl({
       clusterId,
       login,
       serverId,
       sid,
-      mode,
     });
 
     return this.storeDocs.add({
@@ -115,7 +96,6 @@ export default class ConsoleContext {
       login,
       sid,
       url,
-      mode,
       created: new Date(),
     });
   }
@@ -135,67 +115,71 @@ export default class ConsoleContext {
   }
 
   refreshParties() {
-    return tracer.startActiveSpan('refreshParties', span => {
-      // Finds unique clusterIds from all active ssh sessions
-      // and creates a separate API call per each.
-      // After receiving the data, it updates the stores only once.
-      const clusters = this.storeDocs
-        .getSshDocuments()
-        .filter(doc => doc.status === 'connected')
-        .map(doc => doc.clusterId);
+    // Finds unique clusterIds from all active ssh sessions
+    // and creates a separate API call per each.
+    // After receiving the data, it updates the stores only once.
+    const clusters = this.storeDocs
+      .getSshDocuments()
+      .filter(doc => doc.status === 'connected')
+      .map(doc => doc.clusterId);
 
-      const unique = [...new Set(clusters)];
-      const requests = unique.map(clusterId =>
-        // Fetch parties for a given cluster and in case of an error
-        // return an empty object.
-        serviceSession.fetchParticipants({ clusterId }).catch(err => {
-          logger.error('failed to refresh participants', err);
-          const emptyResults: ParticipantList = {};
-          return emptyResults;
-        })
-      );
+    const unique = [...new Set(clusters)];
+    const requests = unique.map(clusterId =>
+      // Fetch parties for a given cluster and in case of an error
+      // return an empty object.
+      serviceSession.fetchParticipants({ clusterId }).catch(err => {
+        logger.error('failed to refresh participants', err);
+        const emptyResults: ParticipantList = {};
+        return emptyResults;
+      })
+    );
 
-      return Promise.all(requests).then(results => {
-        let parties: ParticipantList = {};
-        for (let i = 0; i < results.length; i++) {
-          parties = {
-            ...results[i],
-          };
-        }
+    return Promise.all(requests).then(results => {
+      let parties: ParticipantList = {};
+      for (let i = 0; i < results.length; i++) {
+        parties = {
+          ...results[i],
+        };
+      }
 
-        this.storeParties.setParties(parties);
-        span.end();
-      });
+      this.storeParties.setParties(parties);
     });
   }
 
   fetchNodes(clusterId: string, params?: UrlResourcesParams) {
-    return this.nodesService.fetchNodes(clusterId, params);
+    return this.nodesService.fetchNodes(clusterId, params).then(nodesRes => {
+      return {
+        nodesRes,
+      };
+    });
   }
 
   fetchClusters() {
     return serviceClusters.fetchClusters();
   }
 
+  fetchSshSession(clusterId: string, sid: string) {
+    return serviceSession.fetchSession({ clusterId, sid });
+  }
+
+  createSshSession(clusterId: string, serverId: string, login: string) {
+    return serviceSession.createSession({
+      serverId,
+      clusterId,
+      login,
+    });
+  }
+
   logout() {
     webSession.logout();
   }
 
-  createTty(session: Session, mode?: ParticipantMode): Tty {
+  createTty(session: Session): Tty {
     const { login, sid, serverId, clusterId } = session;
-
-    const propagator = new W3CTraceContextPropagator();
-    let carrier = {};
-
-    const ctx = context.active();
-
-    propagator.inject(ctx, carrier, defaultTextMapSetter);
-
     const ttyUrl = cfg.api.ttyWsAddr
       .replace(':fqdn', getHostName())
       .replace(':token', getAccessToken())
-      .replace(':clusterId', clusterId)
-      .replace(':traceparent', carrier['traceparent']);
+      .replace(':clusterId', clusterId);
 
     const addressResolver = new TtyAddressResolver({
       ttyUrl,
@@ -203,7 +187,6 @@ export default class ConsoleContext {
         login,
         sid,
         server_id: serverId,
-        mode,
       },
     });
 

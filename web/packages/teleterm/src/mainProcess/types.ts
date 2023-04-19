@@ -38,13 +38,6 @@ export type RuntimeSettings = {
   sharedProcess: {
     requestedNetworkAddress: string;
   };
-  tshdEvents: {
-    requestedNetworkAddress: string;
-  };
-  installationId: string;
-  arch: string;
-  osVersion: string;
-  appVersion: string;
 };
 
 export type MainProcessClient = {
@@ -52,38 +45,17 @@ export type MainProcessClient = {
   getResolvedChildProcessAddresses(): Promise<ChildProcessAddresses>;
   openTerminalContextMenu(): void;
   openTabContextMenu(options: TabContextMenuOptions): void;
-  showFileSaveDialog(
-    filePath: string
-  ): Promise<{ canceled: boolean; filePath: string | undefined }>;
   configService: ConfigService;
   fileStorage: FileStorage;
   removeKubeConfig(options: {
     relativePath: string;
     isDirectory?: boolean;
   }): Promise<void>;
-  forceFocusWindow(): void;
-  /**
-   * The promise returns true if tsh got successfully symlinked, false if the user closed the
-   * osascript prompt. The promise gets rejected if osascript encountered an error.
-   */
-  symlinkTshMacOs(): Promise<boolean>;
-  /**
-   * The promise returns true if the tsh symlink got removed, false if the user closed the osascript
-   * prompt. The promise gets rejected if osascript encountered an error.
-   */
-  removeTshSymlinkMacOs(): Promise<boolean>;
-
-  /** Opens config file and returns a path to it. */
-  openConfigFile(): Promise<string>;
 };
 
 export type ChildProcessAddresses = {
   tsh: string;
   shared: string;
-};
-
-export type GrpcServerAddresses = ChildProcessAddresses & {
-  tshdEvents: string;
 };
 
 export type Platform = NodeJS.Platform;
@@ -127,15 +99,11 @@ export enum TabContextMenuEventType {
 
 export enum ConfigServiceEventType {
   Get = 'Get',
-  Set = 'Set',
-  GetConfigError = 'GetConfigError',
+  Update = 'Update',
 }
 
 export enum FileStorageEventType {
   Get = 'Get',
   Put = 'Put',
-  Write = 'Write',
-  Replace = 'Replace',
-  GetFilePath = 'GetFilePath',
-  GetFileLoadingError = 'GetFileLoadingError',
+  PutAllSync = 'PutAllSync',
 }

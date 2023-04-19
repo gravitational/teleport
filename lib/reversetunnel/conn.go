@@ -48,7 +48,9 @@ type connKey struct {
 type remoteConn struct {
 	// lastHeartbeat is the last time a heartbeat was received.
 	// intentionally placed first to ensure 64-bit alignment
-	lastHeartbeat atomic.Int64
+	lastHeartbeat int64
+	// sessions counts the number of active sessions being serviced by this connection
+	sessions int64
 
 	*connConfig
 	mu  sync.Mutex
@@ -62,20 +64,17 @@ type remoteConn struct {
 
 	// invalid indicates the connection is invalid and connections can no longer
 	// be made on it.
-	invalid atomic.Bool
+	invalid int32
 
 	// lastError is the last error that occurred before this connection became
 	// invalid.
 	lastError error
 
 	// Used to make sure calling Close on the connection multiple times is safe.
-	closed atomic.Bool
+	closed int32
 
 	// clock is used to control time in tests.
 	clock clockwork.Clock
-
-	// sessions counts the number of active sessions being serviced by this connection
-	sessions atomic.Int64
 }
 
 // connConfig is the configuration for the remoteConn.
@@ -123,7 +122,7 @@ func (c *remoteConn) String() string {
 
 func (c *remoteConn) Close() error {
 	// If the connection has already been closed, return right away.
-	if c.closed.Swap(true) {
+	if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
 		return nil
 	}
 
@@ -160,15 +159,15 @@ func (c *remoteConn) ChannelConn(channel ssh.Channel) net.Conn {
 }
 
 func (c *remoteConn) incrementActiveSessions() {
-	c.sessions.Add(1)
+	atomic.AddInt64(&c.sessions, 1)
 }
 
 func (c *remoteConn) decrementActiveSessions() {
-	c.sessions.Add(-1)
+	atomic.AddInt64(&c.sessions, -1)
 }
 
 func (c *remoteConn) activeSessions() int64 {
-	return c.sessions.Load()
+	return atomic.LoadInt64(&c.sessions)
 }
 
 func (c *remoteConn) markInvalid(err error) {
@@ -176,7 +175,7 @@ func (c *remoteConn) markInvalid(err error) {
 	defer c.mu.Unlock()
 
 	c.lastError = err
-	c.invalid.Store(true)
+	atomic.StoreInt32(&c.invalid, 1)
 	c.log.Warnf("Unhealthy connection to %v %v: %v.", c.clusterName, c.conn.RemoteAddr(), err)
 }
 
@@ -185,11 +184,11 @@ func (c *remoteConn) markValid() {
 	defer c.mu.Unlock()
 
 	c.lastError = nil
-	c.invalid.Store(false)
+	atomic.StoreInt32(&c.invalid, 0)
 }
 
 func (c *remoteConn) isInvalid() bool {
-	return c.invalid.Load()
+	return atomic.LoadInt32(&c.invalid) == 1
 }
 
 // isOffline determines if the remoteConn has missed
@@ -203,11 +202,11 @@ func (c *remoteConn) isOffline(now time.Time, threshold time.Duration) bool {
 }
 
 func (c *remoteConn) setLastHeartbeat(tm time.Time) {
-	c.lastHeartbeat.Store(tm.UnixNano())
+	atomic.StoreInt64(&c.lastHeartbeat, tm.UnixNano())
 }
 
 func (c *remoteConn) getLastHeartbeat() time.Time {
-	hb := c.lastHeartbeat.Load()
+	hb := atomic.LoadInt64(&c.lastHeartbeat)
 	if hb == 0 {
 		return time.Time{}
 	}
@@ -218,7 +217,7 @@ func (c *remoteConn) getLastHeartbeat() time.Time {
 // isReady returns true when connection is ready to be tried,
 // it returns true when connection has received the first heartbeat
 func (c *remoteConn) isReady() bool {
-	return c.lastHeartbeat.Load() != 0
+	return atomic.LoadInt64(&c.lastHeartbeat) != 0
 }
 
 func (c *remoteConn) openDiscoveryChannel() (ssh.Channel, error) {

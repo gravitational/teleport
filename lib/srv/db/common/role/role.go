@@ -17,38 +17,14 @@ limitations under the License.
 package role
 
 import (
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 )
 
-// DatabaseRoleMatchers returns role matchers based on the database.
-func DatabaseRoleMatchers(db types.Database, user, database string) services.RoleMatchers {
-	roleMatchers := services.RoleMatchers{
-		services.NewDatabaseUserMatcher(db, user),
-	}
-
-	if matcher := databaseNameMatcher(db.GetProtocol(), database); matcher != nil {
-		roleMatchers = append(roleMatchers, matcher)
-	}
-	return roleMatchers
-}
-
-// RequireDatabaseUserMatcher returns true if databases with provided protocol
-// require database users.
-func RequireDatabaseUserMatcher(protocol string) bool {
-	return true // Always required.
-}
-
-// RequireDatabaseNameMatcher returns true if databases with provided protocol
-// require database names.
-func RequireDatabaseNameMatcher(protocol string) bool {
-	return databaseNameMatcher(protocol, "") != nil
-}
-
-func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatcher {
+// DatabaseRoleMatchers returns role matchers based on the database protocol.
+func DatabaseRoleMatchers(dbProtocol string, user, database string) services.RoleMatchers {
 	switch dbProtocol {
-	case
+	case defaults.ProtocolMySQL:
 		// In MySQL, unlike Postgres, "database" and "schema" are the same thing
 		// and there's no good way to prevent users from performing cross-database
 		// queries once they're connected, apart from granting proper privileges
@@ -59,23 +35,30 @@ func databaseNameMatcher(dbProtocol, database string) *services.DatabaseNameMatc
 		// on queries, we might be able to restrict db_names as well e.g. by
 		// detecting full-qualified table names like db.table, until then the
 		// proper way is to use MySQL grants system.
-		defaults.ProtocolMySQL,
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
+	case defaults.ProtocolCockroachDB:
 		// Cockroach uses the same wire protocol as Postgres but handling of
 		// databases is different and there's no way to prevent cross-database
 		// queries so only apply RBAC to db_users.
-		defaults.ProtocolCockroachDB,
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
+	case defaults.ProtocolRedis:
 		// Redis integration doesn't support schema access control.
-		defaults.ProtocolRedis,
-		// Cassandra integration doesn't support schema access control.
-		defaults.ProtocolCassandra,
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
+	case defaults.ProtocolElasticsearch:
 		// Elasticsearch integration doesn't support schema access control.
-		defaults.ProtocolElasticsearch,
-		// OpenSearch integration doesn't support schema access control.
-		defaults.ProtocolOpenSearch,
-		// DynamoDB integration doesn't support schema access control.
-		defaults.ProtocolDynamoDB:
-		return nil
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+		}
 	default:
-		return &services.DatabaseNameMatcher{Name: database}
+		return services.RoleMatchers{
+			&services.DatabaseUserMatcher{User: user},
+			&services.DatabaseNameMatcher{Name: database},
+		}
 	}
 }

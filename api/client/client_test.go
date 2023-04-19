@@ -33,6 +33,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
@@ -100,17 +101,11 @@ func startMockServer(t *testing.T) *mockServer {
 // startMockServerWithListener starts a new mock server with the provided listener
 func startMockServerWithListener(t *testing.T, l net.Listener) *mockServer {
 	srv := newMockServer(l.Addr().String())
+	t.Cleanup(srv.grpc.Stop)
 
-	errCh := make(chan error, 1)
 	go func() {
-		errCh <- srv.grpc.Serve(l)
+		require.NoError(t, srv.grpc.Serve(l))
 	}()
-
-	t.Cleanup(func() {
-		srv.grpc.Stop()
-		require.NoError(t, <-errCh)
-	})
-
 	return srv
 }
 
@@ -119,13 +114,13 @@ func (m *mockServer) Ping(ctx context.Context, req *proto.PingRequest) (*proto.P
 }
 
 func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
-	resources, err := testResources[types.ResourceWithLabels](req.ResourceType, req.Namespace)
+	resources, err := testResources(req.ResourceType, req.Namespace)
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
 
 	resp := &proto.ListResourcesResponse{
-		Resources:  make([]*proto.PaginatedResource, 0, len(resources)),
+		Resources:  make([]*proto.PaginatedResource, 0),
 		TotalCount: int32(len(resources)),
 	}
 
@@ -166,13 +161,13 @@ func (m *mockServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_Node{Node: srv}}
-		case types.KindKubeServer:
-			srv, ok := resource.(*types.KubernetesServerV3)
+		case types.KindKubeService:
+			srv, ok := resource.(*types.ServerV2)
 			if !ok {
-				return nil, trace.Errorf("kubernetes server has invalid type %T", resource)
+				return nil, trace.Errorf("kubernetes service has invalid type %T", resource)
 			}
 
-			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubernetesServer{KubernetesServer: srv}}
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeService{KubeService: srv}}
 		case types.KindWindowsDesktop:
 			desktop, ok := resource.(*types.WindowsDesktopV3)
 			if !ok {
@@ -202,17 +197,18 @@ func (m *mockServer) AddMFADeviceSync(ctx context.Context, req *proto.AddMFADevi
 
 const fiveMBNode = "fiveMBNode"
 
-func testResources[T types.ResourceWithLabels](resourceType, namespace string) ([]T, error) {
+func testResources(resourceType, namespace string) ([]types.ResourceWithLabels, error) {
+	var err error
 	size := 50
 	// Artificially make each node ~ 100KB to force
 	// ListResources to fail with chunks of >= 40.
 	labelSize := 100000
-	resources := make([]T, 0, size)
+	resources := make([]types.ResourceWithLabels, size)
 
 	switch resourceType {
 	case types.KindDatabaseServer:
 		for i := 0; i < size; i++ {
-			resource, err := types.NewDatabaseServerV3(types.Metadata{
+			resources[i], err = types.NewDatabaseServerV3(types.Metadata{
 				Name: fmt.Sprintf("db-%d", i),
 				Labels: map[string]string{
 					"label": string(make([]byte, labelSize)),
@@ -223,11 +219,10 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 				Hostname: "localhost",
 				HostID:   fmt.Sprintf("host-%d", i),
 			})
+
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			resources = append(resources, any(resource).(T))
 		}
 	case types.KindAppServer:
 		for i := 0; i < size; i++ {
@@ -240,7 +235,7 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 				return nil, trace.Wrap(err)
 			}
 
-			resource, err := types.NewAppServerV3(types.Metadata{
+			resources[i], err = types.NewAppServerV3(types.Metadata{
 				Name: fmt.Sprintf("app-%d", i),
 				Labels: map[string]string{
 					"label": string(make([]byte, labelSize)),
@@ -253,8 +248,6 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			resources = append(resources, any(resource).(T))
 		}
 	case types.KindNode:
 		for i := 0; i < size; i++ {
@@ -266,7 +259,7 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 			}
 
 			var err error
-			resource, err := types.NewServerWithLabels(fmt.Sprintf("node-%d", i), types.KindNode, types.ServerSpecV2{},
+			resources[i], err = types.NewServerWithLabels(fmt.Sprintf("node-%d", i), types.KindNode, types.ServerSpecV2{},
 				map[string]string{
 					"label": string(make([]byte, nodeLabelSize)),
 				},
@@ -274,45 +267,28 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			resources = append(resources, any(resource).(T))
 		}
-	case types.KindKubeServer:
+	case types.KindKubeService:
 		for i := 0; i < size; i++ {
 			var err error
 			name := fmt.Sprintf("kube-service-%d", i)
-			kube, err := types.NewKubernetesClusterV3(types.Metadata{
-				Name:   name,
-				Labels: map[string]string{"name": name},
-			},
-				types.KubernetesClusterSpecV3{},
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resource, err := types.NewKubernetesServerV3(
-				types.Metadata{
-					Name: name,
-					Labels: map[string]string{
-						"label": string(make([]byte, labelSize)),
-					},
+			resources[i], err = types.NewServerWithLabels(name, types.KindKubeService, types.ServerSpecV2{
+				KubernetesClusters: []*types.KubernetesCluster{
+					{Name: name, StaticLabels: map[string]string{"name": name}},
 				},
-				types.KubernetesServerSpecV3{
-					HostID:  fmt.Sprintf("host-%d", i),
-					Cluster: kube,
-				},
-			)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			}, map[string]string{
+				"label": string(make([]byte, labelSize)),
+			})
 
-			resources = append(resources, any(resource).(T))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	case types.KindWindowsDesktop:
 		for i := 0; i < size; i++ {
 			var err error
 			name := fmt.Sprintf("windows-desktop-%d", i)
-			resource, err := types.NewWindowsDesktopV3(
+			resources[i], err = types.NewWindowsDesktopV3(
 				name,
 				map[string]string{"label": string(make([]byte, labelSize))},
 				types.WindowsDesktopSpecV3{
@@ -322,9 +298,8 @@ func testResources[T types.ResourceWithLabels](resourceType, namespace string) (
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-
-			resources = append(resources, any(resource).(T))
 		}
+
 	default:
 		return nil, trace.Errorf("unsupported resource type %s", resourceType)
 	}
@@ -528,9 +503,9 @@ func TestListResources(t *testing.T) {
 			resourceType:   types.KindNode,
 			resourceStruct: &types.ServerV2{},
 		},
-		"KubeServer": {
-			resourceType:   types.KindKubeServer,
-			resourceStruct: &types.KubernetesServerV3{},
+		"KubeService": {
+			resourceType:   types.KindKubeService,
+			resourceStruct: &types.ServerV2{},
 		},
 		"WindowsDesktop": {
 			resourceType:   types.KindWindowsDesktop,
@@ -575,75 +550,7 @@ func TestListResources(t *testing.T) {
 	require.Equal(t, 50, resp.TotalCount)
 }
 
-func testGetResources[T types.ResourceWithLabels](t *testing.T, clt *Client, kind string) {
-	ctx := context.Background()
-	expectedResources, err := testResources[T](kind, defaults.Namespace)
-	require.NoError(t, err)
-
-	// Test listing everything at once errors with limit exceeded.
-	_, err = clt.ListResources(ctx, proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
-		Limit:        int32(len(expectedResources)),
-		ResourceType: kind,
-	})
-	require.Error(t, err)
-	require.IsType(t, &trace.LimitExceededError{}, err.(*trace.TraceErr).OrigError())
-
-	// Test getting a page of resources
-	page, err := GetResourcePage[T](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:      defaults.Namespace,
-		ResourceType:   kind,
-		NeedTotalCount: true,
-	})
-	require.NoError(t, err)
-	require.Len(t, expectedResources, page.Total)
-	require.Empty(t, cmp.Diff(expectedResources[:len(page.Resources)], page.Resources))
-
-	// Test getting all resources by chunks to handle limit exceeded.
-	resources, err := GetAllResources[T](ctx, clt, &proto.ListResourcesRequest{
-		Namespace:    defaults.Namespace,
-		ResourceType: kind,
-	})
-	require.NoError(t, err)
-	require.Len(t, resources, len(expectedResources))
-	require.Empty(t, cmp.Diff(expectedResources, resources))
-}
-
 func TestGetResources(t *testing.T) {
-	t.Parallel()
-	srv := startMockServer(t)
-
-	// Create client
-	clt, err := srv.NewClient(context.Background())
-	require.NoError(t, err)
-
-	t.Run("DatabaseServer", func(t *testing.T) {
-		t.Parallel()
-		testGetResources[types.DatabaseServer](t, clt, types.KindDatabaseServer)
-	})
-
-	t.Run("ApplicationServer", func(t *testing.T) {
-		t.Parallel()
-		testGetResources[types.AppServer](t, clt, types.KindAppServer)
-	})
-
-	t.Run("Node", func(t *testing.T) {
-		t.Parallel()
-		testGetResources[types.Server](t, clt, types.KindNode)
-	})
-
-	t.Run("KubeServer", func(t *testing.T) {
-		t.Parallel()
-		testGetResources[types.KubeServer](t, clt, types.KindKubeServer)
-	})
-
-	t.Run("WindowsDesktop", func(t *testing.T) {
-		t.Parallel()
-		testGetResources[types.WindowsDesktop](t, clt, types.KindWindowsDesktop)
-	})
-}
-
-func TestGetResourcesWithFilters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	srv := startMockServer(t)
@@ -664,8 +571,8 @@ func TestGetResourcesWithFilters(t *testing.T) {
 		"Node": {
 			resourceType: types.KindNode,
 		},
-		"KubeServer": {
-			resourceType: types.KindKubeServer,
+		"KubeService": {
+			resourceType: types.KindKubeService,
 		},
 		"WindowsDesktop": {
 			resourceType: types.KindWindowsDesktop,
@@ -673,10 +580,8 @@ func TestGetResourcesWithFilters(t *testing.T) {
 	}
 
 	for name, test := range testCases {
-		name, test := name, test
 		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			expectedResources, err := testResources[types.ResourceWithLabels](test.resourceType, defaults.Namespace)
+			expectedResources, err := testResources(test.resourceType, defaults.Namespace)
 			require.NoError(t, err)
 
 			// Test listing everything at once errors with limit exceeded.
@@ -698,4 +603,149 @@ func TestGetResourcesWithFilters(t *testing.T) {
 			require.Empty(t, cmp.Diff(expectedResources, resources))
 		})
 	}
+}
+
+type mockOIDCConnectorServer struct {
+	*mockServer
+	connectors map[string]*types.OIDCConnectorV3
+}
+
+func newMockOIDCConnectorServer() *mockOIDCConnectorServer {
+	m := &mockOIDCConnectorServer{
+		&mockServer{
+			grpc:                           grpc.NewServer(),
+			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
+		},
+		make(map[string]*types.OIDCConnectorV3),
+	}
+	proto.RegisterAuthServiceServer(m.grpc, m)
+	return m
+}
+
+func startMockOIDCConnectorServer(t *testing.T) string {
+	l, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, l.Close()) })
+	go newMockOIDCConnectorServer().grpc.Serve(l)
+	return l.Addr().String()
+}
+
+func (m *mockOIDCConnectorServer) GetOIDCConnector(ctx context.Context, req *types.ResourceWithSecretsRequest) (*types.OIDCConnectorV3, error) {
+	conn, ok := m.connectors[req.Name]
+	if !ok {
+		return nil, trace.NotFound("not found")
+	}
+	return conn, nil
+}
+
+func (m *mockOIDCConnectorServer) GetOIDCConnectors(ctx context.Context, req *types.ResourcesWithSecretsRequest) (*types.OIDCConnectorV3List, error) {
+	var connectors []*types.OIDCConnectorV3
+	for _, conn := range m.connectors {
+		connectors = append(connectors, conn)
+	}
+	return &types.OIDCConnectorV3List{
+		OIDCConnectors: connectors,
+	}, nil
+}
+
+func (m *mockOIDCConnectorServer) UpsertOIDCConnector(ctx context.Context, oidcConnector *types.OIDCConnectorV3) (*emptypb.Empty, error) {
+	m.connectors[oidcConnector.Metadata.Name] = oidcConnector
+	return &emptypb.Empty{}, nil
+}
+
+// Test that client will perform properly with an old server
+// DELETE IN 11.0.0
+func TestSetOIDCRedirectURLBackwardsCompatibility(t *testing.T) {
+	ctx := context.Background()
+	addr := startMockOIDCConnectorServer(t)
+
+	// Create client
+	clt, err := New(ctx, Config{
+		Addrs: []string{addr},
+		Credentials: []Credentials{
+			&mockInsecureTLSCredentials{}, // TODO(Joerger) replace insecure credentials
+		},
+		DialOpts: []grpc.DialOption{
+			grpc.WithTransportCredentials(insecure.NewCredentials()), // TODO(Joerger) remove insecure dial option
+		},
+	})
+	require.NoError(t, err)
+
+	conn := &types.OIDCConnectorV3{
+		Metadata: types.Metadata{
+			Name: "one",
+		},
+	}
+
+	// Upsert should set "RedirectURL" on the provided connector if empty
+	conn.Spec.RedirectURLs = []string{"one.example.com"}
+	conn.Spec.RedirectURL = ""
+	err = clt.UpsertOIDCConnector(ctx, conn)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(conn.GetRedirectURLs()))
+	require.Equal(t, conn.GetRedirectURLs()[0], conn.Spec.RedirectURL)
+
+	// GetOIDCConnector should set "RedirectURLs" on the received connector if empty
+	conn.Spec.RedirectURLs = []string{}
+	conn.Spec.RedirectURL = "one.example.com"
+	connResp, err := clt.GetOIDCConnector(ctx, conn.GetName(), false)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(connResp.GetRedirectURLs()))
+	require.Equal(t, connResp.GetRedirectURLs()[0], "one.example.com")
+
+	// GetOIDCConnectors should set "RedirectURLs" on the received connectors if empty
+	conn.Spec.RedirectURLs = []string{}
+	conn.Spec.RedirectURL = "one.example.com"
+	connectorsResp, err := clt.GetOIDCConnectors(ctx, false)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(connectorsResp))
+	require.Equal(t, 1, len(connectorsResp[0].GetRedirectURLs()))
+	require.Equal(t, "one.example.com", connectorsResp[0].GetRedirectURLs()[0])
+}
+
+type mockAccessRequestServer struct {
+	*mockServer
+}
+
+func (g *mockAccessRequestServer) GetAccessRequests(ctx context.Context, f *types.AccessRequestFilter) (*proto.AccessRequests, error) {
+	req, err := types.NewAccessRequest("foo", "bob", "admin")
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &proto.AccessRequests{
+		AccessRequests: []*types.AccessRequestV3{req.(*types.AccessRequestV3)},
+	}, nil
+}
+
+// TestAccessRequestDowngrade tests that the client will downgrade to the non stream API for fetching access requests
+// if the stream API is not available.
+func TestAccessRequestDowngrade(t *testing.T) {
+	ctx := context.Background()
+	l, err := net.Listen("tcp", "")
+	require.NoError(t, err)
+
+	m := &mockAccessRequestServer{
+		&mockServer{
+			addr:                           l.Addr().String(),
+			grpc:                           grpc.NewServer(),
+			UnimplementedAuthServiceServer: &proto.UnimplementedAuthServiceServer{},
+		},
+	}
+	proto.RegisterAuthServiceServer(m.grpc, m)
+	t.Cleanup(m.grpc.Stop)
+
+	remoteErr := make(chan error)
+	go func() {
+		remoteErr <- m.grpc.Serve(l)
+	}()
+
+	clt, err := m.NewClient(ctx)
+	require.NoError(t, err)
+
+	items, err := clt.GetAccessRequests(ctx, types.AccessRequestFilter{})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	m.grpc.Stop()
+	require.NoError(t, <-remoteErr)
 }

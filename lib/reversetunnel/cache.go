@@ -59,11 +59,11 @@ func newHostCertificateCache(keygen sshca.Authority, authClient auth.ClientI) (*
 }
 
 // getHostCertificate will fetch a certificate from the cache. If the certificate
-// is not in the cache, it will be generated, put in the cache, and returned.
+// is not in the cache, it will be generated, put in the cache, and returned. Mul
 // Multiple callers can arrive and generate a host certificate at the same time.
 // This is a tradeoff to prevent long delays here due to the expensive
 // certificate generation call.
-func (c *certificateCache) getHostCertificate(ctx context.Context, addr string, additionalPrincipals []string) (ssh.Signer, error) {
+func (c *certificateCache) getHostCertificate(addr string, additionalPrincipals []string) (ssh.Signer, error) {
 	var certificate ssh.Signer
 	var err error
 	var ok bool
@@ -74,7 +74,7 @@ func (c *certificateCache) getHostCertificate(ctx context.Context, addr string, 
 
 	certificate, ok = c.get(strings.Join(principals, "."))
 	if !ok {
-		certificate, err = c.generateHostCert(ctx, principals)
+		certificate, err = c.generateHostCert(principals)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -123,7 +123,7 @@ func (c *certificateCache) set(addr string, certificate ssh.Signer, ttl time.Dur
 
 // generateHostCert will generate a SSH host certificate for a given
 // principal.
-func (c *certificateCache) generateHostCert(ctx context.Context, principals []string) (ssh.Signer, error) {
+func (c *certificateCache) generateHostCert(principals []string) (ssh.Signer, error) {
 	if len(principals) == 0 {
 		return nil, trace.BadParameter("at least one principal must be provided")
 	}
@@ -141,7 +141,6 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 	}
 
 	certBytes, err := c.authClient.GenerateHostCert(
-		ctx,
 		pubBytes,
 		principals[0],
 		principals[0],

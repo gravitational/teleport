@@ -17,26 +17,27 @@ limitations under the License.
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import { makeLabelMapOfStrArrs } from '../agents/make';
-
 import makeJoinToken from './makeJoinToken';
-import { JoinToken, JoinRule, JoinTokenRequest } from './types';
+import { JoinToken, JoinMethod, JoinRole, JoinRule } from './types';
 
 class JoinTokenService {
   fetchJoinToken(
-    req: JoinTokenRequest,
+    // roles is a list of join roles, since there can be more than
+    // one role associated with a token.
+    roles: JoinRole[],
+    joinMethod: JoinMethod = 'token',
+    // rules is a list of allow rules associated with the join token
+    // and the node using this token must match one of the rules.
+    rules: JoinRule[] = [],
     signal: AbortSignal = null
   ): Promise<JoinToken> {
     return api
       .post(
         cfg.getJoinTokenUrl(),
         {
-          roles: req.roles,
-          join_method: req.method || 'token',
-          allow: makeAllowField(req.rules || []),
-          suggested_agent_matcher_labels: makeLabelMapOfStrArrs(
-            req.suggestedAgentMatcherLabels
-          ),
+          roles,
+          join_method: joinMethod,
+          allow: makeAllowField(rules),
         },
         signal
       )
@@ -44,7 +45,7 @@ class JoinTokenService {
   }
 }
 
-function makeAllowField(rules: JoinRule[] = []) {
+function makeAllowField(rules: JoinRule[]) {
   return rules.map(rule => ({
     aws_account: rule.awsAccountId,
     aws_arn: rule.awsArn,

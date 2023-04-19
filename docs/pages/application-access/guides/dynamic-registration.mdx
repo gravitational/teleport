@@ -57,7 +57,7 @@ spec:
 
 See the full app resource spec [reference](../reference.mdx#application-resource).
 
-The user creating the dynamic registration needs to have a role with access to the 
+The user creating the dynamic registration needs to have a role with access to the
 application labels and the `app` resource.  In this example role the user can only
 create and maintain application services labeled `env: test`.
 ```yaml
@@ -66,7 +66,7 @@ metadata:
   name: dynamicappregexample
 spec:
   allow:
-    app_labels:      
+    app_labels:
       env: test
     rules:
     - resources:
@@ -102,6 +102,7 @@ $ tctl create app.yaml
 ```
 
 </ScopedBlock>
+
 
 After the resource has been created, it will appear among the list of available
 apps (in `tsh apps ls` or UI) as long as at least one Application Service

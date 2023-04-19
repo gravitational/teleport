@@ -2,6 +2,7 @@
 # Warning to maintainers, any changes to this file that are not specific to the StatefulSet need to also be duplicated
 # in the deployment.yaml file.
 #
+{{- if .Values.storage.enabled }}
 {{- $replicaCount := (coalesce .Values.replicaCount .Values.highAvailability.replicaCount "1") }}
 apiVersion: apps/v1
 kind: StatefulSet
@@ -84,11 +85,17 @@ spec:
 {{- if .Values.initContainers }}
       initContainers: {{- toYaml .Values.initContainers | nindent 6 }}
   {{- if .Values.resources }}
-        resources: {{- toYaml .Values.resources | nindent 10 }}
+        resources:
+    {{- toYaml .Values.resources | nindent 10 }}
   {{- end }}
-  {{- if .Values.initSecurityContext }}
-        securityContext: {{- toYaml .Values.initSecurityContext | nindent 10 }}
-  {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 9807
         volumeMounts:
         - mountPath: /etc/teleport
           name: "config"
@@ -110,43 +117,27 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ template "teleport-kube-agent.serviceAccountName" . }}
+      serviceAccountName: {{ template "teleport.serviceAccountName" . }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
       {{- end }}
       containers:
       - name: "teleport"
-        image: {{ include "teleport-kube-agent.image" . | quote }}
+        image: "{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ .teleportVersion }}"
         {{- if .Values.imagePullPolicy }}
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
+        {{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
         env:
-          # This variable is set for telemetry purposes.
-          # Telemetry is opt-in and controlled at the auth level.
-          - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-            value: "true"
-          - name: TELEPORT_REPLICA_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
-          - name: KUBE_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: RELEASE_NAME
-            value: {{ .Release.Name }}
-          {{- if .Values.updater.enabled }}
-          - name: TELEPORT_EXT_UPGRADER
-            value: kube
-          {{- end }}
-          {{- if .Values.tls.existingCASecretName }}
-          - name: SSL_CERT_FILE
-            value: /etc/teleport-tls-ca/ca.pem
-          {{- end }}
-          {{- if .Values.extraEnv }}
-            {{- toYaml .Values.extraEnv | nindent 10 }}
-          {{- end }}
+        {{- if (gt (len .Values.extraEnv) 0) }}
+          {{- toYaml .Values.extraEnv | nindent 8 }}
+        {{- end }}
+        {{- if .Values.tls.existingCASecretName }}
+        - name: SSL_CERT_FILE
+          value: /etc/teleport-tls-ca/ca.pem
+        {{- end }}
+        {{- end }}
         args:
         - "--diag-addr=0.0.0.0:3000"
         {{- if .Values.insecureSkipProxyTLSVerify }}
@@ -155,9 +146,14 @@ spec:
         {{- if .Values.extraArgs }}
           {{- toYaml .Values.extraArgs | nindent 8 }}
         {{- end }}
-        {{- if .Values.securityContext }}
-        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
-        {{- end }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - all
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 9807
         ports:
         - name: diag
           containerPort: 3000
@@ -189,18 +185,13 @@ spec:
         - mountPath: /etc/teleport-secrets
           name: "auth-token"
           readOnly: true
-{{- if .Values.storage.enabled }}
         - mountPath: /var/lib/teleport
           name: "{{ .Release.Name }}-teleport-data"
-{{- else }}
-        - mountPath: /var/lib/teleport
-          name: "data"
-{{- end }}
-{{- if .Values.tls.existingCASecretName }}
+          {{- if .Values.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
           readOnly: true
-{{- end }}
+          {{- end }}
 {{- if .Values.extraVolumeMounts }}
   {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
 {{- end }}
@@ -211,19 +202,14 @@ spec:
       - name: "auth-token"
         secret:
           secretName: {{ .Values.secretName }}
-{{- if not .Values.storage.enabled }}
-      - name: "data"
-        emptyDir: {}
-{{- end}}
-{{- if .Values.tls.existingCASecretName }}
+      {{- if .Values.tls.existingCASecretName }}
       - name: "teleport-tls-ca"
         secret:
           secretName: {{ .Values.tls.existingCASecretName }}
-{{- end }}
-{{- if .Values.extraVolumes }}
+      {{- end }}
+  {{- if .Values.extraVolumes }}
   {{- toYaml .Values.extraVolumes | nindent 6 }}
 {{- end }}
-{{- if and .Values.storage.enabled }}
   volumeClaimTemplates:
   - metadata:
       name: "{{ .Release.Name }}-teleport-data"

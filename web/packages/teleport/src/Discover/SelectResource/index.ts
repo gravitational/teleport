@@ -15,6 +15,3 @@
  */
 
 export { SelectResource } from './SelectResource';
-export { getResourcePretitle } from './resources';
-export { getDatabaseProtocol, getDefaultDatabasePort } from './databases';
-export * from './types';

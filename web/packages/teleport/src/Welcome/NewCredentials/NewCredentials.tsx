@@ -18,10 +18,9 @@ import React, { useState } from 'react';
 import { Card } from 'design';
 import { PrimaryAuthType } from 'shared/services';
 
-import { NewFlow, StepComponentProps, StepSlider } from 'design/StepSlider';
+import { StepSlider, NewFlow, StepComponentProps } from 'design/StepSlider';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
-import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 
 import useToken, { State } from '../useToken';
 
@@ -51,12 +50,10 @@ export function NewCredentials(props: State & Props) {
     fetchAttempt,
     recoveryCodes,
     resetMode,
-    resetToken,
     redirect,
     primaryAuthType,
     success,
     finishedRegister,
-    privateKeyPolicyEnabled,
   } = props;
 
   if (fetchAttempt.status === 'failed') {
@@ -67,22 +64,8 @@ export function NewCredentials(props: State & Props) {
     return null;
   }
 
-  if (success && privateKeyPolicyEnabled) {
-    return (
-      <PrivateKeyLoginDisabledCard
-        title={resetMode ? 'Reset Complete' : 'Registration Complete'}
-      />
-    );
-  }
-
   if (success) {
-    return (
-      <RegisterSuccess
-        redirect={redirect}
-        resetMode={resetMode}
-        username={resetToken.user}
-      />
-    );
+    return <RegisterSuccess redirect={redirect} resetMode={resetMode} />;
   }
 
   if (recoveryCodes) {
@@ -91,7 +74,6 @@ export function NewCredentials(props: State & Props) {
         recoveryCodes={recoveryCodes}
         onContinue={finishedRegister}
         isNewCodes={resetMode}
-        username={resetToken.user}
       />
     );
   }
@@ -119,7 +101,7 @@ export function NewCredentials(props: State & Props) {
   }
 
   return (
-    <Card as="form" bg="levels.surface" my={5} mx="auto" width={464}>
+    <Card as="form" bg="primary.light" my={5} mx="auto" width={464}>
       <StepSlider<typeof loginFlows>
         flows={loginFlows}
         currFlow={flow}

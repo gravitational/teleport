@@ -15,61 +15,37 @@
  */
 
 import {
+  Application,
   AuthSettings,
-  AccessRequest,
   Cluster,
-  CreateAccessRequestParams,
   CreateGatewayParams,
+  Database,
   Gateway,
-  GetDatabasesResponse,
-  GetKubesResponse,
-  GetRequestableRolesParams,
-  GetServersResponse,
+  Kube,
   LoginLocalParams,
   LoginPasswordlessParams,
   LoginSsoParams,
-  ReviewAccessRequestParams,
-  GetResourcesParams,
+  Server,
   TshAbortController,
   TshAbortSignal,
   TshClient,
-  GetRequestableRolesResponse,
 } from '../types';
 
 export class MockTshClient implements TshClient {
   listRootClusters: () => Promise<Cluster[]>;
   listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
-  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
+  listApps: (clusterUri: string) => Promise<Application[]>;
+  listKubes: (clusterUri: string) => Promise<Kube[]>;
+  listDatabases: (clusterUri: string) => Promise<Database[]>;
   listDatabaseUsers: (dbUri: string) => Promise<string[]>;
-  getRequestableRoles: (
-    params: GetRequestableRolesParams
-  ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
-  assumeRole: (
-    clusterUri: string,
-    requestIds: string[],
-    dropIds: string[]
-  ) => Promise<void>;
-  deleteAccessRequest: (clusterUri: string, requestId: string) => Promise<void>;
-  getAccessRequests: (clusterUri: string) => Promise<AccessRequest[]>;
-  getAccessRequest: (
-    clusterUri: string,
-    requestId: string
-  ) => Promise<AccessRequest>;
-  reviewAccessRequest: (
-    clusterUri: string,
-    params: ReviewAccessRequestParams
-  ) => Promise<AccessRequest>;
-  createAccessRequest: (
-    params: CreateAccessRequestParams
-  ) => Promise<AccessRequest>;
+  listServers: (clusterUri: string) => Promise<Server[]>;
   createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
 
   listGateways: () => Promise<Gateway[]>;
   createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
   removeGateway: (gatewayUri: string) => Promise<undefined>;
+  restartGateway: (gatewayUri: string) => Promise<undefined>;
   setGatewayTargetSubresourceName: (
     gatewayUri: string,
     targetSubresourceName: string
@@ -95,18 +71,4 @@ export class MockTshClient implements TshClient {
     abortSignal?: TshAbortSignal
   ) => Promise<undefined>;
   logout: (clusterUri: string) => Promise<undefined>;
-  transferFile: () => undefined;
-  reportUsageEvent: () => undefined;
 }
-
-export const gateway: Gateway = {
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-  cliCommand: 'psql postgres://alice@localhost:59116',
-};

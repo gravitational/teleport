@@ -16,50 +16,7 @@ limitations under the License.
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { Event, RawEvent, Formatters, eventCodes, RawEvents } from './types';
-
-const formatElasticsearchEvent: (
-  json:
-    | RawEvents[typeof eventCodes.ELASTICSEARCH_REQUEST]
-    | RawEvents[typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE]
-    | RawEvents[typeof eventCodes.OPENSEARCH_REQUEST]
-    | RawEvents[typeof eventCodes.OPENSEARCH_REQUEST_FAILURE]
-) => string = ({ category, code, db_service, path, query, target, user }) => {
-  // local redefinition of enum from events.proto.
-  // currently this matches both OpenSearchCategory and ElasticsearchCategory.
-  enum Category {
-    GENERAL = 0,
-    SECURITY = 1,
-    SEARCH = 2,
-    SQL = 3,
-  }
-
-  const categoryString = Category[category] ?? 'UNKNOWN';
-
-  let message = '';
-
-  switch (code) {
-    case eventCodes.ELASTICSEARCH_REQUEST:
-    case eventCodes.OPENSEARCH_REQUEST:
-      message += `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
-      break;
-
-    case eventCodes.ELASTICSEARCH_REQUEST_FAILURE:
-    case eventCodes.OPENSEARCH_REQUEST_FAILURE:
-      message += `User [${user}] has attempted to run a [${categoryString}] query in [${db_service}], request path: [${path}]`;
-      break;
-  }
-
-  if (query) {
-    message += `, query string: [${truncateStr(query, 80)}]`;
-  }
-
-  if (target) {
-    message += `, target: [${target}]`;
-  }
-
-  return message;
-};
+import { Event, RawEvent, Formatters, eventCodes } from './types';
 
 export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
@@ -629,17 +586,6 @@ export const formatters: Formatters = {
       return `New session data chunk created for application [${app_name}] accessed by user [${user}]`;
     },
   },
-  [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: {
-    type: 'app.session.dynamodb.request',
-    desc: 'App Session DynamoDB Request',
-    format: ({ user, app_name, target }) => {
-      let message = `User [${user}] has made a request to application [${app_name}]`;
-      if (target) {
-        message += `, target: [${target}]`;
-      }
-      return message;
-    },
-  },
   [eventCodes.SUBSYSTEM]: {
     type: 'subsystem',
     desc: 'Subsystem Requested',
@@ -730,24 +676,6 @@ export const formatters: Formatters = {
     desc: 'Kubernetes Request',
     format: ({ user, kubernetes_cluster, verb, request_path, response_code }) =>
       `User [${user}] received a [${response_code}] from a [${verb} ${request_path}] request to kubernetes cluster [${kubernetes_cluster}]`,
-  },
-  [eventCodes.KUBE_CREATED]: {
-    type: 'kube.create',
-    desc: 'Kubernetes Created',
-    format: ({ user, name }) =>
-      `User [${user}] created kubernetes cluster [${name}]`,
-  },
-  [eventCodes.KUBE_UPDATED]: {
-    type: 'kube.update',
-    desc: 'Kubernetes Updated',
-    format: ({ user, name }) =>
-      `User [${user}] updated kubernetes cluster [${name}]`,
-  },
-  [eventCodes.KUBE_DELETED]: {
-    type: 'kube.delete',
-    desc: 'Kubernetes Deleted',
-    format: ({ user, name }) =>
-      `User [${user}] deleted kubernetes cluster [${name}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED]: {
     type: 'db.session.start',
@@ -962,72 +890,44 @@ export const formatters: Formatters = {
     format: ({ user, db_service, db_name, proc_name }) =>
       `User [${user}] has sent RPC Request [${proc_name}] in database [${db_name}] on [${db_service}]`,
   },
-  [eventCodes.CASSANDRA_BATCH_EVENT]: {
-    type: 'db.session.cassandra.batch',
-    desc: 'Cassandra Batch',
-    format: ({ user, db_service }) =>
-      `User [${user}] has sent Cassandra Batch to [${db_service}]`,
-  },
-  [eventCodes.CASSANDRA_PREPARE_EVENT]: {
-    type: 'db.session.cassandra.prepare',
-    desc: 'Cassandra Prepare Event',
-    format: ({ user, db_service, query }) =>
-      `User [${user}] has sent Cassandra Prepare [${truncateStr(
-        query,
-        80
-      )}] to [${db_service}]`,
-  },
-  [eventCodes.CASSANDRA_EXECUTE_EVENT]: {
-    type: 'db.session.cassandra.execute',
-    desc: 'Cassandra Execute',
-    format: ({ user, db_service }) =>
-      `User [${user}] has sent Cassandra Execute to [${db_service}]`,
-  },
-  [eventCodes.CASSANDRA_REGISTER_EVENT]: {
-    type: 'db.session.cassandra.register',
-    desc: 'Cassandra Register',
-    format: ({ user, db_service }) =>
-      `User [${user}] has sent Cassandra Register to [${db_service}]`,
-  },
   [eventCodes.ELASTICSEARCH_REQUEST]: {
     type: 'db.session.elasticsearch.request',
     desc: 'Elasticsearch Request',
-    format: formatElasticsearchEvent,
-  },
-  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: {
-    type: 'db.session.elasticsearch.request',
-    desc: 'Elasticsearch Request Failed',
-    format: formatElasticsearchEvent,
-  },
-  [eventCodes.OPENSEARCH_REQUEST]: {
-    type: 'db.session.opensearch.request',
-    desc: 'OpenSearch Request',
-    format: formatElasticsearchEvent,
-  },
-  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: {
-    type: 'db.session.opensearch.request',
-    desc: 'OpenSearch Request Failed',
-    format: formatElasticsearchEvent,
-  },
-  [eventCodes.DYNAMODB_REQUEST]: {
-    type: 'db.session.dynamodb.request',
-    desc: 'DynamoDB Request',
-    format: ({ user, db_service, target }) => {
-      let message = `User [${user}] has made a request to database [${db_service}]`;
-      if (target) {
-        message += `, target API: [${target}]`;
+    format: ({ user, db_service, category, target, query, path }) => {
+      // local redefinition of enum ElasticsearchCategory from events.proto
+      enum ElasticsearchCategory {
+        GENERAL = 0,
+        SECURITY = 1,
+        SEARCH = 2,
+        SQL = 3,
       }
-      return message;
-    },
-  },
-  [eventCodes.DYNAMODB_REQUEST_FAILURE]: {
-    type: 'db.session.dynamodb.request',
-    desc: 'DynamoDB Request Failed',
-    format: ({ user, db_service, target }) => {
-      let message = `User [${user}] failed to make a request to database  [${db_service}]`;
-      if (target) {
-        message += `, target API: [${target}]`;
+
+      let categoryString = 'UNKNOWN';
+      switch (category) {
+        case ElasticsearchCategory.GENERAL:
+          categoryString = 'GENERAL';
+          break;
+        case ElasticsearchCategory.SEARCH:
+          categoryString = 'SEARCH';
+          break;
+        case ElasticsearchCategory.SECURITY:
+          categoryString = 'SECURITY';
+          break;
+        case ElasticsearchCategory.SQL:
+          categoryString = 'SQL';
+          break;
       }
+
+      let message = `User [${user}] has ran a [${categoryString}] query in [${db_service}], request path: [${path}]`;
+
+      if (query) {
+        message += `, query string: [${truncateStr(query, 80)}]`;
+      }
+
+      if (target) {
+        message += `, target: [${target}]`;
+      }
+
       return message;
     },
   },
@@ -1130,98 +1030,6 @@ export const formatters: Formatters = {
     format: ({ user, desktop_addr, length }) =>
       `User [${user}] sent ${length} bytes of clipboard data to desktop [${desktop_addr}]`,
   },
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: {
-    type: 'desktop.directory.share',
-    desc: 'Directory Sharing Started',
-    format: ({ user, desktop_addr, directory_name }) =>
-      `User [${user}] started sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
-  },
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: {
-    type: 'desktop.directory.share',
-    desc: 'Directory Sharing Start Failed',
-    format: ({ user, desktop_addr, directory_name }) =>
-      `User [${user}] failed to start sharing directory [${directory_name}] to desktop [${desktop_addr}]`,
-  },
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: {
-    type: 'desktop.directory.read',
-    desc: 'Directory Sharing Read',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
-  },
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: {
-    type: 'desktop.directory.read',
-    desc: 'Directory Sharing Read Failed',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] failed to read [${length}] bytes from file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
-  },
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: {
-    type: 'desktop.directory.write',
-    desc: 'Directory Sharing Write',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] wrote [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
-  },
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: {
-    type: 'desktop.directory.write',
-    desc: 'Directory Sharing Write Failed',
-    format: ({ user, desktop_addr, directory_name, file_path, length }) =>
-      `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
-  },
-  [eventCodes.DEVICE_CREATE]: {
-    type: 'device',
-    desc: 'Device Register',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has registered a device`
-        : `User [${user.user}] has failed to register a device`,
-  },
-  [eventCodes.DEVICE_DELETE]: {
-    type: 'device',
-    desc: 'Device Delete',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has deleted a device`
-        : `User [${user.user}] has failed to delete a device`,
-  },
-  [eventCodes.DEVICE_AUTHENTICATE]: {
-    type: 'device',
-    desc: 'Device Authenticate',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully authenticated their device`
-        : `User [${user.user}] has failed to authenticate their device`,
-  },
-  [eventCodes.DEVICE_ENROLL]: {
-    type: 'device',
-    desc: 'Device Enrollment',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully enrolled their device`
-        : `User [${user.user}] has failed to enroll their device`,
-  },
-  [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
-    type: 'device',
-    desc: 'Device Enroll Token Create',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] created a device enroll token`
-        : `User [${user.user}] has failed to create a device enroll token`,
-  },
-  [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: {
-    type: 'device',
-    desc: 'Device Enroll Token Spent',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has spent a device enroll token`
-        : `User [${user.user}] has failed to spend a device enroll token`,
-  },
-  [eventCodes.DEVICE_UPDATE]: {
-    type: 'device',
-    desc: 'Device Update',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has updated a device`
-        : `User [${user.user}] has failed to update a device`,
-  },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
     desc: 'X11 Forwarding Requested',
@@ -1276,97 +1084,6 @@ export const formatters: Formatters = {
     format: ({ account_id, instance_id, region, command_id }) => {
       return `SSM Command with ID [${command_id}] failed during execution on EC2 Instance [${instance_id}] on AWS Account [${account_id}] in [${region}]`;
     },
-  },
-  [eventCodes.BOT_JOIN]: {
-    type: 'bot.join',
-    desc: 'Bot Joined',
-    format: ({ bot_name, method }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method`;
-    },
-  },
-  [eventCodes.INSTANCE_JOIN]: {
-    type: 'instance.join',
-    desc: 'Instance Joined',
-    format: ({ node_name, role, method }) => {
-      return `Instance [${node_name}] joined the cluster with the [${role}] role using the [${method}] join method`;
-    },
-  },
-  [eventCodes.LOGIN_RULE_CREATE]: {
-    type: 'login_rule.create',
-    desc: 'Login Rule Created',
-    format: ({ user, name }) => `User [${user}] created a login rule [${name}]`,
-  },
-  [eventCodes.LOGIN_RULE_DELETE]: {
-    type: 'login_rule.delete',
-    desc: 'Login Rule Deleted',
-    format: ({ user, name }) => `User [${user}] deleted a login rule [${name}]`,
-  },
-  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: {
-    type: 'saml.idp.auth',
-    desc: 'SAML IdP authentication',
-    format: ({
-      user,
-      success,
-      service_provider_entity_id,
-      service_provider_shortcut,
-    }) => {
-      const desc =
-        success === false
-          ? 'failed to authenticate'
-          : 'successfully authenticated';
-      const id = service_provider_entity_id
-        ? `[${service_provider_entity_id}]`
-        : `[${service_provider_shortcut}]`;
-      return `User [${user}] ${desc} to SAML service provider ${id}`;
-    },
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: {
-    type: 'saml.idp.service.provider.create',
-    desc: 'SAML IdP service provider created',
-    format: ({ updated_by, name, service_provider_entity_id }) =>
-      `User [${updated_by}] added service provider [${name}] with entity ID [${service_provider_entity_id}]`,
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: {
-    type: 'saml.idp.service.provider.create',
-    desc: 'SAML IdP service provider create failed',
-    format: ({ updated_by, name, service_provider_entity_id }) =>
-      `User [${updated_by}] failed to add service provider [${name}] with entity ID [${service_provider_entity_id}]`,
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: {
-    type: 'saml.idp.service.provider.update',
-    desc: 'SAML IdP service provider updated',
-    format: ({ updated_by, name, service_provider_entity_id }) =>
-      `User [${updated_by}] updated service provider [${name}] with entity ID [${service_provider_entity_id}]`,
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: {
-    type: 'saml.idp.service.provider.update',
-    desc: 'SAML IdP service provider update failed',
-    format: ({ updated_by, name, service_provider_entity_id }) =>
-      `User [${updated_by}] failed to update service provider [${name}] with entity ID [${service_provider_entity_id}]`,
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: {
-    type: 'saml.idp.service.provider.delete',
-    desc: 'SAML IdP service provider deleted',
-    format: ({ updated_by, name, service_provider_entity_id }) =>
-      `User [${updated_by}] deleted service provider [${name}] with entity ID [${service_provider_entity_id}]`,
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: {
-    type: 'saml.idp.service.provider.delete',
-    desc: 'SAML IdP service provider delete failed',
-    format: ({ updated_by, name, service_provider_entity_id }) =>
-      `User [${updated_by}] failed to delete service provider [${name}] with entity ID [${service_provider_entity_id}]`,
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: {
-    type: 'saml.idp.service.provider.delete_all',
-    desc: 'All SAML IdP service provider deleted',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] deleted all service providers`,
-  },
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: {
-    type: 'saml.idp.service.provider.delete',
-    desc: 'SAML IdP service provider delete failed',
-    format: ({ updated_by }) =>
-      `User [${updated_by}] failed to delete all service providers`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

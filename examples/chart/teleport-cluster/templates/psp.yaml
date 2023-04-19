@@ -1,8 +1,4 @@
-{{/* PSPs are deprecated in 1.22 and removed in 1.25. However Helm doesn't handle their removal properly in 1.25
-     We must remove them before 1.25 to ensure the Helm state doesn't corrupt. As this is a breaking change, this
-     only applies to v12+ charts. v11 and below will only show a warning from the NOTES.txt.
-     Users must use PSAs instead (beta in 1.23, GA in 1.25). The "teleport-cluster" chart runs in "baseline" mode */}}
-{{- if and .Values.podSecurityPolicy.enabled (semverCompare "<1.23.0-0" .Capabilities.KubeVersion.Version) -}}
+{{- if and .Values.podSecurityPolicy.enabled (.Capabilities.APIVersions.Has "policy/v1beta1") -}}
 apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
@@ -42,7 +38,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: {{ .Release.Name }}-psp
-  namespace: {{ .Release.Namespace }}
 rules:
 - apiGroups:
   - policy
@@ -57,7 +52,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: {{ .Release.Name }}-psp
-  namespace: {{ .Release.Namespace }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role

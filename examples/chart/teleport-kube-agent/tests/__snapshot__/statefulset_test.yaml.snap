@@ -3,20 +3,7 @@ sets Pod annotations when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -71,20 +58,7 @@ sets Pod labels when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -154,7 +128,7 @@ sets StatefulSet labels when specified:
       template:
         metadata:
           annotations:
-            checksum/config: db49feab9b174f73188febc30d2b01d27b16e5a76b586c6e87e6e62eb43620a2
+            checksum/config: e40e91c502b3883cd280381b59705cb433efc9a0920ea3de309d39358673eaad
           labels:
             app: RELEASE-NAME
             app.kubernetes.io/name: teleport-kube-agent
@@ -163,20 +137,7 @@ sets StatefulSet labels when specified:
           containers:
           - args:
             - --diag-addr=0.0.0.0:3000
-            env:
-            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-              value: "true"
-            - name: TELEPORT_REPLICA_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: KUBE_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: RELEASE_NAME
-              value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+            image: quay.io/gravitational/teleport:10.3.15
             imagePullPolicy: IfNotPresent
             livenessProbe:
               failureThreshold: 6
@@ -236,43 +197,13 @@ sets StatefulSet labels when specified:
             requests:
               storage: 128Mi
           storageClassName: aws-gp2
-sets by default a container security context:
-  1: |
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-      - all
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 9807
-  2: |
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop:
-      - all
-    readOnlyRootFilesystem: true
-    runAsNonRoot: true
-    runAsUser: 9807
 should add insecureSkipProxyTLSVerify to args when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --insecure
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -322,25 +253,12 @@ should add insecureSkipProxyTLSVerify to args when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should add volumeClaimTemplate for data volume when using StatefulSet and action is an Upgrade:
+should add volumeClaimTemplate for data volume when using StatefulSet:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -390,123 +308,12 @@ should add volumeClaimTemplate for data volume when using StatefulSet and action
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should add volumeClaimTemplate for data volume when using StatefulSet and is Fresh Install:
-  1: |
-    apiVersion: apps/v1
-    kind: StatefulSet
-    metadata:
-      labels:
-        app: RELEASE-NAME
-      name: RELEASE-NAME
-      namespace: NAMESPACE
-    spec:
-      replicas: 1
-      selector:
-        matchLabels:
-          app: RELEASE-NAME
-      serviceName: RELEASE-NAME
-      template:
-        metadata:
-          annotations:
-            checksum/config: 6e010c147e8d81d244e7aafdcee7e652cdb4d5640fb7f14d0e1ebb7832f943a5
-          labels:
-            app: RELEASE-NAME
-        spec:
-          containers:
-          - args:
-            - --diag-addr=0.0.0.0:3000
-            env:
-            - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-              value: "true"
-            - name: TELEPORT_REPLICA_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: KUBE_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
-            - name: RELEASE_NAME
-              value: RELEASE-NAME
-            image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
-            imagePullPolicy: IfNotPresent
-            livenessProbe:
-              failureThreshold: 6
-              httpGet:
-                path: /healthz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-              timeoutSeconds: 1
-            name: teleport
-            ports:
-            - containerPort: 3000
-              name: diag
-              protocol: TCP
-            readinessProbe:
-              failureThreshold: 12
-              httpGet:
-                path: /readyz
-                port: diag
-              initialDelaySeconds: 5
-              periodSeconds: 5
-              timeoutSeconds: 1
-            securityContext:
-              allowPrivilegeEscalation: false
-              capabilities:
-                drop:
-                - all
-              readOnlyRootFilesystem: true
-              runAsNonRoot: true
-              runAsUser: 9807
-            volumeMounts:
-            - mountPath: /etc/teleport
-              name: config
-              readOnly: true
-            - mountPath: /etc/teleport-secrets
-              name: auth-token
-              readOnly: true
-            - mountPath: /var/lib/teleport
-              name: RELEASE-NAME-teleport-data
-          securityContext:
-            fsGroup: 9807
-          serviceAccountName: RELEASE-NAME
-          volumes:
-          - configMap:
-              name: RELEASE-NAME
-            name: config
-          - name: auth-token
-            secret:
-              secretName: teleport-kube-agent-join-token
-      volumeClaimTemplates:
-      - metadata:
-          name: RELEASE-NAME-teleport-data
-        spec:
-          accessModes:
-          - ReadWriteOnce
-          resources:
-            requests:
-              storage: 128Mi
-          storageClassName: aws-gp2
 should add volumeMount for data volume when using StatefulSet:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -561,20 +368,7 @@ should expose diag port:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -624,76 +418,6 @@ should expose diag port:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should generate Statefulset when storage is disabled and mode is a Upgrade:
-  1: |
-    containers:
-    - args:
-      - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
-      imagePullPolicy: IfNotPresent
-      livenessProbe:
-        failureThreshold: 6
-        httpGet:
-          path: /healthz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      name: teleport
-      ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
-      readinessProbe:
-        failureThreshold: 12
-        httpGet:
-          path: /readyz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-          - all
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 9807
-      volumeMounts:
-      - mountPath: /etc/teleport
-        name: config
-        readOnly: true
-      - mountPath: /etc/teleport-secrets
-        name: auth-token
-        readOnly: true
-      - mountPath: /var/lib/teleport
-        name: data
-    securityContext:
-      fsGroup: 9807
-    serviceAccountName: RELEASE-NAME
-    volumes:
-    - configMap:
-        name: RELEASE-NAME
-      name: config
-    - name: auth-token
-      secret:
-        secretName: teleport-kube-agent-join-token
-    - emptyDir: {}
-      name: data
 should have multiple replicas when replicaCount is set (using .replicaCount, deprecated):
   1: |
     affinity:
@@ -711,20 +435,7 @@ should have multiple replicas when replicaCount is set (using .replicaCount, dep
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -791,20 +502,7 @@ should have multiple replicas when replicaCount is set (using highAvailability.r
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -859,20 +557,7 @@ should have one replica when replicaCount is not set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -922,95 +607,12 @@ should have one replica when replicaCount is not set:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should install Statefulset when storage is disabled and mode is a Fresh Install:
-  1: |
-    containers:
-    - args:
-      - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
-      imagePullPolicy: IfNotPresent
-      livenessProbe:
-        failureThreshold: 6
-        httpGet:
-          path: /healthz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      name: teleport
-      ports:
-      - containerPort: 3000
-        name: diag
-        protocol: TCP
-      readinessProbe:
-        failureThreshold: 12
-        httpGet:
-          path: /readyz
-          port: diag
-        initialDelaySeconds: 5
-        periodSeconds: 5
-        timeoutSeconds: 1
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-          - all
-        readOnlyRootFilesystem: true
-        runAsNonRoot: true
-        runAsUser: 9807
-      volumeMounts:
-      - mountPath: /etc/teleport
-        name: config
-        readOnly: true
-      - mountPath: /etc/teleport-secrets
-        name: auth-token
-        readOnly: true
-      - mountPath: /var/lib/teleport
-        name: data
-    securityContext:
-      fsGroup: 9807
-    serviceAccountName: RELEASE-NAME
-    volumes:
-    - configMap:
-        name: RELEASE-NAME
-      name: config
-    - name: auth-token
-      secret:
-        secretName: teleport-kube-agent-join-token
-    - emptyDir: {}
-      name: data
 should mount extraVolumes and extraVolumeMounts:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1071,21 +673,9 @@ should mount tls.existingCASecretName and set environment when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1124,7 +714,7 @@ should mount tls.existingCASecretName and set environment when set in values:
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: data
+        name: RELEASE-NAME-teleport-data
       - mountPath: /etc/teleport-tls-ca
         name: teleport-tls-ca
         readOnly: true
@@ -1138,8 +728,6 @@ should mount tls.existingCASecretName and set environment when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-    - emptyDir: {}
-      name: data
     - name: teleport-tls-ca
       secret:
         secretName: helm-lint-existing-tls-secret-ca
@@ -1149,23 +737,11 @@ should mount tls.existingCASecretName and set extra environment when set in valu
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      - name: SSL_CERT_FILE
-        value: /etc/teleport-tls-ca/ca.pem
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/ca.pem
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1204,7 +780,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         name: auth-token
         readOnly: true
       - mountPath: /var/lib/teleport
-        name: data
+        name: RELEASE-NAME-teleport-data
       - mountPath: /etc/teleport-tls-ca
         name: teleport-tls-ca
         readOnly: true
@@ -1218,8 +794,6 @@ should mount tls.existingCASecretName and set extra environment when set in valu
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-    - emptyDir: {}
-      name: data
     - name: teleport-tls-ca
       secret:
         secretName: helm-lint-existing-tls-secret-ca
@@ -1228,20 +802,7 @@ should not add emptyDir for data when using StatefulSet:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1296,20 +857,7 @@ should provision initContainer correctly when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1400,20 +948,7 @@ should set SecurityContext:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1488,20 +1023,7 @@ should set affinity when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1556,20 +1078,7 @@ should set default serviceAccountName when not set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1636,21 +1145,9 @@ should set environment when extraEnv set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
       - name: HTTPS_PROXY
         value: http://username:password@my.proxy.host:3128
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1705,20 +1202,7 @@ should set image and tag correctly:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:12.2.1
+      image: quay.io/gravitational/teleport:8.3.4
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1773,20 +1257,7 @@ should set imagePullPolicy when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -1841,20 +1312,7 @@ should set nodeSelector if set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1923,20 +1381,7 @@ should set preferred affinity when more than one replica is used:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1991,20 +1436,7 @@ should set probeTimeoutSeconds when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2069,20 +1501,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2137,20 +1556,7 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2212,20 +1618,7 @@ should set serviceAccountName when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2275,25 +1668,12 @@ should set serviceAccountName when set in values:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should set storage.requests when set in values and action is an Upgrade:
+should set storage.requests when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2343,25 +1723,12 @@ should set storage.requests when set in values and action is an Upgrade:
     - name: auth-token
       secret:
         secretName: teleport-kube-agent-join-token
-should set storage.storageClassName when set in values and action is an Upgrade:
+should set storage.storageClassName when set in values:
   1: |
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2416,20 +1783,7 @@ should set tolerations when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      env:
-      - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
-        value: "true"
-      - name: TELEPORT_REPLICA_NAME
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.name
-      - name: KUBE_NAMESPACE
-        valueFrom:
-          fieldRef:
-            fieldPath: metadata.namespace
-      - name: RELEASE_NAME
-        value: RELEASE-NAME
-      image: public.ecr.aws/gravitational/teleport-distroless:14.0.0-dev
+      image: quay.io/gravitational/teleport:10.3.15
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6

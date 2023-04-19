@@ -1,7 +1,6 @@
 ---
 title: "Second Factor: WebAuthn"
 description: Configuring WebAuthn support in Teleport clusters.
-videoBanner: vQgKkD4ZRDU
 ---
 
 Teleport supports [WebAuthn](https://webauthn.guide/) as a second authentication
@@ -9,9 +8,9 @@ factor. WebAuthn can be used for logging in to Teleport (`tsh login` or the
 login page on the Web UI) and for logging in to individual SSH nodes or
 Kubernetes clusters (`tsh ssh` and `kubectl`).
 
-WebAuthn support includes hardware devices, such as YubiKeys or SoloKeys as
-well as biometric authenticators like Touch ID and Windows Hello (`tsh` and Web
-UI).
+WebAuthn support includes hardware devices, such as YubiKeys or SoloKeys (`tsh`
+and Web UI), as well as biometric authenticators like Touch ID and Windows Hello
+(Web UI only).
 
 ## Prerequisites
 
@@ -20,7 +19,8 @@ UI).
 - WebAuthn hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/)
-- (!docs/pages/includes/tctl.mdx!)
+
+(!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Enable WebAuthn support
 
@@ -165,14 +165,8 @@ $ tsh mfa add
 # MFA device "desktop yubikey" added.
 ```
 
-<Admonition type="tip">
-`tsh mfa` picks the strongest known second factor you have for the "Tap any
-*registered* security key" step. This may be undesirable at times, so you may
-fallback to a weaker second factor, like OTP, using `tsh mfa add
---mfa-mode=otp`.
-
-See the possible `--mfa-mode` values in the [Teleport CLI
-Reference](../../reference/cli.mdx#tsh-global-flags) page.
+<Admonition type="warning" title="Windows support">
+  WebAuthn devices are currently not supported in `tsh` on Windows.
 </Admonition>
 
 ## Step 3/3. Log in using WebAuthn
@@ -327,4 +321,4 @@ spec:
 ## Next steps
 
 - [Passwordless](./passwordless.mdx)
-- [Set up per-session MFA checks](./per-session-mfa.mdx)
+- [Setup per-session MFA checks](./per-session-mfa.mdx)

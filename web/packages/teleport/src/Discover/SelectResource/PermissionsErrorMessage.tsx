@@ -15,65 +15,34 @@
  */
 
 import React from 'react';
-import { Text, Box } from 'design';
 
-import { ResourceKind } from '../Shared';
+import { Text } from 'design';
 
-export function PermissionsErrorMessage({
-  resourceKind,
-}: PermissionsErrorMessageProps) {
-  let action = 'add new';
-  let productName = '';
+import { TextBox } from 'teleport/Discover/Shared';
 
-  switch (resourceKind) {
-    case ResourceKind.Application:
-      action = `${action} Applications`;
-      productName = 'Access Application';
-      break;
-    case ResourceKind.Database:
-      action = `${action} Databases`;
-      productName = 'Access Database';
-
-      break;
-    case ResourceKind.Desktop:
-      action = `${action} Desktops`;
-      productName = 'Access Desktop';
-
-      break;
-    case ResourceKind.Kubernetes:
-      action = `${action} Kubernetes resources`;
-      productName = 'Access Kubernetes';
-
-      break;
-    case ResourceKind.Server:
-      action = `${action} Servers`;
-      productName = 'Access Server';
-
-      break;
-    default:
-      action = 'unimplemented';
-      productName = 'unimplemented';
-  }
-
+export function PermissionsErrorMessage(props: PermissionsErrorMessageProps) {
   return (
-    <Box>
-      <Text>
-        You are not able to {action}. There are two possible reasons for this:
+    <TextBox>
+      <Text typography="h5">
+        You are not able to {props.action}. There are two possible reasons for
+        this:
       </Text>
-      <ul style={{ paddingLeft: 16, marginBottom: 2, marginTop: 2 }}>
+      <ul style={{ paddingLeft: 28 }}>
         <li>
-          Your Teleport Enterprise license does not include {productName}. Reach
-          out to your Teleport administrator to enable {productName}.
+          Your Teleport Enterprise license does not include {props.productName}.
+          Reach out to your Teleport administrator to enable {props.productName}
+          .
         </li>
         <li>
-          You don’t have sufficient permissions to {action}. Reach out to your
-          Teleport administrator to request additional permissions.
+          You don’t have sufficient permissions to {props.action}. Reach out to
+          your Teleport administrator to request additional permissions.
         </li>
       </ul>
-    </Box>
+    </TextBox>
   );
 }
 
 interface PermissionsErrorMessageProps {
-  resourceKind: ResourceKind;
+  action: string;
+  productName: string;
 }

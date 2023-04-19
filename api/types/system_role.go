@@ -70,8 +70,6 @@ const (
 	RoleInstance SystemRole = "Instance"
 	// RoleDiscovery is a role for discovery nodes in the cluster
 	RoleDiscovery SystemRole = "Discovery"
-	// RoleOkta is a role for Okta nodes in the cluster
-	RoleOkta SystemRole = "Okta"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -96,7 +94,6 @@ var roleMappings = map[string]SystemRole{
 	"bot":             RoleBot,
 	"instance":        RoleInstance,
 	"discovery":       RoleDiscovery,
-	"okta":            RoleOkta,
 }
 
 // localServiceMappings is the subset of role mappings which happen to be true
@@ -111,7 +108,6 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleDatabase:       {},
 	RoleWindowsDesktop: {},
 	RoleDiscovery:      {},
-	RoleOkta:           {},
 }
 
 // LocalServiceMappings returns the subset of role mappings which happen

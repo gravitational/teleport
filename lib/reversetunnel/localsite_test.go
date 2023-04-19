@@ -34,15 +34,12 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
-
 	os.Exit(m.Run())
 }
 
@@ -116,8 +113,8 @@ func TestRemoteConnCleanup(t *testing.T) {
 
 	// validate that the fake session prevented anything from closing
 	// but that the connection was marked invalid
-	require.False(t, conn1.closed.Load())
-	require.False(t, sconn.closed.Load())
+	require.Equal(t, int32(0), atomic.LoadInt32(&conn1.closed))
+	require.Equal(t, int32(0), atomic.LoadInt32(&sconn.closed))
 	require.True(t, conn1.isInvalid())
 
 	// set the heartbeat to a time in the past that is long enough
@@ -134,8 +131,8 @@ func TestRemoteConnCleanup(t *testing.T) {
 	// validate the missed heartbeat terminated the loop and closes the connection
 	select {
 	case <-ctx.Done():
-		require.True(t, conn1.closed.Load())
-		require.True(t, sconn.closed.Load())
+		require.Equal(t, int32(1), atomic.LoadInt32(&conn1.closed))
+		require.Equal(t, int32(1), atomic.LoadInt32(&sconn.closed))
 	case <-time.After(15 * time.Second):
 		t.Fatal("localSite heartbeat handler never terminated")
 	}
@@ -389,11 +386,11 @@ func (mockLocalSiteClient) NewWatcher(context.Context, types.Watch) (types.Watch
 
 type mockRemoteConnConn struct {
 	net.Conn
-	closed atomic.Bool
+	closed int32
 }
 
 func (c *mockRemoteConnConn) Close() error {
-	c.closed.Store(true)
+	atomic.CompareAndSwapInt32(&c.closed, 0, 1)
 	return nil
 }
 
@@ -407,13 +404,13 @@ func (*mockRemoteConnConn) RemoteAddr() net.Addr {
 
 type mockedSSHConn struct {
 	ssh.Conn
-	closed atomic.Bool
+	closed int32
 
 	channelFn func(string) ssh.Channel
 }
 
 func (c *mockedSSHConn) Close() error {
-	c.closed.Store(true)
+	atomic.CompareAndSwapInt32(&c.closed, 0, 1)
 	return nil
 }
 

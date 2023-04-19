@@ -43,7 +43,7 @@ import { makeCert } from './makeCert';
 
 test('create CA cert', async () => {
   const ca = await makeCert({
-    commonName: 'test-ca',
+    commonName: 'Test CA',
     validityDays: 365,
   });
 

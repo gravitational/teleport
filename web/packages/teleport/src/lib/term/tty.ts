@@ -145,9 +145,6 @@ class Tty extends EventEmitterWebAuthnSender {
         case MessageTypeEnum.AUDIT:
           this._processAuditPayload(msg.payload);
           break;
-        case MessageTypeEnum.SESSION_DATA:
-          this.emit(TermEvent.SESSION, msg.payload);
-          break;
         case MessageTypeEnum.SESSION_END:
           this.emit(TermEvent.CLOSE, msg.payload);
           break;

@@ -230,8 +230,7 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 					Protocol: "_",
 					URI:      "_",
 					GCP: GCPCloudSQL{
-						ProjectID:  "_",
-						InstanceID: "_",
+						ProjectID: "_",
 					},
 				})
 				require.NoError(t, err)
@@ -270,21 +269,10 @@ func TestMatchSearch_ResourceSpecific(t *testing.T) {
 			},
 		},
 		{
-			name:             "kube server",
+			name:             "kube service",
 			searchNotDefined: true,
 			newResource: func() ResourceWithLabels {
-				kubeServer, err := NewKubernetesServerV3(
-					Metadata{
-						Name: "_",
-					}, KubernetesServerSpecV3{
-						HostID:   "_",
-						Hostname: "_",
-						Cluster: &KubernetesClusterV3{
-							Metadata: Metadata{
-								Name: "_",
-							},
-						},
-					})
+				kubeServer, err := NewServer("_", KindKubeService, ServerSpecV2{})
 				require.NoError(t, err)
 
 				return kubeServer

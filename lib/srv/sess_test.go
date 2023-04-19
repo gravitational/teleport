@@ -41,13 +41,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestParseAccessRequestIDs(t *testing.T) {
-	t.Parallel()
-
 	testCases := []struct {
 		input     string
 		comment   string
@@ -86,143 +83,10 @@ func TestParseAccessRequestIDs(t *testing.T) {
 			require.Equal(t, out, tt.result)
 		})
 	}
-}
 
-func TestIsApprovedFileTransfer(t *testing.T) {
-	// set enterprise for tests
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
-	srv := newMockServer(t)
-	srv.component = teleport.ComponentNode
-
-	// init a session registry
-	reg, _ := NewSessionRegistry(SessionRegistryConfig{
-		Srv:                   srv,
-		SessionTrackerService: srv.auth,
-	})
-	t.Cleanup(func() { reg.Close() })
-
-	// Create the auditorRole and moderator Party
-	auditorRole, _ := types.NewRole("auditor", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			JoinSessions: []*types.SessionJoinPolicy{{
-				Name:  "foo",
-				Roles: []string{"access"},
-				Kinds: []string{string(types.SSHSessionKind)},
-				Modes: []string{string(types.SessionModeratorMode)},
-			}},
-		},
-	})
-	auditorRoleSet := services.NewRoleSet(auditorRole)
-	auditScx := newTestServerContext(t, reg.Srv, auditorRoleSet)
-	// change the teleport user so we dont match the user in the test cases
-	auditScx.Identity.TeleportUser = "mod"
-	auditSess, _ := testOpenSession(t, reg, auditorRoleSet)
-	approvers := make(map[string]*party)
-	auditChan := newMockSSHChannel()
-	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
-
-	// create the accessRole to be used for the requester
-	accessRole, _ := types.NewRole("access", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			RequireSessionJoin: []*types.SessionRequirePolicy{{
-				Name:   "foo",
-				Filter: "contains(user.roles, \"auditor\")", // escape to avoid illegal rune
-				Kinds:  []string{string(types.SSHSessionKind)},
-				Modes:  []string{string(types.SessionModeratorMode)},
-				Count:  1,
-			}},
-		},
-	})
-	accessRoleSet := services.NewRoleSet(accessRole)
-
-	cases := []struct {
-		name           string
-		expectedResult bool
-		expectedError  string
-		req            *fileTransferRequest
-		reqID          string
-	}{
-
-		{
-			name:           "no file request found with supplied ID",
-			expectedResult: false,
-			expectedError:  "",
-			reqID:          "",
-			req:            nil,
-		},
-		{
-			name:           "no file request found with supplied ID",
-			expectedResult: false,
-			expectedError:  "File transfer request not found",
-			reqID:          "111",
-			req:            nil,
-		},
-		{
-			name:           "current requester does not match original requester",
-			expectedResult: false,
-			expectedError:  "Teleport user does not match original requester",
-			reqID:          "123",
-			req: &fileTransferRequest{
-				requester: "michael",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
-				approvers: make(map[string]*party),
-			},
-		},
-		{
-			name:           "current payload does not match original payload",
-			expectedResult: false,
-			expectedError:  "Incoming request does not match the approved request",
-			reqID:          "123",
-			req: &fileTransferRequest{
-				requester: "teleportUser",
-				shellCmd:  "badcommand",
-				approvers: make(map[string]*party),
-			},
-		},
-		{
-			name:           "approved request",
-			expectedResult: true,
-			expectedError:  "",
-			reqID:          "123",
-			req: &fileTransferRequest{
-				requester: "teleportUser",
-				shellCmd:  "/usr/bin/scp -f ~/logs.txt",
-				approvers: approvers,
-			},
-		},
-	}
-
-	for _, tt := range cases {
-		t.Run(tt.name, func(t *testing.T) {
-			// create and add a session to the registry
-			sess, _ := testOpenSession(t, reg, accessRoleSet)
-
-			// create a fileTransferRequest. can be nil
-			sess.fileTransferRequests = map[string]*fileTransferRequest{
-				"123": tt.req,
-			}
-
-			// new exec request context
-			scx := newTestServerContext(t, reg.Srv, accessRoleSet)
-			scx.sshRequest = &ssh.Request{
-				Payload: []byte("/usr/bin/scp -f ~/logs.txt"),
-			}
-
-			scx.SetEnv(string(sftp.ModeratedSessionID), sess.ID())
-			scx.SetEnv(string(sftp.FileTransferRequestID), tt.reqID)
-			result, err := reg.isApprovedFileTransfer(scx)
-			if err != nil {
-				require.Equal(t, tt.expectedError, err.Error())
-			}
-
-			require.Equal(t, tt.expectedResult, result)
-		})
-	}
 }
 
 func TestSession_newRecorder(t *testing.T) {
-	t.Parallel()
-
 	proxyRecording, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 		Mode: types.RecordAtProxy,
 	})
@@ -317,9 +181,9 @@ func TestSession_newRecorder(t *testing.T) {
 					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 						Roles: []string{"dev"},
 					}, "test", services.RoleSet{
-						&types.RoleV6{
+						&types.RoleV5{
 							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-							Spec: types.RoleSpecV6{
+							Spec: types.RoleSpecV5{
 								Options: types.RoleOptions{
 									RecordSession: &types.RecordSession{
 										SSH: constants.SessionRecordingModeStrict,
@@ -356,9 +220,9 @@ func TestSession_newRecorder(t *testing.T) {
 					AccessChecker: services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
 						Roles: []string{"dev"},
 					}, "test", services.RoleSet{
-						&types.RoleV6{
+						&types.RoleV5{
 							Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-							Spec: types.RoleSpecV6{
+							Spec: types.RoleSpecV5{
 								Options: types.RoleOptions{
 									RecordSession: &types.RecordSession{
 										SSH: constants.SessionRecordingModeBestEffort,
@@ -417,8 +281,6 @@ func TestSession_newRecorder(t *testing.T) {
 }
 
 func TestSession_emitAuditEvent(t *testing.T) {
-	t.Parallel()
-
 	logger := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentAuth,
 	})
@@ -492,7 +354,7 @@ func TestInteractiveSession(t *testing.T) {
 
 // TestStopUnstarted tests that a session may be stopped before it launches.
 func TestStopUnstarted(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{ModeratedSessions: true}})
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -503,7 +365,7 @@ func TestStopUnstarted(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
-	role, err := types.NewRole("access", types.RoleSpecV6{
+	role, err := types.NewRole("access", types.RoleSpecV5{
 		Allow: types.RoleConditions{
 			RequireSessionJoin: []*types.SessionRequirePolicy{{
 				Name:   "foo",
@@ -533,8 +395,6 @@ func TestStopUnstarted(t *testing.T) {
 // TestParties tests the party mechanisms within an interactive session,
 // including party leave, party disconnect, and empty session lingerAndDie.
 func TestParties(t *testing.T) {
-	t.Parallel()
-
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
 
@@ -622,8 +482,6 @@ func testJoinSession(t *testing.T, reg *SessionRegistry, sess *session) {
 }
 
 func TestSessionRecordingModes(t *testing.T) {
-	t.Parallel()
-
 	for _, tt := range []struct {
 		desc                 string
 		sessionRecordingMode constants.SessionRecordingMode
@@ -652,9 +510,9 @@ func TestSessionRecordingModes(t *testing.T) {
 			t.Cleanup(func() { reg.Close() })
 
 			sess, sessCh := testOpenSession(t, reg, services.RoleSet{
-				&types.RoleV6{
+				&types.RoleV5{
 					Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
-					Spec: types.RoleSpecV6{
+					Spec: types.RoleSpecV5{
 						Options: types.RoleOptions{
 							RecordSession: &types.RecordSession{
 								SSH: tt.sessionRecordingMode,
@@ -746,17 +604,17 @@ func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.Audit
 }
 
 type trackerService struct {
-	created     atomic.Int32
+	created     int32
 	createError error
 	services.SessionTrackerService
 }
 
 func (t *trackerService) CreatedCount() int {
-	return int(t.created.Load())
+	return int(atomic.LoadInt32(&t.created))
 }
 
 func (t *trackerService) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	t.created.Add(1)
+	atomic.AddInt32(&t.created, 1)
 
 	if t.createError != nil {
 		return nil, t.createError
@@ -877,7 +735,7 @@ func TestTrackingSession(t *testing.T) {
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
-						clock:                 clockwork.NewFakeClock(), // use a fake clock to prevent the update loop from running
+						clock:                 clockwork.NewFakeClock(), //use a fake clock to prevent the update loop from running
 					},
 				},
 				serverMeta: apievents.ServerMetadata{
@@ -895,4 +753,5 @@ func TestTrackingSession(t *testing.T) {
 			tt.createAssertion(t, trackingService.CreatedCount())
 		})
 	}
+
 }

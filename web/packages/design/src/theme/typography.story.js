@@ -31,7 +31,7 @@ export const Typography = () => (
 );
 
 const Specs = () => (
-  <Box bg="levels.surface" p={2} textAlign="left">
+  <Box bg="primary.light" p={2} textAlign="left">
     <Text typography="h2" mb={3}>
       Specs
     </Text>
@@ -158,7 +158,7 @@ const Specs = () => (
 );
 
 const Example = () => (
-  <Box bg="levels.surface" p={2} width="600px" mt={5} textAlign="left">
+  <Box bg="primary.light" p={2} width="600px" mt={5} textAlign="left">
     <Text typography="h2" mb={3}>
       Examples
     </Text>
@@ -271,7 +271,7 @@ const Example = () => (
   </Box>
 );
 
-const sample = `Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.`;
+const sample = `Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500.`;
 const tableCss = `
   vertical-align: top;
   width: 100%;

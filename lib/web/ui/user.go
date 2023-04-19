@@ -65,7 +65,7 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 	}
 
 	authType := "local"
-	if teleUser.GetUserType() == types.UserTypeSSO {
+	if teleUser.GetCreatedBy().Connector != nil {
 		authType = teleUser.GetCreatedBy().Connector.Type
 	}
 

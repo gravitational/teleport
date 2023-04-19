@@ -15,7 +15,6 @@
  */
 
 import React from 'react';
-import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
@@ -29,8 +28,10 @@ test.each`
   ${'bitbucket'}    | ${'icon-bitbucket'}
   ${'google'}       | ${'icon-google-plus'}
 `('rendering of $ssoType', ({ ssoType, expectedIcon }) => {
-  render(<ButtonSso ssoType={ssoType} title="hello" />);
+  const { getByTestId, getByText } = render(
+    <ButtonSso ssoType={ssoType} title="hello" />
+  );
 
-  expect(screen.getByTestId('icon')).toHaveClass(expectedIcon);
-  expect(screen.getByText(/hello/i)).toBeInTheDocument();
+  expect(getByTestId('icon')).toHaveClass(expectedIcon);
+  expect(getByText(/hello/i)).toBeInTheDocument();
 });

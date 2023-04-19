@@ -45,7 +45,7 @@ export function Connections() {
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        openConnections: togglePopover,
+        'toggle-connections': togglePopover,
       }),
       [togglePopover]
     )
@@ -85,5 +85,5 @@ export function Connections() {
 }
 
 const Container = styled(Box)`
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.primary.light};
 `;

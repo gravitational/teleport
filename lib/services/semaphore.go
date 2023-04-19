@@ -24,7 +24,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -79,7 +78,7 @@ func (l *SemaphoreLockConfig) CheckAndSetDefaults() error {
 type SemaphoreLock struct {
 	cfg       SemaphoreLockConfig
 	lease0    types.SemaphoreLease
-	retry     retryutils.Retry
+	retry     utils.Retry
 	ticker    clockwork.Ticker
 	doneC     chan struct{}
 	closeOnce sync.Once
@@ -221,13 +220,13 @@ Outer:
 type AcquireSemaphoreWithRetryConfig struct {
 	Service types.Semaphores
 	Request types.AcquireSemaphoreRequest
-	Retry   retryutils.LinearConfig
+	Retry   utils.LinearConfig
 }
 
 // AcquireSemaphoreWithRetry tries to acquire the semaphore according to the
 // retry schedule until it succeeds or context expires.
 func AcquireSemaphoreWithRetry(ctx context.Context, req AcquireSemaphoreWithRetryConfig) (*types.SemaphoreLease, error) {
-	retry, err := retryutils.NewLinear(req.Retry)
+	retry, err := utils.NewLinear(req.Retry)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -250,10 +249,10 @@ func AcquireSemaphoreLock(ctx context.Context, cfg SemaphoreLockConfig) (*Semaph
 		return nil, trace.Wrap(err)
 	}
 	// set up retry with a ratio which will result in 3-4 retries before the lease expires
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+	retry, err := utils.NewLinear(utils.LinearConfig{
 		Max:    cfg.Expiry / 4,
 		Step:   cfg.Expiry / 16,
-		Jitter: retryutils.NewJitter(),
+		Jitter: utils.NewJitter(),
 		Clock:  cfg.Clock,
 	})
 	if err != nil {

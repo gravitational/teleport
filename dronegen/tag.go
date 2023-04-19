@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"strings"
-	"time"
 )
 
 const (
@@ -35,6 +34,7 @@ const releasesHost = "https://releases-prod.platform.teleport.sh"
 
 // tagCheckoutCommands builds a list of commands for Drone to check out a git commit on a tag build
 func tagCheckoutCommands(b buildType) []string {
+
 	return []string{
 		`mkdir -p /go/src/github.com/gravitational/teleport`,
 		`cd /go/src/github.com/gravitational/teleport`,
@@ -90,6 +90,7 @@ func tagBuildCommands(b buildType) []string {
 		case "linux":
 			commands = append(commands, `make -C build.assets teleterm`)
 		}
+
 	}
 
 	if b.os == "windows" {
@@ -190,43 +191,11 @@ func tagPipelines() []pipeline {
 	}
 
 	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:         buildType{os: "linux", arch: "arm64", fips: false},
-		trigger:           triggerTag,
-		pipelineName:      "build-linux-arm64",
-		ghaWorkflow:       "release-linux-arm64.yml",
-		srcRefVar:         "DRONE_TAG",
-		workflowRef:       "${DRONE_TAG}",
-		timeout:           60 * time.Minute,
-		dependsOn:         []string{tagCleanupPipelineName},
-		shouldTagWorkflow: true,
-		inputs:            map[string]string{"upload-artifacts": "true"},
-	}))
-
-	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:         buildType{os: "linux", fips: false},
-		trigger:           triggerTag,
-		pipelineName:      "build-teleport-oci-distroless-images",
-		ghaWorkflow:       "release-teleport-oci-distroless.yml",
-		srcRefVar:         "DRONE_TAG",
-		workflowRef:       "${DRONE_TAG}",
-		timeout:           60 * time.Minute,
-		shouldTagWorkflow: true,
-		dependsOn: []string{
-			tagCleanupPipelineName,
-			"build-linux-amd64-deb",
-			"build-linux-arm64-deb",
-		},
-	}))
-
-	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:         buildType{os: "linux", fips: false},
-		trigger:           triggerTag,
-		pipelineName:      "build-teleport-kube-agent-updater-oci-images",
-		ghaWorkflow:       "release-teleport-kube-agent-updater-oci.yml",
-		srcRefVar:         "DRONE_TAG",
-		workflowRef:       "${DRONE_TAG}",
-		timeout:           60 * time.Minute,
-		shouldTagWorkflow: true,
+		buildType:       buildType{os: "linux", arch: "arm64", fips: false},
+		trigger:         triggerTag,
+		uploadArtifacts: true,
+		srcRefVar:       "DRONE_TAG",
+		workflowRefVar:  "DRONE_TAG",
 	}))
 
 	// Only amd64 Windows is supported for now.
@@ -237,7 +206,7 @@ func tagPipelines() []pipeline {
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true}))
 	ps = append(ps, tagPipeline(buildType{os: "linux", arch: "amd64", centos7: true, fips: true}))
 
-	ps = append(ps, darwinTagPipelineGHA())
+	ps = append(ps, darwinTagPipeline(), darwinTeleportPkgPipeline(), darwinTshPkgPipeline(), darwinConnectDmgPipeline())
 	ps = append(ps, windowsTagPipeline())
 
 	ps = append(ps, tagCleanupPipeline())

@@ -42,9 +42,10 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -128,9 +129,7 @@ func newMockServer(t *testing.T) *mockServer {
 		ClusterName:  clusterName,
 		StaticTokens: staticTokens,
 		KeyStoreConfig: keystore.Config{
-			Software: keystore.SoftwareConfig{
-				RSAKeyPairSource: testauthority.New().GenerateKeyPair,
-			},
+			RSAKeyPairSource: testauthority.New().GenerateKeyPair,
 		},
 	}
 
@@ -190,14 +189,19 @@ func (m *mockServer) GetAccessPoint() AccessPoint {
 	return m.auth
 }
 
+// GetSessionServer returns a session server.
+func (m *mockServer) GetSessionServer() rsession.Service {
+	return rsession.NewDiscardSessionServer()
+}
+
 // GetDataDir returns data directory of the server
 func (m *mockServer) GetDataDir() string {
 	return m.datadir
 }
 
 // GetPAM returns PAM configuration for this server.
-func (m *mockServer) GetPAM() (*servicecfg.PAMConfig, error) {
-	return &servicecfg.PAMConfig{}, nil
+func (m *mockServer) GetPAM() (*pam.Config, error) {
+	return &pam.Config{}, nil
 }
 
 // GetClock returns a clock setup for the server

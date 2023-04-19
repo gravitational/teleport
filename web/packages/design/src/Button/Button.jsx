@@ -19,6 +19,7 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
 import { space, width, height } from 'design/system';
+import defaultTheme from 'design/theme';
 
 const Button = ({ children, setRef, ...props }) => {
   return (
@@ -57,10 +58,10 @@ const themedStyles = props => {
   const { kind } = props;
 
   const style = {
+    color: colors.text.primary,
     '&:disabled': {
-      background: kind === 'text' ? 'none' : colors.buttons.bgDisabled,
-      color: colors.buttons.textDisabled,
-      cursor: 'auto',
+      background: kind === 'text' ? 'none' : colors.action.disabledBackground,
+      color: colors.action.disabled,
     },
   };
 
@@ -75,47 +76,39 @@ const themedStyles = props => {
   };
 };
 
-export const kinds = props => {
+const kinds = props => {
   const { kind, theme } = props;
   switch (kind) {
     case 'secondary':
       return {
-        color: theme.colors.buttons.text,
-        background: theme.colors.buttons.secondary.default,
+        background: theme.colors.primary.light,
         '&:hover, &:focus': {
-          background: theme.colors.buttons.secondary.hover,
-        },
-        '&:active': {
-          background: theme.colors.buttons.secondary.active,
+          background: theme.colors.primary.lighter,
         },
       };
     case 'border':
       return {
-        color: theme.colors.buttons.text,
-        background: theme.colors.buttons.border.default,
-        border: '1px solid ' + theme.colors.buttons.border.border,
+        background: theme.colors.primary.lighter,
+        border: '1px solid ' + theme.colors.primary.main,
+        opacity: '.87',
         '&:hover, &:focus': {
-          background: theme.colors.buttons.border.hover,
-          border: '1px solid ' + theme.colors.buttons.border.borderHover,
+          background: theme.colors.primary.lighter,
+          border: '1px solid ' + theme.colors.action.hover,
+          opacity: 1,
         },
         '&:active': {
-          background: theme.colors.buttons.border.active,
+          opacity: 0.24,
         },
       };
     case 'warning':
       return {
-        color: theme.colors.buttons.warning.text,
-        background: theme.colors.buttons.warning.default,
+        background: theme.colors.error.dark,
         '&:hover, &:focus': {
-          background: theme.colors.buttons.warning.hover,
-        },
-        '&:active': {
-          background: theme.colors.buttons.warning.active,
+          background: theme.colors.error.main,
         },
       };
     case 'text':
       return {
-        color: theme.colors.buttons.text,
         background: 'none',
         'text-transform': 'none',
         '&:hover, &:focus': {
@@ -126,13 +119,12 @@ export const kinds = props => {
     case 'primary':
     default:
       return {
-        color: theme.colors.buttons.primary.text,
-        background: theme.colors.buttons.primary.default,
+        background: theme.colors.secondary.main,
         '&:hover, &:focus': {
-          background: theme.colors.buttons.primary.hover,
+          background: theme.colors.secondary.light,
         },
         '&:active': {
-          background: theme.colors.buttons.primary.active,
+          background: theme.colors.secondary.dark,
         },
       };
   }
@@ -164,6 +156,10 @@ const StyledButton = styled.button`
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+
+  &:active {
+    opacity: 0.56;
+  }
 
   ${themedStyles}
 `;
@@ -197,6 +193,10 @@ Button.propTypes = {
 Button.defaultProps = {
   size: 'medium',
   kind: 'primary',
+};
+
+StyledButton.defaultProps = {
+  theme: defaultTheme,
 };
 
 Button.displayName = 'Button';

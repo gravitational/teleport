@@ -33,9 +33,9 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 func extractPort(svr *httptest.Server) (int, error) {
@@ -50,7 +50,7 @@ func extractPort(svr *httptest.Server) (int, error) {
 	return n, nil
 }
 
-func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]types.SessionTracker, error) {
+func waitForSessionToBeEstablished(ctx context.Context, namespace string, site auth.ClientI) ([]session.Session, error) {
 
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -61,7 +61,7 @@ func waitForSessionToBeEstablished(ctx context.Context, namespace string, site a
 			return nil, ctx.Err()
 
 		case <-ticker.C:
-			ss, err := site.GetActiveSessionTrackers(ctx)
+			ss, err := site.GetSessions(ctx, namespace)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -90,7 +90,7 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 	// cannot port forward.
 	logins := []string{
 		invalidOSLogin,
-		suite.Me.Username,
+		suite.me.Username,
 	}
 
 	testCases := []struct {
@@ -103,13 +103,13 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			desc:                  "Enabled",
 			portForwardingAllowed: true,
 			expectSuccess:         true,
-			login:                 suite.Me.Username,
+			login:                 suite.me.Username,
 		},
 		{
 			desc:                  "Disabled",
 			portForwardingAllowed: false,
 			expectSuccess:         false,
-			login:                 suite.Me.Username,
+			login:                 suite.me.Username,
 		},
 		{
 			desc:                  "Enabled with invalid user",
@@ -138,10 +138,10 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 			cfg.SSH.Enabled = true
 			cfg.SSH.AllowTCPForwarding = tt.portForwardingAllowed
 
-			teleport := suite.NewTeleportWithConfig(t, logins, nil, cfg)
+			teleport := suite.newTeleportWithConfig(t, logins, nil, cfg)
 			defer teleport.StopAll()
 
-			site := teleport.GetSiteAPI(helpers.Site)
+			site := teleport.GetSiteAPI(Site)
 
 			// ...and a running dummy server
 			remoteSvr := httptest.NewServer(http.HandlerFunc(
@@ -153,14 +153,14 @@ func testPortForwarding(t *testing.T, suite *integrationTestSuite) {
 
 			// ... and a client connection that was launched with port
 			// forwarding enabled to that dummy server
-			localPort := newPortValue()
+			localPort := ports.PopInt()
 			remotePort, err := extractPort(remoteSvr)
 			require.NoError(t, err)
 
-			nodeSSHPort := helpers.Port(t, teleport.SSH)
-			cl, err := teleport.NewClient(helpers.ClientConfig{
+			nodeSSHPort := teleport.GetPortSSHInt()
+			cl, err := teleport.NewClient(ClientConfig{
 				Login:   tt.login,
-				Cluster: helpers.Site,
+				Cluster: Site,
 				Host:    Host,
 				Port:    nodeSSHPort,
 			})

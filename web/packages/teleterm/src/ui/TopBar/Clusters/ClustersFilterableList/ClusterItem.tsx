@@ -80,20 +80,27 @@ const StyledListItem = styled(ListItem)`
 `;
 
 const InvertedLabel = styled(Label)`
-  color: ${props => props.theme.colors.brand};
-  background-color: ${props => props.theme.colors.text.contrast};
+  color: ${props => props.theme.colors.secondary.main};
+  background-color: ${props => props.theme.colors.secondary.contrastText};
 `;
 
 function getBackgroundColor(props) {
   if (props.isSelected) {
     if (props.isActive) {
-      return props.theme.colors.spotBackground[1];
+      return props.theme.colors.secondary.light;
     }
+    return props.theme.colors.secondary.main;
+  }
+  if (props.isActive) {
+    return props.theme.colors.secondary.lighter;
   }
 }
 
 function getHoverBackgroundColor(props) {
   if (props.isSelected) {
-    return props.theme.colors.spotBackground[0];
+    return props.theme.colors.secondary.light;
+  }
+  if (props.isActive) {
+    return props.theme.colors.secondary.lighter;
   }
 }

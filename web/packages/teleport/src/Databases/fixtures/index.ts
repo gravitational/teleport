@@ -26,7 +26,6 @@ export const databases: Database[] = [
       { name: 'cluster', value: 'root' },
       { name: 'env', value: 'aws' },
     ],
-    hostname: 'aurora-hostname',
   },
   {
     name: 'postgres-gcp',
@@ -37,7 +36,6 @@ export const databases: Database[] = [
       { name: 'cluster', value: 'root' },
       { name: 'env', value: 'gcp' },
     ],
-    hostname: 'postgres-hostname',
   },
   {
     name: 'mysql-aurora-56',
@@ -48,6 +46,5 @@ export const databases: Database[] = [
       { name: 'cluster', value: 'root' },
       { name: 'env', value: 'aws' },
     ],
-    hostname: 'mysql-hostname',
   },
 ];

@@ -32,7 +32,7 @@ import (
 // keep accidental breakage of the pipe abstraction from showing up in an obscure
 // way inside the tests that rely upon it.
 func TestInventoryControlStreamPipe(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
 	upstream, downstream := InventoryControlStreamPipe()

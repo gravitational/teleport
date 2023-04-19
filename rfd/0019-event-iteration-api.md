@@ -95,7 +95,7 @@ Handling of these new GRPC endpoints will be implemented in [lib/auth/grpcserver
 
 #### Backends 3.3.2
 
-Performed some investigative work on how we can implement this pagination support in the different backends. The standard solution that works with the current backend interface is to simply query all events in a given date range from the backend and then filter out the paginated section using the given start key and limit. This is however something we want to avoid as it involves a lot of unneeded processing on every request by the authentication server.
+Performed some investigative work on how we can implement this pagination support in the different backends. The standard solution that works with the current backend interface is to simply query all events in a given date range from the backend and then filter out the paginated section using the given start key and limit. This is however something we want to avoid as it involves a lot of uneeded processing on every request by the authentication server.
 
 Pagination support will needed to be added to the `IAuditLog` interface defined in `lib/events/api.go`. This involves adding a start key function parameter and an optional last key parameter in the return value of the `SearchEvents` and `SearchSessionEvents` methods.
 

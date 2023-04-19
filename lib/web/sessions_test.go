@@ -17,12 +17,12 @@ package web
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"

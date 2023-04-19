@@ -16,11 +16,10 @@ limitations under the License.
 
 import React from 'react';
 import styled from 'styled-components';
-import { PageIndicatorText } from 'shared/components/Search';
-import { Text, Box, Flex } from 'design';
+import { Text, Box, Flex, Link } from 'design';
 import { StyledPanel } from 'design/DataTable';
 import InputSearch from 'design/DataTable/InputSearch';
-import { PredicateDoc } from 'shared/components/Search/PredicateDoc';
+import { PageIndicatorText } from 'design/DataTable/Pager/Pager';
 
 import Toggle from 'teleport/components/Toggle';
 
@@ -29,6 +28,9 @@ import useServersideSearchPanel, {
   State,
   Props,
 } from './useServerSideSearchPanel';
+
+const GUIDE_URL =
+  'https://goteleport.com/docs/setup/reference/predicate-language/#resource-filtering';
 
 export default function Container(props: Props) {
   const state = useServersideSearchPanel(props);
@@ -41,8 +43,9 @@ export function ServersideSearchPanel({
   isAdvancedSearch,
   setIsAdvancedSearch,
   onSubmitSearch,
-  pageIndicators,
-  disabled = false,
+  from,
+  to,
+  count,
 }: State) {
   function onToggle() {
     setIsAdvancedSearch(!isAdvancedSearch);
@@ -54,7 +57,6 @@ export function ServersideSearchPanel({
       onSubmit={onSubmitSearch}
       borderTopLeftRadius={3}
       borderTopRightRadius={3}
-      style={disabled ? { pointerEvents: 'none', opacity: '0.5' } : {}}
     >
       <Flex justifyContent="space-between" alignItems="center" width="100%">
         <Flex style={{ width: '70%' }} alignItems="center">
@@ -74,16 +76,62 @@ export function ServersideSearchPanel({
           </Tooltip>
         </Flex>
         <Flex>
-          <PageIndicatorText
-            from={pageIndicators.from}
-            to={pageIndicators.to}
-            count={pageIndicators.totalCount}
-          />
+          <PageIndicatorText from={from} to={to} count={count} />
         </Flex>
       </Flex>
     </StyledPanel>
   );
 }
+
+export const PredicateDoc = () => (
+  <>
+    <Text typography="paragraph2">
+      Advanced search allows you to perform more sophisticated searches using
+      the predicate language. The language supports the basic operators:{' '}
+      <Text as="span" bold>
+        <code>==</code>{' '}
+      </Text>
+      ,{' '}
+      <Text as="span" bold>
+        <code>!=</code>
+      </Text>
+      ,{' '}
+      <Text as="span" bold>
+        <code>&&</code>
+      </Text>
+      , and{' '}
+      <Text as="span" bold>
+        <code>||</code>
+      </Text>
+    </Text>
+    <Text typography="h4" mt={2} mb={1}>
+      Usage Examples
+    </Text>
+    <Text typography="paragraph2">
+      Label Matching:{' '}
+      <Text ml={1} as="span" bold>
+        <code>labels["key"] == "value" && labels["key2"] != "value2"</code>{' '}
+      </Text>
+      <br />
+      Fuzzy Searching:{' '}
+      <Text ml={1} as="span" bold>
+        <code>search("foo", "bar", "some phrase")</code>
+      </Text>
+      <br />
+      Combination:{' '}
+      <Text ml={1} as="span" bold>
+        <code>labels["key1"] == "value1" && search("foo")</code>
+      </Text>
+    </Text>
+    <Text typography="paragraph2" mt={2}>
+      Check out our{' '}
+      <Link href={GUIDE_URL} target="_blank">
+        predicate language guide
+      </Link>{' '}
+      for a more in-depth explanation of the language.
+    </Text>
+  </>
+);
 
 const ToggleWrapper = styled.div`
   display: flex;

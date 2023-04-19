@@ -12,14 +12,24 @@ following situations:
    joining.
  - Long-lived worker nodes, like self-hosted Jenkins workers, using token-based
    joining.
- - You use a supported SaaS CI/CD Provider:
-   - GitHub Actions (Teleport 11)
-   - CircleCI (coming in Teleport 11.1)
+
+We are working to support SaaS-based CI/CD providers like GitHub Actions in the
+the near future, but cannot currently recommend using Machine ID on these
+providers.
 
 ## Can Machine ID be used with Trusted Clusters ?
 
-From Teleport 12.2, Trusted Cluster support for SSH Access has been included in
-Machine ID.
+Partially. We currently support SSH access to leaf clusters when using `tsh` to
+make the connection. To do this, you will need to provide `tsh` with the generated identity file
+output in the destination directory to `tsh`, for example:
+
+```code
+$ tsh -i /opt/machine-id/identity --proxy root-cluster.example.com ssh --cluster leaf-cluster.example.com root@node.leaf-cluster.example.com
+```
+
+We hope to introduce support for generating a `ssh_config` that is compatible
+with leaf clusters for use with OpenSSH. You can track support for this on the 
+[GitHub Machine ID Trusted Cluster Support issue](https://github.com/gravitational/teleport/issues/13792).
 
 We currently do not support access to applications, databases, or Kubernetes
 clusters in Trusted Clusters configured as leaf clusters.

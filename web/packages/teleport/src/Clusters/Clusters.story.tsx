@@ -20,11 +20,7 @@ import { createMemoryHistory } from 'history';
 
 import * as teleport from 'teleport';
 
-import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-
-import { getOSSFeatures } from 'teleport/features';
-
-import { Clusters } from './Clusters';
+import Clusters from './Clusters';
 import * as fixtures from './fixtures';
 
 export default {
@@ -36,11 +32,9 @@ export function Story({ value }: { value: teleport.Context }) {
   const ctx = value || createContext();
   return (
     <teleport.ContextProvider ctx={ctx}>
-      <FeaturesContextProvider value={getOSSFeatures()}>
-        <Router history={createMemoryHistory()}>
-          <Clusters />
-        </Router>
-      </FeaturesContextProvider>
+      <Router history={createMemoryHistory()}>
+        <Clusters />
+      </Router>
     </teleport.ContextProvider>
   );
 }

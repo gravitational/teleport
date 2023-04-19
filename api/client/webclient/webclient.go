@@ -37,12 +37,12 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpproxy"
 
+	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	"github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/keys"
 )
 
 // Config specifies information when building requests with the
@@ -92,7 +92,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	rt := utils.NewHTTPRoundTripper(&http.Transport{
+	rt := proxy.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
@@ -111,9 +111,8 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 
 // doWithFallback attempts to execute an HTTP request using https, and then
 // fall back to plain HTTP under certain, very specific circumstances.
-//   - The caller must specifically allow it via the allowPlainHTTP parameter, and
-//   - The target host must resolve to the loopback address.
-//
+//  * The caller must specifically allow it via the allowPlainHTTP parameter, and
+//  * The target host must resolve to the loopback address.
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
 func doWithFallback(clt *http.Client, allowPlainHTTP bool, extraHeaders map[string]string, req *http.Request) (*http.Response, error) {
@@ -285,10 +284,6 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
-
-	// reserved: license_warnings ([]string)
-	// AutomaticUpgrades describes whether agents should automatically upgrade.
-	AutomaticUpgrades bool `json:"automatic_upgrades"`
 }
 
 // PingErrorResponse contains the error message if the requested connector
@@ -378,8 +373,6 @@ type AuthenticationSettings struct {
 	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
 	// AllowPasswordless is true if passwordless logins are allowed.
 	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
-	// AllowHeadless is true if headless logins are allowed.
-	AllowHeadless bool `json:"allow_headless,omitempty"`
 	// Local contains settings for local authentication.
 	Local *LocalSettings `json:"local,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.
@@ -392,11 +385,6 @@ type AuthenticationSettings struct {
 	SAML *SAMLSettings `json:"saml,omitempty"`
 	// Github contains Github connector settings needed for authentication.
 	Github *GithubSettings `json:"github,omitempty"`
-	// PrivateKeyPolicy contains the cluster-wide private key policy.
-	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"private_key_policy"`
-	// DeviceTrustDisabled provides a clue to Teleport clients on whether to avoid
-	// device authentication.
-	DeviceTrustDisabled bool `json:"device_trust_disabled,omitempty"`
 
 	// HasMessageOfTheDay is a flag indicating that the cluster has MOTD
 	// banner text that must be retrieved, displayed and acknowledged by

@@ -45,7 +45,7 @@ module.exports = {
     gatekeeperAssess: false,
     // If CONNECT_TSH_APP_PATH is provided, we assume that tsh.app is already signed.
     signIgnore: env.CONNECT_TSH_APP_PATH && ['tsh.app'],
-    icon: 'build_resources/icon-mac.png',
+    icon: 'assets/icon-mac.png',
     // On macOS, helper apps (such as tsh.app) should be under Contents/MacOS, hence using
     // `extraFiles` instead of `extraResources`.
     // https://developer.apple.com/documentation/bundleresources/placing_content_in_a_bundle
@@ -83,7 +83,7 @@ module.exports = {
   win: {
     target: ['nsis'],
     artifactName: '${productName} Setup-${version}.${ext}',
-    icon: 'build_resources/icon-win.ico',
+    icon: 'assets/icon-win.ico',
     extraResources: [
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
@@ -93,23 +93,15 @@ module.exports = {
   },
   rpm: {
     artifactName: '${name}-${version}.${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
-    // --rpm-rpmbuild-define "_build_id_links none" fixes the problem with not being able to install
-    // Connect's rpm next to other Electron apps.
-    // https://github.com/gravitational/teleport/issues/18859
-    fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
   },
   deb: {
     artifactName: '${name}_${version}_${arch}.${ext}',
-    afterInstall: 'build_resources/linux/after-install.tpl',
-    afterRemove: 'build_resources/linux/after-remove.tpl',
   },
   linux: {
     target: ['tar.gz', 'rpm', 'deb'],
-    artifactName: '${name}-${version}-${arch}.${ext}', // tar.gz
+    artifactName: '${name}-${version}-${arch}.${ext}', //tar.gz
     category: 'Development',
-    icon: 'build_resources/icon-linux',
+    icon: 'assets/icon-linux',
     extraResources: [
       env.CONNECT_TSH_BIN_PATH && {
         from: env.CONNECT_TSH_BIN_PATH,
@@ -118,7 +110,8 @@ module.exports = {
     ].filter(Boolean),
   },
   directories: {
-    buildResources: 'build_resources',
+    buildResources: 'assets',
     output: 'build/release',
   },
+  extraResources: ['./assets/**'],
 };

@@ -29,12 +29,12 @@ type Event struct {
 // There is no strict algorithm for picking an event code, however existing
 // event codes are currently loosely categorized as follows:
 //
-//   - Teleport event codes start with "T" and belong in this const block.
+//  * Teleport event codes start with "T" and belong in this const block.
 //
-//   - Related events are grouped starting with the same number.
-//     eg: All user related events are grouped under 1xxx.
+//  * Related events are grouped starting with the same number.
+//		eg: All user related events are grouped under 1xxx.
 //
-//   - Suffix code with one of these letters: I (info), W (warn), E (error).
+//  * Suffix code with one of these letters: I (info), W (warn), E (error).
 const (
 	// UserLocalLoginCode is the successful local user login event code.
 	UserLocalLoginCode = "T1000I"
@@ -108,8 +108,6 @@ const (
 	AppSessionEndCode = "T2011I"
 	// SessionRecordingAccessCode is the session recording view data event code.
 	SessionRecordingAccessCode = "T2012I"
-	// AppSessionDynamoDBRequestCode is the application request/response code.
-	AppSessionDynamoDBRequestCode = "T2013I"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -174,30 +172,8 @@ const (
 	// SQLServerRPCRequestCode is the db.session.sqlserver.rpc_request event code.
 	SQLServerRPCRequestCode = "TMS00I"
 
-	// CassandraBatchEventCode is the db.session.cassandra.batch event code.
-	CassandraBatchEventCode = "TCA01I"
-	// CassandraPrepareEventCode is the db.session.cassandra.prepare event code.
-	CassandraPrepareEventCode = "TCA02I"
-	// CassandraExecuteEventCode is the db.session.cassandra.execute event code.
-	CassandraExecuteEventCode = "TCA03I"
-	// CassandraRegisterEventCode is the db.session.cassandra.register event code.
-	CassandraRegisterEventCode = "TCA04I"
-
 	// ElasticsearchRequestCode is the db.session.elasticsearch.request event code.
 	ElasticsearchRequestCode = "TES00I"
-	// ElasticsearchRequestFailureCode is the db.session.elasticsearch.request event failure code.
-	ElasticsearchRequestFailureCode = "TES00E"
-
-	// OpenSearchRequestCode is the db.session.opensearch.request event code.
-	OpenSearchRequestCode = "TOS00I"
-	// OpenSearchRequestFailureCode is the db.session.opensearch.request event failure code.
-	OpenSearchRequestFailureCode = "TOS00E"
-
-	// DynamoDBRequestCode is the db.session.dynamodb.request event code.
-	DynamoDBRequestCode = "TDY01I"
-	// DynamoDBRequestFailureCode is the db.session.dynamodb.request event failure code.
-	// This is indicates that the database agent http transport failed to round trip the request.
-	DynamoDBRequestFailureCode = "TDY01E"
 
 	// DatabaseCreateCode is the db.create event code.
 	DatabaseCreateCode = "TDB03I"
@@ -217,24 +193,6 @@ const (
 	DesktopClipboardSendCode = "TDP02I"
 	// DesktopClipboardReceiveCode is the desktop clipboard receive code.
 	DesktopClipboardReceiveCode = "TDP03I"
-	// DesktopSharedDirectoryStartCode is the desktop directory start code.
-	DesktopSharedDirectoryStartCode = "TDP04I"
-	// DesktopSharedDirectoryStartFailureCode is the desktop directory start code
-	// for when a start operation fails, or for when the internal cache state was corrupted
-	// causing information loss, or for when the internal cache has exceeded its max size.
-	DesktopSharedDirectoryStartFailureCode = "TDP04W"
-	// DesktopSharedDirectoryReadCode is the desktop directory read code.
-	DesktopSharedDirectoryReadCode = "TDP05I"
-	// DesktopSharedDirectoryReadFailureCode is the desktop directory read code
-	// for when a read operation fails, or for if the internal cache state was corrupted
-	// causing information loss, or for when the internal cache has exceeded its max size.
-	DesktopSharedDirectoryReadFailureCode = "TDP05W"
-	// DesktopSharedDirectoryWriteCode is the desktop directory write code.
-	DesktopSharedDirectoryWriteCode = "TDP06I"
-	// DesktopSharedDirectoryWriteFailureCode is the desktop directory write code
-	// for when a write operation fails, or for if the internal cache state was corrupted
-	// causing information loss, or for when the internal cache has exceeded its max size.
-	DesktopSharedDirectoryWriteFailureCode = "TDP06W"
 
 	// SubsystemCode is the subsystem event code.
 	SubsystemCode = "T3001I"
@@ -269,13 +227,6 @@ const (
 	// Note: some requests (like exec into a pod) use other codes (like
 	// ExecCode).
 	KubeRequestCode = "T3009I"
-
-	// KubernetesClusterCreateCode is the kube.create event code.
-	KubernetesClusterCreateCode = "T3010I"
-	// KubernetesClusterUpdateCode is the kube.update event code.
-	KubernetesClusterUpdateCode = "T3011I"
-	// KubernetesClusterDeleteCode is the kube.delete event code.
-	KubernetesClusterDeleteCode = "T3012I"
 
 	// The following codes correspond to SFTP file operations.
 	SFTPOpenCode            = "TS001I"
@@ -314,8 +265,6 @@ const (
 	SFTPReadlinkFailureCode = "TS017E"
 	SFTPSymlinkCode         = "TS018I"
 	SFTPSymlinkFailureCode  = "TS018E"
-	SFTPLinkCode            = "TS019I"
-	SFTPLinkFailureCode     = "TS019E"
 
 	// SessionCommandCode is a session command code.
 	SessionCommandCode = "T4000I"
@@ -370,11 +319,6 @@ const (
 	// RoleDeletedCode is the role deleted event code.
 	RoleDeletedCode = "T9001I"
 
-	// BotJoinCode is the 'bot.join' event code.
-	BotJoinCode = "TJ001I"
-	// InstanceJoinCode is the 'node.join' event code.
-	InstanceJoinCode = "TJ002I"
-
 	// LockCreatedCode is the lock created event code.
 	LockCreatedCode = "TLK00I"
 	// LockDeletedCode is the lock deleted event code.
@@ -394,53 +338,6 @@ const (
 	SSMRunSuccessCode = "TDS00I"
 	// SSMRunFailCode is the discovery script success code.
 	SSMRunFailCode = "TDS00W"
-
-	// DeviceCreateCode is the device creation/registration code.
-	DeviceCreateCode = "TV001I"
-	// DeviceDeleteCode is the device deletion code.
-	DeviceDeleteCode = "TV002I"
-	// DeviceEnrollTokenCreateCode is the device enroll token creation code
-	DeviceEnrollTokenCreateCode = "TV003I"
-	// DeviceEnrollTokenSpentCode is the device enroll token spent code.
-	DeviceEnrollTokenSpentCode = "TV004I"
-	// DeviceEnrollCode is the device enrollment completion code.
-	DeviceEnrollCode = "TV005I"
-	// DeviceAuthenticateCode is the device authentication code.
-	DeviceAuthenticateCode = "TV006I"
-	// DeviceUpdateCode is the device update code.
-	DeviceUpdateCode = "TV007I"
-
-	// LoginRuleCreateCode is the login rule create code.
-	LoginRuleCreateCode = "TLR00I"
-	// LoginRuleDeleteCode is the login rule delete code.
-	LoginRuleDeleteCode = "TLR01I"
-
-	// SAMLIdPAuthAttemptCode is the SAML IdP auth attempt code.
-	SAMLIdPAuthAttemptCode = "TSI000I"
-
-	// SAMLIdPServiceProviderCreateCode is the SAML IdP service provider create code.
-	SAMLIdPServiceProviderCreateCode = "TSI001I"
-
-	// SAMLIdPServiceProviderCreateFailureCode is the SAML IdP service provider create failure code.
-	SAMLIdPServiceProviderCreateFailureCode = "TSI001W"
-
-	// SAMLIdPServiceProviderUpdateCode is the SAML IdP service provider update code.
-	SAMLIdPServiceProviderUpdateCode = "TSI002I"
-
-	// SAMLIdPServiceProviderUpdateFailureCode is the SAML IdP service provider update failure code.
-	SAMLIdPServiceProviderUpdateFailureCode = "TSI002W"
-
-	// SAMLIdPServiceProviderDeleteCode is the SAML IdP service provider delete code.
-	SAMLIdPServiceProviderDeleteCode = "TSI003I"
-
-	// SAMLIdPServiceProviderDeleteFailureCode is the SAML IdP service provider delete failure code.
-	SAMLIdPServiceProviderDeleteFailureCode = "TSI003W"
-
-	// SAMLIdPServiceProviderDeleteAllCode is the SAML IdP service provider delete all code.
-	SAMLIdPServiceProviderDeleteAllCode = "TSI004I"
-
-	// SAMLIdPServiceProviderDeleteAllFailureCode is the SAML IdP service provider delete all failure code.
-	SAMLIdPServiceProviderDeleteAllFailureCode = "TSI004W"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

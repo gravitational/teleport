@@ -100,7 +100,7 @@ export function AuthConnectors(props: State) {
                 <Text typography="subtitle1" mb={2}>
                   Please{' '}
                   <Link
-                    color="text.primary"
+                    color="light"
                     // We have two version of this component.
                     // This OSS version and an enterprise version.
                     href="https://goteleport.com/docs/setup/admin/github-sso/"

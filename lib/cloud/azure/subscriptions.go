@@ -53,24 +53,11 @@ func (c *SubscriptionClient) ListSubscriptionIDs(ctx context.Context) ([]string,
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
 		for _, v := range res.Value {
-			if isValidSubscription(v) {
+			if v != nil && v.SubscriptionID != nil {
 				subIDs = append(subIDs, *v.SubscriptionID)
 			}
 		}
 	}
 
 	return subIDs, nil
-}
-
-func isValidSubscription(subscription *armsubscription.Subscription) bool {
-	if subscription == nil || subscription.SubscriptionID == nil || subscription.State == nil {
-		return false
-	}
-
-	// State "Enabled" and "Past Due": all operations are available.
-	// State "Disabled", "Expired", and "Warned": can retrieve or delete resources (GET, DELETE).
-	// State "Deleted": No operations are available.
-	//
-	// https://learn.microsoft.com/en-us/azure/cost-management-billing/manage/subscription-states
-	return *subscription.State != armsubscription.SubscriptionStateDeleted
 }

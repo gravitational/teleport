@@ -27,13 +27,15 @@ import (
 	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,12 +47,17 @@ type transportConfig struct {
 	publicPort   string
 	cipherSuites []uint16
 	jwt          string
+	w            events.StreamWriter
 	traits       wrappers.Traits
 	log          logrus.FieldLogger
+	user         string
 }
 
 // Check validates configuration.
 func (c *transportConfig) Check() error {
+	if c.w == nil {
+		return trace.BadParameter("stream writer missing")
+	}
 	if c.app == nil {
 		return trace.BadParameter("app missing")
 	}
@@ -72,7 +79,7 @@ func (c *transportConfig) Check() error {
 type transport struct {
 	closeContext context.Context
 
-	*transportConfig
+	c *transportConfig
 
 	tr http.RoundTripper
 
@@ -104,11 +111,11 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	}
 
 	return &transport{
-		closeContext:    ctx,
-		transportConfig: c,
-		uri:             uri,
-		tr:              tr,
-		ws:              newWebsocketTransport(uri, tr.TLSClientConfig.Clone(), c),
+		closeContext: ctx,
+		c:            c,
+		uri:          uri,
+		tr:           tr,
+		ws:           newWebsocketTransport(uri, tr.TLSClientConfig.Clone(), c),
 	}, nil
 }
 
@@ -140,20 +147,14 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	sessCtx, err := common.GetSessionContext(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Forward the request to the target application and emit an audit event.
 	resp, err := t.tr.RoundTrip(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	status := uint32(resp.StatusCode)
 
 	// Emit the event to the audit log.
-	if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, status, nil /*aws endpoint*/); err != nil {
+	if err := t.emitAuditEvent(r, resp); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -172,7 +173,7 @@ func (t *transport) rewriteRequest(r *http.Request) error {
 	r.URL.Host = t.uri.Host
 
 	// Add headers from rewrite configuration.
-	rewriteHeaders(r, t.transportConfig)
+	rewriteHeaders(r, t.c)
 
 	return nil
 }
@@ -233,7 +234,7 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 
 	u := url.URL{
 		Scheme: "https",
-		Host:   net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort),
+		Host:   net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort),
 		Path:   uriPath,
 	}
 	return u.String(), true
@@ -242,7 +243,7 @@ func (t *transport) needsPathRedirect(r *http.Request) (string, bool) {
 // rewriteResponse applies any rewriting rules to the response before returning it.
 func (t *transport) rewriteResponse(resp *http.Response) error {
 	switch {
-	case t.app.GetRewrite() != nil && len(t.app.GetRewrite().Redirect) > 0:
+	case t.c.app.GetRewrite() != nil && len(t.c.app.GetRewrite().Redirect) > 0:
 		err := t.rewriteRedirect(resp)
 		if err != nil {
 			return trace.Wrap(err)
@@ -254,7 +255,7 @@ func (t *transport) rewriteResponse(resp *http.Response) error {
 
 // rewriteRedirect applies redirect rules to the response.
 func (t *transport) rewriteRedirect(resp *http.Response) error {
-	if utils.IsRedirect(resp.StatusCode) {
+	if isRedirect(resp.StatusCode) {
 		// Parse the "Location" header.
 		u, err := url.Parse(resp.Header.Get("Location"))
 		if err != nil {
@@ -263,11 +264,34 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 		// If the redirect location is one of the hosts specified in the list of
 		// redirects, rewrite the header.
-		if slices.Contains(t.app.GetRewrite().Redirect, host(u.Host)) {
+		if apiutils.SliceContainsStr(t.c.app.GetRewrite().Redirect, host(u.Host)) {
 			u.Scheme = "https"
-			u.Host = net.JoinHostPort(t.app.GetPublicAddr(), t.publicPort)
+			u.Host = net.JoinHostPort(t.c.app.GetPublicAddr(), t.c.publicPort)
 		}
 		resp.Header.Set("Location", u.String())
+	}
+	return nil
+}
+
+// emitAuditEvent writes the request and response to audit stream.
+func (t *transport) emitAuditEvent(req *http.Request, resp *http.Response) error {
+	appSessionRequestEvent := &apievents.AppSessionRequest{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionRequestEvent,
+			Code: events.AppSessionRequestCode,
+		},
+		Method:     req.Method,
+		Path:       req.URL.Path,
+		RawQuery:   req.URL.RawQuery,
+		StatusCode: uint32(resp.StatusCode),
+		AppMetadata: apievents.AppMetadata{
+			AppURI:        t.c.app.GetURI(),
+			AppPublicAddr: t.c.app.GetPublicAddr(),
+			AppName:       t.c.app.GetName(),
+		},
+	}
+	if err := t.c.w.EmitAuditEvent(t.closeContext, appSessionRequestEvent); err != nil {
+		return trace.Wrap(err)
 	}
 	return nil
 }
@@ -292,6 +316,14 @@ func host(addr string) string {
 		return addr
 	}
 	return host
+}
+
+// isRedirect returns true if the status code is a 3xx code.
+func isRedirect(code int) bool {
+	if code >= http.StatusMultipleChoices && code <= http.StatusPermanentRedirect {
+		return true
+	}
+	return false
 }
 
 // websocketTransport combines parameters for websockets transport.

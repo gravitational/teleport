@@ -352,11 +352,6 @@ type session struct {
 	// Set if we should broadcast information about participant requirements to the session.
 	displayParticipantRequirements bool
 
-	// invitedUsers is a list of users that were invited to the session.
-	invitedUsers []string
-	// reason is the reason for the session.
-	reason string
-
 	// eventsWaiter is used to wait for events to be emitted and goroutines closed
 	// when a session is closed.
 	eventsWaiter sync.WaitGroup
@@ -410,9 +405,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		initiator:                      initiator.ID,
 		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
-		displayParticipantRequirements: utils.AsBool(q.Get(teleport.KubeSessionDisplayParticipantRequirementsQueryParam)),
-		invitedUsers:                   strings.Split(q.Get(teleport.KubeSessionInvitedQueryParam), ","),
-		reason:                         q.Get(teleport.KubeSessionReasonQueryParam),
+		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
 		streamContext:                  streamContext,
 		streamContextCancel:            streamContextCancel,
 		partiesWg:                      sync.WaitGroup{},
@@ -519,7 +512,7 @@ func (s *session) launch() error {
 	s.podName = request.podName
 	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
-	eventPodMeta := request.eventPodMeta(request.context, s.sess.kubeAPICreds)
+	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
 
 	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
 	if err != nil {
@@ -543,7 +536,7 @@ func (s *session) launch() error {
 			ClusterName: s.forwarder.cfg.ClusterName,
 		},
 		ServerMetadata: apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
+			ServerID:        s.forwarder.cfg.ServerID,
 			ServerNamespace: s.forwarder.cfg.Namespace,
 			ServerHostname:  s.sess.teleportCluster.name,
 			ServerAddr:      s.sess.kubeAddress,
@@ -552,7 +545,11 @@ func (s *session) launch() error {
 			SessionID: s.id.String(),
 			WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
 		},
-		UserMetadata: s.ctx.eventUserMeta(),
+		UserMetadata: apievents.UserMetadata{
+			User:         s.ctx.User.GetName(),
+			Login:        s.ctx.User.GetName(),
+			Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.req.RemoteAddr,
 			LocalAddr:  s.sess.kubeAddress,
@@ -656,7 +653,11 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 					SessionID: s.id.String(),
 					WithMFA:   s.ctx.Identity.GetIdentity().MFAVerified,
 				},
-				UserMetadata:              s.ctx.eventUserMeta(),
+				UserMetadata: apievents.UserMetadata{
+					User:         s.ctx.User.GetName(),
+					Login:        s.ctx.User.GetName(),
+					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
+				},
 				TerminalSize:              params.Serialize(),
 				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
 				KubernetesPodMetadata:     eventPodMeta,
@@ -684,7 +685,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		Streamer:     streamer,
 		Clock:        s.forwarder.cfg.Clock,
 		SessionID:    tsession.ID(s.id.String()),
-		ServerID:     s.forwarder.cfg.HostID,
+		ServerID:     s.forwarder.cfg.ServerID,
 		Namespace:    s.forwarder.cfg.Namespace,
 		RecordOutput: s.ctx.recordingConfig.GetMode() != types.RecordOff,
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
@@ -743,7 +744,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		}
 
 		serverMetadata := apievents.ServerMetadata{
-			ServerID:        s.forwarder.cfg.HostID,
+			ServerID:        s.forwarder.cfg.ServerID,
 			ServerNamespace: s.forwarder.cfg.Namespace,
 		}
 
@@ -835,7 +836,11 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 // join attempts to connect a party to the session.
 func (s *session) join(p *party) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roles := p.Ctx.Checker.Roles()
+		roleNames := p.Ctx.Identity.GetIdentity().Groups
+		roles, err := getRolesByName(s.forwarder, roleNames)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 
 		accessContext := auth.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
@@ -870,7 +875,7 @@ func (s *session) join(p *party) error {
 			ClusterName: s.ctx.teleportCluster.name,
 		},
 		KubernetesClusterMetadata: apievents.KubernetesClusterMetadata{
-			KubernetesCluster: s.ctx.kubeClusterName,
+			KubernetesCluster: s.ctx.kubeCluster,
 			KubernetesUsers:   []string{},
 			KubernetesGroups:  []string{},
 			KubernetesLabels:  s.ctx.kubeClusterLabels,
@@ -878,7 +883,11 @@ func (s *session) join(p *party) error {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: s.id.String(),
 		},
-		UserMetadata: p.Ctx.eventUserMetaWithLogin("root"),
+		UserMetadata: apievents.UserMetadata{
+			User:         p.Ctx.User.GetName(),
+			Login:        "root",
+			Impersonator: p.Ctx.Identity.GetIdentity().Impersonator,
+		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
@@ -908,7 +917,7 @@ func (s *session) join(p *party) error {
 	}
 
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
+	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
 
 	if p.Mode == types.SessionModeratorMode {
 		s.eventsWaiter.Add(1)
@@ -968,7 +977,7 @@ func (s *session) join(p *party) error {
 	return nil
 }
 
-func (s *session) BroadcastMessage(format string, args ...any) {
+func (s *session) BroadcastMessage(format string, args ...interface{}) {
 	if s.accessEvaluator.IsModerated() {
 		s.io.BroadcastMessage(fmt.Sprintf(format, args...))
 	}
@@ -1014,7 +1023,11 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		SessionMetadata: apievents.SessionMetadata{
 			SessionID: s.id.String(),
 		},
-		UserMetadata: party.Ctx.eventUserMetaWithLogin("root"),
+		UserMetadata: apievents.UserMetadata{
+			User:         party.Ctx.User.GetName(),
+			Login:        "root",
+			Impersonator: party.Ctx.Identity.GetIdentity().Impersonator,
+		},
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: s.params.ByName("podName"),
 		},
@@ -1188,13 +1201,11 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		State:             types.SessionState_SessionStatePending,
 		Hostname:          s.podName,
 		ClusterName:       s.ctx.teleportCluster.name,
-		KubernetesCluster: s.ctx.kubeClusterName,
+		KubernetesCluster: s.ctx.kubeCluster,
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
 		Login:             "root",
 		Created:           time.Now(),
-		Reason:            s.reason,
-		Invited:           s.invitedUsers,
 	}
 
 	s.log.Debug("Creating session tracker")

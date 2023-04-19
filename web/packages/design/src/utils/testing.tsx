@@ -23,18 +23,17 @@ import {
   screen,
   prettyDOM,
   getByTestId,
-  waitForElementToBeRemoved,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter as Router } from 'react-router-dom';
 
 import ThemeProvider from 'design/ThemeProvider';
-import { darkTheme } from 'design/theme';
+import theme from 'design/theme';
 import '@testing-library/jest-dom';
 import 'jest-styled-components';
 
 function Providers({ children }: { children: React.ReactElement }) {
-  return <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>;
+  return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
 }
 
 function render(ui: React.ReactElement<any>, options?: RenderOptions) {
@@ -54,12 +53,11 @@ export {
   act,
   screen,
   fireEvent,
-  darkTheme as theme,
+  theme,
   render,
   prettyDOM,
   waitFor,
   getByTestId,
   Router,
   userEvent,
-  waitForElementToBeRemoved,
 };

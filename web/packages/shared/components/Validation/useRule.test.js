@@ -16,32 +16,35 @@
 
 import React from 'react';
 
-import { render, fireEvent, screen } from 'design/utils/testing';
+import { render, fireEvent, waitFor, screen } from 'design/utils/testing';
 
 import Validation, { useRule } from '.';
 
 test('basic usage', async () => {
-  const utils = render(<Component value="" rule={required} />);
+  let results;
+  await waitFor(() => {
+    results = render(<Component value="" rule={required} />);
+  });
 
   // expect no errors when not validating
-  expect(utils.container.firstChild).toHaveTextContent('valid');
+  expect(results.container.firstChild.textContent).toBe('valid');
 
   // trigger validation and expect errors
   fireEvent.click(screen.getByRole('button'));
-  expect(utils.container.firstChild).toHaveTextContent(
+  expect(results.container.firstChild.textContent).toBe(
     'this field is required'
   );
 
   // rerender component with proper value and expect no errors
-  utils.rerender(<Component value="123" rule={required} />);
-  expect(utils.container.firstChild).toHaveTextContent('valid');
+  results.rerender(<Component value="123" rule={required} />);
+  expect(results.container.firstChild.textContent).toBe('valid');
 
   // verify that useRule properly unsubscribes from validation context
   const cb = jest.fn();
   const rule = () => () => cb();
-  utils.unmount();
-  utils.rerender(<Component value="123" rule={rule} />);
-  utils.rerender(<Component visible={false} />);
+  results.unmount();
+  results.rerender(<Component value="123" rule={rule} />);
+  results.rerender(<Component visible={false} />);
 
   fireEvent.click(screen.getByRole('button'));
   expect(cb).not.toHaveBeenCalled();
@@ -64,11 +67,11 @@ function Component(props) {
 
 // Component to test useRule
 function ValueBox({ value, rule }) {
-  const utils = useRule(rule(value));
+  const results = useRule(rule(value));
   return (
     <>
-      {utils.valid && 'valid'}
-      {!utils.valid && utils.message}
+      {results.valid && 'valid'}
+      {!results.valid && results.message}
     </>
   );
 }

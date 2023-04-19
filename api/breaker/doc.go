@@ -30,4 +30,5 @@
 //
 // * Config.OnTripped is called on transition (StateStandby -> StateTripped)
 // * Config.OnStandBy is called on transition (StateRecovering -> StateStandby)
+//
 package breaker

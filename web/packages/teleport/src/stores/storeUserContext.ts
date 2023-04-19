@@ -13,8 +13,6 @@ limitations under the License.
 
 import { Store } from 'shared/libs/stores';
 
-import cfg from 'teleport/config';
-
 import { UserContext } from 'teleport/services/user';
 
 export default class StoreUserContext extends Store<UserContext> {
@@ -88,12 +86,8 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.acl.billing;
   }
 
-  getDatabaseServerAccess() {
-    return this.state.acl.dbServers;
-  }
-
   getDatabaseAccess() {
-    return this.state.acl.db;
+    return this.state.acl.dbServers;
   }
 
   getDesktopAccess() {
@@ -120,36 +114,12 @@ export default class StoreUserContext extends Store<UserContext> {
     return this.state.accessRequestId;
   }
 
-  getLicenceAccess() {
-    return this.state.acl.license;
-  }
-
-  getDownloadAccess() {
-    return this.state.acl.download;
-  }
-
-  getAccessRequestAccess() {
-    return this.state.acl.accessRequests;
-  }
-
   // hasPrereqAccessToAddAgents checks if user meets the prerequisite
   // access to add an agent:
   //  - user should be able to create provisioning tokens
   hasPrereqAccessToAddAgents() {
     const { tokens } = this.state.acl;
     return tokens.create;
-  }
-
-  // hasDownloadCenterListAccess checks if the user
-  // has access to download either teleport binaries or the license.
-  // Since the page is used to download both of them, having access to one
-  // is enough to show access this page.
-  // This page is only available for `dashboards`.
-  hasDownloadCenterListAccess() {
-    return (
-      cfg.isDashboard &&
-      (this.state.acl.license.read || this.state.acl.download.list)
-    );
   }
 
   // hasAccessToAgentQuery checks for at least one valid query permission.
@@ -166,21 +136,5 @@ export default class StoreUserContext extends Store<UserContext> {
       (kubeServers.read && kubeServers.list) ||
       (desktops.read && desktops.list)
     );
-  }
-
-  hasDiscoverAccess() {
-    return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
-  }
-
-  getPluginsAccess() {
-    return this.state.acl.plugins;
-  }
-
-  getDeviceTrustAccess() {
-    return this.state.acl.deviceTrust;
-  }
-
-  getIntegrationsAccess() {
-    return this.state.acl.integrations;
   }
 }

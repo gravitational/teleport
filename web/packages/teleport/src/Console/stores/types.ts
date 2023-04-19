@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import type { Participant, ParticipantMode } from 'teleport/services/session';
+import { Participant } from 'teleport/services/session';
 
 interface DocumentBase {
   id?: number;
@@ -33,7 +33,6 @@ export interface DocumentSsh extends DocumentBase {
   status: 'connected' | 'disconnected';
   kind: 'terminal';
   sid?: string;
-  mode?: ParticipantMode;
   serverId: string;
   login: string;
 }

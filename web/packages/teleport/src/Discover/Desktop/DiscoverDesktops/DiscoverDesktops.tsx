@@ -20,13 +20,8 @@ import styled, { keyframes } from 'styled-components';
 import { Box, ButtonPrimary, Text } from 'design';
 
 import { DesktopItem } from 'teleport/Discover/Desktop/DiscoverDesktops/DesktopItem';
-import { useDiscover } from 'teleport/Discover/useDiscover';
-import {
-  Header,
-  Mark,
-  ResourceKind,
-  useShowHint,
-} from 'teleport/Discover/Shared';
+import { Header } from 'teleport/Discover/Shared';
+import { State } from 'teleport/Discover/useDiscover';
 import { ProxyDesktopServiceDiagram } from 'teleport/Discover/Desktop/DiscoverDesktops/ProxyDesktopServiceDiagram';
 import { usePoll } from 'teleport/Discover/Shared/usePoll';
 import { useTeleport } from 'teleport';
@@ -34,11 +29,6 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import { usePingTeleport } from 'teleport/Discover/Shared/PingTeleportContext';
 import cfg from 'teleport/config';
 import { NavLink } from 'teleport/components/Router';
-import { DiscoverEventStatus } from 'teleport/services/userEvent';
-
-import { HintBox } from 'teleport/Discover/Shared/HintBox';
-
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
 
 import type { WindowsDesktopService } from 'teleport/services/desktops';
 
@@ -48,6 +38,10 @@ const Desktops = styled.div`
   display: flex;
 `;
 
+const Buttons = styled.div`
+  margin-top: 100px;
+`;
+
 const FoundDesktops = styled.div`
   position: relative;
   margin-left: 125px;
@@ -55,6 +49,7 @@ const FoundDesktops = styled.div`
 `;
 
 const MAX_COUNT = 14;
+const POLL_TIMEOUT = 1000 * 60 * 10; // 10 minutes
 const POLL_INTERVAL = 1000 * 3; // 3 seconds
 
 const fadeIn = keyframes`
@@ -83,8 +78,8 @@ const ContentBox = styled.div`
 `;
 
 const ViewLink = styled(NavLink)`
-  background: ${props => props.theme.colors.buttons.link.default};
-  color: ${props => props.theme.colors.text.primary};
+  background: #0091ea;
+  color: white;
   border-radius: 5px;
   margin-top: 10px;
   text-decoration: none;
@@ -93,26 +88,27 @@ const ViewLink = styled(NavLink)`
   cursor: pointer;
 
   &:hover {
-    background: ${props => props.theme.colors.buttons.link.hover};
+    background: #4db2f0;
   }
 `;
 
-export function DiscoverDesktops() {
+const TimedOutTitle = styled.div`
+  color: #f50057;
+  font-weight: bold;
+  font-size: 16px;
+`;
+
+export function DiscoverDesktops(props: State) {
   const ctx = useTeleport();
-  const { emitEvent, nextStep } = useDiscover();
 
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
-  const { result: desktopService, active } =
-    usePingTeleport<WindowsDesktopService>(joinToken);
-
-  const showHint = useShowHint(active);
+  const { result: desktopService } = usePingTeleport<WindowsDesktopService>();
 
   const [enabled, setEnabled] = useState(true);
   const { clusterId } = useStickyClusterId();
-
-  const result = usePoll(
+  const { timedOut, result } = usePoll(
     signal =>
       ctx.desktopService.fetchDesktops(clusterId, { limit: MAX_COUNT }, signal),
+    POLL_TIMEOUT,
     enabled,
     POLL_INTERVAL
   );
@@ -153,96 +149,67 @@ export function DiscoverDesktops() {
     }
   }
 
-  function handleNextStep() {
-    emitEvent(
-      { stepStatus: DiscoverEventStatus.Success },
-      { autoDiscoverResourcesCount: desktops.length }
-    );
-    nextStep();
-  }
-
-  const items = desktops
-    .slice(0, 3)
-    .map((desktop, index) => (
-      <DesktopItem
-        key={index}
-        index={index}
-        os={desktop.os}
-        osVersion={desktop.osVersion}
-        computerName={desktop.computerName}
-        address={desktop.address}
-        desktopServiceElement={desktopServiceRef.current}
-        containerElement={ref.current}
-      />
-    ));
-
-  // We show 3 desktops maximum, and fetch 14 in order to be able to
-  // display the message "We've found 10+ more desktops".
-  //
-  // This gives the user a better idea that a lot of desktops have been
-  // discovered, without us having to fetch all of them to get an actual count.
-  const extraDesktopCount = desktops.length - 3;
-
-  let viewMore;
-  if (extraDesktopCount > 0) {
-    let amount = '1';
-    let word = 'Desktops';
-    if (extraDesktopCount === 1) {
-      word = 'Desktop';
-    } else {
-      if (extraDesktopCount > 11) {
-        amount = '10+';
-      } else {
-        amount = `${extraDesktopCount}`;
-      }
-    }
-
-    viewMore = (
-      <ContentBox key="view-more">
-        We've found {amount} more {word}.{' '}
-        <ViewLink to={cfg.getDesktopsRoute(clusterId)}>
-          View them all here
-        </ViewLink>
+  let content;
+  if (timedOut) {
+    content = (
+      <ContentBox>
+        <TimedOutTitle>Oh no!</TimedOutTitle> We could not find any Desktops.
+        Connect Desktops to your Active Directory for Teleport to automatically
+        discover them.
       </ContentBox>
     );
-  }
+  } else {
+    const items = desktops
+      .slice(0, 3)
+      .map((desktop, index) => (
+        <DesktopItem
+          key={index}
+          index={index}
+          os={desktop.os}
+          osVersion={desktop.osVersion}
+          computerName={desktop.computerName}
+          address={desktop.address}
+          desktopServiceElement={desktopServiceRef.current}
+          containerElement={ref.current}
+        />
+      ));
 
-  let content;
-  if (desktops.length > 0) {
+    // We show 3 desktops maximum, and fetch 14 in order to be able to
+    // display the message "We've found 10+ more desktops".
+    //
+    // This gives the user a better idea that a lot of desktops have been
+    // discovered, without us having to fetch all of them to get an actual count.
+    const extraDesktopCount = desktops.length - 3;
+
+    let viewMore;
+    if (extraDesktopCount > 0) {
+      let amount = '1';
+      let word = 'Desktops';
+      if (extraDesktopCount === 1) {
+        word = 'Desktop';
+      } else {
+        if (extraDesktopCount > 11) {
+          amount = '10+';
+        } else {
+          amount = `${extraDesktopCount}`;
+        }
+      }
+
+      viewMore = (
+        <ContentBox key="view-more">
+          We've found {amount} more {word}.{' '}
+          <ViewLink to={cfg.getDesktopsRoute(clusterId)}>
+            View them all here
+          </ViewLink>
+        </ContentBox>
+      );
+    }
+
     content = (
       <>
         {items}
         {viewMore}
       </>
-    );
-  }
-
-  let hint;
-  if (showHint && desktops.length === 0) {
-    hint = (
-      <Box mt={5}>
-        <HintBox header="We're still trying to discover Desktops">
-          <Text mb={3}>
-            There are a couple of possible reasons for why we haven't been able
-            to detect your server.
-          </Text>
-
-          <Text mb={1}>
-            - There aren't any desktops connected to Active Directory
-          </Text>
-
-          <Text mb={3}>
-            - A Desktop could have had issues joining the Teleport Desktop
-            Service. Check the logs for errors by running{' '}
-            <Mark>journalctl -fu teleport</Mark> on your Desktop Service.
-          </Text>
-
-          <Text>
-            We'll continue to try and discover Desktops whilst you diagnose the
-            issue, but you can safely leave this page.
-          </Text>
-        </HintBox>
-      </Box>
     );
   }
 
@@ -263,13 +230,11 @@ export function DiscoverDesktops() {
         <FoundDesktops>{content}</FoundDesktops>
       </Desktops>
 
-      {hint}
-
-      <Box mt={5}>
-        <ButtonPrimary width="165px" mr={3} onClick={handleNextStep}>
+      <Buttons>
+        <ButtonPrimary width="165px" mr={3} onClick={() => props.nextStep()}>
           Finish
         </ButtonPrimary>
-      </Box>
+      </Buttons>
     </Box>
   );
 }

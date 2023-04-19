@@ -20,19 +20,16 @@ import styled from 'styled-components';
 import { Box } from 'design';
 
 import { useKeyboardShortcuts } from 'teleterm/ui/services/keyboardShortcuts';
+
 import { KeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
-import { ClusterUri } from 'teleterm/ui/uri';
 
 import { useClusters } from './useClusters';
 import { ClusterSelector } from './ClusterSelector/ClusterSelector';
 import { ClustersFilterableList } from './ClustersFilterableList/ClustersFilterableList';
-import ConfirmClusterChangeDialog from './ConfirmClusterChangeDialog';
 
 export function Clusters() {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
-  const [confirmChangeTo, setConfirmChangeTo] =
-    useState<ClusterUri | null>(null);
   const clusters = useClusters();
 
   const togglePopover = useCallback(() => {
@@ -42,25 +39,15 @@ export function Clusters() {
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        openClusters: togglePopover,
+        'toggle-clusters': togglePopover,
       }),
       [togglePopover]
     )
   );
 
-  function selectItem(clusterUri: ClusterUri): void {
+  function selectItem(id: string): void {
     setIsPopoverOpened(false);
-    if (clusters.hasPendingAccessRequest) {
-      setConfirmChangeTo(clusterUri);
-    } else {
-      clusters.selectItem(clusterUri);
-    }
-  }
-
-  function onConfirmChange(): void {
-    clusters.selectItem(confirmChangeTo);
-    setConfirmChangeTo(null);
-    clusters.clearPendingAccessRequest();
+    clusters.selectItem(id);
   }
 
   if (!clusters.hasLeaves) {
@@ -91,15 +78,10 @@ export function Clusters() {
           </KeyboardArrowsNavigation>
         </Container>
       </Popover>
-      <ConfirmClusterChangeDialog
-        onClose={() => setConfirmChangeTo(null)}
-        onConfirm={onConfirmChange}
-        confirmChangeTo={confirmChangeTo}
-      />
     </>
   );
 }
 
 const Container = styled(Box)`
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.primary.light};
 `;

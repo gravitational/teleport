@@ -14,6 +14,5 @@
  * limitations under the License.
  */
 
-export * from './types';
-export * from './credentials';
-export * from './files';
+export * from './clientCredentials';
+export * from './serverCredentials';

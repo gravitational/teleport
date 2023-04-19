@@ -20,12 +20,11 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 import { arrayStrDiff } from 'teleport/lib/util';
 import useTeleport from 'teleport/useTeleport';
 import { Option } from 'teleport/Discover/Shared/SelectCreatable';
-import { useDiscover } from 'teleport/Discover/useDiscover';
 
 import { ResourceKind } from '../ResourceKind';
 
-import type { DbMeta, KubeMeta, NodeMeta } from 'teleport/Discover/useDiscover';
 import type { User, UserTraits } from 'teleport/services/user';
+import type { DbMeta, KubeMeta, NodeMeta } from 'teleport/Discover/useDiscover';
 import type { AgentStepProps } from '../../types';
 
 // useUserTraits handles:
@@ -36,7 +35,6 @@ import type { AgentStepProps } from '../../types';
 //  - provides utility function that makes data objects (type Option) for react-select component
 export function useUserTraits(props: AgentStepProps) {
   const ctx = useTeleport();
-  const { emitErrorEvent } = useDiscover();
 
   const [user, setUser] = useState<User>();
   const { attempt, run, setAttempt, handleError } = useAttempt('processing');
@@ -51,7 +49,7 @@ export function useUserTraits(props: AgentStepProps) {
   // dynamic (user-defined) and static (role-defined) traits.
   let meta = props.agentMeta;
   let staticTraits = initUserTraits();
-  switch (props.resourceSpec.kind) {
+  switch (props.selectedResourceKind) {
     case ResourceKind.Kubernetes:
       const kube = (meta as KubeMeta).kube;
       staticTraits.kubeUsers = arrayStrDiff(
@@ -83,30 +81,29 @@ export function useUserTraits(props: AgentStepProps) {
 
     default:
       throw new Error(
-        `useUserTraits.ts:statiTraits: resource kind ${props.resourceSpec.kind} is not handled`
+        `useUserTraits.ts:statiTraits: resource kind ${props.selectedResourceKind} is not handled`
       );
   }
 
-  useEffect(() => {
-    fetchUserTraits();
-  }, [ctx.storeUser, ctx.userService, run]);
+  useEffect(
+    function initFetchUserTraits() {
+      run(() =>
+        ctx.userService.fetchUser(ctx.storeUser.getUsername()).then(setUser)
+      );
+    },
+    [ctx.storeUser, ctx.userService, run]
+  );
 
   function fetchUserTraits() {
     run(() =>
-      ctx.userService
-        .fetchUser(ctx.storeUser.getUsername())
-        .then(setUser)
-        .catch((error: Error) => {
-          emitErrorEvent(`error fetching user traits: ${error.message}`);
-          throw error;
-        })
+      ctx.userService.fetchUser(ctx.storeUser.getUsername()).then(setUser)
     );
   }
 
   // onProceed deduplicates and removes static traits from the list of traits
   // before updating user in the backend.
   function onProceed(traitOpts: Partial<Record<Trait, Option[]>>) {
-    switch (props.resourceSpec.kind) {
+    switch (props.selectedResourceKind) {
       case ResourceKind.Kubernetes:
         const newDynamicKubeUsers = new Set<string>();
         traitOpts.kubeUsers.forEach(o => {
@@ -162,7 +159,7 @@ export function useUserTraits(props: AgentStepProps) {
 
       default:
         throw new Error(
-          `useUserTrait.ts:onProceed: resource kind ${props.resourceSpec.kind} is not handled`
+          `useUserTrait.ts:onProceed: resource kind ${props.selectedResourceKind} is not handled`
         );
     }
   }
@@ -173,7 +170,7 @@ export function useUserTraits(props: AgentStepProps) {
     newDynamicTraits: Partial<UserTraits>
   ) {
     let meta = props.agentMeta;
-    switch (props.resourceSpec.kind) {
+    switch (props.selectedResourceKind) {
       case ResourceKind.Kubernetes:
         const kube = (meta as KubeMeta).kube;
         props.updateAgentMeta({
@@ -220,7 +217,7 @@ export function useUserTraits(props: AgentStepProps) {
 
       default:
         throw new Error(
-          `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${props.resourceSpec.kind} is not handled`
+          `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${props.selectedResourceKind} is not handled`
         );
     }
   }
@@ -235,24 +232,15 @@ export function useUserTraits(props: AgentStepProps) {
     updateResourceMetaDynamicTraits(newDynamicTraits);
     setAttempt({ status: 'processing' });
     try {
-      await ctx.userService
-        .updateUser({
-          ...user,
-          traits: {
-            ...user.traits,
-            ...newDynamicTraits,
-          },
-        })
-        .catch((error: Error) => {
-          emitErrorEvent(`error updating user traits: ${error.message}`);
-          throw error;
-        });
-
-      await ctx.userService.applyUserTraits().catch((error: Error) => {
-        emitErrorEvent(`error applying new user traits: ${error.message}`);
-        throw error;
+      await ctx.userService.updateUser({
+        ...user,
+        traits: {
+          ...user.traits,
+          ...newDynamicTraits,
+        },
       });
 
+      await ctx.userService.applyUserTraits();
       props.nextStep();
     } catch (err) {
       handleError(err);
@@ -282,7 +270,6 @@ export function useUserTraits(props: AgentStepProps) {
     getSelectableOptions,
     dynamicTraits,
     staticTraits,
-    resourceSpec: props.resourceSpec,
   };
 }
 

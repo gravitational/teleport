@@ -15,11 +15,8 @@
  */
 
 import React from 'react';
-import { act, render } from '@testing-library/react';
+import { create, act } from 'react-test-renderer';
 
-/**
- * @deprecated Use renderHook provided by @testing-library/react-hooks instead.
- */
 export default function renderHook<T extends (...args: any) => any>(
   hooks: T,
   options?: Options
@@ -33,7 +30,7 @@ export default function renderHook<T extends (...args: any) => any>(
 
     // passes hooksCb to component and expect this component to execute the hook
     // and assign the return values to results.current
-    render(
+    create(
       <Wrapper {...options?.wrapperProps}>
         <TestHook hooksCb={hooks} result={result} />{' '}
       </Wrapper>

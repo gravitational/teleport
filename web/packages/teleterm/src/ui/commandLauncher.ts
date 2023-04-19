@@ -15,93 +15,103 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { Platform } from 'teleterm/mainProcess/types';
-import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
+import { routing } from 'teleterm/ui/uri';
+import { tsh } from 'teleterm/ui/services/clusters/types';
+import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
   'tsh-ssh': {
     displayName: '',
     description: '',
-    async run(
+    run(
       ctx: IAppContext,
-      args: {
-        loginHost: string;
-        localClusterUri: ClusterUri;
-        origin: DocumentOrigin;
-      }
+      args: { loginHost: string; localClusterUri: string }
     ) {
-      const { loginHost, localClusterUri, origin } = args;
+      const { loginHost, localClusterUri } = args;
       const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
       const documentsService =
         ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
+      let login: string | undefined, host: string;
+      const parts = loginHost.split('@');
 
-      const doc = documentsService.createTshNodeDocumentFromLoginHost(
-        localClusterUri,
-        loginHost,
-        { origin }
-      );
+      if (parts.length > 1) {
+        host = parts.pop();
+        // If someone types in `foo@bar@baz` as input here, `parts` will have more than two
+        // elements. `foo@bar` is probably not a valid login, but we don't want to lose that
+        // input here.
+        //
+        // In any case, we're just repeating what `tsh ssh` is doing with inputs like these.
+        login = parts.join('@');
+      } else {
+        host = parts[0];
+      }
 
-      await ctx.workspacesService.setActiveWorkspace(rootClusterUri);
+      // TODO(ravicious): Handle finding host by more than just a name.
+      // Basically we have to replicate tsh ssh behavior here.
+      const servers = ctx.clustersService.searchServers(localClusterUri, {
+        search: host,
+        searchableProps: ['hostname'],
+      });
+      let server: tsh.Server | undefined;
 
+      if (servers.length === 1) {
+        server = servers[0];
+      } else if (servers.length > 1) {
+        // TODO(ravicious): Handle ambiguous host name. See `onSSH` in `tool/tsh/tsh.go`.
+        console.error('Ambiguous host');
+      }
+
+      let serverUri: string, serverHostname: string;
+
+      if (server) {
+        serverUri = server.uri;
+        serverHostname = server.hostname;
+      } else {
+        // If we can't find a server by the given hostname, we still want to create a document to
+        // handle the error further down the line.
+        const clusterParams = routing.parseClusterUri(localClusterUri).params;
+        serverUri = routing.getServerUri({
+          ...clusterParams,
+          serverId: host,
+        });
+        serverHostname = host;
+      }
+      // TODO(ravicious): Handle failure due to incorrect host name.
+      const doc = documentsService.createTshNodeDocument(serverUri);
+      doc.title = login ? `${login}@${serverHostname}` : serverHostname;
+      doc.login = login;
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
     },
   },
 
-  'tsh-install': {
+  'kube-connect': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext) {
-      ctx.mainProcessClient.symlinkTshMacOs().then(
-        isSymlinked => {
-          if (isSymlinked) {
-            ctx.notificationsService.notifyInfo(
-              'tsh successfully installed in PATH'
-            );
-          }
-        },
-        error => {
-          ctx.notificationsService.notifyError({
-            title: 'Could not install tsh in PATH',
-            description: `Ran into an error: ${error}`,
-          });
-        }
-      );
-    },
-  },
-
-  'tsh-uninstall': {
-    displayName: '',
-    description: '',
-    run(ctx: IAppContext) {
-      ctx.mainProcessClient.removeTshSymlinkMacOs().then(
-        isRemoved => {
-          if (isRemoved) {
-            ctx.notificationsService.notifyInfo(
-              'tsh successfully removed from PATH'
-            );
-          }
-        },
-        error => {
-          ctx.notificationsService.notifyError({
-            title: 'Could not remove tsh from PATH',
-            description: `Ran into an error: ${error}`,
-          });
-        }
-      );
+    run(ctx: IAppContext, args: { kubeUri: string }) {
+      const documentsService =
+        ctx.workspacesService.getActiveWorkspaceDocumentService();
+      const kubeDoc = documentsService.createTshKubeDocument({
+        kubeUri: args.kubeUri,
+      });
+      const connection = ctx.connectionTracker.findConnectionByDocument(
+        kubeDoc
+      ) as TrackedKubeConnection;
+      documentsService.add({
+        ...kubeDoc,
+        kubeConfigRelativePath:
+          connection?.kubeConfigRelativePath || kubeDoc.kubeConfigRelativePath,
+      });
+      documentsService.open(kubeDoc.uri);
     },
   },
 
   'cluster-connect': {
     displayName: '',
     description: '',
-    run(
-      ctx: IAppContext,
-      args: { clusterUri?: RootClusterUri; onSuccess?(): void }
-    ) {
-      const defaultHandler = (clusterUri: RootClusterUri) => {
+    run(ctx: IAppContext, args: { clusterUri?: string; onSuccess?(): void }) {
+      const defaultHandler = (clusterUri: string) => {
         ctx.commandLauncher.executeCommand('cluster-open', { clusterUri });
       };
 
@@ -115,9 +125,9 @@ const commands = {
   'cluster-logout': {
     displayName: '',
     description: '',
-    run(ctx: IAppContext, args: { clusterUri: RootClusterUri }) {
+    run(ctx: IAppContext, args: { clusterUri: string }) {
       const cluster = ctx.clustersService.findCluster(args.clusterUri);
-      ctx.modalsService.openRegularDialog({
+      ctx.modalsService.openDialog({
         kind: 'cluster-logout',
         clusterUri: cluster.uri,
         clusterTitle: cluster.name,
@@ -128,7 +138,7 @@ const commands = {
   'cluster-open': {
     displayName: '',
     description: '',
-    async run(ctx: IAppContext, args: { clusterUri: ClusterUri }) {
+    async run(ctx: IAppContext, args: { clusterUri: string }) {
       const { clusterUri } = args;
       const rootCluster =
         ctx.clustersService.findRootClusterByResource(clusterUri);
@@ -145,32 +155,19 @@ const commands = {
       }
     },
   },
-};
 
-const autocompleteCommands: {
-  displayName: string;
-  description: string;
-  platforms?: Array<Platform>;
-}[] = [
-  {
+  'autocomplete.tsh-ssh': {
     displayName: 'tsh ssh',
     description: 'Run shell or execute a command on a remote SSH node',
+    run() {},
   },
-  {
+  'autocomplete.tsh-proxy-db': {
     displayName: 'tsh proxy db',
-    description: 'Start a local proxy for a database connection',
+    description:
+      'Start local TLS proxy for database connections when using Teleport',
+    run() {},
   },
-  {
-    displayName: 'tsh install',
-    description: 'Install tsh in PATH',
-    platforms: ['darwin'],
-  },
-  {
-    displayName: 'tsh uninstall',
-    description: 'Uninstall tsh from PATH',
-    platforms: ['darwin'],
-  },
-];
+};
 
 export class CommandLauncher {
   appContext: IAppContext;
@@ -181,16 +178,12 @@ export class CommandLauncher {
 
   executeCommand<T extends CommandName>(name: T, args: CommandArgs<T>) {
     commands[name].run(this.appContext, args as any);
-    return undefined;
   }
 
   getAutocompleteCommands() {
-    const { platform } = this.appContext.mainProcessClient.getRuntimeSettings();
-
-    return autocompleteCommands.filter(command => {
-      const platforms = command.platforms;
-      return !command.platforms || platforms.includes(platform);
-    });
+    return Object.entries(commands)
+      .filter(([key]) => key.startsWith('autocomplete.'))
+      .map(([key, value]) => ({ name: key, ...value }));
   }
 }
 

@@ -16,12 +16,12 @@
 
 import React from 'react';
 
-import { render, screen } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 
 import { Loaded } from './Users.story';
 
 test('success state', async () => {
-  const { container } = render(<Loaded />);
-  await screen.findByText(/create new user/i);
+  const { container, findByText } = render(<Loaded />);
+  await findByText(/create new user/i);
   expect(container).toMatchSnapshot();
 });

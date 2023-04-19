@@ -94,7 +94,7 @@ func (c *TemplateSSHHostCert) Describe(destination bot.Destination) []FileDescri
 
 // exportSSHUserCAs generates SSH CAs.
 func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, error) {
-	var exported string
+	var exported []string
 
 	for _, ca := range cas {
 		// Don't export trusted CAs.
@@ -111,36 +111,31 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 			// remove "cert-authority "
 			s = strings.TrimPrefix(s, sshHostTrimPrefix)
 
-			exported += s
+			exported = append(exported, s)
 		}
 	}
 
-	return exported, nil
+	return strings.Join(exported, "\n") + "\n", nil
 }
 
 // Render generates SSH host cert files.
-func (c *TemplateSSHHostCert) Render(
-	ctx context.Context,
-	bot Bot,
-	_, unroutedIdentity *identity.Identity,
-	destination *DestinationConfig,
-) error {
+func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// We'll need a client for the impersonated identity to request the certs.
-	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
+	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, currentIdentity)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer authClient.Close()
 
-	clusterName, err := authClient.GetDomainName(ctx)
+	cn, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	clusterName := cn.GetClusterName()
 
 	// generate a keypair
 	key, err := client.GenerateRSAKey()
@@ -151,7 +146,7 @@ func (c *TemplateSSHHostCert) Render(
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
 	botCfg := bot.Config()
-	key.Cert, err = authClient.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
+	key.Cert, err = authClient.GenerateHostCert(key.MarshalSSHPublicKey(),
 		"", "", c.Principals,
 		clusterName, types.RoleNode, botCfg.CertificateTTL)
 	if err != nil {
@@ -180,7 +175,13 @@ func (c *TemplateSSHHostCert) Render(
 		return trace.Wrap(err)
 	}
 
-	exportedCAs, err := exportSSHUserCAs(userCAs, clusterName)
+	// get the local domain name, used to exclude trusted CAs
+	localAuthName, err := bot.Client().GetDomainName(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	exportedCAs, err := exportSSHUserCAs(userCAs, localAuthName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

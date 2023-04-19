@@ -19,9 +19,7 @@ import { ButtonPrimary, Flex } from 'design';
 
 import { unique } from 'teleterm/ui/utils/uid';
 
-import { Notifications } from '.';
-
-import type { NotificationItem } from '@gravitational/shared/components/Notification';
+import { NotificationItem, Notifications } from '.';
 
 export default {
   title: 'Teleterm/components/Notifications',
@@ -49,7 +47,7 @@ export const TitleAndDescriptionContent = () => {
         content: {
           title: 'Notification title',
           description:
-            "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
+            "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500.",
         },
       },
     ]);
@@ -81,7 +79,7 @@ export const StringContent = () => {
         id: unique(),
         severity,
         content:
-          "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s.",
+          "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500.",
       },
     ]);
   }

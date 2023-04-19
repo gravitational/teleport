@@ -144,11 +144,6 @@ function prependBinDirToPath(
   env: typeof process.env,
   settings: RuntimeSettings
 ): void {
-  // On Windows, if settings.binDir is already in Path, this function will simply put in the front,
-  // guaranteeing that any shell session started from within Connect will use the bundled tsh.
-  //
-  // Windows seems to construct Path by first taking the system Path env var and adding to it the
-  // user Path env var.
   const pathName = settings.platform === 'win32' ? 'Path' : 'PATH';
   env[pathName] = [settings.binDir, env[pathName]]
     .map(path => path?.trim())

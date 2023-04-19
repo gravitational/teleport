@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -39,11 +38,11 @@ func NewRestrictionsWatcher(cfg RestrictionsWatcherConfig) (*RestrictionsWatcher
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+	retry, err := utils.NewLinear(utils.LinearConfig{
 		First:  utils.HalfJitter(cfg.MaxRetryPeriod / 10),
 		Step:   cfg.MaxRetryPeriod / 5,
 		Max:    cfg.MaxRetryPeriod,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: utils.NewHalfJitter(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -70,7 +69,7 @@ type RestrictionsWatcher struct {
 	resetC chan struct{}
 
 	// retry is used to manage backoff logic for watches
-	retry retryutils.Retry
+	retry utils.Retry
 
 	wg       sync.WaitGroup
 	cancelFn context.CancelFunc

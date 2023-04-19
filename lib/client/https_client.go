@@ -28,6 +28,7 @@ import (
 	"golang.org/x/net/http/httpproxy"
 
 	"github.com/gravitational/teleport"
+	apiproxy "github.com/gravitational/teleport/api/client/proxy"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -40,7 +41,7 @@ func NewInsecureWebClient() *http.Client {
 
 func newClient(insecure bool, pool *x509.CertPool, extraHeaders map[string]string) *http.Client {
 	return &http.Client{
-		Transport: tracehttp.NewTransport(apiutils.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders)),
+		Transport: tracehttp.NewTransport(apiproxy.NewHTTPRoundTripper(httpTransport(insecure, pool), extraHeaders)),
 	}
 }
 
@@ -76,11 +77,11 @@ type WebClient struct {
 
 // PostJSONWithFallback serializes an object to JSON and attempts to execute a POST
 // using HTTPS, and then fall back to plain HTTP under certain, very specific circumstances.
-//   - The caller must specifically allow it via the allowHTTPFallback parameter, and
-//   - The target host must resolve to the loopback address.
-//
+//  * The caller must specifically allow it via the allowHTTPFallback parameter, and
+//  * The target host must resolve to the loopback address.
 // If these conditions are not met, then the plain-HTTP fallback is not allowed,
 // and a the HTTPS failure will be considered final.
+//
 func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, val interface{}, allowHTTPFallback bool) (*roundtrip.Response, error) {
 	// First try HTTPS and see how that goes
 	log.Debugf("Attempting %s", endpoint)
@@ -91,11 +92,6 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 		return httplib.ConvertResponse(resp, httpsErr)
 	}
 
-	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
-	if !allowHTTPFallback {
-		return nil, trace.Wrap(httpsErr)
-	}
-
 	// Parse out the endpoint into its constituent parts. We will need the
 	// hostname to decide if we're allowed to fall back to HTTPS, and we will
 	// re-use this for re-writing the endpoint URL later on anyway.
@@ -104,11 +100,10 @@ func (w *WebClient) PostJSONWithFallback(ctx context.Context, endpoint string, v
 		return nil, trace.Wrap(err)
 	}
 
-	// If we're allowed to try plain HTTP, but we're not on the loopback address,
-	// bail out with whatever error we have.
+	// If we're not allowed to try plain HTTP, bail out with whatever error we have.
 	// Note that we're only allowed to try plain HTTP on the loopback address, even
-	// if the caller says its OK.
-	if !apiutils.IsLoopback(u.Host) {
+	// if the caller says its OK
+	if !(allowHTTPFallback && apiutils.IsLoopback(u.Host)) {
 		return nil, trace.Wrap(httpsErr)
 	}
 

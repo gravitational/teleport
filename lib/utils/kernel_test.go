@@ -27,8 +27,6 @@ import (
 // TestKernelVersion checks that version strings for various distributions
 // can be parsed correctly.
 func TestKernelVersion(t *testing.T) {
-	t.Parallel()
-
 	var tests = []struct {
 		inRelease  string
 		inMin      string

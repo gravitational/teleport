@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -32,10 +33,8 @@ type SessionContext struct {
 	Identity *tlsca.Identity
 	// App is the requested identity.
 	App types.Application
-	// ChunkID is the session chunk's uuid.
-	ChunkID string
-	// Audit is used to emit audit events for the session.
-	Audit Audit
+	// Emitter is the audit log emitter.
+	Emitter events.Emitter
 }
 
 // WithSessionContext adds session context to provided request.
@@ -56,6 +55,8 @@ func GetSessionContext(r *http.Request) (*SessionContext, error) {
 	}
 	return sessionCtx, nil
 }
+
+type contextKey string
 
 const (
 	// contextSessionKey is the context key for the session context.

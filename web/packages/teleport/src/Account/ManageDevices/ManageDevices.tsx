@@ -58,12 +58,8 @@ export function ManageDevices({
 }: State) {
   return (
     <>
-      <FeatureBox style={{ width: '904px', padding: 0 }}>
-        <FeatureHeader
-          alignItems="center"
-          justifyContent="space-between"
-          border="none"
-        >
+      <FeatureBox style={{ width: '904px', padding: 0, overflow: 'hidden' }}>
+        <FeatureHeader alignItems="center" justifyContent="space-between">
           <FeatureHeaderTitle>Two-Factor Devices</FeatureHeaderTitle>
           <ButtonPrimary
             onClick={onAddDevice}
@@ -101,7 +97,6 @@ export function ManageDevices({
         <ReAuthenticate
           onAuthenticated={setToken}
           onClose={hideReAuthenticate}
-          actionText="registering a new device"
         />
       )}
       {isAddDeviceVisible && (

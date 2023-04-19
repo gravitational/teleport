@@ -48,7 +48,7 @@ func MakeOpReply(document bsoncore.Document) *MessageOpReply {
 	}
 }
 
-// MakeOpReplyWithFlags is a shorthand to create OP_REPLY message from a single document
+// MakeOpReply is a shorthand to create OP_REPLY message from a single document
 // with provided flags.
 func MakeOpReplyWithFlags(document bsoncore.Document, flags wiremessage.ReplyFlag) *MessageOpReply {
 	return &MessageOpReply{
@@ -122,7 +122,7 @@ func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) 
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_REPLY: missing number returned %v", payload)
 	}
-	documents, _, ok := ReadReplyDocuments(rem)
+	documents, _, ok := wiremessage.ReadReplyDocuments(rem)
 	if !ok {
 		return nil, trace.BadParameter("malformed OP_REPLY: missing documents %v", payload)
 	}
@@ -135,26 +135,6 @@ func readOpReply(header MessageHeader, payload []byte) (*MessageOpReply, error) 
 		Documents:      documents,
 		bytes:          append(header.bytes[:], payload...),
 	}, nil
-}
-
-// ReadReplyDocuments reads multiple documents from the source.
-//
-// This function works in the same way as wiremessage.ReadReplyDocuments except, it can handle document of size 0.
-// When a document of size 0 is passed to wiremessage.ReadReplyDocuments, it will keep creating empty documents until
-// it uses all system memory/application crash.
-func ReadReplyDocuments(src []byte) (docs []bsoncore.Document, rem []byte, ok bool) {
-	rem = src
-	for {
-		var doc bsoncore.Document
-		doc, rem, ok = bsoncore.ReadDocument(rem)
-		if !ok || len(doc) == 0 {
-			break
-		}
-
-		docs = append(docs, doc)
-	}
-
-	return docs, rem, true
 }
 
 // ToWire converts this message to wire protocol message bytes.

@@ -15,13 +15,13 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonPrimary, ButtonText, Text } from 'design';
+import { Text, ButtonPrimary, ButtonText, Box } from 'design';
 import { Danger } from 'design/Alert';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
-  requiredConfirmedPassword,
   requiredPassword,
+  requiredConfirmedPassword,
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
@@ -77,7 +77,7 @@ export function NewPassword(props: Props) {
       {({ validator }) => (
         <Box p={5} ref={refCallback} data-testid="password">
           {mfaEnabled && <Text color="text.secondary">Step 1 of 2</Text>}
-          <Text typography="h4" bold mb={3} color="text.primary">
+          <Text typography="h4" bold mb={3} color="light">
             Set A Password
           </Text>
           {submitAttempt.status === 'failed' && (

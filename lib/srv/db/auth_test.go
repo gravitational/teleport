@@ -55,10 +55,7 @@ func TestAuthTokens(t *testing.T) {
 		withCloudSQLMySQL("mysql-cloudsql-correct-token", "root", cloudSQLPassword),
 		withCloudSQLMySQL("mysql-cloudsql-incorrect-token", "root", "qwe123"),
 		withAzureMySQL("mysql-azure-correct-token", "root", azureAccessToken),
-		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"),
-		withAzureRedis("redis-azure-correct-token", azureRedisToken),
-		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
-	)
+		withAzureMySQL("mysql-azure-incorrect-token", "root", "qwe123"))
 	go testCtx.startHandlingConnections()
 
 	testCtx.createUserAndRole(ctx, t, "alice", "admin", []string{types.Wildcard}, []string{types.Wildcard})
@@ -79,7 +76,7 @@ func TestAuthTokens(t *testing.T) {
 			service:  "postgres-rds-incorrect-token",
 			protocol: defaults.ProtocolPostgres,
 			// Make sure we print example RDS IAM policy.
-			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
+			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
 		},
 		{
 			desc:     "correct Postgres Redshift IAM auth token",
@@ -113,7 +110,7 @@ func TestAuthTokens(t *testing.T) {
 			service:  "mysql-rds-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
 			// Make sure we print example RDS IAM policy.
-			err: "arn:aws:rds-db:us-east-1:{account_id}:dbuser:{resource_id}",
+			err: "arn:aws:rds-db:us-east-1:<account_id>:dbuser:<resource_id>",
 		},
 		{
 			desc:     "correct MySQL Cloud SQL IAM auth token",
@@ -125,17 +122,6 @@ func TestAuthTokens(t *testing.T) {
 			service:  "mysql-cloudsql-incorrect-token",
 			protocol: defaults.ProtocolMySQL,
 			err:      "Access denied for user",
-		},
-		{
-			desc:     "correct Azure Redis auth token",
-			service:  "redis-azure-correct-token",
-			protocol: defaults.ProtocolRedis,
-		},
-		{
-			desc:     "incorrect Azure Redis auth token",
-			service:  "redis-azure-incorrect-token",
-			protocol: defaults.ProtocolRedis,
-			err:      "WRONGPASS invalid username-password pair",
 		},
 	}
 
@@ -153,15 +139,6 @@ func TestAuthTokens(t *testing.T) {
 				}
 			case defaults.ProtocolMySQL:
 				conn, err := testCtx.mysqlClient("alice", test.service, "root")
-				if test.err != "" {
-					require.Error(t, err)
-					require.Contains(t, err.Error(), test.err)
-				} else {
-					require.NoError(t, err)
-					require.NoError(t, conn.Close())
-				}
-			case defaults.ProtocolRedis:
-				conn, err := testCtx.redisClient(ctx, "alice", test.service, "default")
 				if test.err != "" {
 					require.Error(t, err)
 					require.Contains(t, err.Error(), test.err)
@@ -209,24 +186,18 @@ const (
 	cloudSQLPassword = "cloudsql-password"
 	// azureAccessToken is a mock Azure access token.
 	azureAccessToken = "azure-access-token"
-	// azureRedisToken is a mock Azure Redis token.
-	azureRedisToken = "azure-redis-token"
 )
 
 // GetRDSAuthToken generates RDS/Aurora auth token.
-func (a *testAuth) GetRDSAuthToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
+func (a *testAuth) GetRDSAuthToken(sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating RDS auth token for %v.", sessionCtx)
 	return rdsAuthToken, nil
 }
 
 // GetRedshiftAuthToken generates Redshift auth token.
-func (a *testAuth) GetRedshiftAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
+func (a *testAuth) GetRedshiftAuthToken(sessionCtx *common.Session) (string, string, error) {
 	a.Infof("Generating Redshift auth token for %v.", sessionCtx)
 	return redshiftAuthUser, redshiftAuthToken, nil
-}
-
-func (a *testAuth) GetRedshiftServerlessAuthToken(ctx context.Context, sessionCtx *common.Session) (string, string, error) {
-	return "", "", trace.NotImplemented("GetRedshiftServerlessAuthToken is not implemented")
 }
 
 // GetCloudSQLAuthToken generates Cloud SQL auth token.
@@ -245,12 +216,6 @@ func (a *testAuth) GetCloudSQLPassword(ctx context.Context, sessionCtx *common.S
 func (a *testAuth) GetAzureAccessToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
 	a.Infof("Generating Azure access token for %v.", sessionCtx)
 	return azureAccessToken, nil
-}
-
-// GetAzureCacheForRedisToken retrieves auth token for Azure Cache for Redis.
-func (a *testAuth) GetAzureCacheForRedisToken(ctx context.Context, sessionCtx *common.Session) (string, error) {
-	a.Infof("Generating Azure Redis token for %v.", sessionCtx)
-	return azureRedisToken, nil
 }
 
 func TestDBCertSigning(t *testing.T) {
@@ -295,7 +260,7 @@ func TestDBCertSigning(t *testing.T) {
 	}{
 		{
 			name:      "sign from DB service",
-			requester: proto.DatabaseCertRequest_UNSPECIFIED, // default behavior
+			requester: proto.DatabaseCertRequest_UNSPECIFIED, // default behaviour
 			getCertFn: func(dbCAs []types.CertAuthority) []byte {
 				return dbCAs[0].GetActiveKeys().TLS[0].Cert
 			},

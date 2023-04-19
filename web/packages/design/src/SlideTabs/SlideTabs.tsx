@@ -32,19 +32,17 @@ function SlideTabs({
 
   return (
     <Wrapper>
-      <TabNav role="tablist" appearance={appearance} size={size}>
+      <TabNav appearance={appearance} size={size}>
         {tabs.map((tabData, tabIndex) => {
           const tabDataType = typeof tabData === 'string';
           const tabName = tabDataType ? tabData : tabData.name;
           const tabContent = tabDataType ? tabData : tabData.component;
           return (
             <TabLabel
-              role="tab"
               htmlFor={`${name}-${tabName}`}
               onClick={() => setActiveIndex(tabIndex)}
               itemCount={tabs.length}
               key={`${tabName}-${tabIndex}`}
-              className={tabIndex === activeIndex && 'selected'}
             >
               {tabContent}
               <TabInput type="radio" name={name} id={`${name}-${tabName}`} />
@@ -101,7 +99,7 @@ const TabInput = styled.input`
 `;
 
 const TabSlider = styled.div`
-  background-color: ${({ theme }) => theme.colors.brand};
+  background-color: #512fc9;
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   box-shadow: 0px 2px 6px rgba(12, 12, 14, 0.1);
   height: ${props => (props.size === 'xlarge' ? '56px' : '40px')};
@@ -116,16 +114,11 @@ const TabSlider = styled.div`
 
 const TabNav = styled.nav`
   align-items: center;
-  background-color: ${props => props.theme.colors.spotBackground[0]};
+  background-color: rgba(255, 255, 255, 0.05);
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   display: flex;
   height: ${props => (props.size === 'xlarge' ? '80px' : '47px')};
   justify-content: space-around;
-  color: ${props => props.theme.colors.text.primary};
-  .selected {
-    color: ${props => props.theme.colors.text.primaryInverse};
-    transition: color 0.2s ease-in 0s;
-  }
 `;
 
 export default SlideTabs;

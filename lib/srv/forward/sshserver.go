@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
@@ -43,9 +42,10 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
@@ -60,19 +60,19 @@ import (
 //
 // To create a forwarding server and serve a single SSH connection on it:
 //
-//	serverConfig := forward.ServerConfig{
-//	   ...
-//	}
-//	remoteServer, err := forward.New(serverConfig)
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
-//	go remoteServer.Serve()
+//   serverConfig := forward.ServerConfig{
+//      ...
+//   }
+//   remoteServer, err := forward.New(serverConfig)
+//   if err != nil {
+//   	return nil, trace.Wrap(err)
+//   }
+//   go remoteServer.Serve()
 //
-//	conn, err := remoteServer.Dial()
-//	if err != nil {
-//		return nil, trace.Wrap(err)
-//	}
+//   conn, err := remoteServer.Dial()
+//   if err != nil {
+//   	return nil, trace.Wrap(err)
+//   }
 type Server struct {
 	log *logrus.Entry
 
@@ -107,10 +107,6 @@ type Server struct {
 	// userAgent is the SSH user agent that was forwarded to the proxy.
 	userAgent teleagent.Agent
 
-	// agentlessSigner is used for client authentication when no SSH
-	// user agent is provided, ie when connecting to agentless nodes.
-	agentlessSigner ssh.Signer
-
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
 	hostCertificate ssh.Signer
@@ -144,6 +140,7 @@ type Server struct {
 	authClient      auth.ClientI
 	authService     srv.AccessPoint
 	sessionRegistry *srv.SessionRegistry
+	sessionServer   session.Service
 	dataDir         string
 
 	clock clockwork.Clock
@@ -168,11 +165,6 @@ type Server struct {
 	tracerProvider oteltrace.TracerProvider
 
 	targetID, targetAddr, targetHostname string
-
-	// targetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
-	targetServer types.Server
 }
 
 // ServerConfig is the configuration needed to create an instance of a Server.
@@ -183,10 +175,6 @@ type ServerConfig struct {
 	SrcAddr         net.Addr
 	DstAddr         net.Addr
 	HostCertificate ssh.Signer
-
-	// AgentlessSigner is used for client authentication when no SSH
-	// user agent is provided, ie when connecting to agentless nodes.
-	AgentlessSigner ssh.Signer
 
 	// UseTunnel indicates of this server is connected over a reverse tunnel.
 	UseTunnel bool
@@ -235,11 +223,6 @@ type ServerConfig struct {
 	TracerProvider oteltrace.TracerProvider
 
 	TargetID, TargetAddr, TargetHostname string
-
-	// TargetServer is the host that the connection is being established for.
-	// It **MUST** only be populated when the target is a teleport ssh server
-	// or an agentless server.
-	TargetServer types.Server
 }
 
 // CheckDefaults makes sure all required parameters are passed in.
@@ -250,8 +233,8 @@ func (s *ServerConfig) CheckDefaults() error {
 	if s.DataDir == "" {
 		return trace.BadParameter("missing parameter DataDir")
 	}
-	if s.UserAgent == nil && s.AgentlessSigner == nil {
-		return trace.BadParameter("user agent or agentless signer required to connect to remote host")
+	if s.UserAgent == nil {
+		return trace.BadParameter("user agent required to connect to remote host")
 	}
 	if s.TargetConn == nil {
 		return trace.BadParameter("connection to target connection required")
@@ -312,12 +295,12 @@ func New(c ServerConfig) (*Server, error) {
 		serverConn:      utils.NewTrackingConn(serverConn),
 		clientConn:      clientConn,
 		userAgent:       c.UserAgent,
-		agentlessSigner: c.AgentlessSigner,
 		hostCertificate: c.HostCertificate,
 		useTunnel:       c.UseTunnel,
 		address:         c.Address,
 		authClient:      c.AuthClient,
 		authService:     c.AuthClient,
+		sessionServer:   c.AuthClient,
 		dataDir:         c.DataDir,
 		clock:           c.Clock,
 		hostUUID:        c.HostUUID,
@@ -328,7 +311,6 @@ func New(c ServerConfig) (*Server, error) {
 		targetID:        c.TargetID,
 		targetAddr:      c.TargetAddr,
 		targetHostname:  c.TargetHostname,
-		targetServer:    c.TargetServer,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -347,13 +329,12 @@ func New(c ServerConfig) (*Server, error) {
 
 	// Common auth handlers.
 	authHandlerConfig := srv.AuthHandlerConfig{
-		Server:       s,
-		Component:    teleport.ComponentForwardingNode,
-		Emitter:      c.Emitter,
-		AccessPoint:  c.AuthClient,
-		TargetServer: c.TargetServer,
-		FIPS:         c.FIPS,
-		Clock:        c.Clock,
+		Server:      s,
+		Component:   teleport.ComponentForwardingNode,
+		Emitter:     c.Emitter,
+		AccessPoint: c.AuthClient,
+		FIPS:        c.FIPS,
+		Clock:       c.Clock,
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
@@ -375,18 +356,12 @@ func New(c ServerConfig) (*Server, error) {
 
 // TargetMetadata returns metadata about the forwarding target.
 func (s *Server) TargetMetadata() apievents.ServerMetadata {
-	var subKind string
-	if s.targetServer != nil {
-		subKind = s.targetServer.GetSubKind()
-	}
-
 	return apievents.ServerMetadata{
 		ServerNamespace: s.GetNamespace(),
 		ServerID:        s.targetID,
 		ServerAddr:      s.targetAddr,
 		ServerHostname:  s.targetHostname,
 		ForwardedBy:     s.hostUUID,
-		ServerSubKind:   subKind,
 	}
 }
 
@@ -439,9 +414,14 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 	return s.authService
 }
 
+// GetSessionServer returns a session server.
+func (s *Server) GetSessionServer() session.Service {
+	return s.sessionServer
+}
+
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() (*servicecfg.PAMConfig, error) {
+func (s *Server) GetPAM() (*pam.Config, error) {
 	return nil, trace.BadParameter("PAM not supported by forwarding server")
 }
 
@@ -515,10 +495,7 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 }
 
 func (s *Server) Serve() {
-	var (
-		succeeded bool
-		config    = &ssh.ServerConfig{}
-	)
+	config := &ssh.ServerConfig{}
 
 	// Configure callback for user certificate authentication.
 	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
@@ -542,22 +519,13 @@ func (s *Server) Serve() {
 	s.log.Debugf("Supported KEX algorithms: %q.", s.kexAlgorithms)
 	s.log.Debugf("Supported MAC algorithms: %q.", s.macAlgorithms)
 
-	// close
-	defer func() {
-		if succeeded {
-			return
-		}
-
-		if s.userAgent != nil {
-			s.userAgent.Close()
-		}
+	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
+	if err != nil {
+		s.userAgent.Close()
 		s.targetConn.Close()
 		s.clientConn.Close()
 		s.serverConn.Close()
-	}()
 
-	sconn, chans, reqs, err := ssh.NewServerConn(s.serverConn, config)
-	if err != nil {
 		s.log.Errorf("Unable to create server connection: %v.", err)
 		return
 	}
@@ -569,6 +537,11 @@ func (s *Server) Serve() {
 	// Take connection and extract identity information for the user from it.
 	s.identityContext, err = s.authHandlers.CreateIdentityContext(sconn)
 	if err != nil {
+		s.userAgent.Close()
+		s.targetConn.Close()
+		s.clientConn.Close()
+		s.serverConn.Close()
+
 		s.log.Errorf("Unable to create server connection: %v.", err)
 		return
 	}
@@ -582,11 +555,14 @@ func (s *Server) Serve() {
 		s.rejectChannel(chans, err.Error())
 		sconn.Close()
 
+		s.userAgent.Close()
+		s.targetConn.Close()
+		s.clientConn.Close()
+		s.serverConn.Close()
+
 		s.log.Errorf("Unable to create remote connection: %v", err)
 		return
 	}
-
-	succeeded = true
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
@@ -639,19 +615,17 @@ func (s *Server) Close() error {
 // newRemoteClient creates and returns a *ssh.Client and *ssh.Session
 // with a remote host.
 func (s *Server) newRemoteClient(ctx context.Context, systemLogin string) (*tracessh.Client, error) {
-	// the proxy will use the agentless signer as the auth method when
-	// connecting to the remote host if it is available, otherwise the
-	// forwarded agent is used
-	var signers []ssh.Signer
-	if s.agentlessSigner != nil {
-		signers = []ssh.Signer{s.agentlessSigner}
-	} else {
-		var err error
-		signers, err = s.userAgent.Signers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	// the proxy will use the agent that has been forwarded to it as the auth
+	// method when connecting to the remote host
+	if s.userAgent == nil {
+		return nil, trace.AccessDenied("agent must be forwarded to proxy")
 	}
+
+	signers, err := s.userAgent.Signers()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
 	clientConfig := &ssh.ClientConfig{
@@ -865,8 +839,8 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ch ssh.Channel, r
 	}
 	scx.RemoteClient = s.remoteClient
 	scx.ChannelType = teleport.ChanDirectTCPIP
-	scx.SrcAddr = net.JoinHostPort(req.Orig, strconv.Itoa(int(req.OrigPort)))
-	scx.DstAddr = net.JoinHostPort(req.Host, strconv.Itoa(int(req.Port)))
+	scx.SrcAddr = fmt.Sprintf("%v:%d", req.Orig, req.OrigPort)
+	scx.DstAddr = fmt.Sprintf("%v:%d", req.Host, req.Port)
 	defer scx.Close()
 
 	ch = scx.TrackActivity(ch)
@@ -1153,17 +1127,7 @@ func (s *Server) handleAgentForward(ch ssh.Channel, req *ssh.Request, ctx *srv.S
 	}
 
 	// Route authentication requests to the agent that was forwarded to the proxy.
-	// If no agent was forwarded to the proxy, create one now.
-	userAgent := s.userAgent
-	if userAgent == nil {
-		ctx.ConnectionContext.SetForwardAgent(true)
-		userAgent, err = ctx.StartAgentChannel()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	err = agent.ForwardToAgent(ctx.RemoteClient.Client, userAgent)
+	err = agent.ForwardToAgent(ctx.RemoteClient.Client, s.userAgent)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -12,19 +12,27 @@ controls that Teleport provides for human users.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+<ScopedBlock scope={["cloud"]}>
+You will need Teleport Cloud 10.1.0 or later.
+</ScopedBlock>
+<ScopedBlock scope={["oss","enterprise"]}>
+You will need a running Teleport cluster version 10.1.0 or later.
+</ScopedBlock>
 
-- If you have not already connected your application to Teleport, follow
-  the [Application Access Getting Started Guide](../../application-access/getting-started.mdx).
-- If you're not already familiar with Machine ID, follow the
-  [Getting Started Guide](../getting-started.mdx) to familiarize yourself with
-  Machine ID. You'll also need `tctl` access to initially configure the bot.
-- (!docs/pages/includes/tctl.mdx!)
-- Ensure the `tbot` binary is installed on your Machine ID client system.
-  The client system is any system from which you want to access your Teleport
-  cluster and the resources it protects from an automated service. Refer to our
-  [Installation guide](../../installation.mdx) for instructions on installing
-  Teleport, which includes the necessary `tbot` binary.
+If you have not already connected your application to Teleport, follow
+the [Application Access Getting Started Guide](../../application-access/getting-started.mdx).
+
+If you're not already familiar with Machine ID, follow the
+[Getting Started Guide](../getting-started.mdx) to familiarize yourself with
+Machine ID. You'll also need `tctl` access to initially configure the bot.
+
+(!docs/pages/includes/tctl.mdx!)
+
+Lastly, ensure the `tbot` binary is installed on your Machine ID client system.
+The client system is any system from which you want to access your Teleport
+cluster and the resources it protects from an automated service. Refer to our
+[Installation guide](../../installation.mdx) for instructions on installing
+Teleport, which includes the necessary `tbot` binary.
 
 ## Step 1/3. Create a Machine ID bot and assign permissions
 
@@ -136,7 +144,6 @@ Type=simple
 User=teleport
 Group=teleport
 Restart=on-failure
-Environment="TELEPORT_ANONYMOUS_TELEMETRY=1"
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID
 PIDFile=/run/machine-id.pid
@@ -145,10 +152,6 @@ LimitNOFILE=524288
 [Install]
 WantedBy=multi-user.target
 ```
-
-`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
-telemetry. This helps us shape the future development of `tbot`. You can disable
-this by omitting this.
 
 Finally, run the following commands to start Machine ID:
 
@@ -286,5 +289,3 @@ has been configured to use both the client certificate and key.
   your bot may access.
 - Configure [JWTs](../../application-access/jwt/introduction.mdx) for your
   Application to remove the need for additional login credentials.
-
-[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

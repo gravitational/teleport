@@ -20,13 +20,13 @@ import { useAsync } from 'shared/hooks/useAsync';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
-import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useWorkspaceDocumentsService } from 'teleterm/ui/Documents';
 import { routing } from 'teleterm/ui/uri';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 
 export default function useGateway(doc: types.DocumentGateway) {
   const ctx = useAppContext();
-  const { documentsService: workspaceDocumentsService } = useWorkspaceContext();
+  const workspaceDocumentsService = useWorkspaceDocumentsService();
   // The port to show as default in the input field in case creating a gateway fails.
   // This is typically the case if someone reopens the app and the port of the gateway is already
   // occupied.
@@ -43,7 +43,7 @@ export default function useGateway(doc: types.DocumentGateway) {
   const cluster = ctx.clustersService.findClusterByResource(doc.targetUri);
 
   const [connectAttempt, createGateway] = useAsync(async (port: string) => {
-    const gw = await retryWithRelogin(ctx, doc.targetUri, () =>
+    const gw = await retryWithRelogin(ctx, doc.uri, doc.targetUri, () =>
       ctx.clustersService.createGateway({
         targetUri: doc.targetUri,
         port: port,
@@ -62,7 +62,6 @@ export default function useGateway(doc: types.DocumentGateway) {
       // same port number.
       port: gw.localPort,
     });
-    ctx.usageService.captureProtocolUse(doc.targetUri, 'db', doc.origin);
   });
 
   const [disconnectAttempt, disconnect] = useAsync(async () => {

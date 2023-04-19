@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -44,19 +45,15 @@ const (
 	// mockClusterName is the cluster name for the mock auth client, used in
 	// tests
 	mockClusterName = "tele.blackmesa.gov"
-	// mockRemoteClusterName is the remote cluster name used for the mock auth
-	// client
-	mockRemoteClusterName = "tele.aperture.labs"
 )
 
 // mockAuth is a minimal fake auth client, used in tests
 type mockAuth struct {
 	auth.ClientI
 
-	clusterName       string
-	remoteClusterName string
-	proxyAddr         string
-	t                 *testing.T
+	clusterName string
+	proxyAddr   string
+	t           *testing.T
 }
 
 func (m *mockAuth) GetDomainName(ctx context.Context) (string, error) {
@@ -72,12 +69,6 @@ func (m *mockAuth) GetClusterName(opts ...services.MarshalOption) (types.Cluster
 	return cn, nil
 }
 
-func (m *mockAuth) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	rc, err := types.NewRemoteCluster(m.remoteClusterName)
-	require.NoError(m.t, err)
-	return []types.RemoteCluster{rc}, nil
-}
-
 func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
 	require.NotNil(m.t, ctx)
 	return proto.PingResponse{
@@ -85,19 +76,15 @@ func (m *mockAuth) Ping(ctx context.Context) (proto.PingResponse, error) {
 	}, nil
 }
 
-func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
-	require.Contains(
-		m.t,
-		[]string{m.clusterName, m.remoteClusterName},
-		id.DomainName,
-	)
+	require.Equal(m.t, m.clusterName, id.DomainName)
 	require.False(m.t, loadKeys)
 
 	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		// Pretend to be the correct type.
 		Type:        id.Type,
-		ClusterName: id.DomainName,
+		ClusterName: m.clusterName,
 		ActiveKeys: types.CAKeySet{
 			TLS: []*types.TLSKeyPair{
 				{
@@ -122,7 +109,7 @@ func (m *mockAuth) GetCertAuthority(ctx context.Context, id types.CertAuthID, lo
 	return ca, nil
 }
 
-func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
 	require.NotNil(m.t, ctx)
 	require.False(m.t, loadKeys)
 
@@ -131,7 +118,7 @@ func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuth
 		// Just pretend to be whichever type of CA was requested.
 		Type:       caType,
 		DomainName: m.clusterName,
-	}, loadKeys)
+	}, loadKeys, opts...)
 	require.NoError(m.t, err)
 
 	return []types.CertAuthority{ca}, nil
@@ -139,15 +126,10 @@ func (m *mockAuth) GetCertAuthorities(ctx context.Context, caType types.CertAuth
 
 func newMockAuth(t *testing.T) *mockAuth {
 	return &mockAuth{
-		t:                 t,
-		clusterName:       mockClusterName,
-		proxyAddr:         mockProxyAddr,
-		remoteClusterName: mockRemoteClusterName,
+		t:           t,
+		clusterName: mockClusterName,
+		proxyAddr:   mockProxyAddr,
 	}
-}
-
-func (m *mockAuth) Close() error {
-	return nil
 }
 
 // mockBot is a minimal Bot impl that can be used in tests
@@ -173,8 +155,12 @@ func (b *mockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthT
 	return b.auth.GetCertAuthorities(ctx, caType, false)
 }
 
+func (b *mockBot) Client() auth.ClientI {
+	return b.auth
+}
+
 func (b *mockBot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
-	return b.auth, nil
+	return nil, trace.NotImplemented("not implemented")
 }
 
 func (b *mockBot) Config() *BotConfig {

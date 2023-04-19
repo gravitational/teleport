@@ -41,6 +41,6 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version-file: .github/shared-workflows/bot/go.mod
-        # Run "check" subcommand on bot.
+        # Run "backport" workflow on bot.
       - name: Backport PR
         run: ( cd .github/shared-workflows/bot && go build ) && .github/shared-workflows/bot/bot -workflow=backport -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"

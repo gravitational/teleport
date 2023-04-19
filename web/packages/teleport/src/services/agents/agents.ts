@@ -38,8 +38,6 @@ export const agentService = {
           kubernetes_user: req.kubeImpersonation?.user,
           kubernetes_groups: req.kubeImpersonation?.groups,
         },
-        database_name: req.dbTester?.name,
-        database_user: req.dbTester?.user,
         mfa_response: req.mfaAuthnResponse,
       })
       .then(makeConnectionDiagnostic);

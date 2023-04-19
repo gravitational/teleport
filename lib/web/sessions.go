@@ -29,20 +29,15 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
-	"golang.org/x/net/http2"
 	"golang.org/x/sync/singleflight"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
-	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -51,7 +46,6 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -70,11 +64,6 @@ type SessionContext struct {
 	// remoteClientGroup prevents duplicate requests to create remote clients
 	// for a given site
 	remoteClientGroup singleflight.Group
-
-	// mu guards kubeGRPCServiceConn.
-	mu sync.Mutex
-	// kubeGRPCServiceConn is a connection to the kubernetes service.
-	kubeGRPCServiceConn *grpc.ClientConn
 }
 
 type SessionContextConfig struct {
@@ -292,50 +281,8 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 // clusterDialer returns DialContext function using cluster's dial function
 func clusterDialer(remoteCluster reversetunnel.RemoteSite) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		dialParams := reversetunnel.DialParams{}
-		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
-		dialParams.From = clientSrcAddr
-		dialParams.OriginalClientDstAddr = clientDstAddr
-
-		return remoteCluster.DialAuthServer(dialParams)
+		return remoteCluster.DialAuthServer()
 	})
-}
-
-// NewKubernetesServiceClient returns a new KubernetesServiceClient.
-func (c *SessionContext) NewKubernetesServiceClient(ctx context.Context, addr string) (kubeproto.KubeServiceClient, error) {
-	c.mu.Lock()
-	conn := c.kubeGRPCServiceConn
-	c.mu.Unlock()
-	if conn != nil {
-		return kubeproto.NewKubeServiceClient(conn), nil
-	}
-
-	tlsConfig, err := c.ClientTLSConfig(ctx, c.cfg.RootClusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// Set the ALPN protocols to use when dialing the proxy gRPC mTLS endpoint.
-	tlsConfig.NextProtos = []string{string(alpncommon.ProtocolProxyGRPCSecure), http2.NextProtoTLS}
-	conn, err = grpc.DialContext(
-		ctx,
-		addr,
-		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
-		grpc.WithChainUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor(),
-			metadata.UnaryClientInterceptor,
-		),
-		grpc.WithChainStreamInterceptor(
-			otelgrpc.StreamClientInterceptor(),
-			metadata.StreamClientInterceptor,
-		),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	c.mu.Lock()
-	c.kubeGRPCServiceConn = conn
-	c.mu.Unlock()
-	return kubeproto.NewKubeServiceClient(conn), nil
 }
 
 // ClientTLSConfig returns client TLS authentication associated
@@ -417,7 +364,7 @@ func (c *SessionContext) extendWebSession(ctx context.Context, req renewSessionR
 
 // GetAgent returns agent that can be used to answer challenges
 // for the web to ssh connection as well as certificate
-func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, error) {
+func (c *SessionContext) GetAgent() (agent.Agent, *ssh.Certificate, error) {
 	cert, err := c.GetSSHCertificate()
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -430,10 +377,7 @@ func (c *SessionContext) GetAgent() (agent.ExtendedAgent, *ssh.Certificate, erro
 		return nil, nil, trace.Wrap(err, "failed to parse SSH private key")
 	}
 
-	keyring, ok := agent.NewKeyring().(agent.ExtendedAgent)
-	if !ok {
-		return nil, nil, trace.Errorf("unexpected keyring type: %T, expected agent.ExtendedKeyring", keyring)
-	}
+	keyring := agent.NewKeyring()
 	err = keyring.Add(agent.AddedKey{
 		PrivateKey:  privateKey,
 		Certificate: cert,
@@ -522,13 +466,7 @@ func (c *SessionContext) GetSessionID() string {
 // Close cleans up resources associated with this context and removes it
 // from the user context
 func (c *SessionContext) Close() error {
-	var err error
-	c.mu.Lock()
-	if c.kubeGRPCServiceConn != nil {
-		err = c.kubeGRPCServiceConn.Close()
-	}
-	c.mu.Unlock()
-	return trace.NewAggregate(c.remoteClientCache.Close(), c.cfg.RootClient.Close(), err)
+	return trace.NewAggregate(c.remoteClientCache.Close(), c.cfg.RootClient.Close())
 }
 
 // getToken returns the bearer token associated with the underlying
@@ -757,13 +695,54 @@ func (s *sessionCache) AuthenticateWebUser(
 	return s.proxyClient.AuthenticateWebUser(ctx, authReq)
 }
 
+// GetCertificateWithoutOTP returns a new user certificate for the specified request.
+func (s *sessionCache) GetCertificateWithoutOTP(
+	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
+	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
+		AuthenticateUserRequest: auth.AuthenticateUserRequest{
+			Username: c.User,
+			Pass: &auth.PassCreds{
+				Password: []byte(c.Password),
+			},
+			ClientMetadata: clientMeta,
+		},
+		PublicKey:         c.PubKey,
+		CompatibilityMode: c.Compatibility,
+		TTL:               c.TTL,
+		RouteToCluster:    c.RouteToCluster,
+		KubernetesCluster: c.KubernetesCluster,
+	})
+}
+
+// GetCertificateWithOTP returns a new user certificate for the specified request.
+// The request is used with the given OTP token.
+func (s *sessionCache) GetCertificateWithOTP(
+	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
+) (*auth.SSHLoginResponse, error) {
+	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
+		AuthenticateUserRequest: auth.AuthenticateUserRequest{
+			Username: c.User,
+			OTP: &auth.OTPCreds{
+				Password: []byte(c.Password),
+				Token:    c.OTPToken,
+			},
+			ClientMetadata: clientMeta,
+		},
+		PublicKey:         c.PubKey,
+		CompatibilityMode: c.Compatibility,
+		TTL:               c.TTL,
+		RouteToCluster:    c.RouteToCluster,
+		KubernetesCluster: c.KubernetesCluster,
+	})
+}
+
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
-		PublicKey:      c.PubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
@@ -779,11 +758,11 @@ func (s *sessionCache) AuthenticateSSHUser(
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
+		PublicKey:               c.PubKey,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,
 		KubernetesCluster:       c.KubernetesCluster,
-		AttestationStatement:    c.AttestationStatement,
 	})
 }
 

@@ -61,9 +61,8 @@ func TestTemplateKubernetesRender(t *testing.T) {
 	}
 
 	ident := getTestIdent(t, "bot-test", kubernetesRequest(k8sCluster))
-	unroutedIdent := getTestIdent(t, "bot-test")
 
-	err = template.Render(context.Background(), mockBot, ident, unroutedIdent, dest)
+	err = template.Render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
 	kubeconfigBytes, err := os.ReadFile(filepath.Join(dir, template.Path))

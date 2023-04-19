@@ -26,22 +26,42 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
+	"gopkg.in/check.v1"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
 
-func TestHelperFunctions(t *testing.T) {
-	require.Equal(t, nodeName("one"), "one")
-	require.Equal(t, nodeName("one:22"), "one")
+type ClientTestSuite struct {
+	client *TeleportClient
 }
 
-func TestNewSession(t *testing.T) {
+var _ = check.Suite(&ClientTestSuite{})
+
+func (s *ClientTestSuite) TestHelperFunctions(c *check.C) {
+	c.Assert(nodeName("one"), check.Equals, "one")
+	c.Assert(nodeName("one:22"), check.Equals, "one")
+}
+
+func (s *ClientTestSuite) SetUpSuite(c *check.C) {
+	// create the client:
+	config := &Config{
+		KeysDir: c.MkDir(),
+		Tracer:  tracing.NoopProvider().Tracer("test"),
+	}
+	err := config.ParseProxyHost("localhost")
+	c.Assert(err, check.IsNil)
+	client, err := NewClient(config)
+	c.Assert(err, check.IsNil)
+	c.Assert(client, check.NotNil)
+	s.client = client
+}
+
+func (s *ClientTestSuite) TestNewSession(c *check.C) {
 	nc := &NodeClient{
 		Namespace: "blue",
 		Tracer:    tracing.NoopProvider().Tracer("test"),
@@ -50,35 +70,35 @@ func TestNewSession(t *testing.T) {
 	ctx := context.Background()
 	// defaults:
 	ses, err := newSession(ctx, nc, nil, nil, nil, nil, nil, true)
-	require.NoError(t, err)
-	require.NotNil(t, ses)
-	require.Equal(t, ses.NodeClient(), nc)
-	require.Equal(t, ses.namespace, nc.Namespace)
-	require.NotNil(t, ses.env)
-	require.Equal(t, ses.terminal.Stderr(), os.Stderr)
-	require.Equal(t, ses.terminal.Stdout(), os.Stdout)
-	require.Equal(t, ses.terminal.Stdin(), os.Stdin)
+	c.Assert(err, check.IsNil)
+	c.Assert(ses, check.NotNil)
+	c.Assert(ses.NodeClient(), check.Equals, nc)
+	c.Assert(ses.namespace, check.Equals, nc.Namespace)
+	c.Assert(ses.env, check.NotNil)
+	c.Assert(ses.terminal.Stderr(), check.Equals, os.Stderr)
+	c.Assert(ses.terminal.Stdout(), check.Equals, os.Stdout)
+	c.Assert(ses.terminal.Stdin(), check.Equals, os.Stdin)
 
 	// pass environ map
 	env := map[string]string{
 		sshutils.SessionEnvVar: "session-id",
 	}
 	ses, err = newSession(ctx, nc, nil, env, nil, nil, nil, true)
-	require.NoError(t, err)
-	require.NotNil(t, ses)
-	require.Empty(t, cmp.Diff(ses.env, env))
+	c.Assert(err, check.IsNil)
+	c.Assert(ses, check.NotNil)
+	c.Assert(ses.env, check.DeepEquals, env)
 	// the session ID must be taken from tne environ map, if passed:
-	require.Equal(t, string(ses.id), "session-id")
+	c.Assert(string(ses.id), check.Equals, "session-id")
 }
 
 // TestProxyConnection verifies that client or server-side disconnect
 // propagates all the way to the opposite side.
-func TestProxyConnection(t *testing.T) {
+func (s *ClientTestSuite) TestProxyConnection(c *check.C) {
 	// remoteSrv mocks a remote listener, accepting port-forwarded connections
 	// over SSH.
 	remoteConCh := make(chan net.Conn)
 	remoteErrCh := make(chan error, 3)
-	remoteSrv := newTestListener(t, func(con net.Conn) {
+	remoteSrv := newTestListener(c, func(con net.Conn) {
 		defer con.Close()
 
 		remoteConCh <- con
@@ -95,7 +115,7 @@ func TestProxyConnection(t *testing.T) {
 	// localSrv mocks a local tsh listener, accepting local connections for
 	// port-forwarding to remote SSH node.
 	proxyErrCh := make(chan error, 3)
-	localSrv := newTestListener(t, func(con net.Conn) {
+	localSrv := newTestListener(c, func(con net.Conn) {
 		defer con.Close()
 
 		proxyErrCh <- proxyConnection(context.Background(), con, remoteSrv.Addr().String(), new(net.Dialer))
@@ -105,7 +125,7 @@ func TestProxyConnection(t *testing.T) {
 	// Dial localSrv. This should trigger proxyConnection and a dial to
 	// remoteSrv.
 	localCon, err := net.Dial("tcp", localSrv.Addr().String())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	clientErrCh := make(chan error, 3)
 	go func(con net.Conn) {
 		_, err := io.Copy(io.Discard, con)
@@ -120,27 +140,27 @@ func TestProxyConnection(t *testing.T) {
 
 	// Simulate a client-side disconnect. All other parties (tsh proxy and
 	// remove listener) should disconnect as well.
-	t.Log("simulate client-side disconnect")
+	c.Log("simulate client-side disconnect")
 	err = localCon.Close()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	for i := 0; i < 3; i++ {
 		select {
 		case err := <-proxyErrCh:
-			require.NoError(t, err)
+			c.Assert(err, check.IsNil)
 		case err := <-remoteErrCh:
-			require.NoError(t, err)
+			c.Assert(err, check.IsNil)
 		case err := <-clientErrCh:
-			require.NoError(t, err)
+			c.Assert(err, check.IsNil)
 		case <-time.After(5 * time.Second):
-			t.Fatal("proxyConnection, client and server didn't disconnect within 5s after client connection was closed")
+			c.Fatal("proxyConnection, client and server didn't disconnect within 5s after client connection was closed")
 		}
 	}
 
 	// Dial localSrv again. This should trigger proxyConnection and a dial to
 	// remoteSrv.
 	localCon, err = net.Dial("tcp", localSrv.Addr().String())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	go func(con net.Conn) {
 		_, err := io.Copy(io.Discard, con)
 		if err != nil && strings.Contains(err.Error(), "use of closed network connection") {
@@ -151,21 +171,21 @@ func TestProxyConnection(t *testing.T) {
 
 	// Simulate a server-side disconnect. All other parties (tsh proxy and
 	// local client) should disconnect as well.
-	t.Log("simulate server-side disconnect")
+	c.Log("simulate server-side disconnect")
 	remoteCon := <-remoteConCh
 	err = remoteCon.Close()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	for i := 0; i < 3; i++ {
 		select {
 		case err := <-proxyErrCh:
-			require.NoError(t, err)
+			c.Assert(err, check.IsNil)
 		case err := <-remoteErrCh:
-			require.NoError(t, err)
+			c.Assert(err, check.IsNil)
 		case err := <-clientErrCh:
-			require.NoError(t, err)
+			c.Assert(err, check.IsNil)
 		case <-time.After(5 * time.Second):
-			t.Fatal("proxyConnection, client and server didn't disconnect within 5s after remote connection was closed")
+			c.Fatal("proxyConnection, client and server didn't disconnect within 5s after remote connection was closed")
 		}
 	}
 }
@@ -246,16 +266,15 @@ func TestListenAndForwardCancel(t *testing.T) {
 	}
 
 }
-
-func newTestListener(t *testing.T, handle func(net.Conn)) net.Listener {
+func newTestListener(c *check.C, handle func(net.Conn)) net.Listener {
 	l, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 
 	go func() {
 		for {
 			con, err := l.Accept()
 			if err != nil {
-				t.Logf("listener error: %v", err)
+				c.Logf("listener error: %v", err)
 				return
 			}
 			go handle(con)

@@ -18,7 +18,6 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
 import { agentService } from './agents';
-import { makeLabelMapOfStrArrs } from './make';
 
 import type { ConnectionDiagnosticRequest } from './types';
 
@@ -36,8 +35,6 @@ test('createConnectionDiagnostic request', () => {
       kubernetes_user: undefined,
       kubernetes_groups: undefined,
     },
-    database_name: undefined,
-    database_user: undefined,
   });
 
   // Test all fields gets set as requested.
@@ -50,10 +47,6 @@ test('createConnectionDiagnostic request', () => {
       user: 'kubernetes_user',
       groups: ['group1', 'group2'],
     },
-    dbTester: {
-      name: 'db_name',
-      user: 'db_user',
-    },
   };
   agentService.createConnectionDiagnostic(mock);
   expect(api.post).toHaveBeenCalledWith(cfg.getConnectionDiagnosticUrl(), {
@@ -65,21 +58,5 @@ test('createConnectionDiagnostic request', () => {
       kubernetes_user: 'kubernetes_user',
       kubernetes_groups: ['group1', 'group2'],
     },
-    database_name: 'db_name',
-    database_user: 'db_user',
   });
-});
-
-test('correct makeLabelMapOfStrArrs', () => {
-  // Test empty param.
-  let result = makeLabelMapOfStrArrs();
-  expect(result).toStrictEqual({});
-
-  // Test with param.
-  result = makeLabelMapOfStrArrs([
-    { name: 'os', value: 'mac' },
-    { name: 'os', value: 'linux' },
-    { name: 'env', value: 'prod' },
-  ]);
-  expect(result).toStrictEqual({ os: ['mac', 'linux'], env: ['prod'] });
 });

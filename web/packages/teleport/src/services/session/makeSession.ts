@@ -16,15 +16,7 @@ limitations under the License.
 
 import { formatDistanceStrict } from 'date-fns';
 
-import { Session, SessionKind, Participant } from './types';
-
-const nameField: { [kind in SessionKind]: string } = {
-  ssh: 'server_hostname',
-  k8s: 'kubernetes_cluster_name',
-  db: 'database_name',
-  app: 'app_name',
-  desktop: 'desktop_name',
-};
+import { Session, Participant } from './types';
 
 export default function makeSession(json): Session {
   const {
@@ -34,11 +26,11 @@ export default function makeSession(json): Session {
     login,
     created,
     server_id,
+    server_hostname,
     cluster_name,
+    kubernetes_cluster_name,
     server_addr,
     parties,
-    participantModes,
-    moderated,
   } = json;
 
   const createdDate = created ? new Date(created) : null;
@@ -54,12 +46,10 @@ export default function makeSession(json): Session {
     created: createdDate,
     durationText,
     serverId: server_id,
-    resourceName: json[nameField[kind]],
+    resourceName: kind === 'k8s' ? kubernetes_cluster_name : server_hostname,
     clusterId: cluster_name,
     parties: parties ? parties.map(p => makeParticipant(p)) : [],
     addr: server_addr ? server_addr.replace(PORT_REGEX, '') : '',
-    participantModes: participantModes ?? [],
-    moderated,
   };
 }
 

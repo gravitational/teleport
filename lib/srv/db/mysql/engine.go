@@ -31,7 +31,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
@@ -41,8 +40,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewEngine create new MySQL engine.
-func NewEngine(ec common.EngineConfig) common.Engine {
+func init() {
+	common.RegisterEngine(newEngine, defaults.ProtocolMySQL)
+}
+
+func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
@@ -147,20 +149,22 @@ func (e *Engine) updateServerVersion(sessionCtx *common.Session, serverConn *cli
 
 // checkAccess does authorization check for MySQL connection about to be established.
 func (e *Engine) checkAccess(ctx context.Context, sessionCtx *common.Session) error {
-	authPref, err := e.Auth.GetAuthPreference(ctx)
+	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	state := sessionCtx.GetAccessState(authPref)
+	mfaParams := services.AccessMFAParams{
+		Verified:       sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		sessionCtx.Database,
+		defaults.ProtocolMySQL,
 		sessionCtx.DatabaseUser,
 		sessionCtx.DatabaseName,
 	)
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
-		state,
+		mfaParams,
 		dbRoleMatchers...,
 	)
 	if err != nil {
@@ -184,8 +188,8 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 	var dialer client.Dialer
 	var password string
 	switch {
-	case sessionCtx.Database.IsRDS(), sessionCtx.Database.IsRDSProxy():
-		password, err = e.Auth.GetRDSAuthToken(ctx, sessionCtx)
+	case sessionCtx.Database.IsRDS():
+		password, err = e.Auth.GetRDSAuthToken(sessionCtx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -240,7 +244,9 @@ func (e *Engine) connect(ctx context.Context, sessionCtx *common.Session) (*clie
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		user = services.MakeAzureDatabaseLoginUsername(sessionCtx.Database, user)
+		// Azure requires database login to be <user>@<server-name> e.g.
+		// alice@mysql-server-name.
+		user = fmt.Sprintf("%v@%v", user, sessionCtx.Database.GetAzure().Name)
 	}
 
 	// Use default net dialer unless it is already initialized.
@@ -411,7 +417,7 @@ func (e *Engine) makeAcquireSemaphoreConfig(sessionCtx *common.Session) services
 		},
 		// If multiple connections are being established simultaneously to the
 		// same database as the same user, retry for a few seconds.
-		Retry: retryutils.LinearConfig{
+		Retry: utils.LinearConfig{
 			Step:  time.Second,
 			Max:   time.Second,
 			Clock: e.Clock,

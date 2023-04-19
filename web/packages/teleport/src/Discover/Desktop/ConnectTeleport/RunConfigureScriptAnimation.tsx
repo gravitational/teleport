@@ -27,7 +27,7 @@ import cfg from 'teleport/config';
 import { ResourceKind } from 'teleport/Discover/Shared';
 
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
+import { useJoinToken } from 'teleport/Discover/Shared/JoinTokenContext';
 import { JoinToken } from 'teleport/services/joinToken';
 
 const lines = (joinToken: JoinToken) => [
@@ -42,10 +42,9 @@ const lines = (joinToken: JoinToken) => [
   },
   {
     text: `
-version: v3
 teleport:
   auth_token: ${joinToken.id}
-  proxy_server: ${window.location.hostname}:${window.location.port || '443'}
+  auth_servers: [ ${window.location.hostname}:${window.location.port || '443'} ]
 
 auth_service:
   enabled: no
@@ -85,7 +84,7 @@ windows_desktop_service:
 
 const selectedLines = {
   start: 4,
-  end: 29,
+  end: 28,
 };
 
 const highlights: KeywordHighlight[] = [
@@ -108,7 +107,7 @@ interface RunConfigureScriptAnimationProps {
 export function RunConfigureScriptAnimation(
   props: RunConfigureScriptAnimationProps
 ) {
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const { joinToken } = useJoinToken(ResourceKind.Desktop);
 
   return (
     <AnimatedTerminal

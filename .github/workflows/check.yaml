@@ -32,7 +32,7 @@ permissions:
 jobs:
   check-reviews:
     name: Checking reviewers
-    if: ${{ !github.event.pull_request.draft && !startsWith(github.head_ref, 'dependabot/') }}
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
       - name: Generate GitHub Token
@@ -52,6 +52,6 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version-file: .github/shared-workflows/bot/go.mod
-        # Run "check" subcommand on bot.
+        # Run "check" workflow on bot.
       - name: Checking reviewers
         run: cd .github/shared-workflows/bot && go run main.go -workflow=check -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"

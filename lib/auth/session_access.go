@@ -162,7 +162,7 @@ func (e *SessionAccessEvaluator) matchesJoin(allow *types.SessionJoinPolicy) boo
 
 	for _, allowRole := range allow.Roles {
 		// GlobToRegexp makes sure this is always a valid regexp.
-		expr := regexp.MustCompile("^" + utils.GlobToRegexp(allowRole) + "$")
+		expr := regexp.MustCompile(utils.GlobToRegexp(allowRole))
 
 		for _, policySet := range e.policySets {
 			if expr.MatchString(policySet.Name) {
@@ -182,15 +182,13 @@ func (e *SessionAccessEvaluator) matchesKind(allow []string) bool {
 	return false
 }
 
-// RoleSupportsModeratedSessions checks if the role version is higher or equal to
-// V5 - V5 is the version where ModeratedSession support was introduced.
-func RoleSupportsModeratedSessions(roles []types.Role) bool {
+func HasV5Role(roles []types.Role) bool {
 	for _, role := range roles {
-		switch role.GetVersion() {
-		case types.V5, types.V6:
+		if role.GetVersion() == types.V5 {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -198,7 +196,7 @@ func RoleSupportsModeratedSessions(roles []types.Role) bool {
 // If the list is empty, the user doesn't have access to join the session at all.
 func (e *SessionAccessEvaluator) CanJoin(user SessionAccessContext) []types.SessionParticipantMode {
 	// If we don't support session access controls, return the default mode set that was supported prior to Moderated Sessions.
-	if !RoleSupportsModeratedSessions(user.Roles) {
+	if !HasV5Role(user.Roles) {
 		return preAccessControlsModes(e.kind)
 	}
 

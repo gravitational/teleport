@@ -36,9 +36,9 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Config structure represents Firestore configuration as appears in `storage` section of Teleport YAML
@@ -200,6 +200,8 @@ const (
 	idDocProperty = "id"
 	// timeInBetweenIndexCreationStatusChecks
 	timeInBetweenIndexCreationStatusChecks = time.Second * 10
+	// commitLimit is the maximum number of writes per commit
+	commitLimit = 500
 )
 
 // GetName is a part of backend API and it returns Firestore backend type
@@ -301,7 +303,7 @@ func New(ctx context.Context, params backend.Params, options Options) (*Backend,
 	}
 
 	// kicking off async tasks
-	linearConfig := retryutils.LinearConfig{
+	linearConfig := utils.LinearConfig{
 		Step: b.RetryPeriod / 10,
 		Max:  b.RetryPeriod,
 	}
@@ -575,8 +577,8 @@ func (b *Backend) keyToDocumentID(key []byte) string {
 }
 
 // RetryingAsyncFunctionRunner wraps a task target in retry logic
-func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig retryutils.LinearConfig, logger *log.Logger, task func() error, taskName string) {
-	retry, err := retryutils.NewLinear(retryConfig)
+func RetryingAsyncFunctionRunner(ctx context.Context, retryConfig utils.LinearConfig, logger *log.Logger, task func() error, taskName string) {
+	retry, err := utils.NewLinear(retryConfig)
 	if err != nil {
 		logger.WithError(err).Error("Bad retry parameters, returning and not running.")
 		return
@@ -707,35 +709,21 @@ func (b *Backend) purgeExpiredDocuments() error {
 // deleteDocuments removes documents from firestore in batches to stay within the
 // firestore write limits
 func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
-	seen := make(map[string]struct{}, len(docs))
-	batch := b.svc.BulkWriter(b.clientContext)
-	jobs := make([]*firestore.BulkWriterJob, 0, len(docs))
+	for i := 0; i < len(docs); i += commitLimit {
+		//allow using deprecated api
+		//nolint:staticcheck
+		batch := b.svc.Batch()
 
-	for _, doc := range docs {
-		// Deduplicate documents. The Firestore SDK will error if duplicates are found,
-		// but existing callers of this function assume this is valid.
-		if _, ok := seen[doc.Ref.Path]; ok {
-			continue
+		for j := 0; j < commitLimit && i+j < len(docs); j++ {
+			batch.Delete(docs[i+j].Ref)
 		}
-		seen[doc.Ref.Path] = struct{}{}
 
-		job, err := batch.Delete(doc.Ref)
-		if err != nil {
+		if _, err := batch.Commit(b.clientContext); err != nil {
 			return ConvertGRPCError(err)
 		}
-
-		jobs = append(jobs, job)
 	}
 
-	batch.End()
-	var errs []error
-	for _, job := range jobs {
-		if _, err := job.Results(); err != nil {
-			errs = append(errs, ConvertGRPCError(err))
-		}
-	}
-
-	return trace.NewAggregate(errs...)
+	return nil
 }
 
 // ConvertGRPCError converts GRPC errors

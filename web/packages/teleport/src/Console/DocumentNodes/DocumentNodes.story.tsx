@@ -36,6 +36,15 @@ export const Document = ({ value }: { value: ConsoleCtx }) => {
   );
 };
 
+export const PaginationUnsupported = ({ value }: { value: ConsoleCtx }) => {
+  const ctx = value || createContext({ paginationUnsupported: true });
+  return (
+    <TestLayout ctx={ctx}>
+      <DocumentNodes doc={doc} visible={true} />
+    </TestLayout>
+  );
+};
+
 export const Loading = () => {
   const ctx = createContext();
   ctx.fetchNodes = () => new Promise(() => null);
@@ -56,14 +65,21 @@ export const Failed = () => {
   );
 };
 
-export function createContext() {
+export function createContext(opts?: { paginationUnsupported: boolean }) {
   const ctx = new ConsoleCtx();
 
   ctx.fetchClusters = () => {
     return Promise.resolve<any>(clusters);
   };
-  ctx.nodesService.fetchNodes = () => {
-    return Promise.resolve({ agents: nodes, totalCount: nodes.length });
+  ctx.fetchNodes = () => {
+    if (opts?.paginationUnsupported) {
+      return Promise.resolve({
+        nodesRes: { agents: nodes, paginationUnsupported: true },
+      });
+    }
+    return Promise.resolve({
+      nodesRes: { agents: nodes, totalCount: nodes.length },
+    });
   };
 
   return ctx;

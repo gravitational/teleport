@@ -25,7 +25,7 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
-	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
+	adminpb "cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -37,12 +37,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	firestorebk "github.com/gravitational/teleport/lib/backend/firestore"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/observability/metrics"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -265,7 +264,7 @@ type event struct {
 // New returns new instance of Firestore backend.
 // It's an implementation of backend API's NewFunc
 func New(cfg EventsConfig) (*Log, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -296,7 +295,7 @@ func New(cfg EventsConfig) (*Log, error) {
 		}
 	}
 	if !b.DisableExpiredDocumentPurge {
-		go firestorebk.RetryingAsyncFunctionRunner(b.svcContext, retryutils.LinearConfig{
+		go firestorebk.RetryingAsyncFunctionRunner(b.svcContext, utils.LinearConfig{
 			Step: b.RetryPeriod / 10,
 			Max:  b.RetryPeriod,
 		}, b.Logger, b.purgeExpiredEvents, "purgeExpiredEvents")
@@ -337,6 +336,49 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 		return firestorebk.ConvertGRPCError(err)
 	}
 	return nil
+}
+
+// GetSessionChunk returns a reader which can be used to read a byte stream
+// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
+// beginning) up to maxBytes bytes.
+//
+// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
+func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
+	return nil, trace.NotImplemented("GetSessionChunk not implemented for firestore backend")
+}
+
+// Returns all events that happen during a session sorted by time
+// (oldest first).
+//
+// after tells to use only return events after a specified cursor Id
+//
+// This function is usually used in conjunction with GetSessionReader to
+// replay recorded session streams.
+func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
+	var values []events.EventFields
+	start := time.Now()
+	docSnaps, err := l.svc.Collection(l.CollectionName).Where(sessionIDDocProperty, "==", string(sid)).
+		Documents(l.svcContext).GetAll()
+	batchReadLatencies.Observe(time.Since(start).Seconds())
+	batchReadRequests.Inc()
+	if err != nil {
+		return nil, firestorebk.ConvertGRPCError(err)
+	}
+	for _, docSnap := range docSnaps {
+		var e event
+		err := docSnap.DataTo(&e)
+		if err != nil {
+			return nil, firestorebk.ConvertGRPCError(err)
+		}
+		var fields events.EventFields
+		data := []byte(e.Fields)
+		if err := json.Unmarshal(data, &fields); err != nil {
+			return nil, trace.Errorf("failed to unmarshal event for session %q: %v", string(sid), err)
+		}
+		values = append(values, fields)
+	}
+	sort.Sort(events.ByTimeAndIndex(values))
+	return values, nil
 }
 
 // SearchEvents is a flexible way to find events.
@@ -548,33 +590,33 @@ func (l *Log) purgeExpiredEvents() error {
 			if err != nil {
 				return firestorebk.ConvertGRPCError(err)
 			}
-			batch := l.svc.BulkWriter(l.svcContext)
-			jobs := make([]*firestore.BulkWriterJob, 0, len(docSnaps))
+			numDeleted := 0
+
+			//allow using deprecated api
+			//nolint:staticcheck
+			batch := l.svc.Batch()
 			for _, docSnap := range docSnaps {
-				job, err := batch.Delete(docSnap.Ref)
+				batch.Delete(docSnap.Ref)
+				numDeleted++
+			}
+			if numDeleted > 0 {
+				start = time.Now()
+				_, err := batch.Commit(l.svcContext)
+				batchWriteLatencies.Observe(time.Since(start).Seconds())
+				batchWriteRequests.Inc()
 				if err != nil {
 					return firestorebk.ConvertGRPCError(err)
 				}
-
-				jobs = append(jobs, job)
 			}
-
-			if len(jobs) == 0 {
-				continue
-			}
-
-			start = time.Now()
-			var errs []error
-			batch.End()
-			for _, job := range jobs {
-				if _, err := job.Results(); err != nil {
-					errs = append(errs, firestorebk.ConvertGRPCError(err))
-				}
-			}
-
-			batchWriteLatencies.Observe(time.Since(start).Seconds())
-			batchWriteRequests.Inc()
-			return trace.NewAggregate(errs...)
 		}
 	}
+}
+
+// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
+// The event channel is not closed on error to prevent race conditions in downstream select statements.
+func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
+	e <- trace.NotImplemented("not implemented")
+	return c, e
 }

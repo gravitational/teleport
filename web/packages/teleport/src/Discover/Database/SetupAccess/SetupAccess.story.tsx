@@ -19,8 +19,6 @@ import { MemoryRouter } from 'react-router';
 
 import { initSelectedOptionsHelper } from 'teleport/Discover/Shared/SetupAccess';
 
-import { DatabaseEngine, DatabaseLocation } from '../../SelectResource';
-
 import { SetupAccess } from './SetupAccess';
 
 import type { State } from 'teleport/Discover/Shared/SetupAccess';
@@ -35,39 +33,9 @@ export const NoTraits = () => (
   </MemoryRouter>
 );
 
-export const WithTraitsAwsPostgres = () => (
-  <MemoryRouter>
-    <SetupAccess
-      {...props}
-      resourceSpec={getDbMeta(DatabaseEngine.Postgres, DatabaseLocation.Aws)}
-    />
-  </MemoryRouter>
-);
-
-export const WithTraitsAwsMySql = () => (
-  <MemoryRouter>
-    <SetupAccess
-      {...props}
-      resourceSpec={getDbMeta(DatabaseEngine.MySql, DatabaseLocation.Aws)}
-    />
-  </MemoryRouter>
-);
-
-export const WithTraitsPostgres = () => (
+export const WithTraits = () => (
   <MemoryRouter>
     <SetupAccess {...props} />
-  </MemoryRouter>
-);
-
-export const WithTraitsMongo = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MongoDb)} />
-  </MemoryRouter>
-);
-
-export const WithTraitsMySql = () => (
-  <MemoryRouter>
-    <SetupAccess {...props} resourceSpec={getDbMeta(DatabaseEngine.MySql)} />
   </MemoryRouter>
 );
 
@@ -98,7 +66,6 @@ const props: State = {
     initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits }),
   dynamicTraits: {} as any,
   staticTraits: {} as any,
-  resourceSpec: getDbMeta(DatabaseEngine.Postgres, DatabaseLocation.SelfHosted),
 };
 
 const staticTraits = {
@@ -120,13 +87,3 @@ const dynamicTraits = {
   windowsLogins: [],
   awsRoleArns: [],
 };
-
-function getDbMeta(dbEngine: DatabaseEngine, dbLocation?: DatabaseLocation) {
-  return {
-    // Only these fields are relevant.
-    dbMeta: {
-      dbEngine,
-      dbLocation,
-    },
-  } as any;
-}

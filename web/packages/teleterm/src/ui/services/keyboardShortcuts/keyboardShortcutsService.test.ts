@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-import { createMockConfigService } from 'teleterm/services/config/fixtures/mocks';
+import { ConfigService } from 'teleterm/services/config';
 
 import { KeyboardShortcutsService } from './keyboardShortcutsService';
 
 test('call subscriber on event', () => {
   const { subscriber } = getTestSetup();
   dispatchEventCommand1();
-  expect(subscriber).toHaveBeenCalledWith({ action: 'tab1' });
+  expect(subscriber).toHaveBeenCalledWith({ type: 'tab-1' });
 });
 
 test('do not call subscriber on unknown event', () => {
@@ -39,31 +39,15 @@ test('do not call subscriber after it has been unsubscribed', () => {
   expect(subscriber).not.toHaveBeenCalled();
 });
 
-test('duplicate accelerators are returned', () => {
-  const service = new KeyboardShortcutsService(
-    'darwin',
-    createMockConfigService({
-      'keymap.tab1': 'Command+1',
-      'keymap.tab2': 'Command+1',
-      'keymap.tab3': 'Command+2',
-    })
-  );
-
-  expect(service.getDuplicateAccelerators()).toStrictEqual({
-    'Command+1': ['tab1', 'tab2'],
-  });
-});
-
 function getTestSetup() {
-  const service = new KeyboardShortcutsService(
-    'darwin',
-    createMockConfigService({ 'keymap.tab1': 'Command+1' })
-  );
+  const service = new KeyboardShortcutsService('darwin', {
+    get: () => ({ keyboardShortcuts: { 'tab-1': 'Command-1' } }),
+  } as unknown as ConfigService);
   const subscriber = jest.fn();
   service.subscribeToEvents(subscriber);
   return { service, subscriber };
 }
 
 function dispatchEventCommand1() {
-  dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, code: '1' }));
+  dispatchEvent(new KeyboardEvent('keydown', { metaKey: true, key: '1' }));
 }

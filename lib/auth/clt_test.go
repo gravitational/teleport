@@ -32,6 +32,7 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -76,8 +77,7 @@ func TestClient_DialTimeout(t *testing.T) {
 			errChan := make(chan error, 1)
 			go func() {
 				// try to create a session - this will timeout after the DialTimeout threshold is exceeded
-				_, err := clt.CreateSessionTracker(context.Background(), &types.SessionTrackerV1{})
-				errChan <- err
+				errChan <- clt.CreateSession(context.Background(), session.Session{Namespace: "test"})
 			}()
 
 			select {

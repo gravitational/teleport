@@ -1,6 +1,6 @@
 ---
 author: Naji Obeid (naji@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 27 - mTLS Prometheus metrics
@@ -62,7 +62,7 @@ Teleport will still support shipping metrics over the `diag-addr` endpoint for t
 
 To use the new metrics service, prometheus will have to be reconfigured to start listening at the new address defined in the config alongside using certs for mtls if needed.
 
-Here are the steps to a simple migration scenario:
+Here are the steps to a simple migration senario:
 - Add a new job to the prometheus config that aims to start listening on the new `metrics_service` endpoint. mTLS is optional. Example:
 ```
 - job_name: 'teleport_new_metrics_service'

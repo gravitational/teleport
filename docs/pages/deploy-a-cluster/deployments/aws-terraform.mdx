@@ -767,7 +767,8 @@ $ aws elbv2 describe-load-balancers --names "${TF_VAR_cluster_name}-auth" --quer
 With this method, the Nodes should be configured like so:
 
 ```yaml
-auth_server: example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3025
+auth_servers:
+  - example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3025
 ```
 
 ### Joining Nodes via Teleport IoT/Node tunneling
@@ -779,7 +780,8 @@ With this method, you can join the nodes using the public facing proxy address -
 example.
 
 ```yaml
-proxy_server: teleport.example.com:443
+auth_servers:
+  - teleport.example.com:443
 ```
 
 ### Trusted Clusters

@@ -15,39 +15,31 @@ limitations under the License.
 */
 
 import { generatePath } from 'react-router';
-import { mergeDeep } from 'shared/utils/highbar';
+import { merge } from 'lodash';
+
+import {
+  AuthProvider,
+  Auth2faType,
+  AuthType,
+  PrimaryAuthType,
+  PreferredMfaType,
+} from 'shared/services';
+
+import { SortType } from 'teleport/services/agents';
+import { RecordingType } from 'teleport/services/recordings';
 
 import generateResourcePath from './generateResourcePath';
 
-import type {
-  Auth2faType,
-  AuthProvider,
-  AuthType,
-  PreferredMfaType,
-  PrimaryAuthType,
-  PrivateKeyPolicy,
-} from 'shared/services';
-
-import type { SortType } from 'teleport/services/agents';
-import type { RecordingType } from 'teleport/services/recordings';
-import type { WebauthnAssertionResponse } from './services/auth';
-
-import type { ParticipantMode } from 'teleport/services/session';
-
 const cfg = {
+  // TODO(isaiah): remove after feature is finished.
+  enableDirectorySharing: false, // note to reviewers: should be false in any PRs.
   isEnterprise: false,
   isCloud: false,
-  isDashboard: false,
   tunnelPublicAddress: '',
-  recoveryCodesEnabled: false,
 
   configDir: '$HOME/.config',
 
   baseUrl: window.location.origin,
-
-  ui: {
-    scrollbackLines: 1000,
-  },
 
   auth: {
     localAuthEnabled: true,
@@ -61,7 +53,6 @@ const cfg = {
     second_factor: 'off' as Auth2faType,
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
-    privateKeyPolicy: 'none' as PrivateKeyPolicy,
   },
 
   proxyCluster: 'localhost',
@@ -99,8 +90,6 @@ const cfg = {
     consoleConnect: '/web/cluster/:clusterId/console/node/:serverId/:login',
     consoleSession: '/web/cluster/:clusterId/console/session/:sid',
     player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
-    locks: '/web/cluster/:clusterId/locks',
-    newLock: '/web/cluster/:clusterId/locks/new',
     login: '/web/login',
     loginSuccess: '/web/msg/info/login_success',
     loginErrorLegacy: '/web/msg/error/login_failed',
@@ -112,10 +101,6 @@ const cfg = {
     userReset: '/web/reset/:tokenId',
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
-    headlessSso: `/web/headless/:requestId`,
-    integrations: '/web/integrations',
-    integrationEnroll: '/web/integrations/new/:type?',
-
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -145,12 +130,7 @@ const cfg = {
     changeUserPasswordPath: '/v1/webapi/users/password',
     nodesPath:
       '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
-
-    databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
-    databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
-    databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
     databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-
     desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
     desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
@@ -161,7 +141,7 @@ const cfg = {
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
     siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
+      'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params',
     terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -175,7 +155,6 @@ const cfg = {
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
 
     joinTokenPath: '/v1/webapi/token',
-    dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
@@ -183,8 +162,6 @@ const cfg = {
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
-
-    headlessSsoPath: `/v1/webapi/headless/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -198,26 +175,10 @@ const cfg = {
     mfaDevicesPath: '/v1/webapi/mfa/devices',
     mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
-
-    dbSign: 'v1/webapi/sites/:clusterId/sign/db',
-
     installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
     installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
     configureADPath:
       '/v1/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
-
-    captureUserEventPath: '/v1/webapi/capture',
-    capturePreUserEventPath: '/v1/webapi/precapture',
-
-    webapiPingPath: '/v1/webapi/ping',
-
-    headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
-
-    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
-    integrationExecutePath:
-      '/v1/webapi/sites/:clusterId/integrations/:name/action/:action',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -263,10 +224,6 @@ const cfg = {
     return cfg.auth.localAuthEnabled;
   },
 
-  getPrivateKeyPolicy() {
-    return cfg.auth.privateKeyPolicy;
-  },
-
   isPasswordlessEnabled() {
     return cfg.auth.allowPasswordless;
   },
@@ -293,10 +250,6 @@ const cfg = {
     return generatePath(cfg.routes.audit, { clusterId });
   },
 
-  getIntegrationEnrollRoute(type?: string) {
-    return generatePath(cfg.routes.integrationEnroll, { type });
-  },
-
   getNodesRoute(clusterId: string) {
     return generatePath(cfg.routes.nodes, { clusterId });
   },
@@ -315,10 +268,6 @@ const cfg = {
 
   getNodeScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.nodeScriptPath, { token });
-  },
-
-  getDbScriptUrl(token: string) {
-    return cfg.baseUrl + generatePath(cfg.api.dbScriptPath, { token });
   },
 
   getConfigureADUrl(token: string) {
@@ -379,15 +328,8 @@ const cfg = {
     });
   },
 
-  getSshSessionRoute({ clusterId, sid }: UrlParams, mode?: ParticipantMode) {
-    const basePath = generatePath(cfg.routes.consoleSession, {
-      clusterId,
-      sid,
-    });
-    if (mode) {
-      return `${basePath}?mode=${mode}`;
-    }
-    return basePath;
+  getSshSessionRoute({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.routes.consoleSession, { clusterId, sid });
   },
 
   getPasswordTokenUrl(tokenId?: string) {
@@ -448,10 +390,6 @@ const cfg = {
     return generatePath(cfg.routes.userResetContinue, { tokenId });
   },
 
-  getHeadlessSsoPath(requestId: string) {
-    return generatePath(cfg.api.headlessSsoPath, { requestId });
-  },
-
   getUserInviteTokenRoute(tokenId = '') {
     return generatePath(cfg.routes.userInvite, { tokenId });
   },
@@ -483,51 +421,11 @@ const cfg = {
     });
   },
 
-  getDatabaseServicesUrl(clusterId: string) {
-    return generatePath(cfg.api.databaseServicesPath, {
-      clusterId,
-    });
-  },
-
-  getDatabaseIamPolicyUrl(clusterId: string, dbName: string) {
-    return generatePath(cfg.api.databaseIamPolicyPath, {
-      clusterId,
-      database: dbName,
-    });
-  },
-
-  getDatabaseUrl(clusterId: string, dbName: string) {
-    return generatePath(cfg.api.databasePath, {
-      clusterId,
-      database: dbName,
-    });
-  },
-
-  getDatabasesUrl(clusterId: string, params?: UrlResourcesParams) {
+  getDatabasesUrl(clusterId: string, params: UrlResourcesParams) {
     return generateResourcePath(cfg.api.databasesPath, {
       clusterId,
       ...params,
     });
-  },
-
-  getLocksRoute(clusterId: string) {
-    return generatePath(cfg.routes.locks, { clusterId });
-  },
-
-  getNewLocksRoute(clusterId: string) {
-    return generatePath(cfg.routes.newLock, { clusterId });
-  },
-
-  getLocksUrl(clusterId: string) {
-    return generatePath(cfg.api.locksPath, { clusterId });
-  },
-
-  getLocksUrlWithUuid(clusterId: string, uuid: string) {
-    return generatePath(cfg.api.locksPathWithUuid, { clusterId, uuid });
-  },
-
-  getDatabaseSignUrl(clusterId: string) {
-    return generatePath(cfg.api.dbSign, { clusterId });
   },
 
   getDesktopsUrl(clusterId: string, params: UrlResourcesParams) {
@@ -559,19 +457,10 @@ const cfg = {
     });
   },
 
-  getScpUrl({ webauthn, ...params }: UrlScpParams) {
-    let path = generatePath(cfg.api.scp, {
+  getScpUrl(params: UrlScpParams) {
+    return generatePath(cfg.api.scp, {
       ...params,
     });
-    if (!webauthn) {
-      return path;
-    }
-    // non-required MFA will mean this param is undefined and generatePath doesn't like undefined
-    // or optional params. So we append it ourselves here. Its ok to be undefined when sent to the server
-    // as the existence of this param is what will issue certs
-    return `${path}&webauthn=${JSON.stringify({
-      webauthnAssertionResponse: webauthn,
-    })}`;
   },
 
   getRenewTokenUrl() {
@@ -617,30 +506,8 @@ const cfg = {
     });
   },
 
-  getIntegrationsUrl(integrationName?: string) {
-    // Currently you can only create integrations at the root cluster.
-    const clusterId = cfg.proxyCluster;
-    return generatePath(cfg.api.integrationsPath, {
-      clusterId,
-      name: integrationName,
-    });
-  },
-
-  getIntegrationExecuteUrl(params: UrlIntegrationExecuteRequestParams) {
-    const clusterId = cfg.proxyCluster;
-
-    return generatePath(cfg.api.integrationExecutePath, {
-      clusterId,
-      ...params,
-    });
-  },
-
-  getUIConfig() {
-    return cfg.ui;
-  },
-
   init(backendConfig = {}) {
-    mergeDeep(this, backendConfig);
+    merge(this, backendConfig);
   },
 };
 
@@ -664,14 +531,12 @@ export interface UrlScpParams {
   login: string;
   location: string;
   filename: string;
-  webauthn?: WebauthnAssertionResponse;
 }
 
 export interface UrlSshParams {
   login?: string;
   serverId?: string;
   sid?: string;
-  mode?: ParticipantMode;
   clusterId: string;
 }
 
@@ -721,14 +586,6 @@ export interface UrlResourcesParams {
   limit?: number;
   startKey?: string;
   searchAsRoles?: 'yes' | '';
-}
-
-export interface UrlIntegrationExecuteRequestParams {
-  // name is the name of integration to execute (use).
-  name: string;
-  // action is the expected backend string value
-  // used to describe what to use the integration for.
-  action: 'list_databases';
 }
 
 export default cfg;

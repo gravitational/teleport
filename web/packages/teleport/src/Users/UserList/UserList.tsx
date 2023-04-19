@@ -15,7 +15,8 @@
  */
 
 import React from 'react';
-import Table, { Cell, LabelCell } from 'design/DataTable';
+import { Label } from 'design';
+import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 
 import { User } from 'teleport/services/user';
@@ -53,7 +54,7 @@ export default function UserList({
 
             return 0;
           },
-          render: ({ roles }) => <LabelCell data={roles} />,
+          render: ({ roles }) => <RolesCell roles={roles} />,
         },
         {
           key: 'authType',
@@ -122,6 +123,16 @@ const ActionCell = ({
       </MenuButton>
     </Cell>
   );
+};
+
+const RolesCell = ({ roles }: Pick<User, 'roles'>) => {
+  const $roles = roles.map(role => (
+    <Label mb="1" mr="1" key={role} kind="secondary">
+      {role}
+    </Label>
+  ));
+
+  return <Cell>{$roles}</Cell>;
 };
 
 type Props = {

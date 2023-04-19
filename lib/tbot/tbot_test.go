@@ -18,7 +18,6 @@ package tbot
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -28,20 +27,12 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/utils"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
-
-func TestMain(m *testing.M) {
-	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
-	os.Exit(m.Run())
-}
 
 func rotate( //nolint:unused // used in skipped test
 	ctx context.Context, t *testing.T, log logrus.FieldLogger, svc *service.TeleportProcess, phase string,
@@ -66,19 +57,18 @@ func setupServerForCARotationTest(ctx context.Context, log utils.Logger, t *test
 ) (auth.ClientI, func() *service.TeleportProcess, *config.FileConfig) {
 	fc, fds := testhelpers.DefaultConfig(t)
 
-	cfg := servicecfg.MakeDefaultConfig()
+	cfg := service.MakeDefaultConfig()
 	require.NoError(t, config.ApplyFileConfig(fc, cfg))
 	cfg.FileDescriptors = fds
 	cfg.Log = log
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
-	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 
 	svcC := make(chan *service.TeleportProcess)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := service.Run(ctx, *cfg, func(cfg *servicecfg.Config) (service.Process, error) {
+		err := service.Run(ctx, *cfg, func(cfg *service.Config) (service.Process, error) {
 			svc, err := service.NewTeleport(cfg)
 			if err == nil {
 				svcC <- svc
@@ -141,7 +131,7 @@ func TestBot_Run_CARotation(t *testing.T) {
 
 	// wg and context manage the cancellation of long running processes e.g
 	// teleport and tbot in the test.
-	log := utils.NewLoggerForTests()
+	log := libutils.NewLoggerForTests()
 	wg := &sync.WaitGroup{}
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {

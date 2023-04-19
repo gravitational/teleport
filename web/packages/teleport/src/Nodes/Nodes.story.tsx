@@ -32,11 +32,20 @@ export const Loaded = () => (
   </MemoryRouter>
 );
 
+export const PaginationUnsupported = () => (
+  <MemoryRouter>
+    <Nodes
+      {...props}
+      results={{ ...props.results, paginationUnsupported: true }}
+    />
+  </MemoryRouter>
+);
+
 export const Empty = () => (
   <MemoryRouter>
     <Nodes
       {...props}
-      fetchedData={{ agents: [], totalCount: 0 }}
+      results={{ nodes: [], totalCount: 0 }}
       isSearchEmpty={true}
     />
   </MemoryRouter>
@@ -46,7 +55,7 @@ export const EmptyReadOnly = () => (
   <MemoryRouter>
     <Nodes
       {...props}
-      fetchedData={{ agents: [], totalCount: 0 }}
+      results={{ nodes: [], totalCount: 0 }}
       isSearchEmpty={true}
       canCreate={false}
     />
@@ -69,8 +78,8 @@ export const Failed = () => (
 );
 
 const props: State = {
-  fetchedData: {
-    agents: nodes,
+  results: {
+    nodes,
     totalCount: nodes.length,
   },
   fetchStatus: '',
@@ -83,15 +92,8 @@ const props: State = {
   fetchNext: () => null,
   fetchPrev: () => null,
   pageSize: 15,
-  pageIndicators: {
-    from: 1,
-    to: nodes.length,
-    totalCount: nodes.length,
-  },
-  page: {
-    index: 0,
-    keys: [],
-  },
+  from: 1,
+  to: nodes.length,
   params: {
     search: '',
     query: '',
@@ -99,6 +101,7 @@ const props: State = {
   },
   setParams: () => null,
   setSort: () => null,
+  startKeys: [''],
   pathname: '',
   replaceHistory: () => null,
   isSearchEmpty: false,

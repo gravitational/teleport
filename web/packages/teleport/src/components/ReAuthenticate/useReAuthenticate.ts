@@ -29,7 +29,7 @@ import type { MfaAuthnResponse } from 'teleport/services/mfa';
 //    token, and after successfully obtaining the token, the function
 //    `onAuthenticated` will be called with this token.
 export default function useReAuthenticate(props: Props) {
-  const { onClose, actionText = defaultActionText } = props;
+  const { onClose } = props;
 
   // Note that attempt state "success" is not used or required.
   // After the user submits, the control is passed back
@@ -93,25 +93,12 @@ export default function useReAuthenticate(props: Props) {
     submitWithWebauthn,
     auth2faType: cfg.getAuth2faType(),
     preferredMfaType: cfg.getPreferredMfaType(),
-    actionText,
     onClose,
   };
 }
 
-const defaultActionText = 'performing this action';
-
 type BaseProps = {
   onClose: () => void;
-  /**
-   * The text that will be appended to the text in the re-authentication dialog.
-   *
-   * Default value: "performing this action"
-   *
-   * Example: If `actionText` is set to "registering a new device" then the dialog will say
-   * "You must verify your identity with one of your existing two-factor devices before registering a new device."
-   *
-   * */
-  actionText?: string;
 };
 
 // MfaResponseProps defines a function

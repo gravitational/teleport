@@ -23,8 +23,6 @@ import (
 )
 
 func TestCaptureNBytesWriter(t *testing.T) {
-	t.Parallel()
-
 	data := []byte("abcdef")
 	w := NewCaptureNBytesWriter(10)
 

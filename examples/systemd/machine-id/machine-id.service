@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=teleport
-Group=teleport
+User=root
+Group=root
 Restart=on-failure
 ExecStart=/usr/local/bin/tbot start -c /etc/tbot.yaml
 ExecReload=/bin/kill -HUP $MAINPID

@@ -23,28 +23,28 @@ import { fade } from 'design/theme/utils/colorManipulator';
 const kinds = ({ theme, kind, shadow }) => {
   // default is primary
   const styles = {
-    background: theme.colors.brand,
-    color: theme.colors.text.primaryInverse,
+    background: theme.colors.secondary.main,
+    color: theme.colors.text.secondary.contrastText,
   };
 
   if (kind === 'secondary') {
-    styles.background = theme.colors.spotBackground[0];
+    styles.background = theme.colors.primary.dark;
     styles.color = theme.colors.text.primary;
   }
 
   if (kind === 'warning') {
-    styles.background = theme.colors.warning.main;
-    styles.color = theme.colors.text.primaryInverse;
+    styles.background = theme.colors.warning;
+    styles.color = theme.colors.primary.contrastText;
   }
 
   if (kind === 'danger') {
-    styles.background = theme.colors.error.main;
-    styles.color = theme.colors.text.primaryInverse;
+    styles.background = theme.colors.danger;
+    styles.color = theme.colors.primary.contrastText;
   }
 
   if (kind === 'success') {
     styles.background = theme.colors.success;
-    styles.color = theme.colors.text.primaryInverse;
+    styles.color = theme.colors.primary.contrastText;
   }
 
   if (shadow) {
@@ -77,6 +77,7 @@ const LabelState = styled.span`
 `;
 LabelState.defaultProps = {
   fontSize: 0,
+  color: 'light',
   fontWeight: 'bold',
   shadow: false,
 };

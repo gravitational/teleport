@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
 
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
@@ -30,8 +31,11 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewEngine create new MongoDB engine.
-func NewEngine(ec common.EngineConfig) common.Engine {
+func init() {
+	common.RegisterEngine(newEngine, defaults.ProtocolMongoDB)
+}
+
+func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 	}
@@ -97,14 +101,14 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 
 // handleClientMessage implements the client message's roundtrip which can go
 // down a few different ways:
-//  1. If the client's command is not allowed by user's role, we do not pass it
-//     to the server and return an error to the client.
-//  2. In the most common case, we send client message to the server, read its
-//     reply and send it back to the client.
-//  3. Some client commands do not receive a reply in which case we just return
-//     after sending message to the server and wait for next client message.
-//  4. Server can also send multiple messages in a row in which case we exhaust
-//     them before returning to listen for next client message.
+// 1. If the client's command is not allowed by user's role, we do not pass it
+//    to the server and return an error to the client.
+// 2. In the most common case, we send client message to the server, read its
+//    reply and send it back to the client.
+// 3. Some client commands do not receive a reply in which case we just return
+//    after sending message to the server and wait for next client message.
+// 4. Server can also send multiple messages in a row in which case we exhaust
+//    them before returning to listen for next client message.
 func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Session, clientMessage protocol.Message, clientConn net.Conn, serverConn driver.Connection) error {
 	e.Log.Debugf("===> %v", clientMessage)
 	// First check the client command against user's role and log in the audit.
@@ -150,19 +154,21 @@ func (e *Engine) handleClientMessage(ctx context.Context, sessionCtx *common.Ses
 // authorizeConnection does authorization check for MongoDB connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context, sessionCtx *common.Session) error {
-	authPref, err := e.Auth.GetAuthPreference(ctx)
+	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	state := sessionCtx.GetAccessState(authPref)
+	mfaParams := services.AccessMFAParams{
+		Verified:       sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
 	// Only the username is checked upon initial connection. MongoDB sends
 	// database name with each protocol message (for query, update, etc.)
 	// so it is checked when we receive a message from client.
 	err = sessionCtx.Checker.CheckAccess(
 		sessionCtx.Database,
-		state,
-		services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
+		mfaParams,
+		&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser},
 	)
 	if err != nil {
 		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
@@ -194,9 +200,8 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	// Legacy OP_KILL_CURSORS command doesn't contain database information.
 	if _, ok := message.(*protocol.MessageOpKillCursors); ok {
 		return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-			services.AccessState{MFAVerified: true},
-			services.NewDatabaseUserMatcher(sessionCtx.Database, sessionCtx.DatabaseUser),
-		)
+			services.AccessMFAParams{Verified: true},
+			&services.DatabaseUserMatcher{User: sessionCtx.DatabaseUser})
 	}
 	// Do not allow certain commands that deal with authentication.
 	command, err := message.GetCommand()
@@ -209,9 +214,9 @@ func (e *Engine) checkClientMessage(sessionCtx *common.Session, message protocol
 	}
 	// Otherwise authorize the command against allowed databases.
 	return sessionCtx.Checker.CheckAccess(sessionCtx.Database,
-		services.AccessState{MFAVerified: true},
+		services.AccessMFAParams{Verified: true},
 		role.DatabaseRoleMatchers(
-			sessionCtx.Database,
+			defaults.ProtocolMongoDB,
 			sessionCtx.DatabaseUser,
 			database)...)
 }

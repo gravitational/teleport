@@ -27,7 +27,7 @@ describe('lib/term/protobuf', () => {
       const msg = pb.decode(array);
 
       expect(msg.type).toBe('a');
-      expect(msg.payload).toBe(
+      expect(msg.payload).toEqual(
         `{"addr.local":"172.10.1.20:3022","addr.remote":"172.10.1.254:59590","event":"session.join","login":"root","namespace":"default","server_id":"75f4fc80-76c5-4372-bc61-1e665fd7ef96","sid":"cc8d05f4-69d1-11e8-a61d-0242ac0a0101","user":"mama"}`
       );
     });
@@ -37,7 +37,7 @@ describe('lib/term/protobuf', () => {
       const array = Uint8Array.from(input);
       const msg = pb.decode(array);
       expect(msg.type).toBe('c');
-      expect(msg.payload).toBe(``);
+      expect(msg.payload).toEqual(``);
     });
 
     it('should decode "raw" message', () => {
@@ -48,7 +48,7 @@ describe('lib/term/protobuf', () => {
 
       expect(msg.version).toBe('1');
       expect(msg.type).toBe('r');
-      expect(msg.payload).toBe(`[33;1mcontainer(f1ff295e4127)[0;33m ~[00m: `);
+      expect(msg.payload).toEqual(`[33;1mcontainer(f1ff295e4127)[0;33m ~[00m: `);
     });
   });
 

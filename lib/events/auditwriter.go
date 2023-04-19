@@ -20,16 +20,16 @@ import (
 	"context"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	logrus "github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -53,10 +53,13 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
-		cancel:   cancel,
-		closeCtx: ctx,
-		eventsCh: make(chan apievents.AuditEvent),
-		doneCh:   make(chan struct{}),
+		cancel:         cancel,
+		closeCtx:       ctx,
+		eventsCh:       make(chan apievents.AuditEvent),
+		doneCh:         make(chan struct{}),
+		lostEvents:     atomic.NewInt64(0),
+		acceptedEvents: atomic.NewInt64(0),
+		slowWrites:     atomic.NewInt64(0),
 	}
 	go func() {
 		writer.processEvents()
@@ -137,10 +140,10 @@ func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
 		cfg.UID = utils.NewRealUID()
 	}
 	if cfg.BackoffTimeout == 0 {
-		cfg.BackoffTimeout = AuditBackoffTimeout
+		cfg.BackoffTimeout = defaults.AuditBackoffTimeout
 	}
 	if cfg.BackoffDuration == 0 {
-		cfg.BackoffDuration = NetworkBackoffDuration
+		cfg.BackoffDuration = defaults.NetworkBackoffDuration
 	}
 	if cfg.MakeEvents == nil {
 		cfg.MakeEvents = bytesToSessionPrintEvents
@@ -191,9 +194,9 @@ type AuditWriter struct {
 	doneCh chan struct{}
 
 	backoffUntil   time.Time
-	lostEvents     atomic.Int64
-	acceptedEvents atomic.Int64
-	slowWrites     atomic.Int64
+	lostEvents     *atomic.Int64
+	acceptedEvents *atomic.Int64
+	slowWrites     *atomic.Int64
 }
 
 // AuditWriterStats provides stats about lost events and slow writes
@@ -289,7 +292,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		return trace.Wrap(err)
 	}
 
-	a.acceptedEvents.Add(1)
+	a.acceptedEvents.Inc()
 
 	// Without serialization, EmitAuditEvent will call grpc's method directly.
 	// When BPF callback is emitting events concurrently with session data to the grpc stream,
@@ -299,7 +302,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 
 	// If backoff is in effect, lose event, return right away
 	if isBackoff := a.checkAndResetBackoff(a.cfg.Clock.Now()); isBackoff {
-		a.lostEvents.Add(1)
+		a.lostEvents.Inc()
 		return nil
 	}
 
@@ -312,7 +315,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	case <-a.closeCtx.Done():
 		return trace.ConnectionProblem(a.closeCtx.Err(), "audit writer is closed")
 	default:
-		a.slowWrites.Add(1)
+		a.slowWrites.Inc()
 	}
 
 	// Channel is blocked.
@@ -356,17 +359,17 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 		if setBackoff := a.maybeSetBackoff(a.cfg.Clock.Now().UTC().Add(a.cfg.BackoffDuration)); setBackoff {
 			a.log.Errorf("Audit write timed out after %v. Will be losing events for the next %v.", a.cfg.BackoffTimeout, a.cfg.BackoffDuration)
 		}
-		a.lostEvents.Add(1)
+		a.lostEvents.Inc()
 		return nil
 	case <-ctx.Done():
-		a.lostEvents.Add(1)
+		a.lostEvents.Inc()
 		stopped := t.Stop()
 		if !stopped {
 			<-t.C
 		}
 		return trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
 	case <-a.closeCtx.Done():
-		a.lostEvents.Add(1)
+		a.lostEvents.Inc()
 		stopped := t.Stop()
 		if !stopped {
 			<-t.C
@@ -527,7 +530,7 @@ func (a *AuditWriter) recoverStream() error {
 }
 
 func (a *AuditWriter) closeStream(stream apievents.Stream) {
-	ctx, cancel := context.WithTimeout(a.cfg.Context, NetworkRetryDuration)
+	ctx, cancel := context.WithTimeout(a.cfg.Context, defaults.NetworkRetryDuration)
 	defer cancel()
 	if err := stream.Close(ctx); err != nil {
 		a.log.WithError(err).Debug("Failed to close stream.")
@@ -538,7 +541,7 @@ func (a *AuditWriter) completeStream(stream apievents.Stream) {
 	// Cannot use the configured context because it's the server's and when the server
 	// is requested to close (and hence the context is canceled), the stream will not be able
 	// to complete
-	ctx, cancel := context.WithTimeout(context.Background(), NetworkBackoffDuration)
+	ctx, cancel := context.WithTimeout(context.Background(), defaults.NetworkBackoffDuration)
 	defer cancel()
 	if err := stream.Complete(ctx); err != nil {
 		a.log.WithError(err).Warning("Failed to complete stream.")
@@ -546,16 +549,16 @@ func (a *AuditWriter) completeStream(stream apievents.Stream) {
 }
 
 func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		Step: NetworkRetryDuration,
-		Max:  NetworkBackoffDuration,
+	retry, err := utils.NewLinear(utils.LinearConfig{
+		Step: defaults.NetworkRetryDuration,
+		Max:  defaults.NetworkBackoffDuration,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	var resumedStream apievents.Stream
 	start := time.Now()
-	for i := 0; i < FastAttempts; i++ {
+	for i := 0; i < defaults.FastAttempts; i++ {
 		var streamType string
 		if a.lastStatus == nil {
 			// The stream was either never created or has failed to receive the

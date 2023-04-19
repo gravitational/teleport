@@ -37,7 +37,7 @@ export const ConfigFieldInput: typeof FieldInput = styled(FieldInput)`
     }
 
     &:focus {
-      border-color: ${props => props.theme.colors.brand};
+      border-color: ${props => props.theme.colors.secondary.main};
     }
   }
 `;

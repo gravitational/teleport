@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
@@ -60,17 +59,6 @@ type Values struct {
 
 	// TLSServerName is SNI host value passed to the server.
 	TLSServerName string
-
-	// Impersonate allows to define the default impersonated user.
-	// Must be a subset of kubernetes_users or the Teleport username
-	// otherwise Teleport will deny the request.
-	Impersonate string
-	// ImpersonateGroups allows to define the default values for impersonated groups.
-	// Must be a subset of kubernetes_groups otherwise Teleport will deny
-	// the request.
-	ImpersonateGroups []string
-	// Namespace allows to define the default namespace value.
-	Namespace string
 	// KubeClusters is a list of kubernetes clusters to generate contexts for.
 	KubeClusters []string
 	// SelectCluster is the name of the kubernetes cluster to set in
@@ -143,8 +131,6 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
 			}
 			authInfo := &clientcmdapi.AuthInfo{
-				Impersonate:       v.Impersonate,
-				ImpersonateGroups: v.ImpersonateGroups,
 				Exec: &clientcmdapi.ExecConfig{
 					APIVersion: "client.authentication.k8s.io/v1beta1",
 					Command:    v.Exec.TshBinaryPath,
@@ -159,14 +145,13 @@ func Update(path string, v Values, storeAllCAs bool) error {
 			}
 			config.AuthInfos[authName] = authInfo
 
-			setContext(config.Contexts, contextName, clusterName, authName, v.Namespace)
+			setContext(config.Contexts, contextName, clusterName, authName)
 		}
 		if v.SelectCluster != "" {
 			contextName := ContextName(v.TeleportClusterName, v.SelectCluster)
 			if _, ok := config.Contexts[contextName]; !ok {
 				return trace.BadParameter("can't switch kubeconfig context to cluster %q, run 'tsh kube ls' to see available clusters", v.SelectCluster)
 			}
-			setSelectedExtension(config.Contexts, config.CurrentContext, v.TeleportClusterName)
 			config.CurrentContext = contextName
 		}
 	} else {
@@ -203,8 +188,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 				ClientCertificateData: v.Credentials.TLSCert,
 				ClientKeyData:         rsaKeyPEM,
 			}
-			setContext(config.Contexts, contextName, clusterName, contextName, v.Namespace)
-			setSelectedExtension(config.Contexts, config.CurrentContext, clusterName)
+			setContext(config.Contexts, contextName, clusterName, contextName)
 			config.CurrentContext = contextName
 		} else if !trace.IsBadParameter(err) {
 			return trace.Wrap(err)
@@ -215,7 +199,7 @@ func Update(path string, v Values, storeAllCAs bool) error {
 	return Save(path, *config)
 }
 
-func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth string, namespace string) {
+func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth string) {
 	lastContext := contexts[name]
 	newContext := &clientcmdapi.Context{
 		Cluster:  cluster,
@@ -225,78 +209,36 @@ func setContext(contexts map[string]*clientcmdapi.Context, name, cluster, auth s
 		newContext.Namespace = lastContext.Namespace
 		newContext.Extensions = lastContext.Extensions
 	}
-
-	// If a user specifies the default namespace we should override it.
-	// Otherwise we should carry the namespace previously defined for the context.
-	if len(namespace) > 0 {
-		newContext.Namespace = namespace
-	}
-
 	contexts[name] = newContext
 }
 
-// RemoveByClusterName removes Teleport configuration from kubeconfig.
+// Remove removes Teleport configuration from kubeconfig.
 //
-// If `path` is empty, RemoveByClusterName will try to guess it based on the environment or
+// If `path` is empty, Remove will try to guess it based on the environment or
 // known defaults.
-func RemoveByClusterName(path, clusterName string) error {
+func Remove(path, name string) error {
 	// Load existing kubeconfig from disk.
 	config, err := Load(path)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	removeByClusterName(config, clusterName)
-
-	// Update kubeconfig on disk.
-	return trace.Wrap(Save(path, *config))
-}
-
-func removeByClusterName(config *clientcmdapi.Config, clusterName string) {
 	// Remove Teleport related AuthInfos, Clusters, and Contexts from kubeconfig.
-	maps.DeleteFunc(
-		config.Contexts,
-		func(key string, val *clientcmdapi.Context) bool {
-			if !strings.HasPrefix(key, clusterName) {
-				return false
-			}
-			delete(config.AuthInfos, val.AuthInfo)
-			delete(config.Clusters, val.Cluster)
-			return true
-		},
-	)
-	prevSelectedCluster := searchForSelectedCluster(config.Contexts)
+	delete(config.AuthInfos, name)
+	delete(config.Clusters, name)
+	delete(config.Contexts, name)
+
 	// Take an element from the list of contexts and make it the current
 	// context, unless current context points to something else.
-	if strings.HasPrefix(config.CurrentContext, clusterName) {
-		config.CurrentContext = prevSelectedCluster
-	}
-}
-
-// RemoveByServerAddr removes all clusters with the provided server address
-// from kubeconfig
-//
-// If `path` is empty, RemoveByServerAddr will try to guess it based on the
-// environment or known defaults.
-func RemoveByServerAddr(path, wantServer string) error {
-	// Load existing kubeconfig from disk.
-	config, err := Load(path)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	removeByServerAddr(config, wantServer)
-
-	// Update kubeconfig on disk.
-	return trace.Wrap(Save(path, *config))
-}
-
-func removeByServerAddr(config *clientcmdapi.Config, wantServer string) {
-	for clusterName, cluster := range config.Clusters {
-		if cluster.Server == wantServer {
-			removeByClusterName(config, clusterName)
+	if config.CurrentContext == name && len(config.Contexts) > 0 {
+		for name := range config.Contexts {
+			config.CurrentContext = name
+			break
 		}
 	}
+
+	// Update kubeconfig on disk.
+	return Save(path, *config)
 }
 
 // Load tries to read a kubeconfig file and if it can't, returns an error.
@@ -397,67 +339,9 @@ func SelectContext(teleportCluster, kubeCluster string) error {
 	if _, ok := kc.Contexts[kubeContext]; !ok {
 		return trace.NotFound("kubeconfig context %q not found", kubeContext)
 	}
-	setSelectedExtension(kc.Contexts, kc.CurrentContext, teleportCluster)
 	kc.CurrentContext = kubeContext
 	if err := Save("", *kc); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
-}
-
-const selectedExtension = "teleport-prev-selec-ctx"
-
-// setSelectedExtension sets an extension to indentify that the current non-teleport
-// context was selected before introducing Teleport contexts in kubeconfig.
-// If the currentContext is not from Teleport, this function adds the following
-// extensions:
-//   - extension: null
-//     name: teleport-prev-selec-ctx
-//
-// Only one context is allowed to have the selected extension. If other context has it,
-// this function deletes it and introduces it in the desired context.
-func setSelectedExtension(contexts map[string]*clientcmdapi.Context, prevCluster string, teleportCluster string) {
-	selected, ok := contexts[prevCluster]
-	if !ok || strings.HasPrefix(prevCluster, teleportCluster) || len(prevCluster) == 0 {
-		return
-	}
-	for _, v := range contexts {
-		delete(v.Extensions, selectedExtension)
-	}
-
-	selected.Extensions[selectedExtension] = nil
-}
-
-// searchForSelectedCluster looks for contexts that were previously selected
-// in order to restore the the CurrentContext value.
-// If no such key is found or multiple keys exist, it returns an empty selected
-// cluster.
-func searchForSelectedCluster(contexts map[string]*clientcmdapi.Context) string {
-	count := 0
-	selected := ""
-	for k, v := range contexts {
-		if _, ok := v.Extensions[selectedExtension]; ok {
-			delete(v.Extensions, selectedExtension)
-			count++
-			selected = k
-		}
-	}
-	if count != 1 {
-		return ""
-	}
-	return selected
-}
-
-// SelectedKubeCluster returns the Kubernetes cluster name of the default context
-// if it belongs to the Teleport cluster provided.
-func SelectedKubeCluster(path, teleportCluster string) (string, error) {
-	kubeconfig, err := Load(path)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	if kubeCluster := KubeClusterFromContext(kubeconfig.CurrentContext, teleportCluster); kubeCluster != "" {
-		return kubeCluster, nil
-	}
-	return "", trace.NotFound("default context does not belong to Teleport")
 }

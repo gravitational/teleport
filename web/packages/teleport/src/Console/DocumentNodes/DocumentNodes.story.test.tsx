@@ -18,17 +18,30 @@ import React from 'react';
 import 'jest-canvas-mock';
 import { waitFor, render } from 'design/utils/testing';
 
-import { Document, createContext } from './DocumentNodes.story';
+import {
+  Document,
+  PaginationUnsupported,
+  createContext,
+} from './DocumentNodes.story';
 
 test('render DocumentNodes', async () => {
   const ctx = createContext();
   jest.spyOn(ctx, 'fetchClusters');
-  jest.spyOn(ctx.nodesService, 'fetchNodes');
+  jest.spyOn(ctx, 'fetchNodes');
 
   const { container } = render(<Document value={ctx} />);
   await waitFor(() => expect(ctx.fetchClusters).toHaveBeenCalledTimes(1));
-  await waitFor(() =>
-    expect(ctx.nodesService.fetchNodes).toHaveBeenCalledTimes(1)
-  );
+  await waitFor(() => expect(ctx.fetchNodes).toHaveBeenCalledTimes(1));
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('render DocumentNodes pagination unsupported', async () => {
+  const ctx = createContext({ paginationUnsupported: true });
+  jest.spyOn(ctx, 'fetchClusters');
+  jest.spyOn(ctx, 'fetchNodes');
+
+  const { container } = render(<PaginationUnsupported value={ctx} />);
+  await waitFor(() => expect(ctx.fetchClusters).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(ctx.fetchNodes).toHaveBeenCalledTimes(1));
   expect(container.firstChild).toMatchSnapshot();
 });

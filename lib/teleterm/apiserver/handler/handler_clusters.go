@@ -76,44 +76,27 @@ func (s *Handler) RemoveCluster(ctx context.Context, req *api.RemoveClusterReque
 
 // GetCluster returns a cluster
 func (s *Handler) GetCluster(ctx context.Context, req *api.GetClusterRequest) (*api.Cluster, error) {
-	cluster, err := s.DaemonService.ResolveClusterWithDetails(ctx, req.ClusterUri)
+	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return newAPIRootClusterWithDetails(cluster), nil
+	return newAPIRootCluster(cluster), nil
 }
 
 func newAPIRootCluster(cluster *clusters.Cluster) *api.Cluster {
 	loggedInUser := cluster.GetLoggedInUser()
-
-	apiCluster := &api.Cluster{
+	return &api.Cluster{
 		Uri:       cluster.URI.String(),
 		Name:      cluster.Name,
 		ProxyHost: cluster.GetProxyHost(),
 		Connected: cluster.Connected(),
 		LoggedInUser: &api.LoggedInUser{
-			Name:           loggedInUser.Name,
-			SshLogins:      loggedInUser.SSHLogins,
-			Roles:          loggedInUser.Roles,
-			ActiveRequests: loggedInUser.ActiveRequests,
+			Name:      loggedInUser.Name,
+			SshLogins: loggedInUser.SSHLogins,
+			Roles:     loggedInUser.Roles,
 		},
 	}
-
-	return apiCluster
-}
-
-func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) *api.Cluster {
-	apiCluster := newAPIRootCluster(cluster.Cluster)
-
-	apiCluster.Features = &api.Features{
-		AdvancedAccessWorkflows: cluster.Features.GetAdvancedAccessWorkflows(),
-	}
-	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
-	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
-	apiCluster.AuthClusterId = cluster.AuthClusterID
-
-	return apiCluster
 }
 
 func newAPILeafCluster(leaf clusters.LeafCluster) *api.Cluster {

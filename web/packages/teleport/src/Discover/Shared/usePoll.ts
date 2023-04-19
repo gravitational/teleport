@@ -16,26 +16,22 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-/**
- * While enabled is true, usePoll runs the callback every interval milliseconds,
- * returning the result of callback once it arrives, and null otherwise.
- *
- * The polling *does not* automatically terminate once a result is found. It is the caller's
- * responsibility to terminate the poll by switching the enabled parameter to false.
- * (This allows for callers to implement more complex logic for terminating polling).
- */
 export function usePoll<T>(
   callback: (signal: AbortSignal) => Promise<T | null>,
+  timeout: number,
   enabled: boolean,
   interval = 1000
-): T | null {
+) {
   const abortController = useRef(new AbortController());
-  const [result, setResult] = useState<T | null>(null);
+
   const [running, setRunning] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const [result, setResult] = useState<T | null>(null);
 
   useEffect(() => {
     if (enabled && !running) {
       setResult(null);
+      setTimedOut(false);
       setRunning(true);
     }
 
@@ -45,7 +41,17 @@ export function usePoll<T>(
   }, [callback, enabled, running]);
 
   useEffect(() => {
-    if (enabled && running) {
+    if (running && timeout > Date.now()) {
+      const id = window.setTimeout(() => {
+        setTimedOut(true);
+      }, timeout - Date.now());
+
+      return () => clearTimeout(id);
+    }
+  }, [running, timeout]);
+
+  useEffect(() => {
+    if (running) {
       abortController.current = new AbortController();
 
       const id = window.setInterval(async () => {
@@ -65,7 +71,7 @@ export function usePoll<T>(
         abortController.current.abort();
       };
     }
-  }, [enabled, interval, callback, running]);
+  }, [running, timedOut, interval, callback]);
 
-  return result;
+  return { timedOut, result };
 }

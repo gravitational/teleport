@@ -15,8 +15,7 @@
  */
 
 import React from 'react';
-import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
-import { privateKeyEnablingPolicies } from 'shared/services/consts';
+import { render, fireEvent, waitFor } from 'design/utils/testing';
 
 import auth from 'teleport/services/auth/auth';
 import history from 'teleport/services/history';
@@ -25,35 +24,33 @@ import cfg from 'teleport/config';
 import Login from './Login';
 
 beforeEach(() => {
-  jest.restoreAllMocks();
   jest.spyOn(history, 'push').mockImplementation();
   jest.spyOn(history, 'getRedirectParam').mockImplementation(() => '/');
+  jest.resetAllMocks();
 });
 
 test('basic rendering', () => {
-  render(<Login />);
+  const { container, getByText } = render(<Login />);
 
   // test rendering of logo and title
-  expect(screen.getByRole('img')).toBeInTheDocument();
-  expect(screen.getByText(/sign in to teleport/i)).toBeInTheDocument();
+  expect(container.querySelector('img')).toBeInTheDocument();
+  expect(getByText(/sign into teleport/i)).toBeInTheDocument();
 });
 
 test('login with redirect', async () => {
   jest.spyOn(auth, 'login').mockResolvedValue(null);
 
-  render(<Login />);
+  const { getByPlaceholderText, getByText } = render(<Login />);
 
   // fill form
-  const username = screen.getByPlaceholderText(/username/i);
-  const password = screen.getByPlaceholderText(/password/i);
+  const username = getByPlaceholderText(/username/i);
+  const password = getByPlaceholderText(/password/i);
   fireEvent.change(username, { target: { value: 'username' } });
   fireEvent.change(password, { target: { value: '123' } });
 
   // test login and redirect
-  fireEvent.click(screen.getByText('Sign In'));
-  await waitFor(() => {
-    expect(auth.login).toHaveBeenCalledWith('username', '123', '');
-  });
+  await waitFor(() => fireEvent.click(getByText('Sign In')));
+  expect(auth.login).toHaveBeenCalledWith('username', '123', '');
   expect(history.push).toHaveBeenCalledWith('http://localhost/web', true);
 });
 
@@ -69,47 +66,12 @@ test('login with SSO', () => {
     },
   ]);
 
-  render(<Login />);
+  const { getByText } = render(<Login />);
 
   // test login pathways
-  fireEvent.click(screen.getByText('With GitHub'));
+  fireEvent.click(getByText('With GitHub'));
   expect(history.push).toHaveBeenCalledWith(
     'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true
   );
-});
-
-test('login with private key policy enabled through cluster wide', () => {
-  jest
-    .spyOn(cfg, 'getPrivateKeyPolicy')
-    .mockImplementation(() => 'hardware_key');
-
-  render(<Login />);
-
-  expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
-  expect(screen.getByText(/login disabled/i)).toBeInTheDocument();
-});
-
-test('login with private key policy enabled through role setting', async () => {
-  // Just needs any of these enabling keywords in error message
-  jest
-    .spyOn(auth, 'login')
-    .mockRejectedValue(new Error(privateKeyEnablingPolicies[0]));
-
-  render(<Login />);
-
-  // Fill form.
-  const username = screen.getByPlaceholderText(/username/i);
-  const password = screen.getByPlaceholderText(/password/i);
-  fireEvent.change(username, { target: { value: 'username' } });
-  fireEvent.change(password, { target: { value: '123' } });
-
-  // Test logging in with private key error return renders private policy error.
-  fireEvent.click(screen.getByText('Sign In'));
-  await waitFor(() => {
-    expect(auth.login).toHaveBeenCalledWith('username', '123', '');
-  });
-
-  expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
-  expect(screen.getByText(/login disabled/i)).toBeInTheDocument();
 });

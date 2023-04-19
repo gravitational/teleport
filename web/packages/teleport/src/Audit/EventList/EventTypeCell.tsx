@@ -81,7 +81,6 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.APP_SESSION_CHUNK]: Icons.Info,
   [eventCodes.APP_SESSION_START]: Icons.Info,
   [eventCodes.APP_SESSION_END]: Icons.Info,
-  [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: Icons.Database,
   [eventCodes.APP_CREATED]: Icons.Code,
   [eventCodes.APP_UPDATED]: Icons.Code,
   [eventCodes.APP_DELETED]: Icons.Code,
@@ -115,9 +114,6 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.USER_SSO_TEST_FLOW_LOGIN]: Icons.Info,
   [eventCodes.USER_SSO_TEST_FLOW_LOGINFAILURE]: Icons.Info,
   [eventCodes.KUBE_REQUEST]: Icons.Kubernetes,
-  [eventCodes.KUBE_CREATED]: Icons.Kubernetes,
-  [eventCodes.KUBE_UPDATED]: Icons.Kubernetes,
-  [eventCodes.KUBE_DELETED]: Icons.Kubernetes,
   [eventCodes.DATABASE_SESSION_STARTED]: Icons.Database,
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: Icons.Database,
   [eventCodes.DATABASE_SESSION_ENDED]: Icons.Database,
@@ -147,34 +143,12 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.MYSQL_DEBUG]: Icons.Database,
   [eventCodes.MYSQL_REFRESH]: Icons.Database,
   [eventCodes.SQLSERVER_RPC_REQUEST]: Icons.Database,
-  [eventCodes.CASSANDRA_BATCH_EVENT]: Icons.Database,
-  [eventCodes.CASSANDRA_EXECUTE_EVENT]: Icons.Database,
-  [eventCodes.CASSANDRA_PREPARE_EVENT]: Icons.Database,
-  [eventCodes.CASSANDRA_REGISTER_EVENT]: Icons.Database,
   [eventCodes.ELASTICSEARCH_REQUEST]: Icons.Database,
-  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: Icons.Database,
-  [eventCodes.OPENSEARCH_REQUEST]: Icons.Database,
-  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: Icons.Database,
-  [eventCodes.DYNAMODB_REQUEST]: Icons.Database,
-  [eventCodes.DYNAMODB_REQUEST_FAILURE]: Icons.Database,
   [eventCodes.DESKTOP_SESSION_STARTED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: Icons.Desktop,
   [eventCodes.DESKTOP_SESSION_ENDED]: Icons.Desktop,
   [eventCodes.DESKTOP_CLIPBOARD_SEND]: Icons.Clipboard,
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: Icons.Clipboard,
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: Icons.FolderShared,
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: Icons.FolderShared,
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: Icons.FolderShared,
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: Icons.FolderShared,
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: Icons.FolderShared,
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: Icons.FolderShared,
-  [eventCodes.DEVICE_AUTHENTICATE]: Icons.Info,
-  [eventCodes.DEVICE_CREATE]: Icons.Info,
-  [eventCodes.DEVICE_DELETE]: Icons.Info,
-  [eventCodes.DEVICE_ENROLL]: Icons.Info,
-  [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: Icons.Info,
-  [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: Icons.Info,
-  [eventCodes.DEVICE_UPDATE]: Icons.Info,
   [eventCodes.MFA_DEVICE_ADD]: Icons.Info,
   [eventCodes.MFA_DEVICE_DELETE]: Icons.Info,
   [eventCodes.BILLING_CARD_CREATE]: Icons.CreditCardAlt2,
@@ -200,19 +174,6 @@ const EventIconMap: Record<EventCode, React.FC> = {
   [eventCodes.SESSION_RECORDING_ACCESS]: Icons.Info,
   [eventCodes.SSMRUN_SUCCESS]: Icons.Info,
   [eventCodes.SSMRUN_FAIL]: Icons.Info,
-  [eventCodes.BOT_JOIN]: Icons.Info,
-  [eventCodes.INSTANCE_JOIN]: Icons.Info,
-  [eventCodes.LOGIN_RULE_CREATE]: Icons.Info,
-  [eventCodes.LOGIN_RULE_DELETE]: Icons.Info,
-  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: Icons.Info,
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: Icons.Info,
   [eventCodes.UNKNOWN]: Icons.Question,
 };
 
@@ -268,9 +229,9 @@ export default function renderTypeCell(event: Event, clusterId: string) {
 
 const StyledCliIcon = styled(Icons.Cli)(
   props => `
-  background: ${props.theme.colors.levels.deep};
-  border: 2px solid ${props.theme.colors.brand};
-  color: ${props.theme.colors.text.secondary};
+  background: ${props.theme.colors.dark};
+  border: 2px solid ${props.theme.colors.accent};
+  color: ${props.theme.colors.text.primary};
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -284,8 +245,8 @@ const StyledCliIcon = styled(Icons.Cli)(
   &:hover,
   &:active,
   &:focus {
-    background: ${props.theme.colors.levels.sunken};
-    color: ${props.theme.colors.text.primary};
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.24);
+    color: ${props.theme.colors.light};
   }
 
   &:active {

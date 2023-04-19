@@ -1,6 +1,6 @@
 ---
 authors: Roman Tkachenko (roman@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 61 - tsh command aliases

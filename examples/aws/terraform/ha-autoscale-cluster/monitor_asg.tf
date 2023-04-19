@@ -2,7 +2,7 @@
 // Grafana is available on port 8443
 // Internal influxdb HTTP collector service listens on port 8086
 
-// Let's Encrypt
+// letsencrypt
 resource "aws_autoscaling_group" "monitor" {
   name                      = "${var.cluster_name}-monitor"
   max_size                  = 1
@@ -11,12 +11,8 @@ resource "aws_autoscaling_group" "monitor" {
   health_check_type         = "EC2"
   desired_capacity          = 1
   force_delete              = false
+  launch_configuration      = aws_launch_configuration.monitor.name
   vpc_zone_identifier       = [aws_subnet.public[0].id]
-
-  launch_template {
-    id      = aws_launch_template.monitor.id
-    version = "$Latest"
-  }
 
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
@@ -55,12 +51,8 @@ resource "aws_autoscaling_group" "monitor_acm" {
   health_check_type         = "EC2"
   desired_capacity          = 1
   force_delete              = false
+  launch_configuration      = aws_launch_configuration.monitor.name
   vpc_zone_identifier       = [aws_subnet.public[0].id]
-
-  launch_template {
-    id      = aws_launch_template.monitor.id
-    version = "$Latest"
-  }
 
   // Auto scaling group is associated with internal load balancer for metrics ingestion
   // and proxy load balancer for grafana
@@ -84,16 +76,14 @@ resource "aws_autoscaling_group" "monitor_acm" {
   }
 }
 
-// Needs to have a public IP
-// tfsec:ignore:aws-ec2-no-public-ip
-resource "aws_launch_template" "monitor" {
+resource "aws_launch_configuration" "monitor" {
   lifecycle {
     create_before_destroy = true
   }
-  name_prefix   = "${var.cluster_name}-monitor-"
-  image_id      = data.aws_ami.base.id
-  instance_type = var.monitor_instance_type
-  user_data = base64encode(templatefile(
+  name_prefix                 = "${var.cluster_name}-monitor-"
+  image_id                    = data.aws_ami.base.id
+  instance_type               = var.monitor_instance_type
+  user_data                   = templatefile(
     "${path.module}/monitor-user-data.tpl",
     {
       region           = var.region
@@ -105,42 +95,18 @@ resource "aws_launch_template" "monitor" {
       domain_name      = var.route53_domain
       use_acm          = var.use_acm
     }
-  ))
-
-  metadata_options {
-    http_tokens   = "required"
-    http_endpoint = "enabled"
-  }
-
-  block_device_mappings {
-    device_name = "/dev/xvda"
-    ebs {
-      delete_on_termination = true
-      encrypted             = true
-      iops                  = 3000
-      throughput            = 125
-      volume_type           = "gp3"
-    }
-  }
-
-  key_name      = var.key_name
-  ebs_optimized = true
-
-  network_interfaces {
-    associate_public_ip_address = true
-    security_groups             = [aws_security_group.monitor.id]
-  }
-
-  iam_instance_profile {
-    name = aws_iam_instance_profile.monitor.name
-  }
+  )
+  key_name                    = var.key_name
+  ebs_optimized               = true
+  associate_public_ip_address = true
+  security_groups             = [aws_security_group.monitor.id]
+  iam_instance_profile        = aws_iam_instance_profile.monitor.id
 }
 
 // Monitors support traffic coming from internal cluster subnets and expose 8443 for grafana
 resource "aws_security_group" "monitor" {
-  name        = "${var.cluster_name}-monitor"
-  description = "SG for ${var.cluster_name}-monitor"
-  vpc_id      = local.vpc_id
+  name   = "${var.cluster_name}-monitor"
+  vpc_id = local.vpc_id
   tags = {
     TeleportCluster = var.cluster_name
   }
@@ -148,7 +114,6 @@ resource "aws_security_group" "monitor" {
 
 // SSH access via bastion only
 resource "aws_security_group_rule" "monitor_ingress_allow_ssh" {
-  description              = "SSH access via bastion only"
   type                     = "ingress"
   from_port                = 22
   to_port                  = 22
@@ -157,10 +122,8 @@ resource "aws_security_group_rule" "monitor_ingress_allow_ssh" {
   source_security_group_id = aws_security_group.bastion.id
 }
 
-// Ingress traffic to SSL port 8443 is allowed from everywhere (Let's Encrypt)
-// tfsec:ignore:aws-ec2-no-public-ingress-sgr
+// Ingress traffic to SSL port 8443 is allowed from everywhere (letsencrypt)
 resource "aws_security_group_rule" "monitor_ingress_allow_web" {
-  description       = "Ingress traffic to SSL port 8443 is allowed from everywhere (Lets Encrypt)"
   type              = "ingress"
   from_port         = 8443
   to_port           = 8443
@@ -171,9 +134,7 @@ resource "aws_security_group_rule" "monitor_ingress_allow_web" {
 }
 
 // Ingress traffic to non-SSL port 8444 is allowed from everywhere (ACM)
-// tfsec:ignore:aws-ec2-no-public-ingress-sgr
 resource "aws_security_group_rule" "monitor_ingress_allow_web_acm" {
-  description       = "Ingress traffic to non-SSL port 8444 is allowed from everywhere (ACM)"
   type              = "ingress"
   from_port         = 8444
   to_port           = 8444
@@ -186,7 +147,6 @@ resource "aws_security_group_rule" "monitor_ingress_allow_web_acm" {
 // Influxdb metrics collector traffic is limited to internal VPC CIDR
 // We use CIDR here because traffic arriving from NLB is not marked with security group
 resource "aws_security_group_rule" "monitor_collector_ingress_allow_vpc_cidr_traffic" {
-  description       = "Influxdb metrics collector traffic is limited to internal VPC CIDR"
   type              = "ingress"
   from_port         = 8086
   to_port           = 8086
@@ -196,9 +156,7 @@ resource "aws_security_group_rule" "monitor_collector_ingress_allow_vpc_cidr_tra
 }
 
 // All egress traffic is allowed
-// tfsec:ignore:aws-ec2-no-public-egress-sgr
 resource "aws_security_group_rule" "monitor_egress_allow_all_traffic" {
-  description       = "All egress traffic is allowed"
   type              = "egress"
   from_port         = 0
   to_port           = 0
@@ -242,3 +200,4 @@ resource "aws_lb_listener" "monitor" {
     type             = "forward"
   }
 }
+

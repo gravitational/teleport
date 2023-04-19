@@ -20,8 +20,6 @@ import (
 
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // ContainsExpansion returns true if value contains
@@ -87,34 +85,6 @@ type RegexpConfig struct {
 	IgnoreCase bool
 }
 
-// KubeResourceMatchesRegex checks whether the input matches any of the given
-// expressions.
-// This function returns as soon as it finds the first match or when matchString
-// returns an error.
-// This function supports regex expressions in the Name and Namespace fields,
-// but not for the Kind field.
-// The wildcard (*) expansion is also supported.
-func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
-	for _, resource := range resources {
-		// TODO(tigrato): evaluate if we should support wildcards as well
-		// for future compatibility.
-		if input.Kind != resource.Kind {
-			continue
-		}
-		switch ok, err := matchString(input.Name, resource.Name); {
-		case err != nil:
-			return false, trace.Wrap(err)
-		case !ok:
-			continue
-		}
-		if ok, err := matchString(input.Namespace, resource.Namespace); err != nil || ok {
-			return ok, trace.Wrap(err)
-		}
-	}
-
-	return false, nil
-}
-
 // SliceMatchesRegex checks if input matches any of the expressions. The
 // match is always evaluated as a regex either an exact match or regexp.
 func SliceMatchesRegex(input string, expressions []string) (bool, error) {
@@ -169,7 +139,5 @@ func matchString(input, expression string) (bool, error) {
 	return expr.MatchString(input), nil
 }
 
-var (
-	replaceWildcard = regexp.MustCompile(`(\\\*)`)
-	reExpansion     = regexp.MustCompile(`\$[^\$]+`)
-)
+var replaceWildcard = regexp.MustCompile(`(\\\*)`)
+var reExpansion = regexp.MustCompile(`\$[^\$]+`)

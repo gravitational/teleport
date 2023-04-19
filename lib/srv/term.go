@@ -36,7 +36,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 )
@@ -114,7 +113,7 @@ func NewTerminal(ctx *ServerContext) (Terminal, error) {
 
 	// If this is not a Teleport node, find out what mode the cluster is in and
 	// return the correct terminal.
-	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
 		return newRemoteTerminal(ctx)
 	}
 	return newLocalTerminal(ctx)
@@ -158,7 +157,7 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 	// Open PTY and corresponding TTY.
 	t.pty, t.tty, err = pty.Open()
 	if err != nil {
-		log.Warnf("Could not start PTY: %v", err)
+		log.Warnf("Could not start PTY %v", err)
 		return nil, err
 	}
 
@@ -186,6 +185,7 @@ func (t *terminal) Run(ctx context.Context) error {
 	default:
 	}
 
+	defer t.closeTTY()
 	var err error
 	// Create the command that will actually execute.
 	t.cmd, err = ConfigureCommand(t.serverContext)
@@ -317,14 +317,10 @@ func (t *terminal) Close() error {
 }
 
 func (t *terminal) closeTTY() error {
-	t.log.Debugf("Closing TTY")
-	defer t.log.Debugf("Closed TTY")
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	if t.tty == nil {
-		t.log.Debugf("TTY already closed")
 		return nil
 	}
 
@@ -339,21 +335,14 @@ func (t *terminal) closeTTY() error {
 }
 
 func (t *terminal) closePTY() {
-	defer t.log.Debugf("Closed PTY")
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	defer t.log.Debugf("Closed PTY")
 
 	// wait until all copying is over (all participants have left)
 	t.wg.Wait()
 
-	if t.pty == nil {
-		return
-	}
-
-	if err := t.pty.Close(); err != nil {
-		t.log.Warnf("Failed to close PTY: %v", err)
-	}
+	t.pty.Close()
 	t.pty = nil
 }
 
@@ -434,13 +423,13 @@ func getOwner(login string, lookupUser LookupUser, lookupGroup LookupGroup) (int
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0o620
+		mode = 0620
 	} else {
 		gid, err = strconv.Atoi(group.Gid)
 		if err != nil {
 			return 0, 0, 0, trace.Wrap(err)
 		}
-		mode = 0o600
+		mode = 0600
 	}
 
 	return uid, gid, mode, nil
@@ -517,7 +506,7 @@ func (b *ptyBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (t *remoteTerminal) Run(ctx context.Context) error {
-	// prepare the remote session by setting environment variables
+	// prepare the remote remote session by setting environment variables
 	t.prepareRemoteSession(ctx, t.session, t.ctx)
 
 	// combine stdout and stderr
@@ -624,7 +613,6 @@ func (t *remoteTerminal) PID() int {
 }
 
 func (t *remoteTerminal) Close() error {
-	t.wg.Wait()
 	// this closes the underlying stdin,stdout,stderr which is what ptyBuffer is
 	// hooked to directly
 	err := t.session.Close()
@@ -688,12 +676,15 @@ func (t *remoteTerminal) windowChange(ctx context.Context, w int, h int) error {
 func (t *remoteTerminal) prepareRemoteSession(ctx context.Context, session *tracessh.Session, scx *ServerContext) {
 	envs := map[string]string{
 		teleport.SSHTeleportUser:        scx.Identity.TeleportUser,
+		teleport.SSHSessionWebproxyAddr: scx.ProxyPublicAddress(),
 		teleport.SSHTeleportHostUUID:    scx.srv.ID(),
 		teleport.SSHTeleportClusterName: scx.ClusterName,
 		teleport.SSHSessionID:           string(scx.SessionID()),
 	}
 
-	if err := session.SetEnvs(ctx, envs); err != nil {
-		t.log.WithError(err).Debug("Unable to set environment variables")
+	for k, v := range envs {
+		if err := session.Setenv(ctx, k, v); err != nil {
+			t.log.Debugf("Unable to set environment variable: %v: %v", k, v)
+		}
 	}
 }

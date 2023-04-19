@@ -23,38 +23,36 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"testing"
 
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
 var randomLocalAddr = *MustParseAddr("127.0.0.1:0")
 
-func TestSingleBackendLB(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
+type LBSuite struct {
+}
 
+var _ = check.Suite(&LBSuite{})
+
+func (s *LBSuite) TestSingleBackendLB(c *check.C) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
 	}))
 	defer backend1.Close()
 
-	lb, err := NewLoadBalancer(ctx, randomLocalAddr, urlToNetAddr(backend1.URL))
-	require.NoError(t, err)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, urlToNetAddr(backend1.URL))
+	c.Assert(err, check.IsNil)
 	err = lb.Listen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
 	out, err := Roundtrip(lb.Addr().String())
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
 }
 
-func TestTwoBackendsLB(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
+func (s *LBSuite) TestTwoBackendsLB(c *check.C) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
 	}))
@@ -67,32 +65,29 @@ func TestTwoBackendsLB(t *testing.T) {
 
 	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
 
-	lb, err := NewLoadBalancer(ctx, randomLocalAddr)
-	require.NoError(t, err)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr)
+	c.Assert(err, check.IsNil)
 	err = lb.Listen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
 	// no endpoints
 	_, err = Roundtrip(lb.Addr().String())
-	require.NotNil(t, err)
+	c.Assert(err, check.NotNil)
 
 	lb.AddBackend(backend1Addr)
 	out, err := Roundtrip(lb.Addr().String())
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
 
 	lb.AddBackend(backend2Addr)
 	out, err = Roundtrip(lb.Addr().String())
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 2")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 2")
 }
 
-func TestOneFailingBackend(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
+func (s *LBSuite) TestOneFailingBackend(c *check.C) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
 	}))
@@ -105,10 +100,10 @@ func TestOneFailingBackend(t *testing.T) {
 
 	backend1Addr, backend2Addr := urlToNetAddr(backend1.URL), urlToNetAddr(backend2.URL)
 
-	lb, err := NewLoadBalancer(ctx, randomLocalAddr)
-	require.NoError(t, err)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr)
+	c.Assert(err, check.IsNil)
 	err = lb.Listen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
@@ -116,36 +111,33 @@ func TestOneFailingBackend(t *testing.T) {
 	lb.AddBackend(backend2Addr)
 
 	out, err := Roundtrip(lb.Addr().String())
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
 
 	_, err = Roundtrip(lb.Addr().String())
-	require.NotNil(t, err)
+	c.Assert(err, check.NotNil)
 
 	out, err = Roundtrip(lb.Addr().String())
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
 }
 
-func TestClose(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
+func (s *LBSuite) TestClose(c *check.C) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
 	}))
 	defer backend1.Close()
 
-	lb, err := NewLoadBalancer(ctx, randomLocalAddr, urlToNetAddr(backend1.URL))
-	require.NoError(t, err)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, urlToNetAddr(backend1.URL))
+	c.Assert(err, check.IsNil)
 	err = lb.Listen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
 	out, err := Roundtrip(lb.Addr().String())
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
 
 	lb.Close()
 	// second close works
@@ -155,44 +147,41 @@ func TestClose(t *testing.T) {
 
 	// requests are failing
 	out, err = Roundtrip(lb.Addr().String())
-	require.NotNilf(t, err, fmt.Sprintf("output: %s, err: %v", out, err))
+	c.Assert(err, check.NotNil, check.Commentf("output: %s, err: %v", out, err))
 }
 
-func TestDropConnections(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
+func (s *LBSuite) TestDropConnections(c *check.C) {
 	backend1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "backend 1")
 	}))
 	defer backend1.Close()
 
 	backendAddr := urlToNetAddr(backend1.URL)
-	lb, err := NewLoadBalancer(ctx, randomLocalAddr, backendAddr)
-	require.NoError(t, err)
+	lb, err := NewLoadBalancer(context.TODO(), randomLocalAddr, backendAddr)
+	c.Assert(err, check.IsNil)
 	err = lb.Listen()
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	go lb.Serve()
 	defer lb.Close()
 
 	conn, err := net.Dial("tcp", lb.Addr().String())
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	defer conn.Close()
 
 	out, err := RoundtripWithConn(conn)
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
 
 	// to make sure multiple requests work on the same wire
 	out, err = RoundtripWithConn(conn)
-	require.NoError(t, err)
-	require.Equal(t, out, "backend 1")
+	c.Assert(err, check.IsNil)
+	c.Assert(out, check.Equals, "backend 1")
 
 	// removing backend results in dropped connection to this backend
 	err = lb.RemoveBackend(backendAddr)
-	require.NoError(t, err)
+	c.Assert(err, check.IsNil)
 	_, err = RoundtripWithConn(conn)
-	require.NotNil(t, err)
+	c.Assert(err, check.NotNil)
 }
 
 func urlToNetAddr(u string) NetAddr {

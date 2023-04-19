@@ -66,7 +66,7 @@ export function SetupAccessWrapper({
       $content = (
         <>
           <Text my={3}>
-            <Icons.Warning ml={1} mr={2} color="error.main" />
+            <Icons.Warning ml={1} mr={2} color="danger" />
             Encountered Error: {attempt.statusText}
           </Text>
           <ButtonBlueText ml={1} onClick={fetchUserTraits}>
@@ -130,8 +130,8 @@ export function SetupAccessWrapper({
     <Box maxWidth="700px">
       <Header>Set Up Access</Header>
       <HeaderSubtitle>{headerSubtitle}</HeaderSubtitle>
-      <Box mb={3}>{$content}</Box>
       {infoContent}
+      <Box mb={3}>{$content}</Box>
       <ActionButtons
         onProceed={onProceed}
         disableProceed={

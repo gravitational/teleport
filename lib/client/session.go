@@ -82,7 +82,8 @@ type NodeSession struct {
 	terminal *terminal.Terminal
 
 	// forceDisconnect if we should immediately disconnect upon finish instead of waiting for the remote status.
-	forceDisconnect atomic.Bool
+	// This value must always be accessed atomically.
+	forceDisconnect int32
 
 	// shouldClearOnExit marks whether or not the terminal should be cleared
 	// when the session ends.
@@ -225,22 +226,22 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 		return nil, trace.Wrap(err)
 	}
 
-	envs := map[string]string{}
-
 	// pass language info into the remote session.
 	langVars := []string{"LANG", "LANGUAGE"}
 	for _, env := range langVars {
 		if value := os.Getenv(env); value != "" {
-			envs[env] = value
+			err = sess.Setenv(ctx, env, value)
+			if err != nil {
+				log.Warn(err)
+			}
 		}
 	}
 	// pass environment variables set by client
 	for key, val := range ns.env {
-		envs[key] = val
-	}
-
-	if err := sess.SetEnvs(ctx, envs); err != nil {
-		log.Warn(err)
+		err = sess.Setenv(ctx, key, val)
+		if err != nil {
+			log.Warn(err)
+		}
 	}
 
 	// if agent forwarding was requested (and we have a agent to forward),
@@ -265,14 +266,14 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 
 // selectKeyAgent picks the appropriate key agent for forwarding to the
 // server, if any.
-func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
+func selectKeyAgent(tc *TeleportClient) agent.Agent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.Debugf("Selecting system key agent.")
-		return tc.localAgent.systemAgent
+		return tc.localAgent.sshAgent
 	case ForwardAgentLocal:
 		log.Debugf("Selecting local Teleport key agent.")
-		return tc.localAgent.ExtendedAgent
+		return tc.localAgent.Agent
 	default:
 		log.Debugf("No Key Agent selected.")
 		return nil
@@ -331,7 +332,7 @@ func (ns *NodeSession) interactiveSession(ctx context.Context, mode types.Sessio
 	// Wait for any cleanup tasks (particularly terminal reset on Windows).
 	ns.closeWait.Wait()
 
-	if ns.forceDisconnect.Load() {
+	if atomic.LoadInt32(&ns.forceDisconnect) == 1 {
 		return nil
 	}
 
@@ -460,7 +461,7 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 			lastSize := terminalParams.Winsize()
 			lastWidth = int16(lastSize.Width)
 			lastHeight = int16(lastSize.Height)
-			log.Debugf("Received window size %v from node in session %v.", lastSize, event.GetString(events.SessionEventID))
+			log.Debugf("Recevied window size %v from node in session %v.", lastSize, event.GetString(events.SessionEventID))
 
 		// Update size of local terminal with the last size received from remote server.
 		case <-tickerCh.C:
@@ -720,16 +721,12 @@ func (ns *NodeSession) pipeInOut(ctx context.Context, shell io.ReadWriteCloser, 
 					fmt.Printf("\n\rError while sending force termination request: %v\n\r", err.Error())
 				}
 			})
-
-			// Force disconnect the session. We want to release the local terminal
-			// connected to the session rather than wait for the session to end.
-			ns.forceDisconnect.Store(true)
 		}()
 	case types.SessionPeerMode:
 		// copy from the local input to the remote shell:
 		go func() {
 			if handlePeerControls(ns.terminal, ns.enableEscapeSequences, shell) {
-				ns.forceDisconnect.Store(true)
+				atomic.StoreInt32(&ns.forceDisconnect, 1)
 			}
 
 			ns.closer.Close()

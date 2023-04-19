@@ -21,7 +21,7 @@ use self::scard::IoctlCode;
 use crate::errors::{
     invalid_data_error, not_implemented_error, rejected_by_server_error, try_error,
 };
-use crate::{util, Encode, Messages, MAX_ALLOWED_VCHAN_MSG_SIZE};
+use crate::{util, Encode, Messages};
 use crate::{vchan, Message};
 use crate::{
     FileSystemObject, FileType, Payload, SharedDirectoryAcknowledge, SharedDirectoryCreateRequest,
@@ -110,7 +110,7 @@ impl Client {
             debug!("creating rdpdr client with directory sharing disabled")
         }
         Client {
-            vchan: vchan::Client::new(MAX_ALLOWED_VCHAN_MSG_SIZE),
+            vchan: vchan::Client::new(),
             scard: scard::Client::new(cfg.cert_der, cfg.key_der, cfg.pin),
 
             allow_directory_sharing: cfg.allow_directory_sharing,
@@ -218,12 +218,19 @@ impl Client {
         let req = ServerClientIdConfirm::decode(payload)?;
         debug!("received RDP ServerClientIdConfirm: {:?}", req);
 
-        if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
+        // The smartcard initialization sequence that contains this message happens once at session startup,
+        // and once when login succeeds. We only need to announce the smartcard once.
+        let resp = if !self.active_device_ids.contains(&SCARD_DEVICE_ID) {
             self.push_active_device_id(SCARD_DEVICE_ID)?;
-        }
-        let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
-        debug!("sending RDP {:?}", resp);
-        self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)
+            let resp = ClientDeviceListAnnounceRequest::new_smartcard(SCARD_DEVICE_ID);
+            debug!("sending RDP {:?}", resp);
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
+        } else {
+            let resp = ClientDeviceListAnnounceRequest::new_empty();
+            debug!("sending RDP {:?}", resp);
+            self.add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICELIST_ANNOUNCE, resp.encode()?)?
+        };
+        Ok(resp)
     }
 
     fn handle_device_reply(&self, payload: &mut Payload) -> RdpResult<Messages> {
@@ -1992,6 +1999,13 @@ impl ClientDeviceListAnnounceRequest {
                 device_data_length: device_data.len() as u32,
                 device_data,
             }],
+        }
+    }
+
+    fn new_empty() -> Self {
+        Self {
+            device_count: 0,
+            device_list: vec![],
         }
     }
 }

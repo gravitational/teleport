@@ -14,23 +14,31 @@
  * limitations under the License.
  */
 
+import { useState } from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
 import cfg from 'teleport/config';
 import { openNewTab } from 'teleport/lib/util';
-import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
+import TeleportContext from 'teleport/teleportContext';
 
 import { NodeMeta } from '../../useDiscover';
 
+import type { ConnectionDiagnostic } from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
-export function useTestConnection(props: AgentStepProps) {
-  const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic();
+export function useTestConnection({ ctx, props }: Props) {
+  const { attempt, setAttempt, handleError } = useAttempt('');
+  const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
+  const [showMfaDialog, setShowMfaDialog] = useState(false);
+
+  const access = ctx.storeUser.getConnectionDiagnosticAccess();
+  const canTestConnection = access.create && access.edit && access.read;
 
   function startSshSession(login: string) {
     const meta = props.agentMeta as NodeMeta;
     const url = cfg.getSshConnectRoute({
-      clusterId: connectionDiagnostic.clusterId,
+      clusterId: ctx.storeUser.getClusterId(),
       serverId: meta.node.id,
       login,
     });
@@ -38,22 +46,60 @@ export function useTestConnection(props: AgentStepProps) {
     openNewTab(url);
   }
 
-  function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
-    runConnectionDiagnostic(
-      {
+  async function runConnectionDiagnostic(
+    login: string,
+    mfaAuthnResponse?: MfaAuthnResponse
+  ) {
+    const meta = props.agentMeta as NodeMeta;
+    setDiagnosis(null);
+    setShowMfaDialog(false);
+    setAttempt({ status: 'processing' });
+
+    try {
+      if (!mfaAuthnResponse) {
+        const mfaReq = {
+          node: {
+            login,
+            node_name: meta.node.hostname,
+          },
+        };
+        const sessionMfa = await ctx.mfaService.isMfaRequired(mfaReq);
+        if (sessionMfa.required) {
+          setShowMfaDialog(true);
+          return;
+        }
+      }
+
+      const diag = await ctx.agentService.createConnectionDiagnostic({
         resourceKind: 'node',
-        resourceName: props.agentMeta.resourceName,
+        resourceName: meta.node.hostname,
         sshPrincipal: login,
-      },
-      mfaResponse
-    );
+        mfaAuthnResponse,
+      });
+
+      setAttempt({ status: 'success' });
+      setDiagnosis(diag);
+    } catch (err) {
+      handleError(err);
+    }
+  }
+
+  function cancelMfaDialog() {
+    setAttempt({ status: '' });
+    setShowMfaDialog(false);
   }
 
   return {
-    ...connectionDiagnostic,
-    testConnection,
-    logins: sortLogins((props.agentMeta as NodeMeta).node.sshLogins),
+    attempt,
     startSshSession,
+    logins: sortLogins((props.agentMeta as NodeMeta).node.sshLogins),
+    runConnectionDiagnostic,
+    diagnosis,
+    nextStep: props.nextStep,
+    prevStep: props.prevStep,
+    canTestConnection,
+    showMfaDialog,
+    cancelMfaDialog,
   };
 }
 
@@ -64,6 +110,11 @@ const sortLogins = (logins: string[]) => {
     return logins;
   }
   return ['root', ...noRoot];
+};
+
+type Props = {
+  ctx: TeleportContext;
+  props: AgentStepProps;
 };
 
 export type State = ReturnType<typeof useTestConnection>;

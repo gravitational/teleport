@@ -37,7 +37,7 @@ Teleport supports network restrictions with more types coming in the future.
 </tbody>
 </table>
 
-- (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Network Restrictions
 
@@ -63,12 +63,12 @@ Set up your Teleport Node with the following content in `/etc/teleport.yaml`.
 
 ```yaml
 # Example config to be saved as /etc/teleport.yaml
-version: v3
 teleport:
   nodename: graviton-node
   auth_token: exampletoken
+  auth_servers:
   # Replace with the address of the Teleport Auth Server.
-  auth_server: 127.0.0.1:3025
+  - 127.0.0.1:3025
   data_dir: /var/lib/teleport
 proxy_service:
   enabled: false

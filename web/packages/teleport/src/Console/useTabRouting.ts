@@ -1,5 +1,5 @@
 /*
-Copyright 2019-2022 Gravitational, Inc.
+Copyright 2019 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,12 +18,11 @@ import React from 'react';
 import { useRouteMatch, useParams, useLocation } from 'react-router';
 
 import cfg, { UrlSshParams } from 'teleport/config';
-import { ParticipantMode } from 'teleport/services/session';
 
 import ConsoleContext from './consoleContext';
 
 export default function useRouting(ctx: ConsoleContext) {
-  const { pathname, search } = useLocation();
+  const { pathname } = useLocation();
   const { clusterId } = useParams<{ clusterId: string }>();
   const sshRouteMatch = useRouteMatch<UrlSshParams>(cfg.routes.consoleConnect);
   const nodesRouteMatch = useRouteMatch(cfg.routes.consoleNodes);
@@ -42,12 +41,6 @@ export default function useRouting(ctx: ConsoleContext) {
     if (sshRouteMatch) {
       ctx.addSshDocument(sshRouteMatch.params);
     } else if (joinSshRouteMatch) {
-      // Extract the mode param from the URL if it is present.
-      const searchParams = new URLSearchParams(search);
-      const mode = searchParams.get('mode');
-      if (mode) {
-        joinSshRouteMatch.params.mode = mode as ParticipantMode;
-      }
       ctx.addSshDocument(joinSshRouteMatch.params);
     } else if (nodesRouteMatch) {
       ctx.addNodeDocument(clusterId);

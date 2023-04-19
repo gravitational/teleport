@@ -29,6 +29,7 @@ import ClusterCtx, {
   useClusterContext,
 } from './clusterContext';
 import ClusterResources from './ClusterResources';
+import ClusterSearch from './ClusterResources/ClusterSearch';
 
 export default function Container(props: DocumentProps) {
   const { clusterUri } = props.doc;
@@ -90,6 +91,12 @@ export function Cluster() {
             {`${clusterCtx.state.clusterName}`}
           </Text>
         </Text>
+        <Flex>
+          <ClusterSearch onChange={clusterCtx.changeSearchValue} />
+          <ButtonPrimary ml={2} size="small" onClick={clusterCtx.sync}>
+            Sync
+          </ButtonPrimary>
+        </Flex>
       </Flex>
       <ClusterResources />
     </Layout>
@@ -117,8 +124,6 @@ function RequiresLogin(props: { clusterUri: string; onLogin(): void }) {
   );
 }
 
-// TODO(ravicious): Add a button for syncing the leaf clusters list.
-// https://github.com/gravitational/teleport.e/issues/863
 function LeafDisconnected(props: { clusterUri: string }) {
   return (
     <Flex flexDirection="column" mx="auto" alignItems="center">

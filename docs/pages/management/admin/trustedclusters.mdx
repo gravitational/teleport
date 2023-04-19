@@ -104,7 +104,7 @@ how to set up this cluster, see one of our
   As an alternative, you can set up a second Teleport Cloud account.
 
 - The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../../choose-an-edition/teleport-cloud/downloads.mdx) page.
+  To download these tools, visit the [Downloads](../../deploy-a-cluster/teleport-cloud/downloads.mdx) page.
 
   ```code
   $ tctl version
@@ -349,7 +349,7 @@ On your local machine, create a file called `trusted_cluster.yaml` with the
 following content:
 
 ```yaml
-# trusted_cluster.yaml
+# cluster.yaml
 kind: trusted_cluster
 version: v2
 metadata:
@@ -577,17 +577,21 @@ Here is an example of creating trust between a leaf and a root node.
 ![Tunnels](../../../img/trusted-clusters/setting-up-trust.png)
 </Details>
 
-<Details
-  type="tip"
-  title="Update role mappings"
->
+<Details title="Updating your Trusted Cluster role mapping">
 
-You can update the role mappings within the `trusted_cluster` resource we created earlier by modifying the resource definition (`trusted_cluster.yaml`) to indicate the new role mappings in the `role_map` field.
+To update the role map for a Trusted Cluster, run the following commands on the
+leaf cluster.
 
-Then, update the trusted cluster resource on the leaf cluster side:
+First, remove the cluster:
 
 ```code
-$ tctl create --force trusted_cluster.yaml
+$ tctl rm tc/root-cluster
+```
+
+When this is complete, we can re-create the cluster:
+
+```code
+$ tctl create root-user-updated-role.yaml
 ```
 
 </Details>
@@ -703,7 +707,31 @@ $ tctl create demo-cluster-access.yaml
 role 'demo-cluster-access' has been created
 ```
 
-(!docs/pages/includes/add-role-to-user.mdx role="demo-cluster-access"!)
+Next, retrieve your user's role definition and overwrite the `user.yaml` file
+you created earlier. Replace `myuser` with the name of your Teleport user:
+
+```code
+$ tctl get user/myuser > user.yaml
+```
+
+Make the following change to `user.yaml`:
+
+```diff
+ spec:
+   roles:
+   - editor
+   - access
++  - demo-cluster-access
+```
+
+Update your user:
+
+```code
+$ tctl create -f user.yaml
+```
+
+When you log out of the cluster and log in again, you should see the
+`remote_cluster` you just labeled.
 
 Confirm that the updated labels have been set:
 
@@ -857,7 +885,7 @@ Make the following change to the resource:
 Update the Trusted Cluster:
 
 ```code
-$ tctl create --force trusted_cluster.yaml
+$ tctl create --force cluster.yaml
 ```
 
 This closes the reverse tunnel between your leaf cluster and your root cluster.
@@ -996,5 +1024,5 @@ should check to see the following:
 
 ## Further reading
 - Read more about how Trusted Clusters fit into Teleport's overall architecture:
-  [Architecture Introduction](../../architecture/trustedclusters.mdx).
+  [Architecture Introduction](../../architecture/overview.mdx).
 

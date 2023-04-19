@@ -1,6 +1,6 @@
 ---
 authors: David Boslee (david@goteleport.com), Naji Obeid (naji@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 69 - Proxy Peering
@@ -103,7 +103,7 @@ type ProxyClient interface {
 The api will use mTLS to ensure that only other proxies are able to connect. This is done by checking certificates for the built-in role “Proxy”. This will prevent users from connecting to the service directly without going through the user-proxy logic of authorization and session recording.
 
 ### Enabling Proxy Peering
-This feature will need to be explicitly configured to use it. The configuration will be set in the auth_service section of the teleport config and will update the `ClusterNetworkingConfig` stored in the backend.
+This feature will need to be explicity configured to use it. The configuration will be set in the auth_service section of the teleport config and will update the `ClusterNetworkingConfig` stored in the backend.
 
 The configuration option will be called `tunnel_strategy`. This will take a `type` and each `type` can support its own custom parameters. This gives us flexibility to support future strategies. The default will be `type: agent_mesh` which is equivalent to the current node dialing behavior.
 
@@ -192,14 +192,14 @@ Metrics will be added so we can monitor whether a single grpc connection becomes
 With these metrics we will be able to see if throughput begins to flatten as more streams are being used. If this does become an issue additional tcp connections will need to be created.
 
 ### Reverse Tunnel Agent Pool
-Changes to the reverse tunnel agent and agent pool are required to support this design. The existing implementation creates a connection to every proxy. The new implementation will decide how many connections to create dynamically based on the `ClusterNetworkingConfig`. If the `proxy_peering` tunnel strategy is configured the agent will try to create the configured number of connections. If the `agent_mesh` tunnel strategy is configured then a connection to every proxy will be created. Old agents can continue connecting to every proxy regardless of the tunnel strategy.
+Changes to the reverse tunnel agent and agent pool are required to support this design. The existing implementation creates a connection to every proxy. The new impelementation will decide how many connections to create dynamically based on the `ClusterNetworkingConfig`. If the `proxy_peering` tunnel strategy is configured the agent will try to create the configured number of connections. If the `agent_mesh` tunnel strategy is configured then a connection to every proxy will be created. Old agents can continue connecting to every proxy regardless of the tunnel strategy.
 
-As mentioned above the `proxy_peering` tunnel strategy will have a default `agent_connection_count: 1`. This is more likely to lead to unavailability to a subset of agents during network partitions and cluster upgrades. To help minimize this a higher `agent_connection_count` can be configured to increase the likelihood that an agent is reachable during these events.
+As mentioned above the `proxy_peering` tunnel strategy will have a default `agent_connection_count: 1`. This is more likedly to lead to unavailability to a subset of agents during network partitions and cluster upgrades. To help minimize this a higher `agent_connection_count` can be configured to increase the likelyhoood that an agent is reachable during these events.
 
 The `proxy_peering` strategy with a fixed `agent_connection_count` is an improvement over the `agent_mesh` strategy as it allows proxy servers to scale up without impacting the number of connections agents maintain.
 
 ### Trusted Clusters
-Leaf clusters will continue connecting to all proxies in the root cluster. Supporting trusted clusters would add a non-trivial amount of work and complexity to this design and provides diminishing returns. It is expected that trusted clusters will not be connected at the same scale as other resources like ssh nodes and therefore will not be a big contributor to the problems we are trying to address here.
+Leaf clusters will continue connecting to all proxies in the root cluster. Supporting trusted clusters would add a non-trivial amount of work and complexity to this design and provides diminishing returns. It is expected that trusted clusters will not be connected at the same scale as other resouces like ssh nodes and therefore will not be a big contributer to the problems we are trying to address here.
 
 ### Cluster Upgrade
 Upgrading a cluster to support this feature will require reconfiguration the auth service as follows:
@@ -229,7 +229,7 @@ These failures will be presented to the client as follows:
 3 and 4 will have the same behavior as a node agent disconnecting unexpectedly with the current implementation. This results in an [ExitMissingError](https://pkg.go.dev/golang.org/x/crypto/ssh#ExitMissingError) being displayed client side.
 
 ### TLS Routing
-Load balancers between the agent and proxy servers may want to differentiate between old agents that need to connect to every proxy and the new agents described in this document. This is important for geo distributed deployments to ensure low latency routing.
+Load balancers between the agent and proxy servers may want to diffentiate between old agents that need to connect to every proxy and the new agents described in this document. This is important for geo distributed deployments to ensure low latency routing.
 
 The cluster must be configure with `proxy_listener_mode: multiplex` to enable TLS ALPN routing. New agents will add an additional protocol `teleport-reversetunnelv2` to the ALPN header field resulting in the following list: `["teleport-reversetunnelv2", "teleport-reversetunnel"]`.
 
@@ -238,7 +238,7 @@ Preserving `teleport-reversetunnel` in the list of protocols, ensures that new a
 ## Alternative Considerations
 
 ### Node Tracker
-The original proposal included a separate service for tracking which proxy each node was connected to. This was ultimately decided against. The service was proposed to target scalability goals that need to be addressed in other parts of the system first. Given these limitations a simpler design was chosen to benefit the most customers. Further discussions on the node tracker proposal can be found [here](https://github.com/gravitational/teleport/pull/9121).
+The orginal proposal included a separate service for tracking which proxy each node was connected to. This was ultimately decided against. The service was proposed to target scalability goals that need to be addressed in other parts of the system first. Given these limitations a simpler design was chosen to benefit the most customers. Further discussions on the node tracker proposal can be found [here](https://github.com/gravitational/teleport/pull/9121).
 
 ### Client Redirect
-An alternative approach was considered to redirect clients to the corresponding node-proxy. This was ultimately disregarded for a couple of reasons. It increases the time to establish a session for the client as a client would need to dial and authenticate with two proxies. Proxies would need to be individually addressable by the client which makes them an easier targets for DDOS attacks.
+An alternative approach was considered to redirect clients to the corresponding node-proxy. This was ultimately disregarded for a couple of reasons. It increases the time to establish a session for the client as a client would need to dial and authenticate with two proxies. Proxies would need to be individually addressible by the client which makes them an easier targets for DDOS attacks.

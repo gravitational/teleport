@@ -69,13 +69,4 @@ var (
 		// AWS_USE_FIPS_ENDPOINT is set and a region is not.
 		"sts-fips.aws-global.amazonaws.com",
 	}
-
-	fipsSTSEndpoints = []string{
-		"sts-fips.us-east-1.amazonaws.com",
-		"sts-fips.us-east-2.amazonaws.com",
-		"sts-fips.us-west-1.amazonaws.com",
-		"sts-fips.us-west-2.amazonaws.com",
-		"sts.us-gov-east-1.amazonaws.com",
-		"sts.us-gov-west-1.amazonaws.com",
-	}
 )

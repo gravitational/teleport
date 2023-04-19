@@ -67,7 +67,7 @@ const (
 	EventNamespace = "namespace"
 
 	// SessionPrintEvent event happens every time a write occurs to
-	// terminal I/O during a session
+	// temirnal I/O during a session
 	SessionPrintEvent = "print"
 
 	// SessionPrintEventBytes says how many bytes have been written into the session
@@ -395,10 +395,6 @@ const (
 	// AppSessionRequestEvent is an HTTP request and response.
 	AppSessionRequestEvent = "app.session.request"
 
-	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
-	// a request via app access session.
-	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
-
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
 	// DatabaseUpdateEvent is emitted when a database resource is updated.
@@ -489,25 +485,8 @@ const (
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
 
-	// DatabaseSessionOpenSearchRequestEvent is emitted when OpenSearch client sends
-	// a request.
-	DatabaseSessionOpenSearchRequestEvent = "db.session.opensearch.request"
-
-	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
-	// a request via database-access.
-	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"
-
 	// DatabaseSessionMalformedPacketEvent is emitted when SQL packet is malformed.
 	DatabaseSessionMalformedPacketEvent = "db.session.malformed_packet"
-
-	// DatabaseSessionCassandraBatchEvent is emitted when a Cassandra client executes a batch of queries.
-	DatabaseSessionCassandraBatchEvent = "db.session.cassandra.batch"
-	// DatabaseSessionCassandraPrepareEvent is emitted when a Cassandra client sends prepare packet.
-	DatabaseSessionCassandraPrepareEvent = "db.session.cassandra.prepare"
-	// DatabaseSessionCassandraExecuteEvent is emitted when a Cassandra client sends executed packet.
-	DatabaseSessionCassandraExecuteEvent = "db.session.cassandra.execute"
-	// DatabaseSessionCassandraRegisterEvent is emitted when a Cassandra client sends the register packet.
-	DatabaseSessionCassandraRegisterEvent = "db.session.cassandra.register"
 
 	// SessionRejectedReasonMaxConnections indicates that a session.rejected event
 	// corresponds to enforcement of the max_connections control.
@@ -523,13 +502,6 @@ const (
 	// KubeRequestEvent fires when a proxy handles a generic kubernetes
 	// request.
 	KubeRequestEvent = "kube.request"
-
-	// KubernetesClusterCreateEvent is emitted when a kubernetes cluster resource is created.
-	KubernetesClusterCreateEvent = "kube.create"
-	// KubernetesClusterUpdateEvent is emitted when a kubernetes cluster resource is updated.
-	KubernetesClusterUpdateEvent = "kube.update"
-	// KubernetesClusterDeleteEvent is emitted when a kubernetes cluster resource is deleted.
-	KubernetesClusterDeleteEvent = "kube.delete"
 
 	// MFADeviceAddEvent is an event type for users adding MFA devices.
 	MFADeviceAddEvent = "mfa.add"
@@ -571,13 +543,6 @@ const (
 	// DesktopClipboardSendEvent is emitted when local clipboard data
 	// is sent to Teleport.
 	DesktopClipboardSendEvent = "desktop.clipboard.send"
-	// DesktopSharedDirectoryStartEvent is emitted when when Teleport
-	// successfully begins sharing a new directory to a remote desktop.
-	DesktopSharedDirectoryStartEvent = "desktop.directory.share"
-	// DesktopSharedDirectoryReadEvent is emitted when data is read from a shared directory.
-	DesktopSharedDirectoryReadEvent = "desktop.directory.read"
-	// DesktopSharedDirectoryWriteEvent is emitted when data is written to a shared directory.
-	DesktopSharedDirectoryWriteEvent = "desktop.directory.write"
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
@@ -588,34 +553,6 @@ const (
 	// SSMRunEvent is emitted when a run of an install script
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
-
-	// DeviceEvent is the catch-all event for Device Trust events.
-	DeviceEvent = "device"
-
-	// BotJoinEvent is emitted when a bot joins
-	BotJoinEvent = "bot.join"
-	// InstanceJoinEvent is emitted when an instance joins
-	InstanceJoinEvent = "instance.join"
-
-	// LoginRuleCreateEvent is emitted when a login rule is created or updated.
-	LoginRuleCreateEvent = "login_rule.create"
-	// LoginRuleDeleteEvent is emitted when a login rule is deleted.
-	LoginRuleDeleteEvent = "login_rule.delete"
-
-	// SAMLIdPAuthAttemptEvent is emitted when a user has attempted to authorize against the SAML IdP.
-	SAMLIdPAuthAttemptEvent = "saml.idp.auth"
-
-	// SAMLIdPServiceProviderCreateEvent is emitted when a service provider has been created.
-	SAMLIdPServiceProviderCreateEvent = "saml.idp.service.provider.create"
-
-	// SAMLIdPServiceProviderUpdateEvent is emitted when a service provider has been updated.
-	SAMLIdPServiceProviderUpdateEvent = "saml.idp.service.provider.update"
-
-	// SAMLIdPServiceProviderDeleteEvent is emitted when a service provider has been deleted.
-	SAMLIdPServiceProviderDeleteEvent = "saml.idp.service.provider.delete"
-
-	// SAMLIdPServiceProviderDeleteAllEvent is emitted when all service providers have been deleted.
-	SAMLIdPServiceProviderDeleteAllEvent = "saml.idp.service.provider.delete_all"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
@@ -775,15 +712,16 @@ type StreamEmitter interface {
 	Streamer
 }
 
-// AuditLogSessionStreamer is the primary (and the only external-facing)
-// interface for AuditLogger and SessionStreamer.
-type AuditLogSessionStreamer interface {
-	AuditLogger
-	SessionStreamer
-}
+// IAuditLog is the primary (and the only external-facing) interface for AuditLogger.
+// If you wish to implement a different kind of logger (not filesystem-based), you
+// have to implement this interface
+type IAuditLog interface {
+	// Closer releases connection and resources associated with log if any
+	io.Closer
 
-// SessionStreamer supports streaming session chunks or events.
-type SessionStreamer interface {
+	// EmitAuditEvent emits audit event
+	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+
 	// GetSessionChunk returns a reader which can be used to read a byte stream
 	// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
 	// beginning) up to maxBytes bytes.
@@ -794,22 +732,11 @@ type SessionStreamer interface {
 	// Returns all events that happen during a session sorted by time
 	// (oldest first).
 	//
-	// after is used to return events after a specified cursor ID
-	GetSessionEvents(namespace string, sid session.ID, after int) ([]EventFields, error)
-
-	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-	// The event channel is not closed on error to prevent race conditions in downstream select statements.
-	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
-}
-
-// AuditLogger defines which methods need to implemented by audit loggers.
-type AuditLogger interface {
-	// Closer releases connection and resources associated with log if any
-	io.Closer
-
-	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+	// after tells to use only return events after a specified cursor Id
+	//
+	// This function is usually used in conjunction with GetSessionReader to
+	// replay recorded session streams.
+	GetSessionEvents(namespace string, sid session.ID, after int, includePrintEvents bool) ([]EventFields, error)
 
 	// SearchEvents is a flexible way to find events.
 	//
@@ -830,6 +757,11 @@ type AuditLogger interface {
 	//
 	// This function may never return more than 1 MiB of event data.
 	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
+
+	// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
+	// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
+	// The event channel is not closed on error to prevent race conditions in downstream select statements.
+	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
 // EventFields instance is attached to every logged event
@@ -842,6 +774,7 @@ func (f EventFields) AsString() string {
 		f.GetString(EventLogin),
 		f.GetInt(EventCursor),
 		f.GetInt(SessionPrintEventBytes))
+
 }
 
 // GetType returns the type (string) of the event

@@ -23,56 +23,12 @@ export const paths = {
   leafCluster: '/clusters/:rootClusterId/leaves/:leafClusterId',
   server:
     '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/servers/:serverId',
-  serverLeaf:
-    '/clusters/:rootClusterId/leaves/:leafClusterId/servers/:serverId',
   kube: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/kubes/:kubeId',
   db: '/clusters/:rootClusterId/(leaves)?/:leafClusterId?/dbs/:dbId',
   gateway: '/gateways/:gatewayId',
   docHome: '/docs/home',
   doc: '/docs/:docId',
 };
-
-type RootClusterId = string;
-type LeafClusterId = string;
-type ServerId = string;
-type KubeId = string;
-type DbId = string;
-export type RootClusterUri = `/clusters/${RootClusterId}`;
-export type RootClusterServerUri =
-  `/clusters/${RootClusterId}/servers/${ServerId}`;
-export type RootClusterKubeUri = `/clusters/${RootClusterId}/kubes/${KubeId}`;
-export type RootClusterDatabaseUri = `/clusters/${RootClusterId}/dbs/${DbId}`;
-export type RootClusterResourceUri =
-  | RootClusterServerUri
-  | RootClusterKubeUri
-  | RootClusterDatabaseUri;
-export type RootClusterOrResourceUri = RootClusterUri | RootClusterResourceUri;
-export type LeafClusterUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}`;
-export type LeafClusterServerUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/servers/${ServerId}`;
-export type LeafClusterKubeUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/kubes/${KubeId}`;
-export type LeafClusterDatabaseUri =
-  `/clusters/${RootClusterId}/leaves/${LeafClusterId}/dbs/${DbId}`;
-export type LeafClusterResourceUri =
-  | LeafClusterServerUri
-  | LeafClusterKubeUri
-  | LeafClusterDatabaseUri;
-export type LeafClusterOrResourceUri = LeafClusterUri | LeafClusterResourceUri;
-
-export type ResourceUri = RootClusterResourceUri | LeafClusterResourceUri;
-export type ClusterUri = RootClusterUri | LeafClusterUri;
-export type ServerUri = RootClusterServerUri | LeafClusterServerUri;
-export type KubeUri = RootClusterKubeUri | LeafClusterKubeUri;
-export type DatabaseUri = RootClusterDatabaseUri | LeafClusterDatabaseUri;
-export type ClusterOrResourceUri = ResourceUri | ClusterUri;
-
-type DocumentId = string;
-export type DocumentUri = `/docs/${DocumentId}`;
-
-type GatewayId = string;
-export type GatewayUri = `/gateways/${GatewayId}`;
 
 export const routing = {
   parseClusterUri(uri: string) {
@@ -82,13 +38,13 @@ export const routing = {
   },
 
   // Pass either a root or a leaf cluster URI to get back a root cluster URI.
-  ensureRootClusterUri(uri: ClusterOrResourceUri) {
+  ensureRootClusterUri(uri: string) {
     const { rootClusterId } = routing.parseClusterUri(uri).params;
-    return routing.getClusterUri({ rootClusterId }) as RootClusterUri;
+    return routing.getClusterUri({ rootClusterId });
   },
 
   // Pass any resource URI to get back a cluster URI.
-  ensureClusterUri(uri: ClusterOrResourceUri) {
+  ensureClusterUri(uri: string) {
     const params = routing.parseClusterUri(uri).params;
     return routing.getClusterUri(params);
   },
@@ -109,13 +65,6 @@ export const routing = {
     return matchPath<Params>(path, route);
   },
 
-  /**
-   * parseClusterName should be used only when getting the cluster object from ClustersService is
-   * not possible.
-   *
-   * rootClusterId in the URI is not the name of the cluster but rather just the hostname of the
-   * proxy. These two might be different.
-   */
   parseClusterName(clusterUri: string) {
     const parsed = routing.parseClusterUri(clusterUri);
     if (!parsed) {
@@ -134,57 +83,38 @@ export const routing = {
   },
 
   getDocUri(params: Params) {
-    return generatePath(paths.doc, params as any) as DocumentUri;
+    return generatePath(paths.doc, params as any);
   },
 
-  getClusterUri(params: Params): ClusterUri {
+  getClusterUri(params: Params) {
     if (params.leafClusterId) {
-      return generatePath(paths.leafCluster, params as any) as LeafClusterUri;
+      return generatePath(paths.leafCluster, params as any);
     }
 
-    return generatePath(paths.rootCluster, params as any) as RootClusterUri;
+    return generatePath(paths.rootCluster, params as any);
   },
 
   getServerUri(params: Params) {
-    if (params.leafClusterId) {
-      // paths.serverLeaf is needed as path-to-regexp used by react-router doesn't support
-      // optional groups with params. https://github.com/pillarjs/path-to-regexp/issues/142
-      //
-      // If we used paths.server instead, then the /leaves/ part of the URI would be missing.
-      return generatePath(
-        paths.serverLeaf,
-        params as any
-      ) as LeafClusterServerUri;
-    } else {
-      return generatePath(paths.server, params as any) as RootClusterServerUri;
-    }
+    return generatePath(paths.server, params as any);
   },
 
-  isClusterServer(clusterUri: ClusterUri, serverUri: ServerUri) {
+  isClusterServer(clusterUri: string, serverUri: string) {
     return serverUri.startsWith(`${clusterUri}/servers/`);
   },
 
-  isClusterKube(clusterUri: ClusterUri, kubeUri: KubeUri) {
+  isClusterKube(clusterUri: string, kubeUri: string) {
     return kubeUri.startsWith(`${clusterUri}/kubes/`);
   },
 
-  isClusterDb(clusterUri: ClusterUri, dbUri: DatabaseUri) {
+  isClusterDb(clusterUri: string, dbUri: string) {
     return dbUri.startsWith(`${clusterUri}/dbs/`);
   },
 
-  isClusterApp(clusterUri: ClusterUri, appUri: string) {
+  isClusterApp(clusterUri: string, appUri: string) {
     return appUri.startsWith(`${clusterUri}/apps/`);
   },
 
-  isLeafCluster(clusterUri: ClusterUri) {
-    const match = routing.parseClusterUri(clusterUri);
-    return match && Boolean(match.params.leafClusterId);
-  },
-
-  belongsToProfile(
-    clusterUri: ClusterOrResourceUri,
-    resourceUri: ClusterOrResourceUri
-  ) {
+  belongsToProfile(clusterUri: string, resourceUri: string) {
     const rootClusterUri = this.ensureRootClusterUri(clusterUri);
     const resourceRootClusterUri = this.ensureRootClusterUri(resourceUri);
 

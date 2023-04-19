@@ -16,97 +16,48 @@
 
 import React from 'react';
 
-import { ResourceKind, Finished } from 'teleport/Discover/Shared';
-import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { DatabaseWrapper } from 'teleport/Discover/Database/DatabaseWrapper';
-import {
-  ResourceSpec,
-  DatabaseLocation,
-} from 'teleport/Discover/SelectResource';
+import { Database } from 'design/Icon';
 
-import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
-import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
-import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
-import { MutualTls } from 'teleport/Discover/Database/MutualTls';
-import { TestConnection } from 'teleport/Discover/Database/TestConnection';
-import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
-import { DiscoverEvent } from 'teleport/services/userEvent';
+import { ResourceKind } from 'teleport/Discover/Shared';
+import { Resource } from 'teleport/Discover/flow';
+import { InstallActiveDirectory } from 'teleport/Discover/Desktop/InstallActiveDirectory';
 
-export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
+export const DatabaseResource: Resource = {
   kind: ResourceKind.Database,
-  wrapper(component: React.ReactNode) {
-    return <DatabaseWrapper>{component}</DatabaseWrapper>;
+  icon: <Database />,
+  shouldPrompt(currentStep) {
+    // do not prompt on exit if they're selecting a resource
+    return currentStep !== 0;
   },
-  views(resource) {
-    let configureResourceViews;
-    if (resource && resource.dbMeta) {
-      switch (resource.dbMeta.location) {
-        case DatabaseLocation.Aws:
-          configureResourceViews = [
-            {
-              title: 'Register a Database',
-              component: CreateDatabase,
-              eventName: DiscoverEvent.DatabaseRegister,
-            },
-            {
-              title: 'Deploy Database Service',
-              component: DownloadScript,
-              eventName: DiscoverEvent.DeployService,
-            },
-            {
-              title: 'Configure IAM Policy',
-              component: IamPolicy,
-              eventName: DiscoverEvent.DatabaseConfigureIAMPolicy,
-            },
-          ];
-
-          break;
-
-        case DatabaseLocation.SelfHosted:
-          configureResourceViews = [
-            {
-              title: 'Register a Database',
-              component: CreateDatabase,
-              eventName: DiscoverEvent.DatabaseRegister,
-            },
-            {
-              title: 'Deploy Database Service',
-              component: DownloadScript,
-              eventName: DiscoverEvent.DeployService,
-            },
-            {
-              title: 'Configure mTLS',
-              component: MutualTls,
-              eventName: DiscoverEvent.DatabaseConfigureMTLS,
-            },
-          ];
-
-          break;
-      }
-    }
-
-    return [
-      {
-        title: 'Configure Resource',
-        views: configureResourceViews,
-      },
-      {
-        title: 'Set Up Access',
-        component: SetupAccess,
-        eventName: DiscoverEvent.PrincipalsConfigure,
-      },
-      {
-        title: 'Test Connection',
-        component: TestConnection,
-        eventName: DiscoverEvent.TestConnection,
-        manuallyEmitSuccessEvent: true,
-      },
-      {
-        title: 'Finished',
-        component: Finished,
-        eventName: DiscoverEvent.Completed,
-        hide: true,
-      },
-    ];
-  },
+  views: [
+    {
+      title: 'Select Resource',
+    },
+    {
+      title: 'Configure Resource',
+      component: InstallActiveDirectory,
+      views: [
+        {
+          title: 'Deploy Database Agent',
+          component: InstallActiveDirectory,
+        },
+        {
+          title: 'Register a Database',
+          component: InstallActiveDirectory,
+        },
+        {
+          title: 'Configure mTLS',
+          component: InstallActiveDirectory,
+        },
+      ],
+    },
+    {
+      title: 'Setup Access',
+      component: InstallActiveDirectory,
+    },
+    {
+      title: 'Test Connection',
+      component: InstallActiveDirectory,
+    },
+  ],
 };

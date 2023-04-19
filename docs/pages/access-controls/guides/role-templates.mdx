@@ -1,6 +1,6 @@
 ---
 title: Teleport Role Templates
-description: This guide explains templating in Teleport roles. Templates allow you to enable access to resources depending on the traits of a local or single sign-on user.
+description: Mapping SSO and Local Users Traits to Roles with Template.
 ---
 
 As organizations grow, infrastructure teams have to figure out how to define
@@ -20,7 +20,7 @@ other policies.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- (!docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 ## Local users
 
@@ -34,7 +34,7 @@ We can create two roles, one for each user in file `roles.yaml`:
 
 ```yaml
 kind: role
-version: v6
+version: v5
 metadata:
   name: alice
 spec:
@@ -45,13 +45,9 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ---
 kind: role
-version: v6
+version: v5
 metadata:
   name: bob
 spec:
@@ -62,10 +58,6 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 You can create roles and invite Alice and Bob as local users:
@@ -84,7 +76,7 @@ Let's create a role template called `devs.yaml`:
 
 ```yaml
 kind: role
-version: v6
+version: v5
 metadata:
   name: devs
 spec:
@@ -95,10 +87,6 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 Any role becomes a template once it starts using template variables.
@@ -185,6 +173,7 @@ $ tsh login --proxy=mytenant.teleport.sh --user=alice
 
 </ScopedBlock>
 
+
 ## SSO users
 
 Identity provider admins can assign metadata to a user such as group membership
@@ -207,7 +196,7 @@ Let's create a role template called `sso-users` that expects external attribute
 
 ```yaml
 kind: role
-version: v6
+version: v5
 metadata:
   name: sso-users
 spec:
@@ -217,10 +206,6 @@ spec:
       '*': '*'
     kubernetes_labels:
       '*': '*'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 A GitHub connector called `github.yaml` maps every member of team `cyber` in
@@ -314,7 +299,7 @@ Let's see how these variables are used with role template `interpolation`:
 
 ```yaml
 kind: role
-version: v6
+version: v5
 metadata:
   name: interpolation
 spec:
@@ -340,10 +325,6 @@ spec:
 
     kubernetes_labels:
       '*': '*'
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 After interpolation with Alice's SSO user attributes, the role template will
@@ -351,7 +332,7 @@ behave as the following role:
 
 ```yaml
 kind: role
-version: v6
+version: v5
 metadata:
   name: interpolation
 spec:
@@ -380,11 +361,6 @@ spec:
 
     kubernetes_labels:
       '*': '*'
-
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 Available interpolation functions include:

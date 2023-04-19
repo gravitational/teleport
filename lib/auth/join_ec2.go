@@ -34,9 +34,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"go.mozilla.org/pkcs7"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -75,7 +75,7 @@ func checkEC2AllowRules(ctx context.Context, iid *imds.InstanceIdentityDocument,
 		}
 		// if this rule specifies any AWS regions, the IID must match one of them
 		if len(rule.AWSRegions) > 0 {
-			if !slices.Contains(rule.AWSRegions, iid.Region) {
+			if !apiutils.SliceContainsStr(rule.AWSRegions, iid.Region) {
 				continue
 			}
 		}
@@ -202,12 +202,12 @@ func proxyExists(ctx context.Context, presence services.Presence, hostID string)
 }
 
 func kubeExists(ctx context.Context, presence services.Presence, hostID string) (bool, error) {
-	kubes, err := presence.GetKubernetesServers(ctx)
+	kubes, err := presence.GetKubeServices(ctx)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
 	for _, kube := range kubes {
-		if kube.GetHostID() == hostID {
+		if kube.GetName() == hostID {
 			return true, nil
 		}
 	}

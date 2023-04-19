@@ -34,27 +34,12 @@ export default function createMainProcessClient(): MainProcessClient {
         'main-process-get-resolved-child-process-addresses'
       );
     },
-    showFileSaveDialog(filePath: string) {
-      return ipcRenderer.invoke('main-process-show-file-save-dialog', filePath);
-    },
     openTerminalContextMenu,
     openTabContextMenu,
     configService: createConfigServiceClient(),
     fileStorage: createFileStorageClient(),
     removeKubeConfig(options) {
       return ipcRenderer.invoke('main-process-remove-kube-config', options);
-    },
-    forceFocusWindow() {
-      return ipcRenderer.invoke('main-process-force-focus-window');
-    },
-    symlinkTshMacOs() {
-      return ipcRenderer.invoke('main-process-symlink-tsh-macos');
-    },
-    removeTshSymlinkMacOs() {
-      return ipcRenderer.invoke('main-process-remove-tsh-symlink-macos');
-    },
-    openConfigFile(): Promise<string> {
-      return ipcRenderer.invoke('main-process-open-config-file');
     },
   };
 }

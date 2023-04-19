@@ -15,32 +15,32 @@
  */
 
 import React from 'react';
-import { render, screen } from 'design/utils/testing';
+import { render } from 'design/utils/testing';
 import { MemoryRouter } from 'react-router';
 
 import Empty, { Props } from './Empty';
 
 test('empty state for enterprise or oss, with create perms', async () => {
-  render(
+  const { findByText } = render(
     <MemoryRouter>
       <Empty {...props} />
     </MemoryRouter>
   );
 
   await expect(
-    screen.findByText(/Add your first Linux server to Teleport/i)
+    findByText(/Add your first Linux server to Teleport/i)
   ).resolves.toBeVisible();
 });
 
 test('empty state for cant create or leaf cluster', async () => {
-  render(
+  const { findByText } = render(
     <MemoryRouter>
       <Empty {...props} canCreate={false} />
     </MemoryRouter>
   );
 
   await expect(
-    screen.findByText(/Either there are no servers in the/i)
+    findByText(/Either there are no servers in the/i)
   ).resolves.toBeVisible();
 });
 

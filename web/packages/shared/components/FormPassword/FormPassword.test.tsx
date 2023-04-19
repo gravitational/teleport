@@ -44,7 +44,7 @@ test('input validation error states', async () => {
   const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithWebauthn = jest.fn().mockResolvedValue(null);
 
-  render(
+  const { getByText } = render(
     <FormPassword
       auth2faType={'otp'}
       onChangePass={onChangePass}
@@ -53,21 +53,21 @@ test('input validation error states', async () => {
   );
 
   // test input validation error states
-  fireEvent.click(screen.getByText(btnSubmitText));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePass).not.toHaveBeenCalled();
   expect(onChangePassWithWebauthn).not.toHaveBeenCalled();
 
-  expect(screen.getByText(/current password is required/i)).toBeInTheDocument();
-  expect(screen.getByText(/enter at least 6 characters/i)).toBeInTheDocument();
-  expect(screen.getByText(/please confirm your password/i)).toBeInTheDocument();
-  expect(screen.getByText(/token is required/i)).toBeInTheDocument();
+  expect(getByText(/current password is required/i)).toBeInTheDocument();
+  expect(getByText(/enter at least 6 characters/i)).toBeInTheDocument();
+  expect(getByText(/please confirm your password/i)).toBeInTheDocument();
+  expect(getByText(/token is required/i)).toBeInTheDocument();
 });
 
 test('prop auth2faType: off', async () => {
   const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithWebauthn = jest.fn().mockResolvedValue(null);
 
-  render(
+  const { getByText, getByPlaceholderText } = render(
     <FormPassword
       auth2faType="off"
       onChangePass={onChangePass}
@@ -76,25 +76,25 @@ test('prop auth2faType: off', async () => {
   );
 
   // Rendering of mfa dropdown.
-  expect(screen.queryByTestId('mfa-select')).not.toBeInTheDocument();
+  expect(screen.queryByTestId('mfa-select')).toBeNull();
 
   // fill out form
-  fireEvent.change(screen.getByPlaceholderText(placeholdCurrPass), inputVal);
-  fireEvent.change(screen.getByPlaceholderText(placeholdNewPass), inputVal);
-  fireEvent.change(screen.getByPlaceholderText(placeholdConfirm), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdNewPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdConfirm), inputVal);
 
   // test the correct cb is called when submitting
-  fireEvent.click(screen.getByText(btnSubmitText));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePass).toHaveBeenCalledWith(inputValText, inputValText, '');
   expect(onChangePassWithWebauthn).not.toHaveBeenCalled();
 
   // test rendering of status message after submit
-  await screen.findByText(/your password has been changed!/i);
+  expect(getByText(/your password has been changed!/i)).toBeInTheDocument();
 
   // test clearing of form values after submit
-  expect(screen.getByPlaceholderText(placeholdCurrPass)).toHaveValue('');
-  expect(screen.getByPlaceholderText(placeholdNewPass)).toHaveValue('');
-  expect(screen.getByPlaceholderText(placeholdConfirm)).toHaveValue('');
+  expect(getByPlaceholderText(placeholdCurrPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdNewPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdConfirm)).toHaveAttribute('value', '');
 });
 
 test('prop auth2faType: webauthn form with mocked error', async () => {
@@ -103,7 +103,7 @@ test('prop auth2faType: webauthn form with mocked error', async () => {
     .fn()
     .mockRejectedValue(new Error('errMsg'));
 
-  render(
+  const { getByText, getByPlaceholderText } = render(
     <FormPassword
       auth2faType={'webauthn'}
       onChangePass={onChangePass}
@@ -115,25 +115,23 @@ test('prop auth2faType: webauthn form with mocked error', async () => {
   expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // fill out form
-  fireEvent.change(screen.getByPlaceholderText(placeholdCurrPass), inputVal);
-  fireEvent.change(screen.getByPlaceholderText(placeholdNewPass), inputVal);
-  fireEvent.change(screen.getByPlaceholderText(placeholdConfirm), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdNewPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdConfirm), inputVal);
 
   // test correct cb is called
-  fireEvent.click(screen.getByText(btnSubmitText));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePassWithWebauthn).toHaveBeenCalledTimes(1);
 
   // test rendering of status message after submit
-  await waitFor(() => {
-    expect(screen.getByText(/errMsg/i)).toBeInTheDocument();
-  });
+  expect(getByText(/errMsg/i)).toBeInTheDocument();
 });
 
 test('prop auth2faType: OTP form', async () => {
   const onChangePass = jest.fn().mockResolvedValue(null);
   const onChangePassWithWebauthn = jest.fn().mockResolvedValue(null);
 
-  render(
+  const { getByText, getByPlaceholderText } = render(
     <FormPassword
       auth2faType="otp"
       onChangePass={onChangePass}
@@ -145,16 +143,16 @@ test('prop auth2faType: OTP form', async () => {
   expect(screen.getByTestId('mfa-select')).not.toBeEmptyDOMElement();
 
   // test input validation error state
-  fireEvent.click(screen.getByText(btnSubmitText));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
 
   // fill out form
-  fireEvent.change(screen.getByPlaceholderText(placeholdCurrPass), inputVal);
-  fireEvent.change(screen.getByPlaceholderText(placeholdNewPass), inputVal);
-  fireEvent.change(screen.getByPlaceholderText(placeholdConfirm), inputVal);
-  fireEvent.change(screen.getByPlaceholderText(/123 456/i), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdCurrPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdNewPass), inputVal);
+  fireEvent.change(getByPlaceholderText(placeholdConfirm), inputVal);
+  fireEvent.change(getByPlaceholderText(/123 456/i), inputVal);
 
   // test the correct cb is called when submitting
-  fireEvent.click(screen.getByText(btnSubmitText));
+  await waitFor(() => fireEvent.click(getByText(btnSubmitText)));
   expect(onChangePass).toHaveBeenCalledWith(
     inputValText,
     inputValText,
@@ -163,12 +161,10 @@ test('prop auth2faType: OTP form', async () => {
   expect(onChangePassWithWebauthn).not.toHaveBeenCalled();
 
   // test clearing of form values after submit
-  await waitFor(() => {
-    expect(screen.getByPlaceholderText(placeholdCurrPass)).toHaveValue('');
-  });
-  expect(screen.getByPlaceholderText(placeholdNewPass)).toHaveValue('');
-  expect(screen.getByPlaceholderText(placeholdConfirm)).toHaveValue('');
-  expect(screen.getByPlaceholderText(/123 456/i)).toHaveValue('');
+  expect(getByPlaceholderText(placeholdCurrPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdNewPass)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(placeholdConfirm)).toHaveAttribute('value', '');
+  expect(getByPlaceholderText(/123 456/i)).toHaveAttribute('value', '');
 });
 
 test('auth2faType "optional" should render form with hardware key as first option in dropdown', async () => {

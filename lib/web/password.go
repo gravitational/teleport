@@ -26,6 +26,7 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // changePasswordReq is a request to change user password
@@ -52,17 +53,15 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
-	protoReq := &proto.ChangePasswordRequest{
+	servicedReq := services.ChangePasswordReq{
 		User:              ctx.GetUser(),
 		OldPassword:       req.OldPassword,
 		NewPassword:       req.NewPassword,
 		SecondFactorToken: req.SecondFactorToken,
-		Webauthn: wanlib.CredentialAssertionResponseToProto(
-			req.WebauthnAssertionResponse,
-		),
+		WebauthnResponse:  req.WebauthnAssertionResponse,
 	}
 
-	if err := clt.ChangePassword(r.Context(), protoReq); err != nil {
+	if err := clt.ChangePassword(servicedReq); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 )
@@ -64,7 +63,7 @@ func Handshake(conn net.Conn) (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	if !slices.Contains(authMethods, socks5AuthNotRequired) {
+	if !byteSliceContains(authMethods, socks5AuthNotRequired) {
 		return "", trace.BadParameter("only 'no authentication required' is supported")
 	}
 	err = writeMethodSelection(conn)
@@ -254,4 +253,15 @@ func readByte(conn net.Conn) (byte, error) {
 	}
 
 	return b[0], nil
+}
+
+// byteSliceContains checks if the slice a contains the byte b.
+func byteSliceContains(a []byte, b byte) bool {
+	for _, v := range a {
+		if v == b {
+			return true
+		}
+	}
+
+	return false
 }

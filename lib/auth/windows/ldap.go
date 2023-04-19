@@ -24,28 +24,26 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/api/types"
 )
 
 // LDAPConfig contains parameters for connecting to an LDAP server.
 type LDAPConfig struct {
 	// Addr is the LDAP server address in the form host:port.
 	// Standard port is 636 for LDAPS.
-	Addr string //nolint:unused // False-positive
+	Addr string
 	// Domain is an Active Directory domain name, like "example.com".
-	Domain string //nolint:unused // False-positive
+	Domain string
 	// Username is an LDAP username, like "EXAMPLE\Administrator", where
 	// "EXAMPLE" is the NetBIOS version of Domain.
-	Username string //nolint:unused // False-positive
+	Username string
 	// SID is the SID for the user specified by Username.
-	SID string //nolint:unused // False-positive
+	SID string
 	// InsecureSkipVerify decides whether we skip verifying with the LDAP server's CA when making the LDAPS connection.
-	InsecureSkipVerify bool //nolint:unused // False-positive
+	InsecureSkipVerify bool
 	// ServerName is the name of the LDAP server for TLS.
-	ServerName string //nolint:unused // False-positive
+	ServerName string
 	// CA is an optional CA cert to be used for verification if InsecureSkipVerify is set to false.
-	CA *x509.Certificate //nolint:unused // False-positive
+	CA *x509.Certificate
 }
 
 // Check verifies this LDAPConfig
@@ -130,11 +128,7 @@ const searchPageSize = 1000
 
 // Note: if you want to browse LDAP on the Windows machine, run ADSIEdit.msc.
 
-// LDAPClient is a windows LDAP client.
-//
-// It does not automatically detect when the underlying connection
-// is closed. Callers should check for trace.ConnectionProblem errors
-// and provide a new client with [SetClient].
+// LDAPClient is a windows LDAP client
 type LDAPClient struct {
 	// Cfg is the LDAPConfig
 	Cfg LDAPConfig
@@ -278,22 +272,10 @@ func CombineLDAPFilters(filters []string) string {
 	return "(&" + strings.Join(filters, "") + ")"
 }
 
-func crlContainerDN(config LDAPConfig, caType types.CertAuthType) string {
-	return fmt.Sprintf("CN=%s,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration,%s", crlKeyName(caType), config.DomainDN())
+func crlContainerDN(config LDAPConfig) string {
+	return "CN=Teleport,CN=CDP,CN=Public Key Services,CN=Services,CN=Configuration," + config.DomainDN()
 }
 
-func crlDN(clusterName string, config LDAPConfig, caType types.CertAuthType) string {
-	return "CN=" + clusterName + "," + crlContainerDN(config, caType)
-}
-
-// crlKeyName returns the appropriate LDAP key given the CA type.
-//
-// Note: UserCA must use "Teleport" to keep backwards compatibility.
-func crlKeyName(caType types.CertAuthType) string {
-	switch caType {
-	case types.DatabaseCA:
-		return "TeleportDB"
-	default:
-		return "Teleport"
-	}
+func crlDN(clusterName string, config LDAPConfig) string {
+	return "CN=" + clusterName + "," + crlContainerDN(config)
 }

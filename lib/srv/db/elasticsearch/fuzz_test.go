@@ -35,7 +35,8 @@ func FuzzGetQueryFromRequestBody(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, contentType string, body []byte) {
 		require.NotPanics(t, func() {
-			GetQueryFromRequestBody(mkEngine().EngineConfig, contentType, body)
+			e := mkEngine()
+			e.getQueryFromRequestBody(contentType, body)
 		})
 	})
 }

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"path"
 	"strings"
 )
 
@@ -333,6 +334,24 @@ func cloneRepoStep(clonePath, commit string) step {
 		Image:    "alpine/git:latest",
 		Pull:     "if-not-exists",
 		Commands: cloneRepoCommands(clonePath, commit),
+	}
+}
+
+func verifyNotPrereleaseStep() step {
+	clonePath := "/tmp/repo"
+	commands := []string{
+		"apk add git",
+	}
+	commands = append(commands, cloneRepoCommands(clonePath, "${DRONE_TAG}")...)
+	commands = append(commands,
+		fmt.Sprintf("cd %q", path.Join(clonePath, "build.assets", "tooling")),
+		"go run ./cmd/check -tag ${DRONE_TAG} -check prerelease || (echo '---> This is a prerelease, not continuing promotion for ${DRONE_TAG}' && exit 78)",
+	)
+
+	return step{
+		Name:     "Check if tag is prerelease",
+		Image:    fmt.Sprintf("golang:%s-alpine", GoVersion),
+		Commands: commands,
 	}
 }
 

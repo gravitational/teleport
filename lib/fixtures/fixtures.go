@@ -15,53 +15,160 @@
 package fixtures
 
 import (
+	"reflect"
 	"runtime/debug"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-
-	apifixtures "github.com/gravitational/teleport/api/fixtures"
+	check "gopkg.in/check.v1"
 )
+
+// ExpectNotFound expects not found error
+func ExpectNotFound(c *check.C, err error) {
+	c.Assert(trace.IsNotFound(err), check.Equals, true, check.Commentf("expected NotFound, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
+
+// ExpectBadParameter expects bad parameter error
+func ExpectBadParameter(c *check.C, err error) {
+	c.Assert(trace.IsBadParameter(err), check.Equals, true, check.Commentf("expected BadParameter, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
+
+// ExpectCompareFailed expects compare failed error
+func ExpectCompareFailed(c *check.C, err error) {
+	c.Assert(trace.IsCompareFailed(err), check.Equals, true, check.Commentf("expected CompareFailed, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
+
+// ExpectAccessDenied expects error to be access denied
+func ExpectAccessDenied(c *check.C, err error) {
+	c.Assert(trace.IsAccessDenied(err), check.Equals, true, check.Commentf("expected AccessDenied, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
+
+// ExpectAlreadyExists expects already exists error
+func ExpectAlreadyExists(c *check.C, err error) {
+	c.Assert(trace.IsAlreadyExists(err), check.Equals, true, check.Commentf("expected AlreadyExists, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
+
+// ExpectConnectionProblem expects connection problem error
+func ExpectConnectionProblem(c *check.C, err error) {
+	c.Assert(trace.IsConnectionProblem(err), check.Equals, true, check.Commentf("expected ConnectionProblem, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
+
+// ExpectLimitExceeded expects limit exceeded error
+func ExpectLimitExceeded(c *check.C, err error) {
+	c.Assert(trace.IsLimitExceeded(err), check.Equals, true, check.Commentf("expected LimitExceeded, got %T %v at %v", trace.Unwrap(err), err, string(debug.Stack())))
+}
 
 // AssertNotFound expects not found error
 func AssertNotFound(t *testing.T, err error) {
-	if !trace.IsNotFound(err) {
+	if trace.IsNotFound(err) == false {
 		t.Fatalf("Expected NotFound, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertBadParameter expects bad parameter error
 func AssertBadParameter(t *testing.T, err error) {
-	if !trace.IsBadParameter(err) {
+	if trace.IsBadParameter(err) == false {
 		t.Fatalf("Expected BadParameter, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertCompareFailed expects compare failed error
 func AssertCompareFailed(t *testing.T, err error) {
-	if !trace.IsCompareFailed(err) {
+	if trace.IsCompareFailed(err) == false {
 		t.Fatalf("Expected CompareFailed, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertAccessDenied expects error to be access denied
 func AssertAccessDenied(t *testing.T, err error) {
-	if !trace.IsAccessDenied(err) {
+	if trace.IsAccessDenied(err) == false {
 		t.Fatalf("Expected AccessDenied, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertAlreadyExists expects already exists error
 func AssertAlreadyExists(t *testing.T, err error) {
-	if !trace.IsAlreadyExists(err) {
+	if trace.IsAlreadyExists(err) == false {
 		t.Fatalf("Expected AlreadyExists, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
 	}
 }
 
 // AssertConnectionProblem expects connection problem error
 func AssertConnectionProblem(t *testing.T, err error) {
-	if !trace.IsConnectionProblem(err) {
+	if trace.IsConnectionProblem(err) == false {
 		t.Fatalf("Expected ConnectionProblem, got %T %v at %v.", trace.Unwrap(err), err, string(debug.Stack()))
+	}
+}
+
+// DeepCompare uses gocheck DeepEquals but provides nice diff if things are not equal
+func DeepCompare(c *check.C, a, b interface{}) {
+	if !reflect.DeepEqual(a, b) {
+		c.Fatalf("Values are not equal, diff:\n%s\nStack:\n%v\n", cmp.Diff(a, b), string(debug.Stack()))
+	}
+}
+
+// DeepCompareSlices compares two slices
+func DeepCompareSlices(c *check.C, a, b interface{}) {
+	aval, bval := reflect.ValueOf(a), reflect.ValueOf(b)
+	if aval.Kind() != reflect.Slice {
+		c.Fatalf("%v is not a map, %T", a, a)
+	}
+
+	if bval.Kind() != reflect.Slice {
+		c.Fatalf("%v is not a map, %T", b, b)
+	}
+
+	if aval.Len() != bval.Len() {
+		c.Fatalf("slices have different length of %v and %v", aval.Len(), bval.Len())
+	}
+
+	for i := 0; i < aval.Len(); i++ {
+		DeepCompare(c, aval.Index(i).Interface(), bval.Index(i).Interface())
+	}
+}
+
+// DeepCompareMaps compares two maps
+func DeepCompareMaps(c *check.C, a, b interface{}) {
+	aval, bval := reflect.ValueOf(a), reflect.ValueOf(b)
+	if aval.Kind() != reflect.Map {
+		c.Fatalf("%v is not a map, %T", a, a)
+	}
+
+	if bval.Kind() != reflect.Map {
+		c.Fatalf("%v is not a map, %T", b, b)
+	}
+
+	for _, k := range aval.MapKeys() {
+		vala := aval.MapIndex(k)
+		valb := bval.MapIndex(k)
+
+		if !vala.IsValid() {
+			c.Fatalf("expected valid value for %v in %v", k.Interface(), a)
+		}
+
+		if !valb.IsValid() {
+			c.Fatalf("key %v is found in %v, but not in %v", k.Interface(), a, b)
+		}
+	}
+
+	for _, k := range bval.MapKeys() {
+		vala := aval.MapIndex(k)
+		valb := bval.MapIndex(k)
+
+		if !valb.IsValid() {
+			c.Fatalf("expected valid value for %v in %v", k.Interface(), a)
+		}
+
+		if !vala.IsValid() {
+			c.Fatalf("key %v is found in %v, but not in %v", k.Interface(), a, b)
+		}
+
+		if reflect.ValueOf(vala.Interface()).Kind() == reflect.Map {
+			DeepCompareMaps(c, vala.Interface(), valb.Interface())
+		} else {
+			DeepCompare(c, vala.Interface(), valb.Interface())
+		}
 	}
 }
 
@@ -151,8 +258,52 @@ spec:
     pHM7WKwFyW1dvEDax3BGj9/cbKvpvcwR</ds:X509Certificate></ds:X509Data></ds:KeyInfo></md:KeyDescriptor><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress</md:NameIDFormat><md:NameIDFormat>urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified</md:NameIDFormat><md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml"/><md:SingleSignOnService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect" Location="https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml"/></md:IDPSSODescriptor></md:EntityDescriptor>`
 
 const (
-	TLSCACertPEM = apifixtures.TLSCACertPEM
-	TLSCAKeyPEM  = apifixtures.TLSCAKeyPEM
+	TLSCACertPEM = `-----BEGIN CERTIFICATE-----
+MIIDKjCCAhKgAwIBAgIQJtJDJZZBkg/afM8d2ZJCTjANBgkqhkiG9w0BAQsFADBA
+MRUwEwYDVQQKEwxUZWxlcG9ydCBPU1MxJzAlBgNVBAMTHnRlbGVwb3J0LmxvY2Fs
+aG9zdC5sb2NhbGRvbWFpbjAeFw0xNzA1MDkxOTQwMzZaFw0yNzA1MDcxOTQwMzZa
+MEAxFTATBgNVBAoTDFRlbGVwb3J0IE9TUzEnMCUGA1UEAxMedGVsZXBvcnQubG9j
+YWxob3N0LmxvY2FsZG9tYWluMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC
+AQEAuKFLaf2iII/xDR+m2Yj6PnUEa+qzqwxsdLUjnunFZaAXG+hZm4Ml80SCiBgI
+gTHQlJyLIkTtuRoH5aeMyz1ERUCtii4ZsTqDrjjUybxP4r+4HVX6m34s6hwEr8Fi
+fts9pMp4iS3tQguRc28gPdDo/T6VrJTVYUfUUsNDRtIrlB5O9igqqLnuaY9eqGi4
+PUx0G0wRYJpRywoj8G0IkpfQTiX+CAC7dt5ws7ZrnGqCNBLGi5bGsaMmptVbsSEp
+1TenntF54V1iR49IV5JqDhm1S0HmkleoJzKdc+6sP/xNepz9PJzuF9d9NubTLWgB
+sK28YItcmWHdHXD/ODxVaehRjwIDAQABoyAwHjAOBgNVHQ8BAf8EBAMCB4AwDAYD
+VR0TAQH/BAIwADANBgkqhkiG9w0BAQsFAAOCAQEAAVU6sNBdj76saHwOxGSdnEqQ
+o2tMuR3msSM4F6wFK2UkKepsD7CYIf/PzNSNUqA5JIEUVeMqGyiHuAbU4C655nT1
+IyJX1D/+r73sSp5jbIpQm2xoQGZnj6g/Kltw8OSOAw+DsMF/PLVqoWJp07u6ew/m
+NxWsJKcZ5k+q4eMxci9mKRHHqsquWKXzQlURMNFI+mGaFwrKM4dmzaR0BEc+ilSx
+QqUvQ74smsLK+zhNikmgjlGC5ob9g8XkhVAkJMAh2rb9onDNiRl68iAgczP88mXu
+vN/o98dypzsPxXmw6tkDqIRPUAUbh465rlY5sKMmRgXi2rUfl/QV5nbozUo/HQ==
+-----END CERTIFICATE-----`
+	TLSCAKeyPEM = `-----BEGIN RSA PRIVATE KEY-----
+MIIEowIBAAKCAQEAuKFLaf2iII/xDR+m2Yj6PnUEa+qzqwxsdLUjnunFZaAXG+hZ
+m4Ml80SCiBgIgTHQlJyLIkTtuRoH5aeMyz1ERUCtii4ZsTqDrjjUybxP4r+4HVX6
+m34s6hwEr8Fifts9pMp4iS3tQguRc28gPdDo/T6VrJTVYUfUUsNDRtIrlB5O9igq
+qLnuaY9eqGi4PUx0G0wRYJpRywoj8G0IkpfQTiX+CAC7dt5ws7ZrnGqCNBLGi5bG
+saMmptVbsSEp1TenntF54V1iR49IV5JqDhm1S0HmkleoJzKdc+6sP/xNepz9PJzu
+F9d9NubTLWgBsK28YItcmWHdHXD/ODxVaehRjwIDAQABAoIBABy4orWrShRMsA/9
+k4QVpfAfXf+3tBlwxlJld1QaQ6XqgI3L2FyzyyyLxM6NBo2qhSsJKy+6j0yTOxVD
+ukhHkJ5BUH3FbCPA2Yk5uAhl7ft1HZwaqvCTcUM99pCswbjAPFetU5DrfxQeHpNZ
+fyd+ny/+E2SUhpkqhmIVlBqpSTQyOywbiEvZ6ZiFmncdHhXaCy3YZsylrKUGPzsJ
+jfU2iOE167eTOIjPStsaoCPv9jLSyy2OvuNNudS+Y1qkFz8ZGvPp+HB+Iig+AlAE
+7KMzNrIW7PlHTDgUly1cRCl3+84yE2mJ97+hHiEy//HIwVDUpI529i2hMYM/u4qz
+Wso/2tkCgYEA2FdE4bmCrZiA9eS8qobwGLE1+MJME4YwfJkynZUHHX93xORPQ66e
+WYpN7/xbMvBDa8LZZYVTNVtZ/SkEUaTb5NQW2zXKoIutk1PFBb8NbA0m8Ss/mOJA
+d5nUYGr987O9fRh1yP9TksBshHB/5A8U2UG8MFFCNvJTZDPRkuSlMiUCgYEA2nnb
+hAJrhY7PaF6jdfimGvvponkUiEbWLppg7/SjgPg+QgqIwuLybryXyOAp+TEnNzgU
+ujAjhNtIiyB/B13TDxOgUgWUWPbPvUAWGEvwI9h+RLie1umGHd48G1NR76fwqSf1
+y7z3YRnq8vCdz8ywB3o5GO6SH6QkMJBIxfIMlKMCgYA55akOi7oYQT8KD4waSwCI
+ayyZhU4cz4W8Yrd0CsUbtNhVvhAked/w8J2JA01Y5Yn1lfDeRX8OQYNkyAxa2Tbs
+F4KCafPvYVIzonCQ6B9sclygoEVl4e8E0wtOPnP2O30TtG8ZOpOgK5UfIIhpfUvE
+FN6LQ8PntpRwtZl5qW04bQKBgGnHhFxHG64fthZPdA9jY3E/NSCgRSuyOHN59aNY
+rG1+RA6PsSXC4iRxlYAB4PCxNs6KjaaUNi5WSaprAnYbnFv5Ya802l20qmJ0C/6Z
+jdydLo2xYd6mVHRTrICCd/J0OpZ8LYsGpDPUa6hSjeYVscj9CXYj1IYTYB5PTZzh
+k+vHAoGBAJyA+RtBF5m64/TqhZFcesTtnpWaRhQ50xXnNVF3W1eKGPtdTDKOaENA
+LJxgC1GdoEz2ilXW802H9QrdKf9GPqxwi2TVzfO6pzWkdZcmbItu+QCCFz+co+r8
++ki49FmlfbR5YVPN+8X40aLQB4xDkCHwRwTkrigzWQhIOv8NAhDA
+-----END RSA PRIVATE KEY-----`
 	// Backwards-compatibility alias for teleport.e
 	SigningCertPEM = TLSCACertPEM
 )

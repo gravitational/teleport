@@ -47,11 +47,9 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -122,6 +120,10 @@ func (sc *SessionRegistryConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("server is required")
 	}
 
+	if sc.Srv.GetSessionServer() == nil {
+		return trace.BadParameter("session server is required")
+	}
+
 	if sc.clock == nil {
 		sc.clock = sc.Srv.GetClock()
 	}
@@ -134,7 +136,7 @@ func NewSessionRegistry(cfg SessionRegistryConfig) (*SessionRegistry, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	err := metrics.RegisterPrometheusCollectors(serverSessions)
+	err := utils.RegisterPrometheusCollectors(serverSessions)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -288,19 +290,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 	scx.Infof("Creating (exec) session %v.", sessionID)
 
-	approved, err := s.isApprovedFileTransfer(scx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	canStart, _, err := sess.checkIfStart()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// canStart will be true for non-moderated sessions. If canStart is false, check to
-	// see if the request has been approved through a moderated session next.
-	if !canStart && !approved {
+	if !canStart {
 		return errCannotStartUnattendedSession
 	}
 
@@ -344,50 +339,6 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 	}
 
 	return sess.term.GetWinSize()
-}
-
-func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, error) {
-	s.sessionsMux.Lock()
-	defer s.sessionsMux.Unlock()
-
-	// if a sessID and requestID environment variables were not set, return not approved and no error.
-	// This means the file transfer came from a non-moderated session. sessionID will be passed after a
-	// moderated session approval process has completed.
-	sessID, _ := scx.GetEnv(string(sftp.ModeratedSessionID))
-	if sessID == "" {
-		return false, nil
-	}
-	// fetch session from registry with sessionID
-	sess := s.sessions[rsession.ID(sessID)]
-	if sess == nil {
-		// If they sent a sessionID and it wasn't found, send an actual error
-		return false, trace.NotFound("Session not found")
-	}
-
-	requestID, _ := scx.GetEnv(string(sftp.FileTransferRequestID))
-	if requestID == "" {
-		return false, nil
-	}
-	// find file transfer request in the session by requestID
-	req := sess.fileTransferRequests[requestID]
-	if req == nil {
-		// If they sent a fileTransferRequestID and it wasn't found, send an actual error
-		return false, trace.NotFound("File transfer request not found")
-	}
-
-	if req.requester != scx.Identity.TeleportUser {
-		return false, trace.AccessDenied("Teleport user does not match original requester")
-	}
-
-	var incomingShellCmd string
-	if scx.sshRequest != nil {
-		incomingShellCmd = string(scx.sshRequest.Payload)
-	}
-	if incomingShellCmd != req.shellCmd {
-		return false, trace.AccessDenied("Incoming request does not match the approved request")
-	}
-
-	return sess.checkIfFileTransferApproved(req)
 }
 
 // NotifyWinChange is called to notify all members in the party that the PTY
@@ -506,11 +457,6 @@ type session struct {
 	// participants at the end of a session.
 	participants map[rsession.ID]*party
 
-	// fileTransferRequests is a set of fileTransferRequests that are currently in the approval
-	// process, or already approved and not yet executed during a moderated session. If a request is
-	// denied or, once it's been executed, it should be removed from this map.
-	fileTransferRequests map[string]*fileTransferRequest
-
 	io       *TermManager
 	inWriter io.Writer
 
@@ -595,6 +541,32 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		rsess.TerminalParams.H = int(winsize.Height)
 	}
 
+	// get the session server where session information lives. if the recording
+	// proxy is being used and this is a node, then a discard session server will
+	// be returned here.
+	sessionServer := r.Srv.GetSessionServer()
+
+	err := sessionServer.CreateSession(ctx, rsess)
+	if err != nil {
+		if trace.IsAlreadyExists(err) {
+			// if session already exists, make sure they are compatible
+			// Login matches existing login
+			existing, err := sessionServer.GetSession(ctx, r.Srv.GetNamespace(), id)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if existing.Login != rsess.Login && rsess.Login != teleport.SSHSessionJoinPrincipal {
+				return nil, trace.AccessDenied(
+					"can't switch users from %v to %v for session %v",
+					rsess.Login, existing.Login, id)
+			}
+		}
+		// return nil, trace.Wrap(err)
+		// No need to abort. Perhaps the auth server is down?
+		// Log the error and continue:
+		r.log.Errorf("Failed to create new session: %v.", err)
+	}
+
 	policySets := scx.Identity.AccessChecker.SessionPolicySets()
 	access := auth.NewSessionAccessEvaluator(policySets, types.SSHSessionKind, scx.Identity.TeleportUser)
 	sess := &session{
@@ -631,7 +603,6 @@ func newSession(ctx context.Context, id rsession.ID, r *SessionRegistry, scx *Se
 		}
 	}()
 
-	var err error
 	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets); err != nil {
 		if trace.IsNotImplemented(err) {
 			return nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
@@ -748,6 +719,16 @@ func (s *session) Close() error {
 	}
 
 	s.registry.removeSession(s)
+
+	// Remove the session from the backend.
+	if s.scx.srv.GetSessionServer() != nil {
+		err := s.scx.srv.GetSessionServer().DeleteSession(s.serverCtx, s.scx.srv.GetNamespace(), s.id)
+		if err != nil {
+			s.log.Errorf("Failed to remove active session: %v: %v. "+
+				"Access to backend may be degraded, check connectivity to backend.",
+				s.id, err)
+		}
+	}
 
 	// Complete the session recording
 	if recorder := s.Recorder(); recorder != nil {
@@ -1052,16 +1033,15 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:        scx.srv.Context(),
-		PID:            s.term.PID(),
-		Emitter:        s.Recorder(),
-		Namespace:      scx.srv.GetNamespace(),
-		SessionID:      s.id.String(),
-		ServerID:       scx.srv.HostUUID(),
-		ServerHostname: scx.srv.GetInfo().GetHostname(),
-		Login:          scx.Identity.Login,
-		User:           scx.Identity.TeleportUser,
-		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
+		Context:   scx.srv.Context(),
+		PID:       s.term.PID(),
+		Emitter:   s.Recorder(),
+		Namespace: scx.srv.GetNamespace(),
+		SessionID: s.id.String(),
+		ServerID:  scx.srv.HostUUID(),
+		Login:     scx.Identity.Login,
+		User:      scx.Identity.TeleportUser,
+		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 
 	if cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
@@ -1089,6 +1069,10 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 
 	s.log.Debug("Got continue signal")
 
+	// Start a heartbeat that marks this session as active with current members
+	// of party in the backend.
+	go s.heartbeat(ctx, scx)
+
 	// wait for exec.Cmd (or receipt of "exit-status" for a forwarding node),
 	// once it is received wait for the io.Copy above to finish, then broadcast
 	// the "exit-status" to the client.
@@ -1096,12 +1080,6 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 		result, err := s.term.Wait()
 		if err != nil {
 			s.log.WithError(err).Error("Received error waiting for the interactive session to finish")
-		}
-
-		if result != nil {
-			if err := s.registry.broadcastResult(s.id, *result); err != nil {
-				s.log.Warningf("Failed to broadcast session result: %v", err)
-			}
 		}
 
 		// wait for copying from the pty to be complete or a timeout before
@@ -1117,10 +1095,14 @@ func (s *session) startInteractive(ctx context.Context, ch ssh.Channel, scx *Ser
 			emitExecAuditEvent(scx, execRequest.GetCommand(), err)
 		}
 
-		s.emitSessionEndEvent()
-		if err := s.Close(); err != nil {
-			s.log.Warnf("Failed to close session: %v", err)
+		if result != nil {
+			if err := s.registry.broadcastResult(s.id, *result); err != nil {
+				s.log.Warningf("Failed to broadcast session result: %v", err)
+			}
 		}
+
+		s.emitSessionEndEvent()
+		s.Close()
 	}()
 
 	return nil
@@ -1244,16 +1226,15 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	// Open a BPF recording session. If BPF was not configured, not available,
 	// or running in a recording proxy, OpenSession is a NOP.
 	sessionContext := &bpf.SessionContext{
-		Context:        scx.srv.Context(),
-		PID:            scx.execRequest.PID(),
-		Emitter:        s.Recorder(),
-		Namespace:      scx.srv.GetNamespace(),
-		SessionID:      string(s.id),
-		ServerID:       scx.srv.HostUUID(),
-		ServerHostname: scx.srv.GetInfo().GetHostname(),
-		Login:          scx.Identity.Login,
-		User:           scx.Identity.TeleportUser,
-		Events:         scx.Identity.AccessChecker.EnhancedRecordingSet(),
+		Context:   scx.srv.Context(),
+		PID:       execRequest.PID(),
+		Emitter:   s.Recorder(),
+		Namespace: scx.srv.GetNamespace(),
+		SessionID: string(s.id),
+		ServerID:  scx.srv.HostUUID(),
+		Login:     scx.Identity.Login,
+		User:      scx.Identity.TeleportUser,
+		Events:    scx.Identity.AccessChecker.EnhancedRecordingSet(),
 	}
 	cgroupID, err := scx.srv.GetBPF().OpenSession(sessionContext)
 	if err != nil {
@@ -1441,6 +1422,78 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 	}
 }
 
+// exportPartyMembers exports participants in the in-memory map of party
+// members.
+func (s *session) exportPartyMembers() []rsession.Party {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var partyList []rsession.Party
+	for _, p := range s.parties {
+		partyList = append(partyList, rsession.Party{
+			ID:         p.id,
+			User:       p.user,
+			ServerID:   p.serverID,
+			RemoteAddr: p.site,
+			LastActive: p.getLastActive(),
+		})
+	}
+
+	return partyList
+}
+
+// heartbeat will loop as long as the session is not closed and mark it as
+// active and update the list of party members. If the session are recorded at
+// the proxy, then this function does nothing as it's counterpart
+// in the proxy will do this work.
+func (s *session) heartbeat(ctx context.Context, scx *ServerContext) {
+	// If sessions are being recorded at the proxy, an identical version of this
+	// goroutine is running in the proxy, which means it does not need to run here.
+	if services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode()) &&
+		s.registry.Srv.Component() == teleport.ComponentNode {
+		return
+	}
+
+	// If no session server (endpoint interface for active sessions) is passed in
+	// (for example Teleconsole does this) then nothing to sync.
+	sessionServer := s.registry.Srv.GetSessionServer()
+	if sessionServer == nil {
+		return
+	}
+
+	s.log.Debugf("Starting poll and sync of terminal size to all parties.")
+	defer s.log.Debugf("Stopping poll and sync of terminal size to all parties.")
+
+	tickerCh := time.NewTicker(defaults.SessionRefreshPeriod)
+	defer tickerCh.Stop()
+
+	// Loop as long as the session is active, updating the session in the backend.
+	for {
+		select {
+		case <-tickerCh.C:
+			partyList := s.exportPartyMembers()
+
+			err := sessionServer.UpdateSession(ctx, rsession.UpdateRequest{
+				Namespace: scx.srv.GetNamespace(),
+				ID:        s.id,
+				Parties:   &partyList,
+			})
+
+			switch {
+			case trace.IsNotFound(err):
+				s.log.Warnf("Aborting heartbeat for non-existent session %v ", s.id)
+				return
+			case err != nil:
+				s.log.Warnf("Unable to update session %v as active: %v", s.id, err)
+			}
+		case <-ctx.Done():
+			return
+		case <-s.stopC:
+			return
+		}
+	}
+}
+
 func (s *session) checkPresence() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1460,38 +1513,6 @@ func (s *session) checkPresence() error {
 	}
 
 	return nil
-}
-
-type fileTransferRequest struct {
-	// requester is the Teleport User that requested the file transfer
-	requester string
-	// shellCmd is the requested scp command to run
-	shellCmd string
-	// approvers is a list of participants of moderator or peer type that have approved the request
-	approvers map[string]*party
-}
-
-func (s *session) checkIfFileTransferApproved(req *fileTransferRequest) (bool, error) {
-	var participants []auth.SessionAccessContext
-
-	for _, party := range req.approvers {
-		if party.ctx.Identity.TeleportUser == s.initiator {
-			continue
-		}
-
-		participants = append(participants, auth.SessionAccessContext{
-			Username: party.ctx.Identity.TeleportUser,
-			Roles:    party.ctx.Identity.AccessChecker.Roles(),
-			Mode:     party.mode,
-		})
-	}
-
-	isApproved, _, err := s.access.FulfilledFor(participants)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
-	return isApproved, nil
 }
 
 func (s *session) checkIfStart() (bool, auth.PolicyOptions, error) {
@@ -1575,8 +1596,8 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	// Register this party as one of the session writers (output will go to it).
 	s.io.AddWriter(string(p.id), p)
 
-	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.user, p.mode)
-	s.log.Infof("New party %v joined the session with participant mode: %v.", p.String(), p.mode)
+	s.BroadcastMessage("User %v joined the session.", p.user)
+	s.log.Infof("New party %v joined session", p.String())
 
 	if mode == types.SessionPeerMode {
 		s.term.AddParty(1)
@@ -1706,6 +1727,12 @@ func (p *party) updateActivity() {
 	p.Lock()
 	defer p.Unlock()
 	p.lastActive = time.Now()
+}
+
+func (p *party) getLastActive() time.Time {
+	p.Lock()
+	defer p.Unlock()
+	return p.lastActive
 }
 
 func (p *party) Read(bytes []byte) (int, error) {

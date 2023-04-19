@@ -17,25 +17,25 @@ limitations under the License.
 package utils
 
 import (
-	"testing"
-
 	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 )
 
-func TestHMACAnonymizer(t *testing.T) {
-	t.Parallel()
+type AnonymizerSuite struct{}
 
+var _ = check.Suite(&AnonymizerSuite{})
+
+func (s *AnonymizerSuite) TestHMACAnonymizer(c *check.C) {
 	a, err := NewHMACAnonymizer(" ")
-	require.IsType(t, err, trace.BadParameter(""))
-	require.Nil(t, a)
+	c.Assert(err, check.FitsTypeOf, trace.BadParameter(""))
+	c.Assert(a, check.IsNil)
 
 	a, err = NewHMACAnonymizer("key")
-	require.NoError(t, err)
-	require.NotNil(t, a)
+	c.Assert(err, check.IsNil)
+	c.Assert(a, check.NotNil)
 
 	data := "secret"
 	result := a.Anonymize([]byte(data))
-	require.NotEqual(t, result, "")
-	require.NotEqual(t, result, data)
+	c.Assert(result, check.Not(check.Equals), "")
+	c.Assert(result, check.Not(check.Equals), data)
 }

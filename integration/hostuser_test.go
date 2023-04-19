@@ -28,8 +28,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cloudflare/cfssl/log"
 	"github.com/gravitational/trace"
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"

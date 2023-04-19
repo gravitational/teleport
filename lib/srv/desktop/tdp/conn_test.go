@@ -31,7 +31,7 @@ func TestTDPConnTracksLocalRemoteAddrs(t *testing.T) {
 
 	for _, test := range []struct {
 		desc   string
-		conn   io.ReadWriteCloser
+		conn   io.ReadWriter
 		local  net.Addr
 		remote net.Addr
 	}{
@@ -46,7 +46,7 @@ func TestTDPConnTracksLocalRemoteAddrs(t *testing.T) {
 		},
 		{
 			desc:   "does not implement srv.TrackingConn",
-			conn:   &fakeConn{Buffer: &bytes.Buffer{}},
+			conn:   &bytes.Buffer{},
 			local:  nil,
 			remote: nil,
 		},
@@ -61,14 +61,8 @@ func TestTDPConnTracksLocalRemoteAddrs(t *testing.T) {
 	}
 }
 
-type fakeConn struct {
-	*bytes.Buffer
-}
-
-func (t *fakeConn) Close() error { return nil }
-
 type fakeTrackingConn struct {
-	*fakeConn
+	*bytes.Buffer
 	local  net.Addr
 	remote net.Addr
 }
@@ -80,3 +74,5 @@ func (f fakeTrackingConn) LocalAddr() net.Addr {
 func (f fakeTrackingConn) RemoteAddr() net.Addr {
 	return f.remote
 }
+
+func (f fakeTrackingConn) Close() error { return nil }

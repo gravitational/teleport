@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+const configFactory = require('./webpack/webpack.base');
+
 module.exports = {
   parser: '@typescript-eslint/parser',
   parserOptions: {
@@ -40,16 +42,12 @@ module.exports = {
     'plugin:import/warnings',
     'plugin:import/typescript',
   ],
-  plugins: ['react', 'babel', 'import', 'react-hooks'],
+  plugins: ['react', 'babel', 'import'],
   overrides: [
     {
       files: ['**/*.test.{ts,tsx,js,jsx}'],
       plugins: ['jest'],
-      extends: [
-        'plugin:jest/all',
-        'plugin:testing-library/react',
-        'plugin:jest-dom/recommended',
-      ],
+      extends: ['plugin:jest/all'],
       rules: {
         'jest/prefer-called-with': 0,
         'jest/prefer-expect-assertions': 0,
@@ -83,12 +81,6 @@ module.exports = {
     ],
     'no-unused-vars': 'off', // disabled to allow the typescript one to take over and avoid errors in reporting
     '@typescript-eslint/no-unused-vars': ['error'],
-
-    // Severity should be one of the following:
-    // "off" or 0 - turn the rule off
-    // "warn" or 1 - turn the rule on as a warning (doesn’t affect exit code)
-    // "error" or 2 - turn the rule on as an error (exit code is 1 when triggered)
-
     // <TODO> Enable these rules after fixing all existing issues
     '@typescript-eslint/no-use-before-define': 0,
     '@typescript-eslint/indent': 0,
@@ -109,8 +101,8 @@ module.exports = {
     'no-alert': 0,
     'import/no-named-as-default': 0,
     'import/default': 2,
-    // XXX Change to a 2 once e pkg imports are removed from teleterm.
-    'import/no-unresolved': 1,
+    'import/named': 2,
+    'import/no-unresolved': 2,
     'no-underscore-dangle': 0,
     'no-case-declarations': 0,
     'prefer-const': 0,
@@ -138,12 +130,6 @@ module.exports = {
     'react/self-closing-comp': 0,
     'react/sort-comp': 0,
     'react/jsx-wrap-multilines': 1,
-    // allowExpressions allow single expressions in a fragment eg: <>{children}</>
-    // https://github.com/jsx-eslint/eslint-plugin-react/blob/f83b38869c7fc2c6a84ef8c2639ac190b8fef74f/docs/rules/jsx-no-useless-fragment.md#allowexpressions
-    'react/jsx-no-useless-fragment': [2, { allowExpressions: true }],
-
-    'react-hooks/rules-of-hooks': 1,
-    'react-hooks/exhaustive-deps': 1,
   },
   settings: {
     react: {
@@ -151,7 +137,9 @@ module.exports = {
       version: 'detect',
     },
     'import/resolver': {
-      typescript: {},
+      webpack: {
+        config: configFactory.createDefaultConfig(),
+      },
     },
   },
 };

@@ -16,16 +16,20 @@
 
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { ButtonSecondary, Text, Box, LabelInput } from 'design';
+import { ButtonSecondary, Text, Box, LabelInput, Flex } from 'design';
+import * as Icons from 'design/Icon';
 import Select from 'shared/components/Select';
 
+import useTeleport from 'teleport/useTeleport';
+import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
 import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import {
   HeaderWithBackBtn,
   ActionButtons,
+  TextIcon,
   HeaderSubtitle,
-  ConnectionDiagnosticResult,
+  Mark,
 } from '../../Shared';
 
 import { useTestConnection, State } from './useTestConnection';
@@ -34,7 +38,8 @@ import type { Option } from 'shared/components/Select';
 import type { AgentStepProps } from '../../types';
 
 export default function Container(props: AgentStepProps) {
-  const state = useTestConnection(props);
+  const ctx = useTeleport();
+  const state = useTestConnection({ ctx, props });
 
   return <TestConnection {...state} />;
 }
@@ -43,7 +48,7 @@ export function TestConnection({
   attempt,
   startSshSession,
   logins,
-  testConnection,
+  runConnectionDiagnostic,
   diagnosis,
   nextStep,
   prevStep,
@@ -58,11 +63,37 @@ export function TestConnection({
   // the step that requires users to have at least one login.
   const [selectedOpt, setSelectedOpt] = useState(usernameOpts[0]);
 
+  let $diagnosisStateComponent;
+  if (attempt.status === 'processing') {
+    $diagnosisStateComponent = (
+      <TextIcon>
+        <Icons.Restore fontSize={4} />
+        Testing in-progress
+      </TextIcon>
+    );
+  } else if (attempt.status === 'failed' || (diagnosis && !diagnosis.success)) {
+    $diagnosisStateComponent = (
+      <TextIcon>
+        <Icons.Warning ml={1} color="danger" />
+        Testing failed
+      </TextIcon>
+    );
+  } else if (attempt.status === 'success' && diagnosis?.success) {
+    $diagnosisStateComponent = (
+      <TextIcon>
+        <Icons.CircleCheck ml={1} color="success" />
+        Testing complete
+      </TextIcon>
+    );
+  }
+
+  const showDiagnosisOutput = !!diagnosis || attempt.status === 'failed';
+
   return (
     <Box>
       {showMfaDialog && (
         <ReAuthenticate
-          onMfaResponse={res => testConnection(selectedOpt.value, res)}
+          onMfaResponse={res => runConnectionDiagnostic(selectedOpt.value, res)}
           onClose={cancelMfaDialog}
         />
       )}
@@ -86,14 +117,75 @@ export function TestConnection({
           />
         </Box>
       </StyledBox>
-      <ConnectionDiagnosticResult
-        attempt={attempt}
-        diagnosis={diagnosis}
-        canTestConnection={canTestConnection}
-        testConnection={() => testConnection(selectedOpt.value)}
-        stepNumber={2}
-        stepDescription="Verify that the server is accessible"
-      />
+      <StyledBox mb={5}>
+        <Text bold>Step 2</Text>
+        <Text typography="subtitle1" mb={3}>
+          Verify that the server is accessible
+        </Text>
+        <Flex alignItems="center" mt={3}>
+          {canTestConnection ? (
+            <>
+              <ButtonSecondary
+                width="200px"
+                onClick={() => runConnectionDiagnostic(selectedOpt.value)}
+                disabled={attempt.status === 'processing'}
+              >
+                {diagnosis ? 'Restart Test' : 'Test Connection'}
+              </ButtonSecondary>
+              <Box ml={4}>{$diagnosisStateComponent}</Box>
+            </>
+          ) : (
+            <Box>
+              <Text>
+                You don't have permission to test connection.
+                <br />
+                Please ask your Teleport administrator to update your role and
+                add the <Mark>connection_diagnostic</Mark> rule:
+              </Text>
+              <YamlReader traitKind="ConnDiag" />
+            </Box>
+          )}
+        </Flex>
+        {showDiagnosisOutput && (
+          <Box mt={3}>
+            {attempt.status === 'failed' &&
+              `Encountered Error: ${attempt.statusText}`}
+            {attempt.status === 'success' && (
+              <Box>
+                {diagnosis.traces.map((trace, index) => {
+                  if (trace.status === 'failed') {
+                    return (
+                      <TextIcon alignItems="baseline">
+                        <Icons.CircleCross mr={1} color="danger" />
+                        {trace.details}
+                        <br />
+                        {trace.error}
+                      </TextIcon>
+                    );
+                  }
+                  if (trace.status === 'success') {
+                    return (
+                      <TextIcon key={index}>
+                        <Icons.CircleCheck mr={1} color="success" />
+                        {trace.details}
+                      </TextIcon>
+                    );
+                  }
+
+                  // For whatever reason the status is not the value
+                  // of failed or success.
+                  return (
+                    <TextIcon key={index}>
+                      <Icons.Question mr={1} />
+                      {trace.details}
+                    </TextIcon>
+                  );
+                })}
+              </Box>
+            )}
+          </Box>
+        )}
+      </StyledBox>
       <StyledBox>
         <Text bold>Step 3</Text>
         <Text typography="subtitle1" mb={3}>

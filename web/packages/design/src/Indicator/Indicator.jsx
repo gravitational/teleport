@@ -75,7 +75,7 @@ const StyledSpinner = styled(SpinnerIcon)`
   `}
 
   animation: anim-rotate 2s infinite linear;
-  color: ${props => props.theme.colors.spotBackground[0]}
+  color: #fff;
   display: inline-block;
   margin: 16px;
   opacity: 0.24;

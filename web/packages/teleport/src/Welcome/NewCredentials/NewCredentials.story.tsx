@@ -141,21 +141,10 @@ export const SuccessRegister = () => (
 export const SuccessReset = () => (
   <NewCredentials {...props} success={true} resetMode={true} />
 );
-export const SuccessAndPrivateKeyEnabledRegister = () => (
-  <NewCredentials {...props} success={true} privateKeyPolicyEnabled={true} />
-);
-export const SuccessAndPrivateKeyEnabledReset = () => (
-  <NewCredentials
-    {...props}
-    success={true}
-    resetMode={true}
-    privateKeyPolicyEnabled={true}
-  />
-);
 
 function CardWrapper({ children }) {
   return (
-    <Card as="form" bg="levels.surface" my={5} mx="auto" width={464}>
+    <Card as="form" bg="primary.light" my={5} mx="auto" width={464}>
       {children}
     </Card>
   );
@@ -186,7 +175,6 @@ const props: Props = {
   success: false,
   finishedRegister: () => null,
   recoveryCodes: null,
-  privateKeyPolicyEnabled: false,
   resetToken: {
     user: 'john@example.com',
     tokenId: 'test123',

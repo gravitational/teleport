@@ -30,7 +30,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
@@ -67,8 +66,6 @@ type SSOLoginConsoleReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // CheckAndSetDefaults makes sure that the request is valid
@@ -137,10 +134,11 @@ type CreateSSHCertReq struct {
 	User string `json:"user"`
 	// Password is user's pass
 	Password string `json:"password"`
+	// HOTPToken is second factor token
+	// Deprecated: HOTPToken is deprecated, use OTPToken.
+	HOTPToken string `json:"hotp_token"`
 	// OTPToken is second factor token
 	OTPToken string `json:"otp_token"`
-	// HeadlessAuthenticationID is a headless authentication resource id.
-	HeadlessAuthenticationID string `json:"headless_id"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -154,8 +152,6 @@ type CreateSSHCertReq struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // AuthenticateSSHUserRequest are passed by web client to authenticate against
@@ -183,20 +179,11 @@ type AuthenticateSSHUserRequest struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement associated with the given public key.
-	AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 type AuthenticateWebUserRequest struct {
 	// User is a teleport username.
 	User string `json:"user"`
-	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
-	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
-}
-
-type HeadlessRequest struct {
-	// Actions can be either accept or deny.
-	Action string `json:"action"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
@@ -221,8 +208,6 @@ type SSHLogin struct {
 	// KubernetesCluster is an optional k8s cluster name to route the response
 	// credentials to.
 	KubernetesCluster string
-	// AttestationStatement is an attestation statement.
-	AttestationStatement *keys.AttestationStatement
 	// ExtraHeaders is a map of extra HTTP headers to be included in requests.
 	ExtraHeaders map[string]string
 }
@@ -288,16 +273,6 @@ type SSHLoginPasswordless struct {
 	// CustomPrompt defines a custom webauthn login prompt.
 	// It's an optional field that when nil, it will use the wancli.DefaultPrompt.
 	CustomPrompt wancli.LoginPrompt
-}
-
-type SSHLoginHeadless struct {
-	SSHLogin
-
-	// User is the login username.
-	User string
-
-	// HeadlessAuthenticationID is a headless authentication request ID.
-	HeadlessAuthenticationID string
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -400,7 +375,7 @@ func SSHAgentSSOLogin(ctx context.Context, login SSHLoginSSO, config *Redirector
 		return nil, trace.Wrap(trace.Errorf("timed out waiting for callback"))
 	case <-rd.Done():
 		log.Debugf("Canceled by user.")
-		return nil, trace.Wrap(ctx.Err(), "canceled by user")
+		return nil, trace.Wrap(ctx.Err(), "cancelled by user")
 	}
 }
 
@@ -412,48 +387,14 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 	}
 
 	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:                 login.User,
-		Password:             login.Password,
-		OTPToken:             login.OTPToken,
-		PubKey:               login.PubKey,
-		TTL:                  login.TTL,
-		Compatibility:        login.Compatibility,
-		RouteToCluster:       login.RouteToCluster,
-		KubernetesCluster:    login.KubernetesCluster,
-		AttestationStatement: login.AttestationStatement,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var out *auth.SSHLoginResponse
-	err = json.Unmarshal(re.Bytes(), &out)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return out, nil
-}
-
-// SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
-func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.SSHLoginResponse, error) {
-	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// This request will block until the headless login is approved.
-	clt.Client.HTTPClient().Timeout = defaults.CallbackTimeout
-
-	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
-		User:                     login.User,
-		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
-		PubKey:                   login.PubKey,
-		TTL:                      login.TTL,
-		Compatibility:            login.Compatibility,
-		RouteToCluster:           login.RouteToCluster,
-		KubernetesCluster:        login.KubernetesCluster,
-		AttestationStatement:     login.AttestationStatement,
+		User:              login.User,
+		Password:          login.Password,
+		OTPToken:          login.OTPToken,
+		PubKey:            login.PubKey,
+		TTL:               login.TTL,
+		Compatibility:     login.Compatibility,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -527,7 +468,6 @@ func SSHAgentPasswordlessLogin(ctx context.Context, login SSHLoginPasswordless) 
 			Compatibility:             login.Compatibility,
 			RouteToCluster:            login.RouteToCluster,
 			KubernetesCluster:         login.KubernetesCluster,
-			AttestationStatement:      login.AttestationStatement,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -583,14 +523,13 @@ func SSHAgentMFALogin(ctx context.Context, login SSHLoginMFA) (*auth.SSHLoginRes
 	}
 
 	challengeResp := AuthenticateSSHUserRequest{
-		User:                 login.User,
-		Password:             login.Password,
-		PubKey:               login.PubKey,
-		TTL:                  login.TTL,
-		Compatibility:        login.Compatibility,
-		RouteToCluster:       login.RouteToCluster,
-		KubernetesCluster:    login.KubernetesCluster,
-		AttestationStatement: login.AttestationStatement,
+		User:              login.User,
+		Password:          login.Password,
+		PubKey:            login.PubKey,
+		TTL:               login.TTL,
+		Compatibility:     login.Compatibility,
+		RouteToCluster:    login.RouteToCluster,
+		KubernetesCluster: login.KubernetesCluster,
 	}
 	// Convert back from auth gRPC proto response.
 	switch r := respPB.Response.(type) {

@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -118,24 +119,15 @@ func (s *Server) guessPublicAddr(app types.Application) types.Application {
 	return appCopy
 }
 
-// FindPublicAddrClient is a client used for finding public addresses.
-type FindPublicAddrClient interface {
-	// GetProxies returns a list of proxy servers registered in the cluster
-	GetProxies() ([]types.Server, error)
-
-	// GetClusterName gets the name of the cluster from the backend.
-	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
-}
-
 // FindPublicAddr tries to resolve the public address of the proxy of this cluster.
-func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName string) (string, error) {
+func FindPublicAddr(authClient auth.ReadAppsAccessPoint, appPublicAddr string, appName string) (string, error) {
 	// If the application has a public address already set, use it.
 	if appPublicAddr != "" {
 		return appPublicAddr, nil
 	}
 
 	// Fetch list of proxies, if first has public address set, use it.
-	servers, err := client.GetProxies()
+	servers, err := authClient.GetProxies()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -151,7 +143,7 @@ func FindPublicAddr(client FindPublicAddrClient, appPublicAddr string, appName s
 	}
 
 	// Fall back to cluster name.
-	cn, err := client.GetClusterName()
+	cn, err := authClient.GetClusterName()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

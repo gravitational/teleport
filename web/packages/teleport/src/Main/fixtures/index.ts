@@ -14,8 +14,38 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { getAcl } from 'teleport/mocks/contexts';
 import makeUserContext from 'teleport/services/user/makeUserContext';
+import { Access, Acl } from 'teleport/services/user/types';
+
+const fullAccess: Access = {
+  list: true,
+  read: true,
+  edit: true,
+  create: true,
+  remove: true,
+};
+
+export const fullAcl: Acl = {
+  tokens: fullAccess,
+  appServers: fullAccess,
+  kubeServers: fullAccess,
+  recordedSessions: fullAccess,
+  activeSessions: fullAccess,
+  authConnectors: fullAccess,
+  roles: fullAccess,
+  users: fullAccess,
+  trustedClusters: fullAccess,
+  events: fullAccess,
+  accessRequests: fullAccess,
+  billing: fullAccess,
+  dbServers: fullAccess,
+  desktops: fullAccess,
+  nodes: fullAccess,
+  connectionDiagnostic: fullAccess,
+  clipboardSharingEnabled: true,
+  desktopSessionRecordingEnabled: true,
+  directorySharingEnabled: true,
+};
 
 export const userContext = makeUserContext({
   authType: 'sso',
@@ -24,7 +54,7 @@ export const userContext = makeUserContext({
     suggestedReviewers: ['george_washington@gmail.com', 'chad'],
     requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
   },
-  userAcl: getAcl(),
+  userAcl: fullAcl,
   cluster: {
     name: 'aws',
     lastConnected: '2020-09-26T17:30:23.512876876Z',

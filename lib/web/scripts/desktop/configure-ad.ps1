@@ -147,7 +147,7 @@ Set-GPRegistryValue -Name $ACCESS_GPO_NAME -Key "HKEY_LOCAL_MACHINE\Software\Pol
 # # Step 5/7. Export your LDAP CA certificate
 $WindowsDERFile = $env:TEMP + "\windows.der"
 $WindowsPEMFile = $env:TEMP + "\windows.pem"
-certutil "-ca.cert" $WindowsDERFile 
+certutil "-ca.cert" $WindowsDERFile
 certutil -encode $WindowsDERFile $WindowsPEMFile
 
 gpupdate.exe /force

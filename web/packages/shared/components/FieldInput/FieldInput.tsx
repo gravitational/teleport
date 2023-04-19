@@ -17,7 +17,6 @@ limitations under the License.
 import React, { forwardRef } from 'react';
 import { Box, Input, LabelInput, Text } from 'design';
 
-import { ToolTipInfo } from 'shared/components/ToolTip';
 import { useRule } from 'shared/components/Validation';
 
 const FieldInput = forwardRef<HTMLInputElement, Props>(
@@ -33,15 +32,11 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
       min,
       max,
       rule = defaultRule,
-      name,
       type = 'text',
       autoFocus = false,
       autoComplete = 'off',
       inputMode = 'text',
       readonly = false,
-      toolTipContent = null,
-      disabled = false,
-      markAsError = false,
       ...styles
     },
     ref
@@ -49,13 +44,13 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
     const { valid, message } = useRule(rule(value));
     const hasError = !valid;
     const labelText = hasError ? message : label;
+
     const $inputElement = (
       <Input
         mt={1}
         ref={ref}
         type={type}
-        name={name}
-        hasError={hasError || markAsError}
+        hasError={hasError}
         placeholder={placeholder}
         autoFocus={autoFocus}
         value={value}
@@ -67,7 +62,6 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
         readOnly={readonly}
         inputMode={inputMode}
         defaultValue={defaultValue}
-        disabled={disabled}
       />
     );
 
@@ -75,25 +69,8 @@ const FieldInput = forwardRef<HTMLInputElement, Props>(
       <Box mb="4" {...styles}>
         {label ? (
           <LabelInput mb={0} hasError={hasError}>
-            {toolTipContent ? (
-              <>
-                <span
-                  css={{
-                    marginRight: '4px',
-                    verticalAlign: 'middle',
-                  }}
-                >
-                  {labelText}
-                  {labelTip && <LabelTip text={labelTip} />}
-                </span>
-                <ToolTipInfo children={toolTipContent} />
-              </>
-            ) : (
-              <>
-                {labelText}
-                {labelTip && <LabelTip text={labelTip} />}
-              </>
-            )}
+            {labelText}
+            {labelTip && <LabelTip text={labelTip} />}
             {$inputElement}
           </LabelInput>
         ) : (
@@ -128,12 +105,6 @@ type Props = {
   defaultValue?: string;
   min?: number;
   max?: number;
-  toolTipContent?: React.ReactNode;
-  disabled?: boolean;
-  // markAsError is a flag to highlight an
-  // input box as error color before validator
-  // runs (which marks it as error)
-  markAsError?: boolean;
   // TS: temporary handles ...styles
   [key: string]: any;
 };

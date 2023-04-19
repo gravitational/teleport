@@ -14,17 +14,14 @@
  * limitations under the License.
  */
 
-import { RootClusterUri } from 'teleterm/ui/uri';
-
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
 
-import { getEmptyPendingAccessRequest } from './accessRequestsService';
 import { Workspace, WorkspacesService } from './workspacesService';
 
 describe('restoring workspace', () => {
   function getTestSetup(options: {
-    clusterUri: RootClusterUri; // assumes that only one cluster can be added
+    clusterUri: string; // assumes that only one cluster can be added
     persistedWorkspaces: Record<string, Workspace>;
   }) {
     const statePersistenceService: Partial<StatePersistenceService> = {
@@ -40,21 +37,17 @@ describe('restoring workspace', () => {
       findRootClusterByResource: jest.fn(),
       findCluster: jest.fn(),
       findGateway: jest.fn(),
-      getRootClusters: () => [
+      getClusters: () => [
         {
           uri: options.clusterUri,
           name: 'Test cluster',
           connected: true,
           leaf: false,
           proxyHost: 'test:3030',
-          authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
           loggedInUser: {
-            activeRequestsList: [],
             name: 'Alice',
             rolesList: [],
             sshLoginsList: [],
-            requestableRolesList: [],
-            suggestedReviewersList: [],
           },
         },
       ],
@@ -64,7 +57,7 @@ describe('restoring workspace', () => {
       kind: 'doc.cluster',
       title: 'Cluster Test',
       clusterUri: options.clusterUri,
-      uri: '/docs/test-cluster-uri',
+      uri: 'docs/test-cluster-uri',
     };
 
     const workspacesService = new WorkspacesService(
@@ -85,22 +78,18 @@ describe('restoring workspace', () => {
     return { workspacesService, clusterDocument };
   }
 
-  it('restores the workspace if there is a persisted state for given clusterUri', () => {
+  it('restores the workspace if it there is a persisted state for given clusterUri', () => {
     const testClusterUri = '/clusters/test-uri';
     const testWorkspace: Workspace = {
-      accessRequests: {
-        isBarCollapsed: true,
-        pending: getEmptyPendingAccessRequest(),
-      },
       localClusterUri: testClusterUri,
       documents: [
         {
           kind: 'doc.terminal_shell',
-          uri: '/docs/some_uri',
+          uri: 'docs/some_uri',
           title: '/Users/alice/Documents',
         },
       ],
-      location: '/docs/some_uri',
+      location: 'docs/some_uri',
     };
 
     const { workspacesService, clusterDocument } = getTestSetup({
@@ -111,17 +100,6 @@ describe('restoring workspace', () => {
     workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [testClusterUri]: {
-        accessRequests: {
-          pending: {
-            app: {},
-            db: {},
-            kube_cluster: {},
-            node: {},
-            role: {},
-            windows_desktop: {},
-          },
-          isBarCollapsed: false,
-        },
         localClusterUri: testWorkspace.localClusterUri,
         documents: [clusterDocument],
         location: clusterDocument.uri,
@@ -143,17 +121,6 @@ describe('restoring workspace', () => {
     workspacesService.restorePersistedState();
     expect(workspacesService.getWorkspaces()).toStrictEqual({
       [testClusterUri]: {
-        accessRequests: {
-          isBarCollapsed: false,
-          pending: {
-            app: {},
-            db: {},
-            kube_cluster: {},
-            node: {},
-            role: {},
-            windows_desktop: {},
-          },
-        },
         localClusterUri: testClusterUri,
         documents: [clusterDocument],
         location: clusterDocument.uri,

@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules"
@@ -77,17 +76,10 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 		// Only allow this certificate to be used for applications.
 		usage: []string{teleport.UsageAppsOnly},
 		// Add in the application routing information.
-		appSessionID:      uuid.New().String(),
-		appPublicAddr:     req.PublicAddr,
-		appClusterName:    req.ClusterName,
-		awsRoleARN:        req.AWSRoleARN,
-		azureIdentity:     req.AzureIdentity,
-		gcpServiceAccount: req.GCPServiceAccount,
-		// Since we are generating the keys and certs directly on the Auth Server,
-		// we need to skip attestation.
-		skipAttestation: true,
-		// Pass along device extensions from the user.
-		deviceExtensions: DeviceExtensions(identity.DeviceExtensions),
+		appSessionID:   uuid.New().String(),
+		appPublicAddr:  req.PublicAddr,
+		appClusterName: req.ClusterName,
+		awsRoleARN:     req.AWSRoleARN,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -201,7 +193,7 @@ func waitForWebSession(ctx context.Context, sessionID, user string, evenSubKind 
 
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
-func (s *Server) generateAppToken(ctx context.Context, username string, roles []string, traits map[string][]string, uri string, expires time.Time) (string, error) {
+func (s *Server) generateAppToken(ctx context.Context, username string, roles []string, uri string, expires time.Time) (string, error) {
 	// Get the clusters CA.
 	clusterName, err := s.GetDomainName()
 	if err != nil {
@@ -215,17 +207,8 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 		return "", trace.Wrap(err)
 	}
 
-	// Filter out empty traits so the resulting JWT doesn't have a bunch of
-	// entries with nil values.
-	filteredTraits := map[string][]string{}
-	for trait, values := range traits {
-		if len(values) > 0 {
-			filteredTraits[trait] = values
-		}
-	}
-
 	// Extract the JWT signing key and sign the claims.
-	signer, err := s.GetKeyStore().GetJWTSigner(ctx, ca)
+	signer, err := s.GetKeyStore().GetJWTSigner(ca)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -236,7 +219,6 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	token, err := privateKey.Sign(jwt.SignParams{
 		Username: username,
 		Roles:    roles,
-		Traits:   filteredTraits,
 		URI:      uri,
 		Expires:  expires,
 	})
@@ -247,7 +229,7 @@ func (s *Server) generateAppToken(ctx context.Context, username string, roles []
 	return token, nil
 }
 
-func (s *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
+func (s *Server) createWebSession(ctx context.Context, req types.NewWebSessionRequest) (types.WebSession, error) {
 	session, err := s.NewWebSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -261,7 +243,7 @@ func (s *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSe
 	return session, nil
 }
 
-func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (s *Server) createSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
@@ -276,16 +258,14 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 	}
 
 	certs, err := s.generateUserCert(certRequest{
-		user:                 user,
-		ttl:                  sessionTTL,
-		publicKey:            publicKey,
-		compatibility:        compatibility,
-		checker:              checker,
-		traits:               user.GetTraits(),
-		routeToCluster:       routeToCluster,
-		kubernetesCluster:    kubernetesCluster,
-		attestationStatement: attestationReq,
-		loginIP:              loginIP,
+		user:              user,
+		ttl:               sessionTTL,
+		publicKey:         publicKey,
+		compatibility:     compatibility,
+		checker:           checker,
+		traits:            user.GetTraits(),
+		routeToCluster:    routeToCluster,
+		kubernetesCluster: kubernetesCluster,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -329,28 +309,6 @@ func (s *Server) CreateSnowflakeSession(ctx context.Context, req types.CreateSno
 		return nil, trace.Wrap(err)
 	}
 	log.Debugf("Generated Snowflake web session for %v with TTL %v.", req.Username, ttl)
-
-	return session, nil
-}
-
-func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest,
-	identity tlsca.Identity, checker services.AccessChecker,
-) (types.WebSession, error) {
-	// TODO(mdwn): implement a module.Features() check.
-
-	// Create services.WebSession for this session.
-	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{
-		User:        req.Username,
-		Expires:     req.SAMLSession.ExpireTime,
-		SAMLSession: req.SAMLSession,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err = s.UpsertSAMLIdPSession(ctx, session); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	log.Debugf("Generated SAML IdP web session for %v.", req.Username)
 
 	return session, nil
 }

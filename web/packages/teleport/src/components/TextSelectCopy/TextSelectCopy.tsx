@@ -60,7 +60,6 @@ export function TextSelectCopy({
       alignItems="center"
       justifyContent="space-between"
       borderRadius={2}
-      color="light"
       {...styles}
     >
       <Flex mr="2" style={boxStyles}>

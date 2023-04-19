@@ -43,7 +43,7 @@ import (
 type accessRequestTestPack struct {
 	tlsServer   *TestTLSServer
 	clusterName string
-	roles       map[string]types.RoleSpecV6
+	roles       map[string]types.RoleSpecV5
 	users       map[string][]string
 	privKey     []byte
 	pubKey      []byte
@@ -63,9 +63,9 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	clusterName, err := tlsServer.Auth().GetClusterName()
 	require.NoError(t, err)
 
-	roles := map[string]types.RoleSpecV6{
+	roles := map[string]types.RoleSpecV5{
 		// superadmins have access to all nodes
-		"superadmins": {
+		"superadmins": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
@@ -74,7 +74,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// admins have access to nodes in prod and staging
-		"admins": {
+		"admins": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Logins: []string{"root"},
 				NodeLabels: types.Labels{
@@ -86,7 +86,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// operators can request the admins role
-		"operators": {
+		"operators": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles: []string{"admins"},
@@ -95,7 +95,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		},
 		// responders can request the admins role but only with a
 		// resource request limited to specific resources
-		"responders": {
+		"responders": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					SearchAsRoles: []string{"admins"},
@@ -103,7 +103,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 			},
 		},
 		// requesters can request everything possible
-		"requesters": {
+		"requesters": types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				Request: &types.AccessRequestConditions{
 					Roles:         []string{"admins", "superadmins"},
@@ -111,7 +111,7 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 				},
 			},
 		},
-		"empty": {},
+		"empty": types.RoleSpecV5{},
 	}
 	for roleName, roleSpec := range roles {
 		role, err := types.NewRole(roleName, roleSpec)
@@ -122,11 +122,11 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 	}
 
 	users := map[string][]string{
-		"admin":     {"admins"},
-		"responder": {"responders"},
-		"operator":  {"operators"},
-		"requester": {"requesters"},
-		"nobody":    {"empty"},
+		"admin":     []string{"admins"},
+		"responder": []string{"responders"},
+		"operator":  []string{"operators"},
+		"requester": []string{"requesters"},
+		"nobody":    []string{"empty"},
 	}
 	for name, roles := range users {
 		user, err := types.NewUser(name)
@@ -140,12 +140,12 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 		labels map[string]string
 	}
 	nodes := map[string]nodeDesc{
-		"staging": {
+		"staging": nodeDesc{
 			labels: map[string]string{
 				"env": "staging",
 			},
 		},
-		"prod": {
+		"prod": nodeDesc{
 			labels: map[string]string{
 				"env": "prod",
 			},
@@ -172,7 +172,11 @@ func newAccessRequestTestPack(ctx context.Context, t *testing.T) *accessRequestT
 }
 
 func TestAccessRequest(t *testing.T) {
-	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	modules.SetTestModules(t, &modules.TestModules{
+		TestFeatures: modules.Features{
+			ResourceAccessRequests: true,
+		},
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 

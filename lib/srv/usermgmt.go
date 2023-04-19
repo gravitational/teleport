@@ -31,17 +31,17 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // NewHostUsers initialize a new HostUsers object
 func NewHostUsers(ctx context.Context, storage *local.PresenceService, uuid string) HostUsers {
 	// newHostUsersBackend statically returns a valid backend or an error,
 	// resulting in a staticcheck linter error on darwin
-	backend, err := newHostUsersBackend(uuid) //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
-	if err != nil {                           //nolint:staticcheck // linter fails on non-linux system as only linux implementation returns useful values.
+	backend, err := newHostUsersBackend(uuid) //nolint:staticcheck
+	if err != nil {                           //nolint:staticcheck
 		log.Warnf("Error making new HostUsersBackend: %s", err)
 		return nil
 	}
@@ -135,15 +135,12 @@ type HostUserManagement struct {
 var _ HostUsers = &HostUserManagement{}
 
 // Under the section "Including other files from within sudoers":
-//
-//	https://man7.org/linux/man-pages/man5/sudoers.5.html
-//
-// '.', '~' and '/' will cause a file not to be read and these can be
-// included in a username, removing slash to avoid escaping a
-// directory
+//           https://man7.org/linux/man-pages/man5/sudoers.5.html
+// ., ~ will cause a file not to be read and these can be included in
+// a username, removing slash to avoid escaping a directory
 var sudoersSanitizationMatcher = regexp.MustCompile(`[\.~\/]`)
 
-// sanitizeSudoersName replaces occurrences of '.', '~' and '/' with
+// sanitizeSudoersName replaces occurrences of `.` and `~` with
 // underscores as `sudo` will not read files including these
 // characters
 func sanitizeSudoersName(username string) string {
@@ -260,7 +257,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 				MaxLeases:     1,
 				Expires:       time.Now().Add(time.Second * 20),
 			},
-			Retry: retryutils.LinearConfig{
+			Retry: utils.LinearConfig{
 				Step: time.Second * 5,
 				Max:  time.Minute,
 			},

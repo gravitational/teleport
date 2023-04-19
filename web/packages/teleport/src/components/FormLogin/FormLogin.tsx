@@ -44,7 +44,6 @@ import {
 import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 import { StepSlider, StepComponentProps } from 'design/StepSlider';
 
-import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 import { UserCredentials } from 'teleport/services/auth';
 
 import SSOButtonList from './SsoButtons';
@@ -55,18 +54,7 @@ export default function LoginForm(props: Props) {
     attempt,
     isLocalAuthEnabled = true,
     authProviders = [],
-    privateKeyPolicyEnabled,
-    isRecoveryEnabled,
-    onRecover,
   } = props;
-  if (privateKeyPolicyEnabled) {
-    return (
-      <PrivateKeyLoginDisabledCard
-        title={title}
-        onRecover={isRecoveryEnabled ? onRecover : null}
-      />
-    );
-  }
 
   const ssoEnabled = authProviders?.length > 0;
 
@@ -74,8 +62,8 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
-        <Text typography="h3" pt={4} textAlign="center">
+      <Card bg="primary.light" my="5" mx="auto" width="464px" pb={4}>
+        <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
         {attempt.isFailed && (
@@ -90,8 +78,8 @@ export default function LoginForm(props: Props) {
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
-        <Text typography="h3" pt={4} textAlign="center">
+      <Card bg="primary.light" my="5" mx="auto" width="464px" px={5} pb={4}>
+        <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
         <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
@@ -105,8 +93,8 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
-      <Text typography="h3" pt={4} textAlign="center">
+    <Card bg="primary.light" my="5" mx="auto" width={464} pb={4}>
+      <Text typography="h3" pt={4} textAlign="center" color="light">
         {title}
       </Text>
       {attempt.isFailed && (
@@ -259,7 +247,6 @@ const LocalForm = ({
             value={user}
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
-            disabled={attempt.isProcessing}
             mb={3}
           />
           <Box mb={isRecoveryEnabled ? 1 : 3}>
@@ -270,7 +257,6 @@ const LocalForm = ({
               onChange={e => setPass(e.target.value)}
               type="password"
               placeholder="Password"
-              disabled={attempt.isProcessing}
               mb={0}
               width="100%"
             />
@@ -489,7 +475,7 @@ const StyledPaswordlessBtn = styled(ButtonText)`
   &:hover,
   &:active,
   &:focus {
-    border-color: ${({ theme }) => theme.colors.text.secondary};
+    border-color: ${({ theme }) => theme.colors.action.active};
     text-decoration: none;
   }
 
@@ -500,7 +486,7 @@ const StyledPaswordlessBtn = styled(ButtonText)`
 `;
 
 const StyledOr = styled.div`
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.primary.light};
   display: flex;
   align-items: center;
   font-size: 10px;
@@ -517,7 +503,6 @@ export type Props = {
   title?: string;
   isLocalAuthEnabled?: boolean;
   isPasswordlessEnabled: boolean;
-  privateKeyPolicyEnabled: boolean;
   authProviders?: AuthProvider[];
   auth2faType?: Auth2faType;
   primaryAuthType: PrimaryAuthType;

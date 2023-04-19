@@ -18,11 +18,11 @@ package srv
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
@@ -48,8 +48,6 @@ type fakeHeartbeatDriver struct {
 	pollChanged int
 	fallbackErr int
 	announceErr int
-
-	disableFallback bool
 }
 
 func (h *fakeHeartbeatDriver) Poll() (changed bool) {
@@ -66,19 +64,12 @@ func (h *fakeHeartbeatDriver) Poll() (changed bool) {
 func (h *fakeHeartbeatDriver) FallbackAnnounce(ctx context.Context) (ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if !h.SupportsFallback() {
-		panic("FallbackAnnounce called when SupportsFallback is false")
-	}
 	h.fallbackCount++
 	if h.fallbackErr > 0 {
 		h.fallbackErr--
 		return false
 	}
 	return true
-}
-
-func (h *fakeHeartbeatDriver) SupportsFallback() bool {
-	return !h.disableFallback
 }
 
 func (h *fakeHeartbeatDriver) Announce(ctx context.Context, sender inventory.DownstreamSender) (ok bool) {
@@ -141,7 +132,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 		// test need to run longer.
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("context canceled while waiting for next control stream")
+			return nil, trace.Errorf("context canceled while waiting for next control stream")
 		case stream := <-streamC:
 			return stream, nil
 		}
@@ -185,8 +176,8 @@ func TestHeartbeatV2Basics(t *testing.T) {
 	// use the control-stream announce. First poll always reads
 	// as different, so expect that too.
 	awaitEvents(t, hb.testEvents,
-		expect(hbv2PollDiff, hbv2FallbackOk, hbv2Start, hbv2OnHeartbeatOk),
-		deny(hbv2FallbackErr, hbv2FallbackBackoff, hbv2AnnounceOk, hbv2AnnounceErr, hbv2OnHeartbeatErr),
+		expect(hbv2PollDiff, hbv2FallbackOk, hbv2Start),
+		deny(hbv2FallbackErr, hbv2FallbackBackoff, hbv2AnnounceOk, hbv2AnnounceErr),
 	)
 
 	// verify that we're now polling "same" and that time-based announces
@@ -205,7 +196,7 @@ func TestHeartbeatV2Basics(t *testing.T) {
 	// wait for fallback errors to happen, and confirm that we see fallback backoff
 	// come into effect. we still expect no proper announce events.
 	awaitEvents(t, hb.testEvents,
-		expect(hbv2FallbackErr, hbv2FallbackErr, hbv2FallbackBackoff, hbv2FallbackOk, hbv2OnHeartbeatErr, hbv2OnHeartbeatOk),
+		expect(hbv2FallbackErr, hbv2FallbackErr, hbv2FallbackBackoff, hbv2FallbackOk),
 		deny(hbv2AnnounceOk, hbv2AnnounceErr),
 	)
 
@@ -233,8 +224,8 @@ func TestHeartbeatV2Basics(t *testing.T) {
 	// in case we refactor anything later). Take this opportunity to re-check that our announces
 	// are internval and not poll based.
 	awaitEvents(t, hb.testEvents,
-		expect(hbv2AnnounceOk, hbv2AnnounceOk, hbv2PollSame, hbv2AnnounceInterval, hbv2OnHeartbeatOk),
-		deny(hbv2AnnounceErr, hbv2FallbackOk, hbv2FallbackErr, hbv2OnHeartbeatErr),
+		expect(hbv2AnnounceOk, hbv2AnnounceOk, hbv2PollSame, hbv2AnnounceInterval),
+		deny(hbv2AnnounceErr, hbv2FallbackOk, hbv2FallbackErr),
 	)
 
 	// set up a "changed" poll since we haven't traversed that path
@@ -285,124 +276,6 @@ func TestHeartbeatV2Basics(t *testing.T) {
 	awaitEvents(t, hb.testEvents,
 		expect(hbv2AnnounceOk),
 		deny(hbv2AnnounceErr, hbv2FallbackOk, hbv2FallbackErr),
-	)
-}
-
-func TestHeartbeatV2NoFallbackUnchecked(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// set up fake hb driver that lets us easily inject failures for
-	// the diff steps and assists w/ faking inventory control handles.
-	driver := newFakeHeartbeatDriver(t)
-
-	driver.mu.Lock()
-	driver.disableFallback = true
-	driver.mu.Unlock()
-
-	// set up hb with very long degraded check interval to confirm expected
-	// OnHeartbeat behavior outside of periodic checks.
-	hb := newHeartbeatV2(driver.handle, driver, heartbeatV2Config{
-		announceInterval:      time.Millisecond * 200,
-		pollInterval:          time.Millisecond * 50,
-		fallbackBackoff:       time.Millisecond * 400,
-		degradedCheckInterval: time.Hour,
-		testEvents:            make(chan hbv2TestEvent, 1028),
-	})
-	go hb.Run()
-	defer hb.Close()
-
-	// verify that we tick but don't ever emit a degraded state
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2NoFallback, hbv2NoFallback),
-		deny(hbv2OnHeartbeatOk, hbv2OnHeartbeatErr),
-	)
-
-	// make a stream available to the heartbeat instance
-	// (note: we don't need to pull from our half of the stream since
-	// fakeHeartbeatDriverInner doesn't actually send any messages across it).
-	stream := driver.newStream(ctx, t)
-
-	// verify heartbeats
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2OnHeartbeatOk),
-		deny(hbv2OnHeartbeatErr),
-	)
-
-	// verify that while heartbeating, we don't hit the "NoFallback" case
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2OnHeartbeatOk, hbv2OnHeartbeatOk),
-		deny(hbv2OnHeartbeatErr, hbv2NoFallback),
-	)
-
-	stream.Close()
-
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2NoFallback),
-		deny(hbv2OnHeartbeatErr),
-	)
-}
-
-func TestHeartbeatV2NoFallbackChecked(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// set up fake hb driver that lets us easily inject failures for
-	// the diff steps and assists w/ faking inventory control handles.
-	driver := newFakeHeartbeatDriver(t)
-
-	driver.mu.Lock()
-	driver.disableFallback = true
-	driver.mu.Unlock()
-
-	// set up hb with fast degraded check interval
-	hb := newHeartbeatV2(driver.handle, driver, heartbeatV2Config{
-		announceInterval:      time.Millisecond * 200,
-		pollInterval:          time.Millisecond * 50,
-		fallbackBackoff:       time.Millisecond * 400,
-		degradedCheckInterval: time.Millisecond * 100,
-		testEvents:            make(chan hbv2TestEvent, 1028),
-	})
-	go hb.Run()
-	defer hb.Close()
-
-	// verify that we tick and emit hb errs
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2NoFallback, hbv2NoFallback, hbv2OnHeartbeatErr),
-		deny(hbv2OnHeartbeatOk),
-	)
-
-	// make a stream available to the heartbeat instance
-	// (note: we don't need to pull from our half of the stream since
-	// fakeHeartbeatDriverInner doesn't actually send any messages across it).
-	stream := driver.newStream(ctx, t)
-
-	// verify heartbeats start
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2OnHeartbeatOk),
-	)
-
-	// verify that the hb errs have stopped
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2OnHeartbeatOk, hbv2OnHeartbeatOk),
-		deny(hbv2OnHeartbeatErr),
-	)
-
-	stream.Close()
-
-	// verify that closure causes errors to resume
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2NoFallback, hbv2OnHeartbeatErr),
-	)
-
-	// verify that closure means OK events have stopped
-	awaitEvents(t, hb.testEvents,
-		expect(hbv2NoFallback, hbv2OnHeartbeatErr),
-		deny(hbv2OnHeartbeatOk),
 	)
 }
 

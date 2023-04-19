@@ -19,15 +19,13 @@ import styled from 'styled-components';
 
 import { Editor, File, Language } from 'shared/components/Editor';
 
-import { useJoinTokenSuspender } from 'teleport/Discover/Shared/useJoinTokenSuspender';
-import { ResourceKind } from 'teleport/Discover/Shared';
+import { useJoinTokenValue } from 'teleport/Discover/Shared/JoinTokenContext';
 
 import type { JoinToken } from 'teleport/services/joinToken';
 
-const pastedLines = (joinToken: JoinToken) => `version: v3
-teleport:
+const pastedLines = (joinToken: JoinToken) => `teleport:
   auth_token: ${joinToken.id}
-  proxy_server: ${window.location.hostname}:${window.location.port || '443'}
+  auth_servers: [ ${window.location.hostname}:${window.location.port || '443'} ]
 
 auth_service:
   enabled: no
@@ -68,7 +66,7 @@ const states = (joinToken: JoinToken) => [
 ];
 
 export function CreateTeleportConfigAnimation() {
-  const { joinToken } = useJoinTokenSuspender(ResourceKind.Desktop);
+  const joinToken = useJoinTokenValue();
 
   const [editorState, setEditorState] = useState(EditorState.Original);
 

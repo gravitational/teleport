@@ -24,10 +24,6 @@ import { Cli, Server, Person, Database } from 'design/Icon';
 import * as types from 'teleterm/ui/services/quickInput/types';
 
 const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
-  // Ideally, this property would be described by the suggestion object itself rather than depending
-  // on `kind`. But for now we need it just for a single suggestion kind anyway.
-  const shouldSuggestionsStayInPlace =
-    props.items[0]?.kind === 'suggestion.cmd';
   const activeItemRef = useRef<HTMLDivElement>();
   const { items, activeItem } = props;
   if (items.length === 0) {
@@ -64,7 +60,7 @@ const QuickInputList = React.forwardRef<HTMLElement, Props>((props, ref) => {
 
   return (
     <StyledGlobalSearchResults
-      position={shouldSuggestionsStayInPlace ? null : props.position}
+      position={props.position}
       ref={ref}
       tabIndex={-1}
       data-attr="quickpicker.list"
@@ -79,22 +75,18 @@ export default QuickInputList;
 
 function CmdItem(props: { item: types.SuggestionCmd }) {
   return (
-    <Flex alignItems="baseline">
+    <Flex alignItems="center">
       <SquareIconBackground color="#512FC9">
         <Cli fontSize="10px" />
       </SquareIconBackground>
-      {/* Equivalent of flex-shrink: 0, but styled-system doesn't support flex-shrink. */}
-      <Box flex="0 0 auto" mr={2}>
-        {props.item.data.displayName}
-      </Box>
-      <Box color="text.secondary">{props.item.data.description}</Box>
+      <Box mr={2}>{props.item.data.displayName}</Box>
     </Flex>
   );
 }
 
 function SshLoginItem(props: { item: types.SuggestionSshLogin }) {
   return (
-    <Flex alignItems="baseline">
+    <Flex alignItems="center">
       <SquareIconBackground color="#FFAB00">
         <Person fontSize="10px" />
       </SquareIconBackground>
@@ -112,7 +104,7 @@ function ServerItem(props: { item: types.SuggestionServer }) {
   ));
 
   return (
-    <Flex alignItems="baseline" p={1} minWidth="300px">
+    <Flex alignItems="center" p={1} minWidth="300px">
       <SquareIconBackground color="#4DB2F0">
         <Server fontSize="10px" />
       </SquareIconBackground>
@@ -133,7 +125,7 @@ function DatabaseItem(props: { item: types.SuggestionDatabase }) {
   ));
 
   return (
-    <Flex alignItems="baseline" p={1} minWidth="300px">
+    <Flex alignItems="center" p={1} minWidth="300px">
       <SquareIconBackground color="#4DB2F0">
         <Database fontSize="10px" />
       </SquareIconBackground>
@@ -161,22 +153,23 @@ const StyledItem = styled.div(({ theme, $active }) => {
   return {
     '&:hover, &:focus': {
       cursor: 'pointer',
-      background: theme.colors.levels.elevated,
+      background: theme.colors.primary.lighter,
     },
 
+    borderBottom: `2px solid ${theme.colors.primary.placeholder}`,
     padding: '2px 8px',
-    color: theme.colors.text.contrast,
+    color: theme.colors.primary.contrastText,
     background: $active
-      ? theme.colors.levels.surfaceSecondary
-      : theme.colors.levels.sunken,
+      ? theme.colors.primary.main
+      : theme.colors.primary.darker,
   };
 });
 
 const StyledGlobalSearchResults = styled.div(({ theme, position }) => {
   return {
     boxShadow: '8px 8px 18px rgb(0 0 0)',
-    color: theme.colors.text.contrast,
-    background: theme.colors.levels.surface,
+    color: theme.colors.primary.contrastText,
+    background: theme.colors.primary.light,
     boxSizing: 'border-box',
     marginTop: '42px',
     left: position ? position + 'px' : 0,

@@ -96,10 +96,6 @@ const verticalTransitionStyles = {
 };
 
 import { State } from 'teleport/Discover/useDiscover';
-import {
-  DiscoverEvent,
-  DiscoverEventStatus,
-} from 'teleport/services/userEvent';
 
 export function ConnectTeleport(props: State) {
   const [currentStep, setCurrentStep] = useState(StepKind.RunConfigureScript);
@@ -160,16 +156,7 @@ export function ConnectTeleport(props: State) {
               {currentStep === StepKind.RunConfigureScript && (
                 <Suspense fallback={<RunConfigureScriptLoading />}>
                   <RunConfigureScript
-                    onNext={() => {
-                      props.emitEvent(
-                        { stepStatus: DiscoverEventStatus.Success },
-                        {
-                          eventName:
-                            DiscoverEvent.DesktopActiveDirectoryConfigure,
-                        }
-                      );
-                      setCurrentStep(StepKind.CopyOutput);
-                    }}
+                    onNext={() => setCurrentStep(StepKind.CopyOutput)}
                   />
                 </Suspense>
               )}

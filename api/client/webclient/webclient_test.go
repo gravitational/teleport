@@ -330,7 +330,8 @@ func TestNewWebClientRespectHTTPProxy(t *testing.T) {
 		ProxyAddr: "localhost:3080",
 	})
 	require.NoError(t, err)
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
+	// resp should be nil, so there will be no body to close.
+	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
 	// Client should try to proxy through nonexistent server at localhost.
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
@@ -347,7 +348,7 @@ func TestNewWebClientNoProxy(t *testing.T) {
 		ProxyAddr: "localhost:3080",
 	})
 	require.NoError(t, err)
-	//nolint:bodyclose // resp should be nil, so there will be no body to close.
+	//nolint:bodyclose
 	resp, err := client.Get("https://fakedomain.example.com")
 	require.Error(t, err, "GET unexpectedly succeeded: %+v", resp)
 	require.NotContains(t, err.Error(), "proxyconnect")

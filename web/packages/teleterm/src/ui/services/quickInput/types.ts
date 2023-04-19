@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type * as tsh from 'teleterm/services/tshd/types';
+import { tsh } from 'teleterm/ui/services/clusters/types';
 
 type SuggestionBase<T, R> = {
   kind: T;
@@ -25,7 +25,7 @@ type SuggestionBase<T, R> = {
 
 export type SuggestionCmd = SuggestionBase<
   'suggestion.cmd',
-  { displayName: string; description: string }
+  { name: string; displayName: string; description: string }
 >;
 
 export type SuggestionSshLogin = SuggestionBase<
@@ -46,27 +46,33 @@ export type Suggestion =
   | SuggestionServer
   | SuggestionDatabase;
 
-export type QuickInputParser = {
-  parse(input: string, startIndex: number): ParseResult;
-};
-
-export type ParseResult = {
-  // Command includes the result of parsing whatever was parsed so far.
-  // This means that in case of `tsh ssh roo`, the command will say that we want to launch `tsh ssh`
-  // with `roo` as `loginHost`.
-  command: AutocompleteCommand;
-  readonly targetToken: AutocompleteToken;
-  getSuggestions(): Promise<Suggestion[]>;
-};
-
-export type QuickInputSuggester<SuggestionType extends Suggestion> = {
-  getSuggestions(filter: string): Promise<SuggestionType[]>;
+export type QuickInputPicker = {
+  getAutocompleteResult(input: string, startIndex: number): AutocompleteResult;
 };
 
 export type AutocompleteToken = {
   value: string;
   startIndex: number;
 };
+
+type AutocompleteResultBase<T> = {
+  kind: T;
+  // Command includes the result of parsing whatever was parsed so far.
+  // This means that in case of `tsh ssh roo`, the command will say that we want to launch `tsh ssh`
+  // with `roo` as `loginHost`.
+  command: AutocompleteCommand;
+};
+
+export type AutocompletePartialMatch =
+  AutocompleteResultBase<'autocomplete.partial-match'> & {
+    suggestions: Suggestion[];
+    targetToken: AutocompleteToken;
+  };
+
+export type AutocompleteNoMatch =
+  AutocompleteResultBase<'autocomplete.no-match'>;
+
+export type AutocompleteResult = AutocompletePartialMatch | AutocompleteNoMatch;
 
 type CommandBase<T> = {
   kind: T;
@@ -78,12 +84,6 @@ export type AutocompleteTshSshCommand = CommandBase<'command.tsh-ssh'> & {
   loginHost: string;
 };
 
-export type AutocompleteTshInstallCommand = CommandBase<'command.tsh-install'>;
-export type AutocompleteTshUninstallCommand =
-  CommandBase<'command.tsh-uninstall'>;
-
 export type AutocompleteCommand =
   | AutocompleteUnknownCommand
-  | AutocompleteTshSshCommand
-  | AutocompleteTshInstallCommand
-  | AutocompleteTshUninstallCommand;
+  | AutocompleteTshSshCommand;

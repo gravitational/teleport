@@ -15,85 +15,130 @@ limitations under the License.
 */
 
 import React from 'react';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { FetchStatus, SortType } from 'design/DataTable/types';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 import { LoginItem, MenuLogin } from 'shared/components/MenuLogin';
 
 import { Node } from 'teleport/services/nodes';
-import { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
-
-import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
+import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 
 function NodeList(props: Props) {
   const {
     nodes = [],
+    paginationUnsupported,
     onLoginMenuOpen,
     onLoginSelect,
     pageSize,
+    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
+    from,
+    to,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
-    pageIndicators,
   } = props;
 
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <Table
+        data={nodes}
+        emptyText="No Nodes Found"
+        isSearchable
+        pagination={{ pageSize }}
+        columns={[
+          {
+            key: 'hostname',
+            headerText: 'Hostname',
+            isSortable: true,
+          },
+          {
+            key: 'addr',
+            headerText: 'Address',
+            render: renderAddressCell,
+          },
+          {
+            key: 'labels',
+            headerText: 'Labels',
+            render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+          },
+          {
+            altKey: 'connect-btn',
+            render: ({ id }) =>
+              renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
+          },
+        ]}
+      />
+    );
+  }
+
   return (
-    <Table
-      columns={[
-        {
-          key: 'hostname',
-          headerText: 'Hostname',
-          isSortable: true,
-        },
-        {
-          key: 'addr',
-          headerText: 'Address',
-          render: renderAddressCell,
-        },
-        {
-          key: 'labels',
-          headerText: 'Labels',
-          render: ({ labels }) => (
-            <ClickableLabelCell labels={labels} onClick={onLabelClick} />
+    <>
+      <Table
+        columns={[
+          {
+            key: 'hostname',
+            headerText: 'Hostname',
+            isSortable: true,
+          },
+          {
+            key: 'addr',
+            headerText: 'Address',
+            render: renderAddressCell,
+          },
+          {
+            key: 'labels',
+            headerText: 'Labels',
+            render: ({ labels }) => (
+              <ClickableLabelCell labels={labels} onClick={onLabelClick} />
+            ),
+          },
+          {
+            altKey: 'connect-btn',
+            render: ({ id }) =>
+              renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
+          },
+        ]}
+        emptyText="No Nodes Found"
+        data={nodes}
+        pagination={{
+          pageSize,
+        }}
+        fetching={{
+          onFetchNext: fetchNext,
+          onFetchPrev: fetchPrev,
+          fetchStatus,
+        }}
+        serversideProps={{
+          sort: params.sort,
+          setSort,
+          startKeys,
+          serversideSearchPanel: (
+            <ServersideSearchPanel
+              from={from}
+              to={to}
+              count={totalCount}
+              params={params}
+              setParams={setParams}
+              pathname={pathname}
+              replaceHistory={replaceHistory}
+            />
           ),
-        },
-        {
-          altKey: 'connect-btn',
-          render: ({ id }) =>
-            renderLoginCell(id, onLoginSelect, onLoginMenuOpen),
-        },
-      ]}
-      emptyText="No Nodes Found"
-      data={nodes}
-      pagination={{
-        pageSize,
-      }}
-      fetching={{
-        onFetchNext: fetchNext,
-        onFetchPrev: fetchPrev,
-        fetchStatus,
-      }}
-      serversideProps={{
-        sort: params.sort,
-        setSort,
-        serversideSearchPanel: (
-          <ServersideSearchPanel
-            pageIndicators={pageIndicators}
-            params={params}
-            setParams={setParams}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
-            disabled={fetchStatus === 'loading'}
-          />
-        ),
-      }}
-    />
+        }}
+      />
+    </>
   );
 }
 
@@ -151,15 +196,19 @@ type Props = {
   onLoginSelect(e: React.SyntheticEvent, login: string, serverId: string): void;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: FetchStatus;
+  fetchStatus: any;
+  from: number;
+  to: number;
+  totalCount: number;
   pageSize?: number;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  params: ResourceUrlQueryParams;
+  setParams: (params: ResourceUrlQueryParams) => void;
+  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
-  pageIndicators: PageIndicators;
+  paginationUnsupported: boolean;
 };
 
 export default NodeList;

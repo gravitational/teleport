@@ -11,7 +11,7 @@ module.exports = {
   ...defaultProdConfig,
   optimization: {
     ...defaultProdConfig.optimization,
-    moduleIds: 'deterministic',
+    moduleIds: 'hashed',
   },
   plugins: [
     ...defaultProdConfig.plugins,

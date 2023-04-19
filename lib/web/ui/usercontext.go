@@ -29,14 +29,13 @@ type access struct {
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
 	Delete bool `json:"remove"`
-	Use    bool `json:"use"`
 }
 
 type accessStrategy struct {
 	// Type determines how a user should access teleport resources.
 	// ie: does the user require a request to access resources?
 	Type types.RequestStrategy `json:"type"`
-	// Prompt is the optional dialog shown to user,
+	// Prompt is the optional dialogue shown to user,
 	// when the access strategy type requires a reason.
 	Prompt string `json:"prompt"`
 }
@@ -72,8 +71,6 @@ type userACL struct {
 	AppServers access `json:"appServers"`
 	// DBServers defines access to database servers.
 	DBServers access `json:"dbServers"`
-	// DB defines access to database resource.
-	DB access `json:"db"`
 	// KubeServers defines access to kubernetes servers.
 	KubeServers access `json:"kubeServers"`
 	// Desktops defines access to desktops.
@@ -90,16 +87,6 @@ type userACL struct {
 	DesktopSessionRecording bool `json:"desktopSessionRecording"`
 	// DirectorySharing defines whether a user is permitted to share a directory during windows desktop sessions.
 	DirectorySharing bool `json:"directorySharing"`
-	// Download defines whether the user has access to download Teleport Enterprise Binaries
-	Download access `json:"download"`
-	// Download defines whether the user has access to download the license
-	License access `json:"license"`
-	// Plugins defines whether the user has access to manage hosted plugin instances
-	Plugins access `json:"plugins"`
-	// Integrations defines whether the user has access to manage integrations.
-	Integrations access `json:"integrations"`
-	// DeviceTrust defines access to device trust.
-	DeviceTrust access `json:"deviceTrust"`
 }
 
 type authType string
@@ -146,7 +133,6 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
 		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
 		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
-		Use:    hasAccess(roleSet, ctx, kind, types.VerbUse),
 	}
 }
 
@@ -188,8 +174,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	nodeAccess := newAccess(userRoles, ctx, types.KindNode)
 	appServerAccess := newAccess(userRoles, ctx, types.KindAppServer)
 	dbServerAccess := newAccess(userRoles, ctx, types.KindDatabaseServer)
-	dbAccess := newAccess(userRoles, ctx, types.KindDatabase)
-	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeServer)
+	kubeServerAccess := newAccess(userRoles, ctx, types.KindKubeService)
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
@@ -199,25 +184,15 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
 	}
 
-	var pluginsAccess access
-	if features.Plugins {
-		pluginsAccess = newAccess(userRoles, ctx, types.KindPlugin)
-	}
-
 	accessStrategy := getAccessStrategy(userRoles)
 	clipboard := userRoles.DesktopClipboard()
 	desktopSessionRecording := desktopRecordingEnabled && userRoles.RecordDesktopSession()
 	directorySharing := userRoles.DesktopDirectorySharing()
-	download := newAccess(userRoles, ctx, types.KindDownload)
-	license := newAccess(userRoles, ctx, types.KindLicense)
-	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
-	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
 		DBServers:               dbServerAccess,
-		DB:                      dbAccess,
 		KubeServers:             kubeServerAccess,
 		Desktops:                desktopAccess,
 		AuthConnectors:          authConnectors,
@@ -234,11 +209,6 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Clipboard:               clipboard,
 		DesktopSessionRecording: desktopSessionRecording,
 		DirectorySharing:        directorySharing,
-		Download:                download,
-		License:                 license,
-		Plugins:                 pluginsAccess,
-		Integrations:            integrationsAccess,
-		DeviceTrust:             deviceTrust,
 	}
 
 	// local user

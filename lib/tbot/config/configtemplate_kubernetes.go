@@ -165,12 +165,7 @@ func generateKubeConfig(t *TemplateKubernetes, ks *kubernetesStatus, destPath st
 	return config, nil
 }
 
-func (t *TemplateKubernetes) Render(
-	ctx context.Context,
-	bot Bot,
-	routedIdentity, unroutedIdentity *identity.Identity,
-	destination *DestinationConfig,
-) error {
+func (t *TemplateKubernetes) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
 	if destination.KubernetesCluster == nil {
 		dest, err := destination.GetDestination()
 		if err != nil {
@@ -223,18 +218,13 @@ func (t *TemplateKubernetes) Render(
 		return trace.Wrap(err)
 	}
 
-	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer authClient.Close()
-
-	clusterName, err := authClient.GetDomainName(ctx)
+	authClient := bot.Client()
+	clusterName, err := authClient.GetClusterName()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(routedIdentity, hostCAs)
+	key, err := newClientKey(currentIdentity, hostCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -243,7 +233,7 @@ func (t *TemplateKubernetes) Render(
 		clusterAddr:           kubeAddr,
 		proxyAddr:             authPong.ProxyPublicAddr,
 		credentials:           key,
-		teleportClusterName:   clusterName,
+		teleportClusterName:   clusterName.GetClusterName(),
 		kubernetesClusterName: destination.KubernetesCluster.ClusterName,
 	}
 

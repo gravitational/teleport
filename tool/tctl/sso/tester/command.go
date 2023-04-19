@@ -29,14 +29,14 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SSOTestCommand implements common.CLICommand interface
 type SSOTestCommand struct {
-	config *servicecfg.Config
+	config *service.Config
 
 	ssoTestCmd *kingpin.CmdClause
 
@@ -53,7 +53,7 @@ type SSOTestCommand struct {
 
 // Initialize allows a caller-defined command to plug itself into CLI
 // argument parsing
-func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *servicecfg.Config) {
+func (cmd *SSOTestCommand) Initialize(app *kingpin.Application, cfg *service.Config) {
 	cmd.config = cfg
 
 	sso := app.GetCommand("sso")
@@ -71,7 +71,7 @@ Examples:
 
   > tctl sso configure github ... | tctl sso test
 
-  The pipeline may also utilize "tee" to capture the connector generated with "tctl sso configure".
+  The pipeline may also utilise "tee" to capture the connector generated with "tctl sso configure".
 
   > tctl sso configure github ... | tee connector.yaml | tctl sso test`)
 

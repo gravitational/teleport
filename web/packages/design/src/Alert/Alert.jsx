@@ -19,34 +19,35 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 
 import { space, color, width } from 'design/system';
+import defaultTheme from 'design/theme';
 
 const kind = props => {
   const { kind, theme } = props;
   switch (kind) {
     case 'danger':
       return {
-        background: theme.colors.error.main,
-        color: theme.colors.text.primaryInverse,
+        background: theme.colors.danger,
+        color: theme.colors.primary.contrastText,
       };
     case 'info':
       return {
         background: theme.colors.info,
-        color: theme.colors.text.primaryInverse,
+        color: theme.colors.primary.contrastText,
       };
     case 'warning':
       return {
-        background: theme.colors.warning.main,
-        color: theme.colors.text.primaryInverse,
+        background: theme.colors.warning,
+        color: theme.colors.primary.contrastText,
       };
     case 'success':
       return {
         background: theme.colors.success,
-        color: theme.colors.text.primaryInverse,
+        color: theme.colors.primary.contrastText,
       };
     default:
       return {
-        background: theme.colors.error.main,
-        color: theme.colors.text.primaryInverse,
+        background: theme.colors.danger,
+        color: theme.colors.primary.contrastText,
       };
   }
 };
@@ -82,6 +83,7 @@ Alert.propTypes = {
 
 Alert.defaultProps = {
   kind: 'danger',
+  theme: defaultTheme,
 };
 
 Alert.displayName = 'Alert';

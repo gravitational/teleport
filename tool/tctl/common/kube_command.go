@@ -26,12 +26,12 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
 type KubeCommand struct {
-	config *servicecfg.Config
+	config *service.Config
 
 	// format is the output format (text or yaml)
 	format string
@@ -44,7 +44,7 @@ type KubeCommand struct {
 }
 
 // Initialize allows KubeCommand to plug itself into the CLI parser
-func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *KubeCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")
@@ -67,8 +67,7 @@ func (c *KubeCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 // ListKube prints the list of kube clusters that have recently sent heartbeats
 // to the cluster.
 func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
-
-	kubes, err := client.GetKubernetesServers(ctx)
+	kubes, err := client.GetKubeServices(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -87,14 +86,11 @@ func (c *KubeCommand) ListKube(ctx context.Context, client auth.ClientI) error {
 
 var kubeMessageTemplate = template.Must(template.New("kube").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
-
 To use with Helm installation follow these steps:
-
 # Retrieve the Teleport helm charts
 helm repo add teleport https://charts.releases.teleport.dev
 # Refresh the helm charts
 helm repo update
-
 > helm install teleport-agent teleport/teleport-kube-agent \
   --set kubeClusterName=cluster ` + "`" + `# Change kubeClusterName variable to your preferred name.` + "`" + ` \
   --set proxyAddr={{.auth_server}} \
@@ -108,5 +104,4 @@ Please note:
   - {{.auth_server}} must be reachable from Kubernetes cluster.
   - The token is usable in a standalone Linux server with kubernetes_service.
   - See https://goteleport.com/docs/kubernetes-access/ for detailed installation information.
-
 `))

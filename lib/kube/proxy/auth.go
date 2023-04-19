@@ -12,14 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//nolint:goimports // goimports disagree with gci on blank imports
 package proxy
 
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -38,18 +39,37 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 
-	"github.com/gravitational/teleport/api/types"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-// getKubeDetails fetches the kubernetes API credentials.
+// kubeCreds contain authentication-related fields from kubeconfig.
+//
+// TODO(awly): make this an interface, one implementation for local k8s cluster
+// and another for a remote teleport cluster.
+type kubeCreds struct {
+	// tlsConfig contains (m)TLS configuration.
+	tlsConfig *tls.Config
+	// transportConfig contains HTTPS-related configuration.
+	// Note: use wrapTransport method if working with http.RoundTrippers.
+	transportConfig *transport.Config
+	// targetAddr is a kubernetes API address.
+	targetAddr string
+	kubeClient *kubernetes.Clientset
+}
+
+// ImpersonationPermissionsChecker describes a function that can be used to check
+// for the required impersonation permissions on a Kubernetes cluster. Return nil
+// to indicate success.
+type ImpersonationPermissionsChecker func(ctx context.Context, clusterName string,
+	sarClient authztypes.SelfSubjectAccessReviewInterface) error
+
+// getKubeCreds fetches the kubernetes API credentials.
 //
 // There are 2 possible sources of credentials:
-//   - pod service account credentials: files in hardcoded paths when running
-//     inside of a k8s pod; this is used when kubeClusterName is set
-//   - kubeconfig: a file with a set of k8s endpoints and credentials mapped to
-//     them this is used when kubeconfigPath is set
+// - pod service account credentials: files in hardcoded paths when running
+//   inside of a k8s pod; this is used when kubeClusterName is set
+// - kubeconfig: a file with a set of k8s endpoints and credentials mapped to
+//   them this is used when kubeconfigPath is set
 //
 // serviceType changes the loading behavior:
 // - LegacyProxyService:
@@ -57,31 +77,29 @@ import (
 //     returned map key matches tpClusterName
 //   - if no credentials are loaded, no error is returned
 //   - permission self-test failures are only logged
-//
 // - ProxyService:
 //   - no credentials are loaded and no error is returned
-//
 // - KubeService:
 //   - if loading from kubeconfig, all contexts are returned
 //   - if no credentials are loaded, returns an error
 //   - permission self-test failures cause an error to be returned
-func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType, checkImpersonation servicecfg.ImpersonationPermissionsChecker) (map[string]*kubeDetails, error) {
+func getKubeCreds(ctx context.Context, log logrus.FieldLogger, tpClusterName, kubeClusterName, kubeconfigPath string, serviceType KubeServiceType, checkImpersonation ImpersonationPermissionsChecker) (map[string]*kubeCreds, error) {
 	log.
 		WithField("kubeconfigPath", kubeconfigPath).
 		WithField("kubeClusterName", kubeClusterName).
 		WithField("serviceType", serviceType).
-		Debug("Reading Kubernetes details.")
+		Debug("Reading Kubernetes creds.")
 
 	// Proxy service should never have creds, forwards to kube service
 	if serviceType == ProxyService {
-		return map[string]*kubeDetails{}, nil
+		return map[string]*kubeCreds{}, nil
 	}
 
 	// Load kubeconfig or local pod credentials.
 	loadAll := serviceType == KubeService
 	cfg, err := kubeutils.GetKubeConfig(kubeconfigPath, loadAll, kubeClusterName)
 	if err != nil && !trace.IsNotFound(err) {
-		return map[string]*kubeDetails{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if trace.IsNotFound(err) || len(cfg.Contexts) == 0 {
@@ -91,7 +109,7 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 		case LegacyProxyService:
 			log.Debugf("Could not load Kubernetes credentials. This proxy will still handle Kubernetes requests for trusted teleport clusters or Kubernetes nodes in this teleport cluster")
 		}
-		return map[string]*kubeDetails{}, nil
+		return map[string]*kubeCreds{}, nil
 	}
 
 	if serviceType == LegacyProxyService {
@@ -109,32 +127,20 @@ func getKubeDetails(ctx context.Context, log logrus.FieldLogger, tpClusterName, 
 		}
 	}
 
-	res := make(map[string]*kubeDetails, len(cfg.Contexts))
+	res := make(map[string]*kubeCreds, len(cfg.Contexts))
 	// Convert kubeconfig contexts into kubeCreds.
 	for cluster, clientCfg := range cfg.Contexts {
-		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, log, checkImpersonation)
+		clusterCreds, err := extractKubeCreds(ctx, cluster, clientCfg, serviceType, kubeconfigPath, log, checkImpersonation)
 		if err != nil {
 			log.WithError(err).Warnf("failed to load credentials for cluster %q.", cluster)
 			continue
 		}
-		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
-			Name: cluster,
-		}, types.KubernetesClusterSpecV3{})
-		if err != nil {
-			log.WithError(err).Warnf("failed to create KubernetesClusterV3 from credentials for cluster %q.", cluster)
-			continue
-		}
-		res[cluster] = &kubeDetails{
-			kubeCreds: clusterCreds,
-			// kubeconfig does not allow labels so we don't define static and dynamic labels for the cluster.
-			// those will be inherited from the service later.
-			kubeCluster: kubeCluster,
-		}
+		res[cluster] = clusterCreds
 	}
 	return res, nil
 }
 
-func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, log logrus.FieldLogger, checkPermissions servicecfg.ImpersonationPermissionsChecker) (*staticKubeCreds, error) {
+func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Config, serviceType KubeServiceType, kubeconfigPath string, log logrus.FieldLogger, checkPermissions ImpersonationPermissionsChecker) (*kubeCreds, error) {
 	log = log.WithField("cluster", cluster)
 
 	log.Debug("Checking Kubernetes impersonation permissions.")
@@ -147,6 +153,15 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 	// check only logs when permissions are not configured, but does not fail startup.
 	if err := checkPermissions(ctx, cluster, client.AuthorizationV1().SelfSubjectAccessReviews()); err != nil {
 		log.WithError(err).Warning("Failed to test the necessary Kubernetes permissions. The target Kubernetes cluster may be down or have misconfigured RBAC. This teleport instance will still handle Kubernetes requests towards this Kubernetes cluster.")
+		if serviceType != KubeService && kubeconfigPath != "" {
+			// We used to recommend users to set a dummy kubeconfig on root
+			// proxies to get kubernetes support working for leaf clusters:
+			// https://community.goteleport.com/t/enabling-teleport-to-act-as-a-kubernetes-proxy-for-trusted-leaf-clusters/418
+			//
+			// Since this is no longer necessary, recommend them to clean up
+			// via logs.
+			log.Info("If this is a proxy and you provided a dummy kubeconfig_file, you can remove it from teleport.yaml to get rid of this warning")
+		}
 	} else {
 		log.Debug("Have all necessary Kubernetes impersonation permissions.")
 	}
@@ -168,42 +183,12 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 		return nil, trace.Wrap(err, "failed to generate transport config from kubeconfig: %v", err)
 	}
 
-	transport, err := newDirectTransports(tlsConfig, transportConfig)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to generate transport from kubeconfig: %v", err)
-	}
-
 	log.Debug("Initialized Kubernetes credentials")
-	return &staticKubeCreds{
+	return &kubeCreds{
 		tlsConfig:       tlsConfig,
 		transportConfig: transportConfig,
 		targetAddr:      targetAddr,
 		kubeClient:      client,
-		clientRestCfg:   clientCfg,
-		transport:       transport,
-	}, nil
-}
-
-// newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
-// It is a direct connection, not going through a proxy.
-func newDirectTransports(tlsConfig *tls.Config, transportConfig *transport.Config) (httpTransport, error) {
-	h1Transport, err := wrapTransport(newH1Transport(tlsConfig, nil), transportConfig)
-	if err != nil {
-		return httpTransport{}, trace.Wrap(err)
-	}
-
-	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
-	if err != nil {
-		return httpTransport{}, trace.Wrap(err)
-	}
-	h2Transport, err := wrapTransport(h2HTTPTransport, transportConfig)
-	if err != nil {
-		return httpTransport{}, trace.Wrap(err)
-	}
-
-	return httpTransport{
-		h1Transport: h1Transport,
-		h2Transport: h2Transport,
 	}, nil
 }
 
@@ -220,6 +205,13 @@ func parseKubeHost(host string) (string, error) {
 		return fmt.Sprintf("%v:443", u.Host), nil
 	}
 	return u.Host, nil
+}
+
+func (c *kubeCreds) wrapTransport(rt http.RoundTripper) (http.RoundTripper, error) {
+	if c == nil {
+		return rt, nil
+	}
+	return transport.HTTPWrappersForConfig(c.transportConfig, rt)
 }
 
 func checkImpersonationPermissions(ctx context.Context, cluster string, sarClient authztypes.SelfSubjectAccessReviewInterface) error {

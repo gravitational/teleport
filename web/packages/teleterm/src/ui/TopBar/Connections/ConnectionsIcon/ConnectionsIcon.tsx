@@ -31,7 +31,7 @@ interface ConnectionsIconProps {
 
 export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
   (props, ref) => {
-    const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
+    const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
     return (
       <Container ref={ref}>
         <ConnectionsIconStatusIndicator
@@ -42,7 +42,7 @@ export const ConnectionsIcon = forwardRef<HTMLDivElement, ConnectionsIconProps>(
           kind="secondary"
           size="small"
           m="auto"
-          title={getLabelWithAccelerator('Open Connections', 'openConnections')}
+          title={getLabelWithShortcut('Open Connections', 'toggle-connections')}
         >
           <Cluster fontSize={16} />
         </StyledButton>
@@ -57,7 +57,7 @@ const Container = styled.div`
 `;
 
 const StyledButton = styled(Button)`
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.primary.light};
   padding: 9px;
   width: 30px;
   height: 30px;

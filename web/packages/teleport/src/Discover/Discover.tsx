@@ -15,81 +15,142 @@
  */
 
 import React from 'react';
+import styled from 'styled-components';
+
+import { Indicator, Text } from 'design';
+import { Danger } from 'design/Alert';
 
 import { Prompt } from 'react-router-dom';
-import { Box } from 'design';
 
+import * as main from 'teleport/Main';
+import { TopBarContainer } from 'teleport/TopBar';
 import { FeatureBox } from 'teleport/components/Layout';
-
-import { Navigation } from 'teleport/Discover/Navigation/Navigation';
-import { SelectResource } from 'teleport/Discover/SelectResource/SelectResource';
+import { BannerList } from 'teleport/components/BannerList';
 import cfg from 'teleport/config';
+
+import { ClusterAlert, LINK_LABEL } from 'teleport/services/alerts/alerts';
+import { Sidebar } from 'teleport/Discover/Sidebar/Sidebar';
+import { SelectResource } from 'teleport/Discover/SelectResource';
+import { DiscoverUserMenuNav } from 'teleport/Discover/DiscoverUserMenuNav';
 
 import { findViewAtIndex } from './flow';
 
-import { DiscoverProvider, useDiscover } from './useDiscover';
+import { useDiscover } from './useDiscover';
 
-function DiscoverContent() {
+import type { BannerType } from 'teleport/components/BannerList/BannerList';
+
+interface DiscoverProps {
+  initialAlerts?: ClusterAlert[];
+  customBanners?: React.ReactNode[];
+}
+
+export function Discover(props: DiscoverProps) {
   const {
+    alerts,
+    initAttempt,
+    customBanners,
+    dismissAlert,
     currentStep,
-    viewConfig,
+    selectedResource,
     onSelectResource,
-    indexedViews,
+    logout,
+    views,
     ...agentProps
-  } = useDiscover();
+  } = useDiscover({
+    initialAlerts: props.initialAlerts,
+    customBanners: props.customBanners,
+  });
 
   let content;
-  const hasSelectedResource = Boolean(viewConfig);
-  if (hasSelectedResource) {
-    const view = findViewAtIndex(indexedViews, currentStep);
+  // we reserve step 0 for "Select Resource Type", that is present in all resource configs
+  if (currentStep > 0) {
+    const view = findViewAtIndex(views, currentStep);
 
     const Component = view.component;
 
     content = <Component {...agentProps} />;
 
-    if (viewConfig.wrapper) {
-      content = viewConfig.wrapper(content);
+    if (selectedResource.wrapper) {
+      content = selectedResource.wrapper(content);
     }
   } else {
     content = (
-      <SelectResource onSelect={resource => onSelectResource(resource)} />
+      <SelectResource
+        selectedResourceKind={selectedResource.kind}
+        onSelect={kind => onSelectResource(kind)}
+        onNext={() => agentProps.nextStep()}
+      />
     );
   }
 
-  return (
-    <>
-      <FeatureBox>
-        {hasSelectedResource && (
-          <Navigation
-            currentStep={currentStep}
-            views={indexedViews}
-            selectedResource={agentProps.resourceSpec}
-          />
-        )}
-        <Box>{content}</Box>
-      </FeatureBox>
+  // The backend defines the severity as an integer value with the current
+  // pre-defined values: LOW: 0; MEDIUM: 5; HIGH: 10
+  const mapSeverity = (severity: number) => {
+    if (severity < 5) {
+      return 'info';
+    }
+    if (severity < 10) {
+      return 'warning';
+    }
+    return 'danger';
+  };
 
-      {hasSelectedResource && (
+  const banners: BannerType[] = alerts.map(alert => ({
+    message: alert.spec.message,
+    severity: mapSeverity(alert.spec.severity),
+    link: alert.metadata.labels[LINK_LABEL],
+    id: alert.metadata.name,
+  }));
+
+  return (
+    <BannerList
+      banners={banners}
+      customBanners={customBanners}
+      onBannerDismiss={dismissAlert}
+    >
+      <MainContainer>
         <Prompt
           message={nextLocation => {
             if (nextLocation.pathname === cfg.routes.discover) return true;
-            return 'Are you sure you want to exit the "Enroll New Resource” workflow? You’ll have to start from the beginning next time.';
+            return 'Are you sure you want to exit the “Add New Resource” workflow? You’ll have to start from the beginning next time.';
           }}
-          when={
-            viewConfig.shouldPrompt
-              ? viewConfig.shouldPrompt(currentStep)
-              : true
-          }
+          when={selectedResource.shouldPrompt(currentStep)}
         />
-      )}
-    </>
+        {initAttempt.status === 'processing' && (
+          <main.StyledIndicator>
+            <Indicator />
+          </main.StyledIndicator>
+        )}
+        {initAttempt.status === 'failed' && (
+          <Danger>{initAttempt.statusText}</Danger>
+        )}
+        {initAttempt.status === 'success' && (
+          <>
+            <Sidebar
+              views={views}
+              currentStep={currentStep}
+              selectedResource={selectedResource}
+            />
+            <main.HorizontalSplit>
+              <main.ContentMinWidth>
+                <TopBarContainer>
+                  <Text typography="h5" bold>
+                    Manage Access
+                  </Text>
+                  <DiscoverUserMenuNav logout={logout} />
+                </TopBarContainer>
+                <FeatureBox pt={4} maxWidth="1450px">
+                  {content}
+                </FeatureBox>
+              </main.ContentMinWidth>
+            </main.HorizontalSplit>
+          </>
+        )}
+      </MainContainer>
+    </BannerList>
   );
 }
 
-export function Discover() {
-  return (
-    <DiscoverProvider>
-      <DiscoverContent />
-    </DiscoverProvider>
-  );
-}
+const MainContainer = styled(main.MainContainer)`
+  --sidebar-width: 280px;
+`;

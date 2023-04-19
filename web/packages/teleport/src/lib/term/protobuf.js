@@ -24,7 +24,6 @@ const TWO_TO_32 = 4294967296;
 export const MessageTypeEnum = {
   RAW: 'r',
   AUDIT: 'a',
-  SESSION_DATA: 's',
   SESSION_END: 'c',
   RESIZE: 'w',
   WEBAUTHN_CHALLENGE: 'n',

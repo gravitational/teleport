@@ -1,0 +1,297 @@
+adds a separate Mongo listener port when separateMongoListener is true:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      - name: mongo
+        port: 27017
+        protocol: TCP
+        targetPort: 27017
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
+adds a separate Postgres listener port when separatePostgresListener is true:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      - name: postgres
+        port: 5432
+        protocol: TCP
+        targetPort: 5432
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
+sets AWS annotations when chartMode=aws:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
+sets AWS backend protocol annotation to ssl when in AWS mode and ACM annotation is set:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: ssl
+        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+        service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:1234567890:certificate/a857a76c-51d0-4d3d-8000-465bb3e9829b
+        service.beta.kubernetes.io/aws-load-balancer-ssl-ports: 443
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
+sets AWS backend protocol annotation to tcp when in AWS mode and ACM annotation is not set:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+        service.beta.kubernetes.io/aws-load-balancer-type: nlb
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
+sets service annotations when specified:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        kubernetes.io/service: test-annotation
+        kubernetes.io/service-different: 5
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer
+uses a ClusterIP when service.type=ClusterIP:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      selector:
+        app: RELEASE-NAME
+      type: ClusterIP
+uses a LoadBalancer by default:
+  1: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: RELEASE-NAME
+      name: RELEASE-NAME
+      namespace: NAMESPACE
+    spec:
+      ports:
+      - name: https
+        port: 443
+        protocol: TCP
+        targetPort: 3080
+      - name: sshproxy
+        port: 3023
+        protocol: TCP
+        targetPort: 3023
+      - name: k8s
+        port: 3026
+        protocol: TCP
+        targetPort: 3026
+      - name: sshtun
+        port: 3024
+        protocol: TCP
+        targetPort: 3024
+      - name: mysql
+        port: 3036
+        protocol: TCP
+        targetPort: 3036
+      selector:
+        app: RELEASE-NAME
+      type: LoadBalancer

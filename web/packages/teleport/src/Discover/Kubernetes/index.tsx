@@ -16,42 +16,46 @@
 
 import React from 'react';
 
+import { Kubernetes } from 'design/Icon';
+
 import { Finished, ResourceKind } from 'teleport/Discover/Shared';
-import { ResourceViewConfig } from 'teleport/Discover/flow';
-import { DiscoverEvent } from 'teleport/services/userEvent';
+import { Resource } from 'teleport/Discover/flow';
 
 import { KubeWrapper } from './KubeWrapper';
+import { DownloadScript } from './DownloadScript';
 import { SetupAccess } from './SetupAccess';
-import { HelmChart } from './HelmChart';
 import { TestConnection } from './TestConnection';
 
-export const KubernetesResource: ResourceViewConfig = {
+export const KubernetesResource: Resource = {
   kind: ResourceKind.Kubernetes,
+  icon: <Kubernetes />,
   wrapper: (component: React.ReactNode) => (
     <KubeWrapper>{component}</KubeWrapper>
   ),
+  shouldPrompt(currentStep) {
+    // do not prompt on exit if they're selecting a resource
+    return currentStep !== 0;
+  },
   views: [
     {
+      title: 'Select Resource',
+    },
+    {
       title: 'Configure Resource',
-      component: HelmChart,
-      eventName: DiscoverEvent.DeployService,
+      component: DownloadScript,
     },
     {
       title: 'Set Up Access',
       component: SetupAccess,
-      eventName: DiscoverEvent.PrincipalsConfigure,
     },
     {
       title: 'Test Connection',
       component: TestConnection,
-      eventName: DiscoverEvent.TestConnection,
-      manuallyEmitSuccessEvent: true,
     },
     {
       title: 'Finished',
       component: Finished,
       hide: true,
-      eventName: DiscoverEvent.Completed,
     },
   ],
 };

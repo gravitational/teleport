@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { MainProcessClient, SubscribeToTshdEvent } from 'teleterm/types';
+import { MainProcessClient } from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
@@ -25,12 +25,6 @@ import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
-import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
-import { ResourcesService } from 'teleterm/ui/services/resources';
-import { ReloginService } from 'teleterm/services/relogin';
-import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
-import { UsageService } from 'teleterm/ui/services/usage';
-import { ConfigService } from 'teleterm/services/config';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -44,13 +38,6 @@ export interface IAppContext {
   mainProcessClient: MainProcessClient;
   commandLauncher: CommandLauncher;
   connectionTracker: ConnectionTrackerService;
-  resourcesService: ResourcesService;
-  fileTransferService: FileTransferService;
-  subscribeToTshdEvent: SubscribeToTshdEvent;
-  reloginService: ReloginService;
-  tshdNotificationsService: TshdNotificationsService;
-  usageService: UsageService;
-  configService: ConfigService;
 
   init(): Promise<void>;
 }

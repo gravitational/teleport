@@ -45,35 +45,37 @@ export function IdentityContainer() {
     logout,
     addCluster,
   } = useIdentity();
-  const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
+  const { getLabelWithShortcut } = useKeyboardShortcutFormatters();
 
   const presenterRef = useRef<IdentityHandler>();
 
   useKeyboardShortcuts(
     useMemo(
       () => ({
-        openProfiles: presenterRef.current?.togglePopover,
+        'toggle-identity': presenterRef.current?.togglePopover,
       }),
       [presenterRef.current?.togglePopover]
     )
   );
 
   const makeTitle = (userWithClusterName: string | undefined) =>
-    getLabelWithAccelerator(
+    getLabelWithShortcut(
       [userWithClusterName, 'Open Profiles'].filter(Boolean).join('\n'),
-      'openProfiles'
+      'toggle-identity'
     );
 
   return (
-    <Identity
-      ref={presenterRef}
-      activeRootCluster={activeRootCluster}
-      rootClusters={rootClusters}
-      changeRootCluster={changeRootCluster}
-      logout={logout}
-      addCluster={addCluster}
-      makeTitle={makeTitle}
-    />
+    <>
+      <Identity
+        ref={presenterRef}
+        activeRootCluster={activeRootCluster}
+        rootClusters={rootClusters}
+        changeRootCluster={changeRootCluster}
+        logout={logout}
+        addCluster={addCluster}
+        makeTitle={makeTitle}
+      />
+    </>
   );
 }
 
@@ -162,5 +164,5 @@ export const Identity = React.forwardRef<IdentityHandler, IdentityProps>(
 );
 
 const Container = styled(Box)`
-  background: ${props => props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.primary.light};
 `;

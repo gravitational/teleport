@@ -26,7 +26,6 @@ import (
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/identityfile"
@@ -56,7 +55,7 @@ func TestGetKubeCredentialData(t *testing.T) {
 	idFile := &identityfile.IdentityFile{
 		PrivateKey: privateKeyBytes,
 		Certs: identityfile.Certs{
-			SSH: []byte(ssh.CertAlgoRSAv01), // dummy value
+			SSH: []byte("ssh ssh-cert"), // dummy value
 			TLS: certBytes,
 		},
 		CACerts: identityfile.CACerts{
@@ -65,7 +64,7 @@ func TestGetKubeCredentialData(t *testing.T) {
 		},
 	}
 
-	data, err := getCredentialData(idFile, clock.Now())
+	data, err := getCredentialData(idFile)
 	require.NoError(t, err)
 
 	var parsed map[string]interface{}
@@ -76,9 +75,10 @@ func TestGetKubeCredentialData(t *testing.T) {
 	require.Equal(t, string(certBytes), status["clientCertificateData"])
 	require.Equal(t, string(privateKeyBytes), status["clientKeyData"])
 
-	// Note: We usually subtract a minute from the expiration time in
-	// getCredentialData to avoid the cert expiring mid-request.
+	// Note: We'll usually subtract a minute from the expiration time, but
+	// since clockwerk's testing clock is set to 1984 we don't take that
+	// conditional.
 	ts, err := time.Parse(time.RFC3339, status["expirationTimestamp"].(string))
 	require.NoError(t, err)
-	require.WithinDuration(t, notAfter.Add(-1*time.Minute), ts, time.Second)
+	require.Equal(t, notAfter, ts)
 }

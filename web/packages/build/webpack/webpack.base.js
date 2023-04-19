@@ -16,7 +16,6 @@ limitations under the License.
 
 const path = require('path');
 
-const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const ReactRefreshPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
@@ -36,9 +35,6 @@ const configFactory = {
         typescript: {
           configFile: tsconfigPath,
         },
-        issue: {
-          exclude: [{ file: '**/*.story.tsx' }],
-        },
       });
     },
     indexHtml(options) {
@@ -49,9 +45,6 @@ const configFactory = {
         template: path.join(__dirname, '/../index.ejs'),
         ...options,
       });
-    },
-    bundleAnalyzer(options) {
-      return new BundleAnalyzerPlugin({ analyzerHost: '0.0.0.0', ...options });
     },
   },
   rules: {
@@ -67,6 +60,11 @@ const configFactory = {
         type: 'asset',
         generator: {
           filename: 'assets/fonts/[name][ext]',
+        },
+        parser: {
+          dataUrlCondition: {
+            maxSize: 102400, // 100kb
+          },
         },
       };
     },
@@ -110,9 +108,6 @@ const configFactory = {
             options: {
               onlyCompileBundledFiles: true,
               configFile: tsconfigPath,
-              compilerOptions: {
-                jsx: 'preserve',
-              },
             },
           },
         ],
@@ -124,6 +119,31 @@ const configFactory = {
 /** @return {import('webpack').webpack.Configuration} */
 function createDefaultConfig() {
   return {
+    optimization: {
+      splitChunks: {
+        cacheGroups: {
+          // Vendor chunk creates a chunk file that contains files coming from import statements
+          // from node_modules. The 'initial' flag directs this group to add modules to this chunk
+          //  that were imported inside only from sync chunks.
+          defaultVendors: {
+            chunks: 'initial',
+            name: 'vendor',
+            test: /([\\/]node_modules[\\/])/,
+            // Priority states that if a module falls under many cacheGroups, then
+            // the module will be part of a chunk with a higher priority.
+          },
+          // Common chunk creates a chunk file that contains modules that were shared between
+          // at least 2 (or more) async chunks. The 'async' flag directs this group to add modules
+          // to this chunk that were specifically imported inside async chunks (dynamic imports).
+          common: {
+            chunks: 'async',
+            minChunks: 2,
+            test: /([\\/]node_modules[\\/])/,
+          },
+        },
+      },
+    },
+
     entry: {
       app: ['./src/boot'],
     },
@@ -150,7 +170,6 @@ function createDefaultConfig() {
         teleterm: path.join(__dirname, '/../../teleterm/src'),
         teleport: path.join(__dirname, '/../../teleport/src'),
         'e-teleport': path.join(__dirname, '/../../../../e/web/teleport/src'),
-        'e-teleterm': path.join(__dirname, '/../../../../e/web/teleterm/src'),
         design: path.join(__dirname, '/../../design/src'),
         shared: path.join(__dirname, '/../../shared'),
         'gen-proto-js': path.join(__dirname, '/../../../../gen/proto/js'),

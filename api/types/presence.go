@@ -39,7 +39,7 @@ type Site struct {
 // IsEmpty returns true if keepalive is empty,
 // used to indicate that keepalive is not supported
 func (s *KeepAlive) IsEmpty() bool {
-	return s.Name == ""
+	return s.LeaseID == 0 && s.Name == ""
 }
 
 // GetType return the type of keep alive: either application or server.
@@ -55,8 +55,6 @@ func (s *KeepAlive) GetType() string {
 		return constants.KeepAliveWindowsDesktopService
 	case KeepAlive_KUBERNETES:
 		return constants.KeepAliveKube
-	case KeepAlive_DATABASE_SERVICE:
-		return constants.KeepAliveDatabaseService
 	default:
 		return constants.KeepAliveNode
 	}
@@ -64,13 +62,12 @@ func (s *KeepAlive) GetType() string {
 
 // CheckAndSetDefaults validates this KeepAlive value and sets default values
 func (s *KeepAlive) CheckAndSetDefaults() error {
-	if s.IsEmpty() {
-		return trace.BadParameter("missing resource name")
-	}
 	if s.Namespace == "" {
 		s.Namespace = defaults.Namespace
 	}
-
+	if s.IsEmpty() {
+		return trace.BadParameter("invalid keep alive, missing lease ID and resource name")
+	}
 	return nil
 }
 
@@ -79,7 +76,7 @@ type KeepAliver interface {
 	// KeepAlives allows to receive keep alives
 	KeepAlives() chan<- KeepAlive
 
-	// Done returns the channel signaling the closure
+	// Done returns the channel signalling the closure
 	Done() <-chan struct{}
 
 	// Close closes the watcher and releases

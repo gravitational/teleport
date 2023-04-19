@@ -117,15 +117,7 @@ function RoleItemList({
 
   return (
     <>
-      <Text
-        px="2"
-        fontSize="11px"
-        mb="2"
-        css={`
-          color: ${props => props.theme.colors.text.primary};
-          background: ${props => props.theme.colors.spotBackground[2]};
-        `}
-      >
+      <Text px="2" fontSize="11px" mb="2" color="grey.400" bg="subtle">
         Select IAM Role
       </Text>
       {awsRoleItems.length ? (
@@ -148,13 +140,12 @@ type Props = {
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.text.secondary};
+  color: ${theme.colors.grey[400]};
   font-size: 12px;
-  border-bottom: 1px solid ${theme.colors.spotBackground[0]};
+  border-bottom: 1px solid ${theme.colors.subtle};
   min-height: 32px;
   &:hover {
-    background: ${theme.colors.spotBackground[0]};
-    color: ${theme.colors.text.primary};
+    color: ${theme.colors.link};
   }
 
   :last-child {

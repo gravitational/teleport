@@ -15,20 +15,18 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+
 import { useAsync } from 'shared/hooks/useAsync';
 
+import * as types from 'teleterm/ui/services/clusters/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { assertUnreachable } from 'teleterm/ui/utils';
-import { RootClusterUri } from 'teleterm/ui/uri';
-
-import type * as types from 'teleterm/ui/services/clusters/types';
-import type * as tsh from 'teleterm/services/tshd/types';
 
 export default function useClusterLogin(props: Props) {
   const { onSuccess, clusterUri } = props;
   const { clustersService } = useAppContext();
   const cluster = clustersService.findCluster(clusterUri);
-  const refAbortCtrl = useRef<tsh.TshAbortController>(null);
+  const refAbortCtrl = useRef<types.tsh.TshAbortController>(null);
   const loggedInUserName = cluster.loggedInUser?.name || null;
   const [shouldPromptSsoStatus, promptSsoStatus] = useState(false);
   const [webauthnLogin, setWebauthnLogin] = useState<WebauthnLogin>();
@@ -185,7 +183,7 @@ export default function useClusterLogin(props: Props) {
 export type State = ReturnType<typeof useClusterLogin>;
 
 export type Props = {
-  clusterUri: RootClusterUri;
+  clusterUri: string;
   onCancel(): void;
   onSuccess?(): void;
 };

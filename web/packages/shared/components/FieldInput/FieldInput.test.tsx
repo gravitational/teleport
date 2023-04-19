@@ -15,11 +15,10 @@
  */
 
 import React from 'react';
-import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
-import { darkTheme } from 'design/theme';
+import theme from 'design/theme';
 
 import * as useRule from '../Validation/useRule';
 
@@ -34,7 +33,7 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
   // mock positive validation
   jest.spyOn(useRule, 'default').mockReturnValue({ valid: true, message: '' });
 
-  render(
+  const { getByText, getByPlaceholderText } = render(
     <FieldInput
       placeholder="placeholderText"
       autoFocus={true}
@@ -46,11 +45,11 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
   );
 
   // test label is displayed
-  expect(screen.getByText('labelText')).toBeInTheDocument();
+  expect(getByText('labelText')).toBeInTheDocument();
 
   // test autofocus prop is respected
-  const inputEl = screen.getByPlaceholderText('placeholderText');
-  expect(inputEl).toHaveFocus();
+  const inputEl = getByPlaceholderText('placeholderText');
+  expect(document.activeElement).toEqual(inputEl);
 
   // test onChange prop is respected
   fireEvent.change(inputEl, { target: { value: 'test' } });
@@ -63,14 +62,14 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
 
 test('input validation error state', () => {
   const rule = jest.fn();
-  const errorColor = darkTheme.colors.error.main;
+  const errorColor = theme.colors.error.main;
 
   // mock negative validation
   jest
     .spyOn(useRule, 'default')
     .mockReturnValue({ valid: false, message: 'errorMsg' });
 
-  render(
+  const { getByText, getByPlaceholderText } = render(
     <FieldInput
       placeholder="placeholderText"
       label="labelText"
@@ -80,17 +79,17 @@ test('input validation error state', () => {
   );
 
   // test !valid values renders with error message
-  const labelEl = screen.getByText('errorMsg');
+  const labelEl = getByText('errorMsg');
   expect(labelEl).toHaveStyle({ color: errorColor });
 
   // test !valid values renders error colors
-  const inputEl = screen.getByPlaceholderText('placeholderText');
+  const inputEl = getByPlaceholderText('placeholderText');
   expect(inputEl).toHaveStyle({
     'border-color': errorColor,
   });
 });
 
 test('snapshot tests', () => {
-  const { container } = render(<Fields />);
-  expect(container).toMatchSnapshot();
+  const fields = render(<Fields />);
+  expect(fields).toMatchSnapshot();
 });

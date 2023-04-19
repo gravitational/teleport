@@ -7,7 +7,7 @@
 ## Daemon Configuration
 
 * [systemd](https://github.com/gravitational/teleport/tree/master/examples/systemd) : Service file for systemd
-* [upstart](https://github.com/gravitational/teleport/tree/master/examples/upstart) : Start-up script for [upstart](https://en.wikipedia.org/wiki/Upstart_(software))
+* [upstart](https://github.com/gravitational/teleport/tree/master/examples/upstart) : Start-up script for [upstart](https://en.wikipedia.org/wiki/Upstart)
 
 ## AWS examples
 

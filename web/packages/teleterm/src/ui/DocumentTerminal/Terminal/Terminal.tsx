@@ -14,37 +14,24 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { debounce } from 'lodash';
 import React, { useEffect, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Box, Flex } from 'design';
-import { debounce } from 'shared/utils/highbar';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 
 import XTermCtrl from './ctrl';
 
-type TerminalProps = {
-  ptyProcess: IPtyProcess;
-  visible: boolean;
-  /**
-   * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
-   * in a styled component or used in CSS, as it may inject malicious CSS code.
-   * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
-   * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
-   */
-  unsanitizedFontFamily: string;
-  fontSize: number;
-  onEnterKey?(): void;
-};
-
-export function Terminal(props: TerminalProps) {
+export default function Terminal(props: Props) {
   const refElement = useRef<HTMLElement>();
   const refCtrl = useRef<XTermCtrl>();
+  const fontFamily = useTheme().fonts.mono;
 
   useEffect(() => {
     const ctrl = new XTermCtrl(props.ptyProcess, {
       el: refElement.current,
-      fontSize: props.fontSize,
+      fontFamily,
     });
 
     ctrl.open();
@@ -83,16 +70,19 @@ export function Terminal(props: TerminalProps) {
       width="100%"
       style={{ overflow: 'hidden' }}
     >
-      <StyledXterm
-        ref={refElement}
-        style={{ fontFamily: props.unsanitizedFontFamily }}
-      />
+      <StyledXterm ref={refElement} />
     </Flex>
   );
 }
 
+type Props = {
+  ptyProcess: IPtyProcess;
+  visible: boolean;
+  onEnterKey?(): void;
+};
+
 const StyledXterm = styled(Box)`
   height: 100%;
   width: 100%;
-  background-color: ${props => props.theme.colors.levels.sunken};
+  background-color: ${props => props.theme.colors.primary.darker};
 `;

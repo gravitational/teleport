@@ -12,6 +12,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
+
 */
 
 package dynamoevents
@@ -28,13 +29,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
 	"github.com/gravitational/teleport/lib/utils"
@@ -47,106 +51,94 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-type dynamoContext struct {
-	log   *Log
-	suite test.EventsSuite
+func TestDynamoevents(t *testing.T) { check.TestingT(t) }
+
+type suiteBase struct {
+	log *Log
+	test.EventsSuite
 }
 
-func setupDynamoContext(t *testing.T) *dynamoContext {
+func (s *suiteBase) SetUpSuite(c *check.C) {
 	testEnabled := os.Getenv(teleport.AWSRunTests)
 	if ok, _ := strconv.ParseBool(testEnabled); !ok {
-		t.Skip("Skipping AWS-dependent test suite.")
+		c.Skip("Skipping AWS-dependent test suite.")
 	}
 
-	fakeClock := clockwork.NewFakeClock()
+	backend, err := memory.New(memory.Config{})
+	c.Assert(err, check.IsNil)
 
+	fakeClock := clockwork.NewFakeClock()
 	log, err := New(context.Background(), Config{
 		Region:       "eu-north-1",
 		Tablename:    fmt.Sprintf("teleport-test-%v", uuid.New().String()),
 		Clock:        fakeClock,
 		UIDGenerator: utils.NewFakeUID(),
-	})
-	require.NoError(t, err)
-
-	// Clear all items in table.
-	err = log.deleteAllItems(context.Background())
-	require.NoError(t, err)
-
-	tt := &dynamoContext{
-		log: log,
-		suite: test.EventsSuite{
-			Log:        log,
-			Clock:      fakeClock,
-			QueryDelay: time.Second * 5,
-		},
-	}
-
-	t.Cleanup(func() {
-		tt.Close(t)
-	})
-
-	return tt
+	}, backend)
+	c.Assert(err, check.IsNil)
+	s.log = log
+	s.EventsSuite.Log = log
+	s.EventsSuite.Clock = fakeClock
+	s.EventsSuite.QueryDelay = time.Second * 5
 }
 
-func (tt *dynamoContext) Close(t *testing.T) {
-	if tt.log != nil {
-		err := tt.log.deleteTable(context.Background(), tt.log.Tablename, true)
-		require.NoError(t, err)
+func (s *suiteBase) SetUpTest(c *check.C) {
+	err := s.log.deleteAllItems(context.Background())
+	c.Assert(err, check.IsNil)
+}
+
+func (s *suiteBase) TearDownSuite(c *check.C) {
+	if s.log != nil {
+		if err := s.log.deleteTable(context.Background(), s.log.Tablename, true); err != nil {
+			c.Fatalf("Failed to delete table: %#v", trace.DebugReport(err))
+		}
 	}
 }
 
-func TestPagination(t *testing.T) {
-	tt := setupDynamoContext(t)
-
-	tt.suite.EventPagination(t)
+type DynamoeventsSuite struct {
+	suiteBase
 }
 
-func TestSessionEventsCRUD(t *testing.T) {
-	tt := setupDynamoContext(t)
+var _ = check.Suite(&DynamoeventsSuite{})
 
-	tt.suite.SessionEventsCRUD(t)
+func (s *DynamoeventsSuite) TestPagination(c *check.C) {
+	s.EventPagination(c)
 }
 
-func TestSearchSessionEvensBySessionID(t *testing.T) {
-	tt := setupDynamoContext(t)
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
-	tt.suite.SearchSessionEvensBySessionID(t)
+func randStringAlpha(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
 
-func TestSizeBreak(t *testing.T) {
-	tt := setupDynamoContext(t)
-
+func (s *DynamoeventsSuite) TestSizeBreak(c *check.C) {
 	const eventSize = 50 * 1024
 	blob := randStringAlpha(eventSize)
 
 	const eventCount int = 10
 	for i := 0; i < eventCount; i++ {
-		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
 			Metadata: apievents.Metadata{
 				Type: events.UserLoginEvent,
-				Time: tt.suite.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
+				Time: s.Clock.Now().UTC().Add(time.Second * time.Duration(i)),
 			},
 			IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{"test.data": blob}),
 		})
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 	}
 
 	var checkpoint string
 	events := make([]apievents.AuditEvent, 0)
 
 	for {
-		fetched, lCheckpoint, err := tt.log.SearchEvents(
-			tt.suite.Clock.Now().UTC().Add(-time.Hour),
-			tt.suite.Clock.Now().UTC().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			eventCount,
-			types.EventOrderDescending,
-			checkpoint)
-		require.NoError(t, err)
+		fetched, lCheckpoint, err := s.log.SearchEvents(s.Clock.Now().UTC().Add(-time.Hour), s.Clock.Now().UTC().Add(time.Hour), apidefaults.Namespace, nil, eventCount, types.EventOrderDescending, checkpoint)
+		c.Assert(err, check.IsNil)
 		checkpoint = lCheckpoint
 		events = append(events, fetched...)
 
@@ -155,25 +147,27 @@ func TestSizeBreak(t *testing.T) {
 		}
 	}
 
-	lastTime := tt.suite.Clock.Now().UTC().Add(time.Hour)
+	lastTime := s.Clock.Now().UTC().Add(time.Hour)
 
 	for _, event := range events {
-		require.True(t, event.GetTime().Before(lastTime))
+		c.Assert(event.GetTime().Before(lastTime), check.Equals, true)
 		lastTime = event.GetTime()
 	}
 }
 
-// TestIndexExists tests functionality of the `Log.indexExists` function.
-func TestIndexExists(t *testing.T) {
-	tt := setupDynamoContext(t)
-
-	hasIndex, err := tt.log.indexExists(context.Background(), tt.log.Tablename, indexTimeSearchV2)
-	require.NoError(t, err)
-	require.True(t, hasIndex)
+func (s *DynamoeventsSuite) TestSessionEventsCRUD(c *check.C) {
+	s.SessionEventsCRUD(c)
 }
 
-// TestDateRangeGenerator tests the `daysBetween` function which generates ISO
-// 6801 date strings for every day between two points in time.
+// TestIndexExists tests functionality of the `Log.indexExists` function.
+func (s *DynamoeventsSuite) TestIndexExists(c *check.C) {
+	hasIndex, err := s.log.indexExists(context.Background(), s.log.Tablename, indexTimeSearchV2)
+	c.Assert(err, check.IsNil)
+	c.Assert(hasIndex, check.Equals, true)
+}
+
+// TestDateRangeGenerator tests the `daysBetween` function which generates ISO 6801
+// date strings for every day between two points in time.
 func TestDateRangeGenerator(t *testing.T) {
 	// date range within a month
 	start := time.Date(2021, 4, 10, 8, 5, 0, 0, time.UTC)
@@ -188,23 +182,27 @@ func TestDateRangeGenerator(t *testing.T) {
 	require.Equal(t, []string{"2021-08-30", "2021-08-31", "2021-09-01"}, days)
 }
 
+type DynamoeventsLargeTableSuite struct {
+	suiteBase
+}
+
+var _ = check.Suite(&DynamoeventsLargeTableSuite{})
+
 // TestLargeTableRetrieve checks that we can retrieve all items from a large
 // table at once. It is run in a separate suite with its own table to avoid the
 // prolonged table clearing and the consequent 'test timed out' errors.
-func TestLargeTableRetrieve(t *testing.T) {
-	tt := setupDynamoContext(t)
-
+func (s *DynamoeventsLargeTableSuite) TestLargeTableRetrieve(c *check.C) {
 	const eventCount = 4000
 	for i := 0; i < eventCount; i++ {
-		err := tt.suite.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
+		err := s.Log.EmitAuditEvent(context.Background(), &apievents.UserLogin{
 			Method:       events.LoginMethodSAML,
 			Status:       apievents.Status{Success: true},
 			UserMetadata: apievents.UserMetadata{User: "bob"},
 			Metadata: apievents.Metadata{
 				Type: events.UserLoginEvent,
-				Time: tt.suite.Clock.Now().UTC()},
+				Time: s.Clock.Now().UTC()},
 		})
-		require.NoError(t, err)
+		c.Assert(err, check.IsNil)
 	}
 
 	var (
@@ -212,17 +210,10 @@ func TestLargeTableRetrieve(t *testing.T) {
 		err     error
 	)
 	for i := 0; i < dynamoDBLargeQueryRetries; i++ {
-		time.Sleep(tt.suite.QueryDelay)
+		time.Sleep(s.EventsSuite.QueryDelay)
 
-		history, _, err = tt.suite.Log.SearchEvents(
-			tt.suite.Clock.Now().Add(-1*time.Hour),
-			tt.suite.Clock.Now().Add(time.Hour),
-			apidefaults.Namespace,
-			nil,
-			0,
-			types.EventOrderAscending,
-			"")
-		require.NoError(t, err)
+		history, _, err = s.Log.SearchEvents(s.Clock.Now().Add(-1*time.Hour), s.Clock.Now().Add(time.Hour), apidefaults.Namespace, nil, 0, types.EventOrderAscending, "")
+		c.Assert(err, check.IsNil)
 
 		if len(history) == eventCount {
 			break
@@ -230,7 +221,7 @@ func TestLargeTableRetrieve(t *testing.T) {
 	}
 
 	// `check.HasLen` prints the entire array on failure, which pollutes the output.
-	require.Len(t, history, eventCount)
+	c.Assert(len(history), check.Equals, eventCount)
 }
 
 func TestFromWhereExpr(t *testing.T) {
@@ -256,24 +247,21 @@ func TestFromWhereExpr(t *testing.T) {
 	}, params)
 }
 
-// TestEmitAuditEventForLargeEvents tries to emit large audit events to
-// DynamoDB backend.
-func TestEmitAuditEventForLargeEvents(t *testing.T) {
-	tt := setupDynamoContext(t)
-
+// TestEmitAuditEventForLargeEvents tries to emit large audit events to DynamoDB backend.
+func (s *DynamoeventsLargeTableSuite) TestEmitAuditEventForLargeEvents(c *check.C) {
 	ctx := context.Background()
-	now := tt.suite.Clock.Now()
+	now := s.Clock.Now()
 	dbQueryEvent := &apievents.DatabaseSessionQuery{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now(),
+			Time: s.Clock.Now(),
 			Type: events.DatabaseSessionQueryEvent,
 		},
 		DatabaseQuery: strings.Repeat("A", maxItemSize),
 	}
-	err := tt.suite.Log.EmitAuditEvent(ctx, dbQueryEvent)
-	require.NoError(t, err)
+	err := s.Log.EmitAuditEvent(ctx, dbQueryEvent)
+	c.Assert(err, check.IsNil)
 
-	result, _, err := tt.suite.Log.SearchEvents(
+	result, _, err := s.Log.SearchEvents(
 		now.Add(-1*time.Hour),
 		now.Add(time.Hour),
 		apidefaults.Namespace,
@@ -281,18 +269,22 @@ func TestEmitAuditEventForLargeEvents(t *testing.T) {
 		0, types.EventOrderAscending,
 		"",
 	)
-	require.NoError(t, err)
-	require.Len(t, result, 1)
+	c.Assert(err, check.IsNil)
+	c.Assert(result, check.HasLen, 1)
 
 	appReqEvent := &apievents.AppSessionRequest{
 		Metadata: apievents.Metadata{
-			Time: tt.suite.Clock.Now(),
+			Time: s.Clock.Now(),
 			Type: events.AppSessionRequestEvent,
 		},
 		Path: strings.Repeat("A", maxItemSize),
 	}
-	err = tt.suite.Log.EmitAuditEvent(ctx, appReqEvent)
-	require.NoError(t, err)
+	err = s.Log.EmitAuditEvent(ctx, appReqEvent)
+	c.Assert(err, check.NotNil)
+}
+
+func (s *DynamoeventsSuite) TestSearchSessionEvensBySessionID(c *check.C) {
+	s.SearchSessionEvensBySessionID(c)
 }
 
 func TestConfig_SetFromURL(t *testing.T) {
@@ -355,14 +347,4 @@ func TestConfig_SetFromURL(t *testing.T) {
 			tt.cfgAssertion(t, tt.cfg)
 		})
 	}
-}
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-func randStringAlpha(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
 }

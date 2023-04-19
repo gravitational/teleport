@@ -21,10 +21,8 @@ import path from 'path';
 import { app } from 'electron';
 
 import Logger from 'teleterm/logger';
-import { staticConfig } from 'teleterm/staticConfig';
 
-import { GrpcServerAddresses, RuntimeSettings } from './types';
-import { loadInstallationId } from './loadInstallationId';
+import { ChildProcessAddresses, RuntimeSettings } from './types';
 
 const { argv, env } = process;
 
@@ -49,11 +47,8 @@ const isInsecure = dev || argv.includes('--insecure');
 
 function getRuntimeSettings(): RuntimeSettings {
   const userDataDir = app.getPath('userData');
-  const {
-    tsh: tshAddress,
-    shared: sharedAddress,
-    tshdEvents: tshdEventsAddress,
-  } = requestGrpcServerAddresses();
+  const { tsh: tshAddress, shared: sharedAddress } =
+    requestChildProcessesAddresses();
   const { binDir, tshBinPath } = getBinaryPaths();
 
   const tshd = {
@@ -68,14 +63,10 @@ function getRuntimeSettings(): RuntimeSettings {
       // for tshd we have to specify the protocol as well.
       `--addr=${tshAddress}`,
       `--certs-dir=${getCertsDir()}`,
-      `--prehog-addr=${staticConfig.prehogAddress}`,
     ],
   };
   const sharedProcess = {
     requestedNetworkAddress: sharedAddress,
-  };
-  const tshdEvents = {
-    requestedNetworkAddress: tshdEventsAddress,
   };
 
   if (isInsecure) {
@@ -87,26 +78,12 @@ function getRuntimeSettings(): RuntimeSettings {
     dev,
     tshd,
     sharedProcess,
-    tshdEvents,
     userDataDir,
     binDir,
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
     kubeConfigsDir: getKubeConfigsDir(),
     platform: process.platform,
-    installationId: loadInstallationId(
-      path.resolve(app.getPath('userData'), 'installation_id')
-    ),
-    arch: os.arch(),
-    osVersion: os.release(),
-    // To start the app in dev mode we run `electron path_to_main.js`. It means
-    // that app is run without package.json context, so it can not read the version
-    // from it.
-    // The way we run Electron can be changed (`electron .`), but it has one major
-    // drawback - dev app and bundled app will use the same app data directory.
-    //
-    // A workaround is to read the version from `process.env.npm_package_version`.
-    appVersion: dev ? process.env.npm_package_version : app.getVersion(),
   };
 }
 
@@ -210,16 +187,12 @@ function getDefaultShell(): string {
   }
 }
 
-/**
- * Describes what addresses the gRPC servers should attempt to obtain on app startup.
- */
-function requestGrpcServerAddresses(): GrpcServerAddresses {
+function requestChildProcessesAddresses(): ChildProcessAddresses {
   switch (process.platform) {
     case 'win32': {
       return {
         tsh: 'tcp://localhost:0',
         shared: 'tcp://localhost:0',
-        tshdEvents: 'tcp://localhost:0',
       };
     }
     case 'linux':
@@ -227,7 +200,6 @@ function requestGrpcServerAddresses(): GrpcServerAddresses {
       return {
         tsh: getUnixSocketNetworkAddress('tsh.socket'),
         shared: getUnixSocketNetworkAddress('shared.socket'),
-        tshdEvents: getUnixSocketNetworkAddress('tshd_events.socket'),
       };
   }
 }

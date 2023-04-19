@@ -16,16 +16,12 @@ limitations under the License.
 
 import React, { useRef, useEffect } from 'react';
 
-import { Indicator, Box } from 'design';
+import * as Icons from 'design/Icon';
+import { Indicator, Text, Box, ButtonPrimary } from 'design';
+import * as Alerts from 'design/Alert';
 
-import {
-  FileTransferActionBar,
-  FileTransfer,
-  FileTransferContextProvider,
-} from 'shared/components/FileTransfer';
-
+import cfg from 'teleport/config';
 import * as stores from 'teleport/Console/stores';
-import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
@@ -33,24 +29,23 @@ import useWebAuthn from 'teleport/lib/useWebAuthn';
 import Document from '../Document';
 
 import Terminal from './Terminal';
+import FileTransfer, { useFileTransferDialogs } from './../FileTransfer';
 import useSshSession from './useSshSession';
-import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
-import useGetScpUrl from './useGetScpUrl';
+import ActionBar from './ActionBar';
 
 export default function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
-  const { tty, status, closeDocument } = useSshSession(doc);
+  const scpDialogs = useFileTransferDialogs();
+  const { tty, status, statusText, closeDocument } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
-  const { getScpUrl, attempt: getMfaResponseAttempt } = useGetScpUrl(
-    webauthn.addMfaToScpUrls
-  );
 
-  function handleCloseFileTransfer() {
+  function onCloseScpDialogs() {
+    scpDialogs.close();
     refTerminal.current.terminal.term.focus();
   }
 
   useEffect(() => {
-    if (refTerminal?.current) {
+    if (refTerminal && refTerminal.current) {
       // when switching tabs or closing tabs, focus on visible terminal
       refTerminal.current.terminal.term.focus();
     }
@@ -58,76 +53,62 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
 
   return (
     <Document visible={visible} flexDirection="column">
-      <FileTransferContextProvider>
-        <FileTransferActionBar isConnected={doc.status === 'connected'} />
-        {status === 'loading' && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {webauthn.requested && (
-          <AuthnDialog
-            onContinue={webauthn.authenticate}
-            onCancel={closeDocument}
-            errorText={webauthn.errorText}
-          />
-        )}
-        {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
-        <FileTransfer
-          beforeClose={() =>
-            window.confirm('Are you sure you want to cancel file transfers?')
-          }
-          errorText={
-            getMfaResponseAttempt.status === 'failed'
-              ? getMfaResponseAttempt.statusText
-              : null
-          }
-          afterClose={handleCloseFileTransfer}
-          backgroundColor={colors.levels.surface}
-          transferHandlers={{
-            getDownloader: async (location, abortController) => {
-              const url = await getScpUrl({
-                location,
-                clusterId: doc.clusterId,
-                serverId: doc.serverId,
-                login: doc.login,
-                filename: location,
-              });
-              if (!url) {
-                // if we return nothing here, the file transfer will not be added to the
-                // file transfer list. If we add it to the list, the file will continue to
-                // start the download and return another here. This prevents a second network
-                // request that we know will fail.
-                return;
-              }
-              return getHttpFileTransferHandlers().download(
-                url,
-                abortController
-              );
-            },
-            getUploader: async (location, file, abortController) => {
-              const url = await getScpUrl({
-                location,
-                clusterId: doc.clusterId,
-                serverId: doc.serverId,
-                login: doc.login,
-                filename: file.name,
-              });
-              if (!url) {
-                return;
-              }
-              return getHttpFileTransferHandlers().upload(
-                url,
-                file,
-                abortController
-              );
-            },
-          }}
+      <ActionBar
+        isConnected={doc.status === 'connected'}
+        isDownloadOpen={scpDialogs.isDownloadOpen}
+        isUploadOpen={scpDialogs.isUploadOpen}
+        onOpenDownload={scpDialogs.openDownload}
+        onOpenUpload={scpDialogs.openUpload}
+      />
+      {status === 'loading' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+      {status === 'error' && (
+        <Alerts.Danger mx="10" mt="5">
+          Connection error: {statusText}
+        </Alerts.Danger>
+      )}
+      {status === 'notfound' && (
+        <SidNotFoundError sid={doc.sid} clusterId={doc.clusterId} />
+      )}
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={closeDocument}
+          errorText={webauthn.errorText}
         />
-      </FileTransferContextProvider>
+      )}
+      {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
+      <FileTransfer
+        clusterId={doc.clusterId}
+        serverId={doc.serverId}
+        login={doc.login}
+        isDownloadOpen={scpDialogs.isDownloadOpen}
+        isUploadOpen={scpDialogs.isUploadOpen}
+        onClose={onCloseScpDialogs}
+      />
     </Document>
   );
 }
+
+const SidNotFoundError = ({ sid = '', clusterId = '' }) => (
+  <Box my={10} mx="auto" width="300px">
+    <Text typography="h4" mb="3" textAlign="center">
+      The session is no longer active
+    </Text>
+    <ButtonPrimary
+      block
+      secondary
+      as="a"
+      href={cfg.getPlayerRoute({ sid, clusterId }, { recordingType: 'ssh' })}
+      target="_blank"
+    >
+      <Icons.CirclePlay fontSize="5" mr="2" /> Replay Session
+    </ButtonPrimary>
+  </Box>
+);
 
 interface PropTypes {
   doc: stores.DocumentSsh;

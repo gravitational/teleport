@@ -20,7 +20,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -29,9 +28,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
-
-	"github.com/gravitational/teleport/api/constants"
-	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -40,11 +36,6 @@ func TestWriteUpgradeResponse(t *testing.T) {
 
 	resp, err := http.ReadResponse(bufio.NewReader(&buf), nil)
 	require.NoError(t, err)
-
-	// Always drain/close the body.
-	io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-
 	require.Equal(t, resp.StatusCode, http.StatusSwitchingProtocols)
 	require.Equal(t, "custom", resp.Header.Get("Upgrade"))
 }
@@ -81,7 +72,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		r.Header.Add("Upgrade", "unsupported-protocol")
 
 		_, err = h.connectionUpgrade(httptest.NewRecorder(), r, nil)
-		require.True(t, trace.IsNotFound(err))
+		require.True(t, trace.IsBadParameter(err))
 	})
 
 	t.Run("upgraded to ALPN", func(t *testing.T) {
@@ -89,51 +80,28 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		defer serverConn.Close()
 		defer clientConn.Close()
 
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPN, serverConn, clientConn)
+		r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
+		require.NoError(t, err)
+		r.Header.Add("Upgrade", "alpn")
+
+		go func() {
+			// serverConn will be hijacked.
+			w := newResponseWriterHijacker(nil, serverConn)
+			_, err := h.connectionUpgrade(w, r, nil)
+			require.NoError(t, err)
+		}()
+
+		// Verify clientConn receives http.StatusSwitchingProtocols.
+		clientConnReader := bufio.NewReader(clientConn)
+		response, err := http.ReadResponse(clientConnReader, r)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusSwitchingProtocols, response.StatusCode)
 
 		// Verify clientConn receives data sent by Config.ALPNHandler.
-		receive, err := bufio.NewReader(clientConn).ReadString(byte('@'))
+		receive, err := clientConnReader.ReadString(byte('@'))
 		require.NoError(t, err)
 		require.Equal(t, expectedPayload, receive)
 	})
-
-	t.Run("upgraded to ALPN with Ping", func(t *testing.T) {
-		serverConn, clientConn := net.Pipe()
-		defer serverConn.Close()
-		defer clientConn.Close()
-
-		sendConnUpgradeRequest(t, h, constants.WebAPIConnUpgradeTypeALPNPing, serverConn, clientConn)
-
-		// Verify ping-wrapped clientConn receives data sent by Config.ALPNHandler.
-		receive, err := bufio.NewReader(pingconn.New(clientConn)).ReadString(byte('@'))
-		require.NoError(t, err)
-		require.Equal(t, expectedPayload, receive)
-	})
-}
-
-func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, serverConn, clientConn net.Conn) {
-	t.Helper()
-
-	r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
-	require.NoError(t, err)
-	r.Header.Add("Upgrade", upgradeType)
-
-	go func() {
-		// serverConn will be hijacked.
-		w := newResponseWriterHijacker(nil, serverConn)
-		_, err := h.connectionUpgrade(w, r, nil)
-		require.NoError(t, err)
-	}()
-
-	// Verify clientConn receives http.StatusSwitchingProtocols.
-	resp, err := http.ReadResponse(bufio.NewReader(clientConn), r)
-	require.NoError(t, err)
-
-	// Always drain/close the body.
-	io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
-
-	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 }
 
 // responseWriterHijacker is a mock http.ResponseWriter that also serves a

@@ -18,7 +18,7 @@ import React from 'react';
 
 import { displayDate } from 'shared/services/loc';
 
-import { Label, Flex } from 'design';
+import { Label } from 'design';
 import * as Icons from 'design/Icon';
 
 import {
@@ -77,14 +77,14 @@ export function SortIndicator<T>({
   sortDir?: SortHeaderCellProps<T>['dir'];
 }) {
   if (sortDir === 'DESC') {
-    return <Icons.SortDesc title="sort items desc" />;
+    return <Icons.SortDesc />;
   }
 
   if (sortDir === 'ASC') {
-    return <Icons.SortAsc title="sort items asc" />;
+    return <Icons.SortAsc />;
   }
 
-  return <Icons.Sort title="sort items" />;
+  return <Icons.Sort />;
 }
 
 export const TextCell = ({ data }) => <Cell>{`${data || ''}`}</Cell>;
@@ -97,17 +97,13 @@ export const DateCell = ({ data }: { data: Date }) => (
 );
 
 const renderLabelCell = (labels: string[] = []) => {
-  const $labels = labels.map((label, index) => (
-    <Label mr="1" key={`${label}${index}`} kind="secondary">
+  const $labels = labels.map(label => (
+    <Label mb="1" mr="1" key={label} kind="secondary">
       {label}
     </Label>
   ));
 
-  return (
-    <Cell>
-      <Flex flexWrap="wrap">{$labels}</Flex>
-    </Cell>
-  );
+  return <Cell>{$labels}</Cell>;
 };
 
 export const ClickableLabelCell = ({
@@ -117,32 +113,39 @@ export const ClickableLabelCell = ({
   labels: LabelDescription[];
   onClick: (label: LabelDescription) => void;
 }) => {
-  const $labels = labels.map((label, index) => {
-    const labelText = `${label.name}: ${label.value}`;
+  const $labels = labels.map(label => (
+    <Label
+      onClick={() => onClick(label)}
+      key={`${label.name}:${label.value}`}
+      mr="1"
+      mb="1"
+      kind="secondary"
+      css={`
+        cursor: pointer;
+      `}
+    >
+      {`${label.name}: ${label.value}`}
+    </Label>
+  ));
 
-    return (
-      <Label
-        onClick={() => onClick(label)}
-        key={`${label.name}${label.value}${index}`}
-        mr="1"
-        kind="secondary"
-        css={`
-          cursor: pointer;
-          &:hover {
-            background-color: ${props => props.theme.colors.spotBackground[1]};
-          }
-        `}
-      >
-        {labelText}
-      </Label>
-    );
-  });
+  return <Cell>{$labels}</Cell>;
+};
 
-  return (
-    <Cell>
-      <Flex flexWrap="wrap">{$labels}</Flex>
-    </Cell>
-  );
+export const UnclickableLabelCell = ({
+  labels,
+}: {
+  labels: {
+    name: string;
+    value: string;
+  }[];
+}) => {
+  const $labels = labels.map(label => (
+    <Label key={`${label.name}:${label.value}`} mr="1" mb="1" kind="secondary">
+      {`${label.name}: ${label.value}`}
+    </Label>
+  ));
+
+  return <Cell>{$labels}</Cell>;
 };
 
 type SortHeaderCellProps<T> = {

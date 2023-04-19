@@ -17,20 +17,16 @@ limitations under the License.
 package services
 
 import (
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
-	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // AccessChecker interface checks access to resources based on roles, traits,
@@ -46,7 +42,7 @@ type AccessChecker interface {
 	Roles() []types.Role
 
 	// CheckAccess checks access to the specified resource.
-	CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error
+	CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error
 
 	// CheckAccessToRemoteCluster checks access to remote cluster
 	CheckAccessToRemoteCluster(cluster types.RemoteCluster) error
@@ -64,17 +60,6 @@ type AccessChecker interface {
 
 	// CheckAWSRoleARNs returns a list of AWS role ARNs role is allowed to assume.
 	CheckAWSRoleARNs(ttl time.Duration, overrideTTL bool) ([]string, error)
-
-	// CheckAzureIdentities returns a list of Azure identities the user is allowed to assume.
-	CheckAzureIdentities(ttl time.Duration, overrideTTL bool) ([]string, error)
-
-	// CheckGCPServiceAccounts returns a list of GCP service accounts the user is allowed to assume.
-	CheckGCPServiceAccounts(ttl time.Duration, overrideTTL bool) ([]string, error)
-
-	// CheckAccessToSAMLIdP checks access to the SAML IdP.
-	//
-	//nolint:revive // Because we want this to be IdP.
-	CheckAccessToSAMLIdP(types.AuthPreference) error
 
 	// AdjustSessionTTL will reduce the requested ttl to lowest max allowed TTL
 	// for this role set, otherwise it returns ttl unchanged
@@ -194,18 +179,6 @@ type AccessChecker interface {
 
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
-
-	// GetAccessState returns the AccessState for the user given their roles, the
-	// cluster auth preference, and whether MFA and the user's device were
-	// verified.
-	GetAccessState(authPref types.AuthPreference) AccessState
-	// PrivateKeyPolicy returns the enforced private key policy for this role set,
-	// or the provided defaultPolicy - whichever is stricter.
-	PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy
-
-	// GetKubeResources returns the allowed and denied Kubernetes Resources configured
-	// for a user.
-	GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource)
 }
 
 // AccessInfo hold information about an identity necessary to check whether that
@@ -239,13 +212,13 @@ type accessChecker struct {
 // NewAccessChecker returns a new AccessChecker which can be used to check
 // access to resources.
 // Args:
-//   - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
-//     for the identity.
-//   - `localCluster string` should be the name of the local cluster in which
-//     access will be checked. You cannot check for access to resources in remote
-//     clusters.
-//   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
-//     full RoleSet
+// - `info *AccessInfo` should hold the roles, traits, and allowed resource IDs
+//   for the identity.
+// - `localCluster string` should be the name of the local cluster in which
+//   access will be checked. You cannot check for access to resources in remote
+//   clusters.
+// - `access RoleGetter` should be a RoleGetter which will be used to fetch the
+//   full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {
@@ -282,11 +255,7 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
 		if resourceID.ClusterName == a.localCluster &&
-			// If the allowed resource has `Kind=types.KindKubePod`, we allow the user to
-			// access the Kubernetes cluster that it belongs to.
-			// At this point, we do not verify that the accessed resource matches the
-			// allowed resources, but that verification happens in the caller function.
-			(resourceID.Kind == r.GetKind() || (resourceID.Kind == types.KindKubePod && r.GetKind() == types.KindKubernetesCluster)) &&
+			resourceID.Kind == r.GetKind() &&
 			resourceID.Name == r.GetName() {
 			// Allowed to access this resource by resource ID, move on to role checks.
 			if isDebugEnabled {
@@ -311,77 +280,11 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 // CheckAccess checks if the identity for this AccessChecker has access to the
 // given resource.
-func (a *accessChecker) CheckAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
+func (a *accessChecker) CheckAccess(r AccessCheckable, mfa AccessMFAParams, matchers ...RoleMatcher) error {
 	if err := a.checkAllowedResources(r); err != nil {
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(a.RoleSet.checkAccess(r, state, matchers...))
-}
-
-// GetKubeResources returns the allowed and denied Kubernetes Resources configured
-// for a user.
-func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
-	if len(a.info.AllowedResourceIDs) == 0 {
-		return a.RoleSet.GetKubeResources(cluster)
-	}
-
-	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster)
-	// Allways append the denied resources from the roles. This is because
-	// the denied resources from the roles take precedence over the allowed
-	// resources from the certificate.
-	denied = rolesDenied
-	for _, r := range a.info.AllowedResourceIDs {
-		if r.Name != cluster.GetName() || r.ClusterName != a.localCluster {
-			continue
-		}
-		switch {
-		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
-			splitted := strings.SplitN(r.SubResourceName, "/", 3)
-			// This condition should never happen since SubResourceName is validated
-			// but it's better to validate it.
-			if len(splitted) != 2 {
-				continue
-			}
-
-			r := types.KubernetesResource{
-				Kind:      r.Kind,
-				Namespace: splitted[0],
-				Name:      splitted[1],
-			}
-
-			if matchKubernetesResource(r, rolesAllowed, rolesDenied) == nil {
-				allowed = append(allowed, r)
-			}
-		case r.Kind == types.KindKubernetesCluster:
-			// When a user has access to a Kubernetes cluster through Resource Access request,
-			// he has access to all resources in that cluster that he has access to through his roles.
-			// In that case, we append the allowed and denied resources from the roles.
-			return rolesAllowed, rolesDenied
-		}
-	}
-	return
-}
-
-// matchKubernetesResource checks if the Kubernetes Resource does not match any
-// entry from the deny list and matches at least one entry from the allowed list.
-func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
-	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
-	// to each entry and validates if the Name and Namespace fields matches the
-	// regex allowed by each entry.
-	result, err := utils.KubeResourceMatchesRegex(resource, denied)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
-	}
-
-	result, err = utils.KubeResourceMatchesRegex(resource, allowed)
-	if err != nil {
-		return trace.Wrap(err)
-	} else if !result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
-	}
-	return nil
+	return trace.Wrap(a.RoleSet.checkAccess(r, mfa, matchers...))
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for

@@ -20,27 +20,30 @@ exports[`another session active 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
+.c8:active {
+  opacity: 0.56;
+}
+
 .c8:hover,
 .c8:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c8:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c9 {
@@ -62,26 +65,25 @@ exports[`another session active 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
-  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.13);
+.c9:active {
+  opacity: 0.56;
 }
 
-.c9:active {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c5 {
@@ -92,7 +94,7 @@ exports[`another session active 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c1 {
@@ -131,8 +133,8 @@ exports[`another session active 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -217,70 +219,20 @@ exports[`another session active 1`] = `
 `;
 
 exports[`connected settings false 1`] = `
-.c10 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
-}
-
-.c10:active {
-  background: #C5B6FF;
-}
-
-.c10:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
   padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
   color: #FFFFFF;
-  margin-right: 8px;
 }
 
-.c16 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -302,26 +254,21 @@ exports[`connected settings false 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c15 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-  cursor: default;
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c15:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,0.1);
 }
 
 .c2 {
@@ -341,7 +288,7 @@ exports[`connected settings false 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000000;
+  background-color: #000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -359,37 +306,6 @@ exports[`connected settings false 1`] = `
   box-sizing: border-box;
   display: flex;
   align-items: center;
-}
-
-.c12 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
-  color: #FFFFFF;
-  min-height: 0;
-  height: 24px;
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c11:hover,
-.c11:focus {
-  background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
 }
 
 .c8 {
@@ -427,45 +343,29 @@ exports[`connected settings false 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
+            color="light"
             style="color: rgba(255, 255, 255, 0.56);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
+            color="light"
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c9"
-          >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
-            >
-              <div
-                class="c12"
-              >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
+              color="light"
             />
           </button>
         </div>
@@ -479,70 +379,20 @@ exports[`connected settings false 1`] = `
 `;
 
 exports[`connected settings true 1`] = `
-.c10 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
-}
-
-.c10:active {
-  background: #C5B6FF;
-}
-
-.c10:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
   padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
   color: #FFFFFF;
-  margin-right: 8px;
 }
 
-.c16 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -564,26 +414,21 @@ exports[`connected settings true 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c15 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-  cursor: default;
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c15:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,0.1);
 }
 
 .c2 {
@@ -603,7 +448,7 @@ exports[`connected settings true 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000000;
+  background-color: #000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -621,37 +466,6 @@ exports[`connected settings true 1`] = `
   box-sizing: border-box;
   display: flex;
   align-items: center;
-}
-
-.c12 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
-  color: #FFFFFF;
-  min-height: 0;
-  height: 24px;
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c11:hover,
-.c11:focus {
-  background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
 }
 
 .c8 {
@@ -689,45 +503,29 @@ exports[`connected settings true 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
-            style="color: rgb(255, 255, 255);"
+            color="light"
+            style="color: rgba(255, 255, 255, 0.87);"
             title="Directory Sharing Enabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            style="color: rgb(255, 255, 255);"
+            color="light"
+            style="color: rgba(255, 255, 255, 0.87);"
             title="Clipboard Sharing Enabled"
           />
-          <div
-            class="c9"
-          >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
-            >
-              <div
-                class="c12"
-              >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
+              color="light"
             />
           </button>
         </div>
@@ -741,6 +539,27 @@ exports[`connected settings true 1`] = `
 `;
 
 exports[`connection error 1`] = `
+.c7 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c7 a {
+  color: #FFFFFF;
+}
+
 .c9 {
   line-height: 1.5;
   margin: 0;
@@ -760,48 +579,26 @@ exports[`connection error 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
-  background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.13);
+.c9:active {
+  opacity: 0.56;
 }
 
-.c9:active {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
-}
-
-.c7 a {
-  color: #FFFFFF;
 }
 
 .c5 {
@@ -812,7 +609,7 @@ exports[`connection error 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c1 {
@@ -851,8 +648,8 @@ exports[`connection error 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -907,7 +704,7 @@ exports[`connection error 1`] = `
           class="c5"
           color="text.primary"
         >
-          Error
+          Fatal Error
         </div>
       </div>
       <div
@@ -938,50 +735,7 @@ exports[`connection error 1`] = `
 `;
 
 exports[`disconnected 1`] = `
-.c10 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
-}
-
-.c10:active {
-  background: #C5B6FF;
-}
-
-.c10:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c17 {
+.c11 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
@@ -990,24 +744,17 @@ exports[`disconnected 1`] = `
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
   padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
   color: #FFFFFF;
-  margin-right: 8px;
 }
 
-.c16 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1029,26 +776,21 @@ exports[`disconnected 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c15 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-  cursor: default;
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c15:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,0.1);
 }
 
 .c2 {
@@ -1059,7 +801,7 @@ exports[`disconnected 1`] = `
   padding-right: 16px;
 }
 
-.c18 {
+.c12 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -1074,7 +816,7 @@ exports[`disconnected 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000000;
+  background-color: #000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1092,37 +834,6 @@ exports[`disconnected 1`] = `
   box-sizing: border-box;
   display: flex;
   align-items: center;
-}
-
-.c12 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
-  color: #FFFFFF;
-  min-height: 0;
-  height: 24px;
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c11:hover,
-.c11:focus {
-  background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
 }
 
 .c8 {
@@ -1160,55 +871,39 @@ exports[`disconnected 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
+            color="light"
             style="color: rgba(255, 255, 255, 0.56);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
+            color="light"
             style="color: rgba(255, 255, 255, 0.56);"
             title="Clipboard Sharing Disabled"
           />
-          <div
-            class="c9"
-          >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
-            >
-              <div
-                class="c12"
-              >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
+              color="light"
             />
           </button>
         </div>
       </div>
     </nav>
     <div
-      class="c17"
+      class="c11"
     >
       <div
-        class="c18"
+        class="c12"
       >
         Session successfully disconnected
       </div>
@@ -1220,7 +915,30 @@ exports[`disconnected 1`] = `
 </div>
 `;
 
-exports[`fetch error 1`] = `
+exports[`dismissible error 1`] = `
+.c7 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  background: #ff9100;
+  color: #FFFFFF;
+}
+
+.c7 a {
+  color: #FFFFFF;
+}
+
 .c9 {
   line-height: 1.5;
   margin: 0;
@@ -1240,48 +958,26 @@ exports[`fetch error 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
-  background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.13);
+.c9:active {
+  opacity: 0.56;
 }
 
-.c9:active {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
-}
-
-.c7 a {
-  color: #FFFFFF;
 }
 
 .c5 {
@@ -1292,7 +988,7 @@ exports[`fetch error 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c1 {
@@ -1331,8 +1027,8 @@ exports[`fetch error 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -1387,7 +1083,202 @@ exports[`fetch error 1`] = `
           class="c5"
           color="text.primary"
         >
-          Error
+          Unsupported Action
+        </div>
+      </div>
+      <div
+        class="c6"
+      >
+        <div
+          class="c7"
+          kind="warning"
+        >
+          dismissible error
+        </div>
+      </div>
+      <div
+        class="c8"
+      >
+        <button
+          class="c9"
+          kind="secondary"
+          width="30%"
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`fetch error 1`] = `
+.c7 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c7 a {
+  color: #FFFFFF;
+}
+
+.c9 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 30%;
+}
+
+.c9:active {
+  opacity: 0.56;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
+}
+
+.c9:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  text-transform: uppercase;
+  margin: 0px;
+  color: rgba(255,255,255,0.87);
+}
+
+.c1 {
+  z-index: -1;
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+  background-color: rgba(0,0,0,0.5);
+  opacity: 1;
+  touch-action: none;
+}
+
+.c0 {
+  position: fixed;
+  z-index: 1200;
+  right: 0;
+  bottom: 0;
+  top: 0;
+  left: 0;
+}
+
+.c2 {
+  height: 100%;
+  outline: none;
+  color: black;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  will-change: opacity;
+  transition: opacity 225ms cubic-bezier(0.4,0,0.2,1) 0ms;
+}
+
+.c3 {
+  padding: 32px;
+  padding-top: 24px;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.24);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow-y: auto;
+  max-height: calc(100% - 96px);
+  width: 484px;
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-bottom: 32px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.c8 {
+  box-sizing: border-box;
+}
+
+<div
+  class="c0"
+  data-testid="Modal"
+>
+  <div
+    aria-hidden="true"
+    class="c1"
+    data-testid="backdrop"
+  />
+  <div
+    class="c2"
+  >
+    <div
+      class="c3"
+      data-testid="dialogbox"
+    >
+      <div
+        class="c4"
+        style="flex-direction: column;"
+      >
+        <div
+          class="c5"
+          color="text.primary"
+        >
+          Fatal Error
         </div>
       </div>
       <div
@@ -1418,6 +1309,27 @@ exports[`fetch error 1`] = `
 `;
 
 exports[`invalid processing 1`] = `
+.c7 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
+  margin: 0 0 24px 0;
+  min-height: 40px;
+  padding: 8px 16px;
+  overflow: auto;
+  word-break: break-word;
+  line-height: 1.5;
+  background: #f50057;
+  color: #FFFFFF;
+}
+
+.c7 a {
+  color: #FFFFFF;
+}
+
 .c9 {
   line-height: 1.5;
   margin: 0;
@@ -1437,48 +1349,26 @@ exports[`invalid processing 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
-  background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.13);
+.c9:active {
+  opacity: 0.56;
 }
 
-.c9:active {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c7 {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 2px;
-  box-sizing: border-box;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.24);
-  margin: 0 0 24px 0;
-  min-height: 40px;
-  padding: 8px 16px;
-  overflow: auto;
-  word-break: break-word;
-  line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
-}
-
-.c7 a {
-  color: #FFFFFF;
 }
 
 .c5 {
@@ -1489,7 +1379,7 @@ exports[`invalid processing 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c1 {
@@ -1528,8 +1418,8 @@ exports[`invalid processing 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -1584,7 +1474,7 @@ exports[`invalid processing 1`] = `
           class="c5"
           color="text.primary"
         >
-          Error
+          Fatal Error
         </div>
       </div>
       <div
@@ -1615,50 +1505,7 @@ exports[`invalid processing 1`] = `
 `;
 
 exports[`processing 1`] = `
-.c10 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
-}
-
-.c10:active {
-  background: #C5B6FF;
-}
-
-.c10:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c17 {
+.c11 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
@@ -1667,24 +1514,17 @@ exports[`processing 1`] = `
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
   padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
   color: #FFFFFF;
-  margin-right: 8px;
 }
 
-.c16 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1706,26 +1546,21 @@ exports[`processing 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c15 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-  cursor: default;
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c15:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,0.1);
 }
 
 .c2 {
@@ -1745,7 +1580,7 @@ exports[`processing 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000000;
+  background-color: #000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1763,37 +1598,6 @@ exports[`processing 1`] = `
   box-sizing: border-box;
   display: flex;
   align-items: center;
-}
-
-.c12 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
-  color: #FFFFFF;
-  min-height: 0;
-  height: 24px;
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c11:hover,
-.c11:focus {
-  background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
 }
 
 .c8 {
@@ -1831,52 +1635,36 @@ exports[`processing 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
+            color="light"
             style="color: rgba(255, 255, 255, 0.56);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            style="color: rgb(255, 255, 255);"
+            color="light"
+            style="color: rgba(255, 255, 255, 0.87);"
             title="Clipboard Sharing Enabled"
           />
-          <div
-            class="c9"
-          >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
-            >
-              <div
-                class="c12"
-              >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
+              color="light"
             />
           </button>
         </div>
       </div>
     </nav>
     <div
-      class="c17"
+      class="c11"
     />
     <canvas
       style="display: none; flex: 1;"
@@ -1886,50 +1674,7 @@ exports[`processing 1`] = `
 `;
 
 exports[`tdp processing 1`] = `
-.c10 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
-  min-height: 32px;
-  font-size: 12px;
-  padding: 0px 24px;
-  padding-left: 8px;
-  padding-right: 8px;
-}
-
-.c10:hover,
-.c10:focus {
-  background: #B29DFF;
-}
-
-.c10:active {
-  background: #C5B6FF;
-}
-
-.c10:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
-.c17 {
+.c11 {
   box-sizing: border-box;
   margin: 72px;
   text-align: center;
@@ -1938,24 +1683,17 @@ exports[`tdp processing 1`] = `
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  color: #FFFFFF;
   padding-right: 16px;
-}
-
-.c13 {
-  display: inline-block;
-  transition: color 0.3s;
   color: #FFFFFF;
-  margin-right: 8px;
 }
 
-.c16 {
+.c10 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c15 {
+.c9 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -1977,26 +1715,21 @@ exports[`tdp processing 1`] = `
   color: rgba(255,255,255,0.56);
 }
 
-.c15 .c5 {
+.c9 .c5 {
   color: inherit;
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:disabled {
-  color: rgba(255,255,255,0.18);
-  cursor: default;
+.c9:disabled {
+  color: rgba(255,255,255,0.3);
 }
 
-.c15:hover:enabled,
-.c15:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c15:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,0.1);
 }
 
 .c2 {
@@ -2016,7 +1749,7 @@ exports[`tdp processing 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000000;
+  background-color: #000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -2034,37 +1767,6 @@ exports[`tdp processing 1`] = `
   box-sizing: border-box;
   display: flex;
   align-items: center;
-}
-
-.c12 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.c14 {
-  font-weight: 600;
-  font-size: 14px;
-  color: inherit;
-  transition: none;
-  align-self: 'center';
-}
-
-.c11 {
-  color: #FFFFFF;
-  min-height: 0;
-  height: 24px;
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c11:hover,
-.c11:focus {
-  background-color: rgba(255,255,255,0.18);
-}
-
-.c9 {
-  position: relative;
 }
 
 .c8 {
@@ -2102,52 +1804,36 @@ exports[`tdp processing 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
+            color="light"
             style="color: rgba(255, 255, 255, 0.56);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            style="color: rgb(255, 255, 255);"
+            color="light"
+            style="color: rgba(255, 255, 255, 0.87);"
             title="Clipboard Sharing Enabled"
           />
-          <div
-            class="c9"
-          >
-            <button
-              class="c10 c11"
-              kind="primary"
-              title="Warnings"
-            >
-              <div
-                class="c12"
-              >
-                <span
-                  class="c5 c13 icon icon-warning c14"
-                />
-                 
-                0
-              </div>
-            </button>
-          </div>
         </div>
         <div
           class="c4"
         >
           <button
-            class="c15"
+            class="c9"
             color="text.secondary"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
-              class="c5 c16 icon icon-ellipsis "
+              class="c5 c10 icon icon-ellipsis "
+              color="light"
             />
           </button>
         </div>
       </div>
     </nav>
     <div
-      class="c17"
+      class="c11"
     />
     <canvas
       style="display: none; flex: 1;"
@@ -2157,48 +1843,6 @@ exports[`tdp processing 1`] = `
 `;
 
 exports[`unintended disconnect 1`] = `
-.c9 {
-  line-height: 1.5;
-  margin: 0;
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-family: inherit;
-  font-weight: 600;
-  outline: none;
-  position: relative;
-  text-align: center;
-  text-decoration: none;
-  text-transform: uppercase;
-  transition: all 0.3s;
-  -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
-  background: rgba(255,255,255,0.07);
-  min-height: 40px;
-  font-size: 12px;
-  padding: 0px 40px;
-  width: 30%;
-}
-
-.c9:hover,
-.c9:focus {
-  background: rgba(255,255,255,0.13);
-}
-
-.c9:active {
-  background: rgba(255,255,255,0.18);
-}
-
-.c9:disabled {
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.3);
-  cursor: auto;
-}
-
 .c7 {
   display: flex;
   align-items: center;
@@ -2212,12 +1856,53 @@ exports[`unintended disconnect 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
 }
 
 .c7 a {
   color: #FFFFFF;
+}
+
+.c9 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #222C59;
+  color: rgba(255,255,255,0.87);
+  min-height: 40px;
+  font-size: 12px;
+  padding: 0px 40px;
+  width: 30%;
+}
+
+.c9:active {
+  opacity: 0.56;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #2C3A73;
+}
+
+.c9:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
 }
 
 .c5 {
@@ -2228,7 +1913,7 @@ exports[`unintended disconnect 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
 }
 
 .c1 {
@@ -2267,8 +1952,8 @@ exports[`unintended disconnect 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -2323,7 +2008,7 @@ exports[`unintended disconnect 1`] = `
           class="c5"
           color="text.primary"
         >
-          Error
+          Fatal Error
         </div>
       </div>
       <div
@@ -2373,8 +2058,8 @@ exports[`webauthn prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -2382,19 +2067,22 @@ exports[`webauthn prompt 1`] = `
   width: 130px;
 }
 
+.c9:active {
+  opacity: 0.56;
+}
+
 .c9:hover,
 .c9:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c9:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c10 {
@@ -2416,26 +2104,25 @@ exports[`webauthn prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
+  background: #222C59;
   color: rgba(255,255,255,0.87);
-  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c10:hover,
-.c10:focus {
-  background: rgba(255,255,255,0.13);
+.c10:active {
+  opacity: 0.56;
 }
 
-.c10:active {
-  background: rgba(255,255,255,0.18);
+.c10:hover,
+.c10:focus {
+  background: #2C3A73;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c5 {
@@ -2446,7 +2133,7 @@ exports[`webauthn prompt 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: #FFFFFF;
+  color: rgba(255,255,255,0.87);
   text-align: center;
 }
 
@@ -2493,8 +2180,8 @@ exports[`webauthn prompt 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #222C59;
-  color: #FFFFFF;
+  background: #1C254D;
+  color: rgba(255,255,255,0.87);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -2550,7 +2237,7 @@ exports[`webauthn prompt 1`] = `
           class="c5"
           color="text.primary"
         >
-          Multi-factor authentication
+          Verify Your Identity
         </div>
       </div>
       <div
@@ -2560,7 +2247,7 @@ exports[`webauthn prompt 1`] = `
         <div
           class="c7"
         >
-          Re-enter your multi-factor authentication in the browser to continue.
+          Re-authentication is required. Follow the prompts given by your browser to complete authentication.
         </div>
       </div>
       <div
@@ -2571,7 +2258,7 @@ exports[`webauthn prompt 1`] = `
           kind="primary"
           width="130px"
         >
-          OK
+          Verify
         </button>
         <button
           class="c10"

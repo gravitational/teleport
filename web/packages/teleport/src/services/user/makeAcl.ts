@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Acl } from './types';
 
-export function makeAcl(json): Acl {
+export default function makeAcl(json): Acl {
   json = json || {};
   const authConnectors = json.authConnectors || defaultAccess;
   const trustedClusters = json.trustedClusters || defaultAccess;
@@ -30,13 +30,7 @@ export function makeAcl(json): Acl {
   const tokens = json.tokens || defaultAccess;
   const accessRequests = json.accessRequests || defaultAccess;
   const billing = json.billing || defaultAccess;
-  const plugins = json.plugins || defaultAccess;
-  // TODO(lisa): requires backend changes to user context.
-  // Feature is off until all TODO related to integrations is done.
-  // const integrations = json.integrations || defaultAccessWithUse;
-  const integrations = defaultAccessWithUse;
   const dbServers = json.dbServers || defaultAccess;
-  const db = json.db || defaultAccess;
   const desktops = json.desktops || defaultAccess;
   const connectionDiagnostic = json.connectionDiagnostic || defaultAccess;
   // Defaults to true, see RFD 0049
@@ -55,10 +49,6 @@ export function makeAcl(json): Acl {
     json.directorySharing !== undefined ? json.directorySharing : true;
 
   const nodes = json.nodes || defaultAccess;
-  const license = json.license || defaultAccess;
-  const download = json.download || defaultAccess;
-
-  const deviceTrust = json.deviceTrust || defaultAccess;
 
   return {
     authConnectors,
@@ -73,19 +63,13 @@ export function makeAcl(json): Acl {
     tokens,
     accessRequests,
     billing,
-    plugins,
-    integrations,
     dbServers,
-    db,
     desktops,
     clipboardSharingEnabled,
     desktopSessionRecordingEnabled,
     nodes,
     directorySharingEnabled,
     connectionDiagnostic,
-    license,
-    download,
-    deviceTrust,
   };
 }
 
@@ -95,9 +79,4 @@ export const defaultAccess = {
   edit: false,
   create: false,
   remove: false,
-};
-
-export const defaultAccessWithUse = {
-  ...defaultAccess,
-  use: false,
 };

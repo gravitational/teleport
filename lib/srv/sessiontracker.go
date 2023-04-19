@@ -27,8 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SessionTracker is a session tracker for a specific session. It tracks
@@ -79,17 +79,15 @@ const sessionTrackerExpirationUpdateInterval = apidefaults.SessionTrackerTTL / 3
 // SessionTracker to the backend, the write is retried with exponential backoff up until the original
 // SessionTracker expiry.
 func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwork.Clock) error {
-	// Use a timer and reset every loop (instead of a ticker) for two reasons:
-	// 1. We always want to wait the full interval after a successful update,
-	//    whether or not a retry was necessary.
-	// 2. It's easier for tests to wait for the timer to be reset, tickers
-	//    always count as a blocker.
-	timer := clock.NewTimer(sessionTrackerExpirationUpdateInterval)
-	defer timer.Stop()
+	ticker := clock.NewTicker(sessionTrackerExpirationUpdateInterval)
+	defer func() {
+		// ensure the correct ticker is stopped due to reassignment below
+		ticker.Stop()
+	}()
 
 	for {
 		select {
-		case t := <-timer.Chan():
+		case t := <-ticker.Chan():
 			expiry := t.Add(apidefaults.SessionTrackerTTL)
 			if err := s.UpdateExpiration(ctx, expiry); err != nil {
 				// If the tracker doesn't exist in the backend then
@@ -98,13 +96,20 @@ func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwo
 					return trace.Wrap(err)
 				}
 
+				// Stop the ticker so that it doesn't
+				// keep accumulating ticks while we are retrying.
+				ticker.Stop()
+
 				if err := s.retryUpdate(ctx, clock); err != nil {
 					return trace.Wrap(err)
 				}
+
+				// Tracker was updated, create a new ticker and proceed with the update
+				// loop.
+				// Note: clockwork.Ticker doesn't support Reset, if and when it does
+				// we should use that instead of creating a new ticker.
+				ticker = clock.NewTicker(sessionTrackerExpirationUpdateInterval)
 			}
-			// Tracker was updated, reset the timer to wait another full
-			// update interval and proceed with the update loop.
-			timer.Reset(sessionTrackerExpirationUpdateInterval)
 		case <-ctx.Done():
 			return nil
 		case <-s.closeC:
@@ -115,12 +120,11 @@ func (s *SessionTracker) UpdateExpirationLoop(ctx context.Context, clock clockwo
 
 // retryUpdate attempts to periodically retry updating the session tracker
 func (s *SessionTracker) retryUpdate(ctx context.Context, clock clockwork.Clock) error {
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+	retry, err := utils.NewLinear(utils.LinearConfig{
 		Clock:  clock,
 		Max:    3 * time.Minute,
-		First:  time.Minute,
 		Step:   time.Minute,
-		Jitter: retryutils.NewHalfJitter(),
+		Jitter: utils.NewHalfJitter(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -175,10 +179,8 @@ func (s *SessionTracker) UpdateExpiration(ctx context.Context, expiry time.Time)
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -197,7 +199,6 @@ func (s *SessionTracker) AddParticipant(ctx context.Context, p *types.Participan
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
 
@@ -219,7 +220,6 @@ func (s *SessionTracker) RemoveParticipant(ctx context.Context, participantID st
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
 
@@ -241,7 +241,6 @@ func (s *SessionTracker) UpdateState(ctx context.Context, state types.SessionSta
 				},
 			},
 		})
-
 		return trace.Wrap(err)
 	}
 
@@ -258,30 +257,6 @@ func (s *SessionTracker) WaitForStateUpdate(initialState types.SessionState) typ
 			return state
 		}
 		s.trackerCond.Wait()
-	}
-}
-
-// WaitOnState waits until the desired state is reached or the context is canceled.
-func (s *SessionTracker) WaitOnState(ctx context.Context, wanted types.SessionState) error {
-	go func() {
-		<-ctx.Done()
-		s.trackerCond.Broadcast()
-	}()
-
-	s.trackerCond.L.Lock()
-	defer s.trackerCond.L.Unlock()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			if s.tracker.GetState() == wanted {
-				return nil
-			}
-
-			s.trackerCond.Wait()
-		}
 	}
 }
 

@@ -70,5 +70,8 @@ func getFlagFromContext[FlagType any](ctx context.Context) bool {
 	return ok
 }
 
+//nolint:unused // older linter may give false positive
 type processReloadFlag struct{}
+
+//nolint:unused // older linter may give false positive
 type processForkedFlag struct{}

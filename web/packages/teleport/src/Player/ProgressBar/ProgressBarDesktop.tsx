@@ -16,7 +16,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 
-import { throttle } from 'shared/utils/highbar';
+import { throttle } from 'lodash';
 import { dateToUtc } from 'shared/services/loc';
 import { format } from 'date-fns';
 
@@ -160,7 +160,6 @@ export const ProgressBarDesktop = (props: {
       move={() => {}}
       style={props.style}
       id={props.id}
-      onRestart={() => window.location.reload()}
     />
   );
 };

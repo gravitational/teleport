@@ -17,10 +17,21 @@ limitations under the License.
 import React from 'react';
 import { render } from 'design/utils/testing';
 
-import { Loaded, Failed, Empty, EmptyReadOnly } from './Kubes.story';
+import {
+  Loaded,
+  Failed,
+  Empty,
+  EmptyReadOnly,
+  PaginationUnsupported,
+} from './Kubes.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('pagination unsupported', () => {
+  const { container } = render(<PaginationUnsupported />);
   expect(container.firstChild).toMatchSnapshot();
 });
 

@@ -77,38 +77,18 @@ int findCredentials(BOOL applyFilter, LabelFilter filter,
   for (CFIndex i = 0; i < count; i++) {
     CFDictionaryRef attrs = CFArrayGetValueAtIndex(items, i);
 
-    CFTypeRef label;
-    if (!CFDictionaryGetValueIfPresent(attrs, kSecAttrLabel, &label)) {
-      continue;
-    }
-    if (CFGetTypeID(label) != CFStringGetTypeID()) {
-      continue;
-    }
+    CFStringRef label = CFDictionaryGetValue(attrs, kSecAttrLabel);
     NSString *nsLabel = (__bridge NSString *)label;
     if (applyFilter && !matchesLabelFilter(filter.kind, nsFilter, nsLabel)) {
       continue;
     }
 
-    CFTypeRef appTag;
-    if (!CFDictionaryGetValueIfPresent(attrs, kSecAttrApplicationTag,
-                                       &appTag)) {
-      continue;
-    }
-    if (CFGetTypeID(appTag) != CFDataGetTypeID()) {
-      continue;
-    }
+    CFDataRef appTag = CFDictionaryGetValue(attrs, kSecAttrApplicationTag);
     NSString *nsAppTag =
         [[NSString alloc] initWithData:(__bridge NSData *)appTag
                               encoding:NSUTF8StringEncoding];
 
-    CFTypeRef appLabel;
-    if (!CFDictionaryGetValueIfPresent(attrs, kSecAttrApplicationLabel,
-                                       &appLabel)) {
-      continue;
-    }
-    if (CFGetTypeID(appLabel) != CFDataGetTypeID()) {
-      continue;
-    }
+    CFDataRef appLabel = CFDictionaryGetValue(attrs, kSecAttrApplicationLabel);
     NSString *nsAppLabel =
         [[NSString alloc] initWithData:(__bridge NSData *)appLabel
                               encoding:NSUTF8StringEncoding];

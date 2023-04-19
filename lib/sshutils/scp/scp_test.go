@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,9 +19,12 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -38,6 +41,63 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+func TestHTTPSendFile(t *testing.T) {
+	outDir := t.TempDir()
+
+	expectedBytes := []byte("hello")
+	buf := bytes.NewReader(expectedBytes)
+	req, err := http.NewRequest("POST", "/", buf)
+	require.NoError(t, err)
+
+	req.Header.Set("Content-Length", strconv.Itoa(len(expectedBytes)))
+
+	stdOut := bytes.NewBufferString("")
+	cmd, err := CreateHTTPUpload(
+		HTTPTransferRequest{
+			FileName:       "filename",
+			RemoteLocation: outDir,
+			HTTPRequest:    req,
+			Progress:       stdOut,
+			User:           "test-user",
+		})
+	require.NoError(t, err)
+	err = runSCP(cmd, "-v", "-t", outDir)
+	require.NoError(t, err)
+	bytesReceived, err := os.ReadFile(filepath.Join(outDir, "filename"))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(string(bytesReceived), string(expectedBytes)))
+}
+
+func TestHTTPReceiveFile(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "target")
+
+	contents := []byte("hello, file contents!")
+	err := os.WriteFile(source, contents, 0666)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	stdOut := bytes.NewBufferString("")
+	cmd, err := CreateHTTPDownload(
+		HTTPTransferRequest{
+			RemoteLocation: "/home/robots.txt",
+			HTTPResponse:   w,
+			User:           "test-user",
+			Progress:       stdOut,
+		})
+	require.NoError(t, err)
+
+	err = runSCP(cmd, "-v", "-f", source)
+	require.NoError(t, err)
+
+	data, err := io.ReadAll(w.Body)
+	contentLengthStr := strconv.Itoa(len(data))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(string(data), string(contents)))
+	require.Empty(t, cmp.Diff(contentLengthStr, w.Header().Get("Content-Length")))
+	require.Empty(t, cmp.Diff("application/octet-stream", w.Header().Get("Content-Type")))
+	require.Empty(t, cmp.Diff(`attachment;filename="robots.txt"`, w.Header().Get("Content-Disposition")))
+}
+
 func TestSend(t *testing.T) {
 	t.Parallel()
 	modtime := testNow
@@ -45,7 +105,7 @@ func TestSend(t *testing.T) {
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
 	logger := logrus.WithField(trace.Component, "t:send")
-	testCases := []struct {
+	var testCases = []struct {
 		desc   string
 		config Config
 		fs     *testFS
@@ -109,7 +169,7 @@ func TestReceive(t *testing.T) {
 	dirModtime := testNow.Add(2 * time.Second)
 	dirAtime := testNow.Add(3 * time.Second)
 	logger := logrus.WithField(trace.Component, "t:recv")
-	testCases := []struct {
+	var testCases = []struct {
 		desc       string
 		config     Config
 		source     string
@@ -390,7 +450,7 @@ func TestVerifyDirectoryModeFailsWithFile(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
-	err := os.WriteFile(target, []byte{}, 0o666)
+	err := os.WriteFile(target, []byte{}, 0666)
 	require.NoError(t, err)
 
 	cmd, err := CreateCommand(
@@ -416,7 +476,7 @@ func TestVerifyDirectoryModeIsRequiredForDirectory(t *testing.T) {
 	// Create temporary directory with a file "target" in it.
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")
-	err := os.WriteFile(target, []byte{}, 0o666)
+	err := os.WriteFile(target, []byte{}, 0666)
 	require.NoError(t, err)
 
 	cmd, err := CreateCommand(
@@ -434,6 +494,66 @@ func TestVerifyDirectoryModeIsRequiredForDirectory(t *testing.T) {
 	// it should fail.
 	err = runSCP(cmd, "-t", dir)
 	require.Regexp(t, fmt.Sprintf("%s is a directory, use -r flag to copy recursively", filepath.Base(dir)), err)
+}
+
+func TestSCPParsing(t *testing.T) {
+	t.Parallel()
+
+	var testCases = []struct {
+		comment string
+		in      string
+		dest    Destination
+		err     error
+	}{
+		{
+			comment: "full spec of the remote destination",
+			in:      "root@remote.host:/etc/nginx.conf",
+			dest:    Destination{Login: "root", Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.conf"},
+		},
+		{
+			comment: "spec with just the remote host",
+			in:      "remote.host:/etc/nginx.co:nf",
+			dest:    Destination{Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
+		},
+		{
+			comment: "ipv6 remote destination address",
+			in:      "[::1]:/etc/nginx.co:nf",
+			dest:    Destination{Host: utils.NetAddr{Addr: "[::1]", AddrNetwork: "tcp"}, Path: "/etc/nginx.co:nf"},
+		},
+		{
+			comment: "full spec of the remote destination using ipv4 address",
+			in:      "root@123.123.123.123:/var/www/html/",
+			dest:    Destination{Login: "root", Host: utils.NetAddr{Addr: "123.123.123.123", AddrNetwork: "tcp"}, Path: "/var/www/html/"},
+		},
+		{
+			comment: "target location using wildcard",
+			in:      "myusername@myremotehost.com:/home/hope/*",
+			dest:    Destination{Login: "myusername", Host: utils.NetAddr{Addr: "myremotehost.com", AddrNetwork: "tcp"}, Path: "/home/hope/*"},
+		},
+		{
+			comment: "complex login",
+			in:      "complex@example.com@remote.com:/anything.txt",
+			dest:    Destination{Login: "complex@example.com", Host: utils.NetAddr{Addr: "remote.com", AddrNetwork: "tcp"}, Path: "/anything.txt"},
+		},
+		{
+			comment: "implicit user's home directory",
+			in:      "root@remote.host:",
+			dest:    Destination{Login: "root", Host: utils.NetAddr{Addr: "remote.host", AddrNetwork: "tcp"}, Path: "."},
+		},
+	}
+	for _, tt := range testCases {
+		tt := tt
+		t.Run(tt.comment, func(t *testing.T) {
+			resp, err := ParseSCPDestination(tt.in)
+			if tt.err != nil {
+				require.IsType(t, err, tt.err)
+				return
+			}
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(resp, &tt.dest))
+		})
+
+	}
 }
 
 func runSCP(cmd Command, args ...string) error {
@@ -485,13 +605,13 @@ func fromOS(t *testing.T, dir string, fs *testFS) {
 		}
 		if fi.IsDir() {
 			require.NoError(t, fs.MkDir(relpath, int(fi.Mode())))
-			require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
+			require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
 			return nil
 		}
 		wc, err := fs.CreateFile(relpath, uint64(fi.Size()))
 		require.NoError(t, err)
 		defer wc.Close()
-		require.NoError(t, fs.Chtimes(relpath, GetAtime(fi), fi.ModTime()))
+		require.NoError(t, fs.Chtimes(relpath, atime(fi), fi.ModTime()))
 		f, err := os.Open(path)
 		require.NoError(t, err)
 		defer f.Close()
@@ -691,7 +811,7 @@ func (r *testFS) CreateFile(path string, length uint64) (io.WriteCloser, error) 
 	fi := &testFileInfo{
 		path:     path,
 		size:     int64(length),
-		perms:    0o666,
+		perms:    0666,
 		contents: new(bytes.Buffer),
 	}
 	r.fs[path] = fi
@@ -804,14 +924,14 @@ func newDir(name string, ents ...*testFileInfo) *testFileInfo {
 		path:  name,
 		ents:  ents,
 		dir:   true,
-		perms: 0o755,
+		perms: 0755,
 	}
 }
 
 func newFile(name string, contents string) *testFileInfo {
 	return &testFileInfo{
 		path:     name,
-		perms:    0o666,
+		perms:    0666,
 		size:     int64(len(contents)),
 		contents: bytes.NewBufferString(contents),
 	}
@@ -824,7 +944,7 @@ func newDirTimes(name string, modtime, atime time.Time, ents ...*testFileInfo) *
 		modtime: modtime,
 		atime:   atime,
 		dir:     true,
-		perms:   0o755,
+		perms:   0755,
 	}
 }
 
@@ -833,7 +953,7 @@ func newFileTimes(name string, modtime, atime time.Time, contents string) *testF
 		path:     name,
 		modtime:  modtime,
 		atime:    atime,
-		perms:    0o666,
+		perms:    0666,
 		size:     int64(len(contents)),
 		contents: bytes.NewBufferString(contents),
 	}

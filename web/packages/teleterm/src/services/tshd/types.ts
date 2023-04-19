@@ -14,72 +14,19 @@
  * limitations under the License.
  */
 
-/* eslint-disable @typescript-eslint/ban-ts-comment*/
-// @ts-ignore
-import { ResourceKind } from 'e-teleterm/ui/DocumentAccessRequests/NewRequest/useNewRequest';
-// @ts-ignore
-import { RequestState } from 'e-teleport/services/workflow';
-import { SortType } from 'design/DataTable/types';
-import { FileTransferListeners } from 'shared/components/FileTransfer';
 import apiCluster from 'gen-proto-js/teleport/lib/teleterm/v1/cluster_pb';
 import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
-import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
-import apiService, {
-  FileTransferDirection,
-} from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
+import apiApp from 'gen-proto-js/teleport/lib/teleterm/v1/app_pb';
+import apiService from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import apiAuthSettings from 'gen-proto-js/teleport/lib/teleterm/v1/auth_settings_pb';
-import apiAccessRequest from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
-import apiUsageEvents from 'gen-proto-js/teleport/lib/teleterm/v1/usage_events_pb';
 
-import * as uri from 'teleterm/ui/uri';
-
-export interface Kube extends apiKube.Kube.AsObject {
-  uri: uri.KubeUri;
-}
-
-export interface Server extends apiServer.Server.AsObject {
-  uri: uri.ServerUri;
-}
-
-export interface Gateway extends apiGateway.Gateway.AsObject {
-  uri: uri.GatewayUri;
-  targetUri: uri.DatabaseUri;
-}
-
-export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
-export type ResourceId = apiAccessRequest.ResourceID.AsObject;
-export type AccessRequestReview = apiAccessRequest.AccessRequestReview.AsObject;
-
-export interface GetServersResponse
-  extends apiService.GetServersResponse.AsObject {
-  agentsList: Server[];
-}
-
-export interface GetDatabasesResponse
-  extends apiService.GetDatabasesResponse.AsObject {
-  agentsList: Database[];
-}
-
-export interface GetKubesResponse extends apiService.GetKubesResponse.AsObject {
-  agentsList: Kube[];
-}
-
-export type GetRequestableRolesResponse =
-  apiService.GetRequestableRolesResponse.AsObject;
-
-export type ReportUsageEventRequest = Modify<
-  apiUsageEvents.ReportUsageEventRequest.AsObject,
-  {
-    prehogReq: Modify<
-      apiUsageEvents.ReportUsageEventRequest.AsObject['prehogReq'],
-      { timestamp: Date }
-    >;
-  }
->;
-
+export type Application = apiApp.App.AsObject;
+export type Kube = apiKube.Kube.AsObject;
+export type Server = apiServer.Server.AsObject;
+export type Gateway = apiGateway.Gateway.AsObject;
 // Available types are listed here:
 // https://github.com/gravitational/teleport/blob/v9.0.3/lib/defaults/defaults.go#L513-L530
 //
@@ -91,36 +38,11 @@ export type GatewayProtocol =
   | 'cockroachdb'
   | 'redis'
   | 'sqlserver';
-
-export interface Database extends apiDb.Database.AsObject {
-  uri: uri.DatabaseUri;
-}
-
-export interface Cluster extends apiCluster.Cluster.AsObject {
-  /**
-   * The URI of the cluster.
-   *
-   * For root clusters, it has the form of `/clusters/:rootClusterId` where `rootClusterId` is the
-   * name of the profile, that is the hostname of the proxy used to connect to the root cluster.
-   * `rootClusterId` is not equal to the name of the root cluster.
-   *
-   * For leaf clusters, it has the form of `/clusters/:rootClusterId/leaves/:leafClusterId` where
-   * `leafClusterId` is equal to the `name` property of the cluster.
-   */
-  uri: uri.ClusterUri;
-  loggedInUser?: LoggedInUser;
-}
-
-export type LoggedInUser = apiCluster.LoggedInUser.AsObject & {
-  assumedRequests?: Record<string, AssumedRequest>;
-};
+export type Database = apiDb.Database.AsObject;
+export type Cluster = apiCluster.Cluster.AsObject;
+export type LoggedInUser = apiCluster.LoggedInUser.AsObject;
 export type AuthProvider = apiAuthSettings.AuthProvider.AsObject;
 export type AuthSettings = apiAuthSettings.AuthSettings.AsObject;
-
-export interface FileTransferRequest
-  extends apiService.FileTransferRequest.AsObject {
-  serverUri: uri.ServerUri;
-}
 
 export type WebauthnCredentialInfo = apiService.CredentialInfo.AsObject;
 export type WebauthnLoginPrompt =
@@ -144,55 +66,31 @@ export type LoginPasswordlessRequest =
 
 export type TshClient = {
   listRootClusters: () => Promise<Cluster[]>;
-  listLeafClusters: (clusterUri: uri.RootClusterUri) => Promise<Cluster[]>;
-  getKubes: (params: GetResourcesParams) => Promise<GetKubesResponse>;
-  getDatabases: (params: GetResourcesParams) => Promise<GetDatabasesResponse>;
-  listDatabaseUsers: (dbUri: uri.DatabaseUri) => Promise<string[]>;
-  assumeRole: (
-    clusterUri: uri.RootClusterUri,
-    requestIds: string[],
-    dropIds: string[]
-  ) => Promise<void>;
-  getRequestableRoles: (
-    params: GetRequestableRolesParams
-  ) => Promise<GetRequestableRolesResponse>;
-  getServers: (params: GetResourcesParams) => Promise<GetServersResponse>;
-  getAccessRequests: (
-    clusterUri: uri.RootClusterUri
-  ) => Promise<AccessRequest[]>;
-  getAccessRequest: (
-    clusterUri: uri.RootClusterUri,
-    requestId: string
-  ) => Promise<AccessRequest>;
-  reviewAccessRequest: (
-    clusterUri: uri.RootClusterUri,
-    params: ReviewAccessRequestParams
-  ) => Promise<AccessRequest>;
-  createAccessRequest: (
-    params: CreateAccessRequestParams
-  ) => Promise<AccessRequest>;
-  deleteAccessRequest: (
-    clusterUri: uri.RootClusterUri,
-    requestId: string
-  ) => Promise<void>;
+  listLeafClusters: (clusterUri: string) => Promise<Cluster[]>;
+  listApps: (clusterUri: string) => Promise<Application[]>;
+  listKubes: (clusterUri: string) => Promise<Kube[]>;
+  listDatabases: (clusterUri: string) => Promise<Database[]>;
+  listDatabaseUsers: (dbUri: string) => Promise<string[]>;
+  listServers: (clusterUri: string) => Promise<Server[]>;
   createAbortController: () => TshAbortController;
   addRootCluster: (addr: string) => Promise<Cluster>;
 
   listGateways: () => Promise<Gateway[]>;
   createGateway: (params: CreateGatewayParams) => Promise<Gateway>;
-  removeGateway: (gatewayUri: uri.GatewayUri) => Promise<void>;
+  removeGateway: (gatewayUri: string) => Promise<void>;
+  restartGateway: (gatewayUri: string) => Promise<void>;
   setGatewayTargetSubresourceName: (
-    gatewayUri: uri.GatewayUri,
+    gatewayUri: string,
     targetSubresourceName: string
   ) => Promise<Gateway>;
   setGatewayLocalPort: (
-    gatewayUri: uri.GatewayUri,
+    gatewayUri: string,
     localPort: string
   ) => Promise<Gateway>;
 
-  getCluster: (clusterUri: uri.RootClusterUri) => Promise<Cluster>;
-  getAuthSettings: (clusterUri: uri.RootClusterUri) => Promise<AuthSettings>;
-  removeCluster: (clusterUri: uri.RootClusterUri) => Promise<void>;
+  getCluster: (clusterUri: string) => Promise<Cluster>;
+  getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
+  removeCluster: (clusterUri: string) => Promise<void>;
   loginLocal: (
     params: LoginLocalParams,
     abortSignal?: TshAbortSignal
@@ -205,12 +103,7 @@ export type TshClient = {
     params: LoginPasswordlessParams,
     abortSignal?: TshAbortSignal
   ) => Promise<void>;
-  logout: (clusterUri: uri.RootClusterUri) => Promise<void>;
-  transferFile: (
-    options: FileTransferRequest,
-    abortSignal?: TshAbortSignal
-  ) => FileTransferListeners;
-  reportUsageEvent: (event: ReportUsageEventRequest) => Promise<void>;
+  logout: (clusterUri: string) => Promise<void>;
 };
 
 export type TshAbortController = {
@@ -224,7 +117,7 @@ export type TshAbortSignal = {
 };
 
 interface LoginParamsBase {
-  clusterUri: uri.RootClusterUri;
+  clusterUri: string;
 }
 
 export interface LoginLocalParams extends LoginParamsBase {
@@ -243,60 +136,8 @@ export interface LoginPasswordlessParams extends LoginParamsBase {
 }
 
 export type CreateGatewayParams = {
-  targetUri: uri.DatabaseUri;
+  targetUri: string;
   port?: string;
   user: string;
   subresource_name?: string;
 };
-
-export type GetResourcesParams = {
-  clusterUri: uri.ClusterUri;
-  // sort is a required field because it has direct implications on performance of ListResources.
-  sort: SortType | null;
-  // limit cannot be omitted and must be greater than zero, otherwise ListResources is going to
-  // return an error.
-  limit: number;
-  // search is used for regular search.
-  search?: string;
-  searchAsRoles?: string;
-  startKey?: string;
-  // query is used for advanced search.
-  query?: string;
-};
-
-// Compatibility type to make sure teleport.e doesn't break.
-// TODO(ravicious): Remove after teleterm.e is updated to use GetResourcesParams.
-export type ServerSideParams = GetResourcesParams;
-
-export type ReviewAccessRequestParams = {
-  state: RequestState;
-  reason: string;
-  roles: string[];
-  id: string;
-};
-
-export type CreateAccessRequestParams = {
-  rootClusterUri: uri.RootClusterUri;
-  reason: string;
-  roles: string[];
-  suggestedReviewers: string[];
-  resourceIds: { kind: ResourceKind; clusterName: string; id: string }[];
-};
-
-export type GetRequestableRolesParams = {
-  rootClusterUri: uri.RootClusterUri;
-  resourceIds?: { kind: ResourceKind; clusterName: string; id: string }[];
-};
-
-export type AssumedRequest = {
-  id: string;
-  expires: Date;
-  roles: string[];
-};
-
-export { FileTransferDirection };
-
-export type Label = apiLabel.Label.AsObject;
-
-// Replaces object property with a new type
-type Modify<T, R> = Omit<T, keyof R> & R;

@@ -19,8 +19,8 @@ package webauthn
 import (
 	"encoding/base64"
 
-	"github.com/go-webauthn/webauthn/protocol"
-	wan "github.com/go-webauthn/webauthn/webauthn"
+	"github.com/duo-labs/webauthn/protocol"
+	wan "github.com/duo-labs/webauthn/webauthn"
 	"github.com/gravitational/trace"
 
 	wantypes "github.com/gravitational/teleport/api/types/webauthn"
@@ -42,7 +42,6 @@ func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// TODO(codingllama): Record extensions in stored session data.
 	return &wantypes.SessionData{
 		Challenge:        rawChallenge,
 		UserId:           sd.UserID,
@@ -52,7 +51,6 @@ func sessionToPB(sd *wan.SessionData) (*wantypes.SessionData, error) {
 }
 
 func sessionFromPB(sd *wantypes.SessionData) *wan.SessionData {
-	// TODO(codingllama): Record extensions in stored session data.
 	return &wan.SessionData{
 		Challenge:            base64.RawURLEncoding.EncodeToString(sd.Challenge),
 		UserID:               sd.UserId,

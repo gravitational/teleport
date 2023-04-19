@@ -16,7 +16,7 @@
 
 import React from 'react';
 import styled from 'styled-components';
-import { debounce } from 'shared/utils/highbar';
+import { debounce } from 'lodash';
 import { space, width, color, height } from 'styled-system';
 
 export default function ClusterSearch(props: Props) {
@@ -38,19 +38,19 @@ export default function ClusterSearch(props: Props) {
 const Input = styled.input(props => {
   const { theme } = props;
   return {
-    background: theme.colors.levels.surfaceSecondary,
+    background: theme.colors.primary.main,
     boxSizing: 'border-box',
     color: theme.colors.text.primary,
     width: '100%',
-    minHeight: '24px',
+    minHeight: '30px',
     minWidth: '300px',
     outline: 'none',
     borderRadius: '4px',
     border: '1px solid transparent',
     padding: '2px 12px',
     '&:hover, &:focus': {
-      color: theme.colors.text.contrast,
-      borderColor: theme.colors.levels.elevated,
+      color: theme.colors.primary.contrastText,
+      borderColor: theme.colors.primary.lighter,
       opacity: 1,
     },
     '::placeholder': {

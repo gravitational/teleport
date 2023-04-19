@@ -23,13 +23,10 @@ import { app, globalShortcut, shell } from 'electron';
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
 import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandler';
-import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
+import createLoggerService from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
-import {
-  createConfigService,
-  runConfigFileMigration,
-} from 'teleterm/services/config';
+import { ConfigServiceImpl } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
@@ -42,24 +39,15 @@ if (app.requestSingleInstanceLock()) {
   app.exit(1);
 }
 
-async function initializeApp(): Promise<void> {
-  let devRelaunchScheduled = false;
+function initializeApp(): void {
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
   logger.info(`Starting ${app.getName()} version ${app.getVersion()}`);
-  const {
-    appStateFileStorage,
-    configFileStorage,
-    configJsonSchemaFileStorage,
-  } = await createFileStorages(settings.userDataDir);
-
-  runConfigFileMigration(configFileStorage);
-  const configService = createConfigService({
-    configFile: configFileStorage,
-    jsonSchemaFile: configJsonSchemaFileStorage,
-    platform: settings.platform,
+  const fileStorage = createFileStorage({
+    filePath: path.join(settings.userDataDir, 'app_state.json'),
   });
-  const windowsManager = new WindowsManager(appStateFileStorage, settings);
+  const configService = new ConfigServiceImpl();
+  const windowsManager = new WindowsManager(fileStorage, settings);
 
   process.on('uncaughtException', (error, origin) => {
     logger.error(origin, error);
@@ -71,9 +59,7 @@ async function initializeApp(): Promise<void> {
     settings,
     logger,
     configService,
-    appStateFileStorage,
-    configFileStorage,
-    windowsManager,
+    fileStorage,
   });
 
   app.on(
@@ -94,31 +80,10 @@ async function initializeApp(): Promise<void> {
     }
   );
 
-  app.on('will-quit', async event => {
-    event.preventDefault();
-    const disposeMainProcess = async () => {
-      try {
-        await mainProcess.dispose();
-      } catch (e) {
-        logger.error('Failed to gracefully dispose of main process', e);
-      }
-    };
-
+  app.on('will-quit', () => {
+    fileStorage.putAllSync();
     globalShortcut.unregisterAll();
-    await Promise.all([appStateFileStorage.write(), disposeMainProcess()]); // none of them can throw
-    app.exit();
-  });
-
-  app.on('quit', () => {
-    if (devRelaunchScheduled) {
-      const [bin, ...args] = process.argv;
-      const child = spawn(bin, args, {
-        env: process.env,
-        detached: true,
-        stdio: 'inherit',
-      });
-      child.unref();
-    }
+    mainProcess.dispose();
   });
 
   app.on('second-instance', () => {
@@ -129,7 +94,14 @@ async function initializeApp(): Promise<void> {
     if (mainProcess.settings.dev) {
       // allow restarts on F6
       globalShortcut.register('F6', () => {
-        devRelaunchScheduled = true;
+        mainProcess.dispose();
+        const [bin, ...args] = process.argv;
+        const child = spawn(bin, args, {
+          env: process.env,
+          detached: true,
+          stdio: 'inherit',
+        });
+        child.unref();
         app.quit();
       });
     }
@@ -193,36 +165,13 @@ async function initializeApp(): Promise<void> {
 }
 
 function initMainLogger(settings: types.RuntimeSettings) {
-  const service = createFileLoggerService({
+  const service = createLoggerService({
     dev: settings.dev,
     dir: settings.userDataDir,
     name: 'main',
-    loggerNameColor: LoggerColor.Magenta,
   });
 
   Logger.init(service);
 
   return new Logger('Main');
-}
-
-function createFileStorages(userDataDir: string) {
-  return Promise.all([
-    createFileStorage({
-      filePath: path.join(userDataDir, 'app_state.json'),
-      debounceWrites: true,
-    }),
-    createFileStorage({
-      filePath: path.join(userDataDir, 'app_config.json'),
-      debounceWrites: false,
-      discardUpdatesOnLoadError: true,
-    }),
-    createFileStorage({
-      filePath: path.join(userDataDir, 'schema_app_config.json'),
-      debounceWrites: false,
-    }),
-  ]).then(storages => ({
-    appStateFileStorage: storages[0],
-    configFileStorage: storages[1],
-    configJsonSchemaFileStorage: storages[2],
-  }));
 }

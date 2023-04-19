@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/go-redis/redis/v9"
@@ -84,11 +83,6 @@ func TestWriteCmd(t *testing.T) {
 			expected: []byte("-ERR something bad\r\n"),
 		},
 		{
-			name:     "multi-line error",
-			val:      errors.New("something bad.\r\n  \n  and another line"),
-			expected: []byte("-ERR something bad. and another line\r\n"),
-		},
-		{
 			name:     "Teleport error",
 			val:      trace.Errorf("something bad"),
 			expected: []byte("-ERR Teleport: something bad\r\n"),
@@ -117,28 +111,7 @@ func TestWriteCmd(t *testing.T) {
 	}
 }
 
-func TestReadWriteStatus(t *testing.T) {
-	inputStatusBytes := []byte("+status\r\n")
-
-	// Read the status into a redis.Cmd.
-	cmd := &redis.Cmd{}
-	err := cmd.ReadReply(redis.NewReader(bytes.NewReader(inputStatusBytes)))
-	require.NoError(t, err)
-
-	// Verify result.
-	value, err := cmd.Result()
-	require.NoError(t, err)
-	require.Equal(t, "status", fmt.Sprintf("%v", value))
-
-	// Verify WriteCmd.
-	outputStatusBytes := &bytes.Buffer{}
-	err = WriteCmd(redis.NewWriter(outputStatusBytes), value)
-	require.NoError(t, err)
-	require.Equal(t, string(inputStatusBytes), outputStatusBytes.String())
-}
-
 func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
-	ctx := context.Background()
 	tests := []struct {
 		name          string
 		command       []interface{}
@@ -168,7 +141,7 @@ func TestMakeUnknownCommandErrorForCmd(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			cmd := redis.NewCmd(ctx, test.command...)
+			cmd := redis.NewCmd(context.TODO(), test.command...)
 			actualError := MakeUnknownCommandErrorForCmd(cmd)
 			require.Equal(t, test.expectedError, actualError)
 		})

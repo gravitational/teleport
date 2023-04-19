@@ -26,21 +26,10 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
-// UserType is the user's types that indicates where it was created.
-type UserType string
-
-const (
-	// UserTypeSSO identifies a user that was created from an SSO provider.
-	UserTypeSSO UserType = "sso"
-	// UserTypeLocal identifies a user that was created in Teleport itself and has no connection to an external identity.
-	UserTypeLocal UserType = "local"
-)
-
-// User represents teleport embedded user or external user.
+// User represents teleport embedded user or external user
 type User interface {
 	// ResourceWithSecrets provides common resource properties
 	ResourceWithSecrets
-	ResourceWithOrigin
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
@@ -69,10 +58,6 @@ type User interface {
 	GetWindowsLogins() []string
 	// GetAWSRoleARNs gets the list of AWS role ARNs for the user
 	GetAWSRoleARNs() []string
-	// GetAzureIdentities gets a list of Azure identities for the user
-	GetAzureIdentities() []string
-	// GetGCPServiceAccounts gets a list of GCP service accounts for the user
-	GetGCPServiceAccounts() []string
 	// String returns user
 	String() string
 	// GetStatus return user login status
@@ -101,19 +86,13 @@ type User interface {
 	SetWindowsLogins(logins []string)
 	// SetAWSRoleARNs sets a list of AWS role ARNs for user
 	SetAWSRoleARNs(awsRoleARNs []string)
-	// SetAzureIdentities sets a list of Azure identities for the user
-	SetAzureIdentities(azureIdentities []string)
-	// SetGCPServiceAccounts sets a list of GCP service accounts for the user
-	SetGCPServiceAccounts(accounts []string)
 	// GetCreatedBy returns information about user
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
-	// GetUserType indicates if the User was created by an SSO Provider or locally.
-	GetUserType() UserType
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
-	// SetTraits sets the trait map for this user used to populate role variables.
+	// GetTraits sets the trait map for this user used to populate role variables.
 	SetTraits(map[string][]string)
 }
 
@@ -169,16 +148,6 @@ func (u *UserV2) SetResourceID(id int64) {
 // GetMetadata returns object metadata
 func (u *UserV2) GetMetadata() Metadata {
 	return u.Metadata
-}
-
-// Origin returns the origin value of the resource.
-func (u *UserV2) Origin() string {
-	return u.Metadata.Origin()
-}
-
-// SetOrigin sets the origin value of the resource.
-func (u *UserV2) SetOrigin(origin string) {
-	u.Metadata.SetOrigin(origin)
 }
 
 // SetMetadata sets object metadata
@@ -309,16 +278,6 @@ func (u *UserV2) SetAWSRoleARNs(awsRoleARNs []string) {
 	u.setTrait(constants.TraitAWSRoleARNs, awsRoleARNs)
 }
 
-// SetAzureIdentities sets a list of Azure identities for the user
-func (u *UserV2) SetAzureIdentities(identities []string) {
-	u.setTrait(constants.TraitAzureIdentities, identities)
-}
-
-// SetGCPServiceAccounts sets a list of GCP service accounts for the user
-func (u *UserV2) SetGCPServiceAccounts(accounts []string) {
-	u.setTrait(constants.TraitGCPServiceAccounts, accounts)
-}
-
 // GetStatus returns login status of the user
 func (u *UserV2) GetStatus() LoginStatus {
 	return u.Spec.Status
@@ -404,25 +363,6 @@ func (u UserV2) GetWindowsLogins() []string {
 // GetAWSRoleARNs gets the list of AWS role ARNs for the user
 func (u UserV2) GetAWSRoleARNs() []string {
 	return u.getTrait(constants.TraitAWSRoleARNs)
-}
-
-// GetAzureIdentities gets a list of Azure identities for the user
-func (u UserV2) GetAzureIdentities() []string {
-	return u.getTrait(constants.TraitAzureIdentities)
-}
-
-// GetGCPServiceAccounts gets a list of GCP service accounts for the user
-func (u UserV2) GetGCPServiceAccounts() []string {
-	return u.getTrait(constants.TraitGCPServiceAccounts)
-}
-
-// GetUserType indicates if the User was created by an SSO Provider or locally.
-func (u UserV2) GetUserType() UserType {
-	if u.GetCreatedBy().Connector == nil {
-		return UserTypeLocal
-	}
-
-	return UserTypeSSO
 }
 
 func (u *UserV2) String() string {

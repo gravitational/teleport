@@ -15,16 +15,6 @@ steps:
       - "go run ./cmd/checkout -w=/workspace"
 
   - name: gcr.io/cloud-builders/docker
-    id: type-check
-    args:
-      - build
-      - '--build-arg'
-      - NPM_SCRIPT=type-check
-      - '--build-arg'
-      - YARN_FROZEN_LOCKFILE=true
-      - .
-
-  - name: gcr.io/cloud-builders/docker
     id: test
     args:
       - build

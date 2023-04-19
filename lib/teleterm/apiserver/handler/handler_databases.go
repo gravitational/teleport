@@ -24,25 +24,21 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
-// GetDatabases gets databses with filters and returns paginated results
-func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest) (*api.GetDatabasesResponse, error) {
+// ListDatabases lists databases
+func (s *Handler) ListDatabases(ctx context.Context, req *api.ListDatabasesRequest) (*api.ListDatabasesResponse, error) {
 	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := cluster.GetDatabases(ctx, req)
+	dbs, err := cluster.GetDatabases(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	response := &api.GetDatabasesResponse{
-		StartKey:   resp.StartKey,
-		TotalCount: int32(resp.TotalCount),
-	}
-
-	for _, database := range resp.Databases {
-		response.Agents = append(response.Agents, newAPIDatabase(database))
+	response := &api.ListDatabasesResponse{}
+	for _, db := range dbs {
+		response.Databases = append(response.Databases, newAPIDatabase(db))
 	}
 
 	return response, nil

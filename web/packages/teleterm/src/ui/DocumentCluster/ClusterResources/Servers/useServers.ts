@@ -13,46 +13,41 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-import { Server, GetResourcesParams } from 'teleterm/services/tshd/types';
+
+import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import { makeServer } from 'teleterm/ui/services/clusters';
-import { connectToServer } from 'teleterm/ui/services/workspacesService';
-
-import { useServerSideResources } from '../useServerSideResources';
-
-import type * as uri from 'teleterm/ui/uri';
 
 export function useServers() {
   const appContext = useAppContext();
+  const clusterContext = useClusterContext();
+  const servers = clusterContext.getServers();
+  const syncStatus = clusterContext.getSyncStatus().servers;
 
-  const { fetchAttempt, ...serversideResources } =
-    useServerSideResources<Server>(
-      { fieldName: 'hostname', dir: 'ASC' }, // default sort
-      (params: GetResourcesParams) =>
-        appContext.resourcesService.fetchServers(params)
-    );
-
-  function getSshLogins(serverUri: uri.ServerUri): string[] {
+  function getSshLogins(serverUri: string): string[] {
     const cluster = appContext.clustersService.findClusterByResource(serverUri);
     return cluster?.loggedInUser?.sshLoginsList || [];
   }
 
-  function connect(server: ReturnType<typeof makeServer>, login: string): void {
-    const { uri, hostname } = server;
-    connectToServer(
-      appContext,
-      { uri, hostname, login },
-      {
-        origin: 'resource_table',
-      }
-    );
+  function connect(serverUri: string, login: string): void {
+    const server = appContext.clustersService.getServer(serverUri);
+
+    const rootCluster =
+      appContext.clustersService.findRootClusterByResource(serverUri);
+    const documentsService =
+      appContext.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
+    const doc = documentsService.createTshNodeDocument(serverUri);
+    doc.title = `${login}@${server.hostname}`;
+    doc.login = login;
+
+    documentsService.add(doc);
+    documentsService.setLocation(doc.uri);
   }
 
   return {
-    fetchAttempt,
+    servers,
+    syncStatus,
     getSshLogins,
     connect,
-    ...serversideResources,
   };
 }
 

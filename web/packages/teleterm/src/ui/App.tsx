@@ -22,20 +22,28 @@ import styled from 'styled-components';
 import { Failed } from 'design/CardError';
 
 import { AppInitializer } from 'teleterm/ui/AppInitializer';
+import { NotificationsHost } from 'teleterm/ui/components/Notifcations';
 
 import CatchError from './components/CatchError';
+import ModalsHost from './ModalsHost';
 import AppContextProvider from './appContextProvider';
 import AppContext from './appContext';
-import { ThemeProvider } from './ThemeProvider';
+import ThemeProvider from './ThemeProvider';
+import { LayoutManager } from './LayoutManager';
 
 export const App: React.FC<{ ctx: AppContext }> = ({ ctx }) => {
+  const { appearance } = ctx.mainProcessClient.configService.get();
   return (
     <StyledApp>
       <CatchError>
         <DndProvider backend={HTML5Backend}>
           <AppContextProvider value={ctx}>
-            <ThemeProvider>
-              <AppInitializer />
+            <ThemeProvider appearanceConfig={appearance}>
+              <AppInitializer>
+                <LayoutManager />
+                <ModalsHost />
+                <NotificationsHost />
+              </AppInitializer>
             </ThemeProvider>
           </AppContextProvider>
         </DndProvider>

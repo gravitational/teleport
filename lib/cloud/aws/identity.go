@@ -42,15 +42,6 @@ type Identity interface {
 	fmt.Stringer
 }
 
-const (
-	// ResourceTypeRole is the resource type for an AWS IAM role.
-	ResourceTypeRole = "role"
-	// ResourceTypeAssumedRole is the resource type for an AWS IAM assumed role.
-	ResourceTypeAssumedRole = "assumed-role"
-	// ResourceTypeUser is the resource type for an AWS IAM user.
-	ResourceTypeUser = "user"
-)
-
 // User represents an AWS IAM user identity.
 type User struct {
 	identityBase
@@ -75,12 +66,12 @@ func (i identityBase) GetName() string {
 	parts := strings.Split(i.arn.Resource, "/")
 	// EC2 instances running on AWS with attached IAM role will have
 	// assumed-role identity with ARN like:
-	// arn:aws:sts::123456789012:assumed-role/DatabaseAccess/i-1234567890
-	if parts[0] == ResourceTypeAssumedRole && len(parts) > 2 {
+	// arn:aws:sts::1234567890:assumed-role/DatabaseAccess/i-1234567890
+	if parts[0] == "assumed-role" && len(parts) > 2 {
 		return parts[1]
 	}
 	// Resource can include a path and the name is its last component e.g.
-	// arn:aws:iam::123456789012:role/path/to/customrole
+	// arn:aws:iam::1234567890:role/path/to/customrole
 	return parts[len(parts)-1]
 }
 
@@ -124,13 +115,13 @@ func IdentityFromArn(arnString string) (Identity, error) {
 
 	parts := strings.Split(parsedARN.Resource, "/")
 	switch parts[0] {
-	case ResourceTypeRole, ResourceTypeAssumedRole:
+	case "role", "assumed-role":
 		return Role{
 			identityBase: identityBase{
 				arn: parsedARN,
 			},
 		}, nil
-	case ResourceTypeUser:
+	case "user":
 		return User{
 			identityBase: identityBase{
 				arn: parsedARN,

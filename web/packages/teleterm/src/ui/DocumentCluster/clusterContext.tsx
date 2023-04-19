@@ -18,18 +18,15 @@ import React from 'react';
 import { matchPath } from 'react-router';
 import { useStore, Store } from 'shared/libs/stores';
 
+import { tsh } from 'teleterm/ui/services/clusters/types';
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, DocumentUri, KubeUri, routing } from 'teleterm/ui/uri';
-import {
-  connectToKube,
-  DocumentOrigin,
-} from 'teleterm/ui/services/workspacesService';
-
-import type * as tsh from 'teleterm/services/tshd/types';
+import { routing } from 'teleterm/ui/uri';
+import { retryWithRelogin } from 'teleterm/ui/utils';
 
 type State = {
   navLocation: NavLocation;
   clusterName: string;
+  searchValue: string;
   leaf: boolean;
   leafConnected: boolean;
   status: 'requires_login' | 'not_found' | '';
@@ -40,22 +37,22 @@ class ClusterContext extends Store<State> {
   private _cluster: tsh.Cluster;
 
   readonly appCtx: IAppContext;
-  readonly clusterUri: ClusterUri;
-  readonly documentUri: DocumentUri;
+
+  readonly clusterUri: string;
+
+  readonly documentUri: string;
+
   readonly state: State = {
     navLocation: '/resources/servers',
     clusterName: '',
+    searchValue: '',
     leaf: false,
     leafConnected: false,
     status: '',
     statusText: '',
   };
 
-  constructor(
-    appCtx: IAppContext,
-    clusterUri: ClusterUri,
-    documentUri: DocumentUri
-  ) {
+  constructor(appCtx: IAppContext, clusterUri: string, documentUri: string) {
     super();
     this.clusterUri = clusterUri;
     this.documentUri = documentUri;
@@ -75,8 +72,24 @@ class ClusterContext extends Store<State> {
     });
   };
 
-  connectKube = (kubeUri: KubeUri, params: { origin: DocumentOrigin }) => {
-    connectToKube(this.appCtx, { uri: kubeUri }, { origin: params.origin });
+  connectKube = (kubeUri: string) => {
+    this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
+  };
+
+  sync = async () => {
+    try {
+      await retryWithRelogin(
+        this.appCtx,
+        this.documentUri,
+        this.clusterUri,
+        () => this.appCtx.clustersService.syncCluster(this.clusterUri)
+      );
+    } catch (e) {
+      this.appCtx.notificationsService.notifyError({
+        title: `Could not synchronize cluster ${this.state.clusterName}`,
+        description: e.message,
+      });
+    }
   };
 
   refresh = () => {
@@ -128,6 +141,38 @@ class ClusterContext extends Store<State> {
         exact,
       })
     );
+  }
+
+  changeSearchValue = (searchValue: string) => {
+    this.setState({ searchValue });
+  };
+
+  getServers() {
+    return this.appCtx.clustersService.searchServers(this.clusterUri, {
+      search: this.state.searchValue,
+    });
+  }
+
+  getDbs() {
+    return this.appCtx.clustersService.searchDbs(this.clusterUri, {
+      search: this.state.searchValue,
+    });
+  }
+
+  getKubes() {
+    return this.appCtx.clustersService.searchKubes(this.clusterUri, {
+      search: this.state.searchValue,
+    });
+  }
+
+  getApps() {
+    return this.appCtx.clustersService.searchApps(this.clusterUri, {
+      search: this.state.searchValue,
+    });
+  }
+
+  getSyncStatus() {
+    return this.appCtx.clustersService.getClusterSyncStatus(this.clusterUri);
   }
 
   changeLocation(navLocation: NavLocation) {

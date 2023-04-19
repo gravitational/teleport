@@ -102,8 +102,7 @@ func TestDatabaseServerSorter(t *testing.T) {
 			Protocol: "_",
 			URI:      "_",
 			GCP: GCPCloudSQL{
-				ProjectID:  "_",
-				InstanceID: "_",
+				ProjectID: "_",
 			},
 		},
 	}

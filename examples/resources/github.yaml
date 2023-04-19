@@ -12,7 +12,7 @@ spec:
   redirect_url: "https://<cluster-url>/v1/webapi/github/callback"
   # connector display name that will be appended to the title of "Login with"
   # button on the cluster login screen so it will say "Login with GitHub"
-  display: Github
+  display: GitHub
   # mapping of GitHub team memberships to Teleport cluster roles
   teams_to_logins:
   - logins:

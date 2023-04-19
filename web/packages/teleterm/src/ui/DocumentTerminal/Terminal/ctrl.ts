@@ -17,7 +17,7 @@ limitations under the License.
 import 'xterm/css/xterm.css';
 import { IDisposable, Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
-import { debounce } from 'shared/utils/highbar';
+import { debounce } from 'lodash';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';
@@ -27,7 +27,7 @@ const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
 type Options = {
   el: HTMLElement;
-  fontSize: number;
+  fontFamily?: string;
 };
 
 export default class TtyTerminal {
@@ -51,17 +51,10 @@ export default class TtyTerminal {
   open(): void {
     this.term = new Terminal({
       cursorBlink: false,
-      /**
-       * `fontFamily` can be provided by the user and is unsanitized. This means that it cannot be directly used in CSS,
-       * as it may inject malicious CSS code.
-       * To sanitize the value, we set it as a style on the HTML element and then read it from it.
-       * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
-       */
-      fontFamily: this.el.style.fontFamily,
-      fontSize: this.options.fontSize,
+      fontFamily: this.options.fontFamily,
       scrollback: 5000,
       theme: {
-        background: theme.colors.levels.sunken,
+        background: theme.colors.primary.darker,
       },
       windowOptions: {
         setWinSizeChars: true,

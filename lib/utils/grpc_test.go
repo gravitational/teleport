@@ -32,8 +32,6 @@ import (
 )
 
 func TestChainUnaryServerInterceptors(t *testing.T) {
-	t.Parallel()
-
 	handler := func(context.Context, interface{}) (interface{}, error) { return "resp", fmt.Errorf("error") }
 
 	interceptors := []grpc.UnaryServerInterceptor{}
@@ -56,8 +54,6 @@ func TestChainUnaryServerInterceptors(t *testing.T) {
 }
 
 func TestChainStreamServerInterceptors(t *testing.T) {
-	t.Parallel()
-
 	handler := func(interface{}, grpc.ServerStream) error { return fmt.Errorf("handler") }
 
 	interceptors := []grpc.StreamServerInterceptor{}
@@ -93,8 +89,6 @@ func (s *service) BidirectionalStreamingEcho(stream pb.Echo_BidirectionalStreami
 // TestGRPCErrorWrapping tests the error wrapping capability of the client
 // and server unary and stream interceptors
 func TestGRPCErrorWrapping(t *testing.T) {
-	t.Parallel()
-
 	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 

@@ -17,7 +17,13 @@
 import React from 'react';
 import { render, screen } from 'design/utils/testing';
 
-import { Loaded, Failed, Empty, EmptyReadOnly } from './Apps.story';
+import {
+  Loaded,
+  Failed,
+  Empty,
+  EmptyReadOnly,
+  PaginationUnsupported,
+} from './Apps.story';
 
 jest.mock('teleport/useStickyClusterId', () =>
   jest.fn(() => ({ clusterId: 'im-a-cluster', isLeafCluster: false }))
@@ -25,6 +31,13 @@ jest.mock('teleport/useStickyClusterId', () =>
 
 test('loaded state', async () => {
   const { container } = render(<Loaded />);
+  await screen.findAllByText(/Applications/i);
+
+  expect(container).toMatchSnapshot();
+});
+
+test('pagination unsupported state', async () => {
+  const { container } = render(<PaginationUnsupported />);
   await screen.findAllByText(/Applications/i);
 
   expect(container).toMatchSnapshot();

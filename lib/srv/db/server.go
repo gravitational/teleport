@@ -16,6 +16,7 @@ limitations under the License.
 
 package db
 
+//nolint:goimports // goimports disagree with gci on blank imports
 import (
 	"context"
 	"crypto/tls"
@@ -33,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -42,36 +42,24 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
-	"github.com/gravitational/teleport/lib/srv/db/cassandra"
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/cloud/users"
 	"github.com/gravitational/teleport/lib/srv/db/common"
-	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
-	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
-	"github.com/gravitational/teleport/lib/srv/db/mongodb"
+	// Import to register Elasticsearch engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/elasticsearch"
+	// Import to register MongoDB engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
-	"github.com/gravitational/teleport/lib/srv/db/opensearch"
-	"github.com/gravitational/teleport/lib/srv/db/postgres"
-	"github.com/gravitational/teleport/lib/srv/db/redis"
-	"github.com/gravitational/teleport/lib/srv/db/snowflake"
-	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	// Import to register MySQL engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/mysql"
+	// Import to register Postgres engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/postgres"
+	// Import to register Snowflake engine.
+	_ "github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func init() {
-	common.RegisterEngine(cassandra.NewEngine, defaults.ProtocolCassandra)
-	common.RegisterEngine(elasticsearch.NewEngine, defaults.ProtocolElasticsearch)
-	common.RegisterEngine(opensearch.NewEngine, defaults.ProtocolOpenSearch)
-	common.RegisterEngine(mongodb.NewEngine, defaults.ProtocolMongoDB)
-	common.RegisterEngine(mysql.NewEngine, defaults.ProtocolMySQL)
-	common.RegisterEngine(postgres.NewEngine, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
-	common.RegisterEngine(redis.NewEngine, defaults.ProtocolRedis)
-	common.RegisterEngine(snowflake.NewEngine, defaults.ProtocolSnowflake)
-	common.RegisterEngine(sqlserver.NewEngine, defaults.ProtocolSQLServer)
-	common.RegisterEngine(dynamodb.NewEngine, defaults.ProtocolDynamoDB)
-}
-
-// Config is the configuration for a database proxy server.
+// Config is the configuration for an database proxy server.
 type Config struct {
 	// Clock used to control time.
 	Clock clockwork.Clock
@@ -92,7 +80,7 @@ type Config struct {
 	// Limiter limits the number of connections per client IP.
 	Limiter *limiter.Limiter
 	// Authorizer is used to authorize requests coming from proxy.
-	Authorizer authz.Authorizer
+	Authorizer auth.Authorizer
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// GetServerInfoFn returns function that returns database info for heartbeats.
@@ -120,6 +108,8 @@ type Config struct {
 	Auth common.Auth
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
+	// LockWatcher is a lock watcher.
+	LockWatcher *services.LockWatcher
 	// CloudClients creates cloud API clients.
 	CloudClients clients.Clients
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
@@ -130,13 +120,6 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
-	// ConnectionMonitor monitors and closes connections if session controls
-	// prevent the connections.
-	ConnectionMonitor ConnMonitor
-
-	// discoveryResourceChecker performs some pre-checks when creating databases
-	// discovered by the discovery service.
-	discoveryResourceChecker discoveryResourceChecker
 }
 
 // NewAuditFn defines a function that creates an audit logger.
@@ -193,15 +176,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.CADownloader == nil {
 		c.CADownloader = NewRealDownloader()
 	}
-	if c.ConnectionMonitor == nil {
-		return trace.BadParameter("missing ConnectionMonitor")
+	if c.LockWatcher == nil {
+		return trace.BadParameter("missing LockWatcher")
 	}
 	if c.CloudClients == nil {
-		cloudClients, err := clients.NewClients()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		c.CloudClients = cloudClients
+		c.CloudClients = clients.NewClients()
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -237,13 +216,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			Clients:    c.CloudClients,
 			UpdateMeta: c.CloudMeta.Update,
 		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	if c.discoveryResourceChecker == nil {
-		c.discoveryResourceChecker, err = newCloudCrednentialsChecker(ctx, c.CloudClients, c.ResourceMatchers)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -290,12 +262,12 @@ type Server struct {
 type monitoredDatabases struct {
 	// static are databases from the agent's YAML configuration.
 	static types.Databases
-	// resources are databases created via CLI, API, or discovery service.
+	// resources are databases created via CLI or API.
 	resources types.Databases
 	// cloud are databases detected by cloud watchers.
 	cloud types.Databases
 	// mu protects access to the fields.
-	mu sync.RWMutex
+	mu sync.Mutex
 }
 
 func (m *monitoredDatabases) setResources(databases types.Databases) {
@@ -310,50 +282,15 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 	m.cloud = databases
 }
 
-func (m *monitoredDatabases) isCloud(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	for i := range m.cloud {
-		if m.cloud[i] == database {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *monitoredDatabases) isDiscoveryResource(database types.Database) bool {
-	return database.Origin() == types.OriginCloud && m.isResource(database)
-}
-
-func (m *monitoredDatabases) isResource(database types.Database) bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	for i := range m.resources {
-		if m.resources[i] == database {
-			return true
-		}
-	}
-	return false
-}
-
 func (m *monitoredDatabases) get() types.ResourcesWithLabelsMap {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return append(append(m.static, m.resources...), m.cloud...).AsResources().ToMap()
 }
 
 // New returns a new database server.
 func New(ctx context.Context, config Config) (*Server, error) {
-	if err := common.CheckEngines(defaults.DatabaseProtocols...); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	err := config.CheckAndSetDefaults(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	clustername, err := config.AccessPoint.GetClusterName()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -372,7 +309,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		},
 		reconcileCh: make(chan struct{}),
 		middleware: &auth.Middleware{
-			ClusterName:   clustername.GetClusterName(),
+			AccessPoint:   config.AccessPoint,
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
 	}
@@ -380,11 +317,9 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig,
-		server.cfg.AccessPoint,
-		server.log,
-		types.DatabaseCA,
-	)
+		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
+		// TODO: Remove UserCA in Teleport 11.
+		types.UserCA, types.DatabaseCA)
 
 	return server, nil
 }
@@ -692,11 +627,6 @@ func (s *Server) Start(ctx context.Context) (err error) {
 	// Start cloud users that will be monitoring cloud users.
 	go s.cfg.CloudUsers.Start(ctx, s.getProxiedDatabases)
 
-	// Start heartbeating the Database Service itself.
-	if err := s.startServiceHeartbeat(); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Register all databases from static configuration.
 	for _, database := range s.cfg.Databases {
 		if err := s.registerDatabase(ctx, database); err != nil {
@@ -722,51 +652,12 @@ func (s *Server) Start(ctx context.Context) (err error) {
 		return trace.Wrap(err)
 	}
 
-	// Start the cloud-based databases CA renewer.
-	go s.startCARenewer(ctx)
-
-	return nil
-}
-
-// startServiceHeartbeat sends the current DatabaseService server info.
-func (s *Server) startServiceHeartbeat() error {
-	getDatabaseServiceServerInfo := func() (types.Resource, error) {
-		expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
-		resource, err := types.NewDatabaseServiceV1(types.Metadata{
-			Name:      s.cfg.HostID,
-			Namespace: apidefaults.Namespace,
-			Expires:   &expires,
-		}, types.DatabaseServiceSpecV1{
-			ResourceMatchers: services.ResourceMatchersToTypes(s.cfg.ResourceMatchers),
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		return resource, nil
+	// If the agent doesn’t have any static databases configured, send a
+	// heartbeat without error to make the component “ready”.
+	if len(s.cfg.Databases) == 0 && s.cfg.OnHeartbeat != nil {
+		s.cfg.OnHeartbeat(nil)
 	}
 
-	heartbeat, err := srv.NewHeartbeat(srv.HeartbeatConfig{
-		Context:         s.closeContext,
-		Component:       teleport.ComponentDatabase,
-		Mode:            srv.HeartbeatModeDatabaseService,
-		Announcer:       s.cfg.AccessPoint,
-		GetServerInfo:   getDatabaseServiceServerInfo,
-		KeepAlivePeriod: apidefaults.ServerKeepAliveTTL(),
-		AnnouncePeriod:  apidefaults.ServerAnnounceTTL/2 + utils.RandomDuration(apidefaults.ServerAnnounceTTL/10),
-		CheckPeriod:     defaults.HeartbeatCheckPeriod,
-		ServerTTL:       apidefaults.ServerAnnounceTTL,
-		OnHeartbeat:     s.cfg.OnHeartbeat,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	go func() {
-		if err := heartbeat.Run(); err != nil {
-			s.log.WithError(err).Error("Heartbeat ended with error")
-		}
-	}()
 	return nil
 }
 
@@ -910,13 +801,26 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
+	clientConn, err = monitorConn(ctx, monitorConnConfig{
+		conn:         clientConn,
+		lockWatcher:  s.cfg.LockWatcher,
+		lockTargets:  sessionCtx.LockTargets,
+		identity:     sessionCtx.Identity,
+		checker:      sessionCtx.Checker,
+		clock:        s.cfg.Clock,
+		serverID:     s.cfg.HostID,
+		authClient:   s.cfg.AuthClient,
+		teleportUser: sessionCtx.Identity.Username,
+		emitter:      s.cfg.Emitter,
+		log:          s.log,
+		ctx:          s.closeContext,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// TODO(jakule): LoginIP should be required starting from 10.0.
-	clientIP := sessionCtx.Identity.LoginIP
+	// TODO(jakule): ClientIP should be required starting from 10.0.
+	clientIP := sessionCtx.Identity.ClientIP
 	if clientIP != "" {
 		s.log.Debugf("Real client IP %s", clientIP)
 
@@ -927,28 +831,11 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		}
 		defer release()
 	} else {
-		s.log.Debug("LoginIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
+		s.log.Debug("ClientIP is not set (Proxy Service has to be updated). Rate limiting is disabled.")
 	}
 
 	err = engine.HandleConnection(ctx, sessionCtx)
 	if err != nil {
-		connectionDiagnosticID := sessionCtx.Identity.ConnectionDiagnosticID
-		if connectionDiagnosticID != "" && trace.IsAccessDenied(err) {
-			_, diagErr := s.cfg.AuthClient.AppendDiagnosticTrace(ctx,
-				connectionDiagnosticID,
-				&types.ConnectionDiagnosticTrace{
-					Type:    types.ConnectionDiagnosticTrace_RBAC_DATABASE_LOGIN,
-					Status:  types.ConnectionDiagnosticTrace_FAILED,
-					Details: "Access denied when accessing Database. Please check the Error message for more information.",
-					Error:   err.Error(),
-				},
-			)
-
-			if diagErr != nil {
-				return trace.Wrap(diagErr)
-			}
-		}
-
 		return trace.Wrap(err)
 	}
 	return nil
@@ -986,19 +873,14 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
-		DataDir:      s.cfg.DataDir,
 	})
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
-	userType, err := authz.UserFromContext(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	userType := ctx.Value(auth.ContextUser)
 	switch userType.(type) {
-	case authz.LocalUser, authz.RemoteUser:
+	case auth.LocalUser, auth.RemoteUser:
 	default:
 		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}
@@ -1009,12 +891,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
-
-	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
-	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// Fetch the requested database server.
 	var database types.Database
 	registeredDatabases := s.getProxiedDatabases()
@@ -1039,7 +915,6 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		Identity:          identity,
 		DatabaseUser:      identity.RouteToDatabase.Username,
 		DatabaseName:      identity.RouteToDatabase.Database,
-		AuthContext:       authContext,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
 		Log: s.log.WithFields(logrus.Fields{
@@ -1089,7 +964,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		Kind:         string(types.DatabaseSessionKind),
 		State:        types.SessionState_SessionStateRunning,
 		Hostname:     sessionCtx.HostID,
-		DatabaseName: sessionCtx.Database.GetName(),
+		DatabaseName: sessionCtx.DatabaseName,
 		ClusterName:  sessionCtx.ClusterName,
 		Login:        sessionCtx.Identity.GetUserMetadata().Login,
 		Participants: []types.Participant{{
@@ -1101,7 +976,16 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)
 	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, s.cfg.AuthClient)
-	if err != nil {
+	switch {
+	case err == nil:
+	case trace.IsAccessDenied(err):
+		// Ignore access denied errors, which we may get if the auth
+		// server is v9.2.3 or earlier, since only node, proxy, and
+		// kube roles had permission to create session trackers.
+		// DELETE IN 11.0.0
+		s.log.Debugf("Insufficient permissions to create session tracker, skipping session tracking for session %v", sessionCtx.ID)
+		return nil
+	default: // aka err != nil
 		return trace.Wrap(err)
 	}
 

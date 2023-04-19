@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -165,7 +165,7 @@ func TestCloudGetFederationDuration(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789:role/test",
 					},
 					Expires: test.expiresAt,
 				},
@@ -269,7 +269,7 @@ func TestCloudGetAWSSigninToken(t *testing.T) {
 			req := &AWSSigninRequest{
 				Identity: &tlsca.Identity{
 					RouteToApp: tlsca.RouteToApp{
-						AWSRoleARN: "arn:aws:iam::123456789012:role/test",
+						AWSRoleARN: "arn:aws:iam::123456789:role/test",
 					},
 					Expires: time.Now().Add(24 * time.Hour),
 				},

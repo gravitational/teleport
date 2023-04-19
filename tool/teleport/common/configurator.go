@@ -22,27 +22,20 @@ import (
 	"strings"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/configurators"
-	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
-	"github.com/gravitational/teleport/lib/configurators/configuratorbuilder"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	dbconfigurators "github.com/gravitational/teleport/lib/configurators/databases"
 	"github.com/gravitational/teleport/lib/utils/prompt"
 )
 
 // awsDatabaseTypes list of databases supported on the configurator.
 var awsDatabaseTypes = []string{
 	types.DatabaseTypeRDS,
-	types.DatabaseTypeRDSProxy,
 	types.DatabaseTypeRedshift,
-	types.DatabaseTypeRedshiftServerless,
 	types.DatabaseTypeElastiCache,
 	types.DatabaseTypeMemoryDB,
-	types.DatabaseTypeAWSKeyspaces,
-	types.DatabaseTypeDynamoDB,
 }
 
 type installSystemdFlags struct {
@@ -111,17 +104,17 @@ func onDumpDatabaseConfig(flags createDatabaseConfigFlags) error {
 	return nil
 }
 
-// configureDiscoveryBootstrapFlags database configure bootstrap flags.
-type configureDiscoveryBootstrapFlags struct {
-	config  configurators.BootstrapFlags
+// configureDatabaseBootstrapFlags database configure bootstrap flags.
+type configureDatabaseBootstrapFlags struct {
+	config  dbconfigurators.BootstrapFlags
 	confirm bool
 }
 
-// onConfigureDiscoveryBootstrap subcommand that bootstraps configuration for
-// discovery  agents.
-func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error {
+// onConfigureDatabaseBootstrap subcommand that bootstraps configuration for
+// database agents.
+func onConfigureDatabaseBootstrap(flags configureDatabaseBootstrapFlags) error {
 	ctx := context.TODO()
-	configurators, err := configuratorbuilder.BuildConfigurators(flags.config)
+	configurators, err := dbconfigurators.BuildConfigurators(flags.config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -134,7 +127,7 @@ func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error
 
 	for _, configurator := range configurators {
 		fmt.Println(configurator.Name())
-		printDiscoveryConfiguratorActions(configurator.Actions())
+		printDBConfiguratorActions(configurator.Actions())
 	}
 
 	if flags.config.Manual {
@@ -154,7 +147,7 @@ func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error
 	}
 
 	for _, configurator := range configurators {
-		err = executeDiscoveryConfiguratorActions(ctx, configurator.Name(), configurator.Actions())
+		err = executeDBConfiguratorActions(ctx, configurator.Name(), configurator.Actions())
 		if err != nil {
 			return trace.Errorf("bootstrap failed to execute, check logs above to see the cause")
 		}
@@ -176,23 +169,17 @@ type configureDatabaseAWSFlags struct {
 	user string
 	// policyName name of the generated policy.
 	policyName string
-	// assumesRoles comma-separated list of external AWS IAM role ARNs that the policy
-	// will include in sts:AssumeRole statement.
-	assumesRoles string
 }
 
 func (f *configureDatabaseAWSFlags) CheckAndSetDefaults() error {
-	if f.types == "" && f.assumesRoles == "" {
-		return trace.BadParameter("at least one of --assumes-roles or --types should be provided. Valid --types: %s",
-			strings.Join(awsDatabaseTypes, ","))
+	if f.types == "" {
+		return trace.BadParameter("at least one --types should be provided: %s", strings.Join(awsDatabaseTypes, ","))
 	}
 
-	if f.types != "" {
-		f.typesList = strings.Split(f.types, ",")
-		for _, dbType := range f.typesList {
-			if !slices.Contains(awsDatabaseTypes, dbType) {
-				return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
-			}
+	f.typesList = strings.Split(f.types, ",")
+	for _, dbType := range f.typesList {
+		if !apiutils.SliceContainsStr(awsDatabaseTypes, dbType) {
+			return trace.BadParameter("--types %q not supported. supported types are: %s", dbType, strings.Join(awsDatabaseTypes, ", "))
 		}
 	}
 
@@ -211,44 +198,36 @@ type configureDatabaseAWSPrintFlags struct {
 
 // buildAWSConfigurator builds the database configurator used on AWS-specific
 // commands.
-func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configurators.Configurator, error) {
+func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (dbconfigurators.Configurator, error) {
 	err := flags.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	configuratorFlags := configurators.BootstrapFlags{
-		Manual:            manual,
-		PolicyName:        flags.policyName,
-		AttachToUser:      flags.user,
-		AttachToRole:      flags.role,
-		ForceAssumesRoles: flags.assumesRoles,
+	fileConfig := &config.FileConfig{}
+	configuratorFlags := dbconfigurators.BootstrapFlags{
+		Manual:       manual,
+		PolicyName:   flags.policyName,
+		AttachToUser: flags.user,
+		AttachToRole: flags.role,
 	}
 
 	for _, dbType := range flags.typesList {
 		switch dbType {
 		case types.DatabaseTypeRDS:
 			configuratorFlags.ForceRDSPermissions = true
-		case types.DatabaseTypeRDSProxy:
-			configuratorFlags.ForceRDSProxyPermissions = true
 		case types.DatabaseTypeRedshift:
 			configuratorFlags.ForceRedshiftPermissions = true
-		case types.DatabaseTypeRedshiftServerless:
-			configuratorFlags.ForceRedshiftServerlessPermissions = true
 		case types.DatabaseTypeElastiCache:
 			configuratorFlags.ForceElastiCachePermissions = true
 		case types.DatabaseTypeMemoryDB:
 			configuratorFlags.ForceMemoryDBPermissions = true
-		case types.DatabaseTypeAWSKeyspaces:
-			configuratorFlags.ForceAWSKeyspacesPermissions = true
-		case types.DatabaseTypeDynamoDB:
-			configuratorFlags.ForceDynamoDBPermissions = true
 		}
 	}
 
-	configurator, err := awsconfigurators.NewAWSConfigurator(awsconfigurators.ConfiguratorConfig{
-		Flags:         configuratorFlags,
-		ServiceConfig: &servicecfg.Config{},
+	configurator, err := dbconfigurators.NewAWSConfigurator(dbconfigurators.AWSConfiguratorConfig{
+		Flags:      configuratorFlags,
+		FileConfig: fileConfig,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -284,7 +263,7 @@ func onConfigureDatabasesAWSPrint(flags configureDatabaseAWSPrintFlags) error {
 		return nil
 	}
 
-	printDiscoveryConfiguratorActions(actions)
+	printDBConfiguratorActions(actions)
 	return nil
 }
 
@@ -305,14 +284,8 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		return trace.Wrap(err)
 	}
 
-	// Check if configurator actions is empty.
-	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn't require any extra configuration.")
-		return nil
-	}
-
 	actions := configurator.Actions()
-	printDiscoveryConfiguratorActions(actions)
+	printDBConfiguratorActions(actions)
 	fmt.Print("\n")
 
 	if !flags.confirm {
@@ -326,7 +299,13 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		}
 	}
 
-	err = executeDiscoveryConfiguratorActions(ctx, configurator.Name(), actions)
+	// Check if configurator actions is empty.
+	if configurator.IsEmpty() {
+		fmt.Println("The agent doesn't require any extra configuration.")
+		return nil
+	}
+
+	err = executeDBConfiguratorActions(ctx, configurator.Name(), actions)
 	if err != nil {
 		return trace.Errorf("bootstrap failed to execute, check logs above to see the cause")
 	}
@@ -334,8 +313,8 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 	return nil
 }
 
-// printDiscoveryConfiguratorActions prints the database configurator actions.
-func printDiscoveryConfiguratorActions(actions []configurators.ConfiguratorAction) {
+// printDBConfiguratorActions prints the database configurator actions.
+func printDBConfiguratorActions(actions []dbconfigurators.ConfiguratorAction) {
 	for i, action := range actions {
 		fmt.Printf("%d. %s", i+1, action.Description())
 		if len(action.Details()) > 0 {
@@ -346,13 +325,13 @@ func printDiscoveryConfiguratorActions(actions []configurators.ConfiguratorActio
 	}
 }
 
-// executeDiscoveryConfiguratorActions iterate over all actions, executing and printing
+// executeDBConfiguratorActions iterate over all actions, executing and printing
 // their results.
-func executeDiscoveryConfiguratorActions(ctx context.Context, configuratorName string, actions []configurators.ConfiguratorAction) error {
-	actionContext := &configurators.ConfiguratorActionContext{}
+func executeDBConfiguratorActions(ctx context.Context, configuratorName string, actions []dbconfigurators.ConfiguratorAction) error {
+	actionContext := &dbconfigurators.ConfiguratorActionContext{}
 	for _, action := range actions {
 		err := action.Execute(ctx, actionContext)
-		printDiscoveryBootstrapActionResult(configuratorName, action, err)
+		printDBBootstrapActionResult(configuratorName, action, err)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -361,9 +340,9 @@ func executeDiscoveryConfiguratorActions(ctx context.Context, configuratorName s
 	return nil
 }
 
-// printDiscoveryBootstrapActionResult human-readable print of the action result (error
+// printDBBootstrapActionResult human-readable print of the action result (error
 // or success).
-func printDiscoveryBootstrapActionResult(configuratorName string, action configurators.ConfiguratorAction, err error) {
+func printDBBootstrapActionResult(configuratorName string, action dbconfigurators.ConfiguratorAction, err error) {
 	leadSymbol := "✅"
 	endText := "done"
 	if err != nil {

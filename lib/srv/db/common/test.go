@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"net"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -38,9 +37,11 @@ import (
 // TestServerConfig combines parameters for a test Postgres/MySQL server.
 type TestServerConfig struct {
 	// AuthClient will be used to retrieve trusted CA.
-	AuthClient AuthClientCA
+	AuthClient auth.ClientI
 	// Name is the server name for identification purposes.
 	Name string
+	// Address is an optional server listen address.
+	Address string
 	// AuthUser is used in tests simulating IAM token authentication.
 	AuthUser string
 	// AuthToken is used in tests simulating IAM token authentication.
@@ -56,51 +57,6 @@ type TestServerConfig struct {
 	// ClientAuth sets tls.ClientAuth in server's tls.Config. It can be used to force client
 	// certificate validation in tests.
 	ClientAuth tls.ClientAuthType
-
-	Listener net.Listener
-}
-
-func (cfg *TestServerConfig) CheckAndSetDefaults() error {
-	if cfg.Listener == nil {
-		listener, err := net.Listen("tcp", "localhost:0")
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		cfg.Listener = listener
-	}
-
-	return nil
-}
-
-func (cfg *TestServerConfig) CloseOnError(err *error) error {
-	if *err != nil {
-		return cfg.Close()
-	}
-	return nil
-}
-
-func (cfg *TestServerConfig) Close() error {
-	return cfg.Listener.Close()
-}
-
-func (cfg *TestServerConfig) Port() (string, error) {
-	_, port, err := net.SplitHostPort(cfg.Listener.Addr().String())
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return port, nil
-}
-
-// AuthClientCA contains the required methods to Generate mTLS certificate to be used
-// by the postgres TestServer.
-type AuthClientCA interface {
-	// GenerateDatabaseCert generates client certificate used by a database
-	// service to authenticate with the database instance.
-	GenerateDatabaseCert(context.Context, *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error)
-
-	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 }
 
 // MakeTestServerTLSConfig returns TLS config suitable for configuring test
@@ -159,8 +115,6 @@ type TestClientConfig struct {
 	Cluster string
 	// Username is the Teleport user name.
 	Username string
-	// PinnedIP is an IP client's certificate should be pinned to.
-	PinnedIP string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
 }
@@ -178,7 +132,6 @@ func MakeTestClientTLSCert(config TestClientConfig) (*tls.Certificate, error) {
 		Cluster:         config.Cluster,
 		Username:        config.Username,
 		RouteToDatabase: config.RouteToDatabase,
-		PinnedIP:        config.PinnedIP,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

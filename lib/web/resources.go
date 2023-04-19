@@ -18,16 +18,17 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
+	"golang.org/x/mod/semver"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -46,12 +47,13 @@ func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http
 		return nil, trace.Wrap(err)
 	}
 
-	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop}
+	resourceKinds := []string{types.KindNode, types.KindDatabaseServer, types.KindAppServer, types.KindKubeService, types.KindWindowsDesktop}
 	for _, kind := range resourceKinds {
 		res, err := clt.ListResources(r.Context(), proto.ListResourcesRequest{
 			ResourceType: kind,
 			Limit:        1,
 		})
+
 		if err != nil {
 			// Access denied error is returned when user does not have permissions
 			// to read/list a resource kind which can be ignored as this function is not
@@ -381,7 +383,36 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
-func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResourcesRequest, error) {
+// attemptListResources first checks that the auth server supports
+// pagination and filtering before attempting to call the new ListResources api.
+func attemptListResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
+	// ListResources for 'pagination' feature was available starting from v8
+	// for DatabaseServers and AppServers, but it wasn't until v9.1 when
+	// 'filtering' feature became available. Also in v8/v9.0, the web UI did not
+	// use this new api, so we will treat v8/v9.0 as not implemented to avoid
+	// false positives (really only applies to DatabaseServers and AppServers).
+	pingRes, err := clt.Ping(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	currVersion := fmt.Sprintf("v%s", pingRes.GetServerVersion())
+	filterSuppotedVersion := "v9.1.0"
+	// If currVersion < filterSuppotedVersion
+	if semver.Compare(currVersion, filterSuppotedVersion) == -1 {
+		return nil, trace.NotImplemented("resource type %s does not support pagination", resourceKind)
+	}
+
+	res, err := listResources(clt, r, resourceKind)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res, nil
+}
+
+// listResources gets a list of resources depending on the type of resource.
+func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
 	values := r.URL.Query()
 
 	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -389,62 +420,238 @@ func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResou
 		return nil, trace.Wrap(err)
 	}
 
-	sortBy := types.GetSortByFromString(values.Get("sort"))
+	// Sort is expected in format `<fieldName>:<asc|desc>` where
+	// index 0 is fieldName and index 1 is direction.
+	// If a direction is not set, or is not recognized, it defaults to ASC.
+	var sortBy types.SortBy
+	sortParam := values.Get("sort")
+	if sortParam != "" {
+		vals := strings.Split(sortParam, ":")
+		if vals[0] != "" {
+			sortBy.Field = vals[0]
+			if len(vals) > 1 && vals[1] == "desc" {
+				sortBy.IsDesc = true
+			}
+		}
+	}
 
 	startKey := values.Get("startKey")
-	return &proto.ListResourcesRequest{
-		ResourceType:        kind,
+	req := proto.ListResourcesRequest{
+		ResourceType:        resourceKind,
 		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
+	}
+
+	return clt.ListResources(r.Context(), req)
+}
+
+func handleClusterNodesGet(clt resourcesAPIGetter, r *http.Request, clusterName string, userRoles services.RoleSet) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindNode)
+	if err == nil {
+		servers, err := types.ResourcesWithLabels(resp.Resources).AsServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		uiServers, err := ui.MakeServers(clusterName, servers, userRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &listResourcesGetResponse{
+			Items:      uiServers,
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	nodes, err := clt.GetNodes(r.Context(), apidefaults.Namespace)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiServers, err := ui.MakeServers(clusterName, nodes, userRoles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items: uiServers,
 	}, nil
 }
 
-// listKubeResources gets a list of kubernetes resources depending on the type of resource.
-func listKubeResources(ctx context.Context, kubeClient kubeproto.KubeServiceClient, values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesResponse, error) {
-	req, err := newKubeListRequest(values, site, resourceKind)
+func handleClusterDatabasesGet(clt resourcesAPIGetter, r *http.Request, clusterName string) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindDatabaseServer)
+	if err == nil {
+		servers, err := types.ResourcesWithLabels(resp.Resources).AsDatabaseServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Make a list of all proxied databases.
+		var databases []types.Database
+		for _, server := range servers {
+			databases = append(databases, server.GetDatabase())
+		}
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeDatabases(clusterName, databases),
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	dbServers, err := clt.GetDatabaseServers(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return kubeClient.ListKubernetesResources(ctx, req)
+
+	var databases []types.Database
+	for _, server := range dbServers {
+		databases = append(databases, server.GetDatabase())
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeDatabases(clusterName, types.DeduplicateDatabases(databases)),
+	}, nil
 }
 
-// newKubeListRequest parses the request parameters into a ListKubernetesResourcesRequest.
-func newKubeListRequest(values url.Values, site, resourceKind string) (*kubeproto.ListKubernetesResourcesRequest, error) {
-	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
+func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAppsConfig) (*listResourcesGetResponse, error) {
+	// Check app config is not empty
+	if cfg.Identity == nil || cfg.LocalClusterName == "" || cfg.LocalProxyDNSName == "" || cfg.AppClusterName == "" {
+		return nil, trace.BadParameter("missing MakeAppsConfig required fields")
+	}
+
+	resp, err := attemptListResources(clt, r, types.KindAppServer)
+	if err == nil {
+		appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		apps := extractApps(appServers)
+		cfg.Apps = apps
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeApps(cfg),
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	appServers, err := clt.GetApplicationServers(r.Context(), apidefaults.Namespace)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sortBy := types.GetSortByFromString(values.Get("sort"))
+	apps := extractApps(appServers)
+	cfg.Apps = types.DeduplicateApps(apps)
 
-	startKey := values.Get("startKey")
-	req := &kubeproto.ListKubernetesResourcesRequest{
-		ResourceType:        resourceKind,
-		Limit:               limit,
-		StartKey:            startKey,
-		SortBy:              &sortBy,
-		PredicateExpression: values.Get("query"),
-		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
-		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
-		TeleportCluster:     site,
-		KubernetesCluster:   values.Get("kubeCluster"),
-		KubernetesNamespace: values.Get("kubeNamespace"),
+	return &listResourcesGetResponse{
+		Items: ui.MakeApps(cfg),
+	}, nil
+}
+
+func handleClusterDesktopsGet(clt resourcesAPIGetter, roles []types.Role, r *http.Request) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindWindowsDesktop)
+	if err == nil {
+		windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		uiDesktops, err := ui.MakeDesktops(windowsDesktops, roles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &listResourcesGetResponse{
+			Items:      uiDesktops,
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
 	}
-	return req, nil
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	windowsDesktops, err := clt.GetWindowsDesktops(r.Context(), types.WindowsDesktopFilter{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	windowsDesktops = types.DeduplicateDesktops(windowsDesktops)
+
+	uiDesktops, err := ui.MakeDesktops(windowsDesktops, roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items: uiDesktops,
+	}, nil
+}
+
+func handleClusterKubesGet(clt resourcesAPIGetter, r *http.Request, userRoles services.RoleSet) (*listResourcesGetResponse, error) {
+	resp, err := attemptListResources(clt, r, types.KindKubernetesCluster)
+	if err == nil {
+		clusters, err := types.ResourcesWithLabels(resp.Resources).AsKubeClusters()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &listResourcesGetResponse{
+			Items:      ui.MakeKubeClusters(clusters, userRoles),
+			StartKey:   &resp.NextKey,
+			TotalCount: &resp.TotalCount,
+		}, nil
+	}
+
+	if !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// Fallback support.
+	kubeServices, err := clt.GetKubeServices(r.Context())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &listResourcesGetResponse{
+		Items: ui.MakeLegacyKubeClusters(kubeServices),
+	}, nil
 }
 
 type listResourcesGetResponse struct {
 	// Items is a list of resources retrieved.
 	Items interface{} `json:"items"`
 	// StartKey is the position to resume search events.
-	StartKey string `json:"startKey"`
+	// 'nil' means that pagination is not supported in the Web UI.
+	StartKey *string `json:"startKey"`
 	// TotalCount is the total count of resources available
 	// after filter.
-	TotalCount int `json:"totalCount"`
+	// 'nil' means that pagination is not supported in the Web UI.
+	TotalCount *int `json:"totalCount"`
 }
 
 type checkAccessToRegisteredResourceResponse struct {
@@ -478,4 +685,11 @@ type resourcesAPIGetter interface {
 	DeleteTrustedCluster(ctx context.Context, name string) error
 	// ListResources returns a paginated list of resources.
 	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+
+	GetApplicationServers(context.Context, string) ([]types.AppServer, error)
+	GetDatabaseServers(context.Context, string, ...services.MarshalOption) ([]types.DatabaseServer, error)
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	GetKubeServices(context.Context) ([]types.Server, error)
+	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
+	Ping(ctx context.Context) (proto.PingResponse, error)
 }

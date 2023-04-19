@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/lib/auth/touchid"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
-	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
 // AuthenticatorAttachment allows callers to choose a specific attachment.
@@ -36,18 +35,6 @@ const (
 	AttachmentCrossPlatform
 	AttachmentPlatform
 )
-
-func (a AuthenticatorAttachment) String() string {
-	switch a {
-	case AttachmentAuto:
-		return "auto"
-	case AttachmentCrossPlatform:
-		return "cross-platform"
-	case AttachmentPlatform:
-		return "platform"
-	}
-	return ""
-}
 
 // CredentialInfo holds information about a WebAuthn credential, typically a
 // resident public key credential.
@@ -100,7 +87,7 @@ type LoginOpts struct {
 
 // Login performs client-side, U2F-compatible, Webauthn login.
 // This method blocks until either device authentication is successful or the
-// context is canceled. Calling Login without a deadline or cancel condition
+// context is cancelled. Calling Login without a deadline or cancel condition
 // may cause it to block forever.
 // The informed user is used to disambiguate credentials in case of passwordless
 // logins.
@@ -131,13 +118,6 @@ func Login(
 		user = opts.User
 	}
 
-	if webauthnwin.IsAvailable() {
-		log.Debug("WebAuthnWin: Using windows webauthn for credential assertion")
-		return webauthnwin.Login(ctx, origin, assertion, &webauthnwin.LoginOpts{
-			AuthenticatorAttachment: webauthnwin.AuthenticatorAttachment(attachment),
-		})
-	}
-
 	switch attachment {
 	case AttachmentCrossPlatform:
 		log.Debug("Cross-platform login")
@@ -161,7 +141,7 @@ func crossPlatformLogin(
 	ctx context.Context,
 	origin string, assertion *wanlib.CredentialAssertion, prompt LoginPrompt, opts *LoginOpts,
 ) (*proto.MFAAuthenticateResponse, string, error) {
-	if isLibfido2Enabled() {
+	if IsFIDO2Available() {
 		log.Debug("FIDO2: Using libfido2 for assertion")
 		return FIDO2Login(ctx, origin, assertion, prompt, opts)
 	}
@@ -212,7 +192,7 @@ type RegisterPrompt interface {
 
 // Register performs client-side, U2F-compatible, Webauthn registration.
 // This method blocks until either device authentication is successful or the
-// context is canceled. Calling Register without a deadline or cancel condition
+// context is cancelled. Calling Register without a deadline or cancel condition
 // may cause it block forever.
 // The caller is expected to react to RegisterPrompt in order to prompt the user
 // at appropriate times. Register may choose different flows depending on the
@@ -220,12 +200,7 @@ type RegisterPrompt interface {
 func Register(
 	ctx context.Context,
 	origin string, cc *wanlib.CredentialCreation, prompt RegisterPrompt) (*proto.MFARegisterResponse, error) {
-	if webauthnwin.IsAvailable() {
-		log.Debug("WebAuthnWin: Using windows webauthn for credential creation")
-		return webauthnwin.Register(ctx, origin, cc)
-	}
-
-	if isLibfido2Enabled() {
+	if IsFIDO2Available() {
 		log.Debug("FIDO2: Using libfido2 for credential creation")
 		return FIDO2Register(ctx, origin, cc, prompt)
 	}
@@ -241,16 +216,4 @@ func Register(
 	}
 
 	return resp, trace.Wrap(ackTouch())
-}
-
-// HasPlatformSupport returns true if the platform supports client-side
-// WebAuthn-compatible logins.
-func HasPlatformSupport() bool {
-	return IsFIDO2Available() || touchid.IsAvailable() || isU2FAvailable()
-}
-
-// IsFIDO2Available returns true if FIDO2 is implemented either via native
-// libfido2 library or Windows WebAuthn API.
-func IsFIDO2Available() bool {
-	return isLibfido2Enabled() || webauthnwin.IsAvailable()
 }

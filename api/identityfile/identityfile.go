@@ -68,7 +68,7 @@ type Certs struct {
 
 // CACerts contains PEM encoded CA certificates.
 type CACerts struct {
-	// SSH are CA certs used for SSH in known_hosts format.
+	// SSH are CA certs used for SSH.
 	SSH [][]byte
 	// TLS are CA certs used for TLS.
 	TLS [][]byte
@@ -261,10 +261,10 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 	// are copied out of the scanner's buffer.  All others are ignored.
 	for scanln() {
 		switch {
-		case isSSHCert(line):
-			ident.Certs.SSH = append(cloneln(), '\n')
+		case hasPrefix("ssh"):
+			ident.Certs.SSH = cloneln()
 		case hasPrefix("@cert-authority"):
-			ident.CACerts.SSH = append(ident.CACerts.SSH, append(cloneln(), '\n'))
+			ident.CACerts.SSH = append(ident.CACerts.SSH, cloneln())
 		case hasPrefix("-----BEGIN"):
 			// Current line marks the beginning of a PEM block.  Consume all
 			// lines until a corresponding END is found.
@@ -300,10 +300,4 @@ func decodeIdentityFile(idFile io.Reader) (*IdentityFile, error) {
 		return nil, trace.Wrap(err)
 	}
 	return &ident, nil
-}
-
-// Check if the given data has an ssh cert type prefix as it's first part.
-func isSSHCert(data []byte) bool {
-	sshCertType := bytes.Split(data, []byte(" "))[0]
-	return sshutils.IsSSHCertType(string(sshCertType))
 }

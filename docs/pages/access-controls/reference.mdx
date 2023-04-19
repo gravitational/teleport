@@ -1,6 +1,6 @@
 ---
 title: Access Controls Reference Documentation
-description: This reference shows you the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
+description: Access Controls reference documentation for role options and properties.
 h1: Teleport Access Controls Reference
 ---
 
@@ -26,7 +26,7 @@ allow:
 ```
 
 If this rule was declared in the `deny` section of a role definition, it
-would prohibit users from getting a list of Trusted Clusters and
+would prohibit users from getting a list of trusted clusters and
 sessions. You can see all of the available resources and verbs under the `allow`
 section in the example role configuration below.
 
@@ -105,8 +105,7 @@ The table below documents the behavior of each option if multiple roles are assi
 | `max_sessions` | Total number of session channels which can be established across a single SSH connection via Teleport | |
 | `enhanced_recording` | Indicates which events should be recorded by the BFP-based session recorder | |
 | `permit_x11_forwarding` | Allow users to enable X11 forwarding with OpenSSH clients and servers | |
-| `device_trust_mode` | Enforce authenticated device access for the owner of this role (`required`, `optional`, `off`) | |
-| `require_session_mfa` | Enforce per-session MFA or PIV-hardware key restrictions on user login sessions (`no`, `yes`, `hardware_key`, `hardware_key_touch`) | For per-session MFA, Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
+| `require_session_mfa` | Require additional MFA tap before initiating a session | Logical "OR" i.e. evaluates to "yes" if at least one role requires session MFA |
 | `lock` | Locking mode (`strict` or `best_effort`) | `strict` wins in case of conflict |
 | `request_access` | Enterprise-only Access Request strategy (`optional`, `always` or `reason`) | |
 | `request_prompt` | Prompt for the Access Request "reason" field | |
@@ -128,26 +127,30 @@ Teleport provides several pre-defined roles out-of-the-box:
 | `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
 | `access`| Allows access to cluster resources. |
 
+<Details title="Version Warning: Before 8.0" opened={false}>
+Teleport versions prior to 8.0 also included a default `admin` role. This role
+has been deprecated in favor of smaller, more fine-grained roles like the
+presets mentioned above.
+
+Users installing a brand new Teleport cluster on version 8.0 or later will not
+see this `admin` role. Users who upgrade to Teleport 8 from an earlier version
+*will* continue to see the admin role, but are encouraged to migrate to roles
+that are more appropriately scoped.
+</Details>
+
 ### Role versions
 
-There are currently four supported role versions: `v3`, `v4`, `v5` and `v6`. `v4`, `v5` and `v6` roles are
+There are currently three supported role versions: `v3`, `v4` and `v5`. `v4` and `v5` roles are
 completely backwards-compatible with `v3`, the only difference lies in the
-default values which will be applied to the role if they are not
-explicitly set. Additionally, roles `v5` or `v6` are required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
+default allow labels which will be applied to the role if they are not
+explicitly set. Additionally, `v5` is required to use [Moderated Sessions](./guides/moderated-sessions.mdx).
 
-Label              | `v3` Default   | `v4`, `v5` and `v6` Default
+Label              | `v3` Default   | `v4` and `v5` Default
 ------------------ | -------------- | ---------------
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
 `database_labels`   | `[{"*": "*"}]` | `[]`
-
-Role `v6` introduced a new field `kubernetes_resources` that allows
-fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../kubernetes-access/manage-access/rbac.mdx) for more details.
-
-Label              | `v3`, `v4` and `v5` Default   | `v6` Default
------------------- | -------------- | ---------------
-`kubernetes_resources` | `[{"kind":"pod", "name":"*", "namespace":"*"}]` | `[]`
 
 ## RBAC for hosts
 
@@ -236,16 +239,13 @@ allow:
         - node
       verbs: [list, create, read, update, delete]
     - resources:
-        - app
+        - app_server
       verbs: [list, create, read, update, delete]
     - resources:
         - kube_service
       verbs: [list, create, read, update, delete]
     - resources:
-        - kube_cluster
-      verbs: [list, create, read, update, delete]
-    - resources:
-        - db
+        - db_server
       verbs: [list, create, read, update, delete]
     - resources:
         - windows_desktop

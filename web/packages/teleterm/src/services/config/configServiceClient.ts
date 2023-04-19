@@ -30,11 +30,9 @@ export function subscribeToConfigServiceEvents(
     (event, eventType: ConfigServiceEventType, item) => {
       switch (eventType) {
         case ConfigServiceEventType.Get:
-          return (event.returnValue = configService.get(item.path));
-        case ConfigServiceEventType.Set:
-          return configService.set(item.path, item.value);
-        case ConfigServiceEventType.GetConfigError:
-          return (event.returnValue = configService.getConfigError());
+          return (event.returnValue = configService.get());
+        case ConfigServiceEventType.Update:
+          return configService.update(item);
       }
     }
   );
@@ -42,23 +40,16 @@ export function subscribeToConfigServiceEvents(
 
 export function createConfigServiceClient(): ConfigService {
   return {
-    get: path =>
+    get: () =>
       ipcRenderer.sendSync(
         ConfigServiceEventChannel,
-        ConfigServiceEventType.Get,
-        { path }
+        ConfigServiceEventType.Get
       ),
-    set: (path, value) => {
-      ipcRenderer.send(ConfigServiceEventChannel, ConfigServiceEventType.Set, {
-        path,
-        value,
-      });
-    },
-    getConfigError: () => {
-      return ipcRenderer.sendSync(
+    update: newConfig =>
+      ipcRenderer.send(
         ConfigServiceEventChannel,
-        ConfigServiceEventType.GetConfigError
-      );
-    },
+        ConfigServiceEventType.Update,
+        newConfig
+      ),
   };
 }

@@ -34,8 +34,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 var (
@@ -187,7 +187,7 @@ func DefaultNewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 // NewHandler returns a new handler with specific context, cancelFunc, and client
 func NewHandler(ctx context.Context, cancelFunc context.CancelFunc, cfg Config, client *storage.Client) (*Handler, error) {
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

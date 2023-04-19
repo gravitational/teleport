@@ -23,6 +23,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -30,7 +31,6 @@ import (
 	"golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v2"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -39,6 +39,9 @@ import (
 const (
 	// profileDir is the default root directory where tsh stores profiles.
 	profileDir = ".tsh"
+	// currentProfileFilename is a file which stores the name of the
+	// currently active profile.
+	currentProfileFilename = "current-profile"
 )
 
 // Profile is a collection of most frequently used CLI flags
@@ -46,6 +49,7 @@ const (
 //
 // Profiles can be stored in a profile file, allowing TSH users to
 // type fewer CLI args.
+//
 type Profile struct {
 	// WebProxyAddr is the host:port the web proxy can be accessed at.
 	WebProxyAddr string `yaml:"web_proxy_addr,omitempty"`
@@ -85,13 +89,6 @@ type Profile struct {
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `yaml:"tls_routing_enabled,omitempty"`
 
-	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
-	// are required for making TLS routing requests.
-	//
-	// Note that this is applicable to the Proxy's Web port regardless of
-	// whether the Proxy is in single-port or multi-port configuration.
-	TLSRoutingConnUpgradeRequired bool `yaml:"tls_routing_conn_upgrade_required,omitempty"`
-
 	// AuthConnector (like "google", "passwordless").
 	// Equivalent to the --auth tsh flag.
 	AuthConnector string `yaml:"auth_connector,omitempty"`
@@ -99,22 +96,6 @@ type Profile struct {
 	// LoadAllCAs indicates that tsh should load the CAs of all clusters
 	// instead of just the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
-
-	// MFAMode ("auto", "platform", "cross-platform").
-	// Equivalent to the --mfa-mode tsh flag.
-	MFAMode string `yaml:"mfa_mode,omitempty"`
-
-	// PrivateKeyPolicy is a key policy enforced for this profile.
-	PrivateKeyPolicy keys.PrivateKeyPolicy `yaml:"private_key_policy"`
-}
-
-// Copy returns a shallow copy of p, or nil if p is nil.
-func (p *Profile) Copy() *Profile {
-	if p == nil {
-		return nil
-	}
-	copy := *p
-	return &copy
 }
 
 // Name returns the name of the profile.
@@ -237,7 +218,7 @@ func SetCurrentProfileName(dir string, name string) error {
 		return trace.BadParameter("cannot set current profile: missing dir")
 	}
 
-	path := keypaths.CurrentProfileFilePath(dir)
+	path := filepath.Join(dir, currentProfileFilename)
 	if err := os.WriteFile(path, []byte(strings.TrimSpace(name)+"\n"), 0660); err != nil {
 		return trace.Wrap(err)
 	}
@@ -260,7 +241,7 @@ func GetCurrentProfileName(dir string) (name string, err error) {
 		return "", trace.BadParameter("cannot get current profile: missing dir")
 	}
 
-	data, err := os.ReadFile(keypaths.CurrentProfileFilePath(dir))
+	data, err := os.ReadFile(filepath.Join(dir, currentProfileFilename))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", trace.NotFound("current-profile is not set")
@@ -314,7 +295,7 @@ func FullProfilePath(dir string) string {
 // defaultProfilePath retrieves the default path of the TSH profile.
 func defaultProfilePath() string {
 	home := os.TempDir()
-	if u, err := utils.CurrentUser(); err == nil && u.HomeDir != "" {
+	if u, err := user.Current(); err == nil && u.HomeDir != "" {
 		home = u.HomeDir
 	}
 	return filepath.Join(home, profileDir)
@@ -332,7 +313,7 @@ func FromDir(dir string, name string) (*Profile, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	p, err := profileFromFile(keypaths.ProfileFilePath(dir, name))
+	p, err := profileFromFile(filepath.Join(dir, name+".yaml"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -366,7 +347,7 @@ func (p *Profile) SaveToDir(dir string, makeCurrent bool) error {
 	if dir == "" {
 		return trace.BadParameter("cannot save profile: missing dir")
 	}
-	if err := p.saveToFile(keypaths.ProfileFilePath(dir, p.Name())); err != nil {
+	if err := p.saveToFile(filepath.Join(dir, p.Name()+".yaml")); err != nil {
 		return trace.Wrap(err)
 	}
 	if makeCurrent {

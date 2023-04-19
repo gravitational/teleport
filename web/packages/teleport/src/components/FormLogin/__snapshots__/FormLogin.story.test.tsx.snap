@@ -35,8 +35,8 @@ exports[`auth2faType: off 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -45,19 +45,22 @@ exports[`auth2faType: off 1`] = `
   width: 100%;
 }
 
+.c9:active {
+  opacity: 0.56;
+}
+
 .c9:hover,
 .c9:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c9:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -69,25 +72,15 @@ exports[`auth2faType: off 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: none;
   border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -95,15 +88,9 @@ exports[`auth2faType: off 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
+  color: #324148;
+  background-color: #FFFFFF;
   margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -111,16 +98,11 @@ exports[`auth2faType: off 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  opacity: 0.4;
 }
 
 .c7:read-only {
   cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -131,6 +113,18 @@ exports[`auth2faType: off 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
 }
 
 .c4 {
@@ -195,6 +189,7 @@ exports[`auth2faType: off 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -223,6 +218,7 @@ exports[`auth2faType: off 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
+                color="text.onLight"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -245,6 +241,7 @@ exports[`auth2faType: off 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.onLight"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -311,8 +308,8 @@ exports[`auth2faType: optional rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -321,19 +318,22 @@ exports[`auth2faType: optional rendering 1`] = `
   width: 100%;
 }
 
+.c13:active {
+  opacity: 0.56;
+}
+
 .c13:hover,
 .c13:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c13:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -345,25 +345,15 @@ exports[`auth2faType: optional rendering 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: none;
   border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -371,15 +361,9 @@ exports[`auth2faType: optional rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
+  color: #324148;
+  background-color: #FFFFFF;
   margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -387,16 +371,11 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  opacity: 0.4;
 }
 
 .c7:read-only {
   cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -417,6 +396,18 @@ exports[`auth2faType: optional rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
 }
 
 .c4 {
@@ -482,137 +473,57 @@ exports[`auth2faType: optional rendering 1`] = `
 }
 
 .c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control {
-  outline: none;
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
-}
-
 .c12 .react-select__control:hover,
-.c12 .react-select__control:focus,
-.c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c12 .react-select__control:hover .react-select__dropdown-indicator,
-.c12 .react-select__control:focus .react-select__dropdown-indicator,
-.c12 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control .react-select__indicator:hover,
-.c12 .react-select__control .react-select__dropdown-indicator:hover,
-.c12 .react-select__control .react-select__indicator:focus,
-.c12 .react-select__control .react-select__dropdown-indicator:focus,
-.c12 .react-select__control .react-select__indicator:active,
-.c12 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
-}
-
-.c12 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
-}
-
-.c12 .react-select__clear-indicator:hover,
-.c12 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__clear-indicator:hover svg,
-.c12 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -623,22 +534,13 @@ exports[`auth2faType: optional rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
-.c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
-}
-
 .c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
-.c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
-.c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -647,6 +549,7 @@ exports[`auth2faType: optional rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -675,6 +578,7 @@ exports[`auth2faType: optional rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
+                color="text.onLight"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -697,6 +601,7 @@ exports[`auth2faType: optional rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.onLight"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -719,7 +624,6 @@ exports[`auth2faType: optional rendering 1`] = `
                 <label
                   class="c11"
                   font-size="0"
-                  for="select"
                 >
                   Two-factor type
                 </label>
@@ -743,7 +647,7 @@ exports[`auth2faType: optional rendering 1`] = `
                         <input
                           aria-autocomplete="list"
                           class="css-62g3xt-dummyInput"
-                          id="select"
+                          id="react-select-4-input"
                           readonly=""
                           tabindex="0"
                           value=""
@@ -843,8 +747,8 @@ exports[`auth2faType: otp rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -853,19 +757,22 @@ exports[`auth2faType: otp rendering 1`] = `
   width: 100%;
 }
 
+.c14:active {
+  opacity: 0.56;
+}
+
 .c14:hover,
 .c14:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c14:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c14:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -877,25 +784,15 @@ exports[`auth2faType: otp rendering 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: none;
   border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -903,15 +800,9 @@ exports[`auth2faType: otp rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
+  color: #324148;
+  background-color: #FFFFFF;
   margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -919,16 +810,11 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  opacity: 0.4;
 }
 
 .c7:read-only {
   cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -949,6 +835,18 @@ exports[`auth2faType: otp rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
 }
 
 .c4 {
@@ -1014,137 +912,57 @@ exports[`auth2faType: otp rendering 1`] = `
 }
 
 .c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control {
-  outline: none;
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
-}
-
 .c12 .react-select__control:hover,
-.c12 .react-select__control:focus,
-.c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c12 .react-select__control:hover .react-select__dropdown-indicator,
-.c12 .react-select__control:focus .react-select__dropdown-indicator,
-.c12 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control .react-select__indicator:hover,
-.c12 .react-select__control .react-select__dropdown-indicator:hover,
-.c12 .react-select__control .react-select__indicator:focus,
-.c12 .react-select__control .react-select__dropdown-indicator:focus,
-.c12 .react-select__control .react-select__indicator:active,
-.c12 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
-}
-
-.c12 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
-}
-
-.c12 .react-select__clear-indicator:hover,
-.c12 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__clear-indicator:hover svg,
-.c12 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -1155,22 +973,13 @@ exports[`auth2faType: otp rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
-.c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
-}
-
 .c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
-.c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
-.c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -1179,6 +988,7 @@ exports[`auth2faType: otp rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -1207,6 +1017,7 @@ exports[`auth2faType: otp rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
+                color="text.onLight"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -1229,6 +1040,7 @@ exports[`auth2faType: otp rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.onLight"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -1251,7 +1063,6 @@ exports[`auth2faType: otp rendering 1`] = `
                 <label
                   class="c11"
                   font-size="0"
-                  for="select"
                 >
                   Two-factor type
                 </label>
@@ -1275,7 +1086,7 @@ exports[`auth2faType: otp rendering 1`] = `
                         <input
                           aria-autocomplete="list"
                           class="css-62g3xt-dummyInput"
-                          id="select"
+                          id="react-select-2-input"
                           readonly=""
                           tabindex="0"
                           value=""
@@ -1321,6 +1132,7 @@ exports[`auth2faType: otp rendering 1`] = `
                   <input
                     autocomplete="one-time-code"
                     class="c7"
+                    color="text.onLight"
                     inputmode="numeric"
                     placeholder="123 456"
                     type="text"
@@ -1388,8 +1200,8 @@ exports[`auth2faType: webauthn rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1398,19 +1210,22 @@ exports[`auth2faType: webauthn rendering 1`] = `
   width: 100%;
 }
 
+.c13:active {
+  opacity: 0.56;
+}
+
 .c13:hover,
 .c13:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c13:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -1422,25 +1237,15 @@ exports[`auth2faType: webauthn rendering 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: none;
   border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -1448,15 +1253,9 @@ exports[`auth2faType: webauthn rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
+  color: #324148;
+  background-color: #FFFFFF;
   margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -1464,16 +1263,11 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  opacity: 0.4;
 }
 
 .c7:read-only {
   cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -1494,6 +1288,18 @@ exports[`auth2faType: webauthn rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
 }
 
 .c4 {
@@ -1559,137 +1365,57 @@ exports[`auth2faType: webauthn rendering 1`] = `
 }
 
 .c12 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c12 .react-select__control {
-  outline: none;
+.c12 .react-select__control,
+.c12 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c12 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
-}
-
 .c12 .react-select__control:hover,
-.c12 .react-select__control:focus,
-.c12 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
+.c12 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c12 .react-select__control:hover .react-select__dropdown-indicator,
-.c12 .react-select__control:focus .react-select__dropdown-indicator,
-.c12 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control .react-select__indicator:hover,
-.c12 .react-select__control .react-select__dropdown-indicator:hover,
-.c12 .react-select__control .react-select__indicator:focus,
-.c12 .react-select__control .react-select__dropdown-indicator:focus,
-.c12 .react-select__control .react-select__indicator:active,
-.c12 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c12 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
-}
-
-.c12 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c12 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c12 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c12 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c12 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c12 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
-}
-
-.c12 .react-select__clear-indicator:hover,
-.c12 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c12 .react-select__clear-indicator:hover svg,
-.c12 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c12 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c12 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c12 .react-select__indicator-separator {
@@ -1700,22 +1426,13 @@ exports[`auth2faType: webauthn rendering 1`] = `
   display: none;
 }
 
-.c12 .react-select--is-disabled,
-.c12 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
-}
-
 .c12 .react-select--is-disabled .react-select__single-value,
-.c12 .react-select__control--is-disabled .react-select__single-value,
-.c12 .react-select--is-disabled .react-select__placeholder,
-.c12 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+.c12 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c12 .react-select--is-disabled .react-select__indicator,
-.c12 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+.c12 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -1724,6 +1441,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Custom Title
   </div>
@@ -1752,6 +1470,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
+                color="text.onLight"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -1774,6 +1493,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.onLight"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -1796,7 +1516,6 @@ exports[`auth2faType: webauthn rendering 1`] = `
                 <label
                   class="c11"
                   font-size="0"
-                  for="select"
                 >
                   Two-factor type
                 </label>
@@ -1820,7 +1539,7 @@ exports[`auth2faType: webauthn rendering 1`] = `
                         <input
                           aria-autocomplete="list"
                           class="css-62g3xt-dummyInput"
-                          id="select"
+                          id="react-select-3-input"
                           readonly=""
                           tabindex="0"
                           value=""
@@ -1929,26 +1648,29 @@ exports[`cloud auth2faType: on rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
+.c12:active {
+  opacity: 0.56;
+}
+
 .c12:hover,
 .c12:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c12:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c18 {
@@ -1970,8 +1692,8 @@ exports[`cloud auth2faType: on rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -1980,23 +1702,26 @@ exports[`cloud auth2faType: on rendering 1`] = `
   width: 100%;
 }
 
+.c18:active {
+  opacity: 0.56;
+}
+
 .c18:hover,
 .c18:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c18:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c18:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c11 {
-  color: #009EFF;
+  color: #03a9f4;
   font-weight: normal;
   background: none;
   text-decoration: underline;
@@ -2006,16 +1731,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
 
 .c11:hover,
 .c11:focus {
-  color: #33B1FF;
-}
-
-.c11:active {
-  color: #66C5FF;
-}
-
-.c11:hover,
-.c11:focus,
-.c11:active {
   background: #222C59;
 }
 
@@ -2028,25 +1743,15 @@ exports[`cloud auth2faType: on rendering 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  text-align: center;
 }
 
 .c7 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: none;
   border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -2054,15 +1759,9 @@ exports[`cloud auth2faType: on rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
+  color: #324148;
+  background-color: #FFFFFF;
   margin-top: 4px;
-}
-
-.c7:hover,
-.c7:focus,
-.c7:active {
-  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c7::-ms-clear {
@@ -2070,16 +1769,11 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  opacity: 0.4;
 }
 
 .c7:read-only {
   cursor: not-allowed;
-}
-
-.c7:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
 }
 
 .c6 {
@@ -2100,6 +1794,18 @@ exports[`cloud auth2faType: on rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 4px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
 }
 
 .c4 {
@@ -2165,137 +1871,57 @@ exports[`cloud auth2faType: on rendering 1`] = `
 }
 
 .c17 .react-select-container {
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
+  border: none;
   display: block;
   font-size: 14px;
   outline: none;
   width: 100%;
-  color: #FFFFFF;
-  background-color: transparent;
+  color: rgba(0,0,0,0.87);
+  background-color: #ffffff;
   margin-bottom: 0px;
   border-radius: 4px;
 }
 
-.c17 .react-select__control {
-  outline: none;
+.c17 .react-select__control,
+.c17 .react-select__control--is-focused {
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
-  border-radius: 4px;
   background-color: transparent;
+  border-color: transparent;
+  border-radius: 4px;
+  border-style: solid;
+  border-width: 1px;
   box-shadow: none;
 }
 
-.c17 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
-}
-
 .c17 .react-select__control:hover,
-.c17 .react-select__control:focus,
-.c17 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
+.c17 .react-select__control--is-focused:hover {
+  border-color: transparent;
   cursor: pointer;
-}
-
-.c17 .react-select__control:hover .react-select__dropdown-indicator,
-.c17 .react-select__control:focus .react-select__dropdown-indicator,
-.c17 .react-select__control:active .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__control .react-select__indicator:hover,
-.c17 .react-select__control .react-select__dropdown-indicator:hover,
-.c17 .react-select__control .react-select__indicator:focus,
-.c17 .react-select__control .react-select__dropdown-indicator:focus,
-.c17 .react-select__control .react-select__indicator:active,
-.c17 .react-select__control .react-select__dropdown-indicator:active {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
-  background-color: rgba(255,255,255,0.07);
-  cursor: pointer;
-}
-
-.c17 .react-select__control--is-focused .react-select__dropdown-indicator {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__single-value {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
-}
-
-.c17 .react-select__multi-value {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c17 .react-select__multi-value .react-select__multi-value__label {
-  color: #FFFFFF;
-  padding: 0 6px;
-}
-
-.c17 .react-select__multi-value .react-select__multi-value__remove {
-  color: #FFFFFF;
-}
-
-.c17 .react-select__multi-value .react-select__multi-value__remove:hover {
-  background-color: rgba(255,255,255,0.07);
-  color: #FF6257;
 }
 
 .c17 .react-select__option:hover {
   cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c17 .react-select__option--is-focused {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c17 .react-select__option--is-focused:hover {
-  cursor: pointer;
-  background-color: rgba(255,255,255,0.07);
+  background-color: #eceff1;
 }
 
 .c17 .react-select__option--is-selected {
-  background-color: rgba(255,255,255,0.13);
+  background-color: #cfd8dc;
   color: inherit;
-  font-weight: 500;
 }
 
 .c17 .react-select__option--is-selected:hover {
-  background-color: rgba(255,255,255,0.13);
-}
-
-.c17 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
-}
-
-.c17 .react-select__clear-indicator:hover,
-.c17 .react-select__clear-indicator:focus {
-  background-color: rgba(255,255,255,0.07);
-}
-
-.c17 .react-select__clear-indicator:hover svg,
-.c17 .react-select__clear-indicator:focus svg {
-  color: #FF6257;
+  background-color: #cfd8dc;
 }
 
 .c17 .react-select__menu {
   margin-top: 0px;
-  background-color: #344179;
-  box-shadow: 0px 5px 5px -3px rgba(0,0,0,0.2),0px 8px 10px 1px rgba(0,0,0,0.14),0px 3px 14px 2px rgba(0,0,0,0.12);
-}
-
-.c17 .react-select__menu .react-select__menu-list::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.13);
-  border-radius: 4px;
 }
 
 .c17 .react-select__indicator-separator {
@@ -2306,22 +1932,13 @@ exports[`cloud auth2faType: on rendering 1`] = `
   display: none;
 }
 
-.c17 .react-select--is-disabled,
-.c17 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
-}
-
 .c17 .react-select--is-disabled .react-select__single-value,
-.c17 .react-select__control--is-disabled .react-select__single-value,
-.c17 .react-select--is-disabled .react-select__placeholder,
-.c17 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+.c17 .react-select--is-disabled .react-select__placeholder {
+  color: rgba(0,0,0,0.24);
 }
 
-.c17 .react-select--is-disabled .react-select__indicator,
-.c17 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+.c17 .react-select--is-disabled .react-select__indicator {
+  color: rgba(0,0,0,0.14);
 }
 
 <div
@@ -2330,6 +1947,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Teleport Cloud
   </div>
@@ -2358,6 +1976,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c7"
+                color="text.onLight"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -2380,6 +1999,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c7"
+                  color="text.onLight"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -2413,7 +2033,6 @@ exports[`cloud auth2faType: on rendering 1`] = `
                 <label
                   class="c16"
                   font-size="0"
-                  for="select"
                 >
                   Two-factor type
                 </label>
@@ -2437,7 +2056,7 @@ exports[`cloud auth2faType: on rendering 1`] = `
                         <input
                           aria-autocomplete="list"
                           class="css-62g3xt-dummyInput"
-                          id="select"
+                          id="react-select-5-input"
                           readonly=""
                           tabindex="0"
                           value=""
@@ -2511,8 +2130,8 @@ exports[`no login enabled 1`] = `
   line-height: 1.5;
   margin-top: 32px;
   margin-bottom: 32px;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
 }
 
 .c2 a {
@@ -2530,7 +2149,7 @@ exports[`no login enabled 1`] = `
   padding-right: 32px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -2542,6 +2161,7 @@ exports[`no login enabled 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
 }
 
@@ -2561,6 +2181,7 @@ exports[`no login enabled 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -2595,8 +2216,8 @@ exports[`server error rendering 1`] = `
   line-height: 1.5;
   margin: 32px;
   margin-bottom: 0px;
-  background: #FF6257;
-  color: #000000;
+  background: #f50057;
+  color: #FFFFFF;
 }
 
 .c2 a {
@@ -2637,8 +2258,8 @@ exports[`server error rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
@@ -2647,19 +2268,22 @@ exports[`server error rendering 1`] = `
   width: 100%;
 }
 
+.c10:active {
+  opacity: 0.56;
+}
+
 .c10:hover,
 .c10:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c10:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c0 {
@@ -2671,25 +2295,15 @@ exports[`server error rendering 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
-}
-
-.c1 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-weight: 300;
-  font-size: 22px;
-  line-height: 32px;
-  margin: 0px;
-  padding-top: 24px;
-  text-align: center;
 }
 
 .c8 {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: none;
   border-radius: 4px;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -2697,15 +2311,9 @@ exports[`server error rendering 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  background: #222C59;
-  color: #FFFFFF;
+  color: #324148;
+  background-color: #FFFFFF;
   margin-top: 4px;
-}
-
-.c8:hover,
-.c8:focus,
-.c8:active {
-  border: 1px solid rgba(255,255,255,0.56);
 }
 
 .c8::-ms-clear {
@@ -2713,16 +2321,11 @@ exports[`server error rendering 1`] = `
 }
 
 .c8::placeholder {
-  color: rgba(255,255,255,0.24);
+  opacity: 0.4;
 }
 
 .c8:read-only {
   cursor: not-allowed;
-}
-
-.c8:disabled {
-  color: rgba(255,255,255,0.18);
-  border-color: rgba(255,255,255,0.18);
 }
 
 .c7 {
@@ -2733,6 +2336,18 @@ exports[`server error rendering 1`] = `
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  padding-top: 24px;
+  color: #FFFFFF;
+  text-align: center;
 }
 
 .c5 {
@@ -2797,6 +2412,7 @@ exports[`server error rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -2831,6 +2447,7 @@ exports[`server error rendering 1`] = `
               <input
                 autocomplete="off"
                 class="c8"
+                color="text.onLight"
                 inputmode="text"
                 placeholder="Username"
                 type="text"
@@ -2853,6 +2470,7 @@ exports[`server error rendering 1`] = `
                 <input
                   autocomplete="off"
                   class="c8"
+                  color="text.onLight"
                   inputmode="text"
                   placeholder="Password"
                   type="password"
@@ -2904,8 +2522,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -2914,19 +2532,22 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   width: 100%;
 }
 
+.c3:active {
+  opacity: 0.56;
+}
+
 .c3:hover,
 .c3:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c3:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c8 {
@@ -2948,8 +2569,8 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -2958,26 +2579,28 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   width: 100%;
 }
 
+.c8:active {
+  opacity: 0.56;
+}
+
 .c8:hover,
 .c8:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c8:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c7 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  color: white;
 }
 
 .c0 {
@@ -2989,7 +2612,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -3001,6 +2624,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
 }
 
@@ -3009,7 +2633,6 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3031,7 +2654,6 @@ exports[`sso list still renders when local auth is disabled 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3068,6 +2690,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -3085,7 +2708,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
       >
         <span
           class="c6 c7 icon icon-github "
-          color="white"
+          color="light"
           data-testid="icon"
         />
       </div>
@@ -3101,7 +2724,7 @@ exports[`sso list still renders when local auth is disabled 1`] = `
       >
         <span
           class="c6 c7 icon icon-google-plus "
-          color="white"
+          color="light"
           data-testid="icon"
         />
       </div>
@@ -3150,8 +2773,8 @@ exports[`sso providers rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -3160,19 +2783,22 @@ exports[`sso providers rendering 1`] = `
   width: 100%;
 }
 
+.c5:active {
+  opacity: 0.56;
+}
+
 .c5:hover,
 .c5:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c5:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c5:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c13 {
@@ -3194,8 +2820,8 @@ exports[`sso providers rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: #000000;
-  background: #9F85FF;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -3204,19 +2830,22 @@ exports[`sso providers rendering 1`] = `
   width: 100%;
 }
 
+.c13:active {
+  opacity: 0.56;
+}
+
 .c13:hover,
 .c13:focus {
-  background: #B29DFF;
+  background: #651FFF;
 }
 
 .c13:active {
-  background: #C5B6FF;
+  background: #354AA4;
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c16 {
@@ -3238,12 +2867,16 @@ exports[`sso providers rendering 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
   background: none;
   text-transform: none;
+  color: rgba(255,255,255,0.87);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
+}
+
+.c16:active {
+  opacity: 0.56;
 }
 
 .c16:hover,
@@ -3255,14 +2888,12 @@ exports[`sso providers rendering 1`] = `
 .c16:disabled {
   background: none;
   color: rgba(255,255,255,0.3);
-  cursor: auto;
 }
 
 .c9 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
-  color: white;
 }
 
 .c0 {
@@ -3274,7 +2905,7 @@ exports[`sso providers rendering 1`] = `
   padding-bottom: 24px;
   width: 464px;
   background-color: #222C59;
-  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
 }
 
@@ -3286,6 +2917,7 @@ exports[`sso providers rendering 1`] = `
   line-height: 32px;
   margin: 0px;
   padding-top: 24px;
+  color: #FFFFFF;
   text-align: center;
 }
 
@@ -3338,7 +2970,6 @@ exports[`sso providers rendering 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3360,7 +2991,6 @@ exports[`sso providers rendering 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3382,7 +3012,6 @@ exports[`sso providers rendering 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3404,7 +3033,6 @@ exports[`sso providers rendering 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3426,7 +3054,6 @@ exports[`sso providers rendering 1`] = `
   display: block;
   width: 100%;
   border: 1px solid transparent;
-  color: white;
   height: 40px;
   position: relative;
   box-sizing: border-box;
@@ -3463,6 +3090,7 @@ exports[`sso providers rendering 1`] = `
 >
   <div
     class="c1"
+    color="light"
   >
     Welcome!
   </div>
@@ -3490,7 +3118,7 @@ exports[`sso providers rendering 1`] = `
             >
               <span
                 class="c8 c9 icon icon-github "
-                color="white"
+                color="light"
                 data-testid="icon"
               />
             </div>
@@ -3506,7 +3134,7 @@ exports[`sso providers rendering 1`] = `
             >
               <span
                 class="c8 c9 icon icon-google-plus "
-                color="white"
+                color="light"
                 data-testid="icon"
               />
             </div>
@@ -3522,7 +3150,7 @@ exports[`sso providers rendering 1`] = `
             >
               <span
                 class="c8 c9 icon icon-bitbucket "
-                color="white"
+                color="light"
                 data-testid="icon"
               />
             </div>
@@ -3538,7 +3166,7 @@ exports[`sso providers rendering 1`] = `
             >
               <span
                 class="c8 c9 icon icon-openid "
-                color="white"
+                color="light"
                 data-testid="icon"
               />
             </div>
@@ -3554,7 +3182,7 @@ exports[`sso providers rendering 1`] = `
             >
               <span
                 class="c8 c9 icon icon-windows "
-                color="white"
+                color="light"
                 data-testid="icon"
               />
             </div>

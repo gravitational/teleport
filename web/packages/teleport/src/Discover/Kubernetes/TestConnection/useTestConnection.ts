@@ -14,37 +14,91 @@
  * limitations under the License.
  */
 
-import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
+import { useState } from 'react';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import TeleportContext from 'teleport/teleportContext';
 
 import { KubeMeta } from '../../useDiscover';
 
-import type { KubeImpersonation } from 'teleport/services/agents';
+import type {
+  ConnectionDiagnostic,
+  KubeImpersonation,
+} from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
-export function useTestConnection(props: AgentStepProps) {
-  const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic();
+export function useTestConnection({ ctx, props }: Props) {
+  const { attempt, setAttempt, handleError } = useAttempt('');
+  const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
+  const [showMfaDialog, setShowMfaDialog] = useState(false);
 
-  function testConnection(
+  const access = ctx.storeUser.getConnectionDiagnosticAccess();
+  const canTestConnection = access.create && access.edit && access.read;
+
+  async function runConnectionDiagnostic(
     impersonate: KubeImpersonation,
-    mfaResponse?: MfaAuthnResponse
+    mfaAuthnResponse?: MfaAuthnResponse
   ) {
-    runConnectionDiagnostic(
-      {
+    const meta = props.agentMeta as KubeMeta;
+    setDiagnosis(null);
+    setShowMfaDialog(false);
+    setAttempt({ status: 'processing' });
+
+    try {
+      if (!mfaAuthnResponse) {
+        const mfaReq = {
+          kube: {
+            cluster_name: meta.kube.name,
+          },
+        };
+        const sessionMfa = await ctx.mfaService.isMfaRequired(mfaReq);
+        if (sessionMfa.required) {
+          setShowMfaDialog(true);
+          return;
+        }
+      }
+
+      const diag = await ctx.agentService.createConnectionDiagnostic({
         resourceKind: 'kube_cluster',
-        resourceName: props.agentMeta.resourceName,
+        resourceName: meta.kube.name,
         kubeImpersonation: impersonate,
-      },
-      mfaResponse
-    );
+        mfaAuthnResponse,
+      });
+
+      setAttempt({ status: 'success' });
+      setDiagnosis(diag);
+    } catch (err) {
+      handleError(err);
+    }
   }
 
+  function cancelMfaDialog() {
+    setAttempt({ status: '' });
+    setShowMfaDialog(false);
+  }
+
+  const { username, authType, cluster } = ctx.storeUser.state;
+
   return {
-    ...connectionDiagnostic,
-    testConnection,
+    attempt,
+    runConnectionDiagnostic,
+    diagnosis,
+    nextStep: props.nextStep,
+    prevStep: props.prevStep,
+    canTestConnection,
     kube: (props.agentMeta as KubeMeta).kube,
+    username,
+    authType,
+    clusterId: cluster.clusterId,
+    showMfaDialog,
+    cancelMfaDialog,
   };
 }
+
+type Props = {
+  ctx: TeleportContext;
+  props: AgentStepProps;
+};
 
 export type State = ReturnType<typeof useTestConnection>;

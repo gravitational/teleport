@@ -14,4 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export { ThemeProvider } from './ThemeProvider';
+import ThemeProvider from './ThemeProvider';
+export default ThemeProvider;

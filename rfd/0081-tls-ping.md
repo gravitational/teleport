@@ -207,7 +207,7 @@ sequenceDiagram
         P->>LP: Connected<br>(negotiated protocol = "teleport-sample")
     end
 
-    loop Continuously
+    loop Continuosly
         LP->P: Read/Write connection data
     end
 ```

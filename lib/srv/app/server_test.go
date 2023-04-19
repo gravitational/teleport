@@ -30,7 +30,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,9 +37,9 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/atomic"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -48,20 +47,16 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
 	libsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
-	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -83,12 +78,8 @@ type Suite struct {
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
 
-	appFoo *types.AppV3
-	appAWS *types.AppV3
-
-	user       types.User
-	role       types.Role
-	serverPort string
+	user types.User
+	role types.Role
 }
 
 func (s *Suite) TearDown(t *testing.T) {
@@ -100,7 +91,7 @@ func (s *Suite) TearDown(t *testing.T) {
 
 	s.testhttp.Close()
 
-	err = s.tlsServer.Auth().DeleteAllApplicationServers(s.closeContext, defaults.Namespace)
+	err = s.tlsServer.Auth().DeleteAllAppServers(s.closeContext, defaults.Namespace)
 	require.NoError(t, err)
 
 	s.closeFunc()
@@ -128,13 +119,6 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
-}
-
-type fakeConnMonitor struct {
-}
-
-func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
-	return ctx, nil
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -191,14 +175,14 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Grant the user's role access to the application label "bar: baz".
-	s.role = &types.RoleV6{
+	s.role = &types.RoleV5{
 		Metadata: types.Metadata{
 			Name: "foo",
 		},
-		Spec: types.RoleSpecV6{
+		Spec: types.RoleSpecV5{
 			Allow: types.RoleConditions{
 				AppLabels:   roleAppLabels,
-				AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/readonly"},
+				AWSRoleARNs: []string{"readonly"},
 			},
 		},
 	}
@@ -231,7 +215,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 			config.ValidateRequest(s, r)
 		}
 	}))
-	// Add NextProtos to support both protocols: h2, http/1.1
 	s.testhttp.Config.TLSConfig = &tls.Config{Time: s.clock.Now}
 	if config.EnableHTTP2 {
 		s.testhttp.EnableHTTP2 = true
@@ -246,7 +229,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	u, err := url.Parse(s.testhttp.URL)
 	require.NoError(t, err)
 	s.hostport = u.Host
-	s.serverPort = u.Port()
 
 	// Default to staticLabels.
 	appLabels := config.AppLabels
@@ -255,7 +237,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	s.appFoo, err = types.NewAppV3(types.Metadata{
+	appFoo, err := types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
@@ -265,7 +247,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		DynamicLabels:      types.LabelsToV2(dynamicLabels),
 	})
 	require.NoError(t, err)
-	s.appAWS, err = types.NewAppV3(types.Metadata{
+	appAWS, err := types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
@@ -292,7 +274,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
 
 	// Generate certificate for AWS console application.
-	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -301,18 +283,14 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: "cluster-name",
-		AccessPoint: s.authClient,
-		LockWatcher: lockWatcher,
-	})
+	authorizer, err := auth.NewAuthorizer("cluster-name", s.authClient, lockWatcher)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
+	apps := types.Apps{appFoo, appAWS}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -320,24 +298,24 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	discard := events.NewDiscardEmitter()
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:             s.clock,
-		DataDir:           s.dataDir,
-		AccessPoint:       s.authClient,
-		AuthClient:        s.authClient,
-		TLSConfig:         tlsConfig,
-		CipherSuites:      utils.DefaultCipherSuites(),
-		HostID:            s.hostUUID,
-		Hostname:          "test",
-		Authorizer:        authorizer,
-		GetRotation:       testRotationGetter,
-		Apps:              apps,
-		OnHeartbeat:       func(err error) {},
-		Cloud:             &testCloud{},
-		ResourceMatchers:  config.ResourceMatchers,
-		OnReconcile:       config.OnReconcile,
-		Emitter:           discard,
-		CloudLabels:       config.CloudImporter,
-		ConnectionMonitor: fakeConnMonitor{},
+		Clock:            s.clock,
+		DataDir:          s.dataDir,
+		AccessPoint:      s.authClient,
+		AuthClient:       s.authClient,
+		TLSConfig:        tlsConfig,
+		CipherSuites:     utils.DefaultCipherSuites(),
+		HostID:           s.hostUUID,
+		Hostname:         "test",
+		Authorizer:       authorizer,
+		GetRotation:      testRotationGetter,
+		Apps:             apps,
+		OnHeartbeat:      func(err error) {},
+		Cloud:            &testCloud{},
+		ResourceMatchers: config.ResourceMatchers,
+		OnReconcile:      config.OnReconcile,
+		LockWatcher:      lockWatcher,
+		Emitter:          discard,
+		CloudLabels:      config.CloudImporter,
 	})
 	require.NoError(t, err)
 
@@ -388,18 +366,31 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo := s.appFoo.Copy()
-	appAWS := s.appAWS.Copy()
-
-	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
-		dynamicLabelName: &types.CommandLabelV2{
-			Period:  dynamicLabelPeriod,
-			Command: dynamicLabelCommand,
-			Result:  "4",
+	appFoo, err := types.NewAppV3(types.Metadata{
+		Name:   "foo",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:                s.testhttp.URL,
+		PublicAddr:         "foo.example.com",
+		InsecureSkipVerify: true,
+		DynamicLabels: map[string]types.CommandLabelV2{
+			dynamicLabelName: {
+				Period:  dynamicLabelPeriod,
+				Command: dynamicLabelCommand,
+				Result:  "4",
+			},
 		},
 	})
-
+	require.NoError(t, err)
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
+	require.NoError(t, err)
+	appAWS, err := types.NewAppV3(types.Metadata{
+		Name:   "awsconsole",
+		Labels: staticLabels,
+	}, types.AppSpecV3{
+		URI:        constants.AWSConsoleURL,
+		PublicAddr: "aws.example.com",
+	})
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
@@ -561,11 +552,9 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 					},
 				},
 			},
-			cloudLabels: mustNewCloudImporter(t, &labels.CloudConfig{
-				Client: newTestIMClient("1", "host", map[string]string{
-					"cloud1": "value1",
-					"cloud2": "value2",
-				}),
+			cloudLabels: newTestIMImporter(map[string]string{
+				"aws/cloud1": "value1",
+				"aws/cloud2": "value2",
 			}),
 			expectedDynamicLabels: map[string]string{
 				"something": "blah",
@@ -600,80 +589,53 @@ func TestAppWithUpdatedLabels(t *testing.T) {
 	}
 }
 
-// testIMClient is a test instance metadata client for exercising cloud labels.
-type testIMClient struct {
-	id       string
-	hostname string
-	labels   map[string]string
+// testIMImporter is a test instance metadata client for exercising cloud labels.
+type testIMImporter struct {
+	labels map[string]string
+	mu     sync.RWMutex
 }
 
-func newTestIMClient(id, hostname string, labels map[string]string) *testIMClient {
-	return &testIMClient{
-		id:       id,
-		hostname: hostname,
-		labels:   labels,
+func newTestIMImporter(labels map[string]string) *testIMImporter {
+	return &testIMImporter{
+		labels: labels,
 	}
 }
 
-func (i *testIMClient) IsAvailable(_ context.Context) bool {
-	return true
+func (i *testIMImporter) Get() map[string]string {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	copyLabels := map[string]string{}
+	for k, v := range i.labels {
+		copyLabels[k] = v
+	}
+	return copyLabels
 }
 
-func (i *testIMClient) GetTags(_ context.Context) (map[string]string, error) {
-	return i.labels, nil
+// Apply adds the current labels to the provided resource's static labels.
+func (i *testIMImporter) Apply(r types.ResourceWithLabels) {
+	labels := i.Get()
+	for k, v := range r.GetStaticLabels() {
+		labels[k] = v
+	}
+	r.SetStaticLabels(labels)
 }
 
-func (i *testIMClient) GetHostname(_ context.Context) (string, error) {
-	return i.hostname, nil
+func (i *testIMImporter) Sync(context.Context) error {
+	return nil
 }
 
-func (i *testIMClient) GetType() types.InstanceMetadataType {
-	return types.InstanceMetadataTypeEC2
-}
-
-func (i *testIMClient) GetID(ctx context.Context) (string, error) {
-	return i.id, nil
-}
-
-func mustNewCloudImporter(t *testing.T, config *labels.CloudConfig) labels.Importer {
-	importer, err := labels.NewCloudImporter(context.Background(), config)
-	require.NoError(t, err)
-
-	return importer
+func (i *testIMImporter) Start(_ context.Context) {
 }
 
 // TestHandleConnection verifies that requests with valid certificates are forwarded and the
 // request had headers rewritten as expected.
 func TestHandleConnection(t *testing.T) {
-	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ValidateRequest: func(_ *Suite, r *http.Request) {
-			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			require.Equal(t, "443", r.Header.Get(forward.XForwardedPort))
-		},
-	})
+	s := SetUpSuite(t)
 	s.checkHTTPResponse(t, s.clientCertificate, func(resp *http.Response) {
 		require.Equal(t, resp.StatusCode, http.StatusOK)
 		buf, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		require.Equal(t, strings.TrimSpace(string(buf)), s.message)
-	})
-}
-
-// TestHandleConnectionWS verifies that websocket requests with valid certificates are forwarded and the
-// request had headers rewritten as expected.
-func TestHandleConnectionWS(t *testing.T) {
-	s := SetUpSuiteWithConfig(t, suiteConfig{
-		ValidateRequest: func(s *Suite, r *http.Request) {
-			require.Equal(t, "on", r.Header.Get(common.XForwardedSSL))
-			// Websockets will pass on the server port at this level due to the
-			// websocket transport header rewriter delegate.
-			require.Equal(t, s.serverPort, r.Header.Get(forward.XForwardedPort))
-		},
-	})
-
-	s.checkWSResponse(t, s.clientCertificate, func(messageType int, message string) {
-		require.Equal(t, websocket.TextMessage, messageType)
-		require.Equal(t, s.message, message)
 	})
 }
 
@@ -735,10 +697,8 @@ func TestAuthorize(t *testing.T) {
 		},
 		{
 			name: "cloud labels",
-			cloudLabels: mustNewCloudImporter(t, &labels.CloudConfig{
-				Client: newTestIMClient("foo", "host", map[string]string{
-					"test": "value",
-				}),
+			cloudLabels: newTestIMImporter(map[string]string{
+				"aws/test": "value",
 			}),
 			roleAppLabels: types.Labels{
 				"aws/test": []string{"value"},
@@ -861,42 +821,17 @@ func TestRequestAuditEvents(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var requestEventsReceived atomic.Uint64
-	var chunkEventsReceived atomic.Uint64
+	requestEventsReceived := atomic.NewUint64(0)
 	serverStreamer, err := events.NewCallbackStreamer(events.CallbackStreamerConfig{
 		Inner: events.NewDiscardEmitter(),
 		OnEmitAuditEvent: func(_ context.Context, _ libsession.ID, event apievents.AuditEvent) error {
-			switch event.GetType() {
-			case events.AppSessionChunkEvent:
-				chunkEventsReceived.Add(1)
-				expectedEvent := &apievents.AppSessionChunk{
-					Metadata: apievents.Metadata{
-						Type:        events.AppSessionChunkEvent,
-						Code:        events.AppSessionChunkCode,
-						ClusterName: "root.example.com",
-						Index:       0,
-					},
-					AppMetadata: apievents.AppMetadata{
-						AppURI:        app.Spec.URI,
-						AppPublicAddr: app.Spec.PublicAddr,
-						AppName:       app.Metadata.Name,
-					},
-				}
-				require.Empty(t, cmp.Diff(
-					expectedEvent,
-					event,
-					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
-					cmpopts.IgnoreFields(apievents.Metadata{}, "ID", "ClusterName", "Time"),
-					cmpopts.IgnoreFields(apievents.AppSessionChunk{}, "SessionChunkID"),
-				))
-			case events.AppSessionRequestEvent:
-				requestEventsReceived.Add(1)
+			if event.GetType() == events.AppSessionRequestEvent {
+				requestEventsReceived.Inc()
+
 				expectedEvent := &apievents.AppSessionRequest{
 					Metadata: apievents.Metadata{
-						Type:        events.AppSessionRequestEvent,
-						Code:        events.AppSessionRequestCode,
-						ClusterName: "root.example.com",
-						Index:       1,
+						Type: events.AppSessionRequestEvent,
+						Code: events.AppSessionRequestCode,
 					},
 					AppMetadata: apievents.AppMetadata{
 						AppURI:        app.Spec.URI,
@@ -928,14 +863,10 @@ func TestRequestAuditEvents(t *testing.T) {
 
 	// make a request to generate events.
 	s.checkHTTPResponse(t, s.clientCertificate, func(_ *http.Response) {
-		// wait until chunk events are generated before closing the server.
-		require.Eventually(t, func() bool {
-			return chunkEventsReceived.Load() == 1
-		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.chunk event not generated")
 		// wait until request events are generated before closing the server.
 		require.Eventually(t, func() bool {
 			return requestEventsReceived.Load() == 1
-		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
+		}, 500*time.Millisecond, 50*time.Millisecond, "app.request event not generated")
 	})
 
 	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
@@ -1012,8 +943,7 @@ func (s *Suite) checkHTTPResponse(t *testing.T, clientCert tls.Certificate, chec
 	// get out of the HandleConnection routine.
 	require.NoError(t, pw.Close())
 
-	// Wait for the application server to actually stop serving before
-	// closing the test. This will make sure the server removes the listeners
+	// Wait for the request routine to finish.
 	wg.Wait()
 }
 
@@ -1069,8 +999,7 @@ func (s *Suite) checkWSResponse(t *testing.T, clientCert tls.Certificate, checkM
 	// get out of the HandleConnection routine.
 	require.NoError(t, pw.Close())
 
-	// Wait for the application server to actually stop serving before
-	// closing the test. This will make sure the server removes the listeners
+	// Wait for the request routine to finish.
 	wg.Wait()
 }
 

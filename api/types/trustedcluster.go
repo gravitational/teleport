@@ -22,7 +22,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // TrustedCluster holds information needed for a cluster that can not be directly
@@ -246,7 +247,7 @@ func (c *TrustedClusterV2) CanChangeStateTo(t TrustedCluster) error {
 	if c.GetReverseTunnelAddress() != t.GetReverseTunnelAddress() {
 		return immutableFieldErr("tunnel_addr")
 	}
-	if !slices.Equal(c.GetRoles(), t.GetRoles()) {
+	if !utils.StringSlicesEqual(c.GetRoles(), t.GetRoles()) {
 		return immutableFieldErr("roles")
 	}
 	roleMapUpdated := !cmp.Equal(c.GetRoleMap(), t.GetRoleMap())

@@ -156,7 +156,8 @@ func TestCachingResolver(t *testing.T) {
 	// We start a goroutine that mutates the underlying NetAddr, but without invalidating the cache.
 	// The caching resolver must return a pointer to a copy of the NetAddr to avoid a data race.
 	go func() {
-		addr, _, _ := resolver(context.Background())
+		addr, _, err := resolver(context.Background())
+		require.NoError(t, err)
 		// data race check: write to *addr
 		addr.Addr = ""
 	}()

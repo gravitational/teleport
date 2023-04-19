@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { DatabaseUri, GatewayUri, KubeUri, ServerUri } from 'teleterm/ui/uri';
-
 type TrackedConnectionBase = {
   connected: boolean;
   id: string;
@@ -25,24 +23,24 @@ type TrackedConnectionBase = {
 export interface TrackedServerConnection extends TrackedConnectionBase {
   kind: 'connection.server';
   title: string;
-  serverUri: ServerUri;
+  serverUri: string;
   login: string;
 }
 
 export interface TrackedGatewayConnection extends TrackedConnectionBase {
   kind: 'connection.gateway';
-  targetUri: DatabaseUri;
+  targetUri: string;
   targetName: string;
   targetUser?: string;
   port?: string;
-  gatewayUri: GatewayUri;
+  gatewayUri: string;
   targetSubresourceName?: string;
 }
 
 export interface TrackedKubeConnection extends TrackedConnectionBase {
   kind: 'connection.kube';
   kubeConfigRelativePath: string;
-  kubeUri: KubeUri;
+  kubeUri: string;
 }
 
 export type TrackedConnection =

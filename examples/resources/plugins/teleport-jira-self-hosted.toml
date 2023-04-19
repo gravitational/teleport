@@ -1,0 +1,22 @@
+# example jira plugin configuration TOML file
+[teleport]
+auth_server = "example.com:3025"                       # Teleport Auth Server GRPC API address
+client_key = "/var/lib/teleport/plugins/jira/auth.key" # Teleport GRPC client secret key
+client_crt = "/var/lib/teleport/plugins/jira/auth.crt" # Teleport GRPC client certificate
+root_cas = "/var/lib/teleport/plugins/jira/auth.cas"   # Teleport cluster CA certs
+
+[jira]
+url = "https://example.com/jira"    # JIRA URL. For JIRA Cloud, https://[my-jira].atlassian.net
+username = "bot@example.com"        # JIRA username
+api_token = "token"                 # JIRA API Basic Auth token
+project = "MYPROJ"                  # JIRA Project key
+
+[http]
+# listen_addr = ":8081" # Network address in format [addr]:port on which webhook server listens, e.g. 0.0.0.0:443
+# public_addr = "example.com" # URL on which webhook server is accessible externally, e.g. [https://]teleport-jira.example.com
+https_key_file = "/var/lib/teleport/plugins/jira/server.key"  # TLS private key
+https_cert_file = "/var/lib/teleport/plugins/jira/server.crt" # TLS certificate
+
+[log]
+output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/jira.log"
+severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".

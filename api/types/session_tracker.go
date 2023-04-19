@@ -78,7 +78,7 @@ type SessionTracker interface {
 	// GetAddress returns the address of the session target.
 	GetAddress() string
 
-	// GetClusterName returns the name of the Teleport cluster.
+	// GetClusterName returns the name of the cluster.
 	GetClusterName() string
 
 	// GetLogin returns the target machine username used for this session.
@@ -99,15 +99,6 @@ type SessionTracker interface {
 	// GetKubeCluster returns the name of the kubernetes cluster the session is running in.
 	GetKubeCluster() string
 
-	// GetDesktopName returns the name of the Windows desktop the session is running in.
-	GetDesktopName() string
-
-	// GetAppName returns the name of the app being accessed.
-	GetAppName() string
-
-	// GetDatabaseName returns the name of the database being accessed.
-	GetDatabaseName() string
-
 	// GetHostUser fetches the user marked as the "host" of the session.
 	// Things like RBAC policies are determined from this user.
 	GetHostUser() string
@@ -118,6 +109,9 @@ type SessionTracker interface {
 
 	// GetLastActive returns the time at which the session was last active (i.e used by any participant).
 	GetLastActive() time.Time
+
+	// GetDesktopName returns the name of the Windows desktop the session is for.
+	GetDesktopName() string
 }
 
 func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
@@ -135,6 +129,61 @@ func NewSessionTracker(spec SessionTrackerSpecV1) (SessionTracker, error) {
 	}
 
 	return session, nil
+}
+
+// GetVersion returns resource version.
+func (s *SessionTrackerV1) GetVersion() string {
+	return s.Version
+}
+
+// GetName returns the name of the resource.
+func (s *SessionTrackerV1) GetName() string {
+	return s.Metadata.Name
+}
+
+// SetName sets the name of the resource.
+func (s *SessionTrackerV1) SetName(e string) {
+	s.Metadata.Name = e
+}
+
+// SetExpiry sets expiry time for the object.
+func (s *SessionTrackerV1) SetExpiry(expires time.Time) {
+	s.Metadata.SetExpiry(expires)
+}
+
+// Expiry returns object expiry setting.
+func (s *SessionTrackerV1) Expiry() time.Time {
+	return s.Metadata.Expiry()
+}
+
+// GetMetadata returns object metadata.
+func (s *SessionTrackerV1) GetMetadata() Metadata {
+	return s.Metadata
+}
+
+// GetResourceID returns resource ID.
+func (s *SessionTrackerV1) GetResourceID() int64 {
+	return s.Metadata.ID
+}
+
+// SetResourceID sets resource ID.
+func (s *SessionTrackerV1) SetResourceID(id int64) {
+	s.Metadata.ID = id
+}
+
+// GetKind returns resource kind.
+func (s *SessionTrackerV1) GetKind() string {
+	return s.Kind
+}
+
+// GetSubKind returns resource subkind.
+func (s *SessionTrackerV1) GetSubKind() string {
+	return s.SubKind
+}
+
+// SetSubKind sets resource subkind.
+func (s *SessionTrackerV1) SetSubKind(sk string) {
+	s.SubKind = sk
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -267,27 +316,6 @@ func (s *SessionTrackerV1) GetKubeCluster() string {
 	return s.Spec.KubernetesCluster
 }
 
-// GetDesktopName returns the name of the Windows desktop the session is running in.
-//
-// This is only valid for Windows desktop sessions.
-func (s *SessionTrackerV1) GetDesktopName() string {
-	return s.Spec.DesktopName
-}
-
-// GetAppName returns the name of the app being accessed in the session.
-//
-// This is only valid for app sessions.
-func (s *SessionTrackerV1) GetAppName() string {
-	return s.Spec.AppName
-}
-
-// GetDatabaseName returns the name of the database being accessed in the session.
-//
-// This is only valid for database sessions.
-func (s *SessionTrackerV1) GetDatabaseName() string {
-	return s.Spec.DatabaseName
-}
-
 // GetHostUser fetches the user marked as the "host" of the session.
 // Things like RBAC policies are determined from this user.
 func (s *SessionTrackerV1) GetHostUser() string {
@@ -323,6 +351,11 @@ func (s *SessionTrackerV1) GetLastActive() time.Time {
 	}
 
 	return last
+}
+
+// GetDesktopName returns the name of the Windows desktop the session is for.
+func (s *SessionTrackerV1) GetDesktopName() string {
+	return s.Spec.DesktopName
 }
 
 // Match checks if a given session tracker matches this filter.

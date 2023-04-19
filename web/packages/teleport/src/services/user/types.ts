@@ -16,7 +16,7 @@ limitations under the License.
 
 import { Cluster } from 'teleport/services/clusters';
 
-export type AuthType = 'local' | 'sso' | 'passwordless';
+export type AuthType = 'local' | 'sso';
 
 export interface AccessStrategy {
   type: 'optional' | 'always' | 'reason';
@@ -47,10 +47,6 @@ export interface Access {
   remove: boolean;
 }
 
-export interface AccessWithUse extends Access {
-  use: boolean;
-}
-
 export interface Acl {
   directorySharingEnabled: boolean;
   desktopSessionRecordingEnabled: boolean;
@@ -68,15 +64,9 @@ export interface Acl {
   accessRequests: Access;
   billing: Access;
   dbServers: Access;
-  db: Access;
   desktops: Access;
   nodes: Access;
   connectionDiagnostic: Access;
-  license: Access;
-  download: Access;
-  plugins: Access;
-  integrations: AccessWithUse;
-  deviceTrust: Access;
 }
 
 export interface User {

@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -49,24 +50,22 @@ const (
 )
 
 // InitLogger configures the global logger for a given purpose / verbosity level
-func InitLogger(purpose LoggingPurpose, level logrus.Level, verbose ...bool) {
-	logrus.StandardLogger().ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetLevel(level)
+func InitLogger(purpose LoggingPurpose, level log.Level, verbose ...bool) {
+	log.StandardLogger().ReplaceHooks(make(log.LevelHooks))
+	log.SetLevel(level)
 	switch purpose {
 	case LoggingForCLI:
 		// If debug logging was asked for on the CLI, then write logs to stderr.
 		// Otherwise, discard all logs.
-		if level == logrus.DebugLevel {
-			debugFormatter := NewDefaultTextFormatter(trace.IsTerminal(os.Stderr))
-			debugFormatter.timestampEnabled = true
-			logrus.SetFormatter(debugFormatter)
-			logrus.SetOutput(os.Stderr)
+		if level == log.DebugLevel {
+			log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+			log.SetOutput(os.Stderr)
 		} else {
-			logrus.SetOutput(io.Discard)
+			log.SetOutput(io.Discard)
 		}
 	case LoggingForDaemon:
-		logrus.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
-		logrus.SetOutput(os.Stderr)
+		log.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
+		log.SetOutput(os.Stderr)
 	}
 }
 
@@ -75,49 +74,49 @@ func InitLoggerForTests() {
 	// Parse flags to check testing.Verbose().
 	flag.Parse()
 
-	logger := logrus.StandardLogger()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logrus.SetFormatter(NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
+	logger := log.StandardLogger()
+	logger.ReplaceHooks(make(log.LevelHooks))
+	log.SetFormatter(NewTestTextFormatter())
+	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	if testing.Verbose() {
 		return
 	}
-	logger.SetLevel(logrus.WarnLevel)
+	logger.SetLevel(log.WarnLevel)
 	logger.SetOutput(io.Discard)
 }
 
 // NewLoggerForTests creates a new logger for test environment
-func NewLoggerForTests() *logrus.Logger {
-	logger := logrus.New()
-	logger.ReplaceHooks(make(logrus.LevelHooks))
-	logger.SetFormatter(NewTestJSONFormatter())
-	logger.SetLevel(logrus.DebugLevel)
+func NewLoggerForTests() *log.Logger {
+	logger := log.New()
+	logger.ReplaceHooks(make(log.LevelHooks))
+	logger.SetFormatter(NewTestTextFormatter())
+	logger.SetLevel(log.DebugLevel)
 	logger.SetOutput(os.Stderr)
 	return logger
 }
 
 // WrapLogger wraps an existing logger entry and returns
 // an value satisfying the Logger interface
-func WrapLogger(logger *logrus.Entry) Logger {
+func WrapLogger(logger *log.Entry) Logger {
 	return &logWrapper{Entry: logger}
 }
 
 // NewLogger creates a new empty logger
-func NewLogger() *logrus.Logger {
-	logger := logrus.New()
+func NewLogger() *log.Logger {
+	logger := log.New()
 	logger.SetFormatter(NewDefaultTextFormatter(trace.IsTerminal(os.Stderr)))
 	return logger
 }
 
 // Logger describes a logger value
 type Logger interface {
-	logrus.FieldLogger
+	log.FieldLogger
 	// GetLevel specifies the level at which this logger
 	// value is logging
-	GetLevel() logrus.Level
+	GetLevel() log.Level
 	// SetLevel sets the logger's level to the specified value
-	SetLevel(level logrus.Level)
+	SetLevel(level log.Level)
 }
 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
@@ -138,7 +137,7 @@ func GetIterations() int {
 	if err != nil {
 		panic(err)
 	}
-	logrus.Debugf("Starting tests with %v iterations.", iter)
+	log.Debugf("Starting tests with %v iterations.", iter)
 	return iter
 }
 
@@ -149,7 +148,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if logrus.GetLevel() == logrus.DebugLevel {
+	if log.GetLevel() == log.DebugLevel {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -199,9 +198,9 @@ func formatErrorWriter(err error, w io.Writer) {
 	// it, if it does, print it, otherwise escape and print the original error.
 	if traceErr, ok := err.(*trace.TraceErr); ok {
 		for _, message := range traceErr.Messages {
-			fmt.Fprintln(w, AllowWhitespace(message))
+			fmt.Fprintln(w, AllowNewlines(message))
 		}
-		fmt.Fprintln(w, AllowWhitespace(trace.Unwrap(traceErr).Error()))
+		fmt.Fprintln(w, AllowNewlines(trace.Unwrap(traceErr).Error()))
 		return
 	}
 	strErr := err.Error()
@@ -209,7 +208,7 @@ func formatErrorWriter(err error, w io.Writer) {
 	if strErr == "" {
 		fmt.Fprintln(w, "please check Teleport's log for more details")
 	} else {
-		fmt.Fprintln(w, AllowWhitespace(err.Error()))
+		fmt.Fprintln(w, AllowNewlines(err.Error()))
 	}
 }
 
@@ -281,7 +280,7 @@ func Color(color int, v interface{}) string {
 
 // Consolef prints the same message to a 'ui console' (if defined) and also to
 // the logger with INFO priority
-func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
+func Consolef(w io.Writer, log log.FieldLogger, component, msg string, params ...interface{}) {
 	msg = fmt.Sprintf(msg, params...)
 	log.Info(msg)
 	if w != nil {
@@ -368,7 +367,7 @@ func SplitIdentifiers(s string) []string {
 // EscapeControl escapes all ANSI escape sequences from string and returns a
 // string that is safe to print on the CLI. This is to ensure that malicious
 // servers can not hide output. For more details, see:
-//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
 func EscapeControl(s string) string {
 	if needsQuoting(s) {
 		return fmt.Sprintf("%q", s)
@@ -376,47 +375,19 @@ func EscapeControl(s string) string {
 	return s
 }
 
-// isAllowedWhitespace is a helper function for cli output escaping that returns
-// true if a given rune is a whitespace character and allowed to be unescaped.
-func isAllowedWhitespace(r rune) bool {
-	switch r {
-	case '\n', '\t', '\v':
-		// newlines, tabs, vertical tabs are allowed whitespace.
-		return true
+// AllowNewlines escapes all ANSI escape sequences except newlines from string and returns a
+// string that is safe to print on the CLI. This is to ensure that malicious
+// servers can not hide output. For more details, see:
+//   * https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
+func AllowNewlines(s string) string {
+	if !strings.Contains(s, "\n") {
+		return EscapeControl(s)
 	}
-	return false
-}
-
-// AllowWhitespace escapes all ANSI escape sequences except some whitespace
-// characters (\n \t \v) from string and returns a string that is safe to
-// print on the CLI. This is to ensure that malicious servers can not hide
-// output. For more details, see:
-//   - https://sintonen.fi/advisories/scp-client-multiple-vulnerabilities.txt
-func AllowWhitespace(s string) string {
-	// loop over string searching for part to escape followed by allowed char.
-	// example: `\tabc\ndef\t\n`
-	// 1. part: ""    sep: "\t"
-	// 2. part: "abc" sep: "\n"
-	// 3. part: "def" sep: "\t"
-	// 4. part: ""    sep: "\n"
-	var sb strings.Builder
-	// note that increment also happens at bottom of loop because we can
-	// safely jump to place where allowedWhitespace was found.
-	for i := 0; i < len(s); i++ {
-		sepIdx := strings.IndexFunc(s[i:], isAllowedWhitespace)
-		if sepIdx == -1 {
-			// infalliable call, ignore error.
-			_, _ = sb.WriteString(EscapeControl(s[i:]))
-			// no separators remain.
-			break
-		}
-		part := EscapeControl(s[i : i+sepIdx])
-		_, _ = sb.WriteString(part)
-		sep := s[i+sepIdx]
-		_ = sb.WriteByte(sep)
-		i += sepIdx
+	parts := strings.Split(s, "\n")
+	for i, part := range parts {
+		parts[i] = EscapeControl(part)
 	}
-	return sb.String()
+	return strings.Join(parts, "\n")
 }
 
 // NewStdlogger creates a new stdlib logger that uses the specified leveled logger

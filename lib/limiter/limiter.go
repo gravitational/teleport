@@ -60,24 +60,20 @@ func (l *Config) SetEnv(v string) error {
 
 // NewLimiter returns new rate and connection limiter
 func NewLimiter(config Config) (*Limiter, error) {
-	if config.MaxConnections < 0 {
-		config.MaxConnections = 0
-	}
+	var err error
+	limiter := Limiter{}
 
-	connectionsLimiter, err := NewConnectionsLimiter(config)
+	limiter.ConnectionsLimiter, err = NewConnectionsLimiter(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rateLimiter, err := NewRateLimiter(config)
+	limiter.rateLimiter, err = NewRateLimiter(config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Limiter{
-		ConnectionsLimiter: connectionsLimiter,
-		rateLimiter:        rateLimiter,
-	}, nil
+	return &limiter, nil
 }
 
 func (l *Limiter) RegisterRequest(token string) error {
@@ -154,7 +150,7 @@ func (l *Limiter) UnaryServerInterceptorWithCustomRate(customRate CustomRateFunc
 	}
 }
 
-// StreamServerInterceptor is a gRPC stream interceptor that rate limits
+// StreamServerInterceptor is a GPRC stream interceptor that rate limits
 // incoming requests by client IP.
 func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
@@ -174,10 +170,4 @@ func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.Ser
 	}
 	defer l.ConnLimiter.Release(clientIP, 1)
 	return handler(srv, serverStream)
-}
-
-// WrapListener returns a [Listener] that wraps the provided listener
-// with one that limits connections
-func (l *Limiter) WrapListener(ln net.Listener) *Listener {
-	return NewListener(ln, l.ConnectionsLimiter)
 }

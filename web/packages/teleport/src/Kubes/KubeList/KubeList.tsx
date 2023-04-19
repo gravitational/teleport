@@ -16,17 +16,20 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { ButtonBorder } from 'design';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { FetchStatus, SortType } from 'design/DataTable/types';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 
 import { Kube } from 'teleport/services/kube';
 import { AuthType } from 'teleport/services/user';
-import { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
+import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 
 import ConnectDialog from '../ConnectDialog';
-
-import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
 function KubeList(props: Props) {
   const {
@@ -35,20 +38,64 @@ function KubeList(props: Props) {
     username,
     authType,
     clusterId,
+    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
+    from,
+    to,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
     accessRequestId,
-    pageIndicators,
+    paginationUnsupported,
   } = props;
 
   const [kubeConnectName, setKubeConnectName] = useState('');
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <>
+        <Table
+          data={kubes}
+          emptyText="No Kubernetes Clusters Found"
+          isSearchable
+          pagination={{ pageSize }}
+          columns={[
+            {
+              key: 'name',
+              headerText: 'Name',
+              isSortable: true,
+            },
+            {
+              key: 'labels',
+              headerText: 'Labels',
+              render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+            },
+            {
+              altKey: 'connect-btn',
+              render: kube => renderConnectButtonCell(kube, setKubeConnectName),
+            },
+          ]}
+        />
+        {kubeConnectName && (
+          <ConnectDialog
+            onClose={() => setKubeConnectName('')}
+            username={username}
+            authType={authType}
+            kubeConnectName={kubeConnectName}
+            clusterId={clusterId}
+            accessRequestId={accessRequestId}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -80,14 +127,16 @@ function KubeList(props: Props) {
         serversideProps={{
           sort: params.sort,
           setSort,
+          startKeys,
           serversideSearchPanel: (
             <ServersideSearchPanel
-              pageIndicators={pageIndicators}
+              from={from}
+              to={to}
+              count={totalCount}
               params={params}
               setParams={setParams}
               pathname={pathname}
               replaceHistory={replaceHistory}
-              disabled={fetchStatus === 'loading'}
             />
           ),
         }}
@@ -130,15 +179,19 @@ type Props = {
   clusterId: string;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: FetchStatus;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  fetchStatus: any;
+  from: number;
+  to: number;
+  totalCount: number;
+  params: ResourceUrlQueryParams;
+  setParams: (params: ResourceUrlQueryParams) => void;
+  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
   accessRequestId?: string;
-  pageIndicators: PageIndicators;
+  paginationUnsupported: boolean;
 };
 
 export default KubeList;

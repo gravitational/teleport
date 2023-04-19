@@ -78,11 +78,3 @@ func (dm *DestinationMemory) Read(name string) ([]byte, error) {
 func (dm *DestinationMemory) String() string {
 	return "[memory]"
 }
-
-func (dm *DestinationMemory) TryLock() (func() error, error) {
-	// As this is purely in-memory, no locking behavior is required for the
-	// destination.
-	return func() error {
-		return nil
-	}, nil
-}

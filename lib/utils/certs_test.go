@@ -53,6 +53,5 @@ func TestNewCertPoolFromPath(t *testing.T) {
 
 	pool, err := NewCertPoolFromPath("../../fixtures/certs/ca.pem")
 	require.NoError(t, err)
-	//nolint:staticcheck // Pool not returned by SystemCertPool
 	require.Len(t, pool.Subjects(), 1)
 }

@@ -139,7 +139,7 @@ func httpStreamReceived(ctx context.Context, streams chan httpstream.Stream) fun
 		case streams <- stream:
 			return nil
 		case <-ctx.Done():
-			return trace.BadParameter("request has been canceled")
+			return trace.BadParameter("request has been cancelled")
 		}
 	}
 }
@@ -245,7 +245,7 @@ func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64
 	case <-h.context.Done():
 		h.Debugf("Context is closing, cleaning up.")
 	}
-	h.Debugf("Port forwarding pair completed.")
+	h.Infof("Port forwarding pair completed.")
 	return nil
 }
 

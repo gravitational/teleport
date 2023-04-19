@@ -40,21 +40,16 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 .c9:disabled {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.3);
 }
 
 .c9:disabled {
-  color: rgba(255,255,255,0.18);
-  cursor: default;
+  color: rgba(255,255,255,0.3);
 }
 
-.c9:hover:enabled,
-.c9:focus:enabled {
-  background: rgba(255,255,255,0.13);
-}
-
-.c9:active:enabled {
-  background: rgba(255,255,255,0.18);
+.c9:hover,
+.c9:focus {
+  background: rgba(255,255,255,0.1);
 }
 
 .c4 {
@@ -143,7 +138,7 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 .c5:hover {
-  background: #FF6257;
+  background: #f50057;
 }
 
 .c1 {
@@ -196,6 +191,7 @@ exports[`render ConsoleTabs 1`] = `
       >
         <span
           class="c6 c7 icon icon-close "
+          color="light"
         />
       </button>
     </div>
@@ -219,6 +215,7 @@ exports[`render ConsoleTabs 1`] = `
       >
         <span
           class="c6 c7 icon icon-close "
+          color="light"
         />
       </button>
     </div>
@@ -242,6 +239,7 @@ exports[`render ConsoleTabs 1`] = `
       >
         <span
           class="c6 c7 icon icon-close "
+          color="light"
         />
       </button>
     </div>
@@ -251,6 +249,7 @@ exports[`render ConsoleTabs 1`] = `
     >
       <span
         class="c6 c10 icon icon-add "
+        color="light"
         font-size="16px"
       />
     </button>

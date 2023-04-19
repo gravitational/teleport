@@ -17,48 +17,43 @@ limitations under the License.
 package utils
 
 import (
-	"testing"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/stretchr/testify/require"
+	"gopkg.in/check.v1"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
-func TestParsing(t *testing.T) {
-	t.Parallel()
+type RolesTestSuite struct {
+}
 
+var _ = check.Suite(&RolesTestSuite{})
+
+func (s *RolesTestSuite) TestParsing(c *check.C) {
 	roles, err := types.ParseTeleportRoles("auth, Proxy,nODE")
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(roles, types.SystemRoles{
+	c.Assert(err, check.IsNil)
+	c.Assert(roles, check.DeepEquals, types.SystemRoles{
 		"Auth",
 		"Proxy",
 		"Node",
-	}))
-
-	require.NoError(t, roles[0].Check())
-	require.NoError(t, roles[1].Check())
-	require.NoError(t, roles[2].Check())
-	require.NoError(t, roles.Check())
-	require.Equal(t, roles.String(), "Auth,Proxy,Node")
-	require.Equal(t, roles[0].String(), "Auth")
+	})
+	c.Assert(roles[0].Check(), check.IsNil)
+	c.Assert(roles[1].Check(), check.IsNil)
+	c.Assert(roles[2].Check(), check.IsNil)
+	c.Assert(roles.Check(), check.IsNil)
+	c.Assert(roles.String(), check.Equals, "Auth,Proxy,Node")
+	c.Assert(roles[0].String(), check.Equals, "Auth")
 }
 
-func TestBadRoles(t *testing.T) {
-	t.Parallel()
-
+func (s *RolesTestSuite) TestBadRoles(c *check.C) {
 	bad := types.SystemRole("bad-role")
-	require.ErrorContains(t, bad.Check(), "role bad-role is not registered")
+	c.Assert(bad.Check(), check.ErrorMatches, "role bad-role is not registered")
 	badRoles := types.SystemRoles{
 		bad,
 		types.RoleAdmin,
 	}
-	require.ErrorContains(t, badRoles.Check(), "role bad-role is not registered")
+	c.Assert(badRoles.Check(), check.ErrorMatches, "role bad-role is not registered")
 }
 
-func TestEquivalence(t *testing.T) {
-	t.Parallel()
-
+func (s *RolesTestSuite) TestEquivalence(c *check.C) {
 	nodeProxyRole := types.SystemRoles{
 		types.RoleNode,
 		types.RoleProxy,
@@ -68,10 +63,9 @@ func TestEquivalence(t *testing.T) {
 		types.RoleAuth,
 	}
 
-	require.Equal(t, authRole.Include(types.RoleAdmin), true)
-	require.Equal(t, authRole.Include(types.RoleProxy), false)
-	require.Equal(t, authRole.Equals(nodeProxyRole), false)
-	require.Equal(t, authRole.Equals(types.SystemRoles{types.RoleAuth, types.RoleAdmin}),
-		true)
-
+	c.Assert(authRole.Include(types.RoleAdmin), check.Equals, true)
+	c.Assert(authRole.Include(types.RoleProxy), check.Equals, false)
+	c.Assert(authRole.Equals(nodeProxyRole), check.Equals, false)
+	c.Assert(authRole.Equals(types.SystemRoles{types.RoleAuth, types.RoleAdmin}),
+		check.Equals, true)
 }

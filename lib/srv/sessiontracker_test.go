@@ -88,7 +88,15 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 	// will fail and force the retry mechanism to kick in. Odd iterations update
 	// session trackers successfully on first attempt.
 	for i := 0; i < 4; i++ {
-		clock.BlockUntil(1)
+		// Wait for the ticker to be ready. On odd iterations we have to block on 2 instead of 1
+		// because clockwork.fakeTicker.Stop() doesn't result in removal of the ticker from the clockwork.FakeClock
+		// sleepers list. When the ticker is recreated after the retry finishes, the clock ends up with a sleeper
+		// for both the original ticker and the new ticker.
+		if i%2 == 1 {
+			clock.BlockUntil(2)
+		} else {
+			clock.BlockUntil(1)
+		}
 
 		// advance the clock to fire the ticker
 		clock.Advance(sessionTrackerExpirationUpdateInterval)
@@ -142,8 +150,6 @@ func TestSessionTracker_UpdateRetry(t *testing.T) {
 }
 
 func TestSessionTracker(t *testing.T) {
-	t.Parallel()
-
 	ctx := context.Background()
 	clock := clockwork.NewFakeClock()
 
@@ -186,7 +192,7 @@ func TestSessionTracker(t *testing.T) {
 		require.Equal(t, expectedExpiry, tracker.tracker.Expiry())
 		require.Equal(t, tracker.tracker, mockService.trackers[sessID])
 
-		// canceling the goroutine's ctx should halt the update loop
+		// cancelling the goroutine's ctx should halt the update loop
 		cancel()
 		err := <-done
 		require.NoError(t, err)

@@ -18,7 +18,7 @@ import React from 'react';
 import { components } from 'react-select';
 import styled from 'styled-components';
 import { Box, Flex, Text } from 'design';
-import { SelectAsync } from 'shared/components/Select';
+import { SelectAsync, DarkStyledSelect } from 'shared/components/Select';
 
 const ValueContainer = ({ children, ...props }) => (
   <components.ValueContainer {...props}>
@@ -83,22 +83,24 @@ export default function ClusterSelector({
 
   return (
     <StyledBox {...styles} className="teleport-cluster-selector">
-      <StyledSelectAsync
-        components={{ ValueContainer }}
-        noOptionsMessage={getNoOptionsMessage}
-        value={selectedOption}
-        onChange={onChangeOption}
-        loadOptions={onLoadOptions}
-        defaultMenuIsOpen={defaultMenuIsOpen}
-        hasError={false}
-        maxMenuHeight={600}
-        menuPosition="fixed"
-        isSearchable
-        isSimpleValue={false}
-        isClearable={false}
-        defaultOptions
-        cacheOptions
-      />
+      <StyledSelect>
+        <SelectAsync
+          components={{ ValueContainer }}
+          noOptionsMessage={getNoOptionsMessage}
+          value={selectedOption}
+          onChange={onChangeOption}
+          loadOptions={onLoadOptions}
+          defaultMenuIsOpen={defaultMenuIsOpen}
+          hasError={false}
+          maxMenuHeight={600}
+          menuPosition="fixed"
+          isSearchable
+          isSimpleValue={false}
+          isClearable={false}
+          defaultOptions
+          cacheOptions
+        />
+      </StyledSelect>
     </StyledBox>
   );
 }
@@ -112,60 +114,14 @@ function filterOptions(value = '', options: Option[] = []) {
 
 type Option = { value: string; label: string };
 
-const StyledSelectAsync = styled(SelectAsync)`
-  .react-select__value-container {
-    padding: 0 16px;
-  }
-
+const StyledSelect = styled(DarkStyledSelect)`
   .react-select__single-value {
     transform: none;
     position: absolute;
-    left: 86px;
+    left: 78px;
     top: 4px;
     width: 270px;
     text-overflow: ellipsis;
-  }
-
-  .react-select__control {
-    min-height: 42px;
-    height: 42px;
-
-    .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.secondary};
-    }
-
-    &:focus,
-    &:active {
-      background: ${props => props.theme.colors.levels.surface};
-      border-color: ${props => props.theme.colors.text.primary};
-    }
-    &:hover {
-      background: ${props => props.theme.colors.levels.surface};
-      border-color: ${props => props.theme.colors.text.primary};
-
-      .react-select__dropdown-indicator {
-        color: ${props => props.theme.colors.text.primary};
-      }
-    }
-  }
-
-  .react-select__indicator,
-  .react-select__dropdown-indicator {
-    padding: 4px 16px;
-    color: ${props => props.theme.colors.text.secondary};
-    &:hover {
-      color: ${props => props.theme.colors.text.primary};
-    }
-  }
-
-  .react-select__control--menu-is-open {
-    .react-select__indicator,
-    .react-select__dropdown-indicator {
-      color: ${props => props.theme.colors.text.primary};
-      &:hover {
-        color: ${props => props.theme.colors.text.primary};
-      }
-    }
   }
 `;
 

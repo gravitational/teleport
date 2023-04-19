@@ -17,8 +17,12 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { Flex, Text, ButtonBorder } from 'design';
-import Table, { Cell, ClickableLabelCell } from 'design/DataTable';
-import { FetchStatus, SortType } from 'design/DataTable/types';
+import Table, {
+  Cell,
+  ClickableLabelCell,
+  UnclickableLabelCell,
+} from 'design/DataTable';
+import { SortType } from 'design/DataTable/types';
 import {
   pink,
   teal,
@@ -34,28 +38,72 @@ import {
 import { AmazonAws } from 'design/Icon';
 
 import { App } from 'teleport/services/apps';
-import { AgentLabel, AgentFilter } from 'teleport/services/agents';
+import { AgentLabel } from 'teleport/services/agents';
 import ServersideSearchPanel from 'teleport/components/ServersideSearchPanel';
+import { ResourceUrlQueryParams } from 'teleport/getUrlQueryParams';
 
 import AwsLaunchButton from './AwsLaunchButton';
-
-import type { PageIndicators } from 'teleport/components/hooks/useServersidePagination';
 
 export default function AppList(props: Props) {
   const {
     apps = [],
     pageSize,
+    totalCount,
     fetchNext,
     fetchPrev,
     fetchStatus,
+    from,
+    to,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
     onLabelClick,
-    pageIndicators,
+    paginationUnsupported,
   } = props;
+
+  if (paginationUnsupported) {
+    // Return a client paging/searching table.
+    return (
+      <Table
+        data={apps}
+        emptyText="No Applications Found"
+        isSearchable
+        pagination={{ pageSize }}
+        columns={[
+          {
+            altKey: 'app-icon',
+            render: renderAppIcon,
+          },
+          {
+            key: 'name',
+            headerText: 'Name',
+            isSortable: true,
+          },
+          {
+            key: 'description',
+            headerText: 'Description',
+            isSortable: true,
+          },
+          {
+            key: 'addrWithProtocol',
+            headerText: 'Address',
+          },
+          {
+            key: 'labels',
+            headerText: 'Labels',
+            render: ({ labels }) => <UnclickableLabelCell labels={labels} />,
+          },
+          {
+            altKey: 'launch-btn',
+            render: renderLaunchButtonCell,
+          },
+        ]}
+      />
+    );
+  }
 
   return (
     <StyledTable
@@ -103,14 +151,16 @@ export default function AppList(props: Props) {
       serversideProps={{
         sort: params.sort,
         setSort,
+        startKeys,
         serversideSearchPanel: (
           <ServersideSearchPanel
-            pageIndicators={pageIndicators}
+            from={from}
+            to={to}
+            count={totalCount}
             params={params}
             setParams={setParams}
             pathname={pathname}
             replaceHistory={replaceHistory}
-            disabled={fetchStatus === 'loading'}
           />
         ),
       }}
@@ -133,7 +183,7 @@ function renderAppIcon({ name, awsConsole }: App) {
         {awsConsole ? (
           <AmazonAws fontSize={6} />
         ) : (
-          <Text fontSize={3} color="light" bold caps>
+          <Text fontSize={3} bold caps>
             {name[0]}
           </Text>
         )}
@@ -217,14 +267,18 @@ type Props = {
   pageSize: number;
   fetchNext: () => void;
   fetchPrev: () => void;
-  fetchStatus: FetchStatus;
-  params: AgentFilter;
-  setParams: (params: AgentFilter) => void;
+  fetchStatus: any;
+  from: number;
+  to: number;
+  totalCount: number;
+  params: ResourceUrlQueryParams;
+  setParams: (params: ResourceUrlQueryParams) => void;
+  startKeys: string[];
   setSort: (sort: SortType) => void;
   pathname: string;
   replaceHistory: (path: string) => void;
   onLabelClick: (label: AgentLabel) => void;
-  pageIndicators: PageIndicators;
+  paginationUnsupported: boolean;
 };
 
 const StyledTable = styled(Table)`

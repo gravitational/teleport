@@ -20,9 +20,10 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport10
       env:
         GO_LINT_FLAGS: --timeout=15m
+        GOFLAGS: -buildvcs=false
 
     steps:
       - name: Checkout

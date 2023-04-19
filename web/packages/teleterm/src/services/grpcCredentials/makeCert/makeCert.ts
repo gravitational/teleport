@@ -39,9 +39,8 @@
  limitations under the License.
  */
 
-import { promisify } from 'util';
-
 import { pki, md } from 'node-forge';
+import { promisify } from 'util';
 
 const generateKeyPair = promisify(pki.rsa.generateKeyPair.bind(pki.rsa));
 
@@ -50,9 +49,6 @@ interface GeneratedCert {
   cert: string;
 }
 
-/**
- * Creates a self-signed cert. commonName should be a valid domain name.
- */
 export async function makeCert({
   commonName,
   validityDays,
@@ -72,15 +68,6 @@ export async function makeCert({
       critical: true,
       digitalSignature: true,
       keyEncipherment: true,
-    },
-    {
-      name: 'subjectAltName',
-      altNames: [
-        {
-          type: 2, // DNS type
-          value: commonName,
-        },
-      ],
     },
   ];
 

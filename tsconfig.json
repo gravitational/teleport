@@ -3,23 +3,20 @@
     "allowSyntheticDefaultImports": true,
     "allowJs": true,
     "baseUrl": ".",
-    "useDefineForClassFields": true,
     "esModuleInterop": true,
     "importHelpers": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
     "lib": [
       "dom",
-      "dom.iterable",
       "esnext"
     ],
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "module": "esnext",
     "moduleResolution": "node",
     "noEmitHelpers": true,
-    "resolveJsonModule": true,
+    "pretty": true,
     "skipLibCheck": true,
-    "sourceMap": false,
+    "sourceMap": true,
+    "stripInternal": true,
     "target": "esnext",
     "types": [
       "node",
@@ -51,28 +48,12 @@
       "e-teleport/*": [
         "e/web/teleport/src/*"
       ],
-      "e-teleterm/*": [
-        "e/web/teleterm/src/*"
-      ],
       "gen-proto-js/*": [
         "gen/proto/js/*"
       ]
     }
   },
-  "include": [
-    "e/web/**/*.ts",
-    "e/web/**/*.tsx",
-    "e/web/**/*.js",
-    "e/web/**/*.jsx",
-    "web/**/*.ts",
-    "web/**/*.tsx",
-    "web/**/*.js",
-    "web/**/*.jsx"
-  ],
-  "references": [{ "path": "./tsconfig.node.json"}],
   "exclude": [
-    "**/vite.config.ts",
-    "web/packages/build/**/*",
     "node_modules",
     "**/node_modules/*",
     "dist",

@@ -27,9 +27,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/fxamacker/cbor/v2"
-	"github.com/go-webauthn/webauthn/protocol"
-	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/google/go-cmp/cmp"
 	"github.com/keys-pub/go-libfido2"
 	"github.com/stretchr/testify/assert"
@@ -42,10 +42,8 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 )
 
-var (
-	makeCredentialAuthDataRaw, makeCredentialAuthDataCBOR, makeCredentialSig []byte
-	assertionAuthDataRaw, assertionAuthDataCBOR, assertionSig                []byte
-)
+var makeCredentialAuthDataRaw, makeCredentialAuthDataCBOR, makeCredentialSig []byte
+var assertionAuthDataRaw, assertionAuthDataCBOR, assertionSig []byte
 
 func init() {
 	// Initialize arrays with random data, but use realistic sizes.
@@ -193,8 +191,8 @@ func TestFIDO2Login(t *testing.T) {
 	// User IDs and names for resident credentials / passwordless.
 	const llamaName = "llama"
 	const alpacaName = "alpaca"
-	llamaID := make([]byte, 16)
-	alpacaID := make([]byte, 16)
+	var llamaID = make([]byte, 16)
+	var alpacaID = make([]byte, 16)
 	for _, b := range [][]byte{llamaID, alpacaID} {
 		_, err := rand.Read(b)
 		require.NoError(t, err, "Read failed")
@@ -1245,8 +1243,7 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 				},
 			},
 			AuthenticatorSelection: protocol.AuthenticatorSelection{
-				RequireResidentKey: protocol.ResidentKeyNotRequired(),
-				ResidentKey:        protocol.ResidentKeyRequirementDiscouraged,
+				RequireResidentKey: protocol.ResidentKeyUnrequired(),
 				UserVerification:   protocol.VerificationDiscouraged,
 			},
 			Attestation: protocol.PreferNoAttestation,
@@ -1346,7 +1343,6 @@ func TestFIDO2_LoginRegister_interactionErrors(t *testing.T) {
 
 	pwdlessCC := *mfaCC
 	pwdlessCC.Response.AuthenticatorSelection.RequireResidentKey = protocol.ResidentKeyRequired()
-	pwdlessCC.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
 	pwdlessCC.Response.AuthenticatorSelection.UserVerification = protocol.VerificationRequired
 
 	// FIDO2Register interaction tests.
@@ -1657,23 +1653,6 @@ func TestFIDO2Register(t *testing.T) {
 				require.NotEmpty(t, bio1.credentials, "no resident credentials added to bio1")
 				cred := bio1.credentials[len(bio1.credentials)-1]
 				assert.Equal(t, cred.ID, ccr.RawId, "RawId mismatch (want bio1 resident credential)")
-			},
-		},
-		{
-			name:  "passwordless ResidentKey=required",
-			fido2: newFakeFIDO2(pin2),
-			setUP: pin2.setUP,
-			createCredential: func() *wanlib.CredentialCreation {
-				cp := pwdlessCC
-				cp.Response.AuthenticatorSelection.RequireResidentKey = nil
-				cp.Response.AuthenticatorSelection.ResidentKey = protocol.ResidentKeyRequirementRequired
-				return &cp
-			},
-			prompt: pin2,
-			assertResponse: func(t *testing.T, ccr *wanpb.CredentialCreationResponse, attObj *protocol.AttestationObject) {
-				require.NotEmpty(t, pin2.credentials, "no resident credentials added to pin2")
-				cred := pin2.credentials[len(pin2.credentials)-1]
-				assert.Equal(t, cred.ID, ccr.RawId, "RawId mismatch (want pin2 resident credential)")
 			},
 		},
 	}

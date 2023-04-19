@@ -111,6 +111,7 @@ pub enum MinorFunction {
 #[allow(non_camel_case_types)]
 #[allow(clippy::upper_case_acronyms)]
 #[allow(dead_code)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum NTSTATUS {
     STATUS_SUCCESS = 0x00000000,
     STATUS_UNSUCCESSFUL = 0xC0000001,

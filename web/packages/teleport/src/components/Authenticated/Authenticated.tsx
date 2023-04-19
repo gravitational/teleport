@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
-import { throttle } from 'shared/utils/highbar';
+import { throttle } from 'lodash';
 import Logger from 'shared/libs/logger';
 
 import session from 'teleport/services/websession';

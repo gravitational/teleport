@@ -28,11 +28,11 @@ export function useKeyboardShortcuts(handlers: KeyboardShortcutHandlers): void {
 
   useEffect(() => {
     const handleShortcutEvent: KeyboardShortcutEventSubscriber = event => {
-      handlers[event.action]?.();
+      handlers[event.type]?.();
     };
 
     keyboardShortcutsService.subscribeToEvents(handleShortcutEvent);
     return () =>
       keyboardShortcutsService.unsubscribeFromEvents(handleShortcutEvent);
-  }, [handlers, keyboardShortcutsService]);
+  }, [handlers]);
 }

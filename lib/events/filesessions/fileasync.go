@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
@@ -160,7 +159,7 @@ func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
 
 // Serve runs the uploader until stopped
 func (u *Uploader) Serve(ctx context.Context) error {
-	backoff, err := retryutils.NewLinear(retryutils.LinearConfig{
+	backoff, err := utils.NewLinear(utils.LinearConfig{
 		Step:  u.cfg.ScanPeriod,
 		Max:   u.cfg.ScanPeriod * 100,
 		Clock: u.cfg.Clock,
@@ -467,7 +466,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 				return trace.Wrap(err)
 			}
 			u.log.WithError(err).Warningf(
-				"Upload for session %v, upload ID %v is not found starting a new upload from scratch.",
+				"Upload for sesion %v, upload ID %v is not found starting a new upload from scratch.",
 				up.sessionID, status.UploadID)
 			status = nil
 			stream, err = u.cfg.Streamer.CreateAuditStream(ctx, up.sessionID)
@@ -490,12 +489,12 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	// sent by the server after create.
 	select {
 	case <-u.closeC:
-		return trace.Errorf("operation has been canceled, uploader is closed")
+		return trace.Errorf("operation has been cancelled, uploader is closed")
 	case <-stream.Status():
-	case <-time.After(events.NetworkRetryDuration):
+	case <-time.After(defaults.NetworkRetryDuration):
 		return trace.ConnectionProblem(nil, "timeout waiting for stream status update")
 	case <-ctx.Done():
-		return trace.ConnectionProblem(ctx.Err(), "operation has been canceled")
+		return trace.ConnectionProblem(ctx.Err(), "operation has been cancelled")
 
 	}
 

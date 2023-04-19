@@ -17,7 +17,7 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 
-import { space, color, alignSelf } from 'design/system';
+import { space, color } from 'design/system';
 
 import Icon from '../Icon';
 
@@ -49,14 +49,10 @@ const fromProps = props => {
   const { theme } = props;
   return {
     '&:disabled': {
-      color: theme.colors.text.disabled,
-      cursor: 'default',
+      color: theme.colors.action.disabled,
     },
-    '&:hover:enabled, &:focus:enabled': {
-      background: theme.colors.spotBackground[1],
-    },
-    '&:active:enabled': {
-      background: theme.colors.spotBackground[2],
+    '&:hover, &:focus': {
+      background: theme.colors.action.hover,
     },
   };
 };
@@ -91,13 +87,12 @@ const StyledButtonIcon = styled.button`
   }
 
   &:disabled {
-    color: ${({ theme }) => theme.colors.text.disabled};
+    color: ${({ theme }) => theme.colors.action.disabled};
   }
 
   ${fromProps}
   ${size}
   ${space}
   ${color}
-  ${alignSelf}
 `;
 export default ButtonIcon;

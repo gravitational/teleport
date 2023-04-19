@@ -39,13 +39,18 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewEngine create new Snowflake engine.
-func NewEngine(ec common.EngineConfig) common.Engine {
+func init() {
+	common.RegisterEngine(newEngine, defaults.ProtocolSnowflake)
+}
+
+// newEngine create new Snowflake engine.
+func newEngine(ec common.EngineConfig) common.Engine {
 	return &Engine{
 		EngineConfig: ec,
 		HTTPClient:   getDefaultHTTPClient(),
@@ -341,19 +346,23 @@ func (e *Engine) processResponse(resp *http.Response, modifyReqFn func(body []by
 // authorizeConnection does authorization check for Snowflake connection about
 // to be established.
 func (e *Engine) authorizeConnection(ctx context.Context) error {
-	authPref, err := e.Auth.GetAuthPreference(ctx)
+	ap, err := e.Auth.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	state := e.sessionCtx.GetAccessState(authPref)
+	mfaParams := services.AccessMFAParams{
+		Verified:       e.sessionCtx.Identity.MFAVerified != "",
+		AlwaysRequired: ap.GetRequireSessionMFA(),
+	}
+
 	dbRoleMatchers := role.DatabaseRoleMatchers(
-		e.sessionCtx.Database,
+		e.sessionCtx.Database.GetProtocol(),
 		e.sessionCtx.DatabaseUser,
 		e.sessionCtx.DatabaseName,
 	)
 	err = e.sessionCtx.Checker.CheckAccess(
 		e.sessionCtx.Database,
-		state,
+		mfaParams,
 		dbRoleMatchers...,
 	)
 	if err != nil {

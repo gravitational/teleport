@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	cq "github.com/gravitational/teleport/lib/utils/concurrentqueue"
@@ -225,7 +224,7 @@ func New(ctx context.Context, params backend.Params, opts ...Option) (*EtcdBacke
 		options.clock = clockwork.NewRealClock()
 	}
 
-	err := metrics.RegisterPrometheusCollectors(prometheusCollectors...)
+	err := utils.RegisterPrometheusCollectors(prometheusCollectors...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

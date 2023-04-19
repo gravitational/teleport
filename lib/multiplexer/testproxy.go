@@ -131,11 +131,7 @@ func (p *TestProxy) sendProxyLine(clientConn, serverConn net.Conn) error {
 	}
 	p.log.Debugf("Sending %v to %v.", proxyLine.String(), serverConn.RemoteAddr().String())
 	if p.v2 {
-		b, bErr := proxyLine.Bytes()
-		if bErr != nil {
-			return trace.Wrap(err)
-		}
-		_, err = serverConn.Write(b)
+		_, err = serverConn.Write(proxyLine.Bytes())
 	} else {
 		_, err = serverConn.Write([]byte(proxyLine.String()))
 	}

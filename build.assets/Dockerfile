@@ -1,7 +1,5 @@
 # This Dockerfile makes the "build box": the container used to build official
 # releases of Teleport and its documentation.
-#
-# Check the README to learn how to safely introduce changes to Dockerfiles.
 
 # Use Ubuntu 18.04 as base to get an older glibc version.
 # Using a newer base image will build against a newer glibc, which creates a
@@ -38,46 +36,19 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     make install && \
     make clean
 
-# Install openssl.
-# install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
-    cd openssl && \
-    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
-    ./config --release --libdir=/usr/local/lib && \
-    make && \
-    make install_sw
-
 # Install libfido2.
-# Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib1g-dev.
-RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
+# Depends on libcbor, libssl-dev, zlib1g-dev and libudev.
+RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
-    [ "$(git rev-parse HEAD)" = '486a8f8667e42f55cee2bba301b41433cacec830' ] && \
+    [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
     CFLAGS=-pthread cmake \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_MANPAGES=OFF \
         -DBUILD_TOOLS=OFF \
         -DCMAKE_BUILD_TYPE=Release . && \
-    grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
     make && \
-    make install && \
+    make install  && \
     make clean
-
-## LIBBPF #####################################################################
-
-FROM buildpack-deps:18.04 AS libbpf
-
-# Install required dependencies
-RUN apt-get update -y --fix-missing && \
-    apt-get -q -y upgrade && \
-    apt-get install -q -y --no-install-recommends \
-        libelf-dev
-
-ARG LIBBPF_VERSION
-RUN mkdir -p /opt && cd /opt &&  \
-    curl -fsSL https://github.com/libbpf/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
-    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
-    make &&  \
-    BUILD_STATIC_ONLY=y DESTDIR=/opt/libbpf make install
 
 ## BUILDBOX ###################################################################
 #
@@ -150,6 +121,7 @@ RUN apt-get -y update && \
         pkg-config \
         # Used during tag builds to build the RPM package of Connect.
         rpm \
+        shellcheck \
         softhsm2 \
         sudo \
         tree \
@@ -157,7 +129,6 @@ RUN apt-get -y update && \
         zip \
         zlib1g-dev \
         xauth \
-        libpcsclite-dev \
         && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
@@ -165,15 +136,14 @@ RUN apt-get -y update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install gcloud SDK and Firestore emulator.
+RUN curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts
 ENV PATH="$PATH:/opt/google-cloud-sdk/bin"
-RUN (curl -fsSL https://sdk.cloud.google.com | bash -s -- --install-dir=/opt --disable-prompts) && \
-    gcloud components install cloud-firestore-emulator beta && \
-    rm -rf /opt/google-cloud-sdk/.install/.backup
+# beta component is required by firestore emulator: https://cloud.google.com/sdk/gcloud/reference/beta/emulators/firestore/start
+RUN gcloud components install cloud-firestore-emulator beta
 
 # Install etcd.
 RUN curl -fsSL https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-${BUILDARCH}.tar.gz | tar -xz && \
-    cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/ && \
-    rm -rf etcd-v3.3.9-linux-${BUILDARCH}
+     cp etcd-v3.3.9-linux-${BUILDARCH}/etcd* /bin/
 
 # Add the CI user.
 ARG UID
@@ -182,7 +152,7 @@ RUN groupadd ci --gid=$GID -o && \
     useradd ci --uid=$UID --gid=$GID --create-home --shell=/bin/sh && \
     mkdir -p -m0700 /var/lib/teleport && chown -R ci /var/lib/teleport
 
-# Install Rust.
+# Install Rust
 ARG RUST_VERSION
 ENV RUSTUP_HOME=/usr/local/rustup \
      CARGO_HOME=/usr/local/cargo \
@@ -200,12 +170,12 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     cargo --version && \
     rustc --version && \
     rustup component add rustfmt clippy && \
-    if [ "$BUILDARCH" = "amd64" ]; then rustup target add aarch64-unknown-linux-gnu; fi
+    if [ "$BUILDARCH" = "amd64" ]; then rustup target add i686-unknown-linux-gnu arm-unknown-linux-gnueabihf aarch64-unknown-linux-gnu; fi
 # Switch back to root for the remaining instructions and keep it as the default
 # user.
 USER root
 
-# Install Node.js.
+# Install Node.js
 ARG NODE_VERSION
 ENV NODE_PATH="/usr/local/lib/nodejs-linux"
 ENV PATH="$PATH:${NODE_PATH}/bin"
@@ -237,25 +207,18 @@ RUN curl -fsSL https://github.com/bats-core/bats-core/archive/v1.2.1.tar.gz | ta
     cd bats-core-1.2.1 && ./install.sh /usr/local && cd .. && \
     rm -r bats-core-1.2.1
 
-# Install shellcheck.
-RUN scversion='v0.9.0' && \
-    curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/$scversion/shellcheck-$scversion.linux.$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch64"; fi).tar.xz" | \
-        tar -xJv && \
-    cp "shellcheck-$scversion/shellcheck" /usr/local/bin/ && \
-    shellcheck --version
+# Install libbpf.
+ARG LIBBPF_VERSION
+RUN mkdir -p /opt && cd /opt && curl -fsSL https://github.com/gravitational/libbpf/archive/refs/tags/v${LIBBPF_VERSION}.tar.gz | tar xz && \
+    cd /opt/libbpf-${LIBBPF_VERSION}/src && \
+    make && \
+    make install
 
 # Install helm.
 RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
-# TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
-RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
-    chown -R ci /home/ci/.local/share/helm && \
-    helm plugin uninstall unittest && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
 RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
@@ -268,6 +231,7 @@ RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
 # Install protobuf and grpc build tools.
 ARG PROTOC_VER
 ARG GOGO_PROTO_TAG
+ENV GOGOPROTO_ROOT ${GOPATH}/src/github.com/gogo/protobuf
 
 RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
      curl -fsSL -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
@@ -275,16 +239,24 @@ RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd
      chmod -R a+r /usr/local/include/google/protobuf && \
      chmod -R a+xr /usr/local/bin/protoc && \
      rm /tmp/${PROTOC_TARBALL})
-RUN go install github.com/gogo/protobuf/protoc-gen-gogofast@${GOGO_PROTO_TAG}
+RUN (git clone https://github.com/gogo/protobuf.git ${GOPATH}/src/github.com/gogo/protobuf && \
+     cd ${GOPATH}/src/github.com/gogo/protobuf && \
+     git reset --hard ${GOGO_PROTO_TAG} && \
+     make install)
+ENV PROTO_INCLUDE "/usr/local/include":"/go/src":"/go/src/github.com/gogo/protobuf/protobuf":"${GOGOPROTO_ROOT}":"${GOGOPROTO_ROOT}/protobuf"
+# Install protoc-gen-go for lib/teleterm as #17267 and #17302 were not backported to v10.
+RUN go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
 
 # Install GCI.
-RUN go install github.com/daixiang0/gci@v0.9.1
+RUN go install github.com/daixiang0/gci@v0.7.0
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+RUN curl -fsSL https://github.com/golangci/golangci-lint/releases/download/v1.46.0/golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -xz && \
+    cp golangci-lint-1.46.0-$(go env GOOS)-$(go env GOARCH)/golangci-lint /bin/ && \
+    rm -r golangci-lint*
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
@@ -294,31 +266,19 @@ RUN BIN="/usr/local/bin" && \
         -o "${BIN}/buf" && \
       chmod +x "${BIN}/buf"
 
-# Copy BPF libraries.
-ARG LIBBPF_VERSION
-COPY --from=libbpf /opt/libbpf/usr /usr/libbpf-${LIBBPF_VERSION}
-
 # Copy libfido2 libraries.
 # Do this near the end to take better advantage of the multi-stage build.
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
-COPY --from=libfido2 /usr/local/lib/engines-3/ /usr/local/lib/engines-3/
-COPY --from=libfido2 /usr/local/lib/ossl-modules/ /usr/local/lib/ossl-modules/
 COPY --from=libfido2 /usr/local/lib/pkgconfig/ /usr/local/lib/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib/libcbor.a \
-    /usr/local/lib/libcrypto.a \
-    /usr/local/lib/libcrypto.so.3 \
     /usr/local/lib/libfido2.a \
-    /usr/local/lib/libfido2.so.1.13.0 \
-    /usr/local/lib/libssl.a \
-    /usr/local/lib/libssl.so.3 \
+    /usr/local/lib/libfido2.so.1.12.0 \
     /usr/local/lib/libudev.a \
     /usr/local/lib/
 RUN cd /usr/local/lib && \
-    ln -s libcrypto.so.3 libcrypto.so && \
-    ln -s libfido2.so.1.13.0 libfido2.so.1 && \
+    ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
-    ln -s libssl.so.3 libssl.so && \
     ldconfig
 COPY pkgconfig/buildbox/ /
 

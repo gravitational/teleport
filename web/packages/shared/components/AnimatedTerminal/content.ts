@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { wait } from 'shared/utils/wait';
-
 export interface BufferEntry {
   id: number;
   text: string;
@@ -36,6 +34,10 @@ export interface TerminalLine {
   delay?: number;
   hasFinished?: () => boolean;
   frames?: FrameFunction[];
+}
+
+function wait(ms: number) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
 }
 
 export async function* createTerminalContent(

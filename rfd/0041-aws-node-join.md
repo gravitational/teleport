@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 41 - Simplified Node Joining for AWS
@@ -286,7 +286,7 @@ Response:
 }
 ```
 
-The pkcs7 signature is separate from the document and looks like:
+The pkcs7 signature is seperate from the document and looks like:
 ```
 MIAGCSqGSIb3DQEHAqCAMIACAQExCzAJBgUrDgMCGgUAMIAGCSqGSIb3DQEHAaCAJIAEggHZewog
 ICJhY2NvdW50SWQiIDogIjI3ODU3NjIyMDQ1MyIsCiAgImFyY2hpdGVjdHVyZSIgOiAieDg2XzY0

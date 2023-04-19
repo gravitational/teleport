@@ -17,22 +17,23 @@ limitations under the License.
 import styled from 'styled-components';
 
 import { borderColor } from './../system';
+import defaultTheme from './../theme';
 import Flex from './../Flex';
 
-const fromTheme = ({ theme }) => {
+const fromTheme = ({ theme = defaultTheme }) => {
   return {
-    background: theme.colors.levels.surface,
+    background: theme.colors.primary.light,
     color: theme.colors.text.secondary,
     fontSize: theme.fontSizes[1],
     fontWeight: theme.bold,
     '&:active, &.active': {
-      borderLeftColor: theme.colors.brand,
-      background: theme.colors.levels.elevated,
-      color: theme.colors.text.primary,
+      borderLeftColor: theme.colors.accent,
+      background: theme.colors.primary.lighter,
+      color: theme.colors.primary.contrastText,
     },
     '&:hover, &:focus': {
-      background: theme.colors.levels.elevated,
-      color: theme.colors.text.primary,
+      background: theme.colors.primary.lighter,
+      color: theme.colors.primary.contrastText,
     },
   };
 };
@@ -55,8 +56,9 @@ SideNavItem.displayName = 'SideNavItem';
 SideNavItem.defaultProps = {
   pl: 9,
   pr: 5,
-  bg: 'levels.surfaceSecondary',
+  bg: 'primary.main',
   color: 'text.primary',
+  theme: defaultTheme,
 };
 
 export default SideNavItem;

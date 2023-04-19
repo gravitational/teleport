@@ -5,8 +5,6 @@ state: implemented (Teleport 10.0.0)
 
 # RFD 66 - IP-based validation
 
-Note: this approach was refined in [RFD 110](./0110-ip-pinning-and-propagation.md)
-
 # Required Approvers
 
 * Engineering @zmb3 && (@codingllama || @nklaassen )

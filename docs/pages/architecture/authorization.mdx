@@ -169,12 +169,6 @@ spec:
        'environment': ['test', 'stage']
     kubernetes_labels:
        'environment': ['test', 'stage']
-    # Allow access to any Kubernetes pod in a cluster with the labels specified
-    # above.
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 Prod role allows SSH access as `ubuntu` and `view` access to kubernetes for
@@ -191,10 +185,6 @@ spec:
        'environment': ['prod']
     kubernetes_labels:
        'environment': ['prod']
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 Here is how Teleport will evaluate Alice's access:
@@ -207,6 +197,7 @@ The same applies to Kubernetes:
 
 - Alice can access kubernetes cluster as `system:masters` if it's labeled as `test` or `stage`.
 - Alice can access kubernetes clusters only as a `view` role if it's labeled as `prod`.
+
 
 ### Role templates
 
@@ -261,10 +252,6 @@ spec:
     kubernetes_groups: ["{{external.k8s_groups}}"]
     kubernetes_labels:
        "env": ["{{external.env}}"]
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 User Alice authenticates with Teleport and receives the following variables from
@@ -288,10 +275,6 @@ spec:
     kubernetes_groups: ["view", "edit"]
     kubernetes_labels:
        "env": ["stage"]
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
 ```
 
 Finally, the proxy applies the resulting role to the kubernetes cluster Alice tries to
@@ -392,7 +375,7 @@ spec:
 - [Access Control Reference](../access-controls/reference.mdx).
 - [Teleport Predicate Language](../reference/predicate-language.mdx).
 - [Access Requests Guides](../access-controls/access-requests.mdx)
-- [Architecture Overview](../core-concepts.mdx)
+- [Architecture Overview](overview.mdx)
 - [Teleport Auth](authentication.mdx)
 - [Teleport Nodes](nodes.mdx)
 - [Teleport Proxy](proxy.mdx)

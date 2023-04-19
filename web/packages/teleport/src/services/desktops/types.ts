@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { AgentLabel } from 'teleport/services/agents';
+import { AgentLabel, AgentQueryMeta } from 'teleport/services/resources';
 
 // Desktop is a remote desktop.
 export type Desktop = {
@@ -33,6 +33,9 @@ export type Desktop = {
   host_addr?: string;
 };
 
+export type DesktopsResponse = AgentQueryMeta & {
+  desktops: Desktop[];
+};
 // DesktopService is a Windows Desktop Service.
 export type WindowsDesktopService = {
   // Name is name (uuid) of the windows desktop service.

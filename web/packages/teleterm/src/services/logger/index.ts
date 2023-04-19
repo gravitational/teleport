@@ -14,4 +14,5 @@
  * limitations under the License.
  */
 
-export * from './loggerService';
+import createLoggerService from './loggerService';
+export default createLoggerService;

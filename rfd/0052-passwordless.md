@@ -23,9 +23,6 @@ documents for client-side aspects of the design:
 
 * [Passwordless for FIDO2 clients][passwordless fido2]
 * [Passwordless for macOS CLI][passwordless macos] (aka Touch ID)
-* [Passwordless for Windows CLI][passwordless windows]
-
-Passwordless is available as a preview in Teleport 10.
 
 ## Why
 
@@ -127,43 +124,51 @@ necessary until we can be sure that passwords are ripe for full removal.
 A passwordless login flow is exemplified below:
 
 ```
-                                    Passwordless login
+                                     Passwordless login
 
-                                  ┌─┐
-                                  ║"│
-                                  └┬┘
-                                  ┌┼┐
-     ┌─────────────┐               │                                        ┌────────┐
-     │authenticator│              ┌┴┐                                       │Teleport│
-     └──────┬──────┘             user                                       └───┬────┘
-            │                     │       1. CreateAuthenticateChallenge()      │
-            │                     │ ────────────────────────────────────────────>
-            │                     │                                             │
-            │                     │                1.1. challenge               │
-            │                     │ <────────────────────────────────────────────
-            │                     │                                             │
-            │  2. sign challenge  │                                             │
-            │<─────────────────────                                             │
-            │                     │                                             │
-            │2.1. signed challenge│                                             │
-            │─────────────────────>                                             │
-            │                     │                                             │
-            │                     │────┐                                        │
-            │                     │    │ 2.2. choose credential                 │
-            │                     │<───┘                                        │
-            │                     │                                             │
-            │                     │ 3. Authenticate(userHandle, signedChallenge)│
-            │                     │ ────────────────────────────────────────────>
-            │                     │                                             │
-            │                     │   3.1. signed certificates or web session   │
-            │                     │ <────────────────────────────────────────────
-     ┌──────┴──────┐             user                                       ┌───┴────┐
-     │authenticator│              ┌─┐                                       │Teleport│
-     └─────────────┘              ║"│                                       └────────┘
-                                  └┬┘
-                                  ┌┼┐
-                                   │
-                                  ┌┴┐
+                                   ┌─┐
+                                   ║"│
+                                   └┬┘
+                                   ┌┼┐
+     ┌─────────────┐                │                                        ┌────────┐
+     │authenticator│               ┌┴┐                                       │Teleport│
+     └──────┬──────┘              user                                       └───┬────┘
+            │                      │       1. CreateAuthenticateChallenge()      │
+            │                      │ ────────────────────────────────────────────>
+            │                      │                                             │
+            │                      │                1.1. challenge               │
+            │                      │ <────────────────────────────────────────────
+            │                      │                                             │
+            │ 2. list credentials  │                                             │
+            │<──────────────────────                                             │
+            │                      │                                             │
+            │                      │                                             │
+            │──────────────────────>                                             │
+            │                      │                                             │
+            │2.1. choose credential│                                             │
+            │<──────────────────────                                             │
+            │                      │                                             │
+            │                      │                                             │
+            │──────────────────────>                                             │
+            │                      │                                             │
+            │ 2.2. sign challenge  │                                             │
+            │<──────────────────────                                             │
+            │                      │                                             │
+            │2.3. signed challenge │                                             │
+            │──────────────────────>                                             │
+            │                      │                                             │
+            │                      │ 3. Authenticate(userHandle, signedChallenge)│
+            │                      │ ────────────────────────────────────────────>
+            │                      │                                             │
+            │                      │   3.1. signed certificates or web session   │
+            │                      │ <────────────────────────────────────────────
+     ┌──────┴──────┐              user                                       ┌───┴────┐
+     │authenticator│               ┌─┐                                       │Teleport│
+     └─────────────┘               ║"│                                       └────────┘
+                                   └┬┘
+                                   ┌┼┐
+                                    │
+                                   ┌┴┐
 ```
 
 Authentication looks similar to our well-known challenge/response protocols,
@@ -181,9 +186,6 @@ the [cluster settings](#cluster-settings) section for our take on this).
 In regards to authenticator interactions (2), it is important to note that the
 user may have multiple credentials attached to an
 [RPID](https://www.w3.org/TR/webauthn-2/#rp-id) (Relying Party ID) / Teleport.
-Authenticators are capable of returning multiple assertions, one for each
-applicable credential, thus allowing the user to pick the desired credential for
-login.
 
 Finally, in the last step of the authentication (3) we require the WebAuthn
 [user handle](
@@ -401,10 +403,6 @@ message AddMFADeviceRequestInit {
 
 #### Device restrictions
 
-UPDATE 2022-06: Device restrictions are not present in the passwordless preview,
-as various Touch ID implementations aren't capable of more than
-self-attestation.
-
 Passwordless device restrictions can be attained through [attestation](
 https://github.com/gravitational/teleport/blob/master/rfd/0040-webauthn-support.md#attestation).
 
@@ -583,7 +581,6 @@ implementation uniform and without hidden behaviors.
 
 [passwordless fido2]: https://github.com/gravitational/teleport/blob/master/rfd/0053-passwordless-fido2.md
 [passwordless macos]: https://github.com/gravitational/teleport/blob/master/rfd/0054-passwordless-macos.md
-[passwordless windows]: https://github.com/gravitational/teleport/blob/master/rfd/0088-passwordless-windows.md
 
 <!-- Plant UML diagrams -->
 <!--
@@ -600,9 +597,12 @@ participant "Teleport" as server
 user -> server: 1. CreateAuthenticateChallenge()
 server -> user: 1.1. challenge
 
-user -> authenticator: 2. sign challenge
-authenticator -> user: 2.1. signed challenge
-user -> user: 2.2. choose credential
+user -> authenticator: 2. list credentials
+authenticator -> user
+user -> authenticator: 2.1. choose credential
+authenticator -> user
+user -> authenticator: 2.2. sign challenge
+authenticator -> user: 2.3. signed challenge
 
 user -> server: 3. Authenticate(userHandle, signedChallenge)
 server -> user: 3.1. signed certificates or web session

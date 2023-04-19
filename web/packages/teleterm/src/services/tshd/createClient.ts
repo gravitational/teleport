@@ -17,20 +17,12 @@
 import { ChannelCredentials, ClientDuplexStream } from '@grpc/grpc-js';
 import * as api from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
 import { TerminalServiceClient } from 'gen-proto-js/teleport/lib/teleterm/v1/service_grpc_pb';
-import {
-  AccessRequest,
-  ResourceID,
-} from 'gen-proto-js/teleport/lib/teleterm/v1/access_request_pb';
 
+import * as types from 'teleterm/services/tshd/types';
 import Logger from 'teleterm/logger';
-import * as uri from 'teleterm/ui/uri';
 
-import { createFileTransferStream } from './createFileTransferStream';
 import middleware, { withLogging } from './middleware';
-import * as types from './types';
 import createAbortController from './createAbortController';
-import { mapUsageEvent } from './mapUsageEvent';
-import { ReportUsageEventRequest } from './types';
 
 export default function createClient(
   addr: string,
@@ -45,7 +37,7 @@ export default function createClient(
   const client = {
     createAbortController,
 
-    async logout(clusterUri: uri.RootClusterUri) {
+    async logout(clusterUri: string) {
       const req = new api.LogoutRequest().setClusterUri(clusterUri);
       return new Promise<void>((resolve, reject) => {
         tshd.logout(req, err => {
@@ -58,33 +50,27 @@ export default function createClient(
       });
     },
 
-    async getKubes({
-      clusterUri,
-      search,
-      sort,
-      query,
-      searchAsRoles,
-      startKey,
-      limit,
-    }: types.GetResourcesParams) {
-      const req = new api.GetKubesRequest()
-        .setClusterUri(clusterUri)
-        .setSearchAsRoles(searchAsRoles)
-        .setStartKey(startKey)
-        .setSearch(search)
-        .setQuery(query)
-        .setLimit(limit);
-
-      if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
-      }
-
-      return new Promise<types.GetKubesResponse>((resolve, reject) => {
-        tshd.getKubes(req, (err, response) => {
+    async listApps(clusterUri: string) {
+      const req = new api.ListAppsRequest().setClusterUri(clusterUri);
+      return new Promise<types.Application[]>((resolve, reject) => {
+        tshd.listApps(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.GetKubesResponse);
+            resolve(response.toObject().appsList);
+          }
+        });
+      });
+    },
+
+    async listKubes(clusterUri: string) {
+      const req = new api.ListKubesRequest().setClusterUri(clusterUri);
+      return new Promise<types.Kube[]>((resolve, reject) => {
+        tshd.listKubes(req, (err, response) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(response.toObject().kubesList);
           }
         });
       });
@@ -97,20 +83,20 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().gatewaysList as types.Gateway[]);
+            resolve(response.toObject().gatewaysList);
           }
         });
       });
     },
 
-    async listLeafClusters(clusterUri: uri.RootClusterUri) {
+    async listLeafClusters(clusterUri: string) {
       const req = new api.ListLeafClustersRequest().setClusterUri(clusterUri);
       return new Promise<types.Cluster[]>((resolve, reject) => {
         tshd.listLeafClusters(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().clustersList as types.Cluster[]);
+            resolve(response.toObject().clustersList);
           }
         });
       });
@@ -123,45 +109,26 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().clustersList as types.Cluster[]);
+            resolve(response.toObject().clustersList);
           }
         });
       });
     },
 
-    async getDatabases({
-      clusterUri,
-      search,
-      sort,
-      query,
-      searchAsRoles,
-      startKey,
-      limit,
-    }: types.GetResourcesParams) {
-      const req = new api.GetDatabasesRequest()
-        .setClusterUri(clusterUri)
-        .setSearchAsRoles(searchAsRoles)
-        .setStartKey(startKey)
-        .setSearch(search)
-        .setQuery(query)
-        .setLimit(limit);
-
-      if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
-      }
-
-      return new Promise<types.GetDatabasesResponse>((resolve, reject) => {
-        tshd.getDatabases(req, (err, response) => {
+    async listDatabases(clusterUri: string) {
+      const req = new api.ListDatabasesRequest().setClusterUri(clusterUri);
+      return new Promise<types.Database[]>((resolve, reject) => {
+        tshd.listDatabases(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.GetDatabasesResponse);
+            resolve(response.toObject().databasesList);
           }
         });
       });
     },
 
-    async listDatabaseUsers(dbUri: uri.DatabaseUri) {
+    async listDatabaseUsers(dbUri: string) {
       const req = new api.ListDatabaseUsersRequest().setDbUri(dbUri);
       return new Promise<string[]>((resolve, reject) => {
         tshd.listDatabaseUsers(req, (err, response) => {
@@ -174,174 +141,17 @@ export default function createClient(
       });
     },
 
-    async getAccessRequest(clusterUri: uri.RootClusterUri, requestId: string) {
-      const req = new api.GetAccessRequestRequest()
-        .setClusterUri(clusterUri)
-        .setAccessRequestId(requestId);
-      return new Promise<types.AccessRequest>((resolve, reject) => {
-        tshd.getAccessRequest(req, (err, response) => {
+    async listServers(clusterUri: string) {
+      const req = new api.ListServersRequest().setClusterUri(clusterUri);
+      return new Promise<types.Server[]>((resolve, reject) => {
+        tshd.listServers(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject().request);
+            resolve(response.toObject().serversList);
           }
         });
       });
-    },
-
-    async getAccessRequests(clusterUri: uri.RootClusterUri) {
-      const req = new api.GetAccessRequestsRequest().setClusterUri(clusterUri);
-      return new Promise<types.AccessRequest[]>((resolve, reject) => {
-        tshd.getAccessRequests(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().requestsList);
-          }
-        });
-      });
-    },
-
-    async getServers({
-      clusterUri,
-      search,
-      query,
-      sort,
-      searchAsRoles,
-      startKey,
-      limit,
-    }: types.GetResourcesParams) {
-      const req = new api.GetServersRequest()
-        .setClusterUri(clusterUri)
-        .setSearchAsRoles(searchAsRoles)
-        .setStartKey(startKey)
-        .setSearch(search)
-        .setQuery(query)
-        .setLimit(limit);
-
-      if (sort) {
-        req.setSortBy(`${sort.fieldName}:${sort.dir.toLowerCase()}`);
-      }
-
-      return new Promise<types.GetServersResponse>((resolve, reject) => {
-        tshd.getServers(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject() as types.GetServersResponse);
-          }
-        });
-      });
-    },
-
-    async createAccessRequest(params: types.CreateAccessRequestParams) {
-      const req = new api.CreateAccessRequestRequest()
-        .setRootClusterUri(params.rootClusterUri)
-        .setSuggestedReviewersList(params.suggestedReviewers)
-        .setRolesList(params.roles)
-        .setResourceIdsList(
-          params.resourceIds.map(({ id, clusterName, kind }) => {
-            const resourceId = new ResourceID();
-            resourceId.setName(id);
-            resourceId.setClusterName(clusterName);
-            resourceId.setKind(kind);
-            return resourceId;
-          })
-        )
-        .setReason(params.reason);
-      return new Promise<AccessRequest.AsObject>((resolve, reject) => {
-        tshd.createAccessRequest(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().request);
-          }
-        });
-      });
-    },
-
-    async deleteAccessRequest(
-      clusterUri: uri.RootClusterUri,
-      requestId: string
-    ) {
-      const req = new api.DeleteAccessRequestRequest()
-        .setRootClusterUri(clusterUri)
-        .setAccessRequestId(requestId);
-      return new Promise<void>((resolve, reject) => {
-        tshd.deleteAccessRequest(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-    },
-
-    async assumeRole(
-      clusterUri: uri.RootClusterUri,
-      requestIds: string[],
-      dropIds: string[]
-    ) {
-      const req = new api.AssumeRoleRequest()
-        .setRootClusterUri(clusterUri)
-        .setAccessRequestIdsList(requestIds)
-        .setDropRequestIdsList(dropIds);
-      return new Promise<void>((resolve, reject) => {
-        tshd.assumeRole(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-    },
-
-    async reviewAccessRequest(
-      clusterUri: uri.RootClusterUri,
-      params: types.ReviewAccessRequestParams
-    ) {
-      const req = new api.ReviewAccessRequestRequest()
-        .setRootClusterUri(clusterUri)
-        .setAccessRequestId(params.id)
-        .setState(params.state)
-        .setReason(params.reason)
-        .setRolesList(params.roles);
-      return new Promise<types.AccessRequest>((resolve, reject) => {
-        tshd.reviewAccessRequest(req, (err, response) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(response.toObject().request);
-          }
-        });
-      });
-    },
-
-    async getRequestableRoles(params: types.GetRequestableRolesParams) {
-      const req = new api.GetRequestableRolesRequest()
-        .setClusterUri(params.rootClusterUri)
-        .setResourceIdsList(
-          params.resourceIds.map(({ id, clusterName, kind }) => {
-            const resourceId = new ResourceID();
-            resourceId.setName(id);
-            resourceId.setClusterName(clusterName);
-            resourceId.setKind(kind);
-            return resourceId;
-          })
-        );
-      return new Promise<types.GetRequestableRolesResponse>(
-        (resolve, reject) => {
-          tshd.getRequestableRoles(req, (err, response) => {
-            if (err) {
-              reject(err);
-            } else {
-              resolve(response.toObject());
-            }
-          });
-        }
-      );
     },
 
     async addRootCluster(addr: string) {
@@ -351,20 +161,20 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Cluster);
+            resolve(response.toObject());
           }
         });
       });
     },
 
-    async getCluster(uri: uri.RootClusterUri) {
+    async getCluster(uri: string) {
       const req = new api.GetClusterRequest().setClusterUri(uri);
       return new Promise<types.Cluster>((resolve, reject) => {
         tshd.getCluster(req, (err, response) => {
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Cluster);
+            resolve(response.toObject());
           }
         });
       });
@@ -518,7 +328,7 @@ export default function createClient(
       });
     },
 
-    async getAuthSettings(clusterUri: uri.RootClusterUri) {
+    async getAuthSettings(clusterUri = '') {
       const req = new api.GetAuthSettingsRequest().setClusterUri(clusterUri);
       return new Promise<types.AuthSettings>((resolve, reject) => {
         tshd.getAuthSettings(req, (err, response) => {
@@ -542,13 +352,13 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Gateway);
+            resolve(response.toObject());
           }
         });
       });
     },
 
-    async removeCluster(clusterUri: uri.RootClusterUri) {
+    async removeCluster(clusterUri = '') {
       const req = new api.RemoveClusterRequest().setClusterUri(clusterUri);
       return new Promise<void>((resolve, reject) => {
         tshd.removeCluster(req, err => {
@@ -561,7 +371,7 @@ export default function createClient(
       });
     },
 
-    async removeGateway(gatewayUri: uri.GatewayUri) {
+    async removeGateway(gatewayUri = '') {
       const req = new api.RemoveGatewayRequest().setGatewayUri(gatewayUri);
       return new Promise<void>((resolve, reject) => {
         tshd.removeGateway(req, err => {
@@ -574,8 +384,21 @@ export default function createClient(
       });
     },
 
+    async restartGateway(gatewayUri = '') {
+      const req = new api.RestartGatewayRequest().setGatewayUri(gatewayUri);
+      return new Promise<void>((resolve, reject) => {
+        tshd.restartGateway(req, err => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      });
+    },
+
     async setGatewayTargetSubresourceName(
-      gatewayUri: uri.GatewayUri,
+      gatewayUri = '',
       targetSubresourceName = ''
     ) {
       const req = new api.SetGatewayTargetSubresourceNameRequest()
@@ -586,13 +409,13 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Gateway);
+            resolve(response.toObject());
           }
         });
       });
     },
 
-    async setGatewayLocalPort(gatewayUri: uri.GatewayUri, localPort: string) {
+    async setGatewayLocalPort(gatewayUri: string, localPort: string) {
       const req = new api.SetGatewayLocalPortRequest()
         .setGatewayUri(gatewayUri)
         .setLocalPort(localPort);
@@ -601,54 +424,13 @@ export default function createClient(
           if (err) {
             reject(err);
           } else {
-            resolve(response.toObject() as types.Gateway);
-          }
-        });
-      });
-    },
-
-    transferFile(
-      options: types.FileTransferRequest,
-      abortSignal: types.TshAbortSignal
-    ) {
-      const req = new api.FileTransferRequest()
-        .setServerUri(options.serverUri)
-        .setLogin(options.login)
-        .setSource(options.source)
-        .setDestination(options.destination)
-        .setDirection(options.direction);
-
-      return createFileTransferStream(tshd.transferFile(req), abortSignal);
-    },
-
-    updateTshdEventsServerAddress(address: string) {
-      const req = new api.UpdateTshdEventsServerAddressRequest().setAddress(
-        address
-      );
-      return new Promise<void>((resolve, reject) => {
-        tshd.updateTshdEventsServerAddress(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
-          }
-        });
-      });
-    },
-
-    reportUsageEvent(event: ReportUsageEventRequest) {
-      const req = mapUsageEvent(event);
-      return new Promise<void>((resolve, reject) => {
-        tshd.reportUsageEvent(req, err => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve();
+            resolve(response.toObject());
           }
         });
       });
     },
   };
+
   return client;
 }
 

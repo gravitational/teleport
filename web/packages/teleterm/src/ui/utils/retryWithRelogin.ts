@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { ClusterOrResourceUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { IAppContext } from 'teleterm/ui/types';
+import { routing } from 'teleterm/ui/uri';
+import AppContext from 'teleterm/ui/appContext';
 import Logger from 'teleterm/logger';
 
 const logger = new Logger('retryWithRelogin');
@@ -25,9 +25,8 @@ const logger = new Logger('retryWithRelogin');
  * error can be resolved by the user logging in, according to metadata returned from the tshd
  * client.
  *
- * If that's the case, it checks if the user is still looking at the relevant UI (the `isUiActive`
- * argument) and if so, it shows a login modal. After the user successfully logs in, it calls
- * `actionToRetry` again.
+ * If that's the case, it checks if the user is still looking at the relevant UI and if so, it shows
+ * a login modal. After the user successfully logs in, it calls `actionToRetry` again.
  *
  * Each place using `retryWithRelogin` must be able to show the error to the user in case the
  * relogin attempt fails. Each place should also offer the user a way to manually retry the action
@@ -38,11 +37,12 @@ const logger = new Logger('retryWithRelogin');
  * place that has access to the tshd client.
  *
  * @param resourceUri - The URI used to extract the root cluster URI. That's how we determine the
- * cluster the login modal should use and whether the workspace of that resource is still active.
+ * cluster the login modal should use.
  */
 export async function retryWithRelogin<T>(
-  appContext: IAppContext,
-  resourceUri: ClusterOrResourceUri,
+  appContext: AppContext,
+  originatingDocumentUri: string,
+  resourceUri: string,
   actionToRetry: () => Promise<T>
 ): Promise<T> {
   let retryableErrorFromActionToRetry: Error;
@@ -63,14 +63,16 @@ export async function retryWithRelogin<T>(
     }
   }
 
-  const { workspacesService } = appContext;
+  const isDocumentStillActive = appContext.workspacesService.isDocumentActive(
+    originatingDocumentUri
+  );
 
-  if (!workspacesService.doesResourceBelongToActiveWorkspace(resourceUri)) {
-    // The error is retryable, but by the time the request has finished, the user has switched to
-    // another workspace so they're no longer looking at the relevant UI.
+  if (!isDocumentStillActive) {
+    // The error is retryable, but the user is no longer looking at the relevant UI, for example
+    // they switched to a different document or a different workspace completely.
     //
     // Since it might take a few seconds before the execution gets to this point, the user might no
-    // longer remember what their intent was, thus showing them a login modal could be disorienting.
+    // longer remember what their intent was, thus showing them a login modal can be disorienting.
     //
     // In that situation, let's just not attempt to relogin and instead let's surface the original
     // error.
@@ -87,10 +89,7 @@ export async function retryWithRelogin<T>(
 // Notice that we don't differentiate between onSuccess and onCancel. In both cases, we're going to
 // retry the action anyway in case the cert was refreshed externally before the modal was closed,
 // for example through tsh login.
-function login(
-  appContext: IAppContext,
-  rootClusterUri: RootClusterUri
-): Promise<void> {
+function login(appContext: AppContext, rootClusterUri: string): Promise<void> {
   return new Promise(resolve => {
     appContext.modalsService.openClusterConnectDialog({
       clusterUri: rootClusterUri,

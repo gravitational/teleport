@@ -36,14 +36,14 @@ func TestProtoKnownFieldsEqual(t *testing.T) {
 			name: "true",
 			inputA: &AWS{
 				Region: "us-west-1",
-				RedshiftServerless: RedshiftServerless{
-					WorkgroupID: "id",
+				Redshift: Redshift{
+					ClusterID: "id",
 				},
 			},
 			inputB: &AWS{
 				Region: "us-west-1",
-				RedshiftServerless: RedshiftServerless{
-					WorkgroupID: "id",
+				Redshift: Redshift{
+					ClusterID: "id",
 				},
 			},
 			assert: require.True,
@@ -76,26 +76,22 @@ func TestProtoKnownFieldsEqual(t *testing.T) {
 			name: "false differrent values",
 			inputA: &AWS{
 				Region: "us-west-1",
-				RedshiftServerless: RedshiftServerless{
-					WorkgroupID: "id",
+				Redshift: Redshift{
+					ClusterID: "id",
 				},
 			},
 			inputB: &AWS{
 				Region: "us-west-1",
-				RedshiftServerless: RedshiftServerless{
-					WorkgroupID: "differrent-id",
+				Redshift: Redshift{
+					ClusterID: "differrent-id",
 				},
 			},
 			assert: require.False,
 		},
 		{
-			name: "false different types",
-			inputA: &AWS{
-				Region: "us-west-1",
-			},
-			inputB: &KubeAWS{
-				Region: "us-west-1",
-			},
+			name:   "false different types",
+			inputA: &AWS{},
+			inputB: &Azure{},
 			assert: require.False,
 		},
 	}

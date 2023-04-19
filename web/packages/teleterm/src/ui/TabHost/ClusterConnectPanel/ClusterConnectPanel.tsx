@@ -60,7 +60,7 @@ export function ClusterConnectPanel() {
 }
 
 const ScrollingContainer = styled(Flex)`
-  background: ${props => props.theme.colors.levels.sunken};
+  background: ${props => props.theme.colors.primary.darker};
   width: 100%;
   overflow: auto;
 `;

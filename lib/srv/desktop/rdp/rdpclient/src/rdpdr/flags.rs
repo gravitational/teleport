@@ -23,7 +23,6 @@ bitflags! {
     /// This implements the combination of the two. For flags where the names and/or functions are distinct between the two,
     /// the names are appended with an "_OR_", and the File_Pipe_Printer_Access_Mask functionality is described on the top line comment,
     /// and the Directory_Access_Mask functionality is described on the bottom (2nd) line comment.
-    #[derive(Debug, Clone)]
     pub struct DesiredAccess: u32 {
         /// This value indicates the right to read data from the file or named pipe.
         /// This value indicates the right to enumerate the contents of the directory.
@@ -76,7 +75,6 @@ bitflags! {
 bitflags! {
     /// 2.6 File Attributes [MS-FSCC]
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ca28ec38-f155-4768-81d6-4bfeb8586fc9
-    #[derive(Debug, Clone)]
     pub struct FileAttributes: u32 {
         const FILE_ATTRIBUTE_READONLY = 0x00000001;
         const FILE_ATTRIBUTE_HIDDEN = 0x00000002;
@@ -103,7 +101,6 @@ bitflags! {
 bitflags! {
     /// Specifies the sharing mode for the open. If ShareAccess values of FILE_SHARE_READ, FILE_SHARE_WRITE and FILE_SHARE_DELETE are set for a printer file or a named pipe, the server SHOULD<35> ignore these values. The field MUST be pub constructed using a combination of zero or more of the following bit values.
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
-    #[derive(Debug, Clone)]
     pub struct SharedAccess: u32 {
         const FILE_SHARE_READ = 0x00000001;
         const FILE_SHARE_WRITE = 0x00000002;
@@ -116,7 +113,6 @@ bitflags! {
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
     /// See https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L207
     /// for information about how these should be interpreted.
-    #[derive(PartialEq, Eq, Debug, Clone)]
     pub struct CreateDisposition: u32 {
         const FILE_SUPERSEDE = 0x00000000;
         const FILE_OPEN = 0x00000001;
@@ -130,7 +126,6 @@ bitflags! {
 bitflags! {
     /// Specifies the options to be applied when creating or opening the file. Combinations of the bit positions listed below are valid, unless otherwise noted. This field MUST be pub constructed using the following values.
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/e8fb45c1-a03d-44ca-b7ae-47385cfd7997
-    #[derive(Debug, Clone)]
     pub struct CreateOptions: u32 {
         const FILE_DIRECTORY_FILE = 0x00000001;
         const FILE_WRITE_THROUGH = 0x00000002;
@@ -162,7 +157,6 @@ bitflags! {
     /// (section 2.2.1.4.1). If the IoStatus field is set to 0x00000000, this field MAY be skipped, in which case the
     /// server MUST assume that the Information field is set to 0x00.
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/99e5fca5-b37a-41e4-bc69-8d7da7860f76
-    #[derive(Debug)]
     pub struct Information: u8 {
         /// A new file was created.
         const FILE_SUPERSEDED = 0x00000000;
@@ -177,7 +171,6 @@ bitflags! {
     /// Specifies the types of changes to monitor. It is valid to choose multiple trigger conditions.
     /// In this case, if any condition is met, the client is notified of the change and the CHANGE_NOTIFY operation is completed.
     /// See CompletionFilter at: https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-smb2/598f395a-e7a2-4cc8-afb3-ccb30dd2df7c
-    #[derive(Debug)]
     pub struct CompletionFilter: u32 {
         /// The client is notified if a file-name changes.
         const FILE_NOTIFY_CHANGE_FILE_NAME = 0x00000001;
@@ -209,7 +202,6 @@ bitflags! {
 bitflags! {
     /// Only defines the subset we require from
     /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-fscc/ebc7e6e5-4650-4e54-b17c-cf60f6fbeeaa
-    #[derive(Debug)]
     pub struct FileSystemAttributes: u32 {
         const FILE_CASE_SENSITIVE_SEARCH = 0x00000001;
         const FILE_CASE_PRESERVED_NAMES = 0x00000002;

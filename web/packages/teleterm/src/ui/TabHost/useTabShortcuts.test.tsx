@@ -32,68 +32,64 @@ import AppContextProvider from 'teleterm/ui/appContextProvider';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService';
 import AppContext from 'teleterm/ui/appContext';
 
-import { getEmptyPendingAccessRequest } from '../services/workspacesService/accessRequestsService';
-
 function getMockDocuments(): Document[] {
   return [
     {
       kind: 'doc.blank',
-      uri: '/docs/test_uri_1',
+      uri: 'test_uri_1',
       title: 'Test 1',
     },
     {
       kind: 'doc.blank',
-      uri: '/docs/test_uri_2',
+      uri: 'test_uri_2',
       title: 'Test 2',
     },
     {
       kind: 'doc.blank',
-      uri: '/docs/test_uri_3',
+      uri: 'test_uri_3',
       title: 'Test 3',
     },
     {
       kind: 'doc.gateway',
-      uri: '/docs/test_uri_4',
+      uri: 'test_uri_4',
       title: 'Test 4',
-      gatewayUri: '/gateways/gateway4',
-      targetUri: '/clusters/bar/dbs/foobar',
+      gatewayUri: '',
+      targetUri: '',
       targetName: 'foobar',
       targetUser: 'foo',
-      origin: 'resource_table',
     },
     {
       kind: 'doc.gateway',
-      uri: '/docs/test_uri_5',
+      uri: 'test_uri_5',
       title: 'Test 5',
-      gatewayUri: '/gateways/gateway5',
-      targetUri: '/clusters/bar/dbs/foobar',
+      gatewayUri: '',
+      targetUri: '',
       targetName: 'foobar',
       targetUser: 'bar',
-      origin: 'resource_table',
     },
     {
       kind: 'doc.cluster',
-      uri: '/docs/test_uri_6',
+      uri: 'test_uri_6',
       title: 'Test 6',
-      clusterUri: '/clusters/foo',
+      clusterUri: 'none',
     },
     {
       kind: 'doc.cluster',
-      uri: '/docs/test_uri_7',
+      uri: 'test_uri_7',
       title: 'Test 7',
-      clusterUri: '/clusters/test_uri',
+      clusterUri: 'test_uri',
     },
     {
       kind: 'doc.cluster',
-      uri: '/docs/test_uri_8',
+      uri: 'test_uri_8',
       title: 'Test 8',
-      clusterUri: '/clusters/test_uri_8',
+      clusterUri: 'test_uri_8',
     },
     {
       kind: 'doc.cluster',
-      uri: '/docs/test_uri_9',
+      uri: 'test_uri_9',
       title: 'Test 9',
-      clusterUri: '/clusters/test_uri_9',
+      clusterUri: 'test_uri_9',
     },
   ];
 }
@@ -133,20 +129,15 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     },
     getActiveWorkspace() {
       return {
-        accessRequests: {
-          assumed: {},
-          isBarCollapsed: false,
-          pending: getEmptyPendingAccessRequest(),
-        },
-        localClusterUri: '/clusters/test_uri',
+        localClusterUri: 'test_uri',
         documents: [],
-        location: '/docs/1',
+        location: '',
       };
     },
     useState: jest.fn(),
     state: {
       workspaces: {},
-      rootClusterUri: '/clusters/test_uri',
+      rootClusterUri: '',
     },
   };
 
@@ -179,21 +170,21 @@ function getTestSetup({ documents }: { documents: Document[] }) {
 }
 
 test.each([
-  { action: 'tab1', value: 0 },
-  { action: 'tab2', value: 1 },
-  { action: 'tab3', value: 2 },
-  { action: 'tab4', value: 3 },
-  { action: 'tab5', value: 4 },
-  { action: 'tab6', value: 5 },
-  { action: 'tab7', value: 6 },
-  { action: 'tab8', value: 7 },
-  { action: 'tab9', value: 8 },
-])('open tab using $type shortcut', ({ action, value }) => {
+  { type: 'tab-1', value: 0 },
+  { type: 'tab-2', value: 1 },
+  { type: 'tab-3', value: 2 },
+  { type: 'tab-4', value: 3 },
+  { type: 'tab-5', value: 4 },
+  { type: 'tab-6', value: 5 },
+  { type: 'tab-7', value: 6 },
+  { type: 'tab-8', value: 7 },
+  { type: 'tab-9', value: 8 },
+])('open tab using $type shortcut', ({ type, value }) => {
   const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
     documents: getMockDocuments(),
   });
 
-  emitKeyboardShortcutEvent({ action } as KeyboardShortcutEvent);
+  emitKeyboardShortcutEvent({ type } as KeyboardShortcutEvent);
 
   expect(docsService.open).toHaveBeenCalledWith(
     docsService.getDocuments()[value].uri
@@ -207,19 +198,18 @@ test('close active tab', () => {
   const documentToClose = docsService.getDocuments()[0];
   docsService.getActive = () => documentToClose;
 
-  emitKeyboardShortcutEvent({ action: 'closeTab' });
+  emitKeyboardShortcutEvent({ type: 'tab-close' });
 
   expect(docsService.close).toHaveBeenCalledWith(documentToClose.uri);
 });
 
-test('should ignore close command if no tabs are open', () => {
+test('do not switch tabs if tabs do not exist', () => {
   const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
     documents: [],
   });
+  emitKeyboardShortcutEvent({ type: 'tab-next' });
 
-  emitKeyboardShortcutEvent({ action: 'closeTab' });
-
-  expect(docsService.close).not.toHaveBeenCalled();
+  expect(docsService.open).not.toHaveBeenCalled();
 });
 
 test('open new tab', () => {
@@ -227,13 +217,13 @@ test('open new tab', () => {
     documents: [],
   });
   const mockedClusterDocument: DocumentCluster = {
-    clusterUri: '/clusters/test',
-    uri: '/docs/test',
+    clusterUri: 'test',
+    uri: 'test',
     title: 'Test',
     kind: 'doc.cluster',
   };
   docsService.createClusterDocument = () => mockedClusterDocument;
-  emitKeyboardShortcutEvent({ action: 'newTab' });
+  emitKeyboardShortcutEvent({ type: 'tab-new' });
 
   expect(docsService.add).toHaveBeenCalledWith(mockedClusterDocument);
   expect(docsService.open).toHaveBeenCalledWith(mockedClusterDocument.uri);
@@ -247,7 +237,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = 2;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'nextTab' });
+    emitKeyboardShortcutEvent({ type: 'tab-next' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[activeTabIndex + 1].uri
@@ -261,7 +251,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = docsService.getDocuments().length - 1;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'nextTab' });
+    emitKeyboardShortcutEvent({ type: 'tab-next' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[0].uri
@@ -275,7 +265,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = 2;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'previousTab' });
+    emitKeyboardShortcutEvent({ type: 'tab-previous' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[activeTabIndex - 1].uri
@@ -289,7 +279,7 @@ describe('open next/previous tab', () => {
     const activeTabIndex = 0;
     docsService.getActive = () => docsService.getDocuments()[activeTabIndex];
 
-    emitKeyboardShortcutEvent({ action: 'previousTab' });
+    emitKeyboardShortcutEvent({ type: 'tab-previous' });
 
     expect(docsService.open).toHaveBeenCalledWith(
       docsService.getDocuments()[docsService.getDocuments().length - 1].uri
@@ -300,7 +290,7 @@ describe('open next/previous tab', () => {
     const { emitKeyboardShortcutEvent, docsService } = getTestSetup({
       documents: [],
     });
-    emitKeyboardShortcutEvent({ action: 'nextTab' });
+    emitKeyboardShortcutEvent({ type: 'tab-next' });
 
     expect(docsService.open).not.toHaveBeenCalled();
   });

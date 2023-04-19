@@ -1,6 +1,6 @@
 ---
 authors: Andrew Lytvynov (andrew@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 35 - Desktop Access - Windows Certificate Authentication

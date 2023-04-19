@@ -14,54 +14,34 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { FC, useEffect } from 'react';
+
+import { useAsync } from 'shared/hooks/useAsync';
 import styled from 'styled-components';
-import { Indicator } from 'design';
 
-import { useAppContext } from './appContextProvider';
-import { initUi } from './initUi';
-import ModalsHost from './ModalsHost';
-import { LayoutManager } from './LayoutManager';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
-export const AppInitializer = () => {
+export const AppInitializer: FC = props => {
   const ctx = useAppContext();
-  const [isUiReady, setIsUiReady] = useState(false);
-
-  const initializeApp = useCallback(async () => {
-    try {
-      await ctx.init();
-      await initUi(ctx);
-      setIsUiReady(true);
-    } catch (error) {
-      setIsUiReady(true);
-      ctx.notificationsService.notifyError(error?.message);
-    }
-  }, [ctx]);
+  const [state, init] = useAsync(() => ctx.init());
 
   useEffect(() => {
-    initializeApp();
-  }, [initializeApp]);
+    init();
+  }, []);
 
-  return (
-    <>
-      <LayoutManager />
-      {!isUiReady && (
-        <Centered>
-          <Indicator delay="short" />
-        </Centered>
-      )}
-      <ModalsHost />
-    </>
-  );
+  useEffect(() => {
+    if (state.status === 'error') {
+      ctx.notificationsService.notifyError(state.statusText);
+    }
+  }, [state]);
+
+  if (state.status === 'success' || state.status === 'error') {
+    return <>{props.children}</>;
+  }
+
+  return <Centered>Loading</Centered>;
 };
 
 const Centered = styled.div`
-  display: flex;
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  justify-content: center;
-  align-items: center;
-  z-index: 2; // renders the overlay above ConnectionsIconStatusIndicator
-  background: ${props => props.theme.colors.levels.sunken};
+  margin: auto;
 `;

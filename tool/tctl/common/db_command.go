@@ -27,16 +27,17 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	libclient "github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // DBCommand implements "tctl db" group of commands.
 type DBCommand struct {
-	config *servicecfg.Config
+	config *service.Config
 
 	// format is the output format (text, json or yaml).
 	format string
@@ -53,7 +54,7 @@ type DBCommand struct {
 }
 
 // Initialize allows DBCommand to plug itself into the CLI parser.
-func (c *DBCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
+func (c *DBCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
 
 	db := app.Command("db", "Operate on databases registered with the cluster.")
@@ -92,6 +93,15 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 		SearchKeywords:      libclient.ParseSearchKeywords(c.searchKeywords, ','),
 	})
 	switch {
+	// Underlying ListResources for db servers not available, use fallback.
+	// Using filter flags with older auth will silently do nothing.
+	//
+	// DELETE IN 11.0.0
+	case trace.IsNotImplemented(err):
+		servers, err = clt.GetDatabaseServers(ctx, apidefaults.Namespace)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	case err != nil:
 		if utils.IsPredicateError(err) {
 			return trace.Wrap(utils.PredicateError{Err: err})
@@ -120,7 +130,17 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt auth.ClientI) error {
 var dbMessageTemplate = template.Must(template.New("db").Parse(`The invite token: {{.token}}
 This token will expire in {{.minutes}} minutes.
 
-Generate the configuration and start a Teleport agent using it:
+Fill out and run this command on a node to start proxying the database:
+
+> teleport db start \
+   --token={{.token}} \{{range .ca_pins}}
+   --ca-pin={{.}} \{{end}}
+   --auth-server={{.auth_server}} \
+   --name={{.db_name}} \
+   --protocol={{.db_protocol}} \
+   --uri={{.db_uri}}
+
+Or, generate the configuration and start a Teleport agent using it:
 
 > teleport db configure create \
    --token={{.token}} \{{range .ca_pins}}

@@ -14,15 +14,12 @@
         "databaseResources",
         "teleportVersionOverride",
         "insecureSkipProxyTLSVerify",
-        "teleportConfig",
         "existingDataVolume",
         "podSecurityPolicy",
         "labels",
         "image",
         "clusterRoleName",
         "clusterRoleBindingName",
-        "roleName",
-        "roleBindingName",
         "serviceAccountName",
         "secretName",
         "log",
@@ -244,11 +241,6 @@
             "type": "boolean",
             "default": false
         },
-        "teleportConfig": {
-            "$id": "#/properties/teleportConfig",
-            "type": "object",
-            "default": {}
-        },
         "tls": {
             "$id": "#/properties/tls",
             "type": "object",
@@ -290,12 +282,7 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport-distroless"
-        },
-        "entrepriseImage": {
-            "$id": "#/properties/entrepriseImage",
-            "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
+            "default": "quay.io/gravitational/teleport"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -314,16 +301,6 @@
         },
         "clusterRoleBindingName": {
             "$id": "#/properties/clusterRoleBindingName",
-            "type": "string",
-            "default": ""
-        },
-        "roleName": {
-            "$id": "#/properties/roleName",
-            "type": "string",
-            "default": ""
-        },
-        "roleBindingName": {
-            "$id": "#/properties/roleBindingName",
             "type": "string",
             "default": ""
         },
@@ -450,16 +427,6 @@
                     "type": "object",
                     "default": {}
                 },
-                "role": {
-                    "$id": "#/properties/extraLabels/properties/role",
-                    "type": "object",
-                    "default": {}
-                },
-                "roleBinding": {
-                    "$id": "#/properties/extraLabels/properties/roleBinding",
-                    "type": "object",
-                    "default": {}
-                },
                 "config": {
                     "$id": "#/properties/extraLabels/properties/config",
                     "type": "object",
@@ -526,35 +493,6 @@
                     "$id": "#/properties/annotations/properties/serviceAccount",
                     "type": "object",
                     "default": {}
-                }
-            }
-        },
-        "serviceAccount": {
-            "$id": "#/properties/serviceAccount",
-            "type": "object",
-            "required": [],
-            "properties": {
-                "name": {
-                    "$id": "#properties/serviceAccount/name",
-                    "type": "string",
-                    "default": ""
-                },
-                "create": {
-                    "$id": "#properties/serviceAccount/create",
-                    "type": "boolean",
-                    "default": true
-                }
-            }
-        },
-        "rbac": {
-            "$id": "#/properties/rbac",
-            "type": "object",
-            "required": [],
-            "properties": {
-                "create": {
-                    "$id": "#properties/rbac/create",
-                    "type": "boolean",
-                    "default": true
                 }
             }
         },

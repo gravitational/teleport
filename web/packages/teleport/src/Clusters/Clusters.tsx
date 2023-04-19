@@ -14,11 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Box, Indicator } from 'design';
 import { Danger } from 'design/Alert';
-
-import useAttempt from 'shared/hooks/useAttemptNext';
 
 import {
   FeatureBox,
@@ -27,41 +25,31 @@ import {
 } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 
-import { useFeatures } from 'teleport/FeaturesContext';
-
 import ClusterList from './ClusterList';
-import { buildACL } from './utils';
+import useClusters from './useClusters';
 
-export function Clusters() {
+export default function Container() {
   const ctx = useTeleport();
+  const state = useClusters(ctx);
+  return <Clusters {...state} />;
+}
 
-  const [clusters, setClusters] = useState([]);
-  const { attempt, run } = useAttempt();
-
-  const features = useFeatures();
-
-  function init() {
-    run(() => ctx.clusterService.fetchClusters().then(setClusters));
-  }
-
-  const [enabledFeatures] = useState(() => buildACL(features));
-
-  useEffect(() => {
-    init();
-  }, []);
-
+export function Clusters(props: ReturnType<typeof useClusters>) {
+  const { clusters, enabledFeatures, initAttempt } = props;
   return (
     <FeatureBox>
       <FeatureHeader alignItems="center">
         <FeatureHeaderTitle>Manage Clusters</FeatureHeaderTitle>
       </FeatureHeader>
-      {attempt.status === 'processing' && (
+      {initAttempt.status === 'processing' && (
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
       )}
-      {attempt.status === 'failed' && <Danger>{attempt.statusText} </Danger>}
-      {attempt.status === 'success' && (
+      {initAttempt.status === 'failed' && (
+        <Danger>{initAttempt.statusText} </Danger>
+      )}
+      {initAttempt.status === 'success' && (
         <ClusterList
           clusters={clusters}
           menuFlags={{

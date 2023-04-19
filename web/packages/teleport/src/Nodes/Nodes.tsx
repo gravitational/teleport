@@ -27,19 +27,22 @@ import Empty, { EmptyStateInfo } from 'teleport/components/Empty';
 import NodeList from 'teleport/components/NodeList';
 import ErrorMessage from 'teleport/components/AgentErrorMessage';
 import useTeleport from 'teleport/useTeleport';
+import useStickyClusterId from 'teleport/useStickyClusterId';
+
 import AgentButtonAdd from 'teleport/components/AgentButtonAdd';
 
-import { useNodes, State } from './useNodes';
+import useNodes, { State } from './useNodes';
 
 export default function Container() {
   const teleCtx = useTeleport();
-  const state = useNodes(teleCtx);
+  const stickyCluster = useStickyClusterId();
+  const state = useNodes(teleCtx, stickyCluster);
   return <Nodes {...state} />;
 }
 
 export function Nodes(props: State) {
   const {
-    fetchedData,
+    results,
     getNodeLoginOptions,
     startSshSession,
     attempt,
@@ -48,15 +51,17 @@ export function Nodes(props: State) {
     clusterId,
     fetchNext,
     fetchPrev,
-    params,
+    from,
+    to,
     pageSize,
+    params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
     fetchStatus,
     isSearchEmpty,
-    pageIndicators,
     onLabelClick,
   } = props;
 
@@ -69,10 +74,7 @@ export function Nodes(props: State) {
     startSshSession(login, serverId);
   }
 
-  const hasNoNodes =
-    attempt.status === 'success' &&
-    fetchedData.agents.length === 0 &&
-    isSearchEmpty;
+  const hasNoNodes = results.nodes.length === 0 && isSearchEmpty;
 
   return (
     <FeatureBox>
@@ -99,22 +101,28 @@ export function Nodes(props: State) {
         </Box>
       )}
       {attempt.status !== 'processing' && !hasNoNodes && (
-        <NodeList
-          nodes={fetchedData.agents}
-          onLoginMenuOpen={getNodeLoginOptions}
-          onLoginSelect={onLoginSelect}
-          fetchNext={fetchNext}
-          fetchPrev={fetchPrev}
-          fetchStatus={fetchStatus}
-          pageSize={pageSize}
-          pageIndicators={pageIndicators}
-          params={params}
-          setParams={setParams}
-          setSort={setSort}
-          pathname={pathname}
-          replaceHistory={replaceHistory}
-          onLabelClick={onLabelClick}
-        />
+        <>
+          <NodeList
+            nodes={results.nodes}
+            totalCount={results.totalCount}
+            onLoginMenuOpen={getNodeLoginOptions}
+            onLoginSelect={onLoginSelect}
+            fetchNext={fetchNext}
+            fetchPrev={fetchPrev}
+            fetchStatus={fetchStatus}
+            from={from}
+            to={to}
+            pageSize={pageSize}
+            params={params}
+            setParams={setParams}
+            startKeys={startKeys}
+            setSort={setSort}
+            pathname={pathname}
+            replaceHistory={replaceHistory}
+            onLabelClick={onLabelClick}
+            paginationUnsupported={results.paginationUnsupported}
+          />
+        </>
       )}
       {attempt.status === 'success' && hasNoNodes && (
         <Empty

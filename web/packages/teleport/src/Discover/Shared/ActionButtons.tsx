@@ -25,22 +25,15 @@ import cfg from 'teleport/config';
 
 export const ActionButtons = ({
   onProceed = null,
-  onSkip = null,
   proceedHref = '',
   disableProceed = false,
   lastStep = false,
-  hideExit = false,
 }: {
   onProceed?(): void;
-  onSkip?(): void;
   proceedHref?: string;
   disableProceed?: boolean;
   lastStep?: boolean;
-  allowSkip?: boolean;
-  hideExit?: boolean;
 }) => {
-  const allowSkip = !!onSkip;
-
   return (
     <Box mt={4}>
       {proceedHref && (
@@ -66,16 +59,9 @@ export const ActionButtons = ({
           {lastStep ? 'Finish' : 'Next'}
         </ButtonPrimary>
       )}
-      {allowSkip && (
-        <ButtonSecondary width="165px" onClick={onSkip} mr={3}>
-          Skip
-        </ButtonSecondary>
-      )}
-      {!hideExit && (
-        <ButtonSecondary as={NavLink} to={cfg.routes.root} mt={3} width="165px">
-          Exit
-        </ButtonSecondary>
-      )}
+      <ButtonSecondary as={NavLink} to={cfg.routes.root} mt={3} width="165px">
+        Exit
+      </ButtonSecondary>
     </Box>
   );
 };

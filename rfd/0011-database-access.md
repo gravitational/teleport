@@ -63,9 +63,9 @@ and so on.
 For the initial release we're focusing on supporting a single type of database,
 PostgreSQL, with protocol parsing.
 
-Supported protocols:
+Supported procotols:
 
-* PostgreSQL [wire protocol version 3.0](https://www.postgresql.org/docs/13/protocol.html),
+* PostgreSQL [wire procotol version 3.0](https://www.postgresql.org/docs/13/protocol.html),
   implemented in PostgreSQL 7.4 and later.
 
 Supported authentication models:

@@ -27,6 +27,7 @@ import * as stores from 'teleport/Console/stores/types';
 
 import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
+import ThemeProvider from './ThemeProvider';
 
 type Props = {
   visible: boolean;
@@ -36,12 +37,15 @@ type Props = {
 export default function DocumentNodes(props: Props) {
   const { doc, visible } = props;
   const {
-    fetchedData,
+    results,
     fetchNext,
     fetchPrev,
     pageSize,
+    from,
+    to,
     params,
     setParams,
+    startKeys,
     setSort,
     pathname,
     replaceHistory,
@@ -51,7 +55,6 @@ export default function DocumentNodes(props: Props) {
     changeCluster,
     getNodeSshLogins,
     onLabelClick,
-    pageIndicators,
   } = useNodes(doc);
 
   function onLoginMenuSelect(
@@ -80,46 +83,52 @@ export default function DocumentNodes(props: Props) {
   }
 
   return (
-    <Document visible={visible}>
-      <Container mx="auto" mt="4" px="5">
-        <Flex justifyContent="space-between" mb="4" alignItems="end">
-          <ClusterSelector
-            value={doc.clusterId}
-            width="336px"
-            maxMenuHeight={200}
-            mr="20px"
-            onChange={onChangeCluster}
-          />
-          <QuickLaunch width="240px" onPress={onQuickLaunchEnter} />
-        </Flex>
-        {attempt.status === 'processing' && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {attempt.status === 'failed' && (
-          <ErrorMessage message={attempt.statusText} />
-        )}
-        {attempt.status !== 'processing' && (
-          <NodeList
-            nodes={fetchedData.agents}
-            onLoginMenuOpen={onLoginMenuOpen}
-            onLoginSelect={onLoginMenuSelect}
-            fetchNext={fetchNext}
-            fetchPrev={fetchPrev}
-            fetchStatus={fetchStatus}
-            pageIndicators={pageIndicators}
-            pageSize={pageSize}
-            params={params}
-            setParams={setParams}
-            setSort={setSort}
-            pathname={pathname}
-            replaceHistory={replaceHistory}
-            onLabelClick={onLabelClick}
-          />
-        )}
-      </Container>
-    </Document>
+    <ThemeProvider>
+      <Document visible={visible}>
+        <Container mx="auto" mt="4" px="5">
+          <Flex justifyContent="space-between" mb="4" alignItems="end">
+            <ClusterSelector
+              value={doc.clusterId}
+              width="336px"
+              maxMenuHeight={200}
+              mr="20px"
+              onChange={onChangeCluster}
+            />
+            <QuickLaunch width="240px" onPress={onQuickLaunchEnter} />
+          </Flex>
+          {attempt.status === 'processing' && (
+            <Box textAlign="center" m={10}>
+              <Indicator />
+            </Box>
+          )}
+          {attempt.status === 'failed' && (
+            <ErrorMessage message={attempt.statusText} />
+          )}
+          {attempt.status !== 'processing' && (
+            <NodeList
+              paginationUnsupported={results.paginationUnsupported}
+              nodes={results.nodes}
+              totalCount={results.totalCount}
+              onLoginMenuOpen={onLoginMenuOpen}
+              onLoginSelect={onLoginMenuSelect}
+              fetchNext={fetchNext}
+              fetchPrev={fetchPrev}
+              fetchStatus={fetchStatus}
+              from={from}
+              to={to}
+              pageSize={pageSize}
+              params={params}
+              setParams={setParams}
+              startKeys={startKeys}
+              setSort={setSort}
+              pathname={pathname}
+              replaceHistory={replaceHistory}
+              onLabelClick={onLabelClick}
+            />
+          )}
+        </Container>
+      </Document>
+    </ThemeProvider>
   );
 }
 

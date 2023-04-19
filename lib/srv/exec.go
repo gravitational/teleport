@@ -32,12 +32,11 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -94,10 +93,9 @@ func NewExecRequest(ctx *ServerContext, command string) (Exec, error) {
 		}, nil
 	}
 
-	// If this is a unregistered OpenSSH node or proxy recoding mode is
-	// enabled, execute the command on a remote host. This is used by
-	// in-memory forwarding nodes.
-	if ctx.ServerSubKind == types.SubKindOpenSSHNode || services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) {
+	// When in recording mode, return an *remoteExec which will execute the
+	// command on a remote host. This is used by in-memory forwarding nodes.
+	if services.IsRecordAtProxy(ctx.SessionRecordingConfig.GetMode()) == true {
 		return &remoteExec{
 			ctx:     ctx,
 			command: command,
@@ -539,7 +537,7 @@ func parseSecureCopy(path string) (string, string, bool, error) {
 	// Look for the -t flag, it indicates that an upload occurred. The other
 	// flags do no matter for now.
 	action := events.SCPActionDownload
-	if slices.Contains(parts, "-t") {
+	if apiutils.SliceContainsStr(parts, "-t") {
 		action = events.SCPActionUpload
 	}
 

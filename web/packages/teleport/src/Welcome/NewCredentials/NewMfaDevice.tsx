@@ -15,10 +15,10 @@
  */
 
 import React, { useState } from 'react';
-import { Box, ButtonPrimary, Flex, Image, Link, Text } from 'design';
+import styled from 'styled-components';
+import { Text, ButtonPrimary, Flex, Box, Link, Image } from 'design';
 import { Danger } from 'design/Alert';
 import { ArrowBack } from 'design/Icon';
-import { RadioGroup } from 'design/RadioGroup';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
 import {
@@ -79,16 +79,14 @@ export function NewMfaDevice(props: Props) {
     }
   }
 
-  function onSetMfaOption(value: string, validator: Validator) {
+  function onSetMfaOption(index: number, validator: Validator) {
     setOtp('');
     clearSubmitAttempt();
     validator.reset();
 
-    const mfaOpt = mfaOptions.find(option => option.value === value);
-    if (mfaOpt) {
-      setMfaType(mfaOpt);
-      setDeviceName(getDefaultDeviceName(mfaOpt.value));
-    }
+    const mfaOpt = mfaOptions[index];
+    setMfaType(mfaOpt);
+    setDeviceName(getDefaultDeviceName(mfaOpt.value));
   }
 
   const imgSrc =
@@ -112,7 +110,7 @@ export function NewMfaDevice(props: Props) {
             />
             <Box>
               <Text color="text.secondary">Step 2 of 2</Text>
-              <Text typography="h4" color="text.primary" bold>
+              <Text typography="h4" color="light" bold>
                 Set Two-Factor Device
               </Text>
             </Box>
@@ -120,25 +118,32 @@ export function NewMfaDevice(props: Props) {
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="text.primary" caps mb={1}>
+          <Text typography="subtitle1" color="light" caps mb={1}>
             Two-Factor Method
           </Text>
           <Box mb={1}>
-            <RadioGroup
-              name="mfaType"
-              options={mfaOptions}
-              value={mfaType.value}
-              flexDirection="row"
-              gap="16px"
-              onChange={value => onSetMfaOption(value, validator)}
-            />
+            {mfaOptions.map((opt, index) => {
+              return (
+                <Radio
+                  key={index}
+                  onClick={() => onSetMfaOption(index, validator)}
+                >
+                  <input
+                    type="radio"
+                    checked={mfaType.value === opt.value}
+                    onChange={() => onSetMfaOption(index, validator)}
+                  />
+                  <label>{opt.label}</label>
+                </Radio>
+              );
+            })}
           </Box>
           <Flex
             flexDirection="column"
             justifyContent="center"
             alignItems="center"
             borderRadius={8}
-            bg={mfaType?.value === 'optional' ? 'levels.elevated' : ''}
+            bg={mfaType?.value === 'optional' ? 'primary.lighter' : ''}
             height={mfaType?.value === 'optional' ? '340px' : '240px'}
             px={3}
           >
@@ -177,10 +182,12 @@ export function NewMfaDevice(props: Props) {
               </>
             )}
             {mfaType?.value === 'optional' && (
-              <Text textAlign="center">
-                We strongly recommend enrolling a two-factor device to protect
-                both yourself and your organization.
-              </Text>
+              <>
+                <Text textAlign="center">
+                  We strongly recommend enrolling a two-factor device to protect
+                  both yourself and your organization.
+                </Text>
+              </>
             )}
           </Flex>
           {mfaType?.value !== 'optional' && (
@@ -236,6 +243,23 @@ function getDefaultDeviceName(mfaType: Auth2faType) {
   }
   return '';
 }
+
+const Radio = styled.div`
+  display: inline-block;
+  margin-right: 16px;
+  cursor: pointer;
+
+  input {
+    cursor: pointer;
+    vertical-align: middle;
+    margin: 0 8px 0px 0;
+  }
+
+  label {
+    cursor: pointer;
+    vertical-align: middle;
+  }
+`;
 
 type Props = CredentialsProps &
   SliderProps & {

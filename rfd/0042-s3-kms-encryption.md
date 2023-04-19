@@ -1,6 +1,6 @@
 # ---
 authors: Joel Wejdenstål (jwejdenstal@goteleport.com)
-state: implemented
+state: draft
 ---
 
 # RFD 42 - S3 KMS Encryption

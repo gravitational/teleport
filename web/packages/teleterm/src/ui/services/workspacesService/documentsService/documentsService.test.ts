@@ -21,9 +21,9 @@ import { Document, DocumentGateway, DocumentTshNode } from './types';
 
 function getMockedDocuments(): Document[] {
   return [
-    { uri: '/docs/test1', kind: 'doc.terminal_shell', title: 'T1' },
-    { uri: '/docs/test2', kind: 'doc.terminal_shell', title: 'T2' },
-    { uri: '/docs/test3', kind: 'doc.terminal_shell', title: 'T3' },
+    { uri: 'test1', kind: 'doc.terminal_shell', title: 'T1' },
+    { uri: 'test2', kind: 'doc.terminal_shell', title: 'T2' },
+    { uri: 'test3', kind: 'doc.terminal_shell', title: 'T3' },
   ];
 }
 
@@ -70,14 +70,13 @@ test('get document should return the document', () => {
 describe('document should be added', () => {
   const mockedDocuments = getMockedDocuments();
   const newDocument: DocumentGateway = {
-    uri: '/docs/new-doc',
+    uri: 'new-doc',
     title: 'New doc',
     kind: 'doc.gateway',
-    gatewayUri: '/gateways/123',
-    targetUri: '/clusters/bar/dbs/quux',
-    targetName: 'quux',
+    gatewayUri: '',
+    targetUri: '',
+    targetName: '',
     targetUser: 'foo',
-    origin: 'resource_table',
   };
 
   test('at the specific position', () => {
@@ -123,16 +122,14 @@ test('only TSH node documents should be returned', () => {
   const service = createService(mockedDocks);
 
   const tshNodeDocument: DocumentTshNode = {
-    uri: '/docs/test1',
+    uri: 'test1',
     kind: 'doc.terminal_tsh_node',
     title: 'TSH',
-    serverId: 'bar',
+    serverId: '',
     login: '',
-    serverUri: '/clusters/foo/servers/bar',
+    serverUri: '',
     status: 'connecting',
     rootClusterId: '',
-    leafClusterId: undefined,
-    origin: 'resource_table',
   };
 
   service.add(tshNodeDocument);
@@ -145,14 +142,13 @@ test('only gateway documents should be returned', () => {
   const service = createService(mockedDocks);
 
   const gatewayDocument: DocumentGateway = {
-    uri: '/docs/test1',
+    uri: 'test1',
     kind: 'doc.gateway',
     title: 'gw',
-    gatewayUri: '/gateways/123',
-    targetUri: '/clusters/bar/dbs/quux',
-    targetName: 'quux',
+    gatewayUri: '',
+    targetUri: '',
+    targetName: '',
     targetUser: 'foo',
-    origin: 'resource_table',
   };
 
   service.add(gatewayDocument);

@@ -2,10 +2,7 @@ suite: PodSecurityPolicy
 templates:
   - psp.yaml
 tests:
-  - it: creates a PodSecurityPolicy when enabled in values and supported
-    capabilities:
-      majorVersion: 1
-      minorVersion: 22
+  - it: creates a PodSecurityPolicy when enabled in values
     set:
       podSecurityPolicy:
         enabled: true
@@ -22,14 +19,3 @@ tests:
         isKind:
           of: RoleBinding
       - matchSnapshot: {}
-
-  - it: does not create a PodSecurityPolicy when enabled in values but not supported
-    set:
-      podSecurityPolicy:
-        enabled: true
-    capabilities:
-      majorVersion: 1
-      minorVersion: 25
-    asserts:
-      - hasDocuments:
-          count: 0

@@ -18,7 +18,6 @@ package db
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -241,12 +240,6 @@ func waitForEvent(t *testing.T, testCtx *testContext, code string) events.AuditE
 		select {
 		case event := <-testCtx.emitter.C():
 			if event.GetCode() != code {
-				// ignored events may be helpful in debugging test failures
-				bytes, err := json.Marshal(event)
-				if err != nil {
-					bytes = []byte(err.Error())
-				}
-				t.Logf("ignoring mismatched event, wanted %v, got type=%v code=%v json=%v", code, event.GetType(), event.GetCode(), string(bytes))
 				continue
 			}
 			return event

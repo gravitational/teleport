@@ -49,7 +49,6 @@ export const eventCodes = {
   APP_SESSION_CHUNK: 'T2008I',
   APP_SESSION_START: 'T2007I',
   APP_SESSION_END: 'T2011I',
-  APP_SESSION_DYNAMODB_REQUEST: 'T2013I',
   APP_CREATED: 'TAP03I',
   APP_UPDATED: 'TAP04I',
   APP_DELETED: 'TAP05I',
@@ -88,42 +87,17 @@ export const eventCodes = {
   MYSQL_DEBUG: 'TMY12I',
   MYSQL_REFRESH: 'TMY13I',
   SQLSERVER_RPC_REQUEST: 'TMS00I',
-  CASSANDRA_BATCH_EVENT: 'TCA01I',
-  CASSANDRA_PREPARE_EVENT: 'TCA02I',
-  CASSANDRA_EXECUTE_EVENT: 'TCA03I',
-  CASSANDRA_REGISTER_EVENT: 'TCA04I',
   ELASTICSEARCH_REQUEST: 'TES00I',
-  ELASTICSEARCH_REQUEST_FAILURE: 'TES00E',
-  OPENSEARCH_REQUEST: 'TOS00I',
-  OPENSEARCH_REQUEST_FAILURE: 'TOS00E',
-  DYNAMODB_REQUEST: 'TDY01I',
-  DYNAMODB_REQUEST_FAILURE: 'TDY01E',
   DESKTOP_SESSION_STARTED: 'TDP00I',
   DESKTOP_SESSION_STARTED_FAILED: 'TDP00W',
   DESKTOP_SESSION_ENDED: 'TDP01I',
   DESKTOP_CLIPBOARD_SEND: 'TDP02I',
   DESKTOP_CLIPBOARD_RECEIVE: 'TDP03I',
-  DESKTOP_SHARED_DIRECTORY_START: 'TDP04I',
-  DESKTOP_SHARED_DIRECTORY_START_FAILURE: 'TDP04W',
-  DESKTOP_SHARED_DIRECTORY_READ: 'TDP05I',
-  DESKTOP_SHARED_DIRECTORY_READ_FAILURE: 'TDP05W',
-  DESKTOP_SHARED_DIRECTORY_WRITE: 'TDP06I',
-  DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE: 'TDP06W',
-  DEVICE_CREATE: 'TV001I',
-  DEVICE_DELETE: 'TV002I',
-  DEVICE_ENROLL_TOKEN_CREATE: 'TV003I',
-  DEVICE_ENROLL_TOKEN_SPENT: 'TV004I',
-  DEVICE_ENROLL: 'TV005I',
-  DEVICE_AUTHENTICATE: 'TV006I',
-  DEVICE_UPDATE: 'TV007I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
   GITHUB_CONNECTOR_DELETED: 'T8001I',
   KUBE_REQUEST: 'T3009I',
-  KUBE_CREATED: 'T3010I',
-  KUBE_UPDATED: 'T3011I',
-  KUBE_DELETED: 'T3012I',
   LOCK_CREATED: 'TLK00I',
   LOCK_DELETED: 'TLK01I',
   MFA_DEVICE_ADD: 'T1006I',
@@ -218,19 +192,6 @@ export const eventCodes = {
   X11_FORWARD_FAILURE: 'T3008W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
-  BOT_JOIN: 'TJ001I',
-  INSTANCE_JOIN: 'TJ002I',
-  LOGIN_RULE_CREATE: 'TLR00I',
-  LOGIN_RULE_DELETE: 'TLR01I',
-  SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
-  SAML_IDP_SERVICE_PROVIDER_CREATE: 'TSI001I',
-  SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE: 'TSI001W',
-  SAML_IDP_SERVICE_PROVIDER_UPDATE: 'TSI002I',
-  SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE: 'TSI002W',
-  SAML_IDP_SERVICE_PROVIDER_DELETE: 'TSI003I',
-  SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE: 'TSI003W',
-  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL: 'TSI004I',
-  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE: 'TSI004W',
 } as const;
 
 /**
@@ -513,13 +474,6 @@ export type RawEvents = {
       app_name: string;
     }
   >;
-  [eventCodes.APP_SESSION_DYNAMODB_REQUEST]: RawEvent<
-    typeof eventCodes.APP_SESSION_DYNAMODB_REQUEST,
-    {
-      target: string;
-      app_name: string;
-    }
-  >;
   [eventCodes.SUBSYSTEM]: RawEvent<
     typeof eventCodes.SUBSYSTEM,
     {
@@ -594,24 +548,6 @@ export type RawEvents = {
       verb: string;
       request_path: string;
       response_code: string;
-    }
-  >;
-  [eventCodes.KUBE_CREATED]: RawEvent<
-    typeof eventCodes.KUBE_CREATED,
-    {
-      name: string;
-    }
-  >;
-  [eventCodes.KUBE_UPDATED]: RawEvent<
-    typeof eventCodes.KUBE_UPDATED,
-    {
-      name: string;
-    }
-  >;
-  [eventCodes.KUBE_DELETED]: RawEvent<
-    typeof eventCodes.KUBE_DELETED,
-    {
-      name: string;
     }
   >;
   [eventCodes.DATABASE_SESSION_STARTED]: RawEvent<
@@ -845,43 +781,6 @@ export type RawEvents = {
       proc_name: string;
     }
   >;
-  [eventCodes.CASSANDRA_BATCH_EVENT]: RawEvent<
-    typeof eventCodes.CASSANDRA_BATCH_EVENT,
-    {
-      name: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
-    }
-  >;
-  [eventCodes.CASSANDRA_PREPARE_EVENT]: RawEvent<
-    typeof eventCodes.CASSANDRA_PREPARE_EVENT,
-    {
-      name: string;
-      query: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
-    }
-  >;
-  [eventCodes.CASSANDRA_EXECUTE_EVENT]: RawEvent<
-    typeof eventCodes.CASSANDRA_EXECUTE_EVENT,
-    {
-      name: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
-    }
-  >;
-  [eventCodes.CASSANDRA_REGISTER_EVENT]: RawEvent<
-    typeof eventCodes.CASSANDRA_REGISTER_EVENT,
-    {
-      name: string;
-      db_service: string;
-      db_name: string;
-      db_user: string;
-    }
-  >;
   [eventCodes.ELASTICSEARCH_REQUEST]: RawEvent<
     typeof eventCodes.ELASTICSEARCH_REQUEST,
     {
@@ -892,56 +791,6 @@ export type RawEvents = {
       target: string;
       query: string;
       path: string;
-    }
-  >;
-  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: RawEvent<
-    typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE,
-    {
-      name: string;
-      db_service: string;
-      db_name: string;
-      category: number;
-      target: string;
-      query: string;
-      path: string;
-    }
-  >;
-  [eventCodes.OPENSEARCH_REQUEST]: RawEvent<
-    typeof eventCodes.OPENSEARCH_REQUEST,
-    {
-      name: string;
-      db_service: string;
-      db_name: string;
-      category: number;
-      target: string;
-      query: string;
-      path: string;
-    }
-  >;
-  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: RawEvent<
-    typeof eventCodes.OPENSEARCH_REQUEST_FAILURE,
-    {
-      name: string;
-      db_service: string;
-      db_name: string;
-      category: number;
-      target: string;
-      query: string;
-      path: string;
-    }
-  >;
-  [eventCodes.DYNAMODB_REQUEST]: RawEvent<
-    typeof eventCodes.DYNAMODB_REQUEST,
-    {
-      target: string;
-      db_service: string;
-    }
-  >;
-  [eventCodes.DYNAMODB_REQUEST_FAILURE]: RawEvent<
-    typeof eventCodes.DYNAMODB_REQUEST_FAILURE,
-    {
-      target: string;
-      db_service: string;
     }
   >;
   [eventCodes.MFA_DEVICE_ADD]: RawEvent<
@@ -1023,75 +872,6 @@ export type RawEvents = {
       windows_domain: string;
     }
   >;
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_START]: RawEvent<
-    typeof eventCodes.DESKTOP_SHARED_DIRECTORY_START,
-    {
-      desktop_addr: string;
-      directory_name: string;
-      windows_domain: string;
-    }
-  >;
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE]: RawEvent<
-    typeof eventCodes.DESKTOP_SHARED_DIRECTORY_START_FAILURE,
-    {
-      desktop_addr: string;
-      directory_name: string;
-      windows_domain: string;
-    }
-  >;
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ]: RawEvent<
-    typeof eventCodes.DESKTOP_SHARED_DIRECTORY_READ,
-    {
-      desktop_addr: string;
-      directory_name: string;
-      windows_domain: string;
-      file_path: string;
-      length: number;
-    }
-  >;
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE]: RawEvent<
-    typeof eventCodes.DESKTOP_SHARED_DIRECTORY_READ_FAILURE,
-    {
-      desktop_addr: string;
-      directory_name: string;
-      windows_domain: string;
-      file_path: string;
-      length: number;
-    }
-  >;
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE]: RawEvent<
-    typeof eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE,
-    {
-      desktop_addr: string;
-      directory_name: string;
-      windows_domain: string;
-      file_path: string;
-      length: number;
-    }
-  >;
-  [eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE]: RawEvent<
-    typeof eventCodes.DESKTOP_SHARED_DIRECTORY_WRITE_FAILURE,
-    {
-      desktop_addr: string;
-      directory_name: string;
-      windows_domain: string;
-      file_path: string;
-      length: number;
-    }
-  >;
-  [eventCodes.DEVICE_CREATE]: RawDeviceEvent<typeof eventCodes.DEVICE_CREATE>;
-  [eventCodes.DEVICE_DELETE]: RawDeviceEvent<typeof eventCodes.DEVICE_DELETE>;
-  [eventCodes.DEVICE_ENROLL]: RawDeviceEvent<typeof eventCodes.DEVICE_ENROLL>;
-  [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: RawDeviceEvent<
-    typeof eventCodes.DEVICE_ENROLL_TOKEN_CREATE
-  >;
-  [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: RawDeviceEvent<
-    typeof eventCodes.DEVICE_ENROLL_TOKEN_SPENT
-  >;
-  [eventCodes.DEVICE_AUTHENTICATE]: RawDeviceEvent<
-    typeof eventCodes.DEVICE_AUTHENTICATE
-  >;
-  [eventCodes.DEVICE_UPDATE]: RawDeviceEvent<typeof eventCodes.DEVICE_UPDATE>;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -1150,99 +930,6 @@ export type RawEvents = {
       exit_code: number;
     }
   >;
-  [eventCodes.BOT_JOIN]: RawEvent<
-    typeof eventCodes.BOT_JOIN,
-    {
-      bot_name: string;
-      method: string;
-    }
-  >;
-  [eventCodes.INSTANCE_JOIN]: RawEvent<
-    typeof eventCodes.INSTANCE_JOIN,
-    {
-      node_name: string;
-      method: string;
-      role: string;
-    }
-  >;
-  [eventCodes.LOGIN_RULE_CREATE]: RawEvent<
-    typeof eventCodes.LOGIN_RULE_CREATE,
-    HasName
-  >;
-  [eventCodes.LOGIN_RULE_DELETE]: RawEvent<
-    typeof eventCodes.LOGIN_RULE_DELETE,
-    HasName
-  >;
-  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: RawEvent<
-    typeof eventCodes.SAML_IDP_AUTH_ATTEMPT,
-    {
-      success: boolean;
-      service_provider_entity_id: string;
-      service_provider_shortcut: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE,
-    {
-      name: string;
-      updated_by: string;
-      service_provider_entity_id: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE,
-    {
-      name: string;
-      updated_by: string;
-      service_provider_entity_id: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE,
-    {
-      name: string;
-      updated_by: string;
-      service_provider_entity_id: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE,
-    {
-      name: string;
-      updated_by: string;
-      service_provider_entity_id: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE,
-    {
-      name: string;
-      updated_by: string;
-      service_provider_entity_id: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE,
-    {
-      name: string;
-      updated_by: string;
-      service_provider_entity_id: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL,
-    {
-      name: string;
-      updated_by: string;
-    }
-  >;
-  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: RawEvent<
-    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE,
-    {
-      name: string;
-      updated_by: string;
-    }
-  >;
 };
 
 /**
@@ -1284,15 +971,6 @@ type RawEventData<T extends EventCode> = RawEvent<
     sid: string;
     tx: number;
     user: string;
-  }
->;
-
-type RawDeviceEvent<T extends EventCode> = RawEvent<
-  T,
-  {
-    device: { asset_tag: string; device_id: string; os_type: number };
-    status: { success: boolean };
-    user: { user: string };
   }
 >;
 

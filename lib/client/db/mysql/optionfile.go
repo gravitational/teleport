@@ -17,6 +17,7 @@ limitations under the License.
 package mysql
 
 import (
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -24,7 +25,6 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
 
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client/db/profile"
 )
 
@@ -40,7 +40,7 @@ type OptionFile struct {
 
 func DefaultConfigPath() (string, error) {
 	// Default location is .my.cnf file in the user's home directory.
-	usr, err := utils.CurrentUser()
+	usr, err := user.Current()
 	if err != nil {
 		return "", trace.ConvertSystemError(err)
 	}

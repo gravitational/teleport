@@ -26,6 +26,7 @@ export const Connected = () => {
   const ctx = new ConsoleCtx();
   const tty = ctx.createTty(session);
   tty.connect = () => null;
+  ctx.fetchSshSession = () => Promise.resolve(session);
   ctx.createTty = () => tty;
 
   return (
@@ -39,6 +40,7 @@ export const NotFound = () => {
   const ctx = new ConsoleCtx();
   const tty = ctx.createTty(session);
   tty.connect = () => null;
+  ctx.fetchSshSession = () => Promise.reject(new Error('server error'));
   ctx.createTty = () => tty;
 
   const disconnectedDoc = {
@@ -57,6 +59,7 @@ export const ServerError = () => {
   const ctx = new ConsoleCtx();
   const tty = ctx.createTty(session);
   tty.connect = () => null;
+  ctx.createSshSession = () => Promise.reject(new Error('server error'));
   ctx.createTty = () => tty;
   const noSidDoc = {
     ...doc,
@@ -98,6 +101,4 @@ const session: Session = {
   clusterId: '',
   parties: [],
   addr: '1.1.1.1:1111',
-  participantModes: ['observer', 'moderator', 'peer'],
-  moderated: false,
 };

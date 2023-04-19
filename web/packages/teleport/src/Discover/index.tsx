@@ -14,5 +14,4 @@
  * limitations under the License.
  */
 
-// export as default for use with React.lazy
-export { Discover as default } from './Discover';
+export { Discover } from './Discover';
