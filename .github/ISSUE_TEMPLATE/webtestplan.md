@@ -1,7 +1,7 @@
 ---
-name: Test Plan
-about: Manual test plan for Teleport major releases
-title: "Teleport X Web Test Plan"
+name: Web Test Plan
+about: Web UI manual test plan for Teleport major releases
+title: "Teleport Web Test Plan"
 labels: testplan
 ---
 

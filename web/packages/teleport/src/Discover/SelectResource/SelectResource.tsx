@@ -15,13 +15,14 @@
  */
 
 import React, { useState } from 'react';
-import { useLocation } from 'react-router';
+import { useLocation, useHistory } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Text, Popover, Link } from 'design';
+import { Box, Flex, Text, Link } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
+import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
 import {
   ResourceKind,
@@ -44,6 +45,7 @@ interface SelectResourceProps {
 export function SelectResource(props: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<{ entity: AddButtonResourceKind }>();
+  const history = useHistory();
 
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
@@ -60,6 +62,11 @@ export function SelectResource(props: SelectResourceProps) {
     });
     setResources(foundResources);
     setSearch(s);
+  }
+
+  function onClearSearch() {
+    history.replace({ state: {} }); // Clear any loc state.
+    onSearch('');
   }
 
   React.useEffect(() => {
@@ -115,7 +122,7 @@ export function SelectResource(props: SelectResourceProps) {
             max={100}
           />
         </InputWrapper>
-        {search && <ClearSearch onClick={() => onSearch('')} />}
+        {search && <ClearSearch onClick={onClearSearch} />}
       </Box>
       {resources.length > 0 && (
         <>
@@ -123,8 +130,6 @@ export function SelectResource(props: SelectResourceProps) {
             {resources.map((r, index) => {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
-              const selectResourceFn =
-                r.unguidedLink || !r.hasAccess ? null : () => props.onSelect(r);
 
               // There can be two types of click behavior with the resource cards:
               //  1) If the resource has no interactive UI flow ("unguided"),
@@ -140,14 +145,14 @@ export function SelectResource(props: SelectResourceProps) {
                   as={r.unguidedLink ? Link : null}
                   href={r.hasAccess ? r.unguidedLink : null}
                   target={r.unguidedLink ? '_blank' : null}
-                  onClick={selectResourceFn}
+                  onClick={() => r.hasAccess && props.onSelect(r)}
                   className={r.unguidedLink ? 'unguided' : ''}
                 >
                   {!r.unguidedLink && r.hasAccess && (
                     <BadgeGuided>Guided</BadgeGuided>
                   )}
                   {!r.hasAccess && (
-                    <ToolTip
+                    <ToolTipNoPermBadge
                       children={
                         <PermissionsErrorMessage resourceKind={r.kind} />
                       }
@@ -159,12 +164,12 @@ export function SelectResource(props: SelectResourceProps) {
                     </Flex>
                     <Box>
                       {pretitle && (
-                        <Text fontSize="12px" color="#a8afb2">
+                        <Text fontSize="12px" color="text.secondary">
                           {pretitle}
                         </Text>
                       )}
                       {r.unguidedLink ? (
-                        <Text bold color="white">
+                        <Text bold color="text.primary">
                           {title}
                         </Text>
                       ) : (
@@ -213,67 +218,16 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
         ml={1}
         width="18px"
         height="18px"
-        bg="#2d3762"
         borderRadius="4px"
         textAlign="center"
+        css={`
+          background: ${props => props.theme.colors.error.main};
+        `}
       >
-        <Icons.Close fontSize="15px" />
+        <Icons.Close fontSize="18px" />
       </Box>
       <Text>Clear search</Text>
     </Flex>
-  );
-};
-
-const ToolTip: React.FC = ({ children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <div
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-        css={`
-          position: absolute;
-          background: red;
-          padding: 0px 6px;
-          border-top-right-radius: 8px;
-          border-bottom-left-radius: 8px;
-          top: 0px;
-          right: 0px;
-          font-size: 10px;
-        `}
-      >
-        Lacking Permissions
-      </div>
-      <Popover
-        modalCss={() => `pointer-events: none;`}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={3} py={2}>
-          {children}
-        </StyledOnHover>
-      </Popover>
-    </>
   );
 };
 
@@ -362,12 +316,12 @@ const ResourceCard = styled.div`
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: ${props => props.theme.colors.spotBackground[0]};
   transition: all 0.3s;
 
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: ${props => props.theme.colors.text.primary};
   cursor: pointer;
   height: 48px;
 
@@ -378,13 +332,14 @@ const ResourceCard = styled.div`
   }
 
   :hover {
-    background: rgba(255, 255, 255, 0.09);
+    background: ${props => props.theme.colors.spotBackground[1]};
   }
 `;
 
 const BadgeGuided = styled.div`
   position: absolute;
-  background: rgb(81, 48, 201);
+  background: ${props => props.theme.colors.brand};
+  color: ${props => props.theme.colors.text.primaryInverse};
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -393,20 +348,14 @@ const BadgeGuided = styled.div`
   font-size: 10px;
 `;
 
-const StyledOnHover = styled(Text)`
-  background-color: white;
-  color: black;
-  max-width: 350px;
-`;
-
 const InputWrapper = styled.div`
   border-radius: 200px;
   height: 40px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
   &:hover,
   &:focus,
   &:active {
-    background: ${props => props.theme.colors.levels.surfaceSecondary};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
@@ -422,9 +371,4 @@ const StyledInput = styled.input`
   margin-right: ${props => props.theme.space[3]}px;
   margin-bottom: ${props => props.theme.space[2]}px;
   padding: ${props => props.theme.space[3]}px;
-  opacity: 0.8;
-  &:placeholder {
-    color: white;
-    opacity: 0.6;
-  }
 `;

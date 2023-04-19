@@ -36,6 +36,7 @@ import {
 import {
   DATABASES,
   DATABASES_UNGUIDED,
+  DATABASES_UNGUIDED_DOC,
 } from 'teleport/Discover/SelectResource/databases';
 
 import { ResourceKind } from './Shared';
@@ -103,7 +104,9 @@ describe('discover', () => {
       create('database', getAcl());
 
       expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
-        DATABASES.length + DATABASES_UNGUIDED.length
+        DATABASES.length +
+          DATABASES_UNGUIDED.length +
+          DATABASES_UNGUIDED_DOC.length
       );
     });
   });

@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/plugins/v1/plugin_service.proto
 
-package v1
+package pluginsv1
 
 import (
 	context "context"

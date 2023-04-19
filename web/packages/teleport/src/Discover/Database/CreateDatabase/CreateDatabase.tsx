@@ -103,7 +103,7 @@ export function CreateDatabaseView({
     }
 
     let awsRds: AwsRds;
-    if (dbLocation === DatabaseLocation.AWS) {
+    if (dbLocation === DatabaseLocation.Aws) {
       awsRds = {
         accountId: awsAccountId,
         resourceId: awsResourceId,
@@ -119,7 +119,7 @@ export function CreateDatabaseView({
     });
   }
 
-  const isAws = dbLocation === DatabaseLocation.AWS;
+  const isAws = dbLocation === DatabaseLocation.Aws;
   return (
     <Validation>
       {({ validator }) => (
@@ -204,7 +204,7 @@ export function CreateDatabaseView({
                       width="30%"
                     />
                   </Flex>
-                  {dbLocation === DatabaseLocation.AWS && (
+                  {dbLocation === DatabaseLocation.Aws && (
                     <>
                       <Box width="500px">
                         <FieldInput
@@ -322,7 +322,7 @@ const CreateDatabaseDialog = ({
               Database Register Failed
             </Text>
             <Text mb={5}>
-              <Icons.Warning ml={1} mr={2} color="danger" />
+              <Icons.Warning ml={1} mr={2} color="error.main" />
               Error: {attempt.statusText}
             </Text>
             <Flex>

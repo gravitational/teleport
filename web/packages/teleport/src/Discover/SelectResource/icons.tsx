@@ -21,6 +21,7 @@ import * as Icons from 'design/Icon';
 import aws from './assets/aws.png';
 import azure from './assets/azure.png';
 import cockroach from './assets/cockroach.png';
+import database from './assets/database.png';
 import gcp from './assets/gcp.png';
 import mongo from './assets/mongo.png';
 import windows from './assets/windows.png';
@@ -42,6 +43,7 @@ import application from './assets/application.png';
 export const icons = {
   Apple: <Icons.Apple fontSize={22} />,
   Application: <Image src={application} width="23.9px" height="24px" />,
+  Database: <Image src={database} width="23.9px" height="24px" />,
   Aws: <Image src={aws} width="24.65px" height="14.36px" />,
   Azure: <Image src={azure} width="23.9px" height="24px" />,
   Cockroach: <Image src={cockroach} width="23.9px" height="24px" />,

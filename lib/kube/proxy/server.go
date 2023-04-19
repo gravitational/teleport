@@ -121,7 +121,11 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		c.Log = logrus.New()
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
 	}
 	if c.ConnectedProxyGetter == nil {
 		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
@@ -200,6 +204,12 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	authMiddleware := &auth.Middleware{
 		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
+		// EnableCredentialsForwarding is set to true to allow the proxy to forward
+		// the client identity to the target service using headers instead of TLS
+		// certificates. This is required for the kube service and leaf cluster proxy
+		// to be able to replace the client identity with the header payload when
+		// the request is forwarded from a Teleport Proxy.
+		EnableCredentialsForwarding: true,
 	}
 	authMiddleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware

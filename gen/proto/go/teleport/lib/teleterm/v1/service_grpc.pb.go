@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/lib/teleterm/v1/service.proto
 
-package v1
+package teletermv1
 
 import (
 	context "context"

@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/integration/v1/integration_service.proto
 
-package v1
+package integrationv1
 
 import (
 	context "context"

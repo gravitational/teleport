@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
@@ -29,6 +30,7 @@ import (
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,24 +38,38 @@ import (
 
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
-	DialSite(ctx context.Context, clusterName string) (net.Conn, error)
-	DialHost(ctx context.Context, from net.Addr, host, port, clusterName string, accessChecker services.AccessChecker, agentGetter teleagent.Getter) (net.Conn, error)
+	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error)
+}
+
+// ConnMonitor monitors authorized connnections and terminates them when
+// session controls dictate so.
+type ConnectionMonitor interface {
+	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error)
 }
 
 // ServerConfig holds creation parameters for Service.
 type ServerConfig struct {
 	// FIPS indicates whether the cluster if configured
-	// to run in FIPS mode
+	// to run in FIPS mode.
 	FIPS bool
-	// Logger provides a mechanism to log output
+	// Logger provides a mechanism to log output.
 	Logger logrus.FieldLogger
-	// Dialer is used to establish remote connections
+	// Dialer is used to establish remote connections.
 	Dialer Dialer
+	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
+	SignerFn func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error)
+	// ConnectionMonitor is used to monitor the connection for activity and terminate it
+	// when conditions are met.
+	ConnectionMonitor ConnectionMonitor
+	// LocalAddr is the local address of the service.
+	LocalAddr net.Addr
 
 	// agentGetterFn used by tests to serve the agent directly
 	agentGetterFn func(rw io.ReadWriter) teleagent.Getter
 
-	accessCheckerFn func(info credentials.AuthInfo) (services.AccessChecker, error)
+	// authzContextFn used by tests to inject an access checker
+	authzContextFn func(info credentials.AuthInfo) (*authz.Context, error)
 }
 
 // CheckAndSetDefaults ensures required parameters are set
@@ -61,6 +77,10 @@ type ServerConfig struct {
 func (c *ServerConfig) CheckAndSetDefaults() error {
 	if c.Dialer == nil {
 		return trace.BadParameter("parameter Dialer required")
+	}
+
+	if c.LocalAddr == nil {
+		return trace.BadParameter("parameter LocalAddr required")
 	}
 
 	if c.Logger == nil {
@@ -75,14 +95,14 @@ func (c *ServerConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	if c.accessCheckerFn == nil {
-		c.accessCheckerFn = func(info credentials.AuthInfo) (services.AccessChecker, error) {
+	if c.authzContextFn == nil {
+		c.authzContextFn = func(info credentials.AuthInfo) (*authz.Context, error) {
 			identityInfo, ok := info.(auth.IdentityInfo)
 			if !ok {
 				return nil, trace.AccessDenied("client is not authenticated")
 			}
 
-			return identityInfo.AuthContext.Checker, nil
+			return identityInfo.AuthContext, nil
 		}
 	}
 
@@ -120,7 +140,13 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.Wrap(err, "failed receiving first frame")
 	}
 
-	conn, err := s.cfg.Dialer.DialSite(stream.Context(), req.Cluster)
+	ctx := stream.Context()
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return trace.BadParameter("unable to find peer")
+	}
+
+	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, s.cfg.LocalAddr)
 	if err != nil {
 		return trace.Wrap(err, "failed dialing cluster %q", req.Cluster)
 	}
@@ -139,7 +165,7 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.Wrap(err, "failed constructing streamer")
 	}
 
-	return trace.Wrap(utils.ProxyConn(stream.Context(), conn, streamRW))
+	return trace.Wrap(utils.ProxyConn(ctx, conn, streamRW))
 }
 
 // clusterStream implements the [streamutils.Source] interface
@@ -168,7 +194,7 @@ func (c clusterStream) Send(frame []byte) error {
 // ProxySSH establishes a connection to a host and proxies both the SSH and SSH
 // Agent protocol over the stream. The first request from the client must contain
 // a valid dial target before the connection can be established.
-func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer) error {
+func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer) (err error) {
 	ctx := stream.Context()
 
 	p, ok := peer.FromContext(ctx)
@@ -176,7 +202,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.BadParameter("unable to find peer")
 	}
 
-	checker, err := s.cfg.accessCheckerFn(p.AuthInfo)
+	authzContext, err := s.cfg.authzContextFn(p.AuthInfo)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -235,15 +261,34 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 	defer agentStreamRW.Close()
 
-	conn, err := s.cfg.Dialer.DialHost(ctx, p.Addr, host, port, req.DialTarget.Cluster, checker, s.cfg.agentGetterFn(agentStreamRW))
-	if err != nil {
-		return trace.Wrap(err, "failed to dial target host")
-	}
-
 	// create a reader/writer for SSH protocol
 	sshStreamRW, err := streamutils.NewReadWriter(sshStream)
 	if err != nil {
 		return trace.Wrap(err, "failed constructing ssh streamer")
+	}
+
+	signer := s.cfg.SignerFn(authzContext)
+	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, s.cfg.LocalAddr, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	if err != nil {
+		return trace.Wrap(err, "failed to dial target host")
+	}
+
+	// ensure the connection to the target host
+	// gets closed when exiting
+	defer func() {
+		hostConn.Close()
+	}()
+
+	targetAddr, err := utils.ParseAddr(req.DialTarget.HostPort)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// monitor the user connection
+	userConn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
+	monitorCtx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, userConn)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// send back the cluster details to alert the other side that
@@ -254,8 +299,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "failed sending cluster details ")
 	}
 
-	// copy data to/from the connection and ssh stream
-	return trace.Wrap(utils.ProxyConn(ctx, conn, sshStreamRW))
+	// copy data to/from the host/user
+	return trace.Wrap(utils.ProxyConn(monitorCtx, hostConn, userConn))
 }
 
 // sshStream implements the [streamutils.Source] interface

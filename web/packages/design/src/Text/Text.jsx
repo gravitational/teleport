@@ -24,7 +24,6 @@ import {
   textAlign,
   fontWeight,
 } from 'design/system';
-import theme from 'design/theme';
 
 const Text = styled.div`
   overflow: hidden;
@@ -47,7 +46,6 @@ Text.propTypes = {
 };
 
 Text.defaultProps = {
-  theme: theme,
   m: 0,
 };
 

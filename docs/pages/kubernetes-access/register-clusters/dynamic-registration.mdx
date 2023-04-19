@@ -32,7 +32,7 @@ registration, then create, list, update, and delete Kubernetes clusters via
   permissions to create namespaces, secrets, service accounts, cluster roles,
   and cluster role bindings in the cluster.
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Set up the Teleport Kubernetes Service
 
@@ -51,22 +51,8 @@ Establish trust between your Teleport cluster and your new Kubernetes Service
 instance by creating a join token:
 
 ```code
-$ tctl nodes add --roles=kube
-The invite token: (=presets.tokens.first=)
-This token will expire in 30 minutes.
-
-Run this on the new node to join the cluster:
-
-> teleport start \
-   --roles=kube \
-   --token=(=presets.tokens.first=) \
-   --ca-pin=(=presets.ca_pin=) \
-   --auth-server=192.0.2.255:3025
-
-Please note:
-
-  - This invitation token will expire in 30 minutes
-  - 192.0.2.255:3025 must be reachable from the new node
+$ tctl tokens add --type=kube --ttl=1h --format=text
+(=presets.tokens.first=)
 ```
 
 Copy the token and keep it somewhere safe so you can use it when running the
@@ -150,28 +136,7 @@ will watch for them.
 
 ### Run the Teleport Kubernetes Service
 
-On the host where you will run the Teleport Kubernetes Service, execute the
-following command, depending on whether you installed Teleport using a package
-manager or via a TAR archive:
-
-<Tabs>
-<TabItem label="Package Manager">
-
-```code
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-<TabItem label="TAR archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport; 
-$ sudo systemctl start teleport; 
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Kubernetes Service"!)
 
 ## Step 2/3. Authorize your user 
 

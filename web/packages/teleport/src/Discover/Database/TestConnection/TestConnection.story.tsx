@@ -35,7 +35,7 @@ export const InitMySql = () => (
 
 export const InitPostgres = () => (
   <MemoryRouter>
-    <TestConnectionView {...props} dbEngine={DatabaseEngine.PostgreSQL} />
+    <TestConnectionView {...props} dbEngine={DatabaseEngine.Postgres} />
   </MemoryRouter>
 );
 
@@ -62,7 +62,7 @@ const props: State = {
     users: ['user1', 'user2'],
     hostname: 'db-hostname',
   },
-  dbEngine: DatabaseEngine.MySQL,
+  dbEngine: DatabaseEngine.MySql,
   showMfaDialog: false,
   cancelMfaDialog: () => null,
 };

@@ -21,6 +21,7 @@ package authclient
 import (
 	"context"
 	"crypto/tls"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/gravitational/teleport/api/breaker"
 	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/utils"
@@ -45,6 +47,8 @@ type Config struct {
 	Log logrus.FieldLogger
 	// CircuitBreakerConfig is the configuration for the auth client circuit breaker.
 	CircuitBreakerConfig breaker.Config
+	// DialTimeout determines how long to wait for dialing to succeed before aborting.
+	DialTimeout time.Duration
 }
 
 // Connect creates a valid client connection to the auth service.  It may
@@ -60,6 +64,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		},
 		CircuitBreakerConfig:     cfg.CircuitBreakerConfig,
 		InsecureAddressDiscovery: cfg.TLS.InsecureSkipVerify,
+		DialTimeout:              cfg.DialTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "failed direct dial to auth server: %v", err)
@@ -82,7 +87,13 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 		// TODO(nic): this logic should be implemented once and reused in IoT
 		// nodes.
 
-		resolver := reversetunnel.WebClientResolver(cfg.AuthServers, cfg.TLS.InsecureSkipVerify)
+		resolver := reversetunnel.WebClientResolver(&webclient.Config{
+			Context:   ctx,
+			ProxyAddr: cfg.AuthServers[0].String(),
+			Insecure:  cfg.TLS.InsecureSkipVerify,
+			Timeout:   cfg.DialTimeout,
+		})
+
 		resolver, err = reversetunnel.CachingResolver(ctx, resolver, nil /* clock */)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -95,6 +106,7 @@ func Connect(ctx context.Context, cfg *Config) (auth.ClientI, error) {
 			ClientConfig:          cfg.SSH,
 			Log:                   cfg.Log,
 			InsecureSkipTLSVerify: cfg.TLS.InsecureSkipVerify,
+			ClusterCAs:            cfg.TLS.RootCAs,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
