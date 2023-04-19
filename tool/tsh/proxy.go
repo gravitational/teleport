@@ -197,6 +197,13 @@ func sshProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxyPara
 		HostKeyCallback: tc.HostKeyCallback,
 	})
 	if err != nil {
+		if utils.IsHandshakeFailedError(err) {
+			// TODO(codingllama): Improve error message below for device trust.
+			//  An alternative we have here is querying the cluster to check if device
+			//  trust is required, a check similar to `IsMFARequired`.
+			log.Infof("Access denied to %v connecting to %v: %v", tc.HostLogin, remoteProxyAddr, err)
+			return trace.AccessDenied(`access denied to %v connecting to %v`, tc.HostLogin, remoteProxyAddr)
+		}
 		return trace.Wrap(err)
 	}
 	defer client.Close()
