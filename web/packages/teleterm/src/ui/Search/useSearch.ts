@@ -43,7 +43,6 @@ import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
  */
 export function useResourceSearch() {
   const { clustersService, resourcesService } = useAppContext();
-  clustersService.useState();
 
   return useCallback(
     async (
@@ -125,8 +124,6 @@ export function useResourceSearch() {
  */
 export function useFilterSearch() {
   const { clustersService, workspacesService } = useAppContext();
-  clustersService.useState();
-  workspacesService.useState();
 
   return useCallback(
     (search: string, filters: SearchFilter[]): FilterSearchResult[] => {
