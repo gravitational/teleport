@@ -206,26 +206,6 @@ func tagPipelines() []pipeline {
 		},
 	}))
 
-	ps = append(ps, ghaBuildPipeline(ghaBuildType{
-		buildType:    buildType{os: "linux", fips: false},
-		trigger:      triggerTag,
-		pipelineName: "build-teleport-oci-distroless-images",
-		dependsOn: []string{
-			tagCleanupPipelineName,
-			"build-linux-amd64-deb",
-			"build-linux-arm64-deb",
-		},
-		workflows: []ghaWorkflow{
-			{
-				name:              "release-teleport-oci-distroless.yml",
-				srcRefVar:         "DRONE_TAG",
-				ref:               "${DRONE_TAG}",
-				timeout:           60 * time.Minute,
-				shouldTagWorkflow: true,
-			},
-		},
-	}))
-
 	// Only amd64 Windows is supported for now.
 	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
