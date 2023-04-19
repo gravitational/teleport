@@ -9481,64 +9481,6 @@ image_pull_secrets:
 ################################################
 # Generated using dronegen, do not edit by hand!
 # Use 'make dronegen' to update.
-# Generated at dronegen/gha.go (main.ghaMultiBuildPipeline)
-################################################
-
-kind: pipeline
-type: kubernetes
-name: build-teleport-kube-agent-updater-oci-images
-trigger:
-  event:
-    include:
-    - tag
-  ref:
-    include:
-    - refs/tags/v*
-  repo:
-    include:
-    - gravitational/*
-workspace:
-  path: /go
-clone:
-  disable: true
-steps:
-- name: Check out code
-  image: docker:git
-  pull: if-not-exists
-  commands:
-  - mkdir -pv "/go/src/github.com/gravitational/teleport"
-  - cd "/go/src/github.com/gravitational/teleport"
-  - git init
-  - git remote add origin ${DRONE_REMOTE_URL}
-  - git fetch origin --tags
-  - git checkout -qf "${DRONE_COMMIT_SHA}"
-  - mkdir -m 0700 /root/.ssh && echo "$GITHUB_PRIVATE_KEY" > /root/.ssh/id_rsa &&
-    chmod 600 /root/.ssh/id_rsa
-  - ssh-keyscan -H github.com > /root/.ssh/known_hosts 2>/dev/null && chmod 600 /root/.ssh/known_hosts
-  - git submodule update --init e
-  - mkdir -pv /go/cache
-  - rm -f /root/.ssh/id_rsa
-  environment:
-    GITHUB_PRIVATE_KEY:
-      from_secret: GITHUB_PRIVATE_KEY
-- name: Delegate build to GitHub
-  image: golang:1.18-alpine
-  pull: if-not-exists
-  commands:
-  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
-  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
-    -tag-workflow -timeout 1h0m0s -workflow release-teleport-kube-agent-updater-oci.yml
-    -workflow-ref=${DRONE_TAG} -input oss-teleport-repo=${DRONE_REPO} -input oss-teleport-ref=${DRONE_TAG} '
-  environment:
-    GHA_APP_KEY:
-      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
-image_pull_secrets:
-- DOCKERHUB_CREDENTIALS
-
----
-################################################
-# Generated using dronegen, do not edit by hand!
-# Use 'make dronegen' to update.
 # Generated at dronegen/container_images_release_version.go (main.(*ReleaseVersion).buildVersionPipeline)
 ################################################
 
@@ -20887,6 +20829,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 0a1bdc076d52059f740d8a3734b6ab4a754fd881a42e6c3f14e09a642b28a3df
+hmac: 6a45d6359c94dbfa6203ce90f99802be74c785036e52054ae2462d05fa68f606
 
 ...
