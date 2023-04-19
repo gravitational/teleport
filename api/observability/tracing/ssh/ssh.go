@@ -69,9 +69,9 @@ type FileTransferRequestReq struct {
 	Filename string
 }
 
-// FileTransferResponseReq contains parameters used to approve or deny an active
+// FileTransferDecisionReq contains parameters used to approve or deny an active
 // file transfer request on the SSH server
-type FileTransferResponseReq struct {
+type FileTransferDecisionReq struct {
 	// RequestID is the ID of the file transfer request being responded to
 	RequestID string
 	// Approved is true if approved, false if denied.

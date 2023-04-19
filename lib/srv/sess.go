@@ -385,9 +385,16 @@ func (s *SessionRegistry) isApprovedFileTransfer(scx *ServerContext) (bool, erro
 type FileTransferRequestEvent string
 
 const (
-	FileTransferUpdate   FileTransferRequestEvent = "file_transfer_request"
+	// FileTransferUpdate is used when a file transfer request is created or updated.
+	// An update will happen if a file transfer request was approved but the policy still isn't fulfilled
+	FileTransferUpdate FileTransferRequestEvent = "file_transfer_request"
+	// FileTransferApproved is used when a file transfer request has received an approval decision
+	// and the policy is fulfilled. This lets the client know that the file transfer is ready to download/upload
+	// and be removed from any pending state.
 	FileTransferApproved FileTransferRequestEvent = "file_transfer_request_approve"
-	FileTransferDenied   FileTransferRequestEvent = "file_transfer_request_deny"
+	// FileTransferDenied is used when a file transfer request is denied. This lets the client know to remove
+	// this file transfer from any pending state.
+	FileTransferDenied FileTransferRequestEvent = "file_transfer_request_deny"
 )
 
 // NotifyFileTransferRequest is called to notify all members of a party that a file transfer request has been created/approved/denied.
@@ -1583,7 +1590,7 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 
 // approveFileTransferRequest will add the approver to the approvers map of a file transfer request and notify the members
 // of the session if the updated approvers map would fulfill the moderated policy.
-func (s *session) approveFileTransferRequest(params *rsession.FileTransferResponseParams, scx *ServerContext) (*fileTransferRequest, error) {
+func (s *session) approveFileTransferRequest(params *rsession.FileTransferDecisionParams, scx *ServerContext) (*fileTransferRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1626,7 +1633,7 @@ func (s *session) approveFileTransferRequest(params *rsession.FileTransferRespon
 // denyFileTransferRequest will deny a file transfer request and remove it from the current session's file transfer requests map.
 // A file transfer request does not persist after deny, so there is no "denied" state. Deny in this case is synonymous with delete
 // with the addition of checking for a valid denier.
-func (s *session) denyFileTransferRequest(params *rsession.FileTransferResponseParams, scx *ServerContext) (*fileTransferRequest, error) {
+func (s *session) denyFileTransferRequest(params *rsession.FileTransferDecisionParams, scx *ServerContext) (*fileTransferRequest, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	fileTransferReq := s.fileTransferRequests[params.RequestID]
