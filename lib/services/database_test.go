@@ -598,6 +598,22 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 	actual, err := NewDatabaseFromRDSV2Instance(instance)
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(expected, actual))
+
+	t.Run("with name override", func(t *testing.T) {
+		newName := "override-1"
+
+		instance.TagList = append(instance.TagList,
+			rdsTypesV2.Tag{
+				Key:   aws.String(labelTeleportDBName),
+				Value: aws.String(newName),
+			},
+		)
+		expected.Metadata.Name = newName
+
+		actual, err := NewDatabaseFromRDSV2Instance(instance)
+		require.NoError(t, err)
+		require.Equal(t, actual.GetName(), newName)
+	})
 }
 
 // TestDatabaseFromRDSInstance tests converting an RDS instance to a database resource.
@@ -844,6 +860,22 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 		actual, err := NewDatabaseFromRDSV2Cluster(cluster)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(expected, actual))
+
+		t.Run("with name override", func(t *testing.T) {
+			newName := "override-1"
+
+			cluster.TagList = append(cluster.TagList,
+				rdsTypesV2.Tag{
+					Key:   aws.String(labelTeleportDBName),
+					Value: aws.String(newName),
+				},
+			)
+			expected.Metadata.Name = newName
+
+			actual, err := NewDatabaseFromRDSV2Cluster(cluster)
+			require.NoError(t, err)
+			require.Equal(t, actual.GetName(), newName)
+		})
 	})
 }
 
