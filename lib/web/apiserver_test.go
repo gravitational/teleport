@@ -3438,6 +3438,8 @@ func authExportTestByEndpoint(t *testing.T, endpointExport, authType string, exp
 }
 
 func TestClusterDatabasesGet(t *testing.T) {
+	t.Parallel()
+
 	env := newWebPack(t, 1)
 
 	proxy := env.proxies[0]
