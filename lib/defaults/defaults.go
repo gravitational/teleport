@@ -665,9 +665,9 @@ const (
 	// WebsocketFileTransferRequest is received when a new file transfer has been requested
 	WebsocketFileTransferRequest = "f"
 
-	// WebsocketFileTransferRequestResponse is received when a response (approve/deny) has been
+	// WebsocketFileTransferDecision is received when a response (approve/deny) has been
 	// made for an existing file transfer request
-	WebsocketFileTransferRequestResponse = "t"
+	WebsocketFileTransferDecision = "t"
 
 	// WebsocketWebauthnChallenge is sending a webauthn challenge.
 	WebsocketWebauthnChallenge = "n"

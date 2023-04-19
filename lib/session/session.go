@@ -124,7 +124,8 @@ type FileTransferRequestParams struct {
 	Approvers []Party `json:"approvers"`
 }
 
-type FileTransferResponseParams struct {
+// FileTransferDecisionParams contains parameters for approving or denying a file transfer request
+type FileTransferDecisionParams struct {
 	// RequestID is the ID of the request being responded to
 	RequestID string `json:"requestId"`
 	// Approved is true if the response approves a file transfer request

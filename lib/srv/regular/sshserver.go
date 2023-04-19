@@ -1601,8 +1601,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		case teleport.ForceTerminateRequest:
 			return s.termHandlers.HandleForceTerminate(ch, req, serverContext)
 		case sshutils.EnvRequest, tracessh.EnvsRequest:
-		case constants.FileTransferResponse:
-			return s.termHandlers.HandleFileTransferRequestResponse(ctx, ch, req, serverContext)
+		case constants.FileTransferDecision:
+			return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 			// We ignore all SSH setenv requests for join-only principals.
 			// SSH will send them anyway but it seems fine to silently drop them.
 		case sshutils.SubsystemRequest:
@@ -1646,8 +1646,8 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 		return s.termHandlers.HandleShell(ctx, ch, req, serverContext)
 	case constants.FileTransferRequest:
 		return s.termHandlers.HandleFileTransferRequest(ctx, ch, req, serverContext)
-	case constants.FileTransferResponse:
-		return s.termHandlers.HandleFileTransferRequestResponse(ctx, ch, req, serverContext)
+	case constants.FileTransferDecision:
+		return s.termHandlers.HandleFileTransferDecision(ctx, ch, req, serverContext)
 	case sshutils.WindowChangeRequest:
 		return s.termHandlers.HandleWinChange(ctx, ch, req, serverContext)
 	case teleport.ForceTerminateRequest:

@@ -395,8 +395,8 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	// communicate over the websocket.
 	resizeC := make(chan *session.TerminalParams, 1)
 	fileTransferRequestC := make(chan *session.FileTransferRequestParams, 1)
-	fileTransferResponseC := make(chan *session.FileTransferResponseParams, 1)
-	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandlers(fileTransferRequestC, fileTransferResponseC))
+	fileTransferDecisionC := make(chan *session.FileTransferDecisionParams, 1)
+	stream, err := NewTerminalStream(ws, WithTerminalStreamResizeHandler(resizeC), WithTerminalStreamFileTransferHandlers(fileTransferRequestC, fileTransferDecisionC))
 	if err != nil {
 		t.log.WithError(err).Info("Failed creating a terminal stream for session")
 		t.writeError(err)
@@ -437,7 +437,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	go t.handleWindowResize(resizeC)
 
 	// process file transfer requests/responses
-	go t.handleFileTransfer(fileTransferRequestC, fileTransferResponseC)
+	go t.handleFileTransfer(fileTransferRequestC, fileTransferDecisionC)
 
 	// Block until the terminal session is complete.
 	<-t.terminalContext.Done()
@@ -859,8 +859,8 @@ func (t *TerminalHandler) streamEvents(tc *client.TeleportClient) {
 }
 
 // handleFileTransfer receives file transfer requests and responses and forwards them
-// to the SSh session
-func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *session.FileTransferRequestParams, fileTransferResponseC <-chan *session.FileTransferResponseParams) {
+// to the SSH session
+func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *session.FileTransferRequestParams, fileTransferDecisionC <-chan *session.FileTransferDecisionParams) {
 	for {
 		select {
 		case <-t.terminalContext.Done():
@@ -871,7 +871,7 @@ func (t *TerminalHandler) handleFileTransfer(fileTransferRequestC <-chan *sessio
 				Location: transferRequest.Location,
 				Filename: transferRequest.Filename,
 			})
-		case transferResponse := <-fileTransferResponseC:
+		case transferResponse := <-fileTransferDecisionC:
 			if transferResponse.Approved {
 				t.sshSession.ApproveFileTransferRequest(t.terminalContext, transferResponse.RequestID)
 			} else {
@@ -982,10 +982,12 @@ func WithTerminalStreamResizeHandler(resizeC chan<- *session.TerminalParams) fun
 	}
 }
 
-func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session.FileTransferRequestParams, fileTransferResponseC chan<- *session.FileTransferResponseParams) func(stream *TerminalStream) {
+// WithTerminalStreamFileTransferHandlers provides two channels, one to subscribe to new file transfer requests, and
+// one to subscribe to file transfer decision requests, such as approve/deny
+func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session.FileTransferRequestParams, fileTransferDecisionC chan<- *session.FileTransferDecisionParams) func(stream *TerminalStream) {
 	return func(stream *TerminalStream) {
 		stream.fileTransferRequestC = fileTransferRequestC
-		stream.fileTransferResponseC = fileTransferResponseC
+		stream.fileTransferDecisionC = fileTransferDecisionC
 	}
 }
 
@@ -1029,9 +1031,9 @@ type TerminalStream struct {
 	resizeC chan<- *session.TerminalParams
 	// fileTransferRequestC is a channel to facilitate requesting a file transfer
 	fileTransferRequestC chan<- *session.FileTransferRequestParams
-	// fileTransferResponseC is a channel to facilitate responding to a file transfer
+	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
 	// with an approval or denial
-	fileTransferResponseC chan<- *session.FileTransferResponseParams
+	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
 
 	// mu protects writes to ws
 	mu sync.Mutex
@@ -1210,8 +1212,8 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		}
 
 		return 0, nil
-	case defaults.WebsocketFileTransferRequestResponse:
-		if t.fileTransferResponseC == nil {
+	case defaults.WebsocketFileTransferDecision:
+		if t.fileTransferDecisionC == nil {
 			return n, nil
 		}
 		var e events.EventFields
@@ -1224,7 +1226,7 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 			return 0, trace.BadParameter("Unable to find approved status on response")
 		}
 		select {
-		case t.fileTransferResponseC <- &session.FileTransferResponseParams{
+		case t.fileTransferDecisionC <- &session.FileTransferDecisionParams{
 			RequestID: e.GetString("requestId"),
 			Approved:  approved,
 		}:
@@ -1273,9 +1275,9 @@ func (t *TerminalStream) Close() error {
 		})
 	}
 
-	if t.fileTransferResponseC != nil {
+	if t.fileTransferDecisionC != nil {
 		t.once.Do(func() {
-			close(t.fileTransferResponseC)
+			close(t.fileTransferDecisionC)
 		})
 	}
 
